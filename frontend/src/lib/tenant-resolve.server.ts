@@ -26,6 +26,7 @@ export interface TenantResolveResponse {
   group_mode?: string;
   operational_overview_scope?: string;
   attendance_edit_scope?: string;
+  parent_request_reason_policy?: string;
   timetable_enabled?: boolean;
   show_timetable_counts?: boolean;
   meal_plan_enabled?: boolean;

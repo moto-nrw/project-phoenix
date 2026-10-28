@@ -566,10 +566,11 @@ const noTenantKicker = {
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
-// greift nur in Seitendateien des Tenant-Portals — Kit- und
-// Komponentendateien dürfen die Fläche definieren, sie sind die Quelle.
+// greift nur in Seitendateien des Tenant- und des Träger-Portals (#5146) —
+// Kit- und Komponentendateien dürfen die Fläche definieren, sie sind die
+// Quelle.
 const TENANT_PAGE_FILE_RE =
-  /app\/\[tenant\]\/\(protected\)\/(?:.*\/)?(page|loading)\.tsx$/;
+  /app\/(?:\[tenant\]\/\(protected\)|traeger)\/(?:.*\/)?(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.

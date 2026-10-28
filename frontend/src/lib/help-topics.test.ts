@@ -439,6 +439,34 @@ describe("getParentHelpTopicForPath", () => {
     expect(binaryLocation).toBeUndefined();
   });
 
+  it("names the Unterwegs card on Alle Kinder only where rooms exist", () => {
+    // #5026: Kinder ohne Raum lassen sich auch aus „Alle Kinder“ zuweisen.
+    const detailedTopics = getHelpTopics("detailed");
+    const detailedLocation = detailedTopics.find(
+      (topic) => topic.id === HELP_TOPICS.changeLocation,
+    );
+    const detailedSearch = detailedTopics.find(
+      (topic) => topic.id === HELP_TOPICS.studentSearch,
+    );
+    const binarySearch = getHelpTopics("binary").find(
+      (topic) => topic.id === HELP_TOPICS.studentSearch,
+    );
+
+    expect(
+      detailedLocation?.differences?.some((line) =>
+        line.includes("`Alle Kinder` nach `Unterwegs`"),
+      ),
+    ).toBe(true);
+    expect(
+      detailedSearch?.notes?.some((line) => line.includes("`Zuweisen`")),
+    ).toBe(true);
+    // Anker: der Artikel ist auch im Binärmodus da, nur ohne Raumzuweisung.
+    expect(binarySearch?.title).toBe("Ein Kind finden und Angaben ansehen");
+    expect(
+      binarySearch?.notes?.some((line) => line.includes("`Zuweisen`")) ?? false,
+    ).toBe(false);
+  });
+
   it("adapts the login result to the attendance and group settings", () => {
     const detailedLogin = getHelpTopics("detailed", "fixed_groups", true).find(
       (topic) => topic.id === HELP_TOPICS.login,

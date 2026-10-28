@@ -734,6 +734,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         return pathname === "/home" || pathname === "/";
       }
       if (isViewingSharedOpenRoom) return href === "/rooms";
+      // „Unterwegs“ öffnet sich auch aus „Alle Kinder“ (#5026), wie in der
+      // Seitenleiste.
+      if (
+        pathname === "/rooms/unterwegs" &&
+        searchParams.get("from")?.startsWith("/students/search")
+      ) {
+        return href === "/students/search";
+      }
       // Check if we came from this page via the 'from' query parameter. Grouped
       // items (e.g. Eltern) own several routes via activePaths, so a child page
       // reached with ?from=/messages must still highlight the Eltern entry —

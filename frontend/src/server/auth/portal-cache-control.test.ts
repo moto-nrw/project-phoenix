@@ -179,9 +179,11 @@ describe("portal route wrappers send private, no-store", () => {
 describe("tenant routes on a school subdomain (#5130)", () => {
   const tenantRoutes = routes.filter(([portal]) => portal.startsWith("tenant"));
 
-  function callOnHost(route: Route, host: string) {
+  function callOnHost(route: Route, host: string, originalHost = host) {
     return route(
-      new NextRequest(`http://${host}/api/example`, { headers: { host } }),
+      new NextRequest(`http://${host}/api/example`, {
+        headers: { host, "x-moto-original-host": originalHost },
+      }),
       { params: Promise.resolve({}) },
     );
   }
@@ -230,6 +232,23 @@ describe("tenant routes on a school subdomain (#5130)", () => {
 
       expect(response.status).toBe(200);
       expect(mockFetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(tenantRoutes)(
+    "%s: refuses a session of another school through an internal Next.js host",
+    async (_portal, load) => {
+      const response = await callOnHost(
+        await load(),
+        "next-internal:3000",
+        "schule-b.localhost:3000",
+      );
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: "identity.session_tenant_mismatch",
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
     },
   );
 });

@@ -499,6 +499,50 @@ describe("TenantLayout", () => {
     },
   );
 
+  // #5024: the first render of „Anfragen“ reads the reason policy from the
+  // server tenant context. Without it the strictest fallback asked for a
+  // reason on every approval, whatever the school had chosen.
+  it.each([
+    { parent_request_reason_policy: "guardians", expected: "guardians" },
+    { parent_request_reason_policy: "nobody", expected: "nobody" },
+    { parent_request_reason_policy: "staff", expected: "staff" },
+    { parent_request_reason_policy: "both", expected: "both" },
+    { parent_request_reason_policy: "irgendwas", expected: "both" },
+    { parent_request_reason_policy: undefined, expected: "both" },
+  ])(
+    "maps parent_request_reason_policy=$parent_request_reason_policy into the server tenant context",
+    async ({ parent_request_reason_policy, expected }) => {
+      vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              tenant_id: 1,
+              slug: "school-a",
+              name: "School A",
+              subdomain: "school-a",
+              organization_id: 2,
+              organization_name: "Organization",
+              settings: {},
+              grade_level_max: 4,
+              parent_request_reason_policy,
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+      const element = (await TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-a" }),
+      })) as ReactElement<{
+        tenant: { parentRequestReasonPolicy?: string };
+      }>;
+
+      expect(element.props.tenant.parentRequestReasonPolicy).toBe(expected);
+    },
+  );
+
   it.each([
     { analytics_enabled: false, expected: false },
     { analytics_enabled: true, expected: true },

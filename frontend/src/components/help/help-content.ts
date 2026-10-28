@@ -467,6 +467,13 @@ function studentSearchTopic(
     presenceMode === "binary"
       ? "Bei einfacher Anwesenheit sehen Sie keinen Raum. Sie sehen nur, ob das Kind da ist."
       : null;
+  // #5026: ohne Räume (Binärmodus) gibt es keine Zuweisung.
+  const transitNotes =
+    presenceMode === "binary"
+      ? []
+      : [
+          "Filtern Sie nach `Unterwegs`? Oder gruppieren Sie `Nach Status` oder `Nach Raum`? Dann steht oben die Karte `Unterwegs`. Mit `Zuweisen` setzen Sie diese Kinder in einen Raum. Die Karte sehen Sie nur, wenn Sie Kinder einem Raum zuweisen dürfen.",
+        ];
 
   return {
     id: HELP_TOPICS.studentSearch,
@@ -563,6 +570,7 @@ function studentSearchTopic(
       "Einige Bereiche brauchen zusätzliche Rechte: `Betreuungsplan`, `Dokumente` und `Änderungsprotokoll`. Fehlt ein Bereich? Fragen Sie Ihre Leitung.",
       ...(presenceDifference ? [presenceDifference] : []),
     ],
+    ...(transitNotes.length > 0 ? { notes: transitNotes } : {}),
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
       HELP_TOPICS.editStudent,
@@ -641,7 +649,7 @@ function editStudentTopic(): HelpTopic {
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
       // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
-      "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -842,6 +850,8 @@ function changeLocationTopic(presenceMode: HelpPresenceMode): HelpTopic {
     notes: ["Sie können mehrere Kinder auswählen und gemeinsam verschieben."],
     differences: [
       "Hat das Kind noch keinen Raum? Wählen Sie auf `Räume` die Karte `Unterwegs`. Wählen Sie dort das Kind und den Zielraum.",
+      // #5026: dieselbe Karte steht auf „Alle Kinder“.
+      "Oder filtern Sie unter `Alle Kinder` nach `Unterwegs`. Wählen Sie dann oben die Karte `Unterwegs`.",
       "Steht hinter dem Zielraum `(offener Raum)`? Dort braucht es keine Aufsicht. Das Kind nutzt den Raum dann, ohne an einem Angebot teilzunehmen.",
       "Fehlt der Zielraum? Prüfen Sie dort `Aktuelle Aufsicht`.",
       "Beaufsichtigen Sie keinen der beiden Räume? Bitten Sie eine zuständige Aufsicht. Oder fragen Sie Ihre Leitung.",
@@ -1341,7 +1351,8 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // #4768: Raumfilter.
       "Nur einen Raum sehen? Wählen Sie oben bei `Alle Räume` einen Raum.",
       "Die Adresse der Seite behält Ihre Auswahl. So können Sie den gefilterten Plan teilen.",
-      "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+      // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
     troubleshootingDetails: [
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
@@ -1502,7 +1513,7 @@ function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
       {
         title: "Kinder ohne Raum in einen Raum setzen",
         description:
-          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da. Dann stehen auch offene Räume in der Liste, mit dem Zusatz `(offener Raum)`. So bleibt ein Kind nach seinem Angebot im Raum, ohne an einem Angebot teilzunehmen.",
+          "Führen Sie selbst die Aufsicht, stehen nur Ihre Räume zur Wahl. Mit dem Recht für alle Räume steht die ganze Liste da. Dann stehen auch offene Räume in der Liste, mit dem Zusatz `(offener Raum)`. So bleibt ein Kind nach seinem Angebot im Raum, ohne an einem Angebot teilzunehmen. Dieselbe Karte steht auch unter `Alle Kinder`, wenn Sie dort nach `Unterwegs` filtern.",
         steps: [
           "Wählen Sie oben die Karte `Unterwegs`.",
           "Wählen Sie die gewünschten Kinder aus.",
@@ -1993,6 +2004,8 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
     result:
       "moto übernimmt die freigegebene Änderung. Die Bezugsperson sieht die Entscheidung in der Eltern-App.",
     differences: [
+      // #5024: Freigeben braucht standardmäßig keine Begründung mehr.
+      "Zeigt das Feld `Begründung (Pflicht)` statt `Begründung (Pflicht bei Ablehnung)`? Dann verlangt Ihre OGS auch beim Freigeben eine Begründung. Tragen Sie sie vorher ein.",
       "Bei einer geänderten Abholzeit zeigt moto vorher betroffene Termine an.",
       // #3945: Tagesanfrage mit Abholart.
       "Eine Anfrage für einen einzelnen Tag kann die Abholzeit, die Abholart oder beides ändern. Die neue Abholart gilt nur an diesem Tag.",
@@ -3533,7 +3546,7 @@ function careTimesTopic(): HelpTopic {
       "Tippen Sie nur Ziffern, zum Beispiel 1600 für 16:00 Uhr.",
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
       "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
-      "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
       // #5102: Angebotswechsel aus dem Wochenplan.
       "Wechselt das Kind mit dem Wochenplan das Angebot, zeigt moto danach `Auswirkung auf den Betreuungsplan`. Dort sehen Sie, welche Regeltermine angepasst sind und wo das Kind weiter eingeplant ist.",
     ],
@@ -5681,7 +5694,8 @@ function leadCarePlanTopic(): HelpTopic {
       // #4768: Raumfilter.
       "Einen Raum für eine neue AG suchen? Wählen Sie oben bei `Alle Räume` den Raum. Dann sehen Sie, wann er belegt ist.",
       "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
-      "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+      // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
     differences: [
       "Steht oben `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
@@ -9183,7 +9197,7 @@ function traegerLoginTopic(): HelpTopic {
     audience: "traeger",
     icon: "Building2",
     requirements: [
-      "Das moto-Team hat Ihr Konto dem Träger-Büro zugeordnet.",
+      "Sie gehören zum Träger-Büro. Sie haben eine Einladung angenommen, oder das moto-Team hat Ihr Konto zugeordnet.",
       "Zugriff auf Ihr E-Mail-Postfach. Bei jeder Anmeldung kommt ein Code per E-Mail.",
     ],
     steps: [
@@ -9200,9 +9214,10 @@ function traegerLoginTopic(): HelpTopic {
     notes: ["Legen Sie sich die Adresse als Lesezeichen an."],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
-      "Sie nutzen dasselbe Konto wie in der OGS. Ein zweites Passwort brauchen Sie nicht.",
+      "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
+      "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
     ],
     troubleshootingDetails: [
       "Keine E-Mail mit Code? Schauen Sie im Spam-Ordner nach. Wählen Sie sonst `Neuen Code anfordern`.",
@@ -9219,7 +9234,7 @@ function traegerLoginTopic(): HelpTopic {
 
 /**
  * `/traeger/einstellungen` (#4652, ADR 0086): Träger-Werte zwischen Standard
- * und Schule. Bezeichnungen aus `settings-origin.ts` und `traeger-shell.tsx`.
+ * und Schule. Bezeichnungen aus `settings-origin.ts` und `traeger-nav-items.ts`.
  */
 function traegerSettingsTopic(): HelpTopic {
   return {
@@ -9232,8 +9247,8 @@ function traegerSettingsTopic(): HelpTopic {
     icon: "Settings",
     requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
     steps: [
-      "Wählen Sie oben `Einstellungen`.",
-      "Suchen Sie die Einstellung, zum Beispiel unter `Anmeldung` oder `Betrieb`.",
+      "Wählen Sie in der Navigation `Einstellungen`.",
+      "Wählen Sie den Bereich, zum Beispiel `Anmeldung` oder `Betrieb`.",
       "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
     ],
     result:
@@ -9268,7 +9283,7 @@ function traegerBriefkopfTopic(): HelpTopic {
       {
         title: "Logo hochladen",
         steps: [
-          "Wählen Sie oben `Briefkopf`.",
+          "Wählen Sie in der Navigation `Briefkopf`.",
           "Wählen Sie bei `Logo` den Knopf `Logo hochladen`.",
           "Wählen Sie ein Bild im Format PNG oder JPG, bis 1 MB.",
         ],
@@ -9332,7 +9347,7 @@ function traegerSchoolSwitchTopic(): HelpTopic {
     icon: "ArrowsLeftRight",
     requirements: ["Sie haben die Rolle `Verwaltung`."],
     steps: [
-      "Wählen Sie oben `Schulen`.",
+      "Wählen Sie in der Navigation `Schulen`.",
       "Wählen Sie bei der Schule `Öffnen`.",
     ],
     result:
@@ -9366,7 +9381,9 @@ function traegerInvitationTopic(): HelpTopic {
     group: "einstieg",
     audience: "traeger",
     icon: "UserRoundPlus",
-    requirements: ["Jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen."],
+    requirements: [
+      "Das moto-Team oder jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen.",
+    ],
     steps: [
       "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
       "Wählen Sie `Einladung annehmen`.",
@@ -9378,9 +9395,10 @@ function traegerInvitationTopic(): HelpTopic {
       "moto meldet Sie an und öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
     notes: [
       "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
+      "Ein Konto in einer Schule brauchen Sie dafür nicht.",
     ],
     troubleshootingDetails: [
-      "moto sagt, die Einladung sei abgelaufen? Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.",
+      "moto sagt, die Einladung sei abgelaufen? Bitten Sie das Träger-Büro oder das moto-Team um eine neue Einladung.",
       "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Setzen Sie es in der Anmeldung Ihrer Schule über `Passwort vergessen?` zurück.",
     ],
     related: [HELP_TOPICS.traegerLogin],
@@ -9406,7 +9424,7 @@ function traegerHolidayPeriodTopic(): HelpTopic {
       {
         title: "Ferienzeitraum anlegen",
         steps: [
-          "Wählen Sie oben `Ferien`.",
+          "Wählen Sie in der Navigation `Ferien`.",
           "Wählen Sie `Ferienzeitraum anlegen`.",
           "Tragen Sie den `Name des Ferienzeitraums` ein, zum Beispiel Osterferien 2027.",
           "Tragen Sie `Anmeldebeginn` und `Anmeldeschluss` ein.",
@@ -9441,7 +9459,7 @@ function traegerHolidayPeriodTopic(): HelpTopic {
       "Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
     ],
     differences: [
-      "Sie sehen oben kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+      "Sie sehen in der Navigation kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
     ],
     troubleshootingDetails: [
       "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
@@ -9470,9 +9488,9 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       {
         title: "Liste öffnen und filtern",
         steps: [
-          "Wählen Sie oben `Ferien`.",
+          "Wählen Sie in der Navigation `Ferien`.",
           "Öffnen Sie den Ferienzeitraum.",
-          "Wählen Sie `Anmeldungen prüfen`.",
+          "Wählen Sie den Reiter `Anmeldungen`.",
           "Filtern Sie nach Status, `Schule`, `Woche` oder `Zeitmodell`. Unter `Schule` finden Sie auch `Feriengäste`.",
           "Wählen Sie eine Anmeldung, um sie zu öffnen.",
         ],
@@ -9507,7 +9525,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         title: "Exportieren",
         steps: [
           "Stellen Sie die Filter ein, zum Beispiel eine Schule.",
-          "Wählen Sie `Als CSV herunterladen` oder `Als Excel herunterladen`.",
+          "Wählen Sie `Herunterladen` und dann `Excel` oder `CSV`.",
         ],
       },
     ],
@@ -9547,7 +9565,7 @@ function traegerHolidayContributionTopic(): HelpTopic {
     audience: "traeger",
     icon: "Landmark",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht oben `Beiträge`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Beiträge`.",
     ],
     steps: [],
     instructionGroups: [
@@ -9560,7 +9578,7 @@ function traegerHolidayContributionTopic(): HelpTopic {
       {
         title: "Geschwisterregel anlegen",
         steps: [
-          "Wählen Sie oben `Beiträge`.",
+          "Wählen Sie in der Navigation `Beiträge`.",
           "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
           "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
           "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
@@ -9587,7 +9605,7 @@ function traegerHolidayContributionTopic(): HelpTopic {
       "Ob eine Familie befreit ist, entscheidet das Träger-Büro beim Bestätigen.",
     ],
     differences: [
-      "Sie sehen oben kein `Beiträge`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen in der Navigation kein `Beiträge`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
     ],
     troubleshootingDetails: [
       "Die Regel lässt sich nicht speichern, weil schon eine andere gilt? Von jeder Art gilt an einem Tag nur eine Regel. Setzen Sie bei der alten Regel `Gilt bis` auf den Tag davor.",
@@ -9611,7 +9629,7 @@ function traegerBillingRunTopic(): HelpTopic {
     audience: "traeger",
     icon: "FileText",
     requirements: [
-      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht oben `Abrechnung`.",
+      "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
       "Der Ferienzeitraum ist veröffentlicht, und die Anmeldungen sind bestätigt.",
     ],
     steps: [],
@@ -9620,7 +9638,7 @@ function traegerBillingRunTopic(): HelpTopic {
         title: "Rechnungsnummern festlegen",
         description: "Das machen Sie einmal vor der ersten Freigabe.",
         steps: [
-          "Wählen Sie oben `Abrechnung`.",
+          "Wählen Sie in der Navigation `Abrechnung`.",
           "Wählen Sie bei `Rechnungsnummern` den Knopf `Muster festlegen`.",
           "Tragen Sie das Muster ein, zum Beispiel FE-{JJJJ}-{NNNN}. {NNNN} ist die laufende Nummer, {JJJJ} das Jahr.",
           "Wählen Sie `Speichern`.",
@@ -9629,9 +9647,10 @@ function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Lauf starten und prüfen",
         steps: [
-          "Wählen Sie bei `Abrechnungsläufe` den Knopf `Lauf starten`.",
+          "Wählen Sie `Lauf starten`.",
           "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
-          "Prüfen Sie die Vorschau. Je Familie steht eine Rechnung mit allen Positionen da.",
+          "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
+          "Die Positionen einer Rechnung sehen Sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
         ],
       },
       {
@@ -9680,7 +9699,7 @@ function traegerBillingRunTopic(): HelpTopic {
         description: "Das geht, sobald der Lauf freigegeben ist.",
         steps: [
           "Öffnen Sie den freigegebenen Lauf.",
-          "Wählen Sie bei `Übersicht für die Kämmerei` den Knopf `Herunterladen`.",
+          "Wählen Sie bei `Rechnungen` den Knopf `Übersicht für die Kämmerei`.",
           "Wählen Sie das Format: `PDF`, `Excel` oder `CSV`.",
           "Geben Sie die Datei an die Kämmerei weiter.",
         ],
@@ -9695,7 +9714,7 @@ function traegerBillingRunTopic(): HelpTopic {
       "Logo, Farbe, Absender, Fußzeile, Ansprechperson und Bankverbindung im Schreiben kommen aus dem `Briefkopf`. Als Verwendungszweck steht die Rechnungsnummer im Schreiben.",
     ],
     differences: [
-      "Sie sehen oben kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+      "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
       "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
       "Sie sehen keine `Übersicht für die Kämmerei`? Der Lauf ist noch nicht freigegeben.",
     ],
@@ -9728,7 +9747,7 @@ function traegerHolidayRegistrationTopic(): HelpTopic {
       "Der Ferienzeitraum ist veröffentlicht.",
     ],
     steps: [
-      "Wählen Sie oben `Ferien`.",
+      "Wählen Sie in der Navigation `Ferien`.",
       "Öffnen Sie den Ferienzeitraum.",
       "Unter `Link für Eltern` steht der Link. Wählen Sie daneben `Link kopieren`.",
       "Geben Sie den Link an die Eltern weiter, zum Beispiel in einem Elternbrief der Schulen.",
@@ -9802,7 +9821,7 @@ function traegerAccountsTopic(): HelpTopic {
       {
         title: "Person einladen",
         steps: [
-          "Wählen Sie oben `Personen`.",
+          "Wählen Sie in der Navigation `Personen`.",
           "Wählen Sie `Person einladen`.",
           "Tragen Sie die `E-Mail-Adresse` ein.",
           "Wählen Sie mindestens eine Rolle.",
@@ -9812,7 +9831,7 @@ function traegerAccountsTopic(): HelpTopic {
       {
         title: "Rollen ändern",
         steps: [
-          "Wählen Sie oben `Personen`.",
+          "Wählen Sie in der Navigation `Personen`.",
           "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
           "Wählen Sie `Rollen ändern`.",
           "Wählen Sie die Rollen und dann `Speichern`.",
@@ -9821,7 +9840,7 @@ function traegerAccountsTopic(): HelpTopic {
       {
         title: "Person entfernen",
         steps: [
-          "Wählen Sie oben `Personen`.",
+          "Wählen Sie in der Navigation `Personen`.",
           "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
           "Wählen Sie `Aus dem Träger-Büro entfernen`.",
           "Wählen Sie `Ja, entfernen` und dann `Entfernen`.",
@@ -9833,10 +9852,11 @@ function traegerAccountsTopic(): HelpTopic {
       "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
     notes: [
       "`Verwaltung` darf alles verwalten, auch Personen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
-      "Eine Person kann mehrere Rollen haben.",
+      "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
+      "Unter `Offene Einladungen` stehen auch Einladungen, die das moto-Team verschickt hat.",
     ],
     differences: [
-      "Sie sehen oben kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
+      "Sie sehen in der Navigation kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
       "Geänderte Rollen gelten nach wenigen Minuten. Eine entfernte Person kann sich nicht mehr anmelden. Eine offene Sitzung endet nach wenigen Minuten.",
     ],
     troubleshootingDetails: [
@@ -9868,7 +9888,7 @@ function traegerAccessLogTopic(): HelpTopic {
         title: "Protokoll ansehen",
         steps: [
           "Melden Sie sich im Träger-Portal an.",
-          "Wählen Sie oben `Zugriffsprotokoll`.",
+          "Wählen Sie in der Navigation `Zugriffsprotokoll`.",
           "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
           "Wählen Sie bei Bedarf eine Schule und eine Person.",
           "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
@@ -9880,7 +9900,7 @@ function traegerAccessLogTopic(): HelpTopic {
         description: "Für einen Nachweis, zum Beispiel in einer Tabelle.",
         steps: [
           "Stellen Sie die Filter ein.",
-          "Wählen Sie `Als CSV herunterladen`.",
+          "Wählen Sie `Herunterladen` und dann `CSV`.",
           "moto lädt eine Datei mit allen Einträgen zu den Filtern herunter.",
         ],
       },
@@ -9891,7 +9911,7 @@ function traegerAccessLogTopic(): HelpTopic {
       "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
     ],
     differences: [
-      "Sie sehen oben kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
+      "Sie sehen in der Navigation kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
       "Steht bei Person `Unbekannte Person`? Zu diesem Konto kennt moto an der Schule keinen Namen, zum Beispiel bei Eltern.",
     ],
     troubleshootingDetails: [

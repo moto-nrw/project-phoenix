@@ -1,6 +1,9 @@
 import "server-only";
 import type { NextRequest } from "next/server";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
+import {
+  clientIdentityHeaders,
+  getOriginalRequestHost,
+} from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-response-error.server";
 import { createLogger } from "~/lib/logger";
 import { isBareTenantDomainHost, tenantSlugFromHost } from "~/lib/tenant-host";
@@ -64,7 +67,7 @@ export async function sessionTenantMismatchResponse(
   if (typeof sessionTenantId !== "number") return null;
   if (MISMATCH_EXEMPT_PATHS.has(request.nextUrl.pathname)) return null;
 
-  const host = request.headers.get("host") ?? request.nextUrl.host;
+  const host = getOriginalRequestHost(request);
   const subdomain = tenantSlugFromHost(host);
   if (!subdomain) {
     // The bare domain shows no school since the tenant layout sends path

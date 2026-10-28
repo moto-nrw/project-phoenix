@@ -156,8 +156,8 @@ vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: ({
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: ({
     primaryAction,
   }: {
     primaryAction?: React.ReactNode;

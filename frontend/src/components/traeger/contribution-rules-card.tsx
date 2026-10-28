@@ -140,7 +140,7 @@ export function ContributionRulesCard({
       actions={
         <Button
           type="button"
-          variant="secondary"
+          variant="outline"
           size="md"
           onClick={() => setEdit({ kind: "create", ruleKind: kind })}
         >

@@ -7,6 +7,9 @@ import {
   type SeedRole,
 } from "../seed-state";
 
+/** Einzelne Aktionen sollen vor dem Gesamtbudget mit ihrem Call-Log scheitern. */
+export const PERF_ACTION_TIMEOUT = 15_000;
+
 /**
  * Tenant-Slug und Admin-Login aus backend/.seed-state.json; E2E_TENANT_SLUG /
  * E2E_TEST_EMAIL / E2E_TEST_PASSWORD überschreiben. Gleiches Muster wie die
@@ -83,4 +86,15 @@ export async function gotoTolerant(page: Page, url: string): Promise<void> {
  */
 export async function login(page: Page, access: SeedAccess): Promise<void> {
   await loginToLocalTenant(page, tenantBaseUrl(access), access);
+}
+
+/** Den Browser-Hinweis vor der Messung schließen; storageState merkt die Wahl. */
+export async function dismissNotificationHint(
+  page: Page,
+  baseUrl: string,
+): Promise<void> {
+  await gotoTolerant(page, `${baseUrl}/home`);
+  const dismiss = page.getByRole("button", { name: "Verstanden" });
+  await dismiss.waitFor({ timeout: 10_000 }).catch(() => undefined);
+  if (await dismiss.isVisible()) await dismiss.click();
 }
