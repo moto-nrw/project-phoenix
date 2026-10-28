@@ -513,7 +513,7 @@ func isConflictError(err error) bool {
 
 func wrapConflictError(err error, entity string) error {
 	if isConflictError(err) {
-		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding", entity)
+		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding: %w", entity, err)
 	}
 	return err
 }

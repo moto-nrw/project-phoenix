@@ -286,6 +286,18 @@ func TestWrapConflictError(t *testing.T) {
 		err := wrapConflictError(apiErr, "organization")
 		assert.Contains(t, err.Error(), "seed organization already exists (409 Conflict)")
 		assert.Contains(t, err.Error(), "migrate reset")
+		assert.ErrorIs(t, err, apiErr, "the cause and its code stay readable")
+	})
+
+	t.Run("keeps the code of the refused request", func(t *testing.T) {
+		// BACKEND-14: a demo rebuild could not rename its deleted school,
+		// and the report named neither cause nor code.
+		apiErr := &APIError{
+			Method: "PUT", Path: "/operator/schools/7", StatusCode: seedHTTPStatusConflict,
+			Code: "provisioning.school_already_deleted", Message: "School is already deleted",
+		}
+		err := wrapConflictError(fmt.Errorf("rename abandoned school: %w", apiErr), "school")
+		assert.Contains(t, err.Error(), "(provisioning.school_already_deleted)")
 	})
 
 	t.Run("passes through non-409 errors unchanged", func(t *testing.T) {
