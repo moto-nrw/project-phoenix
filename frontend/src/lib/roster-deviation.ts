@@ -1,4 +1,5 @@
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import { schoolClassesLabel } from "~/lib/school-class-label";
 
 /**
  * A Regeltermin whose hand-kept children list no longer matches the bookings
@@ -173,13 +174,7 @@ export function describeRosterDeviation(deviation: RosterDeviation): string {
 /** One line naming which children of the offering the series takes. */
 export function describeSelectionFilter(selection: OfferingSelection): string {
   if (selection.schoolClasses.length > 0) {
-    // Some schools store the class as „Klasse 1b“; the word stands once.
-    const classes = selection.schoolClasses.map((schoolClass) =>
-      schoolClass.trim().replace(/^klasse\s+/i, ""),
-    );
-    return classes.length === 1
-      ? `Nur Kinder der Klasse ${classes[0]}`
-      : `Nur Kinder der Klassen ${joinNames(classes)}`;
+    return `Nur Kinder der ${schoolClassesLabel(selection.schoolClasses, joinNames)}`;
   }
   if (selection.gradeLevels.length > 0) {
     const grades = [...selection.gradeLevels].sort((a, b) => a - b).map(String);

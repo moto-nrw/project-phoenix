@@ -168,9 +168,11 @@ describe("TraegerAccessLogPage", () => {
     renderPage();
     await screen.findByRole("table");
 
+    // Export als Menü im Seitenkopf (#5146).
     fireEvent.click(
-      screen.getByRole("button", { name: "Als CSV herunterladen" }),
+      screen.getByRole("button", { name: "Zugriffsprotokoll herunterladen" }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
 
     await waitFor(() =>
       expect(mockDownloadBlob).toHaveBeenCalledWith(
@@ -193,9 +195,11 @@ describe("TraegerAccessLogPage", () => {
     renderPage();
     await screen.findByRole("table");
 
+    // Export als Menü im Seitenkopf (#5146).
     fireEvent.click(
-      screen.getByRole("button", { name: "Als CSV herunterladen" }),
+      screen.getByRole("button", { name: "Zugriffsprotokoll herunterladen" }),
     );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
 
     expect(
       await screen.findByText(/Der Export hat mehr als 10000 Einträge/),
@@ -240,9 +244,11 @@ describe("TraegerAccessLogPage", () => {
     renderPage();
     await screen.findByRole("table");
 
-    fireEvent.click(screen.getByRole("combobox", { name: "Person" }));
+    // Die Filter stehen in der Filterzeile des Seitenkopfs (#5146); der
+    // Auslöser nennt die gewählte Person.
+    fireEvent.click(screen.getByRole("button", { name: "Alle Personen" }));
     fireEvent.click(
-      await screen.findByRole("option", { name: "Lena Leitung" }),
+      await screen.findByRole("button", { name: "Lena Leitung" }),
     );
     await waitFor(() =>
       expect(mockFetchLog).toHaveBeenLastCalledWith(
@@ -262,8 +268,11 @@ describe("TraegerAccessLogPage", () => {
         undefined,
       ),
     );
-    expect(screen.getByRole("combobox", { name: "Person" })).toHaveTextContent(
-      "Alle Personen",
-    );
+    expect(
+      screen.getByRole("button", { name: "Alle Personen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Lena Leitung" }),
+    ).not.toBeInTheDocument();
   });
 });

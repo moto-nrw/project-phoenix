@@ -15,8 +15,8 @@ import (
 // Student Presence (#5031). No route records presence after the fact, so the
 // seed writes it on the database the server uses (DB_DSN), inside the
 // school's tenant transaction. Without DB_DSN, as in the sidecar of the
-// public demo, the seed leaves the past without presence; close is then a
-// no-op.
+// public demo, the seed leaves the past without presence, unless the demo
+// writes it through its operator route (ADR 0127); close is then a no-op.
 func openPresenceHistory() (seedapi.PresenceHistoryWriter, func(), error) {
 	if strings.TrimSpace(os.Getenv("DB_DSN")) == "" {
 		return nil, func() {}, nil

@@ -474,7 +474,7 @@ src/components/dashboard/header/reminders-bell.tsx|text-[11px]@42 text-[10px]@96
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@968 text-[11px]@987
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1465
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@758 text-[11px]@763
+src/components/enrollment/phases-editor.tsx|text-[11px]@759 text-[11px]@764
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@377
@@ -502,7 +502,7 @@ src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@396 text-[11px]@461
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
 src/components/timetable/substitution-slide-over.tsx|text-[10px]@578 text-[9px]@583 text-[11px]@742 text-[11px]@746 text-[10px]@786 text-[10px]@790 text-[10px]@794 text-[10px]@798 text-[11px]@1240
-src/components/timetable/template-card.tsx|text-[11px]@128 text-[11px]@142 text-[10px]@202
+src/components/timetable/template-card.tsx|text-[11px]@125 text-[11px]@139 text-[10px]@199
 src/components/timetable/vertretung-day-list.tsx|text-[11px]@351 text-[11px]@391 text-[11px]@398 text-[11px]@419 text-[11px]@425
 src/components/timetable/vertretung-week-list.tsx|text-[10px]@157
 src/components/timetable/weekly-calendar-grid.tsx|text-[10px]@400 text-[9px]@416 text-[10px]@479 text-[11px]@479 text-[11px]@484 text-[10px]@507 text-[10px]@542 text-[11px]@542
@@ -566,10 +566,11 @@ const noTenantKicker = {
 // einer eigenen Klassenkette. Für jede Form gibt es ein Kit-Bauteil:
 // SectionCard (Fläche mit oder ohne Kopf), TileCard (anklickbare Kachel),
 // StatCard (Kennzahl), TenantPageHeaderSkeleton (Ladezustand). Die Regel
-// greift nur in Seitendateien des Tenant-Portals — Kit- und
-// Komponentendateien dürfen die Fläche definieren, sie sind die Quelle.
+// greift nur in Seitendateien des Tenant- und des Träger-Portals (#5146) —
+// Kit- und Komponentendateien dürfen die Fläche definieren, sie sind die
+// Quelle.
 const TENANT_PAGE_FILE_RE =
-  /app\/\[tenant\]\/\(protected\)\/(?:.*\/)?(page|loading)\.tsx$/;
+  /app\/(?:\[tenant\]\/\(protected\)|traeger)\/(?:.*\/)?(page|loading)\.tsx$/;
 // Nur die KARTE ist gemeint: `moto-content-surface` zusammen mit dem
 // Kartenradius. Dieselbe Klasse an einer Pille oder einem Auswahlfeld
 // (rounded-full, h-9) ist eine Bedienfläche und bleibt erlaubt.

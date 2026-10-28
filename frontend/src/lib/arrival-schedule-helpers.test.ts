@@ -5,7 +5,6 @@ import {
   arrivalScheduleSourceLabel,
   getDayData,
   getWeekDays,
-  stripClassPrefix,
 } from "./arrival-schedule-helpers";
 
 describe("arrival schedule getDayData", () => {
@@ -86,7 +85,6 @@ describe("arrival schedule getDayData", () => {
   });
 
   it("labels class and own arrival times without a duplicate class prefix", () => {
-    expect(stripClassPrefix("Klasse 3b")).toBe("3b");
     expect(
       arrivalScheduleSourceLabel({
         source: "class_schedule",

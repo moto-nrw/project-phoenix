@@ -61,8 +61,12 @@ type SeedOptions struct {
 	// ReadMailLink reads the caterer's invitation mail (ADR 0077); nil invites none.
 	ReadMailLink MailLinkReader
 	// PresenceHistory writes the past attendance and room visits (#5031);
-	// nil seeds the past without presence.
+	// nil seeds the past without presence, unless PresenceHistoryRoute is set.
 	PresenceHistory PresenceHistoryWriter
+	// PresenceHistoryRoute writes them through the operator route only the
+	// public demo's server mounts (APP_ENV=demo, ADR 0127) when
+	// PresenceHistory is nil.
+	PresenceHistoryRoute bool
 	// ProductScreenshots prepares the school for the product screenshots,
 	// whose simulation runs a single Tuesday: no weekend runs Friday's plan,
 	// so no screen shows Saturday and Sunday columns, and no statistics

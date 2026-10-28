@@ -164,6 +164,7 @@
     "/school/invite": 808195,
     "/school/kalender": 892562,
     "/school/klasse": 882602,
+    "/school/klasse/kind": 797485,
     "/school/login": 813148,
     "/school/nachrichten": 822232,
     "/school/nachrichten/[threadID]": 805302,

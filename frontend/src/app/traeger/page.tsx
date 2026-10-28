@@ -11,7 +11,7 @@ import { School } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
@@ -158,40 +158,48 @@ export default function TraegerSchoolsPage() {
   );
 
   return (
-    <div className="w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          Schulen
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
+    <TenantPage
+      title="Schulen"
+      info={
+        <>
           Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.
           {canOpen &&
             " „Öffnen“ zeigt die Schule in einem neuen Tab. Dort arbeiten Sie mit der Rolle Verwaltung."}
-        </p>
-      </div>
-
-      {schoolsLoad.error ? (
-        <LoadErrorAlert error={schoolsLoad.error} />
-      ) : (
-        <DataTable
-          columns={columns}
-          rows={schools}
-          getRowKey={(school) => school.id}
-          isLoading={loading}
-          loadingRowCount={3}
-          defaultSortKey="name"
-          stackedOnMobile
-          stackedLayout="row"
-          stackedDetailKey={canOpen ? "city" : null}
-          emptyState={
-            <EmptyState
-              icon={<School className="h-12 w-12" aria-hidden="true" />}
-              title="Ihrem Träger sind noch keine Schulen zugeordnet."
-              description="Das moto-Team ordnet die Schulen Ihrem Träger zu."
-            />
-          }
-        />
-      )}
-    </div>
+        </>
+      }
+      stats={
+        schools.length > 0 ? (
+          <TenantPageStats
+            items={[
+              {
+                value: schools.length,
+                label: schools.length === 1 ? "Schule" : "Schulen",
+              },
+            ]}
+          />
+        ) : null
+      }
+      statsLoading={loading}
+      error={schoolsLoad.error}
+    >
+      <DataTable
+        columns={columns}
+        rows={schools}
+        getRowKey={(school) => school.id}
+        isLoading={loading}
+        loadingRowCount={3}
+        defaultSortKey="name"
+        stackedOnMobile
+        stackedLayout="row"
+        stackedDetailKey={canOpen ? "city" : null}
+        emptyState={
+          <EmptyState
+            icon={<School className="h-12 w-12" aria-hidden="true" />}
+            title="Ihrem Träger sind noch keine Schulen zugeordnet."
+            description="Das moto-Team ordnet die Schulen Ihrem Träger zu."
+          />
+        }
+      />
+    </TenantPage>
   );
 }

@@ -36,7 +36,8 @@ func (s *Service) CreateStudentNote(ctx context.Context, input peopledirectory.C
 	note, err := s.studentNotes.Create(ctx, domain.CreateStudentNote{
 		StudentID: input.StudentID, AuthorAccountID: input.AuthorAccountID,
 		Kind: input.Kind, Visibility: input.Visibility, Category: input.Category,
-		Body: input.Body, Subject: toDomainNoteSubject(input.Subject), RevalidateSubject: input.RevalidateSubject,
+		Body: input.Body, Subject: toDomainNoteSubject(input.Subject), SharedWithSchool: input.SharedWithSchool,
+		RevalidateSubject: input.RevalidateSubject,
 	})
 	if err != nil {
 		return peopledirectory.StudentNote{}, MapError(err)
@@ -53,7 +54,7 @@ func (s *Service) UpdateStudentNote(ctx context.Context, input peopledirectory.U
 	note, err := s.studentNotes.Update(ctx, domain.UpdateStudentNote{
 		ID: input.ID, StudentID: input.StudentID, ActorAccountID: input.ActorAccountID,
 		Kind: input.Kind, Visibility: input.Visibility, Category: input.Category, Body: input.Body,
-		SubjectDate: input.SubjectDate,
+		SubjectDate: input.SubjectDate, SharedWithSchool: input.SharedWithSchool,
 	})
 	if err != nil {
 		return peopledirectory.StudentNote{}, MapError(err)
@@ -88,4 +89,34 @@ func (s *Service) DeleteStudentNote(ctx context.Context, input peopledirectory.D
 		},
 		ResolveAuthorization: resolveAuthorization,
 	}))
+}
+
+// ListSchoolSharedNotes returns the live notes of one child the OGS released
+// for the school (#4797), newest first, with each author's name resolved.
+// Like the day hints it runs in the caller's school unit: the school portal
+// records every read in the same transaction.
+func (s *Service) ListSchoolSharedNotes(ctx context.Context, studentID int64) ([]peopledirectory.StudentNote, error) {
+	if studentID <= 0 {
+		return nil, peopledirectory.ErrStudentNoteInvalid
+	}
+	notes := s.studentNotes
+	if err := notes.tx.RequireTransaction(ctx); err != nil {
+		return nil, MapError(err)
+	}
+	rows, _, err := notes.store.ListSchoolShared(ctx, studentID)
+	if err != nil {
+		return nil, MapError(err)
+	}
+	result := make([]peopledirectory.StudentNote, 0, len(rows))
+	if len(rows) == 0 {
+		return result, nil
+	}
+	persons, _, err := notes.persons.ListByAccounts(ctx, noteAuthorAccountIDs(rows))
+	if err != nil {
+		return nil, MapError(err)
+	}
+	for _, note := range withAuthorNames(rows, persons) {
+		result = append(result, toPublicNote(note))
+	}
+	return result, nil
 }

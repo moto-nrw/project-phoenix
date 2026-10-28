@@ -381,6 +381,10 @@ type DayReport struct {
 	// CanWriteHomework is true when the caller may enter homework for this
 	// class: the token holds class_day:homework_write. The HTTP layer sets it.
 	CanWriteHomework bool `json:"can_write_homework"`
+	// CanReadSharedNotes is true when the caller is assigned to this class in
+	// education.class_teachers and may open the notes the OGS released for
+	// the school (#4797). class_day:all_classes alone never sets it.
+	CanReadSharedNotes bool `json:"can_read_shared_notes"`
 	// Handover is the class's handover to the OGS on the date (#4794), nil
 	// while the class has not been handed over.
 	Handover *DayHandover `json:"handover,omitempty"`
@@ -711,4 +715,60 @@ type DayHints interface {
 	SetDayHint(ctx context.Context, in DayHintWrite) error
 	// ClearDayHint removes one of the caller's day hints, today only.
 	ClearDayHint(ctx context.Context, target DayHintTarget) error
+}
+
+// ErrSharedNotesNotConfigured is returned by the shared-notes capability when
+// the projection was composed without its seam (#4797).
+var ErrSharedNotesNotConfigured = errors.New("shared notes are not configured")
+
+// ErrSharedNoteStudentNotInClass refuses the notes of a child that is not in
+// the requested class.
+var ErrSharedNoteStudentNotInClass = errors.New("the child is not in this class")
+
+// SharedNote is one note the OGS released for the school (#4797), reduced to
+// what the Lehrkraft reads. It carries no audience and no group reference:
+// those are the OGS's business, and the Lehrkraft can neither change nor
+// answer the note.
+type SharedNote struct {
+	ID       int64  `json:"id,string"`
+	Kind     string `json:"kind"`
+	Category string `json:"category,omitempty"`
+	Body     string `json:"body"`
+	// SubjectDate is the day a dated entry describes; nil for a durable hint.
+	SubjectDate *calendar.Date `json:"subject_date,omitempty"`
+	// AuthorName is the author's current name, empty when the person is gone.
+	AuthorName string    `json:"author_name,omitempty"`
+	Edited     bool      `json:"edited"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+// StudentSharedNotes is the view of one child in moto schule with the notes
+// the OGS released for the school, newest first.
+type StudentSharedNotes struct {
+	StudentID   int64        `json:"student_id,string"`
+	FirstName   string       `json:"first_name"`
+	LastName    string       `json:"last_name"`
+	SchoolClass string       `json:"school_class"`
+	Notes       []SharedNote `json:"notes"`
+}
+
+// SharedNotesRequest names the class and the child whose shared notes the
+// actor opens.
+type SharedNotesRequest struct {
+	SchoolClass string
+	StudentID   int64
+	Actor       Actor
+}
+
+// SharedNotes serves the notes the OGS released for the school (#4797). Only
+// a Lehrkraft assigned to the child's class in education.class_teachers
+// reads them; class_day:all_classes widens nothing here, so the
+// Schulverwaltung sees none. The view is read-only.
+type SharedNotes interface {
+	// StudentSharedNotes returns the shared notes of one child of an
+	// assigned class and writes one GDPR access-log row per call.
+	// ErrClassNotAssigned when the caller is not assigned to the class,
+	// ErrSharedNoteStudentNotInClass when the child is not in it.
+	StudentSharedNotes(ctx context.Context, in SharedNotesRequest) (*StudentSharedNotes, error)
 }

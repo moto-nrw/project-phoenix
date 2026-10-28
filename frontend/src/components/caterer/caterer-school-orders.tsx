@@ -6,6 +6,7 @@ import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import {
   confirmCatererOrder,
   type CatererOrderChild,
@@ -48,10 +49,8 @@ function deadlineLabel(day: CatererOrderDay): string {
     : dateTime(day.deadline);
 }
 
-/** „Klasse 1a“ aus „1a“; Schulen, die „Klasse“ schon führen, bleiben so. */
 function classLabel(schoolClass: string): string {
-  if (!schoolClass) return "Ohne Klasse";
-  return /^klasse\b/i.test(schoolClass) ? schoolClass : `Klasse ${schoolClass}`;
+  return schoolClassLabel(schoolClass) || "Ohne Klasse";
 }
 
 function childLabel(child: CatererOrderChild): string {

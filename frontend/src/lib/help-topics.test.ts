@@ -439,6 +439,34 @@ describe("getParentHelpTopicForPath", () => {
     expect(binaryLocation).toBeUndefined();
   });
 
+  it("names the Unterwegs card on Alle Kinder only where rooms exist", () => {
+    // #5026: Kinder ohne Raum lassen sich auch aus „Alle Kinder“ zuweisen.
+    const detailedTopics = getHelpTopics("detailed");
+    const detailedLocation = detailedTopics.find(
+      (topic) => topic.id === HELP_TOPICS.changeLocation,
+    );
+    const detailedSearch = detailedTopics.find(
+      (topic) => topic.id === HELP_TOPICS.studentSearch,
+    );
+    const binarySearch = getHelpTopics("binary").find(
+      (topic) => topic.id === HELP_TOPICS.studentSearch,
+    );
+
+    expect(
+      detailedLocation?.differences?.some((line) =>
+        line.includes("`Alle Kinder` nach `Unterwegs`"),
+      ),
+    ).toBe(true);
+    expect(
+      detailedSearch?.notes?.some((line) => line.includes("`Zuweisen`")),
+    ).toBe(true);
+    // Anker: der Artikel ist auch im Binärmodus da, nur ohne Raumzuweisung.
+    expect(binarySearch?.title).toBe("Ein Kind finden und Angaben ansehen");
+    expect(
+      binarySearch?.notes?.some((line) => line.includes("`Zuweisen`")) ?? false,
+    ).toBe(false);
+  });
+
   it("adapts the login result to the attendance and group settings", () => {
     const detailedLogin = getHelpTopics("detailed", "fixed_groups", true).find(
       (topic) => topic.id === HELP_TOPICS.login,
@@ -629,10 +657,11 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    // 26 seit #4801: der Elternsprechtag der eigenen Klasse (25 seit #4791:
-    // die nachgetragene Meldung der Schulverwaltung, 24 seit #4800: der
+    // 27 seit #4801: der Elternsprechtag der eigenen Klasse (26 seit #4797:
+    // die Beobachtungen der OGS, 25 seit #4791: die nachgetragene Meldung
+    // der Schulverwaltung, 24 seit #4800: der
     // Elternbrief an die eigene Klasse, 23 seit #4795, 22 seit #4901).
-    expect(teacherTopics).toHaveLength(26);
+    expect(teacherTopics).toHaveLength(27);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,
@@ -875,6 +904,7 @@ describe("getSchoolHelpTopicForPath", () => {
     ["/school", HELP_TOPICS.teacherClassDay],
     ["/klasse", HELP_TOPICS.teacherClassList],
     ["/school/klasse", HELP_TOPICS.teacherClassList],
+    ["/klasse/kind", HELP_TOPICS.teacherSharedNotes],
     ["/aufsichten", HELP_TOPICS.teacherSupervision],
     ["/school/aufsichten", HELP_TOPICS.teacherSupervision],
     ["/nachrichten", HELP_TOPICS.teacherMessages],

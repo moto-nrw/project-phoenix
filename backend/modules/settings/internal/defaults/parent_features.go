@@ -179,8 +179,10 @@ var parentFeaturesDefinitions = []config.Definition{
 		Description: "Legt fest, wer bei einer Anfrage einen Grund schreiben muss. " +
 			"Eltern begründen beim Absenden. Mitarbeitende begründen beim Freigeben. " +
 			"Eine Ablehnung braucht immer einen Grund. Das ändert diese Einstellung nicht.",
-		Type:            config.FieldSelect,
-		Default:         config.ReasonPolicyBoth,
+		Type: config.FieldSelect,
+		// Eltern begründen, das Team gibt ohne Pflichttext frei (#5024): ein
+		// Pflichtgrund beim Freigeben erzeugte nur Platzhalter wie „.“.
+		Default:         config.ReasonPolicyGuardians,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",

@@ -2267,7 +2267,10 @@ func TestParentRequestReasonPolicySetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyParentRequestReasonPolicy)
 	require.NotNil(t, def, "operations.parent_request_reason_policy should be registered")
 	assert.Equal(t, config.FieldSelect, def.Type)
-	assert.Equal(t, config.ReasonPolicyBoth, def.Default, "both sides explain themselves by default")
+	// #5024 replaced the #2267 default "both": a mandatory approval reason
+	// only produced placeholders such as ".", and a rejection needs a reason
+	// regardless of this setting. Parents keep explaining their request.
+	assert.Equal(t, config.ReasonPolicyGuardians, def.Default, "parents explain their request, staff approve without a mandatory reason by default")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "elternportal", def.Category)
