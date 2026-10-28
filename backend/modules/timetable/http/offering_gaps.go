@@ -261,7 +261,7 @@ func (rs *Resource) openOfferingGapClasses(ctx context.Context, periodID, offeri
 // everything else with 500.
 func renderOfferingGapError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, errInactivePlanningPeriod) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeTimetableOfferingGapPeriodInactive))
 		return
 	}
 	if errors.Is(err, timetable.ErrOfferingGapNotFound) || errors.Is(err, careplan.ErrCareOfferingNotFound) {

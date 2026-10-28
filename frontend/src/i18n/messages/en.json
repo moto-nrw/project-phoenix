@@ -3086,6 +3086,7 @@
         "move_other_day": "{object} could not be saved. Please check your entries.",
         "move_same_instance": "{object} could not be saved. Please check your entries.",
         "no_staff_profile": "You cannot access {object}. Please contact the school.",
+        "offering_gap_period_inactive": "{object} could not be changed. Please check its current status.",
         "offering_source_inactive": "{object} could not be changed. Please check its current status.",
         "offering_source_invalid": "{object} could not be saved. Please check your entries.",
         "offering_source_mixed_phases": "{object} could not be saved. Please check your entries.",

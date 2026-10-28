@@ -68,6 +68,7 @@ func TestOfferingGapsIgnoreInactivePeriods(t *testing.T) {
 	assert.Empty(t, s.listGaps(t, period.ID), "an inactive planning period shows no hint")
 	w := s.decide(t, rosterReviewOfferingID, period.ID, true)
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), `"code":"timetable.offering_gap_period_inactive"`)
 	assert.Empty(t, s.sources.decisions, "nothing is stored for an inactive period")
 
 	w = s.decide(t, rosterReviewOfferingID, period.ID+1_000_000, true)

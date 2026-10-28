@@ -57,6 +57,7 @@ const (
 	CodeTimetableMoveOtherDay                          = "timetable.move_other_day"
 	CodeTimetableMoveSameInstance                      = "timetable.move_same_instance"
 	CodeTimetableNoStaffProfile                        = "timetable.no_staff_profile"
+	CodeTimetableOfferingGapPeriodInactive             = "timetable.offering_gap_period_inactive"
 	CodeTimetableOfferingSourceInactive                = "timetable.offering_source_inactive"
 	CodeTimetableOfferingSourceInvalid                 = "timetable.offering_source_invalid"
 	CodeTimetableOfferingSourceMixedPhases             = "timetable.offering_source_mixed_phases"
@@ -272,6 +273,7 @@ var errorCodeClasses2 = map[string]string{
 	"timetable.move_other_day":                             "input",
 	"timetable.move_same_instance":                         "input",
 	"timetable.no_staff_profile":                           "permission",
+	"timetable.offering_gap_period_inactive":               "business_rejection",
 	"timetable.offering_source_inactive":                   "business_rejection",
 	"timetable.offering_source_invalid":                    "input",
 	"timetable.offering_source_mixed_phases":               "input",

@@ -3914,6 +3914,12 @@
       "legacy": "timetable.no_staff_profile"
     },
     {
+      "code": "timetable.offering_gap_period_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.offering_gap_period_inactive"
+    },
+    {
       "code": "timetable.offering_source_inactive",
       "class": "business_rejection",
       "parameters": [

@@ -3086,6 +3086,7 @@
         "move_other_day": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "move_same_instance": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "no_staff_profile": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+        "offering_gap_period_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "offering_source_inactive": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "offering_source_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "offering_source_mixed_phases": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

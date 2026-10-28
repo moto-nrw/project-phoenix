@@ -3086,6 +3086,7 @@
         "move_other_day": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "move_same_instance": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "no_staff_profile": "У вас немає доступу до: {object}. Зверніться до школи.",
+        "offering_gap_period_inactive": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "offering_source_inactive": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "offering_source_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "offering_source_mixed_phases": "Не вдалося зберегти: {object}. Перевірте введені дані.",

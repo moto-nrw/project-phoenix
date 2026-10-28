@@ -3086,6 +3086,7 @@
         "move_other_day": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "move_same_instance": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "no_staff_profile": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+        "offering_gap_period_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "offering_source_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "offering_source_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "offering_source_mixed_phases": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
