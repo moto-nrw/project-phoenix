@@ -34,3 +34,19 @@ runs. Use the same source revision and version for a one-time serial/parallel
 comparison. Normal PR/release runs use four without duplicating the workflow.
 The disposable CI VM owns the fixed screenshot clock; never change the host
 Mac clock to imitate that setup.
+
+## CI frontend execution
+
+The GitHub workflow builds the frontend once, after the full-day simulation has
+finished its synthetic Tuesday clock jumps. The clock does not change during the
+build. Build elapsed time is logged from the runner's monotonic clock. Capture
+then uses the existing production `pnpm run start` command on port 3000, including
+its 65536-byte header limit, instead of compiling routes on demand in `next dev`.
+
+`NODE_ENV` is `production` for build/server; `NEXT_PUBLIC_APP_ENV` and backend
+`APP_ENV` remain `development` for the disposable seeded stack. The full Chromium
+capture exercises production-mode authentication, including parents and Träger
+Secure-cookie logins on the unchanged localhost hosts. Build/readiness alone is
+not sufficient validation. Cookie flags, hostnames, token lifetimes, capture
+budgets, server cleanup and restoration of the runner clock remain unchanged.
+Compare total workflow time including the one-time build, not capture time alone.

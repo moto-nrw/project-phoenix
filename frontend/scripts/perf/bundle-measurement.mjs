@@ -257,14 +257,18 @@ function github(endpoint) {
   );
 }
 
-export function assertProducerRun(repository, run) {
-  if (
-    run?.repository?.full_name !== repository ||
-    run?.head_repository?.full_name !== repository ||
-    ![".github/workflows/main.yml", ".github/workflows/nightly.yml"].includes(
+function eligibleProducerRun(repository, run) {
+  return (
+    run?.repository?.full_name === repository &&
+    run?.head_repository?.full_name === repository &&
+    [".github/workflows/main.yml", ".github/workflows/nightly.yml"].includes(
       run.path?.split("@")[0],
     )
-  ) {
+  );
+}
+
+export function assertProducerRun(repository, run) {
+  if (!eligibleProducerRun(repository, run)) {
     throw new Error("Foreign bundle measurement producer repository/workflow");
   }
 }
@@ -327,7 +331,7 @@ function fetchBase() {
     const run = github(
       `repos/${repository}/actions/runs/${artifact.workflow_run.id}`,
     );
-    assertProducerRun(repository, run);
+    if (!eligibleProducerRun(repository, run)) continue;
     if (run.status !== "completed" || run.conclusion !== "success") continue;
     const temporary = mkdtempSync(join(tmpdir(), "moto-bundle-measurement-"));
     try {
