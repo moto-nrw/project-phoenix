@@ -874,9 +874,7 @@ describe("MobileBottomNav", () => {
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
-      // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
-      // (Planung-Redesign) und gehört nicht mehr zur Mitarbeiter-Sektion.
-      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockUsePathname.mockReturnValue("/dienstplan");
 
       render(<MobileBottomNav />);
 

@@ -28,6 +28,34 @@ function mondayOfWeekOffset(offset: number): string {
   return toISODate(getWeekRange(parseISODate(berlinTodayISO()), offset).from);
 }
 
+test.describe("Planung server redirects", () => {
+  // Inspect the first HTTP response, without following it or signing in:
+  // compatibility must work before any client navigation can render.
+  for (const [source, target] of [
+    ["/planung", "/betreuungsplan"],
+    ["/planung?tab=dienstplan", "/dienstplan"],
+    [
+      "/timetables?day=2026-09-14&view=month&instance=42",
+      "/betreuungsplan?d=2026-09-14&view=monat&block=42",
+    ],
+    [
+      "/vertretungsplan?history=1&instance=42",
+      "/vertretung?block=42&verlauf=1",
+    ],
+    ["/staff/dienstplan?tab=betreuung&instance=42", "/dienstplan"],
+  ] as const) {
+    test(`${source} redirects before rendering`, async ({ request }) => {
+      test.skip(access === null, MISSING_SEED_ACCESS);
+      const response = await request.get(source, { maxRedirects: 0 });
+
+      expect(response.status()).toBe(307);
+      expect(
+        new URL(response.headers().location ?? "", response.url()).href,
+      ).toBe(`${base}${target}`);
+    });
+  }
+});
+
 test.describe("Planung navigation", () => {
   test.beforeEach(async ({ page }) => {
     test.skip(access === null, MISSING_SEED_ACCESS);
