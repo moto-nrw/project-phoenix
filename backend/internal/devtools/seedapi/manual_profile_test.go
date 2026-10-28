@@ -2,11 +2,33 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestVerifyManualDevices_ExpectsModuleBookingRefusal(t *testing.T) {
+	t.Parallel()
+
+	requests := 0
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		requests++
+		assert.Equal(t, seedHTTPMethodGet, r.Method)
+		assert.Equal(t, "/api/iot/", r.URL.Path)
+		assert.Equal(t, "terminal", r.URL.Query().Get("device_type"))
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(seedHTTPStatusForbidden)
+		_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+	})
+	defer srv.Close()
+
+	device, err := verifyManualDevices(&Runtime{Client: newTestClient(srv.URL, false)})
+	require.NoError(t, err)
+	assert.Equal(t, SeedDevice{DeviceID: webManualDeviceID, DeviceType: "virtual", Name: "Web-Portal (Manuell)", Protected: true}, device)
+	assert.Equal(t, 1, requests)
+}
 
 func TestVerifyManualStudentRowsAcceptsAtSchoolBeforeCheckIn(t *testing.T) {
 	t.Parallel()

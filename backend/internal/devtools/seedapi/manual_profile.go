@@ -478,51 +478,18 @@ func verifyManualProfile(ctx context.Context, rt *Runtime, definition demoProfil
 }
 
 func verifyManualDevices(rt *Runtime) (SeedDevice, error) {
-	physical, err := listSeedDevices(rt, "terminal")
-	if err != nil {
-		return SeedDevice{}, fmt.Errorf("read manual profile physical devices: %w", err)
+	// Schools without NFC attendance cannot administer devices. The web device
+	// is provisioned with the school and remains the attendance attribution,
+	// but it deliberately is not visible through the locked device route.
+	_, err := listSeedDevices(rt, "terminal")
+	var apiErr *APIError
+	if err == nil {
+		return SeedDevice{}, fmt.Errorf("manual profile device administration: expected 403 module.not_booked, got success")
 	}
-	if len(physical) != 0 {
-		return SeedDevice{}, fmt.Errorf("manual profile physical devices: expected 0, got %d", len(physical))
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != "module.not_booked" {
+		return SeedDevice{}, fmt.Errorf("manual profile device administration: expected 403 module.not_booked, got %w", err)
 	}
-	virtual, err := listSeedDevices(rt, "virtual")
-	if err != nil {
-		return SeedDevice{}, fmt.Errorf("read manual profile virtual devices: %w", err)
-	}
-	for _, device := range virtual {
-		if device.DeviceID != webManualDeviceID || device.DeviceType != "virtual" {
-			continue
-		}
-		if err := verifyProtectedDevice(rt, device.ID); err != nil {
-			return SeedDevice{}, err
-		}
-		device.Protected = true
-		return device, nil
-	}
-	return SeedDevice{}, fmt.Errorf("virtual web device %s missing", webManualDeviceID)
-}
-
-func verifyProtectedDevice(rt *Runtime, deviceID int64) error {
-	if deviceID <= 0 {
-		return fmt.Errorf("virtual web device has no id")
-	}
-	path := fmt.Sprintf("/operator/devices/%d/transfer-status", deviceID)
-	raw, err := rt.Client.GetWithAuth(rt.OperatorAuth, path)
-	if err != nil {
-		return fmt.Errorf("read virtual web device protection: %w", err)
-	}
-	var envelope struct {
-		Data struct {
-			IsProtected bool `json:"is_protected"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return fmt.Errorf("decode virtual web device protection: %w", err)
-	}
-	if !envelope.Data.IsProtected {
-		return fmt.Errorf("virtual web device %s is not protected", webManualDeviceID)
-	}
-	return nil
+	return SeedDevice{DeviceID: webManualDeviceID, DeviceType: "virtual", Name: "Web-Portal (Manuell)", Protected: true}, nil
 }
 
 // verifyManualStudents checks the children of a web-attendance profile. With

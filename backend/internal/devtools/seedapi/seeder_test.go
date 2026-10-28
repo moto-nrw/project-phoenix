@@ -1349,11 +1349,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			return
 		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/iot/" {
+			if manualAuth {
+				w.WriteHeader(seedHTTPStatusForbidden)
+				_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+				return
+			}
 			deviceType := r.URL.Query().Get("device_type")
 			devices := make([]map[string]any, 0)
 			if deviceType == "virtual" {
 				devices = append(devices, map[string]any{"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": "Web-Anwesenheit"})
-			} else if !manualAuth {
+			} else {
 				for _, device := range DemoDevices {
 					devices = append(devices, map[string]any{"device_id": device.DeviceID, "device_type": "terminal", "name": device.Name})
 				}
