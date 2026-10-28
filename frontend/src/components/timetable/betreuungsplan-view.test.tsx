@@ -1415,9 +1415,10 @@ describe("BetreuungsplanView", () => {
     );
   });
 
-  // Herbstferien liegen ganz im Schuljahr: der Plan zeigt für jeden ihrer
-  // Tage das ältere Schuljahr, der Link darf dort nicht stumm hängen bleiben.
-  it("reports a linked template whose period lies inside another one", async () => {
+  // Invariante (#5137): Nach dem Link ist der Zeitraum des Regeltermins
+  // aktiv, auch wenn ein Zeitraum mit kleinerer ID dieselben Tage abdeckt.
+  // Herbstferien liegen ganz im Schuljahr; per Datum gewänne das Schuljahr.
+  it("activates the linked template's period inside an overlapping one", async () => {
     setUrl("view=serien&verbinden=7");
     const holidays = {
       ...laterPeriod,
@@ -1437,24 +1438,27 @@ describe("BetreuungsplanView", () => {
     setupSWR({
       periods: [period, holidays],
       templates: [],
+      templatesByPeriod: { "timetable-templates-7": [holidayTemplate] },
       allTemplates: [holidayTemplate],
       rosterDeviations: [deviation],
     });
     render(<BetreuungsplanView />);
 
-    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
-    expect(mockShowMessage).toHaveBeenCalledWith(
-      "„Ferien-Randstunde“ gehört zum Zeitraum „Herbstferien“. moto kann ihn von hier aus leider nicht öffnen.",
-    );
-    // Anker: die Serienansicht bleibt beim Schuljahr stehen.
-    expect(screen.getByText("create-template")).toBeVisible();
-    expect(urlParams().has("d")).toBe(false);
     expect(
-      screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
-    ).not.toBeInTheDocument();
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toHaveTextContent("Ferien-Randstunde · OGS Ganztag");
+    expect(urlParams().get("zeitraum")).toBe("7");
+    expect(urlParams().get("d")).toBe("2026-10-12");
+    expect(urlParams().has("verbinden")).toBe(false);
+    expect(mockUseSWRAuth).toHaveBeenCalledWith(
+      "timetable-templates-7",
+      expect.any(Function),
+      expect.anything(),
+    );
+    expect(mockShowMessage).not.toHaveBeenCalled();
   });
 
-  it("lands on the first day that shows a partly overlapping period", async () => {
+  it("activates a partly overlapping period from its first day", async () => {
     setUrl("view=serien&verbinden=7");
     const overlapping = { ...laterPeriod, startDate: "2026-12-30" };
     const laterTemplate = {
@@ -1476,9 +1480,44 @@ describe("BetreuungsplanView", () => {
     expect(
       await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
     ).toBeVisible();
-    // 30. und 31.12. zeigt der Plan noch das Schuljahr (Zeitraum 5).
-    expect(urlParams().get("d")).toBe("2027-01-01");
-    expect(mockShowMessage).not.toHaveBeenCalled();
+    // Der 30.12. gehört auch zum Schuljahr (ID 5); aktiv ist trotzdem 6.
+    expect(urlParams().get("d")).toBe("2026-12-30");
+    expect(urlParams().get("zeitraum")).toBe("6");
+  });
+
+  it("reports a linked template that no longer exists", async () => {
+    setUrl("view=serien&verbinden=99");
+    setupSWR({ allTemplates: [template], rosterDeviations: [deviation] });
+    render(<BetreuungsplanView />);
+
+    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      "Den Regeltermin gibt es nicht mehr.",
+    );
+    // Anker: die Serienansicht bleibt stehen, ohne Dialog.
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(
+      screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("switching periods with the period chip drops a linked period", () => {
+    setUrl("view=serien&d=2026-10-12&zeitraum=7");
+    setupSWR({
+      periods: [
+        period,
+        {
+          ...laterPeriod,
+          id: "7",
+          startDate: "2026-10-12",
+          endDate: "2026-10-23",
+        },
+      ],
+    });
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("select-period"));
+    expect(urlParams().has("zeitraum")).toBe(false);
   });
 
   it("opens the Regeltermin for editing when no offering matches", async () => {

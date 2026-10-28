@@ -12,7 +12,10 @@
  * "serien"), `block` (Instanz-ID des geöffneten InstanceDetailModal) und die
  * Filter `group` (OGS-Gruppe) und `staff` (Person) aus #4766 sowie `room`
  * (Raum) aus #4768. `verbinden` (Regeltermin-ID, #5137) öffnet in der
- * Serienansicht einmal „Mit Angebot verbinden“ und fällt danach weg.
+ * Serienansicht einmal „Mit Angebot verbinden“ und fällt danach weg; er setzt
+ * `zeitraum` (Zeitraum-ID) für den Zeitraum des Regeltermins. `zeitraum` gilt,
+ * solange `d` in diesem Zeitraum liegt, und schlägt bei überlappenden
+ * Zeiträumen die Wahl per Datum.
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
  * sieben Alt-Parameter (week/month/year/instance/day/period/Alt-view) entfallen
  * ersatzlos; die Jahresansicht ist nicht mehr verlinkbar. Der Dichte-Umschalter
@@ -193,6 +196,8 @@ const ALLOWED_URL_PARAMS = [
   "pruefen",
   // Regeltermin-ID, für die „Mit Angebot verbinden“ öffnet (#5137).
   "verbinden",
+  // Zeitraum-ID des verlinkten Regeltermins (#5137).
+  "zeitraum",
 ] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
@@ -216,26 +221,6 @@ function parseViewParam(raw: string | null): TimetableView {
   if (raw === "monat") return "month";
   if (raw === "serien") return "series";
   return "week";
-}
-
-/**
- * Erster Tag eines Zeitraums, für den der Plan genau diesen Zeitraum zeigt
- * (#5137). Überlappen Zeiträume, gewinnt sonst der ältere; liegt der
- * Zeitraum ganz in einem anderen, gibt es keinen solchen Tag.
- */
-function firstDayShowingPeriod(
-  periods: CalendarPeriod[],
-  period: CalendarPeriod,
-): string | null {
-  const day = parseISODate(period.startDate);
-  for (
-    let iso = period.startDate;
-    iso <= period.endDate;
-    day.setDate(day.getDate() + 1), iso = toISODate(day)
-  ) {
-    if (findPeriodForDate(periods, iso)?.id === period.id) return iso;
-  }
-  return null;
 }
 
 /** Segmentschalter-Wert (deutsches Vokabular) aus dem internen Ansichts-Typ. */
@@ -952,10 +937,19 @@ function TimetablesContent() {
   const dayClosingReason = closingDays.get(dayISO) ?? null;
   // Der sichtbare Planungszeitraum: der Zeitraum, in den das sichtbare Datum
   // fällt. Speist Zeitraum-Chip, Bedarfsquellen-Chip und die Serienliste.
-  const visiblePeriod = useMemo(
-    () => findPeriodForDate(calendarPeriods, dayISO),
-    [calendarPeriods, dayISO],
-  );
+  // Ein per ID gewählter Zeitraum (#5137) gilt, solange er den Tag enthält;
+  // sonst wählt das Datum, bei Überlappung der ältere Zeitraum.
+  const pinnedPeriodID = params.zeitraum;
+  const visiblePeriod = useMemo(() => {
+    const pinned = calendarPeriods.find(
+      (entry) =>
+        entry.id === pinnedPeriodID &&
+        entry.isActive &&
+        entry.startDate <= dayISO &&
+        dayISO <= entry.endDate,
+    );
+    return pinned ?? findPeriodForDate(calendarPeriods, dayISO);
+  }, [calendarPeriods, dayISO, pinnedPeriodID]);
   const templatePeriodID = visiblePeriod?.id ?? assignedPeriods[0]?.id;
   const focusedPeriodID = templatePeriodID ?? null;
   const {
@@ -1053,17 +1047,18 @@ function TimetablesContent() {
       );
       const periodID = linked && resolveTemplateCalendarPeriodId(linked);
       const period = calendarPeriods.find((entry) => entry.id === periodID);
-      const landing =
-        period && period.id !== templatePeriodID
-          ? firstDayShowingPeriod(calendarPeriods, period)
-          : null;
-      if (landing) {
-        updateUrlParams({ d: landing });
+      // Den Zeitraum per ID wählen: per Datum gewänne bei Überlappung der
+      // ältere Zeitraum, und der Regeltermin fehlte weiter in der Liste.
+      if (period?.isActive && period.id !== templatePeriodID) {
+        const inside = period.startDate <= dayISO && dayISO <= period.endDate;
+        updateUrlParams({
+          d: inside ? dayISO : period.startDate,
+          zeitraum: period.id,
+        });
         return;
       }
       updateUrlParams({ verbinden: null });
-      // Kein stummes Ende: der Regeltermin fehlt, oder sein Zeitraum liegt
-      // ganz in einem anderen, den der Plan für jeden dieser Tage zeigt.
+      // Kein stummes Ende: der Regeltermin fehlt oder ist nicht mehr planbar.
       showConnectMessage(
         linked && period
           ? `„${linked.name}“ gehört zum Zeitraum „${period.name}“. moto kann ihn von hier aus leider nicht öffnen.`
@@ -1099,6 +1094,7 @@ function TimetablesContent() {
     connectTemplatesValidating,
     calendarPeriods,
     templatePeriodID,
+    dayISO,
     rosterDeviations,
     templates,
     canManageSchedules,
@@ -1729,6 +1725,7 @@ function TimetablesContent() {
           ? target
           : firstSchoolDayInPeriod(period.startDate, period.endDate, target),
         block: null,
+        zeitraum: null,
       });
     },
     [todayISO, updateUrlParams, weekendOpen],
