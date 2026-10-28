@@ -354,9 +354,9 @@ jobs:
         env:
           NODE_ENV: production
         run: |
-          build_started=$(node -p 'process.hrtime.bigint()')
+          build_started=$(node -p 'process.hrtime.bigint().toString()')
           pnpm run build
-          build_finished=$(node -p 'process.hrtime.bigint()')
+          build_finished=$(node -p 'process.hrtime.bigint().toString()')
           echo "Frontend production build completed in $(( (build_finished - build_started) / 1000000 )) ms"
 
       - name: Start frontend
