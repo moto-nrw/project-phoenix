@@ -1,0 +1,16 @@
+{
+  "button": "Anfrage teilen",
+  "title": "Anfrage mit anderen teilen",
+  "privacyHint": "Nur ausgewählte Sorgeberechtigte sehen Ihre Anfrage und die Antwort der OGS.",
+  "recipientLegend": "Anfrage teilen (optional)",
+  "protected": "Diese Anfrage bleibt privat. Die OGS hat den Familienschutz eingeschaltet.",
+  "noRecipients": "Es gibt keine weiteren Sorgeberechtigten mit Zugang zur Eltern-App.",
+  "loading": "Empfänger werden geladen …",
+  "save": "Auswahl speichern",
+  "saving": "Wird gespeichert …",
+  "cancel": "Abbrechen",
+  "close": "Fenster schließen",
+  "errorObjectRecipients": "die Liste der Empfänger",
+  "errorObjectSelection": "die Auswahl",
+  "optionsHint": "Sie können die Anfrage trotzdem senden und später teilen."
+}

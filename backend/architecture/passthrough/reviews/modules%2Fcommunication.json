@@ -1,0 +1,1119 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/communication/DeclarationRules.Closed",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/Survey.Status",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/http/operatorannouncements/AnnouncementsResource.GetAnnouncement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/GroupThreadPortal.PortalCountUnreadGroupThreads",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/GroupThreadPortal.PortalGroupThreadTitles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/GroupThreadPortal.PortalListGroupThreads",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.ClearStaffUnreadMark",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.ClearUnreadForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.MarkReadUpTo",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.MarkStaffHandledUpTo",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.MarkStaffUnread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AccountMayAnswerForStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AnswerableChildren",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AudienceRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ClaimReminder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ClearEngagement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.CountAudience",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.CountDeclarationSubmissions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.CountReachableGuardiansForStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.DeclarationSettings",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.DeclarationSigners",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.DeclarationSignersForStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.Delete",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.FindByIDForUpdate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.HoldDeclarationSigner",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.InsertDeclarationSubmission",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.LatestDeclarationVersion",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.LatestDeclarationVersions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListDeclarationSubmissions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListDeclarationSubmissionsForStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListDeclarationVersions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListDueReminders",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListForTenant",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListOptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListOptionsForAnnouncements",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListTargets",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.LockDeclarationChild",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.MarkAcknowledged",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.MarkRead",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.PublishIfDraft",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ReadOpenDeclarations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ReleaseReminderClaim",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ResolveAudienceEmails",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.SetPublished",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.SetReminder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.Stats",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.UnacknowledgedReminderRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.UnansweredReminderRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.Update",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListInboxForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListThreadsForStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/messageRepository.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/messageRepository.FindByIDForUpdate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/messageRepository.FindEventByRef",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/messageRepository.Update",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentAnnouncementRepository.SchoolName",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListInboxForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListThreadsForStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.ClaimStaffMessageNotification",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.FindByStudentGuardian",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.GetOrCreate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.LockForMessageAppend",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.TouchLastMessage",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.Update",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/staffpostgres/readRepository.ListStaffInbox",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/staffpostgres/readRepository.MarkStaffReadUpTo",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/adapters/staffpostgres/readRepository.StaffUnreadCount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/Service.CountUnread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/Service.GetAnnouncement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/Service.GetUnreadForUser",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/Service.ListAnnouncements",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/Service.MarkDismissed",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/Service.MarkSeen",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/audit.Append",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/mappedParentAnnouncementError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncementDeliveryAdapter.ReplaceForEntity",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.AnnouncementEditable",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.AnnouncementExists",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.CareCancellationReachFor",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.CreateParentAnnouncement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.DeleteParentAnnouncement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.ListParentAnnouncements",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.LockAnnouncementForAttachmentChange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.ParentAnnouncementRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.ParentAnnouncementStats",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.ParentDeclarationStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.PublishCareCancellation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.PublishParentAnnouncement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.RemindParentAnnouncement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.ResendParentAnnouncementEmails",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.ResetAnnouncementEngagement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.SendDueParentAnnouncementReminders",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.UnpublishParentAnnouncement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.UpdateParentAnnouncement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentAnnouncements.UpdateParentAnnouncementReminder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessageRetention[R].CleanupExpiredParentMessages",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].CountUnreadParentMessages",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].GetParentMessageThread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].ListParentMessageInbox",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].ListParentMessageReachableStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].ListParentMessageThreadsForStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].MarkAllParentMessagesRead",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].MarkParentMessageThreadUnread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].OpenParentMessageThread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].PostParentMessage",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].SetParentMessageCountScope",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].StartParentMessageThread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentmessaging/Emitter.BroadcastChildUpdateToGuardians",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentmessaging/Emitter.EmitChildEvent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/parentmessaging/Emitter.MessagingEnabledForTenant",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/service.AnnouncementEditable",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/service.AnnouncementExists",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/service.DeclarationFrozen",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/service.LockAnnouncementForAttachmentChange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/service.PollChildren",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/service.PollResults",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/service.ResetAnnouncementEngagement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].CleanupExpiredStaffMessages",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].CountUnreadStaffMessages",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].GetStaffMessageThread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].ListMessageableStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].OpenStaffMessageThread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].PostStaffMessage",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/targets.CountOrganizationsByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/application/targets.CountSchoolsByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/EventEmitter.InTransaction",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/Service.CountScope",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/Service.HasOwnGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/Service.ListGuardians",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/Service.ListParentGroupThreads",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/Service.ListReachableStudentIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/Service.ListStudentThreads",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/Service.MarkUnread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/Service.SetCountScope",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentMessageRepository.FindEventByRef",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.ClearStaffUnreadMark",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.ClearUnreadForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.FindThreadHeader",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.GuardianReadCursor",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.LatestReadCursorByOther",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.MarkReadUpTo",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.MarkStaffHandledUpTo",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.MarkStaffUnread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.UnreadMessageCountForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.UnreadMessageCountForStaffInGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.FindByStudentGuardian",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.GetOrCreate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.ListGuardiansForStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.ListStudentIDsWithMessageableGuardian",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.LockForMessageAppend",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.TouchLastMessage",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.AudienceRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ClaimReminder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ClearEngagement",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.CountDeclarationSubmissions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.CountReachableGuardiansForStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.DeclarationChildren",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.DeclarationSigners",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Delete",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.FindByIDForUpdate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.InsertDeclarationVersion",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.IsPublishedConflict",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.LatestDeclarationVersion",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.LetterChildStatuses",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListDeclarationSubmissions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListDeclarationVersions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListDueReminders",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListForTenant",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListOptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListOptionsForAnnouncements",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListTargets",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.PollChildren",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.PollResults",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.PublishIfDraft",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ReleaseReminderClaim",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ReplaceOptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ReplaceTargets",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ResolveAudienceEmails",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ResolveDeliveryRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.SchoolName",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.SetPublished",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.SetReminder",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Stats",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.UnacknowledgedReminderRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.UnansweredReminderRecipients",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Update",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/Service.UnreadMessageCount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffMessageRecords.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffMessageRecords.DeleteOlderThan",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffMessageRecords.ListByThread",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.IsMessageableStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.ListInbox",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.ListMessageableStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.MarkReadUpTo",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.StaffRoleKinds",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.UnreadCount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.DeleteEmpty",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.GetOrCreateDirect",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.IsParticipant",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.LockForMessageAppend",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.ParticipantAccountIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.TouchLastMessage",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentMessagePeople.FindStaffSenderName",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.Delete",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.InsertDeclarationVersion",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ListDeclarationSubmissions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ListOptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ReplaceOptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ReplaceTargets",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.SetPublished",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

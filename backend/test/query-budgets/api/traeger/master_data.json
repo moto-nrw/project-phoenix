@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.master_data",
+  "max": 3,
+  "exact": true,
+  "description": "modules/organizationtenancy — GET /traeger/master-data (#4653): the\nTräger binding of the Träger transaction, then the profile row and the\nbank accounts of the Träger; the read log writes but selects nothing.\nFlat in the number of bank accounts."
+}

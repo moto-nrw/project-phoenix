@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.phase_responses.list",
+  "max": 9,
+  "exact": false,
+  "description": "modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched\nresponse sources inside the tenant transaction. The matching test proves\nthe total stays flat from three to eight children."
+}

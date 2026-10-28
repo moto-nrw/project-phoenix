@@ -1,0 +1,13 @@
+DELETE /api/calendar/appointments/{appointmentId}
+GET /api/calendar/appointments/{appointmentId}
+GET /api/calendar/appointments/{appointmentId}/ics
+GET /api/calendar/appointments/{appointmentId}/overview
+GET /api/calendar/feed
+GET /api/calendar/my
+GET /api/calendar/recipient-options
+POST /api/calendar/appointments
+POST /api/calendar/appointments/{appointmentId}/cancel
+POST /api/calendar/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel
+POST /api/calendar/feed/rotate
+POST /api/calendar/recipients/{recipientId}/response
+PUT /api/calendar/appointments/{appointmentId}

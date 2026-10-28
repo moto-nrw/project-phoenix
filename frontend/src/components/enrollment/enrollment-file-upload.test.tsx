@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import type { FormField } from "~/lib/enrollment-form-schema-api";
 import {
   effectiveFileFieldOptions,

@@ -1,0 +1,36 @@
+{
+  "today": "Bugün",
+  "sectionTitle": "Bugün",
+  "sectionDescription": "Günün durumu ve önemli işlemler bir bakışta.",
+  "statusLabel": "Güncel durum",
+  "atOgs": "OGS'de",
+  "notAtOgs": "OGS'de değil",
+  "state": {
+    "present": "{time} saatinden beri OGS'de",
+    "presentNoTime": "Bugün OGS'de",
+    "left": "{time} saatinde eve gitti",
+    "leftNoTime": "Bugün eve gitti",
+    "expected": "Bugün {time} saatinde geliyor",
+    "expectedNoTime": "Bugün geliyor",
+    "notArrived": "{time} saatinden beri bekleniyor",
+    "notArrivedNoTime": "Bekleniyor",
+    "absent": "Bugün için mazeret bildirildi",
+    "noCare": "Bugün bakım yok",
+    "unknown": "Durum şu anda görüntülenemiyor"
+  },
+  "actions": {
+    "profile": "Profili görüntüle",
+    "sick": "{name} için mazeret bildir",
+    "sickCompact": "Mazeret bildir",
+    "sickHint": "Hastalık veya mazeret bildirin",
+    "pickup": "{name} için teslim alma saatini değiştir",
+    "pickupCompact": "Teslim alma saatini değiştir",
+    "pickupHint": "Bir günlük teslim alma saatini ayarlayın",
+    "message": "Mesaj yaz",
+    "messageCompact": "Mesaj yaz",
+    "messageHint": "{name} için OGS ile iletişime geçin",
+    "pickupWithMode": "{name} için teslim almayı değiştir",
+    "pickupCompactWithMode": "Teslim almayı değiştir",
+    "pickupHintWithMode": "Bir gün için teslim alma saatini veya şeklini değiştirin"
+  }
+}

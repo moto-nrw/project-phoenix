@@ -1,0 +1,164 @@
+{
+  "api/parent/me/children": [
+    "GET parent /parent/me/children"
+  ],
+  "api/parent/me/children/[studentId]/care-offerings": [
+    "GET parent /parent/me/children/studentId%2F1/care-offerings"
+  ],
+  "api/parent/me/children/[studentId]/care-offerings/catalog": [
+    "GET parent /parent/me/children/studentId%2F1/care-offerings/catalog"
+  ],
+  "api/parent/me/children/[studentId]/care-offerings/requests": [
+    "POST parent /parent/me/children/studentId%2F1/care-offerings/requests"
+  ],
+  "api/parent/me/children/[studentId]/care-offerings/requests/[requestId]": [
+    "PUT parent /parent/me/children/studentId%2F1/care-offerings/requests/requestId%2F1"
+  ],
+  "api/parent/me/children/[studentId]/care-schedule": [
+    "GET parent /parent/me/children/studentId%2F1/care-schedule"
+  ],
+  "api/parent/me/children/[studentId]/care-schedule/requests": [
+    "POST parent /parent/me/children/studentId%2F1/care-schedule/requests"
+  ],
+  "api/parent/me/children/[studentId]/care-schedule/requests/[requestId]": [
+    "PUT parent /parent/me/children/studentId%2F1/care-schedule/requests/requestId%2F1"
+  ],
+  "api/parent/me/children/[studentId]/consents": [
+    "GET parent /parent/me/children/studentId%2F1/consents"
+  ],
+  "api/parent/me/children/[studentId]/courses": [
+    "GET parent /parent/me/children/studentId%2F1/courses"
+  ],
+  "api/parent/me/children/[studentId]/courses/requests": [
+    "POST parent /parent/me/children/studentId%2F1/courses/requests"
+  ],
+  "api/parent/me/children/[studentId]/courses/requests/[requestId]/withdraw": [
+    "POST parent /parent/me/children/studentId%2F1/courses/requests/requestId%2F1/withdraw"
+  ],
+  "api/parent/me/children/[studentId]/excused-requests": [
+    "GET parent /parent/me/children/studentId%2F1/excused-requests"
+  ],
+  "api/parent/me/children/[studentId]/excused-requests/[requestId]": [
+    "PUT parent /parent/me/children/studentId%2F1/excused-requests/requestId%2F1"
+  ],
+  "api/parent/me/children/[studentId]/features": [
+    "GET parent /parent/me/children/studentId%2F1/features"
+  ],
+  "api/parent/me/children/[studentId]/guardians": [
+    "GET parent /parent/me/children/studentId%2F1/guardians",
+    "POST parent /parent/me/children/studentId%2F1/guardians"
+  ],
+  "api/parent/me/children/[studentId]/guardians/[guardianProfileId]/contact": [
+    "PUT parent /parent/me/children/studentId%2F1/guardians/guardianProfileId%2F1/contact"
+  ],
+  "api/parent/me/children/[studentId]/guardians/[guardianProfileId]/pickup": [
+    "PUT parent /parent/me/children/studentId%2F1/guardians/guardianProfileId%2F1/pickup"
+  ],
+  "api/parent/me/children/[studentId]/guardians/[guardianProfileId]/pickup-permission-requests": [
+    "POST parent /parent/me/children/studentId%2F1/guardians/guardianProfileId%2F1/pickup-permission-requests"
+  ],
+  "api/parent/me/children/[studentId]/master-data": [
+    "GET parent /parent/me/children/studentId%2F1/master-data"
+  ],
+  "api/parent/me/children/[studentId]/master-data/requests": [
+    "GET parent /parent/me/children/studentId%2F1/master-data/requests",
+    "POST parent /parent/me/children/studentId%2F1/master-data/requests"
+  ],
+  "api/parent/me/children/[studentId]/master-data/requests/[requestId]": [
+    "PUT parent /parent/me/children/studentId%2F1/master-data/requests/requestId%2F1"
+  ],
+  "api/parent/me/children/[studentId]/meal-plan": [
+    "GET parent /parent/me/children/studentId%2F1/meal-plan"
+  ],
+  "api/parent/me/children/[studentId]/pickup-change-requests": [
+    "GET parent /parent/me/children/studentId%2F1/pickup-change-requests"
+  ],
+  "api/parent/me/children/[studentId]/pickup-change-requests/[requestId]": [
+    "PUT parent /parent/me/children/studentId%2F1/pickup-change-requests/requestId%2F1"
+  ],
+  "api/parent/me/children/[studentId]/pickup-permission-requests": [
+    "GET parent /parent/me/children/studentId%2F1/pickup-permission-requests"
+  ],
+  "api/parent/me/children/[studentId]/pickup-signature-statement": [
+    "POST parent /parent/me/children/studentId%2F1/pickup-signature-statement"
+  ],
+  "api/parent/me/children/[studentId]/related-accounts": [
+    "GET parent /parent/me/children/studentId%2F1/related-accounts",
+    "POST parent /parent/me/children/studentId%2F1/related-accounts"
+  ],
+  "api/parent/me/children/[studentId]/request-sharing-options": [
+    "GET parent /parent/me/children/studentId%2F1/request-sharing-options"
+  ],
+  "api/parent/me/children/[studentId]/request-sharing/[requestType]/[requestId]": [
+    "GET parent /parent/me/children/studentId%2F1/request-sharing/requestType%2F1/requestId%2F1",
+    "PUT parent /parent/me/children/studentId%2F1/request-sharing/requestType%2F1/requestId%2F1"
+  ],
+  "api/parent/me/children/[studentId]/requests/[type]/[id]/events": [
+    "GET parent /parent/me/children/studentId%2F1/requests/type%2F1/id%2F1/events"
+  ],
+  "api/parent/me/children/[studentId]/today": [
+    "GET parent /parent/me/children/studentId%2F1/today"
+  ],
+  "api/parent/me/enrollable-schools": [
+    "GET parent /parent/me/enrollable-schools"
+  ],
+  "api/parent/me/documents": [
+    "GET parent /parent/me/documents"
+  ],
+  "api/parent/me/enrollments": [
+    "GET parent /parent/me/enrollments"
+  ],
+  "api/parent/me/messages": [
+    "GET parent /parent/me/messages"
+  ],
+  "api/parent/me/messages/children/[studentId]": [
+    "GET parent /parent/me/messages/children/studentId%2F1",
+    "POST parent /parent/me/messages/children/studentId%2F1"
+  ],
+  "api/parent/me/messages/children/[studentId]/threads": [
+    "GET parent /parent/me/messages/children/studentId%2F1/threads"
+  ],
+  "api/parent/me/messages/group-threads": [
+    "GET parent /parent/me/messages/group-threads"
+  ],
+  "api/parent/me/messages/group-threads/[groupThreadId]": [
+    "GET parent /parent/me/messages/group-threads/groupThreadId%2F1"
+  ],
+  "api/parent/me/messages/unread-count": [
+    "GET parent /parent/me/messages/unread-count"
+  ],
+  "api/parent/me/news": [
+    "GET parent /parent/me/news"
+  ],
+  "api/parent/me/news/[announcementId]/acknowledge": [
+    "POST parent /parent/me/news/announcementId%2F1/acknowledge"
+  ],
+  "api/parent/me/news/[announcementId]/attachments": [
+    "GET parent /parent-news-attachments/announcementId%2F1"
+  ],
+  "api/parent/me/news/[announcementId]/declaration": [
+    "POST parent /parent/me/news/announcementId%2F1/declaration"
+  ],
+  "api/parent/me/news/[announcementId]/declaration/proof": [
+    "GET parent /parent/me/news/announcementId%2F1/declaration/proof"
+  ],
+  "api/parent/me/news/[announcementId]/read": [
+    "POST parent /parent/me/news/announcementId%2F1/read"
+  ],
+  "api/parent/me/news/[announcementId]/respond": [
+    "POST parent /parent/me/news/announcementId%2F1/respond"
+  ],
+  "api/parent/me/news/unread-count": [
+    "GET parent /parent/me/news/unread-count"
+  ],
+  "api/parent/me/profile": [
+    "GET parent /parent/me/profile",
+    "PUT parent /parent/me/profile"
+  ],
+  "api/parent/me/push/public-key": [
+    "GET parent /parent/me/push/public-key"
+  ],
+  "api/parent/me/pwa-usage": [
+    "POST parent /parent/me/pwa-usage"
+  ]
+}

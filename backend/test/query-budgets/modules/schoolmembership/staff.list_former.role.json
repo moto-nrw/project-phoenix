@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.schoolmembership.staff.list_former.role",
+  "max": 7,
+  "exact": false,
+  "description": "The role-filtered Ehemalige variant adds one auth.account_roles batch;\nit stays flat in the number of former employments."
+}

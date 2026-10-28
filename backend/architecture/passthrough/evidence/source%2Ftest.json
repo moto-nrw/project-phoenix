@@ -1,0 +1,39 @@
+{
+  "sites": [
+    {
+      "build": "test-support",
+      "evidence": "func (creator GroupSupervisorCreator) CreateGroupSupervisor(ctx context.Context, supervisor *studentpresence.GroupSupervision) error {\n\tsupervisor.TenantID = tenant.FromContext(ctx)\n\treturn creator.Repository.CreateSupervision(ctx, supervisor)\n}",
+      "form": "unclassified-evidence",
+      "id": "test/GroupSupervisorCreator.CreateGroupSupervisor",
+      "owner": "source/test"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (c *QueryCounter) Start() {\n\tc.enabled.Store(true)\n}",
+      "form": "unclassified-evidence",
+      "id": "test/QueryCounter.Start",
+      "owner": "source/test"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (c *QueryCounter) Stop() {\n\tc.enabled.Store(false)\n}",
+      "form": "unclassified-evidence",
+      "id": "test/QueryCounter.Stop",
+      "owner": "source/test"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (p *TransactionProbe) Committed(tb testing.TB) bool {\n\ttb.Helper()\n\tif p.id == 0 {\n\t\treturn false\n\t}\n\texists, err := p.db.NewSelect().TableExpr(`users.guardian_profiles`).Where(\"id = ?\", p.id).Exists(context.Background())\n\trequire.NoError(tb, err)\n\treturn exists\n}",
+      "form": "unclassified-evidence",
+      "id": "test/TransactionProbe.Committed",
+      "owner": "source/test"
+    },
+    {
+      "build": "test-support",
+      "evidence": "func (w *statusWriter) WriteHeader(status int) {\n\t*w.status = status\n\tw.ResponseWriter.WriteHeader(status)\n}",
+      "form": "unclassified-evidence",
+      "id": "test/statusWriter.WriteHeader",
+      "owner": "source/test"
+    }
+  ]
+}

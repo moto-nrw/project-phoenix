@@ -1,0 +1,20 @@
+{
+  "errorObject": "lista okresów zapisów",
+  "back": "Wróć do portalu dla rodziców",
+  "kicker": "Zapis na opiekę w OGS",
+  "title": "Nowy zapis",
+  "description": "Proszę wybrać szkołę i okres zapisów, aby zapisać dziecko.",
+  "loading": "Wczytywanie okresów zapisów …",
+  "empty": "Obecnie nie ma dostępnych okresów zapisów.",
+  "yourSchools": "Państwa szkoły",
+  "otherSchools": "Inne szkoły",
+  "kindSchoolYear": "Rok szkolny",
+  "kindHoliday": "Opieka w ferie",
+  "kindCustom": "Inne",
+  "closesAt": "Zapisy do {date}",
+  "audienceNewStudents": "Tylko nowe dzieci",
+  "audienceExistingStudents": "Tylko dzieci już zapisane",
+  "audienceLinkedParents": "Tylko dla powiązanych rodziców",
+  "rangeConnector": "do",
+  "openPhase": "Otwórz zapis"
+}

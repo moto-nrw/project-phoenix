@@ -1,0 +1,424 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (r AttendanceRetention) Days(ctx context.Context) (int, error) {\n\tdays, err := r.source.ResolveInt(ctx, configModel.KeyGDPRAttendanceRetentionDays)\n\tif err != nil {\n\t\treturn 0, r.SettingError(err)\n\t}\n\treturn days, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/AttendanceRetention.Days",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *BookingAuthorityBlockedError) Error() string {\n\treturn e.Reason.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/BookingAuthorityBlockedError.Error",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v CareBookingValues) BookingsAuthoritative(ctx context.Context) (bool, error) {\n\tif v.source == nil {\n\t\treturn false, nil\n\t}\n\treturn v.source.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/CareBookingValues.BookingsAuthoritative",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v CareBookingValues) CareOfferingsEnabled(ctx context.Context) (bool, error) {\n\tif v.source == nil {\n\t\treturn true, nil\n\t}\n\treturn v.source.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/CareBookingValues.CareOfferingsEnabled",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) AllowSubmissionEdit(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyEnrollmentAllowSubmissionEdit)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.AllowSubmissionEdit",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) CareOfferingsEnabled(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.CareOfferingsEnabled",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) ChangeRequestMailsEnabled(ctx context.Context) bool {\n\tenabled, err := v.source.ResolveBool(ctx, configModel.KeyEnrollmentChangeRequestEmailNotificationsEnabled)\n\treturn err == nil \u0026\u0026 enabled\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.ChangeRequestMailsEnabled",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) CollectGradeLevel(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.CollectGradeLevel",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) CollectSchoolClass(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.CollectSchoolClass",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) DuplicateHandling(ctx context.Context) (string, error) {\n\treturn v.source.ResolveString(ctx, configModel.KeyEnrollmentDuplicateHandling)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.DuplicateHandling",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) GradeLevelMax(ctx context.Context) (int, error) {\n\treturn v.source.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.GradeLevelMax",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v EnrollmentIntakeValues) StatusTokenTTLDays(ctx context.Context) (int, error) {\n\treturn v.source.ResolveInt(ctx, configModel.KeyEnrollmentStatusTokenTTLDays)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/EnrollmentIntakeValues.StatusTokenTTLDays",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r GuardianRetention) Days(ctx context.Context) (int, error) {\n\tdays, err := r.source.ResolveInt(ctx, configModel.KeyGDPRGuardianRetentionDays)\n\tif err != nil {\n\t\treturn 0, r.SettingError(err)\n\t}\n\treturn days, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/GuardianRetention.Days",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w RetentionWindow) Days(ctx context.Context) (int, error) {\n\tdays, err := w.source.ResolveInt(ctx, w.key)\n\tif err != nil {\n\t\treturn 0, w.SettingError(err)\n\t}\n\treturn days, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/RetentionWindow.Days",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r StatisticsRetention) CourseRetentionDays(ctx context.Context) (int, error) {\n\treturn r.source.ResolveInt(ctx, configModel.KeyGDPRTimetableRetentionDays)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/StatisticsRetention.CourseRetentionDays",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r StatusDayRetention) Days(ctx context.Context) (int, error) {\n\tdays, err := r.source.ResolveInt(ctx, configModel.KeyGDPRStatusDayRetentionDays)\n\tif err != nil {\n\t\treturn 0, r.SettingError(err)\n\t}\n\treturn days, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/StatusDayRetention.Days",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) Actor(ctx context.Context) Actor {\n\ttenantID, accountID, permissions := rt.deps.RequestActor(ctx)\n\treturn NewActor(tenantID, accountID, permissions)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/http/runtime.Actor",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) CanEdit(ctx context.Context) bool {\n\treturn rt.deps.Editable(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.CanEdit",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) LegalDocumentReferenced(ctx context.Context, storedURL string) (bool, error) {\n\treturn rt.deps.LegalDocumentReference(ctx, storedURL)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.LegalDocumentReferenced",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) ParseImage(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*UploadedFile, error) {\n\treturn rt.deps.ImageUpload(w, r, field, maxBody)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.ParseImage",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) ParsePDF(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*UploadedFile, error) {\n\treturn rt.deps.PDFUpload(w, r, field, maxFile, maxBody)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.ParsePDF",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) ProtectedTenantGroup(r chi.Router, fn func(chi.Router, Middleware)) {\n\trt.deps.Protected(r, fn)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.ProtectedTenantGroup",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) QueueDocumentCleanup(ctx context.Context, url string) error {\n\tif rt.deps.DocumentCleanup == nil {\n\t\treturn errors.New(\"managed document cleanup is not configured\")\n\t}\n\treturn rt.deps.DocumentCleanup(ctx, url)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/settings/http/runtime.QueueDocumentCleanup",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) RemoveFile(path string) {\n\trt.deps.FileRemove(path)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.RemoveFile",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) RenderError(w http.ResponseWriter, r *http.Request, status int, err error) {\n\trt.deps.Failure(w, r, status, err)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.RenderError",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) Require(access Access) Middleware {\n\treturn rt.deps.Permission(access)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.Require",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) ResolveStoredPath(publicDir, urlPath, prefix string) (string, error) {\n\treturn rt.deps.StoredPath(publicDir, urlPath, prefix)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.ResolveStoredPath",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) Respond(w http.ResponseWriter, r *http.Request, status int, data any, message string) {\n\trt.deps.Success(w, r, status, data, message)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.Respond",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) RespondNoContent(w http.ResponseWriter, r *http.Request) {\n\trt.deps.NoContent(w, r)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.RespondNoContent",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) SaveImage(file io.Reader, dir, prefix, contentType string) (string, error) {\n\treturn rt.deps.ImageSave(file, dir, prefix, contentType)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.SaveImage",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rt *runtime) SavePDF(file io.Reader, dir, prefix string) (string, error) {\n\treturn rt.deps.PDFSave(file, dir, prefix)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/http/runtime.SavePDF",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *SettingsResource) GetSchoolSettingsSchema(w http.ResponseWriter, r *http.Request) {\n\tschoolID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid school ID\")\n\tif !ok {\n\t\treturn\n\t}\n\tschema, err := rs.settings.Schema(r.Context(), schoolID)\n\tif err != nil {\n\t\tcommon.RenderError(w, r, common.ErrorInternalServerWrap(\"Failed to retrieve settings schema\", err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, schema, \"Schema retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/inbound/operator/SettingsResource.GetSchoolSettingsSchema",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r StoredOverrideReader) StoredOverride(ctx context.Context, tenantID int64, key string) (json.RawMessage, bool, error) {\n\tvalue, err := r.values.FindByTenantAndKey(ctx, tenantID, key)\n\tif err != nil || value == nil {\n\t\treturn nil, false, err\n\t}\n\treturn value.Value, true, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/adapters/configpostgres/StoredOverrideReader.StoredOverride",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) AbsenceApprovalEmailEnabled(ctx context.Context) (bool, error) {\n\treturn s.source.ResolveBool(ctx, configModels.KeyNotificationsAbsenceApprovalEmail)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.AbsenceApprovalEmailEnabled",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) AccountStartDate(ctx context.Context) (string, error) {\n\treturn s.source.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.AccountStartDate",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) AttendanceEditScope(ctx context.Context) (string, error) {\n\treturn s.source.ResolveString(ctx, configModels.KeyAttendanceEditScope)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.AttendanceEditScope",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) DeviationToleranceMinutes(ctx context.Context) (int, error) {\n\treturn s.source.ResolveInt(ctx, configModels.KeyTimeTrackingDeviationToleranceMinutes)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.DeviationToleranceMinutes",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) EnforcePlannedStart(ctx context.Context) (bool, error) {\n\treturn s.source.ResolveBool(ctx, configModels.KeyTimeTrackingEnforcePlannedStart)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.EnforcePlannedStart",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) ExcusedClearMode(ctx context.Context) (string, error) {\n\treturn s.source.ResolveString(ctx, configModels.KeyExcusedClearMode)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.ExcusedClearMode",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) OperationalOverviewScope(ctx context.Context) (string, error) {\n\treturn s.source.ResolveString(ctx, configModels.KeyOperationalOverviewScope)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.OperationalOverviewScope",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) PlannedStartToleranceMinutes(ctx context.Context) (int, error) {\n\treturn s.source.ResolveInt(ctx, configModels.KeyTimeTrackingPlannedStartToleranceMinutes)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.PlannedStartToleranceMinutes",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) PresenceMode(ctx context.Context) (string, error) {\n\treturn s.source.ResolveString(ctx, configModels.KeyPresenceMode)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.PresenceMode",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) RequireDeviationReason(ctx context.Context) (bool, error) {\n\treturn s.source.ResolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.RequireDeviationReason",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) SessionInactivityTimeoutMinutes(ctx context.Context) (int, error) {\n\treturn s.source.ResolveInt(ctx, configModels.KeySessionInactivityTimeoutMin)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.SessionInactivityTimeoutMinutes",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) SickClearMode(ctx context.Context) (string, error) {\n\treturn s.source.ResolveString(ctx, configModels.KeySickClearMode)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.SickClearMode",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) TimeTrackingRetentionDays(ctx context.Context) (int, error) {\n\treturn s.source.ResolveInt(ctx, configModels.KeyGDPRTimeTrackingRetentionDays)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.TimeTrackingRetentionDays",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s PresenceSettings) WebParticipantLimitEnforced(ctx context.Context) (bool, error) {\n\tallowed, err := s.source.ResolveBool(ctx, configModels.KeyWebExceedParticipantLimit)\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn !allowed, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/PresenceSettings.WebParticipantLimitEnforced",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o *TenantOperations) PayrollStatus(ctx context.Context) (any, error) {\n\tif o == nil || o.payroll == nil {\n\t\treturn nil, configModel.ErrRuntimeUnavailable\n\t}\n\treturn o.payroll.GetPayrollStatus(ctx)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/TenantOperations.PayrollStatus",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o *TenantOperations) Reveal(ctx context.Context, key string, permissions []string) (any, error) {\n\tdef, err := tenantDefinition(o.settings, key)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif err := checkWritePermission(def, permissions); err != nil {\n\t\treturn nil, \u0026configModel.SettingsError{Op: \"reveal_value\", Err: err}\n\t}\n\treturn o.settings.Resolve(ctx, key)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/internal/application/TenantOperations.Reveal",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o *TenantOperations) Schema(ctx context.Context, permissions []string) (any, error) {\n\treturn o.settings.GetSchema(ctx, permissions)\n}",
+      "form": "adr0075-named-exception",
+      "id": "modules/settings/internal/application/TenantOperations.Schema",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v parentAnnouncementValues) GetLoginImageURL(ctx context.Context, tenantID int64) (string, error) {\n\treturn v.source.GetLoginImageURL(ctx, tenantID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/parentAnnouncementValues.GetLoginImageURL",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v parentAnnouncementValues) ParentNewsEnabled(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyParentNewsEnabled)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/parentAnnouncementValues.ParentNewsEnabled",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v parentEventValues) ParentNotesEnabledForTenant(ctx context.Context, tenantID int64) (bool, error) {\n\treturn v.source.ResolveBoolForTenant(ctx, tenantID, configModel.KeyParentNotesEnabled)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/parentEventValues.ParentNotesEnabledForTenant",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v parentEventValues) ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error) {\n\treturn v.source.ResolveBoolForTenant(ctx, tenantID, key)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/parentEventValues.ResolveBoolForTenant",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v parentMessageRetentionValues) ParentMessageRetentionDays(ctx context.Context) (int, error) {\n\treturn v.source.ResolveInt(ctx, configModel.KeyGDPRParentMessageRetentionDays)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/parentMessageRetentionValues.ParentMessageRetentionDays",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v parentMessagingValues) ParentMessageStaffNameVisible(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyParentMessageStaffNameVisible)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/parentMessagingValues.ParentMessageStaffNameVisible",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v parentMessagingValues) ResolveBool(ctx context.Context, key string) (bool, error) {\n\treturn v.source.ResolveBool(ctx, key)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/settings/parentMessagingValues.ResolveBool",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *WorkTimeModel) Validate() error {\n\tif m.Name == \"\" {\n\t\treturn errors.New(\"name is required\")\n\t}\n\tif m.RotationLength \u003c 1 || m.RotationLength \u003e WorkTimeModelMaxRotation {\n\t\treturn errors.New(\"rotation_length must be between 1 and 4\")\n\t}\n\tif m.RotationAnchorDate.IsZero() {\n\t\treturn errors.New(\"rotation_anchor_date is required\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/records/WorkTimeModel.Validate",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v staffMessagingValues) StaffMessageRetentionDays(ctx context.Context) (int, error) {\n\treturn v.source.ResolveInt(ctx, configModel.KeyGDPRStaffMessageRetentionDays)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/staffMessagingValues.StaffMessageRetentionDays",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v staffMessagingValues) StaffMessagingEnabled(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyStaffMessagingEnabled)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/staffMessagingValues.StaffMessagingEnabled",
+      "owner": "modules/settings"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "bulk_exception_confirmation_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "future_manual_reset": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "offering_capacity_full": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "offerings_disabled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "preview_stale": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "resolution_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+}

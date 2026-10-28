@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.communication.school_parent_letters.list",
+  "max": 2,
+  "exact": true,
+  "description": "GET /school/parent-letters (#4800): the Lehrkraft's class letters are\nthe school's list narrowed in the handler: the rows and their targets\nin one batch each, for any number."
+}

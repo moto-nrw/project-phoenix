@@ -1,0 +1,6 @@
+{
+  "scenario": "services.auth.pending_invitations.reads",
+  "max": 1,
+  "exact": true,
+  "description": "#2941: list/read enrichment stays flat as result rows grow."
+}

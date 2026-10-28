@@ -1,0 +1,18 @@
+{
+  "child_not_enrolled": "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
+  "day_closed": "Nie można: {object}. Tego dnia szkoła jest zamknięta.",
+  "day_past": "Już nie można: {object}. Ten dzień już minął.",
+  "invalid_allergens": "Nie udało się zapisać alergenów. Prosimy wybrać je ponownie.",
+  "invalid_dishes": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "invalid_meal_date": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "invalid_participation": "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
+  "participation_cutoff_passed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "participation_out_of_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "plan_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+  "plan_week_out_of_range": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "registration_disabled": "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+  "delivery_range_too_long": "Lista dostaw obejmuje maksymalnie siedem dni. Proszę wybrać krótszy okres.",
+  "not_supplied": "Nie zaopatrujesz już tej szkoły. Proszę zapytać szkołę.",
+  "order_not_found": "To zamówienie nie istnieje. Proszę odświeżyć stronę.",
+  "supply_active": "{object} nie jest teraz możliwe. Szkołę nadal zaopatruje firma cateringowa. Najpierw zakończ to zaopatrzenie."
+}

@@ -1,0 +1,199 @@
+{
+  "packages": [
+    {
+      "path": "workflows/openroommove",
+      "owner": "open-room-move",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/openroommove/ports",
+      "owner": "open-room-move",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/openroommove/internal/application",
+      "owner": "open-room-move",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/openroommove/compose",
+      "owner": "open-room-move",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/openroommove/http",
+      "owner": "open-room-move",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "open-room-move.port.facilities",
+      "description": "Open-room move ports name the Facilities room lock through its public contract (#3066).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "port",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.application.facilities",
+      "description": "Open-room move requires the Facilities release of the locked room through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.port.timetable-activities",
+      "description": "Open-room move ports name the Timetable system activity and category capability through its public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "port",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.application.timetable-activities",
+      "description": "Open-room move resolves and provisions the room's system activity through the Timetable public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.port.public",
+      "description": "Open-room move ports carry the workflow's own actor and skipped-child records.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "port",
+      "target_owner": "open-room-move",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.application.ports",
+      "description": "Open-room move consumes its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "application",
+      "target_owner": "open-room-move",
+      "target_role": "port"
+    },
+    {
+      "id": "open-room-move.application.public",
+      "description": "Open-room move implements its own public command contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "application",
+      "target_owner": "open-room-move",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.decision-test.facilities",
+      "description": "Open-room move decision tests fake the Facilities room lock through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "workflow-decision-test",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.decision-test.timetable-activities",
+      "description": "Open-room move decision tests fake the Timetable system activity capability through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "workflow-decision-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.compose.tenant-runtime",
+      "description": "Open-room move composition binds the joining tenant UnitOfWork and its transaction lock.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "open-room-move.adapter-test.facilities-compose",
+      "description": "Open-room move integration tests compose the facilities owner.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "adapter-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "open-room-move.http.open-room-move.public",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "http",
+      "target_owner": "open-room-move",
+      "target_role": "public",
+      "source_package": "workflows/openroommove/http"
+    },
+    {
+      "id": "open-room-move.http.tenant-runtime.http",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "workflows/openroommove/http"
+    },
+    {
+      "id": "open-room-move.http.student-presence.public",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "open-room-move",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "source_package": "workflows/openroommove/http"
+    }
+  ]
+}

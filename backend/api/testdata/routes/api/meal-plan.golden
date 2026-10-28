@@ -1,0 +1,13 @@
+DELETE /api/meal-plan/participation/{studentId}/days/{date}
+DELETE /api/meal-plan/{date}
+GET /api/meal-plan/
+GET /api/meal-plan/orders
+GET /api/meal-plan/orders/month/export
+GET /api/meal-plan/participants
+GET /api/meal-plan/participants/export
+GET /api/meal-plan/participants/week
+GET /api/meal-plan/participants/week/export
+GET /api/meal-plan/participation/{studentId}
+PUT /api/meal-plan/participation/{studentId}/days/{date}
+PUT /api/meal-plan/participation/{studentId}/schedule
+PUT /api/meal-plan/{date}
