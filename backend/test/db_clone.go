@@ -205,6 +205,7 @@ func openBootstrappedPackageDB(ctx context.Context, clone *testdb.CloneHandle) (
 	if err != nil {
 		return nil, fmt.Errorf("open shared package test pool: %w", err)
 	}
+	attachTestQueryHooks(sharedDB)
 	return sharedDB, nil
 }
 
