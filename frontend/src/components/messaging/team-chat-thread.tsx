@@ -335,7 +335,9 @@ export function TeamChatThread({
 
   const membersPanel =
     showMembers && thread ? (
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      // Innenabstand rundum: Knöpfe zeichnen ihren Rand als Ring außerhalb
+      // der Box, und der Scroll-Container schneidet sonst die linke Kante ab.
+      <div className="min-h-0 flex-1 overflow-y-auto p-1">
         <GroupMembersPanel
           api={api}
           portal={portal.kind}
