@@ -25,7 +25,7 @@ import { useSWRConfig, type SWRConfiguration, type SWRResponse } from "swr";
 import { ApiError } from "~/lib/api-error";
 import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
 import { setTestClock } from "~/test/clock";
-import { preloadSWR } from "./generation";
+import { _resetSWRFallbacksForTests, preloadSWR } from "./generation";
 import {
   useDiscardRefusedEntity,
   useSWRAuth,
@@ -191,6 +191,7 @@ function cachedData(name: string): unknown {
 
 beforeEach(() => {
   _setSWRCleanupForTests(true);
+  _resetSWRFallbacksForTests();
   resetSWRScope({ revalidate: false });
   mockUseSession.mockReturnValue(signedIn());
   seen = {};
@@ -400,6 +401,198 @@ describe.each([
 
       // The retry the first error scheduled sends no request.
       expect(calls).toBe(afterDrop);
+    });
+
+    it.each([
+      ["after a remount", "remount"],
+      ["in a second hook", "second"],
+      ["with a new fallback prop", "prop"],
+    ])("shows no dropped fallback %s", async (_case, variant) => {
+      const never = () => new Promise<string>(() => {});
+      const reader = (fallback: string, name = "student-7-fb") => (
+        <Reader
+          name={name}
+          fetcher={never}
+          options={{ fallbackData: fallback }}
+        />
+      );
+      const view = await run(<Page>{reader("vorher")}</Page>, () => {
+        // Anker: vor dem Wechsel steht der Fallback.
+        expect(screen.getByTestId("student-7-fb")).toHaveTextContent("vorher");
+      });
+      seen = {};
+      if (variant === "remount") {
+        view.rerender(<Page />);
+        view.rerender(<Page>{reader("vorher")}</Page>);
+      } else if (variant === "second") {
+        view.rerender(
+          <Page>
+            {reader("vorher")}
+            {reader("vorher", "student-7-fb")}
+          </Page>,
+        );
+      } else {
+        view.rerender(<Page>{reader("anders")}</Page>);
+      }
+      await flush();
+
+      expect(seen["student-7-fb"] ?? []).not.toContain("vorher");
+      expect(seen["student-7-fb"] ?? []).not.toContain("anders");
+      expect(screen.queryByText("vorher")).toBeNull();
+      expect(screen.queryByText("anders")).toBeNull();
+    });
+
+    it("shows no optimistic value of a mutation without populateCache", async () => {
+      const ui = (
+        <Page>
+          <Reader
+            name="student-7-optimistic"
+            fetcher={answers("stand", "neu")}
+          />
+        </Page>
+      );
+      const saved = deferred<string>();
+      await run(ui, async () => {
+        await flush();
+        void responses["student-7-optimistic"]!.mutate(saved.promise, {
+          optimisticData: "optimistisch",
+          populateCache: false,
+          revalidate: false,
+        });
+        await flush();
+        // Anker: der optimistische Wert steht.
+        expect(screen.getByTestId("student-7-optimistic")).toHaveTextContent(
+          "optimistisch",
+        );
+      });
+      seen = {};
+      await flush();
+
+      expect(seen["student-7-optimistic"] ?? []).not.toContain("optimistisch");
+      saved.resolve("gespeichert");
+      await flush();
+      expect(seen["student-7-optimistic"] ?? []).not.toContain("optimistisch");
+    });
+
+    it("shows a deeply equal answer of the new generation", async () => {
+      let calls = 0;
+      const fetcher = () => {
+        calls += 1;
+        return Promise.resolve(JSON.stringify({ rows: ["a"] }));
+      };
+      let equalResponse: SWRResponse<{ rows: string[] }> | undefined;
+      function ObjectReader() {
+        const response = useSWRAuth<{ rows: string[] }>(
+          "student-7-equal",
+          () =>
+            fetcher().then((text) => JSON.parse(text) as { rows: string[] }),
+          { dedupingInterval: 0 },
+        );
+        equalResponse = response;
+        return (
+          <p data-testid="student-7-equal">
+            {response.data ? response.data.rows.join(",") : "leer"}
+          </p>
+        );
+      }
+      const ui = (
+        <Page>
+          <ObjectReader />
+        </Page>
+      );
+      await run(ui, async () => {
+        await flush();
+        // Anker: geladen.
+        expect(screen.getByTestId("student-7-equal")).toHaveTextContent("a");
+      });
+      await flush();
+      const before = calls;
+      // Wherever a session remains, load the key again explicitly: the
+      // same content of the new generation must be shown.
+      act(() => {
+        void equalResponse?.mutate();
+      });
+      await flush();
+
+      if (calls > before) {
+        expect(screen.getByTestId("student-7-equal")).toHaveTextContent("a");
+      } else {
+        // Logout and the other tab's signal load nothing: no session yet.
+        expect(screen.getByTestId("student-7-equal")).toHaveTextContent("leer");
+      }
+    });
+
+    it("resolves no mutate() to a value of the generation before", async () => {
+      // Requests after the drop never answer, so the cache keeps (without
+      // cleanup) or loses (with it) the old value; neither may come back.
+      let calls = 0;
+      const fetcher = () => {
+        calls += 1;
+        return calls === 1
+          ? Promise.resolve("stand")
+          : new Promise<string>(() => {});
+      };
+      await run(
+        <Page>
+          <Reader
+            name="student-7-result"
+            fetcher={fetcher}
+            options={{ dedupingInterval: 0 }}
+          />
+        </Page>,
+        async () => {
+          await flush();
+          // Anker: geladen.
+          expect(screen.getByTestId("student-7-result")).toHaveTextContent(
+            "stand",
+          );
+        },
+      );
+      let result: unknown = "offen";
+      await act(async () => {
+        result = await responses["student-7-result"]!.mutate(
+          (current: string | undefined) => current,
+          { revalidate: false },
+        );
+      });
+
+      expect(result).not.toBe("stand");
+    });
+
+    it("shows no failure of the generation before", async () => {
+      let calls = 0;
+      const fetcher = () => {
+        calls += 1;
+        return calls === 1
+          ? Promise.reject(new Error("alter Fehler"))
+          : new Promise<string>(() => {});
+      };
+      function ErrorReader() {
+        const response = useSWRAuth<string>("student-7-failure", fetcher, {
+          shouldRetryOnError: false,
+          dedupingInterval: 0,
+        });
+        return (
+          <p data-testid="student-7-failure">
+            {response.error ? String((response.error as Error).message) : "–"}
+          </p>
+        );
+      }
+      await run(
+        <Page>
+          <ErrorReader />
+        </Page>,
+        async () => {
+          await flush();
+          // Anker: der Fehler steht.
+          expect(screen.getByTestId("student-7-failure")).toHaveTextContent(
+            "alter Fehler",
+          );
+        },
+      );
+      await flush();
+
+      expect(screen.queryByText("alter Fehler")).toBeNull();
     });
 
     it("shows no fallbackData of the generation before", async () => {
