@@ -8,7 +8,7 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSWRConfig } from "swr";
+import { useSWRConfig } from "~/lib/swr/cache";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { hasPermission } from "~/lib/auth-utils";

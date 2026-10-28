@@ -1,11 +1,11 @@
 "use client";
 
-import useSWR from "swr";
+import { schoolSetupKeys } from "~/lib/swr/portal-keys";
+import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   fetchSchoolSetup,
-  schoolSetupSWRKey,
   type SchoolSetupState,
 } from "~/lib/school-setup-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
@@ -35,10 +35,8 @@ export function useSchoolSetup(
     status === "authenticated" &&
     (isAdmin(session) || hasPermission(session, "config:update"));
   const cacheKey =
-    allowed && tenantSlug && accountID
-      ? schoolSetupSWRKey(tenantSlug, accountID)
-      : null;
-  const { data, mutate } = useSWR<SchoolSetupState | null>(
+    allowed && tenantSlug && accountID ? schoolSetupKeys.key() : null;
+  const { data, mutate } = useSWRAuth<SchoolSetupState | null>(
     cacheKey,
     fetchSchoolSetup,
     { revalidateOnFocus: true, refreshInterval: live ? LIVE_REFRESH_MS : 0 },

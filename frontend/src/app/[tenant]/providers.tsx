@@ -4,7 +4,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 import type { Session } from "next-auth";
 import { SessionProvider, useSession } from "next-auth/react";
 // eslint-disable-next-line no-restricted-imports -- SWRConfig only; hooks stay on ~/lib/swr
-import { SWRConfig } from "swr";
+import { SWRConfig } from "~/lib/swr/cache";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
@@ -18,7 +18,8 @@ import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { primeSessionCache } from "~/lib/session-cache";
 import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
-import { mutate, scopedSWRKey, tenantSWRScope } from "~/lib/swr";
+import { scopedSWRKey, tenantSWRScope } from "~/lib/swr";
+import { mutate } from "~/lib/swr/mutate";
 import { dataGenerationOf, stampSWRValue } from "~/lib/swr/generation";
 import { authGeneration, useSWRSessionRefresh } from "~/lib/swr/scope";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";

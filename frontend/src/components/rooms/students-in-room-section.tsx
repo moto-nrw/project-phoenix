@@ -14,6 +14,8 @@
 
 "use client";
 
+import { me as meKeys } from "~/lib/swr/me";
+import { rooms as roomsKeys } from "~/lib/swr/rooms";
 import {
   useEffect,
   useLayoutEffect,
@@ -39,7 +41,7 @@ import {
 } from "~/components/ui/form-error-alert";
 import { ListSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { roomService, studentService } from "~/lib/api";
+import { studentService } from "~/lib/api";
 import type { Student } from "~/lib/api";
 import {
   activeService,
@@ -48,7 +50,6 @@ import {
 import type { ActiveGroup, Supervisor, Visit } from "~/lib/active-helpers";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import type { Room } from "~/lib/room-helpers";
-import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -150,8 +151,8 @@ export function StudentsInRoomSection({
     () => activeService.getActiveGroups({ active: true }),
   );
   const { data: currentStaff } = useSWRAuth<Staff>(
-    showAllTargets ? null : "room-bulk-current-staff",
-    () => userContextService.getCurrentStaff(),
+    showAllTargets ? null : meKeys.key(),
+    meKeys.fetcher,
   );
   const { data: activeSupervisions = [] } = useSWRAuth<Supervisor[]>(
     showAllTargets || !currentStaff?.id
@@ -160,8 +161,8 @@ export function StudentsInRoomSection({
     () => activeService.getStaffActiveSupervisions(currentStaff?.id ?? ""),
   );
   const { data: rooms = [], mutate: refreshMoveRooms } = useSWRAuth<Room[]>(
-    "room-bulk-rooms",
-    () => roomService.getRooms(),
+    roomsKeys.key(),
+    roomsKeys.fetcher,
   );
 
   // Ladefehler mit Katalogtext, Wiederholen und Vorgangskennung (#2517).

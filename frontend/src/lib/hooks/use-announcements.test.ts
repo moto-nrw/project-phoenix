@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
-import type { SWRResponse } from "swr";
+import type { SWRResponse } from "~/lib/swr";
 
 // Use vi.hoisted for mock values referenced in vi.mock
 const { mockAuthFetch, mockPathname } = vi.hoisted(() => ({
@@ -16,11 +16,11 @@ vi.mock("next/navigation", () => ({
   usePathname: (): ReturnType<typeof mockPathname> => mockPathname(),
 }));
 
-vi.mock("swr");
+vi.mock("~/lib/swr");
 
 import { useAnnouncements } from "./use-announcements";
 // eslint-disable-next-line no-restricted-imports -- test mock at module boundary
-import useSWR from "swr";
+import { useSWRAuth as useSWR } from "~/lib/swr";
 
 interface UnreadAnnouncement {
   id: number;

@@ -38,8 +38,9 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({ data: null }),
 }));
 
-vi.mock("swr", () => ({
-  default: (...args: unknown[]) => mockUseSWR(...args),
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: (...args: unknown[]) => mockUseSWR(...args),
+  useSWRCacheKey: () => (key: string) => `schule:account-1:${key}`,
   unstable_serialize: (key: unknown) => JSON.stringify(key),
   useSWRConfig: () => ({ cache: new Map() }),
 }));

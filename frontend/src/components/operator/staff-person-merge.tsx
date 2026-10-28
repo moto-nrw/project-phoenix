@@ -1,7 +1,9 @@
 "use client";
 
+import { staffMergeKeys } from "~/lib/swr/portal-keys";
+
 import { useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -58,8 +60,8 @@ export function StaffPersonMerge({
   schoolName: string;
   onMerged: () => Promise<unknown>;
 }>) {
-  const { data, error, isLoading, mutate } = useSWR(
-    `operator-staff-person-merges-${schoolId}`,
+  const { data, error, isLoading, mutate } = useSWRAuth(
+    staffMergeKeys.preview(schoolId),
     () => previewStaffPersonMerges(schoolId),
     { revalidateOnFocus: false },
   );

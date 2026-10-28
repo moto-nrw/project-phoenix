@@ -6,7 +6,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { RotateCw, Check } from "lucide-react";
-import { useSWRConfig } from "swr";
+import { useSWRConfig } from "~/lib/swr/cache";
 import { useTranslations } from "next-intl";
 import { Button } from "~/components/ui/button";
 

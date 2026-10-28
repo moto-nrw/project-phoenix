@@ -695,6 +695,23 @@ describe("api.ts helper functions", () => {
   });
 
   describe("groupService.getGroups", () => {
+    it("rejects a refused list in strict mode instead of caching an empty success", async () => {
+      const { fetchWithRetry } = await import("./api-helpers");
+      vi.mocked(fetchWithRetry).mockResolvedValue({
+        data: null,
+        response: null,
+        accessDeniedStatus: 403,
+      });
+      const { groupService } = await import("./api");
+      const restore = setupBrowserEnv();
+      try {
+        await expect(
+          groupService.getGroups({}, { strict: true }),
+        ).rejects.toMatchObject({ status: 403 });
+      } finally {
+        restore();
+      }
+    });
     it("returns empty array when response is null", async () => {
       const { fetchWithRetry } = await import("./api-helpers");
       vi.mocked(fetchWithRetry).mockResolvedValue({

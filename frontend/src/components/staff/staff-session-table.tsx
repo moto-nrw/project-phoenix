@@ -7,7 +7,7 @@ import {
   Thermometer,
 } from "lucide-react";
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
-import { useSWRConfig } from "swr";
+import { useSWRConfig } from "~/lib/swr/cache";
 
 import { EditHistoryAccordion } from "~/components/time-tracking/edit-history-accordion";
 import { Alert } from "~/components/ui/alert";

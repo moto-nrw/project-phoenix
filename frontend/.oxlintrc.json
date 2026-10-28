@@ -41,6 +41,7 @@
     "logging-safety/no-serialized-context": "error",
     "school-class/no-hand-built-label": "error",
     "swr/no-direct-import": "error",
+    "swr/no-free-key": "error",
     "test-clock/no-real-clock": "error",
     "ui-kit/green-fill-white-text": "error",
     "ui-kit/no-generic-brand-colors": "error",

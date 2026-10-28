@@ -1,5 +1,6 @@
 "use client";
 
+import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "~/components/ui/navigation-link";
@@ -37,8 +38,6 @@ import {
   getRoleDisplayName,
 } from "@/lib/auth-helpers";
 import { staffDisplayName } from "~/lib/staff-helpers";
-import { createCrudService } from "@/lib/database/service-factory";
-import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal } from "~/components/ui/modal";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
@@ -136,17 +135,12 @@ function TeachersPageContent() {
     useState<ExternalInvitationTarget | null>(null);
   const toast = useToast();
 
-  const service = useMemo(() => createCrudService(teachersConfig), []);
-
   const {
     data: teachersData,
     isLoading: loading,
     error: teachersError,
     mutate: refreshTeachers,
-  } = useSWRAuth("database-teachers-list", async () => {
-    const data = await service.getList({ page: 1, pageSize: 1000 });
-    return Array.isArray(data.data) ? data.data : [];
-  });
+  } = useSWRAuth(staffKeys.teachersKey(), staffKeys.teachersFetcher);
 
   const error = teachersError
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."

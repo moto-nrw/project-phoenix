@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { TrayIcon } from "@phosphor-icons/react/ssr";
 import { useSession } from "next-auth/react";
-import { useSWRConfig } from "swr";
+import { useSWRConfig } from "~/lib/swr/cache";
 
 import {
   DenyAbsenceModal,

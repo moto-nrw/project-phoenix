@@ -17,8 +17,8 @@ const { mutateMock, setSettingValueMock } = vi.hoisted(() => ({
   setSettingValueMock: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: () => ({
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({
     data: {
       categories: [
         {

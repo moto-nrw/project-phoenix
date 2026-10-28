@@ -1,3 +1,4 @@
+import { roomKeys } from "./rooms-keys";
 /**
  * Single source of truth for SWR cache keys that hold room-stamped data.
  *
@@ -53,9 +54,16 @@ export const ROOM_DERIVED_CACHE_KEY_FRAGMENTS: readonly string[] = [
   "search-students-",
 ] as const;
 
-export const DATABASE_ROOMS_LIST_CACHE_KEY = "database-rooms-list";
-export const SEARCH_ROOMS_LIST_CACHE_KEY = "search-rooms-list";
-const ROOMS_PAGE_LIST_CACHE_KEY = "rooms-list";
+export const DATABASE_ROOMS_LIST_CACHE_KEY = roomKeys.key({
+  page: 1,
+  pageSize: 500,
+  includeSystem: true,
+});
+export const SEARCH_ROOMS_LIST_CACHE_KEY = roomKeys.key({
+  page: 1,
+  pageSize: 1000,
+});
+const ROOMS_PAGE_LIST_CACHE_KEY = roomKeys.key({ includeSystem: true });
 
 /**
  * Exact SWR keys for pages that fetch `/api/rooms` directly.
@@ -68,4 +76,5 @@ export const ROOM_LIST_CACHE_KEYS: readonly string[] = [
   DATABASE_ROOMS_LIST_CACHE_KEY,
   ROOMS_PAGE_LIST_CACHE_KEY,
   SEARCH_ROOMS_LIST_CACHE_KEY,
+  roomKeys.key(),
 ] as const;

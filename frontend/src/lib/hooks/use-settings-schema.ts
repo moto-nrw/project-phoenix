@@ -1,6 +1,6 @@
 "use client";
 
-import type { SWRConfiguration } from "swr";
+import type { SWRConfiguration } from "~/lib/swr";
 
 import {
   SETTINGS_SCHEMA_SWR_KEY,

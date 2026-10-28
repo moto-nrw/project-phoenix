@@ -34,7 +34,8 @@ import {
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
-import { SWRConfig, useSWRAuth } from "~/lib/swr";
+import { useSWRAuth } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/cache";
 
 /** Wann und von wem: der beschriebene Tag oder „Dauerhafter Hinweis“. */
 function noteMeta(note: SharedNote): string {

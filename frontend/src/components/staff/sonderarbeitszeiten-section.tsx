@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useSWRConfig } from "swr";
+import { useSWRConfig } from "~/lib/swr/cache";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";

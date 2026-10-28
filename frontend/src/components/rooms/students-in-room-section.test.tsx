@@ -328,7 +328,7 @@ beforeEach(() => {
         isLoading: false,
       };
     }
-    if (key === "room-bulk-current-staff") {
+    if (key === "me-staff") {
       return {
         data: currentStaffState.data,
         error: currentStaffState.error ?? null,
@@ -362,7 +362,7 @@ beforeEach(() => {
         isLoading: false,
       };
     }
-    if (key === "room-bulk-rooms") {
+    if (key === "rooms-list-{}") {
       return {
         data: roomsState.data,
         error: null,
@@ -640,7 +640,10 @@ describe("StudentsInRoomSection", () => {
       render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
 
       expect(mockUseTenantMutateMatching).toHaveBeenCalledWith(
-        expect.arrayContaining(["rooms-list", "room-bulk-source-visits-"]),
+        expect.arrayContaining([
+          'rooms-list-{"includeSystem":true}',
+          "room-bulk-source-visits-",
+        ]),
       );
       fireEvent.click(
         screen.getByRole("checkbox", { name: /Anna Müller auswählen/ }),

@@ -1,6 +1,8 @@
 "use client";
 
-import useSWR from "swr";
+import { parentKeys } from "~/lib/swr/portal-keys";
+
+import { useSWRAuth } from "~/lib/swr";
 
 import {
   getChildFeatures,
@@ -63,14 +65,16 @@ export function useParentNewsEnabled(
   enabled: boolean,
   children?: readonly Child[] | null,
 ): boolean {
-  const { data } = useSWR(
+  const { data } = useSWRAuth(
     enabled && children !== null
       ? children === undefined
-        ? "parent-news-enabled"
-        : [
-            "parent-news-enabled",
-            children.map((child) => child.student_id).join(","),
-          ]
+        ? parentKeys.newsEnabled()
+        : parentKeys.newsEnabled(
+            children
+              .map((child) => `${child.tenant_id}:${child.student_id}`)
+              .sort()
+              .join(","),
+          )
       : null,
     () => fetchAnyNewsEnabled(children ?? undefined),
     {

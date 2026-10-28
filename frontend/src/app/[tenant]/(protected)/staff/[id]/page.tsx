@@ -1,5 +1,6 @@
 "use client";
 
+import { staff as staffKeys } from "~/lib/swr/staff";
 import { isScopeBooked, STAFF_TAB_MODULES } from "~/lib/module-register";
 import { useBookedModules } from "~/lib/tenant-context";
 import {
@@ -31,11 +32,7 @@ import {
 } from "~/lib/staff-api";
 import type { BackendStaffResponse, Staff } from "~/lib/staff-api";
 import { teacherService, type Teacher } from "~/lib/teacher-api";
-import {
-  mapTeacherResponse,
-  teachersConfig,
-} from "~/components/database/configs/teachers.config";
-import { createCrudService } from "~/lib/database/service-factory";
+import { mapTeacherResponse } from "~/components/database/configs/teachers.config";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
@@ -131,7 +128,6 @@ export default function StaffDetailContent() {
     async () => undefined,
   );
   const tenantMutate = useTenantMutate();
-  const recordService = useMemo(() => createCrudService(teachersConfig), []);
   // Effective admin: the backend grants everything to `admin:*` / `*:*`
   // holders regardless of the role name, so a custom role carrying the
   // wildcard must see the same admin-gated UI as the literal admin role
@@ -272,11 +268,8 @@ export default function StaffDetailContent() {
   // bearbeitet.
   const [kontoEditing, setKontoEditing] = useState(false);
   const { data: staffDirectory } = useSWRAuth<Teacher[]>(
-    kontoEditing && canManageStaffRecords ? "database-teachers-list" : null,
-    async () => {
-      const data = await recordService.getList({ page: 1, pageSize: 1000 });
-      return Array.isArray(data.data) ? data.data : [];
-    },
+    kontoEditing && canManageStaffRecords ? staffKeys.teachersKey() : null,
+    staffKeys.teachersFetcher,
   );
   const existingPositions = useMemo(() => {
     const positions = new Set<string>();
@@ -308,7 +301,7 @@ export default function StaffDetailContent() {
     await Promise.all([
       tenantMutate(staffRecordKey(staffId)),
       tenantMutate(`staff-detail-${staffId}`),
-      tenantMutate("database-teachers-list"),
+      tenantMutate(staffKeys.teachersKey()),
     ]);
   }, [staffId, tenantMutate]);
 
@@ -363,7 +356,7 @@ export default function StaffDetailContent() {
     try {
       await teacherService.deleteTeacher(staffId);
       toastSuccess("Die Person ist gelöscht.");
-      await tenantMutate("database-teachers-list");
+      await tenantMutate(staffKeys.teachersKey());
       setShowDeleteModal(false);
       router.push(referrer);
     } catch (err) {

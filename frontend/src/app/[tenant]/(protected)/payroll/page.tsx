@@ -1,5 +1,7 @@
 "use client";
 
+import { payrollKeys } from "~/lib/swr/portal-keys";
+
 import {
   useCallback,
   useEffect,
@@ -7,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -58,7 +60,7 @@ export default function PayrollPage() {
     data: status,
     error,
     mutate,
-  } = useSWR(isReady ? "payroll-status" : null, fetchPayrollStatus);
+  } = useSWRAuth(isReady ? payrollKeys.status() : null, fetchPayrollStatus);
 
   const loadError = useSwrLoadError(
     error,

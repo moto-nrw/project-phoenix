@@ -427,7 +427,7 @@ function mockUseSWRAuthWithStudents(
   response: ReturnType<typeof swrModule.useSWRAuth>,
 ) {
   vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
-    if (key === "search-rooms-list") {
+    if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
       return {
         data: [
           { id: "101", name: "Raum 101", isOccupied: true },
@@ -473,7 +473,7 @@ function captureStudentsFetcher(swrModule: typeof import("~/lib/swr")) {
         error: null,
       } as ReturnType<typeof swrModule.useSWRAuth>;
     }
-    if (key === "search-rooms-list") {
+    if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
       return {
         data: [],
         isLoading: false,
@@ -532,7 +532,7 @@ describe("StudentSearchPage", () => {
     // Reset SWR mock data for each test
     const swrModule = await import("~/lib/swr");
     vi.mocked(swrModule.useImmutableSWR).mockImplementation((key) => {
-      if (key === "search-groups-list") {
+      if (key === "groups-list-{}") {
         return {
           data: [
             { id: "1", name: "Gruppe A" },
@@ -1977,7 +1977,7 @@ describe("StudentSearchPage", () => {
       const swrModule = await import("~/lib/swr");
       vi.mocked(swrModule.useImmutableSWR).mockImplementation(
         (key, fetcher) => {
-          if (key === "search-groups-list" && fetcher) {
+          if (key === "groups-list-{}" && fetcher) {
             capturedGroupsFetcher = fetcher as () => Promise<unknown>;
           }
           return {
@@ -2015,7 +2015,7 @@ describe("StudentSearchPage", () => {
       expect(mockGetGroups).toHaveBeenCalled();
     });
 
-    it("handles groups fetcher error gracefully", async () => {
+    it("rejects a failed group fetch instead of caching an empty success", async () => {
       const groupService = await import("~/lib/api");
       const mockGetGroups = vi
         .fn()
@@ -2026,14 +2026,10 @@ describe("StudentSearchPage", () => {
 
       let capturedGroupsFetcher: (() => Promise<unknown>) | null = null;
 
-      const consoleWarnSpy = vi
-        .spyOn(console, "warn")
-        .mockImplementation(() => undefined);
-
       const swrModule = await import("~/lib/swr");
       vi.mocked(swrModule.useImmutableSWR).mockImplementation(
         (key, fetcher) => {
-          if (key === "search-groups-list" && fetcher) {
+          if (key === "groups-list-{}" && fetcher) {
             capturedGroupsFetcher = fetcher as () => Promise<unknown>;
           }
           return {
@@ -2054,21 +2050,11 @@ describe("StudentSearchPage", () => {
         render(<StudentSearchPage />);
       });
 
-      // Execute the captured fetcher to cover catch block (lines 98-101)
       expect(capturedGroupsFetcher).not.toBeNull();
-      const result: unknown = await act(async () => {
-        return await (
-          capturedGroupsFetcher as unknown as () => Promise<unknown>
-        )();
-      });
-      // Should return empty array on error
-      expect(result).toEqual([]);
-      expect(consoleWarnSpy).toHaveBeenCalledWith(
-        "could not load groups for filter",
-        undefined,
-      );
-
-      consoleWarnSpy.mockRestore();
+      await expect(
+        (capturedGroupsFetcher as unknown as () => Promise<unknown>)(),
+      ).rejects.toThrow("Permission denied");
+      expect(mockGetGroups).toHaveBeenCalledTimes(1);
     });
 
     it("executes the students SWR fetcher", async () => {
@@ -2091,7 +2077,7 @@ describe("StudentSearchPage", () => {
       } as ReturnType<typeof swrModule.useImmutableSWR>);
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -2436,7 +2422,7 @@ describe("StudentSearchPage", () => {
       const studentKeys: string[] = [];
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -2493,7 +2479,7 @@ describe("StudentSearchPage", () => {
       ];
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -2531,7 +2517,7 @@ describe("StudentSearchPage", () => {
       const studentKeys: string[] = [];
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -2578,7 +2564,7 @@ describe("StudentSearchPage", () => {
       const studentKeys: string[] = [];
 
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -2631,7 +2617,7 @@ describe("StudentSearchPage", () => {
                 fetcher.current = swrFetcher as () => Promise<unknown>;
               }
             }
-            if (key === "search-rooms-list") {
+            if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
               return {
                 data: [],
                 isLoading: false,
@@ -2703,7 +2689,7 @@ describe("StudentSearchPage", () => {
       let capturedStudentsFetcher: (() => Promise<unknown>) | null = null;
       const swrModule = await import("~/lib/swr");
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -3844,7 +3830,7 @@ describe("StudentSearchPage", () => {
         error: null,
       } as ReturnType<typeof swrModule.useSWRAuth>;
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key: unknown) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -4137,7 +4123,7 @@ describe("StudentSearchPage", () => {
     it("requests a large first page for the room filter options", async () => {
       const swrModule = await import("~/lib/swr");
       vi.mocked(swrModule.useSWRAuth).mockImplementation((key, fetcher) => {
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           void (fetcher as () => Promise<unknown>)();
           return {
             data: [],

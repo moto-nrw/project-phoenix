@@ -23,14 +23,18 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { mutate } from "swr";
+import { useInvalidateFamily } from "~/lib/swr";
+import { mutate } from "~/lib/swr/mutate";
+import { roomKeys } from "~/lib/swr/rooms-keys";
+import { groupKeys } from "~/lib/swr/groups-keys";
+import { staffKeys } from "~/lib/swr/staff-keys";
+import { meKeys } from "~/lib/swr/me-keys";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
-import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import {
   SEARCH_STUDENTS_ALL_GROUPS_KEY,
   SEARCH_STUDENTS_KEY_PREFIX,
@@ -278,6 +282,7 @@ function currentStudentDetailId(): string | null {
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
+  const invalidateFamily = useInvalidateFamily();
   const [groupAccessRevision, setGroupAccessRevision] = useState(0);
   const now = useMinuteClock();
   const groupAccessDay = berlinTodayISO(now);
@@ -355,6 +360,36 @@ export function useGlobalSSE(): SSEHookState {
   // SWR cache keys are tenant-prefixed by useSWRAuth (e.g. "tenant-slug:ogs-students-2").
   // All matchers must use includes() instead of startsWith() to match regardless of prefix.
   const flushInvalidations = useCallback(() => {
+    const families = new Set<string>();
+    if (hasPendingGroupAccessEvent.current) {
+      families.add(groupKeys.family);
+      families.add(meKeys.family);
+      families.add(staffKeys.family);
+    }
+    if (
+      hasPendingStaffTimeTrackingEvent.current ||
+      hasPendingTimetableEvent.current
+    ) {
+      families.add(staffKeys.family);
+    }
+    if (
+      hasPendingActivityEvent.current ||
+      hasPendingActiveSupervisionEvent.current ||
+      hasPendingDashboardEvent.current ||
+      hasPendingStudentUpdateEvent.current ||
+      pendingGroupIds.current.size > 0 ||
+      pendingStudentIds.current.size > 0
+    ) {
+      families.add(roomKeys.family);
+    }
+    for (const family of families) {
+      void invalidateFamily(family).catch((err) => {
+        logger.debug("swr_revalidation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          scope: family,
+        });
+      });
+    }
     if (hasPendingStaffTimeTrackingEvent.current) {
       mutate(
         (key) =>
@@ -524,14 +559,8 @@ export function useGlobalSSE(): SSEHookState {
             // groupName, studentCount, isOccupied. Without this, the
             // "Aktuell anwesend: X" InfoItem stays stale while the
             // section above it refreshes (#1374).
-            // Room overview cards on /rooms use their own direct rooms
-            // list cache. A room move changes studentCount there even
-            // though the Room entity itself did not change.
-            // (ROOM_LIST_CACHE_KEYS = the three /api/rooms list caches —
-            // NOT room-derived-caches' ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
-            // which contains "ogs-students-" and would
-            // silently re-broaden the #2057 scoping if swapped in.)
-            ROOM_LIST_CACHE_KEYS.some((cacheKey) => key.includes(cacheKey))),
+            // Room lists are invalidated once via roomKeys.family above.
+            key.includes("room-detail-")),
       ).catch((err) => {
         // Fire-and-forget: the screen keeps its data until the next event or load.
         logger.debug("swr_revalidation_failed", {
@@ -869,7 +898,7 @@ export function useGlobalSSE(): SSEHookState {
     hasPendingTimetableEvent.current = false;
     hasPendingGroupAccessEvent.current = false;
     hasPendingGroupSubscriptionRefresh.current = false;
-  }, []);
+  }, [invalidateFamily]);
 
   const scheduleFlush = useCallback(() => {
     const now = Date.now();

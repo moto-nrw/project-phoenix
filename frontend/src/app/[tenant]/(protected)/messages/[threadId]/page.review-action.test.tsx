@@ -37,7 +37,11 @@ vi.mock("swr", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
+  useSWRAuth: (key: string | null, ...args: unknown[]) =>
+    key?.includes("message-thread-")
+      ? mockUseSWR(key, ...args)
+      : mockUseSWRAuth(key, ...args),
+  useSWRCacheKey: () => (key: string) => `schule:account-1:${key}`,
 }));
 
 const thread = {

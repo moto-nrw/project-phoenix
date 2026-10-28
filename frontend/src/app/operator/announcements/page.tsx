@@ -1,9 +1,14 @@
 "use client";
 
+import {
+  operatorAnnouncementKeys,
+  operatorProvisioningKeys,
+} from "~/lib/swr/portal-keys";
+
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "framer-motion";
 // eslint-disable-next-line no-restricted-imports -- operator pages use useOperatorAuth, not NextAuth
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Pencil, Trash2, Send, Check } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -105,7 +110,7 @@ export default function OperatorAnnouncementsPage() {
     error: announcementsError,
     isLoading,
     mutate,
-  } = useSWR("operator-announcements", () =>
+  } = useSWRAuth(operatorAnnouncementKeys.list(), () =>
     operatorAnnouncementsService.fetchAll(),
   );
   const announcementsLoadError = useSwrLoadError(
@@ -118,8 +123,8 @@ export default function OperatorAnnouncementsPage() {
     data: organizations,
     error: organizationsError,
     mutate: reloadOrganizations,
-  } = useSWR(
-    "operator-organizations",
+  } = useSWRAuth(
+    operatorProvisioningKeys.organizations(),
     () => operatorProvisioningService.listOrganizations(),
     {
       keepPreviousData: true,
@@ -132,8 +137,8 @@ export default function OperatorAnnouncementsPage() {
     data: schools,
     error: schoolsError,
     mutate: reloadSchools,
-  } = useSWR(
-    "operator-schools",
+  } = useSWRAuth(
+    operatorProvisioningKeys.schools(),
     () => operatorProvisioningService.listSchools(),
     {
       keepPreviousData: true,
@@ -1353,8 +1358,8 @@ function AnnouncementViewsAccordionWrapper({
     data: stats,
     error,
     mutate,
-  } = useSWR<AnnouncementStats>(
-    `announcement-stats-${announcementId}`,
+  } = useSWRAuth<AnnouncementStats>(
+    operatorAnnouncementKeys.stats(announcementId),
     () => operatorAnnouncementsService.fetchStats(announcementId),
     { refreshInterval: 30000 },
   );

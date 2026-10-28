@@ -20,6 +20,10 @@
 // Re-export hooks
 export {
   useSWRAuth,
+  useSWRScope,
+  useSWRCacheKey,
+  useSWRPreload,
+  useInvalidateFamily,
   useImmutableSWR,
   useTenantMutate,
   useTenantMutateMatching,
@@ -27,5 +31,13 @@ export {
 export { scopedSWRKey, tenantSWRScope } from "./scope";
 
 // Re-export SWR utilities that consumers might need
-export { SWRConfig, type Cache } from "swr";
+export {
+  SWRConfig,
+  useSWRConfig,
+  unstable_serialize,
+  type Cache,
+  type SWRConfiguration,
+  type SWRResponse,
+  type KeyedMutator,
+} from "swr";
 export { mutate } from "./mutate";

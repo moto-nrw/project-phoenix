@@ -1,5 +1,7 @@
 "use client";
 
+import { databaseKeys } from "~/lib/swr/portal-keys";
+
 import { createLogger } from "~/lib/logger";
 import { useSession } from "next-auth/react";
 
@@ -11,7 +13,7 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { Skeleton } from "~/components/ui/skeleton";
 import { TileCard } from "~/components/ui/tile-card";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { ChevronRight, Lock } from "lucide-react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
@@ -238,9 +240,9 @@ function DatabaseContent() {
     error: countsError,
     isLoading: countsLoading,
     mutate: mutateCounts,
-  } = useSWR(
-    session?.user ? "/api/database/counts" : null,
-    fetchDatabaseCounts,
+  } = useSWRAuth(
+    session?.user ? databaseKeys.counts() : null,
+    () => fetchDatabaseCounts("/api/database/counts"),
     {
       onError: (error: unknown) => {
         logger.error("failed to fetch counts", {

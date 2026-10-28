@@ -9,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useSWRConfig } from "swr";
+import { useSWRConfig } from "~/lib/swr/cache";
 import {
   ArrowLeftRight,
   CalendarClock,

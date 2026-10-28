@@ -1,6 +1,15 @@
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "account-1", tenantId: 1, scope: "school" },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { SWRConfig } from "swr";
+import { SWRConfig } from "~/lib/swr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
@@ -13,7 +22,7 @@ import { TeamChatThread } from "./team-chat-thread";
 
 // Echtes SWR statt des globalen Stubs: Fehler, Wiederholen und Neuladen
 // laufen über den echten Abruf.
-vi.mock("swr", async () => await vi.importActual<typeof import("swr")>("swr"));
+vi.unmock("swr");
 
 vi.mock("~/lib/hooks/use-messages-activity", () => ({
   useMessagesActivity: vi.fn(),

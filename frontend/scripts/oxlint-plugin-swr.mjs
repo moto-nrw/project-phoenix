@@ -108,7 +108,60 @@ const noDirectImport = {
   },
 };
 
+// #5007: resources migrate incrementally; new hook-owned key literals may not grow.
+const keyBaseline = JSON.parse(
+  readFileSync(new URL("./swr-key-baseline.json", import.meta.url), "utf8"),
+);
+function isFreeKey(node) {
+  if (!node) return false;
+  if (node.type === "Literal" && typeof node.value === "string") return true;
+  if (node.type === "TemplateLiteral") return true;
+  return (
+    node.type === "ConditionalExpression" &&
+    (isFreeKey(node.consequent) || isFreeKey(node.alternate))
+  );
+}
+const noFreeKey = {
+  meta: {
+    type: "problem",
+    schema: [],
+    messages: {
+      free: "Build resource keys in ~/lib/swr factories, not at the hook call. scripts/swr-key-baseline.json is shrink-only.",
+      stale:
+        "Shrink scripts/swr-key-baseline.json for {{file}}: {{actual}} free keys remain (baseline: {{expected}}).",
+    },
+  },
+  create(context) {
+    const file = fileKey(context);
+    if (file.startsWith("src/lib/swr/") || /\.test\.[jt]sx?$/.test(file))
+      return {};
+    const expected = keyBaseline[file] ?? 0;
+    let actual = 0;
+    return {
+      CallExpression(node) {
+        if (
+          node.callee.type !== "Identifier" ||
+          !["useSWRAuth", "useImmutableSWR"].includes(node.callee.name) ||
+          !isFreeKey(node.arguments[0])
+        )
+          return;
+        actual += 1;
+        if (actual > expected)
+          context.report({ node: node.arguments[0], messageId: "free" });
+      },
+      "Program:exit"(node) {
+        if (actual < expected)
+          context.report({
+            node,
+            messageId: "stale",
+            data: { file, actual, expected },
+          });
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "swr" },
-  rules: { "no-direct-import": noDirectImport },
+  rules: { "no-direct-import": noDirectImport, "no-free-key": noFreeKey },
 };

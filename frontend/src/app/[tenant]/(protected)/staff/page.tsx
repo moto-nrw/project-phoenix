@@ -1,5 +1,6 @@
 "use client";
 
+import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useState, useMemo, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
@@ -54,7 +55,7 @@ import {
 } from "~/components/staff/staff-time-accounts-table";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
 import { StaffTimeExportModal } from "~/components/staff/staff-time-export-modal";
-import { useSWRConfig } from "swr";
+import { useSWRConfig } from "~/lib/swr/cache";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
@@ -269,23 +270,24 @@ function StaffPageContent() {
   // Fetch staff data with SWR (automatic caching, deduplication, revalidation)
   // Global SSE in TenantAuthWrapper handles cache invalidation automatically
   const {
-    data: staffData,
+    data: allStaffData,
     isLoading,
     error: staffError,
     mutate: mutateStaff,
   } = useSWRAuth<Staff[]>(
-    canListStaff ? "staff-list" : null,
-    async () => {
-      const staffData = await staffService.getAllStaff({});
-      // Externe Kräfte ohne Konto (#3823) stempeln nicht: hier stünden sie
-      // nur als „Abwesend“ in Status und Zählung. Geführt werden sie unter
-      // Datenverwaltung › Personal.
-      return sortStaff(staffData.filter((member) => !member.isExternal));
-    },
+    canListStaff ? staffKeys.key() : null,
+    staffKeys.fetcher,
     {
       keepPreviousData: true,
       revalidateOnFocus: false,
     },
+  );
+  // External people remain in the shared directory, not in the attendance view.
+  const staffData = useMemo(
+    () =>
+      allStaffData &&
+      sortStaff(allStaffData.filter((member) => !member.isExternal)),
+    [allStaffData],
   );
 
   const staff = staffData ?? [];

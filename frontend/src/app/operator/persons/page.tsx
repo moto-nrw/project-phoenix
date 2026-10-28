@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -43,9 +45,9 @@ function OperatorPersonsPageContent() {
     error: schoolPersonsError,
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && selectedSchool
-      ? `operator-school-persons-${selectedSchool.id}`
+      ? operatorProvisioningKeys.schoolPersons(selectedSchool.id)
       : null,
     () => operatorProvisioningService.listSchoolPersons(selectedSchool!.id),
     {

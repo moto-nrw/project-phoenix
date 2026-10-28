@@ -16,8 +16,21 @@ afterAll(removeProbeDirectories);
 const RULE = "swr(no-direct-import)";
 
 describe.concurrent("swr/no-direct-import", () => {
+  it("rejects new free hook keys but accepts factory keys", async () => {
+    const bad = await lintSource(
+      'import { useSWRAuth } from "~/lib/swr"; export function useProbe() { return useSWRAuth("new-key", async () => []); }',
+    );
+    expect(bad.status, bad.output).toBe(1);
+    expect(bad.output).toContain("swr(no-free-key)");
+    const good = await lintSource(
+      'import { useSWRAuth } from "~/lib/swr"; import { roomKeys } from "~/lib/swr/rooms-keys"; export function useProbe() { return useSWRAuth(roomKeys.key(), async () => []); }',
+    );
+    expect(good.status, good.output).toBe(0);
+  });
   it.each([
     'import useSWR from "swr"; void useSWR;',
+    'import useSWRInfinite from "swr/infinite"; void useSWRInfinite;',
+    'import { preload } from "swr"; void preload;',
     'import { mutate as update } from "swr"; void update;',
     'import * as SWR from "swr"; void SWR;',
     'import "swr";',
@@ -62,7 +75,7 @@ describe.concurrent("swr/no-direct-import", () => {
   );
 
   it("accepts the existing exception but rejects an additional import", async () => {
-    const file = "src/app/operator/accounts/page.tsx";
+    const file = "src/components/ui/database/database-form.test.tsx";
     const existing = 'import useSWR from "swr"; void useSWR;';
     expect((await lintSource(existing, file)).status).toBe(0);
     const result = await lintSource(
@@ -76,7 +89,7 @@ describe.concurrent("swr/no-direct-import", () => {
   it("requires removing an exception once its import is removed", async () => {
     const result = await lintSource(
       "export const migrated = true;",
-      "src/app/operator/accounts/page.tsx",
+      "src/components/ui/database/database-form.test.tsx",
     );
     expect(result.status).toBe(1);
     expect(result.output).toContain("Shrink");
@@ -85,7 +98,7 @@ describe.concurrent("swr/no-direct-import", () => {
   it("also requires shrinking a partially migrated file", async () => {
     const result = await lintSource(
       'export { mutate } from "swr";',
-      "src/lib/hooks/use-announcements.test.ts",
+      "src/app/[tenant]/(protected)/students/[id]/page.test.tsx",
     );
     expect(result.status).toBe(1);
     expect(result.output).toContain("Shrink");
@@ -107,6 +120,7 @@ describe.concurrent("swr/no-direct-import", () => {
         join(scripts, "swr-import-baseline.json"),
         JSON.stringify({ "src/deleted.ts": 1 }),
       );
+      writeFileSync(join(scripts, "swr-key-baseline.json"), "{}");
       const config = join(directory, "config.json");
       writeFileSync(
         config,

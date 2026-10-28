@@ -9,14 +9,14 @@ import {
   type Mock,
 } from "vitest";
 
-vi.mock("swr");
+vi.mock("~/lib/swr");
 
 vi.mock("~/lib/parent-api", () => ({
   listMyChildren: vi.fn(),
   getChildFeatures: vi.fn(),
 }));
 
-import useSWR, { type SWRResponse } from "swr";
+import { useSWRAuth as useSWR, type SWRResponse } from "~/lib/swr";
 import { useParentMealPlanEnabled } from "./use-parent-meal-plan-enabled";
 import { getChildFeatures, listMyChildren } from "~/lib/parent-api";
 

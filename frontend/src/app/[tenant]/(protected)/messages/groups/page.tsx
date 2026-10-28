@@ -1,7 +1,9 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { formErrorMessage } from "~/components/ui/form-error";
@@ -20,7 +22,7 @@ import {
   familyReadLabel,
   fetchGroupThreads,
 } from "~/lib/parent-group-threads-api";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 const logger = createLogger({ component: "GroupMessagesPage" });
@@ -32,12 +34,11 @@ const logger = createLogger({ component: "GroupMessagesPage" });
 function GroupMessagesContent() {
   const router = useTenantRouter();
   const { tenant } = useTenant();
-  const tenantSlug = useTenantSlugSafe();
   const messagingEnabled = tenant?.messagingEnabled === true;
   const [composeOpen, setComposeOpen] = useState(false);
 
-  const { data, error, isLoading, mutate } = useSWR<GroupThreadSummary[]>(
-    `${tenantSlug ?? ""}:group-messages`,
+  const { data, error, isLoading, mutate } = useSWRAuth<GroupThreadSummary[]>(
+    messageKeys.groupMessages(),
     fetchGroupThreads,
     {
       revalidateOnFocus: false,

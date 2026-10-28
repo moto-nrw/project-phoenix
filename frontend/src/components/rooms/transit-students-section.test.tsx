@@ -216,7 +216,7 @@ function mockTransitData({
       } as never;
     }
 
-    if (key === "transit-target-current-staff") {
+    if (key === "me-staff") {
       return {
         data: currentStaff,
         error: staffError,
@@ -232,7 +232,7 @@ function mockTransitData({
       } as never;
     }
 
-    if (key === "transit-target-rooms") {
+    if (key === "rooms-list-{}") {
       return {
         data: rooms,
         error: null,
@@ -483,7 +483,7 @@ describe("TransitStudentsSection", () => {
     });
     expect(mockToastSuccess).toHaveBeenCalledWith("1 Kind ist zugewiesen.");
     expect(mutateStudents).toHaveBeenCalledTimes(1);
-    expect(mutateKey).toHaveBeenCalledWith("rooms-list");
+    expect(mutateKey).toHaveBeenCalledWith('rooms-list-{"includeSystem":true}');
     expect(mutateMatching).toHaveBeenCalledTimes(1);
     // The needle list must cover the /active-supervisions caches too:
     // when this section is embedded there, the aggregated dashboard key

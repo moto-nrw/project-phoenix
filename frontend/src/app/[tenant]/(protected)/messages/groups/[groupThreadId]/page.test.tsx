@@ -23,8 +23,8 @@ const { state, mutate, api } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("swr", () => ({
-  default: () => ({
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({
     data: state.detail,
     error: undefined,
     isLoading: false,

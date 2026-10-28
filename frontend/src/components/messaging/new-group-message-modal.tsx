@@ -1,7 +1,9 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import { useMemo, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
@@ -22,7 +24,6 @@ import {
   createGroupThread,
   fetchGroupAudience,
 } from "~/lib/parent-group-threads-api";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "NewGroupMessageModal" });
 
@@ -49,9 +50,8 @@ interface Option {
 
 /** The choices for one target kind, loaded only while the kind is picked. */
 function useTargetOptions(type: GroupTargetType) {
-  const tenantSlug = useTenantSlugSafe() ?? "";
-  const { data, error, mutate } = useSWR<Option[]>(
-    [`${tenantSlug}:group-message-targets`, type],
+  const { data, error, mutate } = useSWRAuth<Option[]>(
+    messageKeys.groupMessageTargets(type),
     async () => {
       if (type === "group") {
         const groups = await groupService.getGroups();
@@ -88,9 +88,8 @@ function AudiencePreview({
   type,
   id,
 }: Readonly<{ type: GroupTargetType; id: string }>) {
-  const tenantSlug = useTenantSlugSafe() ?? "";
-  const { data, error, mutate } = useSWR<GroupChild[]>(
-    [`${tenantSlug}:group-message-audience`, type, id],
+  const { data, error, mutate } = useSWRAuth<GroupChild[]>(
+    messageKeys.groupMessageAudience(type, id),
     () => fetchGroupAudience(type, id),
     { revalidateOnFocus: false },
   );

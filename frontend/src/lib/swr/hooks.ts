@@ -20,6 +20,7 @@ import useSWR, {
   type Middleware,
   type SWRConfiguration,
   type SWRResponse,
+  type MutatorOptions,
 } from "swr";
 import {
   useCallback,
@@ -46,6 +47,7 @@ import {
   lockMutation,
   requestGenerationOf,
   startOf,
+  preloadSWR,
 } from "./generation";
 import {
   authGeneration,
@@ -65,7 +67,7 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
  * build (null without access, nothing is fetched) and its auth generation.
  * For keys built outside the wrappers, e.g. a server seed or a key factory.
  */
-function useSWRScope(): {
+export function useSWRScope(): {
   prefix: string | null;
   generation: string | null;
 } {
@@ -230,7 +232,9 @@ function useScopedSWR<T, E>(
     shown.current.generation === generation &&
     shown.current.moved === moved;
 
-  const response = useSWR<T, E>(fullKey, fetcher, {
+  // The public fetcher contract has no SWR key argument. In particular a
+  // factory's optional params must not receive the full scoped cache key.
+  const response = useSWR<T, E>(fullKey, () => fetcher(), {
     ...swrConfig,
     ...options,
     keepPreviousData: keep,
@@ -404,7 +408,7 @@ export function useTenantMutate() {
     (
       key: string,
       data?: unknown,
-      options?: { revalidate?: boolean },
+      options?: MutatorOptions,
     ): Promise<unknown> => {
       if (prefix === null || isSWRSessionPending())
         return Promise.resolve(undefined);
@@ -590,6 +594,55 @@ export function useDiscardRefusedEntity() {
         discardScopedEntries(cache, prefix, entity.matches, error);
       }
       return true;
+    },
+    [prefix, cache],
+  );
+}
+
+/** Resolve a factory key for cache reads/seeds without duplicating session scoping. */
+export function useSWRCacheKey() {
+  const { prefix } = useSWRScope();
+  return useCallback(
+    (key: string) => (prefix === null ? null : scopedSWRKey(prefix, key)),
+    [prefix],
+  );
+}
+
+/** Hover/intent preload, held to the same session and generation as mounted readers. */
+export function useSWRPreload() {
+  const { prefix } = useSWRScope();
+  useSyncExternalStore(
+    subscribeSWRDataGeneration,
+    currentSWRDataGeneration,
+    currentSWRDataGeneration,
+  );
+  const originatingGeneration = currentSWRGeneration();
+  return useCallback(
+    <T>(key: string, fetcher: () => Promise<T>): Promise<T | undefined> => {
+      if (prefix === null || isSWRSessionPending())
+        return Promise.resolve(undefined);
+      const fullKey = scopedSWRKey(prefix, key);
+      if (dataGenerationOf(fullKey) > originatingGeneration)
+        return Promise.resolve(undefined);
+      return preloadSWR(fullKey, fetcher);
+    },
+    [prefix, originatingGeneration],
+  );
+}
+
+/** Invalidate a resource family, including unmounted, infinite and preloaded keys. */
+export function useInvalidateFamily() {
+  const { prefix } = useSWRScope();
+  const { cache } = useSWRConfig();
+  return useCallback(
+    (family: string, options?: { clear?: boolean }) => {
+      if (prefix === null || isSWRSessionPending()) return Promise.resolve([]);
+      const start = scopedSWRKey(prefix, family);
+      return invalidateSWRKeys(
+        cache,
+        (key) => key.startsWith(start),
+        options?.clear ? "clear" : "revalidate",
+      );
     },
     [prefix, cache],
   );

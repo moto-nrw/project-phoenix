@@ -901,7 +901,7 @@ function setupSWR({
       }
       return { data: phases, isLoading: false };
     }
-    if (key === "timetable-staff-list") {
+    if (key === 'staff-directory-list-{"strict":false}') {
       return {
         data: [
           {

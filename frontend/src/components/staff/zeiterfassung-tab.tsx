@@ -33,7 +33,7 @@ import {
 } from "~/lib/timetable-helpers";
 import { isStaleAfterSessionSave } from "~/components/staff/staff-session-table";
 import { absenceTypeService } from "~/lib/absence-type-api";
-import { useSWRConfig } from "swr";
+import { useSWRConfig } from "~/lib/swr/cache";
 import type { StaffAbsenceRow, StaffHistoryDetails } from "~/lib/staff-api";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
 import type { DayProjection, MonthSummary } from "~/lib/time-tracking-helpers";

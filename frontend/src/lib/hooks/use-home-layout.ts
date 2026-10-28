@@ -1,7 +1,8 @@
 "use client";
 
+import { homeLayoutKeys } from "~/lib/swr/portal-keys";
 import { useEffect } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 
 import type {
@@ -11,7 +12,6 @@ import type {
 } from "~/lib/home-blocks";
 import {
   fetchHomeLayout,
-  homeLayoutSWRKey,
   resetHomeLayout,
   saveHomeBlockPolicies,
   saveHomeLayout,
@@ -63,9 +63,9 @@ export function useHomeLayout(): {
   const accountID = session?.user?.id;
   const cacheKey =
     status === "authenticated" && tenantSlug && accountID
-      ? homeLayoutSWRKey(tenantSlug, accountID)
+      ? homeLayoutKeys.key()
       : null;
-  const { data, isLoading, mutate } = useSWR<HomeLayoutState>(
+  const { data, isLoading, mutate } = useSWRAuth<HomeLayoutState>(
     cacheKey,
     fetchHomeLayout,
     { revalidateOnFocus: false },

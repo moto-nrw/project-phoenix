@@ -1,7 +1,9 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
@@ -9,7 +11,7 @@ import { Button } from "~/components/ui/button";
 import { formErrorMessage } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   type InboxThread,
@@ -43,7 +45,6 @@ function MessagesInboxContent() {
   // Tenant-prefix the SWR key so a tenant switch (multi-tab / switch-tenant) can
   // never render the previous school's cached threads from this key (frontend
   // convention: useTenantSlugSafe is for SWR cache-key prefixing).
-  const tenantSlug = useTenantSlugSafe();
   // Hide the compose entry points when the school has parent-OGS messaging
   // turned off — composing would otherwise hit a backend 403 dead-end. Existing
   // threads stay readable.
@@ -61,8 +62,8 @@ function MessagesInboxContent() {
     error,
     isLoading,
     mutate,
-  } = useSWR(
-    [`${tenantSlug ?? ""}:messages-inbox`, onlyUnread],
+  } = useSWRAuth(
+    messageKeys.messagesInbox(onlyUnread),
     () => fetchInboxWithFilters({ onlyUnread }),
     {
       revalidateOnFocus: false,

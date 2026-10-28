@@ -1,3 +1,4 @@
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 /**
  * Tests for Operator Organization Detail (Träger Drill-in) Page.
  *
@@ -109,9 +110,10 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: mockUseSWR,
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: mockUseSWR,
   useSWRConfig: () => ({ mutate: vi.fn() }),
+  useTenantMutateMatching: () => vi.fn(async () => []),
 }));
 
 vi.mock("~/lib/operator/provisioning-api", async () => {
@@ -297,34 +299,34 @@ function setupSWR(opts: SetupOpts = {}) {
           isLoading: orgsLoading,
           mutate: mockMutateOrgs,
         };
-      case "operator-organization-school-summaries":
+      case operatorProvisioningKeys.organizationSchoolSummaries(mockOrg.id):
         return {
           data: schoolsLoading ? undefined : schools,
           isLoading: schoolsLoading,
           mutate: mockMutateSchoolSummaries,
         };
-      case "operator-org-accounts":
+      case operatorProvisioningKeys.orgAccounts(mockOrg.id):
         return {
           data: accountsLoading ? undefined : accounts,
           error: accountsError,
           isLoading: accountsLoading,
           mutate: mockMutateOrgAccounts,
         };
-      case "operator-org-devices":
+      case operatorProvisioningKeys.orgDevices(mockOrg.id):
         return {
           data: devicesLoading ? undefined : devices,
           error: devicesError,
           isLoading: devicesLoading,
           mutate: mockMutateOrgDevices,
         };
-      case "operator-org-persons":
+      case operatorProvisioningKeys.orgPersons(mockOrg.id):
         return {
           data: personsLoading ? undefined : persons,
           error: personsError,
           isLoading: personsLoading,
           mutate: vi.fn(),
         };
-      case "operator-org-traeger-members":
+      case operatorProvisioningKeys.orgTraegerMembers(mockOrg.id):
         return {
           data: traegerMembers,
           error: traegerMembersError,

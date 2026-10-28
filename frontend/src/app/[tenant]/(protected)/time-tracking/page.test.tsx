@@ -762,7 +762,7 @@ function setupDefaultMocks(overrides?: {
         isValidating: false,
         error: undefined,
       } as never;
-    } else if (key?.startsWith("time-tracking-own-staff")) {
+    } else if (key?.startsWith("me-staff")) {
       return {
         data: mockOwnStaff,
         isLoading: false,

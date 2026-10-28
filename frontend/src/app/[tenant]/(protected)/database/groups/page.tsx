@@ -1,5 +1,6 @@
 "use client";
 
+import { groups as groupsKeys } from "~/lib/swr/groups";
 import {
   Suspense,
   useCallback,
@@ -87,10 +88,9 @@ function GroupsPageContent() {
     isLoading: swrLoading,
     error: groupsError,
     mutate: mutateGroups,
-  } = useSWRAuth("database-groups-list", async () => {
-    const data = await service.getList({ page: 1, pageSize: 500 });
-    return Array.isArray(data.data) ? data.data : [];
-  });
+  } = useSWRAuth(groupsKeys.key({ page: 1, pageSize: 500 }), () =>
+    groupsKeys.fetcher({ page: 1, pageSize: 500 }),
+  );
 
   const error = useSwrLoadError(groupsError, "die Liste der Gruppen", () =>
     mutateGroups(),
@@ -191,7 +191,7 @@ function GroupsPageContent() {
       const created = await service.create(payload);
       toastSuccess(`Die Gruppe „${created.name}“ ist angelegt.`);
       setShowCreateModal(false);
-      await tenantMutate("database-groups-list");
+      await tenantMutate(groupsKeys.key({ page: 1, pageSize: 500 }));
     },
     [service, tenantMutate, toastSuccess],
   );
@@ -207,7 +207,7 @@ function GroupsPageContent() {
       toastSuccess(
         `Die Gruppe „${data.name ?? selectedGroup.name}“ ist gespeichert.`,
       );
-      await tenantMutate("database-groups-list");
+      await tenantMutate(groupsKeys.key({ page: 1, pageSize: 500 }));
     },
     [selectedGroup, service, tenantMutate, toastSuccess],
   );
@@ -222,7 +222,7 @@ function GroupsPageContent() {
       toastSuccess(`Die Gruppe „${selectedGroup.name}“ ist gelöscht.`);
       handleDeleteCancel();
       handleSelectGroup(null);
-      await tenantMutate("database-groups-list");
+      await tenantMutate(groupsKeys.key({ page: 1, pageSize: 500 }));
     } catch (err) {
       logger.warn("group_delete_failed", {
         group_id: selectedGroup.id,
