@@ -313,6 +313,7 @@ func (s timetableOfferingSources) TemplateRosterMaintenance(ctx context.Context,
 		result[template.TemplateID] = timetable.TemplateRosterMaintenance{
 			Mode:                  string(derived.Mode),
 			Offerings:             timetableOfferingRefs(derived.Offerings),
+			LinkedOfferingIDs:     derived.LinkedOfferingIDs,
 			GradeLevels:           derived.GradeLevels,
 			SchoolClasses:         derived.SchoolClasses,
 			InactiveOfferings:     timetableOfferingRefs(derived.InactiveOfferings),

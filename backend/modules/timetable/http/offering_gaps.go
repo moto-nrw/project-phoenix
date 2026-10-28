@@ -116,7 +116,8 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, periodID int64, to
 // which feed every booked child.
 func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, periodID int64, today calendar.Date) timetable.OfferingGapTemplate {
 	gapTemplate := timetable.OfferingGapTemplate{
-		Weekdays: runningWeekdays(template, periodID, today),
+		Weekdays:          runningWeekdays(template, periodID, today),
+		LinkedOfferingIDs: append([]int64(nil), feeds.LinkedOfferingIDs...),
 		Sources: timetable.OfferingSourceFilter{
 			GradeLevels: feeds.GradeLevels, SchoolClasses: feeds.SchoolClasses,
 		},
@@ -124,8 +125,6 @@ func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRost
 	for _, offering := range feeds.Offerings {
 		if slices.Contains(template.SourceCareOfferingIDs, offering.ID) {
 			gapTemplate.Sources.OfferingIDs = append(gapTemplate.Sources.OfferingIDs, offering.ID)
-		} else {
-			gapTemplate.LinkedOfferingIDs = append(gapTemplate.LinkedOfferingIDs, offering.ID)
 		}
 	}
 	return gapTemplate

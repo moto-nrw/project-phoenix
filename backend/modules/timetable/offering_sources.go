@@ -139,6 +139,8 @@ type TemplateRosterMaintenanceQuery struct {
 // TemplateRosterMaintenance is the Regeltermin indicator (#3140): whether
 // children approved later reach the roster without staff action.
 type TemplateRosterMaintenance struct {
+	// LinkedOfferingIDs preserves effective direct links independently of source filters.
+	LinkedOfferingIDs []int64
 	// Mode is "automatic", "partial" or "manual".
 	Mode              string
 	Offerings         []OfferingRef
