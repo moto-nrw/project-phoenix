@@ -145,11 +145,6 @@ export function resetSWRScope({ revalidate }: { revalidate: boolean }): void {
 const REFUSAL_STATUSES = new Set([401, 403, 404]);
 const SPECIAL_KEY = /^\$(inf|sub)\$/;
 
-/** Whether `key` is the cache entry of a `useSWRInfinite` hook. */
-export function isInfiniteKey(key: string): boolean {
-  return key.startsWith("$inf$");
-}
-
 /**
  * Whether `error` is the server's refusal of an entity with one of `codes`.
  * Programs branch on the code (ADR 0006), never on a message.
@@ -168,79 +163,94 @@ export function isEntityRefusal(
 }
 
 /**
- * Every key SWR holds state for in `cache`, in all its families: cache
- * entries including the `$inf$` and `$sub$` ones, preloads without a cache
- * entry, and requests and mutations in flight. `matches` gets the key
- * without its `$inf$`/`$sub$` marker. SWR's own key filter (`mutate(fn)`)
- * sees none of these families except entries a mounted hook keyed (`_k`),
- * so every drop at a scope or entity boundary collects its keys here.
+ * How invalidateSWRKeys treats the keys it collects.
+ * - `revalidate`: mounted readers load again; no later reader reuses a
+ *   request or preload from before (data stays until the answer).
+ * - `clear`: data, error and loading state go; nothing is fetched.
+ * - `discard`: like `clear`, but an error stays, so a view shows the
+ *   refusal instead of the data.
  */
-export function matchingStateKeys(
+export type SWRInvalidation = "revalidate" | "clear" | "discard";
+
+/**
+ * The one way to invalidate part of the cache (#5006; the whole cache goes
+ * through resetSWRScope). `matches` gets every key SWR 2.5.1 holds state
+ * for, without its `$inf$`/`$sub$` marker, from every place that state
+ * lives: cache entries (also without a reader's `_k`), mounted hooks
+ * (EVENT_REVALIDATORS), requests in flight and finished requests inside the
+ * dedupe window (FETCH), preloads (PRELOAD) and mutations (MUTATION).
+ * SWR's own key filter (`mutate(fn)`) sees only cache entries a mounted
+ * hook keyed, and skips `$inf$`/`$sub$`.
+ *
+ * Every collected key loses its request and preload, so no reader reuses
+ * an answer from before. `clear` and `discard` also stamp the mutation
+ * clock, which makes requests and mutations in flight, their rollbacks
+ * included, write nothing back, and empty the entry without leaving it in a
+ * loading state; data kept on screen goes as well (swrScopeEpoch).
+ */
+export function invalidateSWRKeys(
   cache: Cache,
   matches: (key: string) => boolean,
-): string[] {
-  const keys = new Set<string>(cache.keys());
+  mode: SWRInvalidation,
+): Promise<unknown[]> {
   const state = SWRGlobalState.get(cache);
+  const keys = new Set<string>(cache.keys());
   if (state) {
-    const [, MUTATION, FETCH, PRELOAD] = state;
-    for (const family of [MUTATION, FETCH, PRELOAD]) {
+    const [EVENT_REVALIDATORS, MUTATION, FETCH, PRELOAD] = state;
+    for (const family of [EVENT_REVALIDATORS, MUTATION, FETCH, PRELOAD]) {
       for (const key of Object.keys(family)) keys.add(key);
     }
   }
-  return [...keys].filter((key) => matches(key.replace(SPECIAL_KEY, "")));
-}
-
-/**
- * Drops all state of `keys` without fetching: their data and the data kept
- * on screen, preloads, and requests and mutations in flight (their answers
- * and rollbacks are discarded). An error an entry carries stays, so a view
- * shows the refusal instead of the data.
- */
-export function dropStateKeys(cache: Cache, keys: readonly string[]): void {
-  if (keys.length === 0) return;
-  const state = SWRGlobalState.get(cache);
-  epoch += 1;
-  for (const key of keys) {
+  const matched = [...keys].filter((key) =>
+    matches(key.replace(SPECIAL_KEY, "")),
+  );
+  if (matched.length === 0) return Promise.resolve([]);
+  if (mode !== "revalidate") epoch += 1;
+  const revalidations: Promise<unknown>[] = [];
+  for (const key of matched) {
     if (state) {
-      const [, MUTATION, FETCH, PRELOAD] = state;
+      const [, MUTATION, FETCH, PRELOAD, scopedMutate] = state;
       delete FETCH[key];
       delete PRELOAD[key];
-      // Like unload: an older mutation fails its timestamp check on
-      // resolution and writes nothing back, not even its rollback.
+      if (mode === "revalidate") {
+        // SWR's own revalidation of one key: the first mounted hook loads.
+        revalidations.push(scopedMutate(key));
+        continue;
+      }
+      // Like unload: an older request or mutation fails its timestamp check
+      // on resolution and writes nothing back, not even its rollback.
       const ts = getTimestamp();
       MUTATION[key] = [ts, ts];
     }
-    if (cache.get(key) === undefined) continue;
+    if (mode === "revalidate" || cache.get(key) === undefined) continue;
     const [, set] = createCacheHelper(cache, key);
     // `_c` holds the data an optimistic update replaced; SWR's State type
-    // does not name it.
-    set({ data: undefined, _c: undefined } as Parameters<typeof set>[0]);
+    // does not name it. A request discarded here never resets the loading
+    // flags itself.
+    set({
+      data: undefined,
+      _c: undefined,
+      isValidating: false,
+      isLoading: false,
+      ...(mode === "clear" ? { error: undefined } : {}),
+    } as Parameters<typeof set>[0]);
   }
-}
-
-/** Drops the preloads of `keys`, so their next reader fetches. */
-export function dropPreloads(cache: Cache, keys: readonly string[]): void {
-  const state = SWRGlobalState.get(cache);
-  if (!state) return;
-  const [, , , PRELOAD] = state;
-  for (const key of keys) delete PRELOAD[key];
+  return Promise.all(revalidations);
 }
 
 /**
- * Drops every entry of scope `prefix` whose unscoped key `matches`, in all
- * families (matchingStateKeys). Nothing is fetched again. Returns how many
- * keys were dropped.
+ * Drops every entry of scope `prefix` whose unscoped key `matches`, wherever
+ * SWR keeps it (invalidateSWRKeys, `discard`). Nothing is fetched again.
  */
 export function discardScopedEntries(
   cache: Cache,
   prefix: string,
   matches: (key: string) => boolean,
-): number {
+): void {
   const scope = `${prefix}:`;
-  const dropped = matchingStateKeys(
+  void invalidateSWRKeys(
     cache,
     (key) => key.startsWith(scope) && matches(key.slice(scope.length)),
+    "discard",
   );
-  dropStateKeys(cache, dropped);
-  return dropped.length;
 }

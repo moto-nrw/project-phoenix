@@ -29,11 +29,8 @@ import {
   isSWRSessionPending,
   useSWRSessionRefresh,
   discardScopedEntries,
-  dropPreloads,
-  dropStateKeys,
+  invalidateSWRKeys,
   isEntityRefusal,
-  isInfiniteKey,
-  matchingStateKeys,
   scopedSWRKey,
   swrScopeEpoch,
   swrScopePrefix,
@@ -239,17 +236,22 @@ export function useTenantMutate() {
  * This avoids cascading useCallback invalidations in consumers that depend
  * on the returned function.
  *
- * **Clearing instead of revalidating**: pass `{ clear: true }` to DELETE the
- * matching cache entries without refetching. The global `keepPreviousData`
- * config means a plain revalidation still serves the stale entry first
- * (`isLoading` stays false on remount) — when consumers must never act on
- * pre-mutation data, the entry has to go so the next mount loads fresh with
- * `isLoading: true`.
+ * **What is touched**: every place SWR keeps a matching key
+ * (invalidateSWRKeys): cache entries also without a mounted reader,
+ * `$inf$`/`$sub$` entries, requests in flight and inside the dedupe window,
+ * preloads and mutations (#5006). A plain call revalidates: mounted readers
+ * load again, keep their data until the answer, and no later reader reuses a
+ * request or preload from before.
  *
- * **Leaving keys out**: `except` names unprefixed keys that are not touched,
- * e.g. the list a decision was just made in, which already shows its result.
- * A plain revalidation also drops SWR's marker of a request in flight, so an
- * entry that is not mounted fetches fresh on its next mount (#4988).
+ * **Clearing instead of revalidating**: pass `{ clear: true }` to DELETE the
+ * matching entries without refetching. Data, error and loading state go,
+ * requests and mutations in flight write nothing back, and data kept on
+ * screen goes too — for consumers that must never act on pre-mutation data.
+ * The next mount loads fresh with `isLoading: true`.
+ *
+ * **Leaving keys out**: `except` names unprefixed keys that are not touched
+ * in any of these places, e.g. the list a decision was just made in, which
+ * already shows its result (#4988).
  *
  * @example
  * ```tsx
@@ -279,27 +281,17 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
         (options?.except ?? []).map((key) => scopedSWRKey(prefix, key)),
       );
       const scope = scopedSWRKey(prefix, "");
-      const matches = (key: unknown): boolean => {
-        if (typeof key !== "string" || kept.has(key)) return false;
-        if (!key.startsWith(scope)) return false;
-        return needles.some((needle) => key.includes(needle));
-      };
-      // SWR's key filter only reaches entries a mounted hook keyed. The rest
-      // (entries without a reader, `$inf$`/`$sub$` entries, preloads,
-      // mutations in flight) is collected by key (#5006): a preload taken
-      // before the change must not answer the next mount.
-      const matched = matchingStateKeys(cache, matches);
-      if (options?.clear) {
-        const cleared = swrMutate(matches, undefined, { revalidate: false });
-        dropStateKeys(cache, matched);
-        return cleared;
-      }
-      const revalidated = swrMutate(matches);
-      dropPreloads(cache, matched);
-      for (const key of matched) {
-        if (isInfiniteKey(key)) void swrMutate(key);
-      }
-      return revalidated;
+      // Every place SWR keeps a matching key, not only entries a mounted
+      // hook keyed (#5006): a request or preload from before the change
+      // must not answer the next reader. `except` keys stay untouched.
+      return invalidateSWRKeys(
+        cache,
+        (key) =>
+          !kept.has(key) &&
+          key.startsWith(scope) &&
+          needles.some((needle) => key.includes(needle)),
+        options?.clear ? "clear" : "revalidate",
+      );
     },
     [prefix, joined, cache],
   );

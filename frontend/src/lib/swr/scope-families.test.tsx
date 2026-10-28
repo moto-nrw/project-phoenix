@@ -1,205 +1,276 @@
-import { act, renderHook } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, renderHook, screen } from "@testing-library/react";
+import type { Session } from "next-auth";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// Every family of SWR state, on the real SWR 2.5.1.
+// Every place SWR 2.5.1 keeps state for a key, on the real SWR.
 vi.unmock("swr");
 
-vi.mock("next-auth/react", () => ({
-  useSession: () => ({
-    data: { user: { id: "A", tenantId: 1 }, expires: "2099-01-01" },
-    status: "authenticated",
-  }),
-}));
+const { mockUseSession } = vi.hoisted(() => ({ mockUseSession: vi.fn() }));
 
+vi.mock("next-auth/react", () => ({ useSession: mockUseSession }));
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "school-a",
 }));
+vi.mock("~/lib/session-cache", () => ({ announceSessionChange: vi.fn() }));
 
 // Boundary-level test: the shared wrapper may import the package directly.
 import { mutate, preload, useSWRConfig } from "swr";
-import { SWRGlobalState } from "swr/_internal";
+import { SWRGlobalState, getTimestamp } from "swr/_internal";
 import { ApiError } from "~/lib/api-error";
-import { useDiscardRefusedEntity, useTenantMutateMatching } from "./hooks";
-import { resetSWRScope } from "./scope";
+import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
+import {
+  useDiscardRefusedEntity,
+  useSWRAuth,
+  useTenantMutateMatching,
+} from "./hooks";
+import { resetSWRScope, resumeSWRSession } from "./scope";
+import { SWRScopeBoundary } from "./scope-boundary";
 
 /**
- * Invariant (#5006): every cache entry of a scope or an entity goes,
- * whatever family holds it. SWR keeps state for one key in five places: the
- * cache entry, the `$inf$` and `$sub$` entries the key filter of `mutate`
- * skips, a preload that has no cache entry yet, and a mutation in flight.
+ * Invariant (#5006): after a drop no reader sees data or a request of the
+ * dropped keys, whichever place SWR keeps them in. Each row of LOCATIONS is
+ * one such place; each operation below runs against all of them.
  */
-const FAMILIES = ["plain", "infinite", "subscription", "preload", "mutation"];
+const LOCATIONS = [
+  "entry", // cache entry data
+  "infinite", // `$inf$` entry, skipped by SWR's key filter
+  "subscription", // `$sub$` entry, skipped by SWR's key filter
+  "preload", // PRELOAD without a cache entry
+  "request", // FETCH marker without a reader's `_k` (dedupe window)
+  "mutation", // mutation in flight without a cache entry
+  "rollback", // optimistic mutation that fails afterwards (`_c`)
+  "loading", // entry left validating by a discarded request
+] as const;
+type Location = (typeof LOCATIONS)[number];
 
-function cache() {
+function swrCache() {
   return renderHook(() => useSWRConfig()).result.current.cache;
 }
 
-function state() {
-  const current = SWRGlobalState.get(cache());
-  if (!current) throw new Error("SWR state missing");
-  return current;
+function swrState() {
+  const state = SWRGlobalState.get(swrCache());
+  if (!state) throw new Error("SWR state missing");
+  return state;
 }
 
-function keysOf(name: string) {
-  return {
-    plain: `${name}-detail`,
-    infinite: `$inf$${name}-feed`,
-    subscription: `$sub$${name}-live`,
-    preload: `${name}-preloaded`,
-    mutation: `${name}-saving`,
-  };
+function key(name: string, location: Location): string {
+  if (location === "infinite") return `$inf$${name}-${location}`;
+  if (location === "subscription") return `$sub$${name}-${location}`;
+  return `${name}-${location}`;
 }
 
-/** Puts state of every family under `name`; returns how to finish the mutation. */
-function seed(name: string): { finishMutation: () => Promise<void> } {
-  const keys = keysOf(name);
-  cache().set(keys.plain, { data: `${name} Daten` });
-  cache().set(keys.infinite, { data: [[`${name} Seite`]] });
-  cache().set(keys.subscription, { data: `${name} live` });
-  void preload(keys.preload, () => Promise.resolve(`${name} vorgeladen`));
+/** Puts state of every location under `name`; settle() ends what is in flight. */
+function seed(name: string): { settle: () => Promise<void> } {
+  const cache = swrCache();
+  const [, , FETCH] = swrState();
+  cache.set(key(name, "entry"), { data: "alt" });
+  cache.set(key(name, "infinite"), { data: [["alt"]] });
+  cache.set(key(name, "subscription"), { data: "alt" });
+  void preload(key(name, "preload"), () => Promise.resolve("alt"));
+  FETCH[key(name, "request")] = [Promise.resolve("alt"), getTimestamp()];
+  cache.set(key(name, "loading"), {
+    data: "alt",
+    isValidating: true,
+    isLoading: true,
+  });
   let finish: (value: string) => void = () => {};
   const saving = mutate(
-    keys.mutation,
+    key(name, "mutation"),
     new Promise<string>((resolve) => {
       finish = resolve;
     }),
     { revalidate: false },
   );
+  cache.set(key(name, "rollback"), { data: "alt" });
+  let fail: (error: Error) => void = () => {};
+  const optimistic = mutate(
+    key(name, "rollback"),
+    new Promise<string>((_, reject) => {
+      fail = reject;
+    }),
+    {
+      optimisticData: "optimistisch",
+      rollbackOnError: true,
+      revalidate: false,
+    },
+  ).catch(() => undefined);
   return {
-    finishMutation: async () => {
-      finish(`${name} gespeichert`);
+    settle: async () => {
+      finish("alt");
+      fail(new Error("Speichern fehlgeschlagen"));
       await saving;
+      await optimistic;
     },
   };
 }
 
-/** Which families still hold state of `name`. */
-function present(name: string): string[] {
-  const keys = keysOf(name);
-  const [, , , PRELOAD] = state();
-  const found: string[] = [];
-  if (cache().get(keys.plain)?.data !== undefined) found.push("plain");
-  if (cache().get(keys.infinite)?.data !== undefined) found.push("infinite");
-  if (cache().get(keys.subscription)?.data !== undefined) {
-    found.push("subscription");
-  }
-  if (keys.preload in PRELOAD) found.push("preload");
-  if (cache().get(keys.mutation)?.data !== undefined) found.push("mutation");
-  return found;
+/** The locations of `name` that still hold old data or an old request. */
+function holding(name: string): Location[] {
+  const cache = swrCache();
+  const [, , FETCH, PRELOAD] = swrState();
+  return LOCATIONS.filter((location) => {
+    const k = key(name, location);
+    if (location === "preload") return k in PRELOAD;
+    if (location === "request") return k in FETCH;
+    if (location === "loading") {
+      const entry = cache.get(k);
+      return entry?.data !== undefined || entry?.isValidating === true;
+    }
+    return cache.get(k)?.data !== undefined;
+  });
+}
+
+const OWN = "school-a:A:student-7";
+const SIBLING = "school-a:A:student-8";
+const OTHER_ACCOUNT = "school-a:B:student-7";
+
+function signedIn(user: Partial<Session["user"]> = {}) {
+  return {
+    data: { user: { id: "A", tenantId: 1, ...user }, expires: "2099-01-01" },
+    status: "authenticated" as const,
+  };
 }
 
 const refusal = new ApiError("Forbidden", 403, {
   code: "care.guardian_permission_denied",
 });
 
+interface Tools {
+  view: ReturnType<typeof render>;
+  discard: ReturnType<typeof useDiscardRefusedEntity>;
+  matching: ReturnType<typeof useTenantMutateMatching>;
+}
+type Operation = (tools: Tools) => Promise<void> | void;
+
+/** Every operation that drops state, with the names it must leave alone. */
+const DROPS: [string, Operation, string[]][] = [
+  [
+    "rights change in this tab (scope reset)",
+    ({ view }) => {
+      mockUseSession.mockReturnValue(signedIn({ permissions: ["x"] }));
+      view.rerender(<SWRScopeBoundary expectedTenantId={1} />);
+    },
+    [],
+  ],
+  [
+    "logout",
+    ({ view }) => {
+      mockUseSession.mockReturnValue({ data: null, status: "unauthenticated" });
+      view.rerender(<SWRScopeBoundary expectedTenantId={1} />);
+    },
+    [],
+  ],
+  [
+    "another account in another tab",
+    () => {
+      globalThis.dispatchEvent(
+        new StorageEvent("storage", {
+          key: "moto:personal-storage-owner",
+          newValue: "1:B",
+        }),
+      );
+    },
+    [],
+  ],
+  [
+    "refused entity",
+    ({ discard }) => {
+      discard(refusal, {
+        codes: ["care.guardian_permission_denied"],
+        matches: (k) => k.startsWith("student-7-"),
+      });
+    },
+    [SIBLING, OTHER_ACCOUNT],
+  ],
+  [
+    "clearing matching keys",
+    async ({ matching }) => {
+      await matching({ clear: true });
+    },
+    [SIBLING, OTHER_ACCOUNT],
+  ],
+];
+
 beforeEach(() => {
   resetSWRScope({ revalidate: false });
+  mockUseSession.mockReturnValue(signedIn());
 });
 
-describe("every family of a scope or entity is dropped (#5006)", () => {
-  it("drops a refused child in every family and leaves the others", async () => {
-    const child = seed("school-a:A:student-7");
-    const sibling = seed("school-a:A:student-8");
-    const otherAccount = seed("school-a:B:student-7");
-    const { result } = renderHook(() => useDiscardRefusedEntity());
+afterEach(() => {
+  resumeSWRSession();
+  _resetPersonalStorageLeave();
+});
 
-    act(() => {
-      result.current(refusal, {
-        codes: ["care.guardian_permission_denied"],
-        matches: (key) => key.startsWith("student-7-"),
+describe("no state survives a drop, in any location (#5006)", () => {
+  it.each(DROPS)("%s", async (_name, operation, kept) => {
+    const view = render(<SWRScopeBoundary expectedTenantId={1} />);
+    const discard = renderHook(() => useDiscardRefusedEntity()).result.current;
+    const matching = renderHook(() => useTenantMutateMatching(["student-7-"]))
+      .result.current;
+    const seeded = [OWN, SIBLING, OTHER_ACCOUNT].map(seed);
+
+    await act(async () => {
+      await operation({ view, discard, matching });
+    });
+    await act(async () => {
+      for (const { settle } of seeded) await settle();
+    });
+
+    // Anker: was der Vorgang nicht trifft, behält jeden Zustandsort; der
+    // Fehlschlag einer Rücknahme setzt dort den Stand vor der Mutation.
+    for (const name of kept) expect(holding(name)).toEqual(LOCATIONS);
+    expect(holding(OWN)).toEqual([]);
+  });
+
+  it("leaves a key named in `except` untouched in every location", async () => {
+    seed(OWN);
+    const { result } = renderHook(() =>
+      useTenantMutateMatching(["student-7-"]),
+    );
+
+    await act(async () => {
+      await result.current({
+        clear: true,
+        except: LOCATIONS.map((location) =>
+          key("student-7", location).replace(/^\$(inf|sub)\$/, ""),
+        ),
       });
     });
-    await act(async () => {
-      await child.finishMutation();
-      await sibling.finishMutation();
-      await otherAccount.finishMutation();
-    });
 
-    // Anker: das andere Kind und das andere Konto behalten jede Familie.
-    expect(present("school-a:A:student-8")).toEqual(FAMILIES);
-    expect(present("school-a:B:student-7")).toEqual(FAMILIES);
-    expect(present("school-a:A:student-7")).toEqual([]);
-  });
-
-  it("serves no withdrawn preload to a later reader of the refused child", async () => {
-    void preload("school-a:A:student-7-preloaded", () =>
-      Promise.resolve("entzogen"),
-    );
-    const { result } = renderHook(() => useDiscardRefusedEntity());
-
-    let dropped = false;
-    act(() => {
-      dropped = result.current(refusal, {
-        codes: ["care.guardian_permission_denied"],
-        matches: (key) => key.startsWith("student-7-"),
-      });
-    });
-
-    expect(dropped).toBe(true);
-    const [, , , PRELOAD] = state();
-    expect(Object.keys(PRELOAD)).not.toContain(
-      "school-a:A:student-7-preloaded",
+    // Anker: nichts ist verworfen; in-flight Mutationen laufen noch.
+    expect(holding(OWN)).toEqual(
+      LOCATIONS.filter((location) => location !== "mutation"),
     );
   });
 
-  it("drops every family of every scope at a session boundary", async () => {
-    const own = seed("school-a:A:student-7");
-    const other = seed("school-a:B:student-7");
-    // Anker: vor dem Wechsel steht jede Familie.
-    expect(present("school-a:A:student-7")).toEqual(
-      FAMILIES.filter((family) => family !== "mutation"),
-    );
-
-    resetSWRScope({ revalidate: false });
-    await act(async () => {
-      await own.finishMutation();
-      await other.finishMutation();
-    });
-
-    expect(present("school-a:A:student-7")).toEqual([]);
-    expect(present("school-a:B:student-7")).toEqual([]);
-  });
-
-  it("drops the families the key filter skips when clearing matching keys", async () => {
-    const matched = seed("school-a:A:request-feed:7");
-    const kept = seed("school-a:A:request-feed:8");
+  it("lets no later reader reuse a request or preload after revalidating", async () => {
+    // The finding of #5182: a FETCH marker without a reader's `_k` stayed,
+    // and the next mount inside the dedupe window took the old answer.
+    seed(OWN);
     const { result } = renderHook(() =>
-      useTenantMutateMatching(["request-feed:7"]),
-    );
-
-    await act(async () => {
-      await result.current({ clear: true });
-      await matched.finishMutation();
-      await kept.finishMutation();
-    });
-
-    // Anker: der nicht getroffene Feed behält jede Familie.
-    expect(present("school-a:A:request-feed:8")).toEqual(FAMILIES);
-    expect(present("school-a:A:request-feed:7")).toEqual([]);
-  });
-
-  it("drops a stale preload when revalidating matching keys", async () => {
-    void preload("school-a:A:request-feed:7-preloaded", () =>
-      Promise.resolve("vor der Entscheidung"),
-    );
-    void preload("school-a:A:request-feed:8-preloaded", () =>
-      Promise.resolve("anderer Feed"),
-    );
-    const { result } = renderHook(() =>
-      useTenantMutateMatching(["request-feed:7"]),
+      useTenantMutateMatching(["student-7-"]),
     );
 
     await act(async () => {
       await result.current();
     });
 
-    const [, , , PRELOAD] = state();
-    // Anker: der nicht getroffene Preload bleibt.
-    expect(Object.keys(PRELOAD)).toContain(
-      "school-a:A:request-feed:8-preloaded",
+    const [, , FETCH, PRELOAD] = swrState();
+    expect(key(OWN, "request") in FETCH).toBe(false);
+    expect(key(OWN, "preload") in PRELOAD).toBe(false);
+
+    const fresh = vi.fn(() => Promise.resolve("frisch"));
+    function Reader({ name }: Readonly<{ name: string }>) {
+      const { data } = useSWRAuth(name, fresh);
+      return <p>{data ?? "leer"}</p>;
+    }
+    render(
+      <>
+        <Reader name="student-7-request" />
+        <Reader name="student-7-preload" />
+      </>,
     );
-    expect(Object.keys(PRELOAD)).not.toContain(
-      "school-a:A:request-feed:7-preloaded",
-    );
+    expect(await screen.findAllByText("frisch")).toHaveLength(2);
+    expect(fresh).toHaveBeenCalledTimes(2);
   });
 });

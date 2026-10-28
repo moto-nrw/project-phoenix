@@ -22,6 +22,14 @@ vi.mock("swr", () => ({
   useSWRConfig: () => ({ cache: mockCache }),
 }));
 
+// useTenantMutateMatching invalidates through this one function (#5006);
+// its key predicate is the contract checked below.
+const mockInvalidate = vi.fn((..._args: unknown[]) => Promise.resolve([]));
+vi.mock("~/lib/swr/scope", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr/scope")>()),
+  invalidateSWRKeys: (...args: unknown[]) => mockInvalidate(...args),
+}));
+
 const subscribers: Array<() => void> = [];
 const mockUnsubscribe = vi.fn();
 vi.mock("~/lib/settings-broadcast", () => ({
@@ -69,11 +77,9 @@ describe("useSettingsCacheBridge", () => {
     expect(mockMutate).not.toHaveBeenCalledWith(
       "test-tenant:account-7:change-request-access:account-8",
     );
-    const predicates = mockMutate.mock.calls
-      .map(([key]) => key)
-      .filter(
-        (key): key is (value: unknown) => boolean => typeof key === "function",
-      );
+    const predicates = mockInvalidate.mock.calls.map(
+      ([, matches]) => matches as (key: string) => boolean,
+    );
     expect(predicates).toHaveLength(1);
     const matches = predicates[0]!;
     expect(matches("test-tenant:account-7:student-detail-42")).toBe(true);
