@@ -38,7 +38,7 @@ func buildAnnouncementService(t *testing.T, newsEnabled bool) (*parentportal.Por
 
 func buildAnnouncementServiceWithSurveys(t *testing.T, newsEnabled bool, surveys parentportal.Surveys) (*parentportal.Portal, *bun.DB, *api.ParentMessagingSuiteRepositories) {
 	t.Helper()
-	return buildAnnouncementServiceOnWithSurveys(t, testpkg.SetupTestDB(t), newsEnabled, surveys)
+	return buildAnnouncementServiceOnWithSurveys(t, testpkg.SetupIsolatedTestDB(t), newsEnabled, surveys)
 }
 
 // buildAnnouncementServiceOn wires the service on a database the caller set up.
