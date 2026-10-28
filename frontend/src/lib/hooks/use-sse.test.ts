@@ -160,4 +160,26 @@ describe("useSSE — connection error log (#2512)", () => {
     expect(context).toMatchObject({ ready_state: 2 });
     expect(context).not.toHaveProperty("error_class");
   });
+
+  it("closes the stream while a logout deletes the cookie and reconnects when it fails (#5126)", () => {
+    renderHook(() => useSSE("/api/sse/events", { onMessage: () => undefined }));
+    const opening = MockEventSource.instances.at(-1)!;
+    expect(opening.readyState).toBe(0);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("phoenix:session-end", { detail: { ending: true } }),
+      );
+    });
+    expect(opening.readyState).toBe(2);
+    expect(MockEventSource.instances).toHaveLength(1);
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent("phoenix:session-end", { detail: { ending: false } }),
+      );
+    });
+    expect(MockEventSource.instances).toHaveLength(2);
+    expect(MockEventSource.instances.at(-1)!.readyState).toBe(0);
+  });
 });

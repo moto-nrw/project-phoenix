@@ -6,6 +6,7 @@ import type {
   ConnectionStatus,
 } from "../sse-types";
 import { createLogger } from "~/lib/logger";
+import { isSessionEnding, SESSION_END_EVENT } from "~/lib/session-end-barrier";
 
 // Logger instance for SSE connection
 const logger = createLogger({ component: "SSE" });
@@ -124,7 +125,8 @@ export function useSSE(
     };
 
     const connect = () => {
-      if (!mountedRef.current) return;
+      // A logout is deleting the session cookie; see session-end-barrier.
+      if (!mountedRef.current || isSessionEnding()) return;
 
       // Reconnection callback
       const attemptReconnect = () => {
@@ -347,8 +349,25 @@ export function useSSE(
       handleWakeReconnect();
     };
 
+    // A connection still opening when a logout deletes the cookie would set
+    // it again with its answer. Close it; a failed logout reconnects.
+    const handleSessionEnd = (event: Event) => {
+      if ((event as CustomEvent<{ ending: boolean }>).detail.ending) {
+        if (reconnectTimeoutRef.current) {
+          clearTimeout(reconnectTimeoutRef.current);
+          reconnectTimeoutRef.current = null;
+        }
+        eventSourceRef.current?.close();
+        eventSourceRef.current = null;
+        setIsConnected(false);
+      } else {
+        handleWakeReconnect();
+      }
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     globalThis.addEventListener("online", handleOnline);
+    globalThis.addEventListener(SESSION_END_EVENT, handleSessionEnd);
 
     // Cleanup on unmount
     return () => {
@@ -356,6 +375,7 @@ export function useSSE(
 
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       globalThis.removeEventListener("online", handleOnline);
+      globalThis.removeEventListener(SESSION_END_EVENT, handleSessionEnd);
 
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);

@@ -86,7 +86,7 @@ import {
   useShellAuth,
 } from "./shell-auth-context";
 import { sidebarMemoryKey } from "./sidebar-memory";
-import { settleClientLogShipping } from "~/lib/logger";
+import { holdRequestsUntilSessionEnds } from "~/lib/session-end-barrier";
 
 describe("TeacherShellProvider", () => {
   beforeEach(() => {
@@ -474,10 +474,10 @@ describe("TeacherShellProvider", () => {
     vi.unstubAllGlobals();
   });
 
-  it("clears the Auth.js cookie only after open log shipments are answered (#5126)", async () => {
+  it("clears the Auth.js cookie only after the tab's open requests are answered (#5126)", async () => {
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null)));
     let settled: (() => void) | undefined;
-    vi.mocked(settleClientLogShipping).mockReturnValueOnce(
+    vi.mocked(holdRequestsUntilSessionEnds).mockReturnValueOnce(
       new Promise((resolve) => {
         settled = () => resolve(() => undefined);
       }),
@@ -490,7 +490,9 @@ describe("TeacherShellProvider", () => {
     const { result } = renderHook(() => useShellAuth(), { wrapper });
     const logout = result.current.logout();
 
-    await vi.waitFor(() => expect(settleClientLogShipping).toHaveBeenCalled());
+    await vi.waitFor(() =>
+      expect(holdRequestsUntilSessionEnds).toHaveBeenCalled(),
+    );
     expect(mockSignOut).not.toHaveBeenCalled();
 
     settled?.();

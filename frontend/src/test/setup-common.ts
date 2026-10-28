@@ -53,9 +53,17 @@ vi.mock("~/lib/logger", () => {
   });
   return {
     createLogger: vi.fn(() => createMockLogger()),
-    settleClientLogShipping: vi.fn(() => Promise.resolve(() => undefined)),
   };
 });
+
+// The real barrier wraps window.fetch and holds requests until a sign-out
+// request passes, which mocked signOut calls never send. Its own test unmocks it.
+vi.mock("~/lib/session-end-barrier", () => ({
+  SESSION_END_EVENT: "phoenix:session-end",
+  isSessionEnding: () => false,
+  installSessionEndBarrier: vi.fn(),
+  holdRequestsUntilSessionEnds: vi.fn(() => Promise.resolve(() => undefined)),
+}));
 
 // The server auth modules import "server-only", whose default export throws
 // outside Next.js's react-server condition (#5005). Tests import them in Node.
