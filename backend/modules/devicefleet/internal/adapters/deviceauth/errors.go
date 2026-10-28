@@ -17,7 +17,7 @@ var (
 	ErrDeviceInactive      = errors.New("device is not active")
 )
 
-// Registered codes of the device authentication errors (error-registry.json).
+// Registered codes of the device authentication errors (error-registry/).
 // The kiosk branches on them instead of the text (#3939).
 const (
 	CodeAPIKeyRequired      = "iot.device_api_key_required"

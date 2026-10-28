@@ -13,11 +13,22 @@ import {
 import { useParams, redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
-import { KeyRound, Trash2, Users } from "lucide-react";
+import {
+  CalendarClock,
+  CalendarX,
+  KeyRound,
+  Trash2,
+  Users,
+} from "lucide-react";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
-import { mapStaffRecord, staffService } from "~/lib/staff-api";
+import {
+  mapStaffRecord,
+  staffPlannedExitService,
+  staffService,
+  staffStammdatenService,
+} from "~/lib/staff-api";
 import type { BackendStaffResponse, Staff } from "~/lib/staff-api";
 import { teacherService, type Teacher } from "~/lib/teacher-api";
 import {
@@ -42,7 +53,13 @@ import {
 } from "~/lib/account-role-assignment";
 import { Avatar } from "~/components/ui/avatar";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ConfirmationModal } from "~/components/ui/modal";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { PlannedExitModal } from "~/components/staff/planned-exit-modal";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
@@ -64,7 +81,7 @@ import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffAbsenceService } from "~/lib/staff-api";
-import { isValidISODate } from "~/lib/date-helpers";
+import { formatDate, isValidISODate } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";
 import { StaffDetailSkeleton } from "./page-skeleton";
 
@@ -275,6 +292,14 @@ export default function StaffDetailContent() {
     );
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Geplanter Austritt (#4809): eintragen, ändern, zurücknehmen.
+  const [showPlannedExitModal, setShowPlannedExitModal] = useState(false);
+  const [showWithdrawExitModal, setShowWithdrawExitModal] = useState(false);
+  const [withdrawingExit, setWithdrawingExit] = useState(false);
+  // Wie beim Löschen steht ein Fehler im offenen Dialog (#2514).
+  const withdrawExitErrors = useApiFormError();
+  const { clear: clearWithdrawExitError, show: showWithdrawExitError } =
+    withdrawExitErrors;
   const [caregiverModalOpen, setCaregiverModalOpen] = useState(false);
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
   const hasAccess = hasSessionAccess(session);
@@ -365,6 +390,52 @@ export default function StaffDetailContent() {
   useLayoutEffect(() => {
     handleDeleteRecordRef.current = handleDeleteRecord;
   });
+
+  // Das Vertragsende ist der Vorschlag für den letzten Arbeitstag. Es lädt
+  // erst mit dem Dialog und nur mit dem Recht auf die Stammdaten; ohne bleibt
+  // das Feld leer, das ist kein Fehler.
+  const { data: plannedExitStammdaten } = useSWRAuth(
+    showPlannedExitModal && canViewStammdatenSections
+      ? `staff-stammdaten-${staffId}`
+      : null,
+    () => staffStammdatenService.get(staffId),
+  );
+
+  const handlePlannedExitSaved = useCallback(
+    async (lastWorkingDay: string) => {
+      setShowPlannedExitModal(false);
+      toastSuccess(
+        `Der Austritt ist für den ${formatDate(lastWorkingDay)} geplant.`,
+      );
+      await refreshRecord();
+    },
+    [refreshRecord, toastSuccess],
+  );
+
+  const handleWithdrawExit = useCallback(async () => {
+    setWithdrawingExit(true);
+    clearWithdrawExitError();
+    try {
+      await staffPlannedExitService.withdraw(staffId);
+      setShowWithdrawExitModal(false);
+      toastSuccess("Der Austritt ist zurückgenommen.");
+      await refreshRecord();
+    } catch (err) {
+      logger.error("planned_exit_withdraw_failed", {
+        staff_id: staffId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showWithdrawExitError(err, { object: "den Austritt" });
+    } finally {
+      setWithdrawingExit(false);
+    }
+  }, [
+    clearWithdrawExitError,
+    refreshRecord,
+    showWithdrawExitError,
+    staffId,
+    toastSuccess,
+  ]);
 
   // Counter for the "Abwesenheiten" tab — shows MA-Pending only.
   // The /staff dashboard inbox (Tranche 4c) will count across all staff.
@@ -548,6 +619,7 @@ export default function StaffDetailContent() {
   const recordLabel = record
     ? `${record.first_name} ${record.last_name}`.trim()
     : "";
+  const plannedExitDate = staff?.plannedExitDate;
   const recordMenuItems: OverflowMenuItem[] = [
     ...(canManageUsers && hasAccount && hasAccess
       ? [
@@ -564,6 +636,29 @@ export default function StaffDetailContent() {
             label: "Betreuung verwalten",
             icon: <Users className="size-4" aria-hidden />,
             onClick: () => setCaregiverModalOpen(true),
+          },
+        ]
+      : []),
+    ...(canDeleteStaff && record && !plannedExitDate
+      ? [
+          {
+            label: "Austritt planen",
+            icon: <CalendarClock className="size-4" aria-hidden />,
+            onClick: () => setShowPlannedExitModal(true),
+          },
+        ]
+      : []),
+    ...(canDeleteStaff && record && plannedExitDate
+      ? [
+          {
+            label: "Austritt ändern",
+            icon: <CalendarClock className="size-4" aria-hidden />,
+            onClick: () => setShowPlannedExitModal(true),
+          },
+          {
+            label: "Austritt zurücknehmen",
+            icon: <CalendarX className="size-4" aria-hidden />,
+            onClick: () => setShowWithdrawExitModal(true),
           },
         ]
       : []),
@@ -613,6 +708,12 @@ export default function StaffDetailContent() {
               color={locationStatus.customBgColor}
             />
           ) : null}
+          {plannedExitDate ? (
+            <StatusBadge
+              label={`Austritt am ${formatDate(plannedExitDate)}`}
+              tone="orange"
+            />
+          ) : null}
           {recordMenuItems.length > 0 ? (
             <OverflowMenu
               ariaLabel="Weitere Aktionen"
@@ -658,6 +759,40 @@ export default function StaffDetailContent() {
               }}
               loading={deleting}
             />
+            {canDeleteStaff ? (
+              <>
+                <PlannedExitModal
+                  isOpen={showPlannedExitModal}
+                  staffId={staffId}
+                  staffName={recordLabel}
+                  plannedDay={plannedExitDate}
+                  contractEndDate={
+                    plannedExitStammdaten?.arbeitsvertrag?.contractEndDate
+                  }
+                  onClose={() => setShowPlannedExitModal(false)}
+                  onSaved={(day) => void handlePlannedExitSaved(day)}
+                />
+                <ConfirmationModal
+                  isOpen={showWithdrawExitModal}
+                  onClose={() => {
+                    clearWithdrawExitError();
+                    setShowWithdrawExitModal(false);
+                  }}
+                  onConfirm={() => void handleWithdrawExit()}
+                  title="Austritt zurücknehmen?"
+                  confirmText="Zurücknehmen"
+                  isConfirmLoading={withdrawingExit}
+                >
+                  <div className="space-y-3">
+                    <FormErrorAlert message={withdrawExitErrors.error} />
+                    <p>
+                      {recordLabel} bleibt im Team und behält den Zugang zu
+                      moto.
+                    </p>
+                  </div>
+                </ConfirmationModal>
+              </>
+            ) : null}
             {hasAccount ? (
               <>
                 <CaregiverCapabilityModal

@@ -1,0 +1,3 @@
+GET /auth/staff-preview/candidates
+POST /auth/staff-preview
+POST /auth/staff-preview/end

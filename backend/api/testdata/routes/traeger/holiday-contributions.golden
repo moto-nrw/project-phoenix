@@ -1,0 +1,2 @@
+GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
+POST /traeger/holiday-contributions/{periodId}/registrations/{registrationId}/confirm

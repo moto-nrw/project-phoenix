@@ -1,0 +1,18 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (s *Service) Available(ctx context.Context) (available bool, err error) {\n\terr = s.run(ctx, \"availability\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\tavailable, err = s.settings.MealPlanEnabled(txCtx)\n\t\treturn domain.OperationStats{}, err\n\t})\n\treturn available, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/mealplan/internal/application/Service.Available",
+      "owner": "modules/mealplan"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r OrderingRules) ParentRegistrationUntil(day Date) time.Time {\n\tdeadline := r.RegistrationAt(day)\n\tif r.Model == ModelAnnual \u0026\u0026 r.AnnualDeadline != \"\" {\n\t\tif annual := r.AnnualDeadline.EndOfDay(); annual.Before(deadline) {\n\t\t\treturn annual\n\t\t}\n\t}\n\treturn deadline\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/mealplan/internal/domain/OrderingRules.ParentRegistrationUntil",
+      "owner": "modules/mealplan"
+    }
+  ]
+}

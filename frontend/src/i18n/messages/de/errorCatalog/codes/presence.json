@@ -1,0 +1,5 @@
+{
+  "activity_participant_limit_reached": "Die Aktivität {activity_name}: {current_occupancy} von {max_participants} Kindern sind da. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
+  "room_capacity_exceeded": "Der Raum {room_name}: {current_occupancy} von {max_capacity} Plätzen sind belegt. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
+  "statistics_range_invalid": "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden."
+}

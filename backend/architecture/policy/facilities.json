@@ -1,0 +1,367 @@
+{
+  "packages": [
+    {
+      "path": "modules/facilities/internal/application/roomservice",
+      "owner": "facilities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities",
+      "owner": "facilities",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/compose",
+      "owner": "facilities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/http",
+      "owner": "facilities",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/facilities/compose/repositoryadapter",
+      "owner": "facilities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/application",
+      "owner": "facilities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/domain",
+      "owner": "facilities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/ports",
+      "owner": "facilities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/adapters/postgres",
+      "owner": "facilities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/facilities/internal/application/repositoryadapter",
+      "owner": "facilities",
+      "role": "application",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "facilities.rooms",
+      "write_owner": "facilities"
+    }
+  ],
+  "rules": [
+    {
+      "id": "facilities.http.public",
+      "description": "The Facilities rooms HTTP adapter calls its own public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.port-domain",
+      "description": "Facilities ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "facilities.compose.orm-sql",
+      "description": "Facilities composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "facilities.compose.tenant-runtime",
+      "description": "Facilities composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compose.people-public",
+      "description": "Facilities occupancy composition resolves supervisor people in one batch.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.compose.membership-public",
+      "description": "Facilities occupancy composition resolves supervisor membership in one batch.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.internal-test.tenant-runtime",
+      "description": "Facilities composition tests verify transaction and RLS behavior through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.integration-test.support",
+      "description": "Facilities integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "facilities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "facilities.module-internal-test.people-public",
+      "description": "Internal suites move with the native Facilities projection implementation; same public target and internal-test scope as the prior composition suite (ADR 0058 point 4).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "facilities",
+      "source_role": "module-internal-test",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "modules/facilities/internal/application/roomservice"
+    },
+    {
+      "id": "facilities.module-internal-test.membership-public",
+      "description": "Internal suites move with the native Facilities projection implementation; same public target and internal-test scope as the prior composition suite (ADR 0058 point 4).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "facilities",
+      "source_role": "module-internal-test",
+      "target_owner": "school-membership",
+      "target_role": "public",
+      "source_package": "modules/facilities/internal/application/roomservice"
+    },
+    {
+      "id": "facilities.http.adapter-test.identity-adapter",
+      "description": "Facilities HTTP integration tests mint authenticated tenant requests.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "facilities",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "facilities.compose.student-presence-public",
+      "description": "modules/facilities/compose/httpadapter lists open visits and transit students through the public presence facades (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.http.tenant-runtime.http",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "facilities.http.identity-access.http",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "facilities.http.security-runtime.contract",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "target_package": "auth/authorize/permissions"
+    },
+    {
+      "id": "facilities.http.people-directory.public",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "target_package": "modules/peopledirectory"
+    },
+    {
+      "id": "facilities.http.school-structure.contract",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "school-structure",
+      "target_role": "contract",
+      "target_package": "modules/schoolstructure/contract"
+    },
+    {
+      "id": "facilities.http.student-presence.public",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "student-presence",
+      "target_role": "public",
+      "target_package": "modules/studentpresence"
+    },
+    {
+      "id": "facilities.http.document-rendering.port",
+      "description": "Same-or-narrower owner HTTP successor of the Facilities composition binding; native values and exact runtime packages only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "http",
+      "source_package": "modules/facilities/http",
+      "target_owner": "document-rendering",
+      "target_role": "port",
+      "target_package": "modules/documentrendering/records"
+    },
+    {
+      "id": "facilities.application.people-directory.public",
+      "description": "Native Facilities occupancy, history and attendance projections moved from composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.application.school-membership.public",
+      "description": "Native Facilities occupancy, history and attendance projections moved from composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.application.student-presence.public",
+      "description": "Native Facilities occupancy, history and attendance projections moved from composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "facilities.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "postgres",
+      "source_package": "modules/facilities/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "facilities.application.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "facilities",
+      "source_role": "application",
+      "source_package": "modules/facilities/internal/application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    }
+  ]
+}

@@ -19,8 +19,10 @@ const {
   mockSupervisionProvider,
   mockPrimeSessionCache,
   mockSwrMutate,
+  mockUnload,
   childEffectOrder,
 } = vi.hoisted(() => ({
+  mockUnload: vi.fn(),
   mockSessionProvider: vi.fn(),
   mockUseSession: vi.fn(),
   mockSWRConfig: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock("swr", () => ({
     childEffectOrder.push(`seed ${String(args[0])}`);
     mockSwrMutate(...args);
   },
+  unload: mockUnload,
 }));
 
 vi.mock("~/lib/session-cache", () => ({
@@ -189,9 +192,9 @@ describe("TenantProviders with a server snapshot", () => {
     expect(mockPrimeSessionCache).toHaveBeenCalledWith(session);
     expect(childEffectOrder).toEqual([
       "prime",
-      "seed school-a:user-context",
-      "seed school-a:reminders",
-      "seed school-a:staff-notices-today:1",
+      "seed school-a:1:user-context",
+      "seed school-a:1:reminders",
+      "seed school-a:1:staff-notices-today:1",
       "child",
     ]);
   });
@@ -213,17 +216,84 @@ describe("TenantProviders with a server snapshot", () => {
 
     expect(mockSwrMutate).toHaveBeenCalledTimes(3);
     for (const [key, seed] of [
-      ["school-a:user-context", shell.userContext],
-      ["school-a:reminders", shell.reminders],
-      ["school-a:staff-notices-today:1", shell.staffNoticesToday],
+      ["school-a:1:user-context", shell.userContext],
+      ["school-a:1:reminders", shell.reminders],
+      ["school-a:1:staff-notices-today:1", shell.staffNoticesToday],
     ] as const) {
       const call = mockSwrMutate.mock.calls.find(([k]) => k === key);
-      expect(call?.[2]).toEqual({ revalidate: false });
+      expect(call?.[2]).toEqual(
+        expect.objectContaining({ revalidate: false }),
+      );
       const write = call?.[1] as (current: unknown) => unknown;
       // An entry a reader already holds stays.
       expect(write(undefined)).toBe(seed);
       expect(write("held")).toBe("held");
     }
+  });
+
+  it("withdraws the server preload once the session is another one", () => {
+    // Same account and keys, other rights: the snapshot of the session
+    // before must not reach a reader any more (#5006).
+    const view = render(
+      <TenantProviders
+        tenantSlug="school-a"
+        tenant={tenant}
+        routingMode="subdomain"
+        session={session}
+        shell={shell}
+      >
+        <div />
+      </TenantProviders>,
+    );
+    // Anker: die erste Darstellung bekommt den Seed.
+    expect(mockSWRConfig).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        fallback: expect.objectContaining({
+          "school-a:1:user-context": shell.userContext,
+        }),
+      }),
+    );
+
+    mockUseSession.mockReturnValue({
+      data: { ...session, user: { ...session.user, permissions: ["x"] } },
+      status: "authenticated",
+    });
+    view.rerender(
+      <TenantProviders
+        tenantSlug="school-a"
+        tenant={tenant}
+        routingMode="subdomain"
+        session={session}
+        shell={shell}
+      >
+        <div />
+      </TenantProviders>,
+    );
+    expect(mockSWRConfig).toHaveBeenLastCalledWith({
+      fallback: {},
+      cacheData: {},
+    });
+    // SWRScopeBoundary dropped what the seeder wrote.
+    expect(mockUnload).toHaveBeenCalledTimes(1);
+
+    // Back to the first session: the seed stays withdrawn.
+    mockUseSession.mockReturnValue({ data: session, status: "authenticated" });
+    view.rerender(
+      <TenantProviders
+        tenantSlug="school-a"
+        tenant={tenant}
+        routingMode="subdomain"
+        session={session}
+        shell={shell}
+      >
+        <div />
+      </TenantProviders>,
+    );
+    expect(mockSWRConfig).toHaveBeenLastCalledWith({
+      fallback: {},
+      cacheData: {},
+    });
+    expect(mockSwrMutate).toHaveBeenCalledTimes(3);
   });
 
   it("seeds SWR under the tenant-scoped keys and the providers with their slices", () => {
@@ -240,16 +310,19 @@ describe("TenantProviders with a server snapshot", () => {
     );
 
     const entries = {
-      "school-a:user-context": shell.userContext,
-      "school-a:reminders": shell.reminders,
-      // Keyed by the account the snapshot was built for (#4989).
-      "school-a:staff-notices-today:1": shell.staffNoticesToday,
+      "school-a:1:user-context": shell.userContext,
+      "school-a:1:reminders": shell.reminders,
+      // Scoped to the school and the account the snapshot was built for
+      // (#4989, #5006).
+      "school-a:1:staff-notices-today:1": shell.staffNoticesToday,
       // Platform-scoped: no tenant prefix.
       "user-announcements-unread": shell.announcements,
     };
     expect(mockSWRConfig).toHaveBeenCalledWith({
       fallback: entries,
-      cacheData: entries,
+      // The seeder writes the shell-owned entries into the cache; only the
+      // entry a reader consumes on mount travels as cacheData (#5006).
+      cacheData: { "user-announcements-unread": shell.announcements },
     });
     expect(mockProfileProvider).toHaveBeenCalledWith(
       expect.objectContaining({ initialProfile: shell.profile }),

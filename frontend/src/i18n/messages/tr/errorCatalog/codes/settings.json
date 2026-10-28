@@ -1,0 +1,12 @@
+{
+  "not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "admin_only": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "managed_by_upload": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "invalid_value": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "presence_mode_switch_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "booking_authority_blocked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "attendance_visible_exceeds_retention": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "attendance_retention_below_visible": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "module_requires": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "module_required_by": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+}

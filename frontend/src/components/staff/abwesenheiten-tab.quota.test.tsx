@@ -154,15 +154,19 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
     fireEvent.change(fields.carryover, { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
-    const alerts = screen.getAllByRole("alert").map((a) => a.textContent);
-    expect(alerts).toContain("Bitte prüfen Sie die markierten Felder.");
-    expect(
-      alerts.filter(
-        (a) => a === "Bitte eine Zahl zwischen 0 und 366 eingeben.",
-      ),
-    ).toHaveLength(2);
+    // The form alert announces the failure once; each field carries its
+    // own hint as description (#5217: hints after Speichern stay quiet).
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Bitte prüfen Sie die markierten Felder.",
+    );
+    expect(fields.entitled).toHaveAccessibleDescription(
+      "Bitte eine Zahl zwischen 0 und 366 eingeben.",
+    );
+    expect(fields.carryover).toHaveAccessibleDescription(
+      "Bitte eine Zahl zwischen 0 und 366 eingeben.",
+    );
     // #3256: ohne Begründung wird nichts gespeichert.
-    expect(alerts).toContain(
+    expect(screen.getByLabelText("Begründung")).toHaveAccessibleDescription(
       "Bitte kurz sagen, warum sich der Anspruch ändert.",
     );
     expect(fields.entitled).toHaveAttribute("aria-invalid", "true");

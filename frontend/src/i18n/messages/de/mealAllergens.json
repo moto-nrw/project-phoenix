@@ -1,0 +1,24 @@
+{
+  "legendTitle": "Allergene",
+  "choose": "Allergene wählen",
+  "marksShort": "Allergene: {letters}",
+  "marksLabel": "Enthält: {names}",
+  "noneThisWeek": "Für diese Woche sind keine Allergene angegeben.",
+  "source": "Die Angaben kommen von der Schule oder vom Caterer. Ein Gericht ohne Buchstaben ist nicht sicher frei von Allergenen. Bei Fragen hilft Ihnen die OGS.",
+  "names": {
+    "gluten": "Glutenhaltiges Getreide",
+    "crustaceans": "Krebstiere",
+    "eggs": "Eier",
+    "fish": "Fisch",
+    "peanuts": "Erdnüsse",
+    "soybeans": "Soja",
+    "milk": "Milch (auch Laktose)",
+    "nuts": "Schalenfrüchte (Nüsse)",
+    "celery": "Sellerie",
+    "mustard": "Senf",
+    "sesame": "Sesam",
+    "sulphites": "Schwefeldioxid und Sulfite",
+    "lupin": "Lupinen",
+    "molluscs": "Weichtiere"
+  }
+}

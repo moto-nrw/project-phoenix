@@ -1,0 +1,154 @@
+{
+  "codes": [
+    {
+      "code": "parent_billing.benefits_exemption_unavailable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.benefits_exemption_unavailable"
+    },
+    {
+      "code": "parent_billing.contribution_rule_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.contribution_rule_invalid"
+    },
+    {
+      "code": "parent_billing.contribution_rule_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.contribution_rule_not_found"
+    },
+    {
+      "code": "parent_billing.contribution_rule_overlap",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.contribution_rule_overlap"
+    },
+    {
+      "code": "parent_billing.holiday_quote_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.holiday_quote_invalid"
+    },
+    {
+      "code": "parent_billing.billing_correction_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.billing_correction_invalid"
+    },
+    {
+      "code": "parent_billing.billing_family_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_family_not_found"
+    },
+    {
+      "code": "parent_billing.billing_run_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_changed"
+    },
+    {
+      "code": "parent_billing.billing_run_empty",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_empty"
+    },
+    {
+      "code": "parent_billing.billing_run_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_not_found"
+    },
+    {
+      "code": "parent_billing.billing_run_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_open"
+    },
+    {
+      "code": "parent_billing.billing_run_released",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_released"
+    },
+    {
+      "code": "parent_billing.invoice_number_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.invoice_number_taken"
+    },
+    {
+      "code": "parent_billing.number_range_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.number_range_invalid"
+    },
+    {
+      "code": "parent_billing.number_range_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.number_range_missing"
+    },
+    {
+      "code": "parent_billing.bank_account_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.bank_account_missing"
+    },
+    {
+      "code": "parent_billing.billing_letter_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_letter_not_found"
+    },
+    {
+      "code": "parent_billing.billing_letters_exist",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_letters_exist"
+    },
+    {
+      "code": "parent_billing.billing_letters_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.billing_letters_invalid"
+    },
+    {
+      "code": "parent_billing.billing_run_not_released",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_run_not_released"
+    },
+    {
+      "code": "parent_billing.letterhead_too_long",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.letterhead_too_long"
+    },
+    {
+      "code": "parent_billing.billing_letters_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.billing_letters_missing"
+    },
+    {
+      "code": "parent_billing.letter_mail_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.letter_mail_pending"
+    },
+    {
+      "code": "parent_billing.recipient_email_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.recipient_email_missing"
+    },
+    {
+      "code": "parent_billing.parent_document_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.parent_document_not_found"
+    }
+  ]
+}

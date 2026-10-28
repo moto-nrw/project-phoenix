@@ -447,6 +447,7 @@ export function DatePicker({
           }
           aria-expanded={isOpen}
           aria-describedby={isMultiple ? undefined : props.ariaDescribedBy}
+          data-form-invalid={!isMultiple && props.invalid ? true : undefined}
           disabled={isDisabled}
           onClick={toggleOpen}
           // Fetch the calendar module before the click, so opening does not

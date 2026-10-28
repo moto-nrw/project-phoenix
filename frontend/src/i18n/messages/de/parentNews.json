@@ -1,0 +1,10 @@
+{
+  "kicker": "Post von der OGS",
+  "title": "Elternbriefe",
+  "description": "Mitteilungen, Umfragen und wichtige Informationen Ihrer OGS.",
+  "empty": "Derzeit gibt es keine neuen Elternbriefe.",
+  "open": "Offen",
+  "openLabel": "Offen, {count}",
+  "completed": "Erledigt",
+  "errorObjectList": "die Liste der Elternbriefe"
+}

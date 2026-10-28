@@ -1,0 +1,20 @@
+{
+  "errorObject": "die Liste der Anmeldephasen",
+  "back": "Zurück zum Elternportal",
+  "kicker": "Anmeldung für die OGS-Betreuung",
+  "title": "Neue Anmeldung",
+  "description": "Wählen Sie eine Schule und eine Anmeldephase, um Ihr Kind anzumelden.",
+  "loading": "Anmeldephasen werden geladen …",
+  "empty": "Derzeit sind keine Anmeldephasen verfügbar.",
+  "yourSchools": "Ihre Schulen",
+  "otherSchools": "Weitere Schulen",
+  "kindSchoolYear": "Schuljahr",
+  "kindHoliday": "Ferienbetreuung",
+  "kindCustom": "Sonstiges",
+  "closesAt": "Anmeldung bis {date}",
+  "audienceNewStudents": "Nur neue Kinder",
+  "audienceExistingStudents": "Nur bereits angemeldete Kinder",
+  "audienceLinkedParents": "Nur für verknüpfte Eltern",
+  "rangeConnector": "bis",
+  "openPhase": "Anmeldung öffnen"
+}

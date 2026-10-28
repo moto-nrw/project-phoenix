@@ -1,0 +1,264 @@
+{
+  "entries": [
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.schoolCalendar.Days",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Calendar.Days",
+      "reason": "Read-only target: meal-plan reaches modules/schoolcalendar.Days.ListCalendarPeriods (school-calendar) through modules/mealplan/internal/application.schoolCalendar.Days. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.schoolCalendar.Days",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Calendar.Days",
+      "reason": "Read-only target: meal-plan reaches modules/schoolcalendar.Days.NonWorkingDayDates (school-calendar) through modules/mealplan/internal/application.schoolCalendar.Days. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.schoolCalendar.Days",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Calendar.Days",
+      "reason": "Read-only target: meal-plan reaches modules/schoolcalendar.HolidaysOverlapping (school-calendar) through modules/mealplan/internal/application.schoolCalendar.Days. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidaysOverlapping",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindDailyCandidates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindDailyCandidates",
+      "reason": "Read-only newly exposed target: meal-plan reaches modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate (people-directory) through modules/mealplan/internal/application.participantDirectory.FindDailyCandidates. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindOverlappingWithGroupsOnDate",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/application.participantDirectory.FindStudentNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Directory.FindStudentNames",
+      "reason": "Read-only target: meal-plan reaches modules/peopledirectory/compose.Directory.ListStudentNamesByID (people-directory) through modules/mealplan/internal/application.participantDirectory.FindStudentNames. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Bool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Bool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.Int (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.Int",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.SettingsSnapshot.String (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealOrderingSettings",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveMany (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealOrderingSettings. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveMany",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealPlanEnabled",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealPlanEnabled",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealPlanEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "interface{MealOrderingSettings(context.Context) (github.com/moto-nrw/project-phoenix/modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealRegistrationEnabled",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Settings.MealRegistrationEnabled",
+      "reason": "Read-only target: meal-plan reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through modules/mealplan/compose.OrderingSettings, error); MealPlanEnabled(context.Context) (bool, error); MealRegistrationEnabled(context.Context) (bool, error)}.MealRegistrationEnabled. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.ClearDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.ClearDay",
+      "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.ClearDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.ConfirmOrder",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.ConfirmOrder",
+      "reason": "Read-only target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.ConfirmOrder. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.DeleteParticipationOverride",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.DeleteParticipationOverride",
+      "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.DeleteParticipationOverride. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindDailyParticipation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindDailyParticipation",
+      "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.FindDailyParticipation. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindOrders",
+      "reason": "Read-only target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.FindOrders. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindParticipation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindParticipation",
+      "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.FindParticipation. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.FindWeek",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.FindWeek",
+      "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.FindWeek. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.InsertOrder",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.InsertOrder",
+      "reason": "Read-only target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.InsertOrder. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.InsertOrderChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.InsertOrderChanges",
+      "reason": "Read-only target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.InsertOrderChanges. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.InsertParticipationSchedule",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.InsertParticipationSchedule",
+      "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.InsertParticipationSchedule. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.InsertRegistrationChanges",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.InsertRegistrationChanges",
+      "reason": "Read-only target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.InsertRegistrationChanges. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.LockOrders",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.LockOrders",
+      "reason": "Read-only target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.LockOrders. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.ReplaceDay",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.ReplaceDay",
+      "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.ReplaceDay. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.UpsertParticipationOverride",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.UpsertParticipationOverride",
+      "reason": "Read-only newly exposed target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.UpsertParticipationOverride. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/mealplan/internal/adapters/postgres.Store.UpsertParticipationOverrides",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports.Store.UpsertParticipationOverrides",
+      "reason": "Read-only target: meal-plan reaches tenant.TenantFromContext (tenant-runtime) through modules/mealplan/internal/adapters/postgres.Store.UpsertParticipationOverrides. No persistent, lock or scope effect; reviewed with #3873 (ADR 0078).",
+      "source_owner": "meal-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    }
+  ]
+}

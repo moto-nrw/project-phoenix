@@ -1,0 +1,39 @@
+{
+  "kicker": "Parent portal",
+  "greeting": {
+    "morning": "Good morning, {name}",
+    "morningPlain": "Good morning",
+    "day": "Hello, {name}",
+    "dayPlain": "Hello",
+    "evening": "Good evening, {name}",
+    "eveningPlain": "Good evening"
+  },
+  "subtitle": "Today's most important information at a glance.",
+  "todo": {
+    "title": "To do",
+    "description": "Open messages, appointments and replies at a glance.",
+    "openCount": "{count} open",
+    "unread": "Unread",
+    "today": "Today",
+    "allDay": "All day",
+    "emptyTitle": "All done",
+    "emptyDescription": "There is nothing to do right now.",
+    "messageTitleOne": "New message",
+    "messageTitleMany": "{count} new messages",
+    "messageContext": "OGS · About {name}",
+    "pollContext": "Survey · {school}",
+    "declarationContext": "Consent · {school}",
+    "newsContext": "Letter to parents · {school}",
+    "ackContext": "Confirmation required · {school}",
+    "appointmentContext": "Appointment for {name}",
+    "appointmentContextPlain": "Appointment",
+    "showMoreOne": "Show one more item",
+    "showMoreMany": "Show {count} more items",
+    "showLess": "Show less",
+    "loading": "Loading tasks",
+    "errorObject": "the full to-do list"
+  },
+  "childrenLoading": "Loading children",
+  "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",
+  "errorObject": "the overview of your children"
+}

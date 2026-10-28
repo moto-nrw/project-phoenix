@@ -21,6 +21,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { Minus, Plus, Trash2 } from "lucide-react";
@@ -316,14 +317,15 @@ export function ActivityManagementModal({
                   </div>
                   Aktivitätsname
                 </label>
-                <input
+                <Input
                   id="name"
                   name="name"
+                  controlSize="compact"
                   value={form.name}
                   onChange={onInput}
                   aria-invalid={fieldError("name") ? true : undefined}
                   placeholder="z. B. Hausaufgaben, Malen, Basteln…"
-                  className="focus:ring-moto-blue block w-full rounded-lg border-0 bg-white/80 px-3 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:py-2.5 md:text-sm"
+                  className="disabled:cursor-not-allowed"
                   required
                   disabled={readOnly}
                   maxLength={255}
@@ -414,20 +416,23 @@ export function ActivityManagementModal({
                     />
                   </button>
 
-                  <input
-                    id="max_participants"
-                    name="max_participants"
-                    type="number"
-                    value={form.max_participants}
-                    onChange={onInput}
-                    aria-invalid={
-                      fieldError("max_participants") ? true : undefined
-                    }
-                    min="1"
-                    required={Boolean(form.max_participants)}
-                    className="focus:ring-moto-blue block w-full [appearance:textfield] rounded-lg border-0 bg-white/80 px-14 py-3 text-center text-lg font-semibold text-gray-900 shadow-sm ring-1 ring-gray-200/50 backdrop-blur-sm transition-all duration-200 ring-inset focus:bg-white focus:ring-2 focus:ring-inset disabled:cursor-not-allowed disabled:bg-gray-50 md:px-12 md:py-2.5 md:text-base [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                    disabled={readOnly || !form.max_participants}
-                  />
+                  <div className="flex-1">
+                    <Input
+                      id="max_participants"
+                      controlSize="compact"
+                      name="max_participants"
+                      type="number"
+                      value={form.max_participants}
+                      onChange={onInput}
+                      aria-invalid={
+                        fieldError("max_participants") ? true : undefined
+                      }
+                      min="1"
+                      required={Boolean(form.max_participants)}
+                      className="[appearance:textfield] px-14! text-center text-base! font-semibold disabled:cursor-not-allowed md:px-12! [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      disabled={readOnly || !form.max_participants}
+                    />
+                  </div>
 
                   <button
                     type="button"

@@ -1,0 +1,11 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (r roomSessions) EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (int64, error) {\n\tsession, err := r.presence.EnsureOpenRoomSession(ctx, roomID, activityID)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn session.ID, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/openroommovebinding/roomSessions.EnsureOpenRoomSession",
+      "owner": "workflows/openroommove"
+    }
+  ]
+}

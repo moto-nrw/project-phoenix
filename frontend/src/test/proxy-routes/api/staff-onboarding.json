@@ -1,0 +1,11 @@
+{
+  "api/staff-onboarding": [
+    "GET tenant /api/staff-onboarding"
+  ],
+  "api/staff-onboarding/dismissal": [
+    "PUT tenant /api/staff-onboarding/dismissal"
+  ],
+  "api/staff-onboarding/steps/[step]": [
+    "PUT tenant /api/staff-onboarding/steps/step%2F1"
+  ]
+}

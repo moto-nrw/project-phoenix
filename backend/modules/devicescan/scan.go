@@ -46,7 +46,7 @@ const (
 	MessageStudentAlreadyActive    = "student already has an active visit"
 )
 
-// Registered codes of the kiosk refusals (error-registry.json). The kiosk
+// Registered codes of the kiosk refusals (error-registry/). The kiosk
 // branches on them instead of the wire strings above (#3939).
 const (
 	CodeRFIDTagUnassigned            = "iot.rfid_tag_unassigned"

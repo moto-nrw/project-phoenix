@@ -1,0 +1,5 @@
+{
+  "no_school_portal_role": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "setup_completed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "setup_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+}

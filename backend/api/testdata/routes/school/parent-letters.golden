@@ -1,0 +1,13 @@
+DELETE /school/parent-letters/{announcementId}
+GET /school/parent-letters/
+GET /school/parent-letters/{announcementId}
+GET /school/parent-letters/{announcementId}/declaration-export
+GET /school/parent-letters/{announcementId}/declaration-status
+GET /school/parent-letters/{announcementId}/letter-status
+GET /school/parent-letters/{announcementId}/recipients
+GET /school/parent-letters/{announcementId}/stats
+POST /school/parent-letters/
+POST /school/parent-letters/{announcementId}/publish
+POST /school/parent-letters/{announcementId}/remind
+POST /school/parent-letters/{announcementId}/resend-failed
+POST /school/parent-letters/{announcementId}/unpublish

@@ -1058,6 +1058,7 @@ func ratchetRepositoryWithPolicy(t *testing.T, baseline, policy string) (string,
 	if err := os.CopyFS(repo, os.DirFS(fixturePath(t, "valid"))); err != nil {
 		t.Fatalf("copy project fixture: %v", err)
 	}
+	writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "list.json"), queryBudgetFragment)
 	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
 	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), baseline)
 	runGit(t, repo, "init", "-q")

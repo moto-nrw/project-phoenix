@@ -1,0 +1,9 @@
+{
+  "bulk_exception_confirmation_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
+  "future_manual_reset": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+  "invalid": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+  "offering_capacity_full": "Für {object} ist kein Platz mehr frei. Bitte wählen Sie etwas anderes.",
+  "offerings_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+  "preview_stale": "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
+  "resolution_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld."
+}

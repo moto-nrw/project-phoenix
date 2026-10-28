@@ -18,7 +18,7 @@ Platform selection and scan handling live in PyrePortal's
 
 PyrePortal consumes `/api/iot/*` using a device API key and staff PIN.
 `../PyrePortal/src/services/apiErrors.ts` maps registry error codes (its
-`errorCodes.generated.ts` comes from `error-registry.json` via
+`errorCodes.generated.ts` comes from `error-registry/` via
 `pnpm run sync:error-codes`) to German UI text. Since #2508 the kiosk matches
 no backend text; the refusal body is the RFC 9457 envelope of ADR 0006 with
 `status` as the HTTP status number, the diagnostic text in `detail` and the

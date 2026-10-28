@@ -46,7 +46,7 @@ jobs:
       # orchestrates every job, test.yml the test suites, lint.yml the lint
       # jobs. Other .github files reach only the script suites below.
       run-backend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
-      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
+      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-fs-inputs == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
       run-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
       run-backend-architecture: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-architecture == 'true' || steps.filter.outputs.workflow-main == 'true' }}
       full-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
@@ -109,6 +109,13 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/architecture/policy.json'
+              - 'backend/architecture/policy/**'
+              - 'backend/architecture/artifacts/**'
+              - 'backend/architecture/command-effects.json'
+              - 'backend/architecture/command-effects/**'
+              - 'backend/architecture/passthrough.json'
+              - 'backend/architecture/passthrough/**'
+              - 'backend/test/query-budgets/**'
               - 'backend/**/testdata/**'
               # Shrink-only ratchet registers, read by ./test.
               - 'backend/test/*.json'
@@ -165,6 +172,9 @@ jobs:
             frontend:
               - 'frontend/**'
               - '!frontend/**/*.md'
+            frontend-fs-inputs:
+              - 'backend/modules/settings/internal/defaults/**'
+              - '.github/workflows/e2e.yml'
             backend-test-infra:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
@@ -178,6 +188,7 @@ jobs:
               - 'scripts/go-package-workers.sh'
               - 'scripts/total-memory-gb.sh'
             frontend-test-infra:
+              - 'scripts/test-frontend-changed.mjs'
               - 'frontend/package.json'
               - 'frontend/pnpm-lock.yaml'
               - 'frontend/pnpm-workspace.yaml'
@@ -291,10 +302,12 @@ jobs:
               - 'scripts/env-check.sh'
               - 'scripts/check-runtime-env.py'
             error-codes:
-              - 'error-registry.json'
+              - 'error-registry/**'
+              - 'scripts/error-registry.mjs'
               - 'scripts/generate-error-codes*'
               - 'backend/api/common/error_codes*.generated.go'
               - 'frontend/src/lib/error-codes.generated.ts'
+              - 'frontend/src/lib/error-codes/*.generated.ts'
               - '.github/workflows/lint.yml'
 
       # A large refactor must not squeeze almost the whole suite through the
@@ -414,6 +427,7 @@ jobs:
   lint:
     permissions:
       contents: read
+      actions: read
     needs: detect-changes
     uses: ./.github/workflows/lint.yml
     with:

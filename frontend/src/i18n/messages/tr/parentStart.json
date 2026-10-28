@@ -1,0 +1,39 @@
+{
+  "kicker": "Veli portalı",
+  "greeting": {
+    "morning": "Günaydın, {name}",
+    "morningPlain": "Günaydın",
+    "day": "İyi günler, {name}",
+    "dayPlain": "İyi günler",
+    "evening": "İyi akşamlar, {name}",
+    "eveningPlain": "İyi akşamlar"
+  },
+  "subtitle": "Bugün için en önemli bilgiler tek bakışta.",
+  "todo": {
+    "title": "Yapılacaklar",
+    "description": "Açık mesajlar, randevular ve yanıtlar tek bakışta.",
+    "openCount": "{count} açık",
+    "unread": "Okunmamış",
+    "today": "Bugün",
+    "allDay": "Tüm gün",
+    "emptyTitle": "Her şey tamam",
+    "emptyDescription": "Şu anda yapılacak bir şey yok.",
+    "messageTitleOne": "Yeni mesaj",
+    "messageTitleMany": "{count} yeni mesaj",
+    "messageContext": "OGS · {name} hakkında",
+    "pollContext": "Anket · {school}",
+    "declarationContext": "İzin · {school}",
+    "newsContext": "Veli mektubu · {school}",
+    "ackContext": "Onay gerekli · {school}",
+    "appointmentContext": "{name} için randevu",
+    "appointmentContextPlain": "Randevu",
+    "showMoreOne": "Bir madde daha göster",
+    "showMoreMany": "{count} madde daha göster",
+    "showLess": "Daha az göster",
+    "loading": "Görevler yükleniyor",
+    "errorObject": "yapılacaklar listesinin tamamı"
+  },
+  "childrenLoading": "Çocuklar yükleniyor",
+  "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun OGS'si bunu ayarlayabilir.",
+  "errorObject": "çocuklarınızın özeti"
+}

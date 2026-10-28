@@ -1,0 +1,31 @@
+{
+  "eyebrow": "Parent portal",
+  "title": "Welcome",
+  "fallbackSchool": "your school",
+  "subtitle": "Confirm your invitation for {school} and set your personal password.",
+  "errorHelpBefore": "You can request a new invitation from the school or sign in via",
+  "startPage": "the start page",
+  "errorHelpAfter": ".",
+  "formErrors": {
+    "passwordRules": "The password does not meet all security requirements yet.",
+    "passwordMismatch": "The passwords do not match."
+  },
+  "acceptedTitle": "Account created",
+  "acceptedText": "Please sign in with your new credentials.",
+  "invitationFor": "Invitation for",
+  "passwordLabel": "Password",
+  "confirmPasswordLabel": "Confirm password",
+  "showPassword": "Show password",
+  "hidePassword": "Hide password",
+  "requirementsTitle": "Password requirements",
+  "submitting": "Accepting...",
+  "submit": "Accept invitation",
+  "passwordRules": {
+    "0": "At least 8 characters",
+    "1": "One uppercase letter",
+    "2": "One lowercase letter",
+    "3": "One number",
+    "4": "One special character"
+  },
+  "errorObject": "the invitation"
+}

@@ -1,0 +1,18 @@
+{
+  "child_not_enrolled": "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
+  "day_closed": "Nuk është e mundur: {object}. Shkolla është e mbyllur në këtë ditë.",
+  "day_past": "Nuk është më e mundur: {object}. Dita ka kaluar.",
+  "invalid_allergens": "Alergjenët nuk u ruajtën. Ju lutemi zgjidhini përsëri.",
+  "invalid_dishes": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "invalid_meal_date": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "invalid_participation": "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
+  "participation_cutoff_passed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "participation_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "plan_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+  "plan_week_out_of_range": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "registration_disabled": "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+  "delivery_range_too_long": "Lista e dorëzimit përfshin të shumtën shtatë ditë. Ju lutemi zgjidhni një periudhë më të shkurtër.",
+  "not_supplied": "Ju nuk e furnizoni më këtë shkollë. Ju lutemi pyesni shkollën.",
+  "order_not_found": "Kjo porosi nuk ekziston. Ju lutemi ringarkoni faqen.",
+  "supply_active": "{object} nuk është e mundur tani. Një furnizues ushqimi e furnizon ende shkollën. Përfundoni fillimisht atë furnizim."
+}

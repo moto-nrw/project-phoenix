@@ -97,7 +97,9 @@ describe("DatabaseSelect", () => {
 
     it("shows required indicator when required", () => {
       render(<DatabaseSelect {...defaultProps} label="Auswahl" required />);
-      expect(screen.getByText("Auswahl*")).toBeInTheDocument();
+      expect(screen.getByText("Auswahl").parentElement).toHaveTextContent(
+        "Auswahl *",
+      );
     });
 
     it("uses id prop for label association", () => {

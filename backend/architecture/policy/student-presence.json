@@ -1,0 +1,434 @@
+{
+  "packages": [
+    {
+      "path": "modules/studentpresence",
+      "owner": "student-presence",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/compose",
+      "owner": "student-presence",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/studentpresence/compose/presenceservice",
+      "owner": "student-presence",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/studentpresence/sessionrecordstest",
+      "owner": "student-presence",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/inbound/presence",
+      "owner": "student-presence",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/application",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/application/presence",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/application/statistics",
+      "owner": "student-presence",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/ports",
+      "owner": "student-presence",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentpresence/internal/adapters/postgres",
+      "owner": "student-presence",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/statistics/http",
+      "owner": "student-presence",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/studentpresence/http",
+      "owner": "student-presence",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "active.presence_backfill_batches",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.presence_backfill_checkpoints",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.activity_session_attendance",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.activity_sessions",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.attendance",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.class_handover_children",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.class_handovers",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.combined_groups",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.group_mappings",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.group_supervisors",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.groups",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.morning_attendance",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.scheduled_checkouts",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.visit_revision_events",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "active.visits",
+      "write_owner": "student-presence"
+    },
+    {
+      "name": "users.privacy_consents",
+      "write_owner": "student-presence"
+    }
+  ],
+  "rules": [
+    {
+      "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.postgres.presence-cutover.student-presence.port",
+      "description": "Construct and connect the Student Presence owner capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "postgres",
+      "target_owner": "student-presence",
+      "target_role": "port"
+    },
+    {
+      "id": "student-presence.compose.orm-sql",
+      "description": "Presence composition binds the ambient Bun transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "student-presence.http.public",
+      "description": "The presence HTTP composition calls exactly one public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.http.tenant-runtime.common",
+      "description": "The presence HTTP adapter binds the shared HTTP runtime in api/common: tenant middleware, response rendering and error helpers. It has no replacement; the other owners' HTTP adapters hold the same standing rule (#3447).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "student-presence.adapter-test.tenant-runtime.common",
+      "description": "Presence HTTP tests assert the shared response rendering of api/common that the adapter binds, as the other owners' adapter tests do (#3447).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "student-presence.e2e-test.workforce-public",
+      "description": "The retained Presence behaviour tests name the canonical work-session and absence values they assert on (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.e2e-test.tenant-runtime-public",
+      "description": "The Student Presence behaviour suites bind the tenant unit of work the commands open transactions through (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.e2e-test.care-plan-absence-records",
+      "description": "The retained presence service and repository tests arrange and assert status days as Care Plan absence records (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "student-presence.e2e-test.student-presence-application",
+      "description": "The presence behaviour tests moved with legacy/services/active drive the application service in modules/studentpresence/internal/application/presence (#3422).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "application"
+    },
+    {
+      "id": "student-presence.internal-test.care-plan-absence-records",
+      "description": "The effective-status unit tests of the public package build Care Plan status-day records (#3422).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "module-internal-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "student-presence.application.care-plan-absence-records",
+      "description": "The presence application reads and writes status days as Care Plan absence records through its own repository port (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "student-presence.application.transaction-runtime",
+      "description": "Student Presence application code reports a missing attendance or visit row through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.application.tenant-runtime-public",
+      "description": "The presence application opens tenant transactions and after-commit hooks through the tenant runtime (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "student-presence.public.care-plan-absence-records",
+      "description": "The public status-day facades and the effective-status resolver carry Care Plan status-day records (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "student-presence.http.people-directory.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.identity-access.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.care-plan.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.tenant-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.delivery-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "delivery-platform",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.security-runtime.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.security-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.http.settings-platform.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public",
+      "source_package": "modules/studentpresence/http"
+    },
+    {
+      "id": "student-presence.adapter-test.identity-access.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "adapter-test",
+      "source_package": "modules/studentpresence/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    }
+  ]
+}

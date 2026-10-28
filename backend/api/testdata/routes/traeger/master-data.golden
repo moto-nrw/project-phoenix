@@ -1,0 +1,8 @@
+DELETE /traeger/master-data/bank-accounts/{id}
+DELETE /traeger/master-data/logo
+GET /traeger/master-data/
+GET /traeger/master-data/logo
+POST /traeger/master-data/bank-accounts
+PUT /traeger/master-data/bank-accounts/{id}
+PUT /traeger/master-data/contact
+PUT /traeger/master-data/logo

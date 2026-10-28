@@ -1,0 +1,7 @@
+DELETE /school/calendar/appointments/{appointmentId}
+GET /school/calendar/feed
+GET /school/calendar/my
+POST /school/calendar/appointments
+POST /school/calendar/feed/rotate
+POST /school/calendar/recipients/{recipientId}/response
+PUT /school/calendar/appointments/{appointmentId}

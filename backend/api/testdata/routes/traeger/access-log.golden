@@ -1,0 +1,3 @@
+GET /traeger/access-log/
+GET /traeger/access-log/export
+GET /traeger/access-log/people

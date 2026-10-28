@@ -1,0 +1,6 @@
+{
+  "scenario": "api.enrollment.admin_requests.read_state",
+  "max": 1,
+  "exact": true,
+  "description": "modules/enrollment/http — GET /admin/requests: the caller's read state of every\nlisted enrollment in one batched statement (#3778)."
+}

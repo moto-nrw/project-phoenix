@@ -1,0 +1,49 @@
+{
+  "title": "Njoftimet",
+  "description": "Merrni mesazhe dhe ndryshime të rëndësishme për fëmijën tuaj.",
+  "allEnabled": "Të gjitha aktive",
+  "enableAll": "Aktivizo të gjitha",
+  "enablingAll": "Po aktivizohen ...",
+  "disableAll": "Çaktivizo të gjitha",
+  "tenantDisabled": "Shkolla juaj i ka çaktivizuar përkohësisht njoftimet. Zgjedhja juaj ruhet dhe zbatohet sapo shkolla t'i aktivizojë përsëri.",
+  "typeUnavailable": "Aktualisht e çaktivizuar nga shkolla juaj.",
+  "groups": {
+    "kinder": "Fëmijët",
+    "mitteilungen": "Mesazhet",
+    "termine": "Takimet"
+  },
+  "types": {
+    "parent_announcement": {
+      "label": "Njoftim i ri nga shkolla",
+      "description": "Kur shkolla publikon një njoftim të ri në portalin e prindërve."
+    },
+    "parent_message": {
+      "label": "Mesazh i ri nga OGS-ja",
+      "description": "Kur OGS-ja ju shkruan për një fëmijë."
+    },
+    "parent_appointment": {
+      "label": "Takim i ri ose i ndryshuar",
+      "description": "Kur një takim për ju krijohet, ndryshohet ose anulohet."
+    },
+    "parent_appointment_reminder": {
+      "label": "Kujtesë për takim",
+      "description": "Pak para një takimi ku jeni të ftuar."
+    },
+    "parent_request_decided": {
+      "label": "Vendim për kërkesën tuaj",
+      "description": "Kur OGS-ja ka vendosur për një nga kërkesat tuaja."
+    },
+    "parent_care_cancelled": {
+      "label": "Kujdesi anulohet",
+      "description": "Kur OGS-ja anulon një nga takimet e kujdesit të fëmijës suaj."
+    },
+    "parent_billing_document": {
+      "label": "Dokument i ri nga ofruesi",
+      "description": "Kur ofruesi ju dërgon një dokument, për shembull një konfirmim."
+    }
+  },
+  "errorObjectList": "lista e njoftimeve",
+  "errorObjectType": "njoftimi „{name}“",
+  "errorObjectEnableAll": "aktivizimi i të gjitha njoftimeve",
+  "errorObjectDisableAll": "çaktivizimi i të gjitha njoftimeve"
+}

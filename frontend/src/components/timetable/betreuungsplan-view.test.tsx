@@ -998,6 +998,7 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       data: {
         user: {
+          id: "1",
           permissions: [
             "schedules:read",
             "schedules:manage",
@@ -1087,7 +1088,7 @@ describe("BetreuungsplanView", () => {
   it("passes schedules:manage to the staff-pool controls", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:manage"] } },
+      data: { user: { id: "1", permissions: ["schedules:manage"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1100,7 +1101,7 @@ describe("BetreuungsplanView", () => {
   it("keeps staff-pool controls read-only without schedules:manage", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1113,7 +1114,9 @@ describe("BetreuungsplanView", () => {
   it("hides export without the permission to read staff names", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "schedules:manage"] },
+      },
     });
     render(<BetreuungsplanView />);
 
@@ -1130,6 +1133,7 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       data: {
         user: {
+          id: "1",
           permissions: ["schedules:read", "schedules:manage", "users:read"],
         },
       },
@@ -1145,7 +1149,7 @@ describe("BetreuungsplanView", () => {
   it("hides the add menu and shows the read-only badge without schedules:manage", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1156,7 +1160,7 @@ describe("BetreuungsplanView", () => {
   it("removes conflict warnings from read-only calendar instances", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1166,7 +1170,7 @@ describe("BetreuungsplanView", () => {
   it("does not bootstrap periods for read-only staff", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setupSWR({ periods: [] });
     render(<BetreuungsplanView />);
@@ -1199,7 +1203,7 @@ describe("BetreuungsplanView", () => {
   it("skips the tenant student roster without users:read", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1212,7 +1216,7 @@ describe("BetreuungsplanView", () => {
   it("forces the week view and offers only Tag/Woche for read-only staff", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=monat");
     render(<BetreuungsplanView />);
@@ -1230,7 +1234,7 @@ describe("BetreuungsplanView", () => {
   it("öffnet die Tagesansicht für Teammitglieder ohne Planungsrecht", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=tag&d=2026-05-06");
     render(<BetreuungsplanView />);
@@ -1249,7 +1253,9 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       // users:read allein schaltet den Druck-Export nicht mehr frei (#2283
       // Feedback: die Leseansicht zeigt nur die Woche, sonst nichts).
-      data: { user: { permissions: ["schedules:read", "users:read"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "users:read"] },
+      },
     });
     render(<BetreuungsplanView />);
 
@@ -1271,7 +1277,7 @@ describe("BetreuungsplanView", () => {
   it("passes read-only props to the detail modal", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -2943,7 +2949,7 @@ describe("BetreuungsplanView", () => {
   it("erklärt eine teilweise abgedeckte Woche auch in der Leseansicht", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=woche&d=2026-05-04");
     setupSWR({
@@ -2963,7 +2969,9 @@ describe("BetreuungsplanView", () => {
     // Schließtage lädt der Hook weiterhin über schedules:read.
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "schedules:manage"] },
+      },
     });
     setupSWR({ closingDaysLoading: true });
     render(<BetreuungsplanView />);
@@ -3069,6 +3077,7 @@ describe("BetreuungsplanView", () => {
         status: "authenticated",
         data: {
           user: {
+            id: "1",
             permissions: [
               "schedules:read",
               "schedules:manage",
@@ -3176,7 +3185,9 @@ describe("BetreuungsplanView", () => {
     it("bietet dieselben Filter in Tag und Woche der Leseansicht", () => {
       mockUseSession.mockReturnValue({
         status: "authenticated",
-        data: { user: { permissions: ["schedules:read", "groups:read"] } },
+        data: {
+          user: { id: "1", permissions: ["schedules:read", "groups:read"] },
+        },
       });
       setupSWR({ filterGroups: [{ id: "5", name: "Sonnen" }] });
 
@@ -3201,7 +3212,12 @@ describe("BetreuungsplanView", () => {
     it("bietet im Monat auch ohne users:read Personen aus der Übersicht an", () => {
       mockUseSession.mockReturnValue({
         status: "authenticated",
-        data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+        data: {
+          user: {
+            id: "1",
+            permissions: ["schedules:read", "schedules:manage"],
+          },
+        },
       });
       const defaultSWR = mockUseSWRAuth.getMockImplementation()!;
       mockUseSWRAuth.mockImplementation((key: string | null) => {
@@ -3241,6 +3257,7 @@ describe("BetreuungsplanView", () => {
         status: "authenticated",
         data: {
           user: {
+            id: "1",
             permissions: [
               "schedules:read",
               "schedules:manage",

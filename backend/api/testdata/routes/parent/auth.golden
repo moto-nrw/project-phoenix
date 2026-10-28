@@ -1,0 +1,3 @@
+POST /parent/auth/login
+POST /parent/auth/password-reset
+POST /parent/auth/password-reset/confirm
