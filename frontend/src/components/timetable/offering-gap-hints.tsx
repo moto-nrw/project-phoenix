@@ -17,7 +17,7 @@ import { timetableService } from "~/lib/timetable-api";
 
 const logger = createLogger({ component: "OfferingGapHints" });
 
-export function offeringGapsKey(periodId: string): string {
+function offeringGapsKey(periodId: string): string {
   return `offering-gaps-${periodId}`;
 }
 
