@@ -43,5 +43,5 @@ func NewModule(dependencies ModuleDependencies) (*Runtime, error) {
 	raw := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
 	store := application.NewWorkerCommands(raw, NewTenantTransactions(dependencies.DB).WithinSystem)
 	observe := application.NewObservationAdapter(dependencies.Observe)
-	return &Runtime{Module: application.NewService(store, dependencies.People, observe), Store: store, Observe: observe}, nil
+	return &Runtime{Module: application.NewService(store, dependencies.People, observe), Store: store, Observe: observe, EmailWakeups: postgres.EmailWakeups(dependencies.DB)}, nil
 }
