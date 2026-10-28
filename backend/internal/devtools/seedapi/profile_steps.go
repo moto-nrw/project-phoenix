@@ -18,6 +18,14 @@ type configureProfileStep struct {
 	definition demoProfileDefinition
 }
 
+type operatorSeedDevice struct {
+	ID         int64   `json:"id"`
+	DeviceID   string  `json:"device_id"`
+	DeviceType string  `json:"device_type"`
+	Name       *string `json:"name"`
+	Status     string  `json:"status"`
+}
+
 func (configureProfileStep) Name() string { return "Configuring demo school profile" }
 
 func (s configureProfileStep) Run(_ context.Context, rt *Runtime) error {
@@ -182,34 +190,49 @@ func verifyDeviceAdministrationLocked(rt *Runtime) (SeedDevice, error) {
 	// Schools without NFC attendance cannot administer devices. Verify that
 	// tenant-facing lock first, then inspect the provisioned web device through
 	// the operator API, which is not part of the locked tenant surface.
+	if err := verifyDeviceAdministrationRefusal(rt); err != nil {
+		return SeedDevice{}, err
+	}
+	devices, err := listOperatorSeedDevices(rt, rt.Bootstrap.SchoolID)
+	if err != nil {
+		return SeedDevice{}, err
+	}
+	webDevice, err := findWebManualSeedDevice(devices)
+	if err != nil {
+		return SeedDevice{}, err
+	}
+	return verifyWebManualDeviceProtection(rt, webDevice)
+}
+
+func verifyDeviceAdministrationRefusal(rt *Runtime) error {
 	_, err := listSeedDevices(rt, "terminal")
 	var apiErr *APIError
 	if err == nil {
-		return SeedDevice{}, fmt.Errorf("device administration: expected 403 module.not_booked, got success")
+		return fmt.Errorf("device administration: expected 403 module.not_booked, got success")
 	}
 	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != "module.not_booked" {
-		return SeedDevice{}, fmt.Errorf("device administration: expected 403 module.not_booked, got %w", err)
+		return fmt.Errorf("device administration: expected 403 module.not_booked, got %w", err)
 	}
+	return nil
+}
 
-	raw, err := rt.Client.GetWithAuth(rt.OperatorAuth, fmt.Sprintf("/operator/schools/%d/devices", rt.Bootstrap.SchoolID))
+func listOperatorSeedDevices(rt *Runtime, schoolID int64) ([]operatorSeedDevice, error) {
+	raw, err := rt.Client.GetWithAuth(rt.OperatorAuth, fmt.Sprintf("/operator/schools/%d/devices", schoolID))
 	if err != nil {
-		return SeedDevice{}, fmt.Errorf("list operator devices: %w", err)
+		return nil, fmt.Errorf("list operator devices: %w", err)
 	}
 	var devices struct {
-		Data []struct {
-			ID         int64   `json:"id"`
-			DeviceID   string  `json:"device_id"`
-			DeviceType string  `json:"device_type"`
-			Name       *string `json:"name"`
-			Status     string  `json:"status"`
-		} `json:"data"`
+		Data []operatorSeedDevice `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &devices); err != nil {
-		return SeedDevice{}, fmt.Errorf("decode operator devices: %w", err)
+		return nil, fmt.Errorf("decode operator devices: %w", err)
 	}
+	return devices.Data, nil
+}
 
+func findWebManualSeedDevice(devices []operatorSeedDevice) (SeedDevice, error) {
 	var webDevice *SeedDevice
-	for _, device := range devices.Data {
+	for _, device := range devices {
 		if device.DeviceType == "terminal" {
 			return SeedDevice{}, fmt.Errorf("device administration: unexpected physical terminal %s", device.DeviceID)
 		}
@@ -227,8 +250,11 @@ func verifyDeviceAdministrationLocked(rt *Runtime) (SeedDevice, error) {
 	if webDevice == nil {
 		return SeedDevice{}, fmt.Errorf("device administration: virtual web device %s missing", webManualDeviceID)
 	}
+	return *webDevice, nil
+}
 
-	raw, err = rt.Client.GetWithAuth(rt.OperatorAuth, fmt.Sprintf("/operator/devices/%d/transfer-status", webDevice.ID))
+func verifyWebManualDeviceProtection(rt *Runtime, webDevice SeedDevice) (SeedDevice, error) {
+	raw, err := rt.Client.GetWithAuth(rt.OperatorAuth, fmt.Sprintf("/operator/devices/%d/transfer-status", webDevice.ID))
 	if err != nil {
 		return SeedDevice{}, fmt.Errorf("read virtual web device protection: %w", err)
 	}
@@ -244,7 +270,7 @@ func verifyDeviceAdministrationLocked(rt *Runtime) (SeedDevice, error) {
 		return SeedDevice{}, fmt.Errorf("virtual web device %s is not protected", webManualDeviceID)
 	}
 	webDevice.Protected = true
-	return *webDevice, nil
+	return webDevice, nil
 }
 
 func listSeedDevices(rt *Runtime, deviceType string) ([]SeedDevice, error) {
