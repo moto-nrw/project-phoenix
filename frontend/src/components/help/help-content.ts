@@ -7988,6 +7988,8 @@ function parentHolidayRegistrationTopic(): HelpTopic {
     question: "Wie melde ich mein Kind für die Ferien an?",
     summary:
       "Der Träger gibt Ihnen einen Link. Dort melden Sie bis zu drei Kinder an.",
+    image: "/help/screens/ferienanmeldung-zweite-person.webp",
+    imageAlt: "Die freiwillige Karte für die zweite sorgeberechtigte Person.",
     group: "anmeldung",
     audience: "parent",
     icon: "SunHorizon",
@@ -9539,6 +9541,9 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     question: "Wie bestätige, storniere und buche ich Ferienanmeldungen um?",
     summary:
       "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, stornieren und buchen Sie um.",
+    image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
+    imageAlt:
+      "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "ListChecks",
