@@ -63,6 +63,8 @@ export function PlannedExitModal({
       setDay(plannedDay ?? suggestion ?? "");
       setSaving(false);
       clearFormErrors();
+    } else if (isOpen && suggestion) {
+      setDay((currentDay) => (currentDay === "" ? suggestion : currentDay));
     }
   }, [isOpen, plannedDay, suggestion, clearFormErrors]);
 

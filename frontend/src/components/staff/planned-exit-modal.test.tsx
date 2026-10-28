@@ -93,6 +93,25 @@ describe("PlannedExitModal", () => {
     ).toBeDisabled();
   });
 
+  it("suggests the contract end when it loads after opening", () => {
+    const { rerender } = renderModal();
+
+    rerender(
+      <PlannedExitModal
+        isOpen
+        staffId="7"
+        staffName="Ada Lovelace"
+        contractEndDate="2026-12-31"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Letzter Arbeitstag")).toHaveValue(
+      "2026-12-31",
+    );
+  });
+
   it("keeps a selected day when the contract end loads", () => {
     const { rerender } = renderModal();
 
