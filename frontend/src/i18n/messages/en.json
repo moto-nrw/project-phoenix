@@ -3294,6 +3294,9 @@
         "disabled": "You cannot access {object}. Please contact the school."
       },
       "staff": {
+        "exit_already_due": "The last working day is over. The exit is already running and can no longer be changed.",
+        "exit_day_in_past": "The last working day cannot be in the past. Please choose today or a later day.",
+        "exit_not_planned": "No exit is planned for this person.",
         "external_access_invalid": "Please choose which access this person gets.",
         "external_email_invalid": "This email address is not valid. Please check it.",
         "external_email_invited": "This email address already has an open invitation for someone else. Please use another address.",

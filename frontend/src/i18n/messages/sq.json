@@ -3294,6 +3294,9 @@
         "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "staff": {
+        "exit_already_due": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "exit_day_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "exit_not_planned": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "external_access_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_email_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_email_invited": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
