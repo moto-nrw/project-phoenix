@@ -216,7 +216,7 @@ describe("MasterDataReviewItem", () => {
     expect(screen.getByText("Deutsch")).toBeInTheDocument();
   });
 
-  it("rejects requests and reports the rejection notice via onDecided", async () => {
+  it("requires a reason before rejecting", async () => {
     mockDecide.mockResolvedValue(row({ status: "rejected" }));
     const onDecided = vi.fn();
 
@@ -232,8 +232,30 @@ describe("MasterDataReviewItem", () => {
     expect(screen.getAllByText(/unknown_field/).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
+    expect(
+      await screen.findByText(
+        "Für eine Ablehnung ist eine Begründung erforderlich.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockDecide).not.toHaveBeenCalled();
+    expect(onDecided).not.toHaveBeenCalled();
+  });
+
+  it("rejects with a trimmed reason and reports the rejection notice", async () => {
+    mockDecide.mockResolvedValue(row({ status: "rejected" }));
+    const onDecided = vi.fn();
+
+    render(<MasterDataReviewItem row={row()} onDecided={onDecided} />);
+
+    expandAll();
+    fireEvent.change(
+      screen.getByPlaceholderText("Begründung (Pflicht bei Ablehnung)"),
+      { target: { value: " passt nicht " } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
+
     await waitFor(() =>
-      expect(mockDecide).toHaveBeenCalledWith("100", false, undefined),
+      expect(mockDecide).toHaveBeenCalledWith("100", false, "passt nicht"),
     );
     expect(onDecided).toHaveBeenCalledWith("Die Änderung ist abgelehnt.");
   });
