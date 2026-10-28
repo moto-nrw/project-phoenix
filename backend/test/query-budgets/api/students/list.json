@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.list",
+  "max": 30,
+  "exact": false,
+  "description": "api/students — GET /students list, 10 students, page_size=50.\nLowered from 31 in #3349: the owner's directory read selects the\ndeparture plans in the same statement the rows come from, where the\nretained repository needed a second one to reach the scan-only columns."
+}

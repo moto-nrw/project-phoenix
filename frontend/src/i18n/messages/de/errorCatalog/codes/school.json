@@ -1,0 +1,5 @@
+{
+  "no_school_portal_role": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+  "setup_completed": "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
+  "setup_incomplete": "Die Einrichtung ist noch nicht fertig. Bitte schließen Sie zuerst die offenen Schritte ab."
+}

@@ -88,12 +88,15 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 			}
 			// The school portal binds its school like the team portal and
 			// passes the same lock in SchoolScopeMiddleware (#4895).
-			if !slices.Contains(route.chain, "api.TenantScopeMiddleware") && !slices.Contains(route.chain, "api.SchoolScopeMiddleware") {
+			// Kiosk routes carry no session; their device authenticator
+			// passes the lock in gateDeviceAuthentication (#4896).
+			if !slices.Contains(route.chain, "api.TenantScopeMiddleware") && !slices.Contains(route.chain, "api.SchoolScopeMiddleware") &&
+				!slices.ContainsFunc(route.chain, isDeviceModuleGate) {
 				unlocked = append(unlocked, route.route)
 			}
 		}
 		require.Emptyf(t, unlocked,
-			"these routes of an additional module pass neither api.TenantScopeMiddleware nor api.SchoolScopeMiddleware, so a school without the module still reaches them. Mount them in a tenant chain or name the issue that locks their surface in moduleRoutesLockedElsewhere:\n%s",
+			"these routes of an additional module pass neither api.TenantScopeMiddleware, api.SchoolScopeMiddleware nor a device authenticator behind gateDeviceAuthentication, so a school without the module still reaches them. Mount them in a tenant chain or name the issue that locks their surface in moduleRoutesLockedElsewhere:\n%s",
 			strings.Join(unlocked, "\n"))
 	})
 
@@ -102,7 +105,7 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 	for _, route := range routes {
 		byModule[route.module] = append(byModule[route.module], route.route)
 	}
-	table.WriteString("# Each heading is a module key (basis = moto Basis); the routes below it belong to it.\n")
+
 	keys := []settings.ModuleKey{moduleRouteBasis}
 	for _, module := range configModels.Modules() {
 		keys = append(keys, module.Key)
@@ -117,18 +120,24 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 			continue
 		}
 		sort.Strings(entries)
-		table.WriteString("\n" + heading + "\n")
+
 		for _, entry := range entries {
 			_, pattern, _ := strings.Cut(entry, " ")
 			rule, _ := moduleRouteFor(pattern)
 			if reason, ok := moduleRoutesLockedElsewhere[rule.prefix]; ok {
-				entry += "  (" + reason + ")"
+				entry += " -> " + heading + "  (" + reason + ")"
+			} else {
+				entry += " -> " + heading
 			}
-			table.WriteString("\t" + entry + "\n")
+			table.WriteString(entry + "\n")
 		}
 	}
-	compareGolden(t, filepath.Join("testdata", "route_modules.golden"), table.String(),
-		"the module of a route changed — if intentional, regenerate with -update-goldens and justify the assignment in the PR description")
+	compareResourceGoldens(t, filepath.Join("testdata", "modules"), table.String(),
+		"the module of a route changed — if intentional, regenerate with -update-goldens and justify the assignment in the PR description", false, *updateGoldens)
+}
+
+func isDeviceModuleGate(name string) bool {
+	return strings.HasPrefix(name, "api.gateDeviceAuthentication.")
 }
 
 // lockedElsewhere reports whether the rule a route pattern resolves to
@@ -232,11 +241,50 @@ func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
 		}
 	})
 
-	t.Run("devices stay with #4896", func(t *testing.T) {
+	t.Run("device administration follows NFC-Anwesenheit", func(t *testing.T) {
 		setBooked(cancelled, settings.ModuleNFCAnwesenheit, false)
 		t.Cleanup(func() { setBooked(cancelled, settings.ModuleNFCAnwesenheit, true) })
 		status, body := request(cancelledToken, http.MethodGet, "/api/iot/?device_type=terminal", "")
-		require.Equalf(t, http.StatusOK, status, "device administration without NFC: %v", body)
+		require.Equalf(t, http.StatusForbidden, status, "device administration without NFC: %v", body)
+		require.Equal(t, common.CodeModuleNotBooked, body["code"])
+		status, body = request(bookedToken, http.MethodGet, "/api/iot/?device_type=terminal", "")
+		require.Equalf(t, http.StatusOK, status, "the other school keeps its devices: %v", body)
+	})
+
+	t.Run("the kiosk follows NFC-Anwesenheit and the staff clock also Zeiterfassung", func(t *testing.T) {
+		device := testpkg.CreateTestDeviceForTenant(t, db, cancelled, "module-4896")
+		kiosk := func(method, path string) (int, map[string]any) {
+			// The PyrePortal contract: device key and the school's device PIN
+			// (the fresh-tenant default of security.ogs_device_pin).
+			response := checkpointHeaderRequest(api, checkpointScenario{Method: method, Path: path, Body: "{}"}, "", 0,
+				map[string]string{"Authorization": "Bearer " + *device.APIKey, "X-Staff-PIN": "1234"})
+			var payload map[string]any
+			_ = json.Unmarshal(response.Body.Bytes(), &payload)
+			return response.Code, payload
+		}
+		refused := func(method, path string, module settings.ModuleKey) {
+			t.Helper()
+			status, body := kiosk(method, path)
+			require.Equalf(t, http.StatusForbidden, status, "%s %s without %s: %v", method, path, module, body)
+			require.Equalf(t, common.CodeModuleNotBooked, body["code"], "%s %s: %v", method, path, body)
+			details, _ := body["details"].(map[string]any)
+			require.Equalf(t, string(module), details["module"], "%s %s names its module: %v", method, path, body)
+		}
+
+		status, body := kiosk(http.MethodPost, "/api/iot/ping")
+		require.Equalf(t, http.StatusOK, status, "both booked: %v", body)
+
+		setBooked(cancelled, settings.ModuleNFCAnwesenheit, false)
+		refused(http.MethodPost, "/api/iot/ping", settings.ModuleNFCAnwesenheit)
+		refused(http.MethodGet, "/api/iot/config", settings.ModuleNFCAnwesenheit)
+		refused(http.MethodPost, "/api/iot/staff-clock/state", settings.ModuleNFCAnwesenheit)
+		setBooked(cancelled, settings.ModuleNFCAnwesenheit, true)
+
+		setBooked(cancelled, settings.ModuleZeiterfassung, false)
+		t.Cleanup(func() { setBooked(cancelled, settings.ModuleZeiterfassung, true) })
+		refused(http.MethodPost, "/api/iot/staff-clock/state", settings.ModuleZeiterfassung)
+		status, body = kiosk(http.MethodPost, "/api/iot/ping")
+		require.Equalf(t, http.StatusOK, status, "without Zeiterfassung the kiosk keeps attendance: %v", body)
 	})
 
 	t.Run("status links close with Online-Anmeldung", func(t *testing.T) {

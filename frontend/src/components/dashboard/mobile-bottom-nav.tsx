@@ -57,7 +57,6 @@ import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
 import { useSchoolParentNewsEnabled } from "~/lib/hooks/use-school-switches";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
 import {
-  getPlanningMobileActivePaths,
   isPlanningPageHref,
   PLANNING_SUB_PAGES,
 } from "~/lib/planning-navigation";
@@ -486,7 +485,7 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
       ? { requiresPermission: "users:read" }
       : {}),
   })),
-  // Planung: der Katalog liefert alle Alt-Pfade als activePaths.
+  // Planung: jeder Katalogeintrag hat einen eigenen mobilen Eintrag.
   ...PLANNING_SUB_PAGES.filter((page) => page.showInMobileNav).map((page) => ({
     href: page.href,
     label: page.label,
@@ -494,7 +493,6 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     concept: STAFF_NAV_CONCEPTS[page.href],
     requiresAdmin: page.nonAdminPermission === undefined,
     requiresPermission: page.nonAdminPermission,
-    activePaths: getPlanningMobileActivePaths(page.href),
   })),
   {
     // Tagesauswertung (#1456): Opt-in über gdpr.attendance_log_enabled
@@ -734,6 +732,14 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
         return pathname === "/home" || pathname === "/";
       }
       if (isViewingSharedOpenRoom) return href === "/rooms";
+      // „Unterwegs“ öffnet sich auch aus „Alle Kinder“ (#5026), wie in der
+      // Seitenleiste.
+      if (
+        pathname === "/rooms/unterwegs" &&
+        searchParams.get("from")?.startsWith("/students/search")
+      ) {
+        return href === "/students/search";
+      }
       // Check if we came from this page via the 'from' query parameter. Grouped
       // items (e.g. Eltern) own several routes via activePaths, so a child page
       // reached with ?from=/messages must still highlight the Eltern entry —
@@ -750,12 +756,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
       }
       if (activePaths?.some((p) => pathname.startsWith(p))) {
         return true;
-      }
-      if (href === "/staff") {
-        return (
-          pathname.startsWith("/staff") &&
-          !pathname.startsWith("/staff/dienstplan")
-        );
       }
       // /calendar-periods gehört zum Betreuungsplan (activePaths), nicht zum
       // Kalender — ohne Exakt-Match leuchtet /calendar per Präfix mit.

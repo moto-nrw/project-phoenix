@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -160,6 +166,23 @@ function renderPage() {
   );
 }
 
+/** The table renders a desktop row and a stacked phone row (#5146). */
+async function openInvoiceMenu() {
+  const [menu] = await screen.findAllByRole("button", {
+    name: "Aktionen für die Rechnung an Eva Muster",
+  });
+  fireEvent.click(menu!);
+}
+
+/** Opens the breakdown of the invoice in the side panel (#5146). */
+async function showBreakdown() {
+  await openInvoiceMenu();
+  fireEvent.click(
+    await screen.findByRole("menuitem", { name: "Aufschlüsselung ansehen" }),
+  );
+  return screen.findByRole("dialog", { name: "Rechnung an Eva Muster" });
+}
+
 describe("TraegerBillingRunPage", () => {
   beforeEach(() => {
     for (const fn of Object.values(api)) fn.mockReset();
@@ -171,10 +194,14 @@ describe("TraegerBillingRunPage", () => {
   it("shows the preview of every family with its positions", async () => {
     renderPage();
 
-    expect(await screen.findByText("Eva Muster")).toBeInTheDocument();
-    expect(screen.getByText(/Entwurf ohne Nummer/)).toBeInTheDocument();
-    expect(screen.getByText("Lia Muster")).toBeInTheDocument();
-    expect(screen.getAllByText("Rechnungsbetrag")[0]).toBeInTheDocument();
+    expect((await screen.findAllByText("Muster, Eva"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Entwurf ohne Nummer")[0]).toBeInTheDocument();
+    const panel = await showBreakdown();
+    expect(panel).toHaveTextContent(/Entwurf ohne Nummer/);
+    expect(within(panel).getByText("Lia Muster")).toBeInTheDocument();
+    expect(
+      within(panel).getAllByText("Rechnungsbetrag")[0],
+    ).toBeInTheDocument();
     expect(
       screen.getByText(
         /1 bestätigte Anmeldung\(en\) haben keinen festgehaltenen Beitrag/,
@@ -185,13 +212,7 @@ describe("TraegerBillingRunPage", () => {
   it("corrects the amount of a child only with a reason", async () => {
     api.correctBillingRun.mockResolvedValue(CORRECTED);
     renderPage();
-    await screen.findByText("Eva Muster");
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Aktionen für die Rechnung an Eva Muster",
-      }),
-    );
+    await openInvoiceMenu();
     fireEvent.click(
       await screen.findByRole("menuitem", {
         name: "Betrag für Lia korrigieren",
@@ -219,10 +240,14 @@ describe("TraegerBillingRunPage", () => {
         reason: "Erster Tag krank",
       }),
     );
+    await waitFor(() =>
+      expect(screen.queryByLabelText("Begründung")).not.toBeInTheDocument(),
+    );
+    const panel = await showBreakdown();
     expect(
-      await screen.findByText("Korrektur: Erster Tag krank"),
+      within(panel).getByText("Korrektur: Erster Tag krank"),
     ).toBeInTheDocument();
-    expect(screen.getByText("Korrekturen für Lia")).toBeInTheDocument();
+    expect(within(panel).getByText("Korrekturen für Lia")).toBeInTheDocument();
   });
 
   it("releases with the checked preview and reports a changed run", async () => {
@@ -232,7 +257,7 @@ describe("TraegerBillingRunPage", () => {
       }),
     );
     renderPage();
-    await screen.findByText("Eva Muster");
+    await screen.findAllByText("Muster, Eva");
 
     fireEvent.click(screen.getByRole("button", { name: "Lauf freigeben" }));
     expect(
@@ -267,21 +292,26 @@ describe("TraegerBillingRunPage", () => {
     });
     renderPage();
 
-    expect(
-      await screen.findByText(/Rechnung FE-0001 vom 09.09.2026/),
-    ).toBeInTheDocument();
+    expect((await screen.findAllByText("FE-0001"))[0]).toBeInTheDocument();
     expect(
       screen.getByText(/lassen sich nicht mehr ändern/),
     ).toBeInTheDocument();
-    expect(screen.getByText("Eva Muster")).toBeInTheDocument();
+    expect(screen.getAllByText("Muster, Eva")[0]).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Lauf freigeben" }),
     ).not.toBeInTheDocument();
+    // The row menu only shows the breakdown; nothing changes the invoice.
+    await openInvoiceMenu();
+    const breakdown = await screen.findByRole("menuitem", {
+      name: "Aufschlüsselung ansehen",
+    });
     expect(
-      screen.queryByRole("button", {
-        name: "Aktionen für die Rechnung an Eva Muster",
-      }),
+      screen.queryByRole("menuitem", { name: /korrigieren/ }),
     ).not.toBeInTheDocument();
+    fireEvent.click(breakdown);
+    expect(
+      await screen.findByRole("dialog", { name: "Rechnung an Eva Muster" }),
+    ).toHaveTextContent(/Rechnung FE-0001 vom 09.09.2026/);
   });
 
   const RELEASED: BillingRunDetail = {
@@ -457,11 +487,7 @@ describe("TraegerBillingRunPage", () => {
     ).toBeInTheDocument();
     // With the letters, the run offers to mail them (#4670).
     expect(screen.getByText("Versand per Mail")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Aktionen für die Rechnung an Eva Muster",
-      }),
-    );
+    await openInvoiceMenu();
     fireEvent.click(
       await screen.findByRole("menuitem", { name: "Schreiben herunterladen" }),
     );
@@ -477,10 +503,12 @@ describe("TraegerBillingRunPage", () => {
 
   it("offers the overview for the Kämmerei only once the run is released", async () => {
     renderPage();
-    await screen.findByText("Eva Muster");
+    await screen.findAllByText("Muster, Eva");
     expect(screen.getByText("Abrechnungslauf")).toBeInTheDocument();
     expect(
-      screen.queryByText("Übersicht für die Kämmerei"),
+      screen.queryByRole("button", {
+        name: "Übersicht für die Kämmerei exportieren",
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -493,20 +521,22 @@ describe("TraegerBillingRunPage", () => {
     });
     renderPage();
 
-    expect(
-      await screen.findByText("Übersicht für die Kämmerei"),
-    ).toBeInTheDocument();
+    // Wie im Schul-Portal: das Menü mit den drei Punkten, Abschnitt
+    // „Exportieren“ (#5240).
+    const trigger = await screen.findByRole("button", {
+      name: "Übersicht für die Kämmerei exportieren",
+    });
     // The table renders a desktop row and a stacked phone row.
     expect(screen.getAllByText("FE-0001")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Muster, Eva")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Lia, Ben")[0]).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Übersicht für die Kämmerei herunterladen",
-      }),
-    );
-    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
+    fireEvent.click(trigger);
+    expect(await screen.findByText("Exportieren")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ).toEqual(["PDF", "Excel", "CSV"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "CSV" }));
     await waitFor(() =>
       expect(downloadBlob).toHaveBeenCalledWith(
         blob,
@@ -524,11 +554,10 @@ describe("TraegerBillingRunPage", () => {
       }),
     );
     renderPage();
-    await screen.findByText("Übersicht für die Kämmerei");
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Übersicht für die Kämmerei herunterladen",
+      await screen.findByRole("button", {
+        name: "Übersicht für die Kämmerei exportieren",
       }),
     );
     fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));

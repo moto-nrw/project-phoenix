@@ -1,0 +1,11 @@
+{
+  "exit_already_due": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "exit_day_in_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "exit_not_planned": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "external_access_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "external_email_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "external_email_invited": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "external_email_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "external_has_account": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "not_external": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+}

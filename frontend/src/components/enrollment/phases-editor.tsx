@@ -68,10 +68,13 @@ import {
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { EnrollmentStatTile } from "~/components/enrollment/enrollment-stat-tile";
 import { Button } from "~/components/ui/button";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { Input } from "~/components/ui/input";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
   SlideOverBody,
@@ -88,7 +91,6 @@ import {
   type DataTableColumn,
 } from "~/components/ui/data-table";
 import { CustomSelect } from "~/components/ui/custom-select";
-import { Radio } from "~/components/ui/radio";
 import {
   LateInviteModal,
   ManualApprovedEnrollmentModal,
@@ -508,7 +510,7 @@ export function PhasesEditor() {
       });
       if (conflicting) {
         formErrors.invalid(
-          `Die Klasse „${conflicting}“ passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
+          `Die ${schoolClassLabel(conflicting)} passt nicht zu den gewählten Klassenstufen. Entfernen Sie die Klasse oder ergänzen Sie ihre Klassenstufe.`,
         );
         return;
       }
@@ -1369,50 +1371,35 @@ function PhaseForm(props: PhaseFormProps) {
       </h3>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">Name</span>
-          <input
-            name="name"
-            type="text"
-            value={draft.name}
-            onChange={(e) => update({ name: e.target.value })}
-            placeholder="z. B. Schuljahr 2026/27"
-            aria-required="true"
-            aria-invalid={fieldError("name") ? true : undefined}
-            aria-describedby={
-              fieldError("name") ? "phase-name-error" : undefined
-            }
-            className={`mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-              fieldError("name")
-                ? "border-moto-red bg-moto-red/5"
-                : "border-gray-200 hover:border-gray-300"
-            }`}
-          />
-          {fieldError("name") ? (
-            <span
-              id="phase-name-error"
-              className="text-moto-red-strong mt-1 block text-xs"
-            >
-              {fieldError("name")}
-            </span>
-          ) : null}
-        </label>
+        <Input
+          id="phase-name"
+          name="name"
+          type="text"
+          label="Name"
+          controlSize="compact"
+          value={draft.name}
+          onChange={(e) => update({ name: e.target.value })}
+          placeholder="z. B. Schuljahr 2026/27"
+          aria-required="true"
+          error={fieldError("name")}
+        />
 
-        <label className="block" htmlFor="phase-kind" id="phase-kind-label">
-          <span className="text-xs font-medium text-gray-700">Typ</span>
+        <div>
+          <FieldLabel htmlFor="phase-kind" id="phase-kind-label">
+            Typ
+          </FieldLabel>
           <CustomSelect
             ariaLabelledBy="phase-kind-label"
             id="phase-kind"
             value={draft.kind}
             onChange={(value) => update({ kind: value as PhaseKind })}
-            className="mt-1"
             options={[
               { value: "school_year", label: KIND_LABELS.school_year },
               { value: "holiday", label: KIND_LABELS.holiday },
               { value: "custom", label: KIND_LABELS.custom },
             ]}
           />
-        </label>
+        </div>
       </div>
 
       <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -1635,9 +1622,8 @@ function PhaseForm(props: PhaseFormProps) {
             htmlFor="schema-source-base"
             className="flex items-start gap-2"
           >
-            <input
+            <Radio
               id="schema-source-base"
-              type="radio"
               name="schema-source"
               value="base"
               checked={schemaSource === "base"}
@@ -1658,9 +1644,8 @@ function PhaseForm(props: PhaseFormProps) {
               schemas.length === 0 ? "cursor-not-allowed opacity-50" : ""
             }`}
           >
-            <input
+            <Radio
               id="schema-source-reuse"
-              type="radio"
               name="schema-source"
               value="reuse"
               checked={schemaSource === "reuse"}
@@ -2054,7 +2039,7 @@ function SchoolClassListEditor({
               <button
                 type="button"
                 onClick={() => onChange(value.filter((c) => c !== cls))}
-                aria-label={`Klasse ${cls} entfernen`}
+                aria-label={`${schoolClassLabel(cls)} entfernen`}
                 className="flex h-5 w-5 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
               >
                 <X className="h-3.5 w-3.5" aria-hidden="true" />

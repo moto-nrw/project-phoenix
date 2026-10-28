@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
-// Registered error codes (error-registry.json) of a rejected substitution.
+// Registered error codes (error-registry/) of a rejected substitution.
 // This package may not import api/common, so it names them once here.
 const (
 	codeSubstitutionConflict      = "substitutions.conflict"

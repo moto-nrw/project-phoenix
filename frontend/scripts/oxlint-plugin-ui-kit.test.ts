@@ -122,7 +122,7 @@ describe("ui-kit/no-hand-rolled-surface", () => {
       `
       function Probe() {
         return <>
-          <input className="rounded-xl border-0 bg-white px-4 ring-1" />
+          <div className="rounded-xl border-0 bg-white px-4 ring-1" />
           <div className="rounded-xl border-none bg-white p-4" />
           <div className="rounded-2xl border-b bg-white p-4" />
           <div className="rounded-2xl border border-gray-200 bg-white/95 p-4 shadow-lg" />
@@ -238,12 +238,15 @@ describe("ui-kit/no-tenant-kicker", () => {
 });
 
 describe("ui-kit/no-hand-rolled-page-card", () => {
-  it("reports the kit card chain spelled out in a tenant page or loading file", () => {
+  it("reports the kit card chain spelled out in a tenant or Träger page or loading file", () => {
     for (const path of [
       "src/app/[tenant]/(protected)/page.tsx",
       "src/app/[tenant]/(protected)/loading.tsx",
       "src/app/[tenant]/(protected)/rooms/page.tsx",
       "src/app/[tenant]/(protected)/rooms/[id]/loading.tsx",
+      // Das Träger-Portal rendert dasselbe Gerüst (#5146).
+      "src/app/traeger/page.tsx",
+      "src/app/traeger/ferien/[id]/page.tsx",
     ]) {
       const result = lintSource(
         `function Probe({ wide }: { wide: boolean }) {
@@ -468,7 +471,7 @@ describe("ui-kit/require-checkbox-label", () => {
   it("reports sibling labels and aria-label-only checkboxes", () => {
     const result = lintSource(`
       const Checkbox = (props: { id?: string; "aria-label"?: string }) =>
-        <input type="checkbox" {...props} />;
+        <span {...props} />;
       function Probe() {
         return <>
           <div>
@@ -489,7 +492,7 @@ describe("ui-kit/require-checkbox-label", () => {
   it("accepts a checkbox inside a label-shaped ChoiceTile, not a button one", () => {
     const result = lintSource(`
       const Checkbox = (props: { id?: string }) =>
-        <input type="checkbox" {...props} />;
+        <span {...props} />;
       const ChoiceTile = (props: { as?: string; children: unknown }) =>
         <div>{String(props.children)}</div>;
       function Probe() {
@@ -510,7 +513,7 @@ describe("ui-kit/require-checkbox-label", () => {
   it("accepts a checkbox nested anywhere inside its label", () => {
     const result = lintSource(`
       const Checkbox = (props: { id: string }) =>
-        <input type="checkbox" {...props} />;
+        <span {...props} />;
       function Probe() {
         return <label htmlFor="monday">
           <span><Checkbox id="monday" /></span>
@@ -523,5 +526,53 @@ describe("ui-kit/require-checkbox-label", () => {
 
     expect(result.status, output).toBe(0);
     expect(output).not.toContain("require-checkbox-label");
+  });
+});
+
+describe("ui-kit/no-raw-input", () => {
+  it("reports hand-built text, checkbox and untyped inputs", () => {
+    const result = lintSource(`
+      function Probe() {
+        return <form>
+          <input aria-label="Vorname" />
+          <input type="email" aria-label="E-Mail" />
+          <label><input type="checkbox" /> Zustimmen</label>
+        </form>;
+      }
+      void Probe;
+    `);
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(result.status).toBe(1);
+    expect(output.match(/ui-kit\(no-raw-input\)/g)).toHaveLength(3);
+  });
+
+  it("keeps hidden and file inputs native", () => {
+    const result = lintSource(`
+      function Probe() {
+        return <form>
+          <input type="hidden" name="token" value="x" />
+          <input type={"file"} aria-label="Datei" hidden />
+        </form>;
+      }
+      void Probe;
+    `);
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(output).not.toContain("no-raw-input");
+  });
+
+  it("leaves the kit itself alone", () => {
+    const result = lintSource(
+      `
+      export function Field() {
+        return <input aria-label="Vorname" />;
+      }
+    `,
+      "src/components/ui/field.tsx",
+    );
+    const output = `${result.stdout}${result.stderr}`;
+
+    expect(output).not.toContain("no-raw-input");
   });
 });

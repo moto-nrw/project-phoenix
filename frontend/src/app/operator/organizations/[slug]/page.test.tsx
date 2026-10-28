@@ -49,6 +49,7 @@ const {
   mockRestoreSchool,
   mockDeleteDevice,
   mockAssignTraegerMember,
+  mockInviteTraegerMember,
   mockMutateTraegerMembers,
   mockPush,
   mockReplace,
@@ -73,6 +74,7 @@ const {
   mockRestoreSchool: vi.fn(),
   mockDeleteDevice: vi.fn(),
   mockAssignTraegerMember: vi.fn(),
+  mockInviteTraegerMember: vi.fn(),
   mockMutateTraegerMembers: vi.fn(),
   mockPush: vi.fn(),
   mockReplace: vi.fn(),
@@ -134,11 +136,13 @@ vi.mock("~/lib/operator/provisioning-api", async () => {
       restoreSchool: mockRestoreSchool,
       deleteDevice: mockDeleteDevice,
       assignTraegerMember: mockAssignTraegerMember,
+      inviteTraegerMember: mockInviteTraegerMember,
     },
   };
 });
 
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog", "aria-modal": true },
   Modal: ({ isOpen, children, title, footer }: any) =>
     isOpen ? (
       <div data-testid="modal">
@@ -917,12 +921,12 @@ describe("OperatorOrganizationDetailPage", () => {
 
       expect(
         await screen.findByText(
-          "Noch niemand hat Zugang zum Träger-Portal dieses Trägers.",
+          "Noch niemand hat Zugang zum Träger-Portal dieses Trägers. Laden Sie die erste Person oben mit „Person einladen“ ein.",
         ),
       ).toBeInTheDocument();
     });
 
-    it("assigns a person with a Träger role and reloads the list", async () => {
+    it("assigns a person with several Träger roles at once and reloads the list (#5144)", async () => {
       currentSearchParams = new URLSearchParams("tab=traeger-buero");
       setupSWR({ traegerMembers: [] });
       mockAssignTraegerMember.mockResolvedValue(member);
@@ -936,6 +940,12 @@ describe("OperatorOrganizationDetailPage", () => {
         target: { value: " buero@traeger.example " },
       });
       fireEvent.click(
+        within(modal).getByRole("checkbox", { name: /Verwaltung/ }),
+      );
+      fireEvent.click(
+        within(modal).getByRole("checkbox", { name: /Abrechnung/ }),
+      );
+      fireEvent.click(
         within(screen.getByTestId("modal-footer")).getByRole("button", {
           name: "Zuordnen",
         }),
@@ -944,13 +954,77 @@ describe("OperatorOrganizationDetailPage", () => {
       await waitFor(() =>
         expect(mockAssignTraegerMember).toHaveBeenCalledWith("1", {
           email: "buero@traeger.example",
-          role: "administration",
+          roles: ["administration", "billing"],
         }),
       );
       await waitFor(() => expect(mockMutateTraegerMembers).toHaveBeenCalled());
       expect(
         await screen.findByText("Die Person ist dem Träger-Büro zugeordnet."),
       ).toBeInTheDocument();
+    });
+
+    it("invites a person without a moto account with several roles through the Träger-Büro's dialog (#5144)", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerMembers: [] });
+      mockInviteTraegerMember.mockResolvedValue(undefined);
+      mockMutateTraegerMembers.mockResolvedValue([]);
+
+      await renderPage();
+
+      fireEvent.click(screen.getByRole("button", { name: "Person einladen" }));
+      const dialog = await screen.findByRole("dialog");
+      expect(
+        within(dialog).getByText(/Ein Schulkonto braucht sie nicht\./),
+      ).toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText(/E-Mail-Adresse/), {
+        target: { value: "neu@traeger.example" },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: /Verwaltung/ }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: /Abrechnung/ }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Einladung senden" }),
+      );
+
+      await waitFor(() =>
+        expect(mockInviteTraegerMember).toHaveBeenCalledWith("1", {
+          email: "neu@traeger.example",
+          roles: ["administration", "billing"],
+        }),
+      );
+      expect(mockAssignTraegerMember).not.toHaveBeenCalled();
+      await waitFor(() => expect(mockMutateTraegerMembers).toHaveBeenCalled());
+      expect(
+        await screen.findByText(
+          "Die Einladung ist verschickt. Das Träger-Büro sieht sie bei den offenen Einladungen.",
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("asks for a role before inviting without one (#5144)", async () => {
+      currentSearchParams = new URLSearchParams("tab=traeger-buero");
+      setupSWR({ traegerMembers: [] });
+
+      await renderPage();
+
+      fireEvent.click(screen.getByRole("button", { name: "Person einladen" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.change(within(dialog).getByLabelText(/E-Mail-Adresse/), {
+        target: { value: "neu@traeger.example" },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Einladung senden" }),
+      );
+
+      expect(
+        await within(dialog).findAllByText(
+          "Bitte wählen Sie mindestens eine Rolle.",
+        ),
+      ).not.toHaveLength(0);
+      expect(mockInviteTraegerMember).not.toHaveBeenCalled();
     });
 
     it("keeps the modal open with the catalog text for an unknown e-mail", async () => {
@@ -969,6 +1043,9 @@ describe("OperatorOrganizationDetailPage", () => {
       fireEvent.change(within(modal).getByLabelText(/E-Mail des Kontos/), {
         target: { value: "unbekannt@example.com" },
       });
+      fireEvent.click(
+        within(modal).getByRole("checkbox", { name: /Verwaltung/ }),
+      );
       fireEvent.click(
         within(screen.getByTestId("modal-footer")).getByRole("button", {
           name: "Zuordnen",

@@ -1,0 +1,36 @@
+{
+  "today": "Heute",
+  "sectionTitle": "Heute",
+  "sectionDescription": "Tagesstatus und wichtige Aktionen auf einen Blick.",
+  "statusLabel": "Aktueller Status",
+  "atOgs": "In der OGS",
+  "notAtOgs": "Nicht in der OGS",
+  "state": {
+    "present": "Seit {time} Uhr da",
+    "presentNoTime": "Heute da",
+    "left": "Um {time} Uhr nach Hause gegangen",
+    "leftNoTime": "Heute nach Hause gegangen",
+    "expected": "Kommt heute um {time} Uhr",
+    "expectedNoTime": "Kommt heute",
+    "notArrived": "Wird seit {time} Uhr erwartet",
+    "notArrivedNoTime": "Wird erwartet",
+    "absent": "Heute abgemeldet",
+    "noCare": "Heute keine Betreuung",
+    "unknown": "Status derzeit nicht verfügbar"
+  },
+  "actions": {
+    "profile": "Profil ansehen",
+    "sick": "{name} abmelden",
+    "sickCompact": "Abmelden",
+    "sickHint": "Krank melden oder entschuldigen",
+    "pickup": "Abholzeit für {name} ändern",
+    "pickupCompact": "Abholzeit ändern",
+    "pickupHint": "Abholzeit für einen Tag anpassen",
+    "message": "Nachrichten schreiben",
+    "messageCompact": "Nachricht schreiben",
+    "messageHint": "OGS für {name} kontaktieren",
+    "pickupWithMode": "Abholung für {name} ändern",
+    "pickupCompactWithMode": "Abholung ändern",
+    "pickupHintWithMode": "Abholzeit oder Abholart für einen Tag ändern"
+  }
+}

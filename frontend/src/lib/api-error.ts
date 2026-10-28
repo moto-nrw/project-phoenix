@@ -2,7 +2,7 @@ import type { ErrorCode } from "~/lib/error-codes.generated";
 
 /**
  * Types a wire code for comparison against registry codes, so a literal that
- * is not in error-registry.json fails the type check. The value itself is not
+ * is not in error-registry/ fails the type check. The value itself is not
  * validated: an unknown code simply never equals a registered one.
  */
 export function wireErrorCode(code: unknown): ErrorCode | undefined {
@@ -162,6 +162,27 @@ export function problemDetail(body: unknown): string | undefined {
   return typeof detail === "string" && detail.trim() ? detail : undefined;
 }
 
+const sessionTenantMismatchListeners = new Set<() => void>();
+
+/**
+ * Who learns that the BFF refused a request because the session belongs to
+ * another school than this subdomain (#5130). The session cache drops its
+ * session and wakes the SessionProvider, so TenantGuard switches back;
+ * TenantGuard hides the page until then. Error answers that become an
+ * ApiError report here, and the fetch observer reports every fetch answer,
+ * also of clients that never read the body. Returns the unsubscribe function.
+ */
+export function onSessionTenantMismatch(listener: () => void): () => void {
+  sessionTenantMismatchListeners.add(listener);
+  return () => {
+    sessionTenantMismatchListeners.delete(listener);
+  };
+}
+
+export function reportSessionTenantMismatch(): void {
+  for (const listener of sessionTenantMismatchListeners) listener();
+}
+
 /**
  * Turns an error body into an ApiError. The caller supplies the user-safe
  * message; the envelope's diagnostic `detail` remains separate for logs.
@@ -188,13 +209,17 @@ export function apiErrorFromBody(
           typeof entry.reason === "string",
       )
     : undefined;
-  return new ApiError(message, status, {
+  const error = new ApiError(message, status, {
     code: typeof data.code === "string" && data.code ? data.code : undefined,
     detail: problemDetail(data),
     details,
     errors,
     instance: typeof data.instance === "string" ? data.instance : undefined,
   });
+  if (error.code === "identity.session_tenant_mismatch") {
+    reportSessionTenantMismatch();
+  }
+  return error;
 }
 
 /**

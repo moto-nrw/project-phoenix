@@ -1,0 +1,132 @@
+{
+  "packages": [
+    {
+      "path": "cmd/devtools",
+      "owner": "dev-tools",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "demoprofile",
+      "owner": "dev-tools",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/devtools/seedapi",
+      "owner": "dev-tools",
+      "role": "cli",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "internal/devtools/simulate",
+      "owner": "dev-tools",
+      "role": "cli",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "dev-tools.cli.demo-profile-contract",
+      "description": "Demo seed and simulation CLIs may use the demo profile contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "cli",
+      "target_owner": "dev-tools",
+      "target_role": "contract"
+    },
+    {
+      "id": "dev-tools.compose.cli",
+      "description": "The dev tools binary starts the seeder and the simulator. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "dev-tools",
+      "target_role": "cli"
+    },
+    {
+      "id": "dev-tools.compose.http-client",
+      "description": "The dev tools binary drives the server through its HTTP API. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "dev-tools.compose.transaction-runtime",
+      "description": "The demo process opens its own phoenix_demo connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.organization-tenancy",
+      "description": "The demo process composes the demo school state and queue on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.identity-access",
+      "description": "The demo process composes the demo access expiry on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.student-presence",
+      "description": "The demo process composes the presence reads of its ticks on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.tenant-runtime",
+      "description": "The demo process reads presence inside a tenant-scoped transaction. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "dev-tools.compose.security-runtime",
+      "description": "The dev tools binary draws generated seed credentials from the cryptographic entropy Security Runtime owns (#3364). The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    }
+  ]
+}

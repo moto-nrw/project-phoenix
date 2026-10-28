@@ -317,23 +317,23 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@2056",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2008",
+      "Bedingung löschen@2004",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
       "abweichend bearbeiten@2512",
       "Auswahlzeit entfernen@3436",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
-      "Entfernen@589",
-      "Telefonnummer entfernen@848",
+      "Entfernen@593",
+      "Telefonnummer entfernen@868",
     ],
-    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1312"],
+    "src/components/staff/shift-edit-modal.tsx": ["Entfernen@1316"],
     "src/components/staff/stammdaten-section-forms.tsx": [
       "Qualifikation entfernen@422",
     ],
-    "src/components/students/companion-picker.tsx": ["entfernen@296"],
+    "src/components/students/companion-picker.tsx": ["entfernen@297"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@716",
+      "Erziehungsberechtigte/n entfernen@723",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
       "Rückgängig Entfernen@803",
@@ -1587,16 +1587,16 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Termin bearbeiten Termin erstellen@1062",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
-      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@606",
+      "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@605",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
-      "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@266",
+      "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@267",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@984",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@987",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@932",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@934",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@145",
@@ -1615,7 +1615,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // Betreuung): keine Feldgruppe des Datensatzes, aus dem Kebab der
     // Personalakte geöffnet (#3116).
     "src/components/auth/mfa-admin-override-modal.tsx": [
-      "Zwei-Faktor-Authentifizierung verwalten@380",
+      "Zwei-Faktor-Authentifizierung verwalten@374",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
       "resolve Zuordnungen auflösen: Betreuung verwalten:@330",

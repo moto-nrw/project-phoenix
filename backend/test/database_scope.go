@@ -107,6 +107,7 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 	if err != nil {
 		return err
 	}
+	attachTestQueryHooks(entry.db)
 	if err = initCloneBootstrap(ctx, entry.db); err != nil {
 		return err
 	}
@@ -160,6 +161,7 @@ func openTestPool(ctx context.Context, dsn string) (*bun.DB, error) {
 func (entry *isolatedTestDatabase) drop() {
 	entry.dropOnce.Do(func() {
 		if entry.db != nil {
+			detachTestQueryHooks(entry.db)
 			_ = entry.db.Close()
 		}
 		if entry.clone != nil {

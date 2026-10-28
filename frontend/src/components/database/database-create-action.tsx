@@ -27,9 +27,9 @@ interface DatabaseCreateActionProps {
 }
 
 const DESKTOP_CLASS =
-  "bg-moto-green hover:bg-moto-green-hover h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-gray-950 disabled:cursor-not-allowed disabled:opacity-50";
+  "bg-moto-green-fill hover:bg-moto-green-fill-hover h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50";
 const FAB_CLASS =
-  "bg-moto-green hover:bg-moto-green-hover h-14 w-14 items-center justify-center rounded-full text-gray-950 shadow-lg disabled:cursor-not-allowed disabled:opacity-50";
+  "bg-moto-green-fill hover:bg-moto-green-fill-hover h-14 w-14 items-center justify-center rounded-full text-white shadow-lg disabled:cursor-not-allowed disabled:opacity-50";
 
 /**
  * Renders both the desktop "+ Label" button and the mobile FAB. Visibility

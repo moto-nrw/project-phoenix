@@ -330,7 +330,7 @@ If a test's purpose genuinely requires the system clock, inject a clock where po
 
 ## 15. Query Budgets — Every List Endpoint Has One (#2940)
 
-**RULE: A new list endpoint (or list-shaped service method) ships with a query-budget test and a register entry in `backend/test/query_budgets.go`.** N+1 loops show up at three fixtures already, so the test is cheap: create 3 rows, run the request, create more, run it again, assert the statement count did not move, then hand the statements to the register.
+**RULE: A new list endpoint (or list-shaped service method) ships with a query-budget test and a register entry in `backend/test/query-budgets/`.** N+1 loops show up at three fixtures already, so the test is cheap: create 3 rows, run the request, create more, run it again, assert the statement count did not move, then hand the statements to the register.
 
 ```go
 counter := testpkg.CaptureQueries(t, db)          // bun.QueryHook, disabled at cleanup
@@ -398,7 +398,7 @@ Two former rows are gone (#4427). The `bun` import in `*/http` and `*/inbound` i
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
 - [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 - [ ] Calendar/date/week test fixtures use fixed Berlin values, or have an exact-function live-clock exception with a reviewed reason
-- [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + register entry in `test/query_budgets.go`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
+- [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + register entry in `test/query-budgets/`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
 - [ ] All backend source stays inside Rule 16: no new file over 800 lines, function over 60 lines or `gocognit` 15; owner-scoped facade/pass-through/legacy budgets also stay unchanged or decrease
 
 ## Detection commands (one-shot health check)

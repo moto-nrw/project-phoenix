@@ -358,8 +358,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
                   </div>
                   {email && (
                     <div className="text-sm">
-                      <span className="font-medium">E-Mail:</span>{" "}
-                      {email}
+                      <span className="font-medium">E-Mail:</span> {email}
                     </div>
                   )}
                   <div className="mt-2 text-xs text-gray-500">
@@ -453,9 +452,10 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     },
 
     // Custom update handler for teacher-specific flow
-    update: async (id, data) => {
+    update: async (id, data, current) => {
       // Teacher update requires updating both person and staff records
-      const result = await teacherService.updateTeacher(id, data);
+      if (!current) throw new Error("Staff record is not loaded");
+      const result = await teacherService.updateTeacher(id, data, current);
       return result;
     },
   },

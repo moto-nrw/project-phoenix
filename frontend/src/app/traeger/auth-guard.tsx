@@ -2,10 +2,14 @@
 
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
 import { Loading } from "~/components/ui/loading";
 import { TraegerShell } from "~/components/traeger/traeger-shell";
-import { traegerPath } from "~/lib/traeger-url";
+import { useTraegerOrganization } from "~/components/traeger/use-traeger-organization";
+import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { hasSessionAccess } from "~/lib/session-access";
+import { TraegerShellProvider } from "~/lib/shell-auth-context";
+import { traegerPath } from "~/lib/traeger-url";
 
 const TRAEGER_PUBLIC_PAGES = [
   "/traeger/login",
@@ -60,5 +64,25 @@ export function TraegerAuthGuard({
     );
   }
 
-  return <TraegerShell>{children}</TraegerShell>;
+  return <TraegerPortal>{children}</TraegerPortal>;
+}
+
+/**
+ * The signed-in portal: the shared shell providers nested like the caterer
+ * portal's (#5145). The Träger is read once here, for its name next to the
+ * logo and the test-system strip.
+ */
+function TraegerPortal({ children }: { readonly children: React.ReactNode }) {
+  const organization = useTraegerOrganization();
+  return (
+    <TraegerShellProvider organizationName={organization?.name}>
+      <BreadcrumbProvider>
+        <ShellIntlProvider>
+          <TraegerShell testSystem={organization?.testSystem === true}>
+            {children}
+          </TraegerShell>
+        </ShellIntlProvider>
+      </BreadcrumbProvider>
+    </TraegerShellProvider>
+  );
 }

@@ -53,6 +53,30 @@ describe("FormErrorAlert", () => {
     expect(scrollIntoView).toHaveBeenCalledTimes(2);
   });
 
+  it("scrolls to the first marked field of its form instead of itself", () => {
+    const scrolled: Element[] = [];
+    vi.spyOn(Element.prototype, "scrollIntoView").mockImplementation(function (
+      this: Element,
+    ) {
+      scrolled.push(this);
+    });
+
+    render(
+      <form>
+        <FormErrorAlert message="Bitte prüfen Sie die markierten Felder." />
+        <input aria-label="Vorname" />
+        <button type="button" data-form-invalid="true">
+          Einwilligung
+        </button>
+        <input aria-label="Telefon" aria-invalid="true" />
+      </form>,
+    );
+
+    expect(scrolled).toEqual([
+      screen.getByRole("button", { name: "Einwilligung" }),
+    ]);
+  });
+
   it("scrolls again for a repeated attempt with the same message", () => {
     const scrollIntoView = vi
       .spyOn(Element.prototype, "scrollIntoView")

@@ -1,20 +1,18 @@
 "use client";
 
-// Ein Ferienzeitraum des Trägers (#4659): ändern und veröffentlichen.
+// Ein Ferienzeitraum des Trägers (#4659): ändern und veröffentlichen. Der
+// Reiter „Anmeldungen“ führt zur Prüfung der Anmeldungen (#4663).
 
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
-  formatDateRange,
-  holidayStatusLabel,
-} from "~/components/traeger/holiday-period-format";
+  HolidayPeriodStatusLine,
+  holidayPeriodTabs,
+} from "~/components/traeger/holiday-period-head";
 import { HolidayPeriodForm } from "~/components/traeger/holiday-period-form";
 import { HolidayPeriodPublishCard } from "~/components/traeger/holiday-period-publish-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
-import { BackLink } from "~/components/ui/back-link";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
-import { StatusBadge } from "~/components/ui/status-badge";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
@@ -55,34 +53,18 @@ export default function TraegerHolidayPeriodPage() {
   const loadError = periodLoad.error ?? schoolsError;
 
   return (
-    <div className="w-full space-y-6">
-      <div className="space-y-2">
-        <BackLink href={listHref} label="Zurück zu den Ferien" />
-        {period ? (
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-                {period.name}
-              </h1>
-              <StatusBadge
-                label={holidayStatusLabel(period)}
-                tone={period.status === "published" ? "green" : "gray"}
-              />
-            </div>
-            <p className="text-sm text-gray-500">
-              Anmeldung{" "}
-              {formatDateRange(
-                period.registrationOpensOn,
-                period.registrationClosesOn,
-              )}
-            </p>
-          </>
-        ) : null}
-      </div>
-
-      {loadError ? (
-        <LoadErrorAlert error={loadError} />
-      ) : period && schools ? (
+    <TenantPage
+      title={period?.name ?? "Ferienzeitraum"}
+      back
+      backHref={listHref}
+      backLabel="Zurück zu den Ferien"
+      stats={period ? <HolidayPeriodStatusLine period={period} /> : null}
+      statsLoading={!period && !loadError}
+      tabs={holidayPeriodTabs(id, "planung", period?.registrationCount)}
+      error={loadError}
+      loading={!loadError && !(period && schools)}
+    >
+      {period && schools ? (
         <>
           <HolidayPeriodPublishCard
             period={period}
@@ -98,9 +80,7 @@ export default function TraegerHolidayPeriodPage() {
             onSaved={setPeriod}
           />
         </>
-      ) : (
-        <Loading fullPage={false} />
-      )}
-    </div>
+      ) : null}
+    </TenantPage>
   );
 }

@@ -762,9 +762,7 @@ describe("Sidebar", () => {
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter", () => {
-      // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
-      // (Planung-Redesign) und darf die Mitarbeiter-Sektion nicht färben.
-      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockUsePathname.mockReturnValue("/dienstplan");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
@@ -914,6 +912,36 @@ describe("Sidebar", () => {
 
       const roomsLink = screen.getByText("Räume").closest("a");
       expect(roomsLink).toHaveClass("bg-gray-100");
+    });
+
+    it("keeps Alle Kinder highlighted on Unterwegs opened from there", () => {
+      // #5026: die Karte „Unterwegs“ auf „Alle Kinder“ führt hierher.
+      mockUsePathname.mockReturnValue("/rooms/unterwegs");
+      const mockGet = vi.fn((key: string) =>
+        key === "from" ? "/students/search?status=unterwegs" : null,
+      );
+      mockUseSearchParams.mockReturnValue(createMockSearchParams(mockGet));
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Alle Kinder").closest("a")).toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.getByText("Räume").closest("a")).not.toHaveClass(
+        "bg-gray-100",
+      );
+    });
+
+    it("highlights rooms on Unterwegs opened from the rooms", () => {
+      mockUsePathname.mockReturnValue("/rooms/unterwegs");
+      const mockGet = vi.fn((key: string) =>
+        key === "from" ? "/rooms" : null,
+      );
+      mockUseSearchParams.mockReturnValue(createMockSearchParams(mockGet));
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Räume").closest("a")).toHaveClass("bg-gray-100");
     });
 
     it("defaults to student search when no from param", () => {

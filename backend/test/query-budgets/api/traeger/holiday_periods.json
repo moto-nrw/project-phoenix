@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.holiday_periods",
+  "max": 4,
+  "exact": true,
+  "description": "modules/enrollment — GET /traeger/holiday-periods (#4659): the Träger\nbinding of the Träger transaction, then the periods of the Träger,\ntheir weeks and their time models. Flat in the number of periods and\nweeks."
+}

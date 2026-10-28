@@ -77,6 +77,7 @@ func (w *Worker) runTransport(ctx context.Context, transport domain.Transport, l
 	}
 	if unknown > 0 {
 		stats.DeadLettered += int(unknown)
+		stats.DeadLetters = append(stats.DeadLetters, fmt.Sprintf("%d %s dispatches with unknown outcome: dispatch fence expired without finalization", unknown, transport))
 		w.observe(domain.Observation{Operation: "dispatch_outcome_unknown", Transport: string(transport), Count: int(unknown), Err: errors.New("dispatch fence expired without finalization")})
 	}
 	claimStarted := time.Now()
@@ -201,6 +202,7 @@ func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, toke
 	}
 	if result.State == string(domain.StateDeadLetter) {
 		stats.DeadLettered++
+		stats.DeadLetters = append(stats.DeadLetters, fmt.Sprintf("%s %s delivery %d: %v", intent.Transport, intent.Template, intent.ID, sendErr))
 		w.observe(domain.Observation{Operation: "dead_letter", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: sendErr})
 		return
 	}

@@ -39,6 +39,11 @@ func CurrentRoomVisitsFilter(studentIDs []int64) VisitLocationFilter {
 type VisitLocationQuery interface {
 	ListVisitLocations(context.Context, VisitLocationFilter) ([]VisitLocation, error)
 	CountOpenVisitsInGroup(context.Context, int64) (int, error)
+	// CountOpenVisitsInGroupWithRevision returns the open visit count of a
+	// session and its visit revision from one snapshot (#5128). Every
+	// committed change of the count raises the revision; one revision of a
+	// session always names the same count.
+	CountOpenVisitsInGroupWithRevision(context.Context, int64) (int, int64, error)
 	CountOpenVisitsInRoom(context.Context, int64) (int, error)
 	ListOpenVisitRooms(context.Context, int64) ([]OpenVisitRoom, error)
 }

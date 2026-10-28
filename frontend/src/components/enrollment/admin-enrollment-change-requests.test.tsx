@@ -216,9 +216,12 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
 
     render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
     await screen.findByText("Änderungsanfrage prüfen");
-    fireEvent.change(screen.getByLabelText("Begründung"), {
-      target: { value: "Passt." },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Begründung (freiwillig, Pflicht bei Ablehnung)"),
+      {
+        target: { value: "Passt." },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     await waitFor(() =>
@@ -262,9 +265,12 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
 
     render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
     await screen.findByText("Änderungsanfrage prüfen");
-    fireEvent.change(screen.getByLabelText("Begründung"), {
-      target: { value: "Passt." },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Begründung (freiwillig, Pflicht bei Ablehnung)"),
+      {
+        target: { value: "Passt." },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
 
     expect(
@@ -273,6 +279,49 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText("RDST 1b")).toBeInTheDocument();
+  });
+
+  // #5024: an approval needs no note; a rejection still does.
+  it("approves without a note", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+    mocks.approveEnrollmentChangeRequest.mockResolvedValueOnce({
+      ...baseChangeRequest,
+      status: "approved",
+    });
+
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+    await screen.findByText("Änderungsanfrage prüfen");
+    const approve = screen.getByRole("button", { name: "Freigeben" });
+    expect(approve).toBeEnabled();
+    fireEvent.click(approve);
+
+    await waitFor(() =>
+      expect(mocks.approveEnrollmentChangeRequest).toHaveBeenCalledWith(
+        "42",
+        "",
+      ),
+    );
+  });
+
+  it("asks for a note before rejecting without one", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce(
+      baseChangeRequest,
+    );
+
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+    await screen.findByText("Änderungsanfrage prüfen");
+    fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
+
+    const field = screen.getByLabelText(
+      "Begründung (freiwillig, Pflicht bei Ablehnung)",
+    );
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(
+      screen.getByText("Bitte begründen Sie die Ablehnung."),
+    ).toBeVisible();
+    expect(mocks.rejectEnrollmentChangeRequest).not.toHaveBeenCalled();
   });
 
   it("shows a failed load where the request is missing", async () => {
@@ -302,17 +351,20 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
 
     render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
     await screen.findByText("Änderungsanfrage prüfen");
-    fireEvent.change(screen.getByLabelText("Begründung"), {
-      target: { value: "Nicht nachvollziehbar." },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Begründung (freiwillig, Pflicht bei Ablehnung)"),
+      {
+        target: { value: "Nicht nachvollziehbar." },
+      },
+    );
     fireEvent.click(screen.getByRole("button", { name: "Ablehnen" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       catalogText("general.business_rejection", "die Entscheidung"),
     );
-    expect(screen.getByLabelText("Begründung")).toHaveValue(
-      "Nicht nachvollziehbar.",
-    );
+    expect(
+      screen.getByLabelText("Begründung (freiwillig, Pflicht bei Ablehnung)"),
+    ).toHaveValue("Nicht nachvollziehbar.");
   });
 
   it("confirms a sent question", async () => {

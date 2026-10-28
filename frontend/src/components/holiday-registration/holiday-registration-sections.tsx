@@ -12,6 +12,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
@@ -110,6 +111,7 @@ export function ChildCard({
           <Input
             name={`${prefix}.first_name`}
             label={t("firstName")}
+            required
             autoComplete="off"
             maxLength={100}
             value={child.firstName}
@@ -119,6 +121,7 @@ export function ChildCard({
           <Input
             name={`${prefix}.last_name`}
             label={t("lastName")}
+            required
             autoComplete="off"
             maxLength={100}
             value={child.lastName}
@@ -127,9 +130,7 @@ export function ChildCard({
           />
         </div>
         <div>
-          <span className="block text-sm font-medium text-gray-700">
-            {t("birthDate")}
-          </span>
+          <FieldLabel required>{t("birthDate")}</FieldLabel>
           <DateOfBirthPicker
             value={child.birthDate}
             onChange={(birthDate) => set({ birthDate })}
@@ -140,12 +141,9 @@ export function ChildCard({
           />
         </div>
         <div className="space-y-2">
-          <span
-            id={`${prefix}-school-label`}
-            className="block text-sm font-medium text-gray-700"
-          >
+          <FieldLabel id={`${prefix}-school-label`} required>
             {t("school")}
-          </span>
+          </FieldLabel>
           <CustomSelect
             name={`${prefix}.home_school_id`}
             ariaLabelledBy={`${prefix}-school-label`}
@@ -185,6 +183,7 @@ export function ChildCard({
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-gray-900">
             {t("weeksTitle")}
+            <RequiredMark />
           </legend>
           <p className="text-sm text-gray-600">{t("weeksText")}</p>
           {offer.weeks.map((week) => (
@@ -302,6 +301,7 @@ export function ContactList({
             <Input
               name={`${kind}.${index}.name`}
               label={t("name")}
+              required
               maxLength={120}
               value={contact.name}
               error={fieldError(`${kind}.${index}.name`)}
@@ -313,6 +313,7 @@ export function ContactList({
               name={`${kind}.${index}.phone`}
               type="tel"
               label={emergency ? t("phone") : t("phoneOptional")}
+              required={emergency}
               maxLength={40}
               value={contact.phone}
               error={fieldError(`${kind}.${index}.phone`)}
@@ -432,5 +433,78 @@ export function KnownChildPicker({
         <p className="text-sm text-gray-600">{t("knownChildrenFull")}</p>
       ) : null}
     </fieldset>
+  );
+}
+
+/** Exactly one optional co-guardian; the registering parent's data stays separate. */
+export function SecondGuardianCard({
+  guardian,
+  fieldError,
+  onChange,
+}: Readonly<{
+  guardian: RegistrationDraft["guardian"];
+  fieldError: FieldError;
+  onChange: (guardian: RegistrationDraft["guardian"]) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  const namesRequired = Object.values(guardian).some(
+    (value) => value.trim() !== "",
+  );
+  return (
+    <SectionCard
+      title={t("secondGuardianTitle")}
+      description={t("secondGuardianText")}
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Input
+          name="second_guardian.first_name"
+          label={t("firstName")}
+          required={namesRequired}
+          autoComplete="section-second-guardian given-name"
+          maxLength={100}
+          value={guardian.firstName}
+          error={fieldError("second_guardian.first_name")}
+          onChange={(event) =>
+            onChange({ ...guardian, firstName: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.last_name"
+          label={t("lastName")}
+          required={namesRequired}
+          autoComplete="section-second-guardian family-name"
+          maxLength={100}
+          value={guardian.lastName}
+          error={fieldError("second_guardian.last_name")}
+          onChange={(event) =>
+            onChange({ ...guardian, lastName: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.email"
+          type="email"
+          label={t("emailOptional")}
+          autoComplete="section-second-guardian email"
+          maxLength={254}
+          value={guardian.email}
+          error={fieldError("second_guardian.email")}
+          onChange={(event) =>
+            onChange({ ...guardian, email: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.phone"
+          type="tel"
+          label={t("phoneOptional")}
+          autoComplete="section-second-guardian tel"
+          maxLength={40}
+          value={guardian.phone}
+          error={fieldError("second_guardian.phone")}
+          onChange={(event) =>
+            onChange({ ...guardian, phone: event.target.value })
+          }
+        />
+      </div>
+    </SectionCard>
   );
 }

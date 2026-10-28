@@ -2,7 +2,7 @@
 # Läuft nur die Tests, die von den Änderungen gegenüber BASE betroffen sind.
 # Backend: geänderte Go-Packages PLUS alle Packages, deren Produktions- oder
 #   Test-Abhängigkeiten sie transitiv importieren.
-# Frontend: vitest --changed (derselbe Modus, den CI für PRs benutzt).
+# Frontend: Dateisystem-Guards plus vitest --changed (wie im PR-Check).
 #
 # Usage: scripts/test-changed.sh [--fast] [base-ref]   (Default: origin/development)
 #   --fast: nur direkt geänderte Packages plus ihre direkten Importer
@@ -89,8 +89,8 @@ fi
 
 frontend_changes=$(
   {
-    git diff --name-only "$MB" -- frontend
-    git ls-files --others --exclude-standard -- frontend
+    git diff --name-only "$MB" -- frontend scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
+    git ls-files --others --exclude-standard -- frontend scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
   } | awk '!/\.md$/' | sort -u
 )
 run_frontend_vitest() {
@@ -99,20 +99,27 @@ run_frontend_vitest() {
     # The changed-test command is unattended. CI mode lets pnpm recreate a
     # stale generated modules directory from the frozen lockfile.
     CI=true pnpm install --frozen-lockfile
-    pnpm vitest run "$@"
+    if [ "${1:-}" = --changed ]; then
+      node ../scripts/test-frontend-changed.mjs "$2"
+    else
+      pnpm vitest run "$@"
+    fi
   )
 }
 
 if printf '%s\n' "$frontend_changes" | grep -qxE \
-  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup(-common)?\.ts)'; then
+  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup(-common)?\.ts)|scripts/test-frontend-changed\.mjs'; then
   echo "==> vitest (frontend test infrastructure changed)"
   run_frontend_vitest
 elif [ -n "$frontend_changes" ]; then
   # Vitest 4 includes committed, staged, unstaged, and untracked files in its
-  # dependency traversal. A separate full-suite fallback only duplicates work
-  # for new test files.
+  # dependency traversal. Filesystem guards run separately because runtime
+  # scans do not create import edges for that traversal.
   echo "==> vitest --changed $BASE"
   run_frontend_vitest --changed "$BASE"
+elif [ -n "$(git diff --name-only "$MB" -- backend/modules/settings/internal/defaults; git ls-files --others --exclude-standard -- backend/modules/settings/internal/defaults)" ]; then
+  echo "==> vitest (backend settings category guard)"
+  run_frontend_vitest src/components/settings/settings-filter.test.ts
 else
   echo "==> frontend: keine Änderungen"
 fi

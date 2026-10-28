@@ -1,0 +1,6 @@
+{
+  "scenario": "services.operator.school_summaries",
+  "max": 8,
+  "exact": false,
+  "description": "services — the operator school listing (#3568), organizationtenancy\nProvisioning.ListSchoolSummaries: the school rows plus one aggregate\neach for accounts, devices, persons and the Kontingentzahl, eight\nstatements in all. Flat in the number of schools and children."
+}

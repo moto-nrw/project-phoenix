@@ -1,0 +1,10 @@
+{
+  "kicker": "OGS'den haberler",
+  "title": "Veli mektupları",
+  "description": "OGS'nizden duyurular, anketler ve önemli bilgiler.",
+  "empty": "Şu anda yeni veli mektubu yok.",
+  "open": "Açık",
+  "openLabel": "Açık, {count}",
+  "completed": "Tamamlandı",
+  "errorObjectList": "veli mektupları listesi"
+}

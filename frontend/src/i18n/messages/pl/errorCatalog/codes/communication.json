@@ -1,0 +1,22 @@
+{
+  "announcement_not_published": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "announcement_published_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "announcement_reminder_sent": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "declaration_has_submissions": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "notifications_disabled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "parent_news_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "poll_not_open": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "staff_counterpart_unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie.",
+  "staff_messaging_disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "staff_notice_outdated": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "system_announcement_immutable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "announcement_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "group_thread_closed": "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
+  "group_thread_no_recipients": "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
+  "survey_not_open": "Ta ankieta nie przyjmuje już odpowiedzi.",
+  "survey_already_answered": "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
+  "survey_not_draft": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "survey_anonymous": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "class_letter_class_not_reachable": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "class_letter_read_only": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+}

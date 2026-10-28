@@ -248,8 +248,7 @@ function isStudentDetailPath(pathname: string): boolean {
  * Die Gruppe, zu der der aktuelle Pfad gehört, damit die Seitenleiste sie
  * aufklappen kann. Kinder-Detailseiten gehören zu der Gruppe, aus der man
  * gekommen ist (`?from=`), sonst zum Tagesbetrieb — dort steht „Alle
- * Kinder", der Standard-Rückweg der Breadcrumb. Planungsseiten zählen mit
- * ihren Alt-Pfaden (/timetables, /staff/dienstplan, /vertretungsplan).
+ * Kinder", der Standard-Rückweg der Breadcrumb.
  */
 export function getStaffNavGroupForPathname(
   pathname: string,

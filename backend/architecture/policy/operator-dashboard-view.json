@@ -1,0 +1,65 @@
+{
+  "packages": [
+    {
+      "path": "modules/operatordashboard/internal/adapters/postgres",
+      "owner": "operator-dashboard-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/operatordashboard",
+      "owner": "operator-dashboard-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/operatordashboard/contract",
+      "owner": "operator-dashboard-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "operator-dashboard-view.integration-test.postgres",
+      "description": "The operator dashboard projection integration tests exercise the projection itself.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "operator-dashboard-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "operator-dashboard-view",
+      "target_role": "postgres"
+    },
+    {
+      "id": "operator-dashboard-view.postgres.native-contract",
+      "description": "Own native projection values, replacing inline private definitions.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "operator-dashboard-view",
+      "source_role": "postgres",
+      "target_owner": "operator-dashboard-view",
+      "target_role": "public"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "operator-dashboard",
+      "package": "modules/operatordashboard/internal/adapters/postgres",
+      "data_objects": [
+        "auth.account_roles",
+        "auth.account_tenants",
+        "auth.accounts",
+        "auth.roles",
+        "iot.pwa_standalone_usage",
+        "platform.organizations",
+        "platform.schools"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

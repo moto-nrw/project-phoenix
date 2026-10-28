@@ -411,7 +411,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			classDay, err = buildClassDayViews(db, env, hub, caller, flows.Reports, carePlanRows, schedules, carePlan, people, audit,
-				settings.Service, lifecycle.Operations, presence, persons, groups, rooms, renderer, timetableOwner, emitter, notifications)
+				settings.Service, lifecycle.Operations, presence, persons, groups, rooms, renderer, timetableOwner, emitter, staffGroups, notifications)
 			return
 		},
 		func() error {
@@ -582,7 +582,7 @@ func composeServeRoot(
 	worker, err := owners.NewWorker(db, env.Logger, tracer, hub, settings.Service, audit.Command, audit.Persistence.DataAccessLog, deviceFleet, carePlan, persons, people,
 		organizations, identity, facilities, timetableRepos, workTime, staffAdmin, workforce, active, reports, lifecycle, days,
 		materialization, schedules, requests.Documents, services, studentAudit, notices, flows, studentDeletion, feedback, calendarApp,
-		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker))
+		notifications, deliveryDevices.PWAUsage, chat.StaffMessaging, outbox, reminders, fileStore, announcements, mealPlan, analyticsSchoolNames(tracker), PlannedStaffExitsJob(db, hub, env.Logger))
 	if err != nil {
 		return nil, nil, err
 	}

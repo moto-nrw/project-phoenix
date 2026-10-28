@@ -10,14 +10,11 @@
  *
  * Die Zuordnung folgt der Routen-Zuordnung des Backends
  * (`backend/api/module_routes.go`, #4893) und dem Modulkatalog
- * (`docs/reference/modulschalter.md`). Zwei Abweichungen sind gewollt:
- *
- * - Aktivitäten (`/activities`, `/database/activities`) gehören hier zu
- *   NFC-Anwesenheit, im Backend zur Basis. Die Seiten waren schon vor den
- *   Modulen nur mit NFC zu sehen; eine Schule ohne NFC behält damit genau
- *   die Navigation, die sie kannte.
- * - Geräte (`/database/devices`) sperrt das Backend erst mit #4896. Die
- *   Seite war ebenso nur mit NFC zu sehen und bleibt es.
+ * (`docs/reference/modulschalter.md`). Eine Abweichung ist gewollt:
+ * Aktivitäten (`/activities`, `/database/activities`) gehören hier zu
+ * NFC-Anwesenheit, im Backend zur Basis. Die Seiten waren schon vor den
+ * Modulen nur mit NFC zu sehen; eine Schule ohne NFC behält damit genau die
+ * Navigation, die sie kannte.
  *
  * Schul-Einstellungen wie `operations.meal_plan_enabled` oder
  * `timetable.enabled` bleiben Feinsteuerung in den Verbrauchern: eine Seite
@@ -91,11 +88,8 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   // Planung. Der Dienstplan setzt nur Basis voraus und hängt nicht mehr am
   // Betreuungsplan (`timetable.enabled`, Entscheidung in #4812).
   "/betreuungsplan": BASIS,
-  "/timetables": BASIS,
   "/dienstplan": "dienstplan",
-  "/staff/dienstplan": "dienstplan",
   "/vertretung": BASIS,
-  "/vertretungsplan": BASIS,
   "/lists": BASIS,
   "/calendar-periods": BASIS,
   // Lohnabrechnung aus der Zeiterfassung (Lohnbüro-Versand, Personalnummer).
@@ -194,7 +188,7 @@ export const STAFF_TAB_MODULES: Readonly<Record<string, ModuleKey>> = {
 /**
  * Das Modul hinter einer Adresse der Mitarbeiter-Oberfläche, oder `null` für
  * Basis und unbekannte Adressen. Der längste passende Pfad gewinnt, damit
- * `/staff/dienstplan` nicht an `/staff` hängen bleibt.
+ * spezifische Unterseiten ihr eigenes Modul behalten.
  */
 export function moduleOfPath(pathname: string): ModuleKey | null {
   let best: string | null = null;

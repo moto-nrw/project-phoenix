@@ -268,37 +268,30 @@ func (m *BookingMaterialization) sourcedTemplateSegment(
 		return careplan.LinkedSegment{}, false
 	}
 	group := careplan.LinkedGroup{ID: tmpl.ID, IsTemplate: true, CalendarPeriodID: tmpl.CalendarPeriodID}
-	if templateWithoutPeriod(group, schedules) {
-		// Neither the template nor a schedule names a planning period: the
-		// template-save resync plans such a template with a period-less row
-		// (sourcedTemplateDraft), so this feed must too. Skipping it would let
-		// a correction delete rows it never re-creates (#5114).
-		return careplan.LinkedSegment{Group: group, Schedules: schedules}, true
-	}
-	period, err := m.catalog.ResolveTemplatePeriod(ctx, group)
+	// The phase is checked against the template's own period and the rows
+	// carry the period the instances materialize under (sourcedRowPeriodID),
+	// both exactly as every resync does. A template whose schedules name no
+	// period or different periods must not be skipped here, or a correction
+	// deletes rows it never re-creates (#5114, #5153, #5176).
+	checked, err := m.catalog.offeringSourcePeriod(ctx, group.CalendarPeriodID)
 	if err != nil {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
 		return careplan.LinkedSegment{}, false
 	}
-	if err := careplan.ValidatePhaseWithinPeriod(feed.phase, &period); err != nil {
-		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "phase outside template period", err)
-		return careplan.LinkedSegment{}, false
-	}
-	return careplan.LinkedSegment{Group: group, Period: &period, Schedules: schedules}, true
-}
-
-// templateWithoutPeriod reports whether neither the template nor any of its
-// schedules carries a calendar_period_id.
-func templateWithoutPeriod(group careplan.LinkedGroup, schedules []careplan.LinkedSchedule) bool {
-	if group.CalendarPeriodID != nil {
-		return false
-	}
-	for _, schedule := range schedules {
-		if schedule.CalendarPeriodID != nil {
-			return false
+	if checked != nil {
+		if err := careplan.ValidatePhaseWithinPeriod(feed.phase, checked); err != nil {
+			m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "phase outside template period", err)
+			return careplan.LinkedSegment{}, false
 		}
 	}
-	return true
+	period := checked
+	if rowPeriodID := sourcedRowPeriodID(group.CalendarPeriodID, schedules); !sameOptionalInt64(rowPeriodID, group.CalendarPeriodID) {
+		if period, err = m.catalog.offeringSourcePeriod(ctx, rowPeriodID); err != nil {
+			m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
+			return careplan.LinkedSegment{}, false
+		}
+	}
+	return careplan.LinkedSegment{Group: group, Period: period, Schedules: schedules}, true
 }
 
 func addSourcedSegmentDraft(

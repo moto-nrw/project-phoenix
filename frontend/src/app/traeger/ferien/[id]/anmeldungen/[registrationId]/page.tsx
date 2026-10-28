@@ -16,12 +16,10 @@ import {
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
-import { BackLink } from "~/components/ui/back-link";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Loading } from "~/components/ui/loading";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -173,38 +171,41 @@ export default function TraegerHolidayRegistrationPage() {
     (contact) => contact.kind === "pickup",
   );
 
-  return (
-    <div className="w-full space-y-6">
-      <div className="space-y-2">
-        <BackLink
-          href={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
-          label="Zurück zu den Anmeldungen"
-        />
-        {registration ? (
-          <>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-                Anmeldung Nr. {registration.id}
-              </h1>
-              <StatusBadge
-                tone={HOLIDAY_REGISTRATION_STATUS_TONES[registration.status]}
-                label={HOLIDAY_REGISTRATION_STATUS_LABELS[registration.status]}
-              />
-              {registration.frozen ? (
-                <StatusBadge tone="gray" label="Eingefroren" />
-              ) : null}
-            </div>
-            <p className="text-sm text-gray-500">
-              {period ? `${period.name} · ` : ""}Eingegangen am{" "}
-              {formatBerlinDate(registration.submittedAt)}
-            </p>
-          </>
-        ) : null}
-      </div>
+  // Der Titel nennt die Eltern, nicht die Datenbanknummer. Die Nummer bleibt
+  // in der Statuszeile: Export und Hinweis auf Doppelanmeldungen verweisen
+  // mit „Anmeldung Nr.“ auf sie.
+  const title = registration
+    ? `Anmeldung von ${registration.guardianFirstName} ${registration.guardianLastName}`
+    : "Anmeldung";
 
-      {loadError ? (
-        <LoadErrorAlert error={loadError} />
-      ) : registration && period && schools ? (
+  return (
+    <TenantPage
+      title={title}
+      back
+      backHref={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
+      backLabel="Zurück zu den Anmeldungen"
+      stats={
+        registration ? (
+          <span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
+            <StatusBadge
+              tone={HOLIDAY_REGISTRATION_STATUS_TONES[registration.status]}
+              label={HOLIDAY_REGISTRATION_STATUS_LABELS[registration.status]}
+            />
+            {registration.frozen ? (
+              <StatusBadge tone="gray" label="Eingefroren" />
+            ) : null}
+            <span>
+              Nr. {registration.id} · {period ? `${period.name} · ` : ""}
+              Eingegangen am {formatBerlinDate(registration.submittedAt)}
+            </span>
+          </span>
+        ) : null
+      }
+      statsLoading={!registration && !loadError}
+      error={loadError}
+      loading={!loadError && !(registration && period && schools)}
+    >
+      {registration && period && schools ? (
         <>
           <HolidayRegistrationStatusCard
             periodId={periodId}
@@ -245,6 +246,22 @@ export default function TraegerHolidayRegistrationPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
+          {registration.secondGuardian ? (
+            <SectionCard title="Zweite sorgeberechtigte Person">
+              <DataGrid>
+                <DataField label="Name">
+                  {registration.secondGuardian.firstName}{" "}
+                  {registration.secondGuardian.lastName}
+                </DataField>
+                <DataField label="E-Mail">
+                  {registration.secondGuardian.email || "Nicht angegeben"}
+                </DataField>
+                <DataField label="Telefon">
+                  {registration.secondGuardian.phone || "Nicht angegeben"}
+                </DataField>
+              </DataGrid>
+            </SectionCard>
+          ) : null}
           {registration.children.map((child) => (
             <HolidayRegistrationChildCard
               key={child.id}
@@ -282,9 +299,7 @@ export default function TraegerHolidayRegistrationPage() {
             registration={registration}
           />
         </>
-      ) : (
-        <Loading fullPage={false} />
-      )}
-    </div>
+      ) : null}
+    </TenantPage>
   );
 }

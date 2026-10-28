@@ -1,8 +1,9 @@
 import { headers } from "next/headers";
-import { unstable_cache } from "next/cache";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
+import { PathModeRedirect } from "~/components/tenant/path-mode-redirect";
+import { normalizeHostname } from "~/lib/tenant-host";
 import { TenantProviders } from "./providers";
 import { loadShellBootstrap } from "~/lib/shell-bootstrap.server";
 import type { ShellBootstrap } from "~/lib/shell-seed";
@@ -10,10 +11,11 @@ import {
   readTenantSessionSnapshot,
   type TenantSessionSnapshot,
 } from "~/lib/tenant-session-snapshot.server";
-import type { TenantInfo, TenantSettings } from "~/lib/tenant-api";
+import type { TenantInfo } from "~/lib/tenant-api";
 import {
   bookedModuleFields,
   normalizeAttendanceEditScope,
+  normalizeReasonPolicy,
   normalizeEarlyCheckoutTolerance,
   normalizeOverviewScope,
   normalizePresenceMode,
@@ -24,44 +26,11 @@ import { isValidTenantSlug } from "~/lib/tenant-slug";
 import { env } from "~/env";
 import { TenantBusyPage } from "~/components/tenant/tenant-busy-page";
 import { incomingClientForwardHeaders } from "~/lib/client-headers.server";
-
-interface TenantResolveResponse {
-  tenant_id: number;
-  slug: string;
-  name: string;
-  subdomain: string;
-  organization_id: number;
-  organization_name: string;
-  traeger_name?: string;
-  hidden?: boolean;
-  settings: TenantSettings;
-  presence_mode?: string;
-  student_photos_enabled?: boolean;
-  booked_modules?: string[];
-  parent_messaging_enabled?: boolean;
-  staff_messaging_enabled?: boolean;
-  display_enabled?: boolean;
-  caldav_enabled?: boolean;
-  care_offerings_enabled?: boolean;
-  attendance_web_enabled?: boolean;
-  attendance_log_enabled?: boolean;
-  group_mode?: string;
-  operational_overview_scope?: string;
-  attendance_edit_scope?: string;
-  timetable_enabled?: boolean;
-  show_timetable_counts?: boolean;
-  meal_plan_enabled?: boolean;
-  meal_registration_enabled?: boolean;
-  waitlist_enabled?: boolean;
-  grade_level_max: number;
-  analytics_enabled?: boolean;
-  analytics_freigabe?: boolean;
-  analytics_recording_sample_percent?: number;
-  early_checkout_note_enabled?: boolean;
-  early_checkout_note_tolerance_minutes?: number;
-  weekend_follows_friday?: boolean;
-  child_search_only_navigation?: boolean;
-}
+import {
+  resolveTenantCached,
+  TenantResolveStatusError,
+  type TenantResolveResponse,
+} from "~/lib/tenant-resolve.server";
 
 // Next's data cache keeps only 200 responses, so a 404 for an unknown slug
 // was never cached: every scanner request for a made-up subdomain reached the
@@ -87,42 +56,6 @@ function rememberUnknownTenant(slug: string): void {
     if (oldest !== undefined) unknownTenantUntil.delete(oldest);
   }
   unknownTenantUntil.set(slug, Date.now() + UNKNOWN_TENANT_TTL_MS);
-}
-
-/** A non-200 answer of the tenant lookup; never cached. */
-class TenantResolveStatusError extends Error {
-  constructor(readonly status: number) {
-    super(`Tenant resolution failed with HTTP ${status}`);
-  }
-}
-
-/**
- * The lookup is cached per slug for all visitors and invalidated by
- * revalidateTag(`tenant-${slug}`). Its key holds the slug only, so the
- * client headers travel in the closure, not in the key: a miss asks the
- * backend under the IP of the visitor who caused it, a hit asks nobody.
- * fetch() itself cannot do this, because Next keys its data cache by the
- * request headers, which would split the cache per client IP. Only a 200 is
- * stored; any other status throws and stays uncached.
- */
-function resolveTenantCached(
-  slug: string,
-  forwardHeaders: Record<string, string>,
-): Promise<TenantResolveResponse> {
-  return unstable_cache(
-    async () => {
-      const { getServerApiUrl } = await import("~/lib/server-api-url");
-      const res = await fetch(
-        `${getServerApiUrl()}/auth/tenant/resolve?slug=${encodeURIComponent(slug)}`,
-        { headers: forwardHeaders, cache: "no-store" },
-      );
-      if (!res.ok) throw new TenantResolveStatusError(res.status);
-      const json = (await res.json()) as { data: TenantResolveResponse };
-      return json.data;
-    },
-    ["tenant-resolve", slug],
-    { revalidate: 300, tags: [`tenant-${slug}`] },
-  )();
 }
 
 /**
@@ -186,6 +119,11 @@ async function fetchTenantInfo(
     attendanceEditScope: normalizeAttendanceEditScope(
       data.attendance_edit_scope,
     ),
+    // „Anfragen“ reads it on the first render; without it the strict
+    // fallback asked for a reason on every approval (#5024).
+    parentRequestReasonPolicy: normalizeReasonPolicy(
+      data.parent_request_reason_policy,
+    ),
     timetableEnabled: data.timetable_enabled !== false,
     showTimetableCounts: data.show_timetable_counts !== false,
     // The meal plan pages read both from the tenant context on the first
@@ -227,6 +165,45 @@ function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
   if (!currentHost) return false;
   const hostname = currentHost.split(":")[0] ?? "";
   return hostname === `${subdomain}.${env.TENANT_DOMAIN}`;
+}
+
+function isBareTenantHost(currentHost: string | null): currentHost is string {
+  return (
+    !!currentHost &&
+    normalizeHostname(currentHost) === normalizeHostname(env.TENANT_DOMAIN)
+  );
+}
+
+/**
+ * Path mode on the bare domain (<domain>/<school>/...) shares the session
+ * cookie with every school, but its host names no school, so the BFF cannot
+ * bind its requests to the tab's school (#5130). The same page lives on the
+ * school's subdomain; path and query come from the proxy, the fragment from
+ * the browser (PathModeRedirect), so printed enrollment and display links
+ * keep working.
+ */
+function tenantSubdomainUrl(
+  requestHeaders: Headers,
+  currentHost: string,
+  pathSlug: string,
+  subdomain: string,
+): string {
+  const original = requestHeaders.get("x-moto-original-path") ?? "/";
+  const prefix = `/${pathSlug}`;
+  const rest = original.startsWith(prefix) ? original.slice(prefix.length) : "";
+  // Only "/..." and "?..." continue the school's path; anything else (a
+  // missing or foreign header) lands on the school's start page.
+  const path = rest.startsWith("/")
+    ? rest
+    : rest.startsWith("?")
+      ? `/${rest}`
+      : "/";
+  const port = currentHost.split(":")[1];
+  const protocol =
+    requestHeaders.get("x-moto-original-proto") ??
+    requestHeaders.get("x-forwarded-proto") ??
+    (env.NODE_ENV === "production" ? "https" : "http");
+  return `${protocol}://${subdomain}.${env.TENANT_DOMAIN}${port ? `:${port}` : ""}${path}`;
 }
 
 /**
@@ -311,6 +288,18 @@ export default async function TenantLayout({
   const routingMode = isTenantSubdomainHost(currentHost, tenant.subdomain)
     ? "subdomain"
     : "path";
+  if (routingMode === "path" && isBareTenantHost(currentHost)) {
+    return (
+      <PathModeRedirect
+        href={tenantSubdomainUrl(
+          requestHeaders,
+          currentHost,
+          tenantSlug,
+          tenant.subdomain,
+        )}
+      />
+    );
+  }
 
   // Read-only JWT decode: auth() may rotate a refresh token, but a Server
   // Component cannot persist the replacement cookie (#1938). The snapshot

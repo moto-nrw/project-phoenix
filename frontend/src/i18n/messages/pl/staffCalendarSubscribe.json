@@ -1,0 +1,18 @@
+{
+  "description": "Wystarczy raz zasubskrybować terminy w kalendarzu w telefonie. Nowe, zmienione i odwołane terminy pojawią się potem same. Nie trzeba dodawać każdego terminu osobno. Zmiany w kalendarzu w telefonie nie trafiają do moto.",
+  "createNew": "Utwórz nowe dane dostępu",
+  "regenerate": "Utwórz dane dostępu na nowo",
+  "alreadyActive": "Państwa dane dostępu są już aktywne. Są pokazywane tylko raz. Jeśli już ich Państwo nie mają, proszę utworzyć nowe. Dotychczasowa subskrypcja kalendarza wtedy również się zakończy.",
+  "regenerated": "Utworzono nowe dane dostępu. Dotychczasowe już nie działają.",
+  "caldavTitle": "Połącz z programem kalendarza",
+  "caldavDescription": "Kalendarz moto mogą Państwo wyświetlić na przykład w programie Thunderbird. Terminy można tam tylko przeglądać. Programy kalendarza nazywają ten dostęp CalDAV.",
+  "caldavAddress": "Adres",
+  "caldavUsername": "Nazwa użytkownika",
+  "caldavPassword": "Hasło aplikacji",
+  "addressCopied": "Adres skopiowany.",
+  "usernameCopied": "Nazwa użytkownika skopiowana.",
+  "passwordCopied": "Hasło aplikacji skopiowane.",
+  "passwordOnce": "Hasło aplikacji widzą Państwo tylko teraz. Proszę od razu zapisać je w programie kalendarza.",
+  "passwordHidden": "Hasło aplikacji zostało już pokazane. Jeśli już go Państwo nie mają, proszę utworzyć nowe dane dostępu.",
+  "caldavUnavailable": "Połączenie jest teraz niedostępne. Proszę spróbować jeszcze raz."
+}

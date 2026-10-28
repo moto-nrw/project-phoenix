@@ -32,7 +32,7 @@ type SeedOptions struct {
 	SchoolName    string // Optional school name override
 	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
-	StandingDemo  bool   // Keep simulation devices but disable their user interface
+	StandingDemo  bool   // Suppress the credential summary for the persistent demo sidecar
 	// VisitorFirstName and VisitorLastName put a prospect of the public demo
 	// into the school (#3463): one caregiver with a group and one parent
 	// carry exactly this name. Only the name is taken; every account keeps
@@ -61,8 +61,12 @@ type SeedOptions struct {
 	// ReadMailLink reads the caterer's invitation mail (ADR 0077); nil invites none.
 	ReadMailLink MailLinkReader
 	// PresenceHistory writes the past attendance and room visits (#5031);
-	// nil seeds the past without presence.
+	// nil seeds the past without presence, unless PresenceHistoryRoute is set.
 	PresenceHistory PresenceHistoryWriter
+	// PresenceHistoryRoute writes them through the operator route only the
+	// public demo's server mounts (APP_ENV=demo, ADR 0127) when
+	// PresenceHistory is nil.
+	PresenceHistoryRoute bool
 	// ProductScreenshots prepares the school for the product screenshots,
 	// whose simulation runs a single Tuesday: no weekend runs Friday's plan,
 	// so no screen shows Saturday and Sunday columns, and no statistics
@@ -117,9 +121,6 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 		statePath = DefaultSeedStatePath
 	}
 	definition := fullOperationProfileDefinition()
-	if options.StandingDemo {
-		definition.Settings[profileSettingAttendanceNFC] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
-	}
 	if options.ProductScreenshots {
 		definition.Settings[profileSettingWeekendFollowsFriday] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
 	}
@@ -509,7 +510,7 @@ func isConflictError(err error) bool {
 
 func wrapConflictError(err error, entity string) error {
 	if isConflictError(err) {
-		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding", entity)
+		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding: %w", entity, err)
 	}
 	return err
 }

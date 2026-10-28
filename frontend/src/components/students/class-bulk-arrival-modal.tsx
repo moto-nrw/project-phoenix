@@ -5,6 +5,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   useApiFormError,
@@ -26,7 +27,7 @@ import {
 } from "~/lib/student-arrival-api";
 import { SchoolPeriodSelect } from "./school-period-select";
 import { formatDate } from "~/lib/date-helpers";
-import { stripClassPrefix } from "~/lib/arrival-schedule-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { cn } from "~/lib/utils";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
@@ -224,9 +225,7 @@ export function FilteredBulkArrivalModal({
 
   const targetTitle =
     filter.type === "school_class"
-      ? // Schools name their classes either "3b" or "Klasse 3b"; without the
-        // strip the title reads "für Klasse Klasse 3b".
-        `Klasse ${stripClassPrefix(filterLabel)}`
+      ? schoolClassLabel(filterLabel)
       : filter.type === "group"
         ? `Gruppe ${filterLabel}`
         : filterLabel;
@@ -412,9 +411,10 @@ export function FilteredBulkArrivalModal({
                     >
                       {day.label}
                     </label>
-                    <input
+                    <Input
                       id={`bulk-arrival-${day.value}`}
                       type="time"
+                      controlSize="compact"
                       value={value}
                       disabled={
                         isClassTimetable &&
@@ -426,7 +426,7 @@ export function FilteredBulkArrivalModal({
                           [day.value]: event.target.value.slice(0, 5),
                         }))
                       }
-                      className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                      className="disabled:cursor-not-allowed"
                     />
                     <div className="col-start-2 empty:hidden">
                       <SchoolPeriodSelect

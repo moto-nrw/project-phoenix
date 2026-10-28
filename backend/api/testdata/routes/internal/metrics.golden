@@ -1,0 +1,10 @@
+CONNECT /internal/metrics
+DELETE /internal/metrics
+GET /internal/metrics
+HEAD /internal/metrics
+OPTIONS /internal/metrics
+PATCH /internal/metrics
+POST /internal/metrics
+PUT /internal/metrics
+QUERY /internal/metrics
+TRACE /internal/metrics

@@ -1,0 +1,129 @@
+{
+  "packages": [
+    {
+      "path": "modules/traegerview",
+      "owner": "traeger-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/traegerview/compose",
+      "owner": "traeger-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/traegerview/http",
+      "owner": "traeger-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/traegerview/internal/application",
+      "owner": "traeger-view",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/traegerview/internal/adapters/postgres",
+      "owner": "traeger-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "traeger-view.application.public",
+      "description": "The Träger overview answers in the projection's public contract and reads the school set through its port (ADR 0084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-view",
+      "source_role": "application",
+      "target_owner": "traeger-view",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-view.postgres.public",
+      "description": "The Träger projection's reads answer in its public School value (ADR 0084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-view",
+      "source_role": "postgres",
+      "target_owner": "traeger-view",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-view.compose.tenant-runtime",
+      "description": "The Träger projection composition binds the administrative transaction it reads in (ADR 0084 section 1).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-view",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-view.postgres.tenant-runtime",
+      "description": "The Träger projection's reads resolve the administrative transaction of the tenant runtime and refuse any other (ADR 0084 section 1).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-view",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-view.http.public",
+      "description": "The Träger-Portal routes call the projection's one public capability (ADR 0084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-view",
+      "source_role": "http",
+      "target_owner": "traeger-view",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-view.http.tenant-runtime.common",
+      "description": "The Träger-Portal routes use the shared HTTP request, principal and response helpers (ADR 0084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "traeger-view.http.identity-access.public",
+      "description": "The Träger-Portal routes name the Träger rights Identity & Access bundles into the Träger roles (ADR 0084 section 4).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-view",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "traeger-view.schools",
+      "package": "modules/traegerview/internal/adapters/postgres",
+      "data_objects": [
+        "platform.schools"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

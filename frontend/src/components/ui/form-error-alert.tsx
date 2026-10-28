@@ -29,10 +29,11 @@ interface FormErrorAlertProps {
  * page or card uses it directly.
  *
  * Why not just `<Alert>`: a long form is usually scrolled to its Speichern
- * button when the error arrives. The alert scrolls itself into view whenever
- * the message changes or a new attempt fails with the same message, so the
- * person reads the reason instead of wondering why nothing happened. A toast
- * cannot do that job: it fades before anyone has found the field it names.
+ * button when the error arrives. Whenever the message changes or a new
+ * attempt fails with the same message, the alert brings the problem into
+ * view: the first marked field of its form, where the person has to act and
+ * reads the field's own hint, or else the alert itself. A toast cannot do
+ * that job: it fades before anyone has found the field it names.
  */
 export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -42,8 +43,17 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
 
   useEffect(() => {
     if (!text) return;
+    // The marks of this attempt are in the DOM already: the hook that set
+    // the message marks the fields in the same render.
+    const field = ref.current
+      ?.closest("form")
+      ?.querySelector<HTMLElement>(
+        '[aria-invalid="true"], [data-form-invalid="true"]',
+      );
     // happy-dom and older WebKit builds ship no scrollIntoView on divs.
-    ref.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+    if (field) field.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    else
+      ref.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }, [text, attempt]);
 
   if (!text) return null;

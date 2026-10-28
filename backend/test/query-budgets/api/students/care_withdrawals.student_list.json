@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.care_withdrawals.student_list",
+  "max": 9,
+  "exact": false,
+  "description": "api/students — GET /students/{id}/care-withdrawals (#5025), page_size=1\nover four completed withdrawals of one child: the tenant list's six\nstatements, filtered to the child, plus three for the child read and\nthe read-access check."
+}

@@ -1,0 +1,4 @@
+DELETE /api/announcement-attachments/{announcementId}/{attachmentId}
+GET /api/announcement-attachments/{announcementId}
+GET /api/announcement-attachments/{announcementId}/{attachmentId}/download
+POST /api/announcement-attachments/{announcementId}

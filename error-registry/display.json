@@ -1,0 +1,10 @@
+{
+  "codes": [
+    {
+      "code": "display.disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "display.disabled"
+    }
+  ]
+}

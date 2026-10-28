@@ -74,6 +74,7 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   guardianEmail: "eva@example.org",
   guardianPhone: "0151 2345678",
   benefitsDeclared: false,
+  secondGuardian: null,
   children: [
     {
       id: "9",

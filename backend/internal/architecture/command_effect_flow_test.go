@@ -6,6 +6,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 // fixtureEffectTargets returns the targets discovered for the fixture's ports.
@@ -273,7 +275,9 @@ func TestCommandEffectsNewPlatformEntryNeedsReviewNotFreshApproval(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filepath.Join(project, commandEffectInventory), string(blob))
+	if err := artifacts.WriteInventory(filepath.Join(project, commandEffectInventory), artifacts.CommandEffects, blob); err != nil {
+		t.Fatal(err)
+	}
 	err = RunCLI([]string{"check", "--project", project, "--baseline", "architecture/legacy.jsonl", "--base-ref", base}, CLIDependencies{})
 	if err == nil || !strings.Contains(err.Error(), "platform classification") {
 		t.Fatalf("platform command relabelled as leaf = %v", err)

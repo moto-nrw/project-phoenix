@@ -396,7 +396,7 @@ export function ParentFirstSteps({
                     >
                       {done ? (
                         <span
-                          className="bg-moto-green flex size-5 shrink-0 items-center justify-center rounded-full text-xs leading-none font-bold text-white"
+                          className="bg-moto-green-fill flex size-5 shrink-0 items-center justify-center rounded-full text-xs leading-none font-bold text-white"
                           aria-hidden
                         >
                           ✓

@@ -2,9 +2,13 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
+import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { RequiredMark } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { StaffHistorySession } from "~/lib/staff-api";
@@ -180,26 +184,28 @@ export function AdminSessionEditModal({
 
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="md"
         onClick={onClose}
         disabled={isSaving}
-        className="rounded-md border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
       >
         Abbrechen
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="success"
+        size="md"
         onClick={handleSubmit}
         disabled={isSaving || !notesValid || !timesValid || !breakValid}
-        className="bg-moto-green hover:bg-moto-green-hover rounded-md px-4 py-2 text-sm font-medium text-gray-950 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving
           ? "Speichern…"
           : mode === "edit"
             ? "Änderungen speichern"
             : "Eintrag anlegen"}
-      </button>
+      </Button>
     </div>
   );
 
@@ -218,7 +224,8 @@ export function AdminSessionEditModal({
             label="Check-in"
             error={formErrors.fieldError("check_in_time")}
           >
-            <input
+            <Input
+              controlSize="compact"
               type="time"
               name="check_in_time"
               aria-invalid={
@@ -230,14 +237,15 @@ export function AdminSessionEditModal({
               )}
               value={checkIn}
               onChange={(e) => setCheckIn(e.target.value)}
-              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+              className="tabular-nums"
             />
           </Field>
           <Field
             label="Check-out"
             error={formErrors.fieldError("check_out_time")}
           >
-            <input
+            <Input
+              controlSize="compact"
               type="time"
               name="check_out_time"
               aria-invalid={
@@ -249,7 +257,7 @@ export function AdminSessionEditModal({
               )}
               value={checkOut}
               onChange={(e) => setCheckOut(e.target.value)}
-              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+              className="tabular-nums"
             />
           </Field>
         </div>
@@ -258,7 +266,8 @@ export function AdminSessionEditModal({
             label="Pause (Minuten)"
             error={formErrors.fieldError("break_minutes")}
           >
-            <input
+            <Input
+              controlSize="compact"
               type="number"
               name="break_minutes"
               aria-invalid={
@@ -273,7 +282,7 @@ export function AdminSessionEditModal({
               inputMode="numeric"
               value={breakMinutesStr}
               onChange={(e) => setBreakMinutesStr(e.target.value)}
-              className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:outline-none"
+              className="tabular-nums"
             />
           </Field>
           <Field label="Status">
@@ -288,9 +297,14 @@ export function AdminSessionEditModal({
             />
           </Field>
         </div>
-        <Field label="Begründung *" error={formErrors.fieldError("notes")}>
-          <textarea
+        <Field
+          label="Begründung"
+          required
+          error={formErrors.fieldError("notes")}
+        >
+          <Textarea
             name="notes"
+            aria-required
             aria-invalid={formErrors.fieldError("notes") ? true : undefined}
             aria-describedby={describedBy(
               formErrors.fieldError("notes"),
@@ -300,7 +314,6 @@ export function AdminSessionEditModal({
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
             placeholder="z. B. Mitarbeiter hatte vergessen einzustempeln"
-            className="focus:border-moto-green w-full rounded-md border border-gray-200 px-3 py-2 focus:outline-none"
           />
         </Field>
       </div>
@@ -314,10 +327,12 @@ function describedBy(error: string | undefined, name: string) {
 
 function Field({
   label,
+  required = false,
   error,
   children,
 }: {
   readonly label: string;
+  readonly required?: boolean;
   readonly error?: string;
   readonly children: React.ReactElement<{ name?: string }>;
 }) {
@@ -325,6 +340,7 @@ function Field({
     <label className="block">
       <span className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">
         {label}
+        {required && <RequiredMark />}
       </span>
       {children}
       <FieldErrorHint

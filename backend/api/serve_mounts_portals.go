@@ -145,6 +145,7 @@ func newOperatorRouter(
 		limiters,
 		mergeRoutes,
 		newSampleChildrenRoute(provisioning, students),
+		newDemoPresenceHistoryRoute(db, viper.GetString("app_env")),
 	), nil
 }
 

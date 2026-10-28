@@ -4,10 +4,12 @@
 // was verified to pass under node. Add a new pure-logic *.test.ts here; files
 // not listed run in happy-dom (app-dom). See docs/agents/frontend-testing.md.
 export const nodeLogicTestFiles = [
+  "scripts/product-screenshots/pipeline.test.ts",
   "scripts/oxlint-plugin-absence-assertion.test.ts",
   "scripts/oxlint-plugin-bauart-autosave.test.ts",
   "scripts/oxlint-plugin-error-path.test.ts",
   "scripts/oxlint-plugin-logging-safety.test.ts",
+  "scripts/oxlint-plugin-school-class.test.ts",
   "scripts/oxlint-plugin-swr.test.ts",
   "scripts/oxlint-plugin-ui-kit.test.ts",
   "scripts/product-screenshots/network-activity.test.ts",
@@ -29,6 +31,7 @@ export const nodeLogicTestFiles = [
   "src/components/dashboard/header/breadcrumb-utils.test.ts",
   "src/components/help/help-content.test.ts",
   "src/components/school-setup/school-setup-steps.test.ts",
+  "src/components/school-setup/setup-tour-targets.test.ts",
   "src/components/school/shell/school-nav-active.test.ts",
   "src/components/school/shell/school-nav-badge.test.ts",
   "src/components/school/supervisions/view-model.test.ts",
@@ -270,8 +273,10 @@ export const nodeLogicTestFiles = [
   "src/server/auth/browser-session.test.ts",
   "src/server/auth/route-handler-coverage.test.ts",
   "src/server/auth/route-handler.test.ts",
+  "src/server/auth/tenant-host-check.test.ts",
   "src/server/node-header-limit.test.ts",
   "src/styles/moto-token-drift.test.ts",
   "src/test/helpers/handle-api-error.test.ts",
   "src/test/phosphor-imports-plugin.test.ts",
+  "src/test/proxy-routes.table.test.ts",
 ];

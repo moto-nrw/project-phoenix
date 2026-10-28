@@ -22,12 +22,20 @@ var seedTraegerInvitees = []struct {
 	{"tobias.engel@ganztag-nord.example", "personnel"},
 }
 
+// seedTraegerOperatorInvitee is the person the moto team invites into the
+// Träger-Büro from the operator portal (#5144), with two roles in one step.
+var seedTraegerOperatorInvitee = struct {
+	email string
+	roles []string
+}{"petra.hoffmann@ganztag-nord.example", []string{"administration", "billing"}}
+
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
 // and demo database can sign in to the Träger-Portal with the admin's
 // credentials and sees the Träger's schools. The admin also holds the role
-// Abrechnung, so the dev database shows the contribution rules (#4664).
-// Signed in to the Träger-Portal,
+// Abrechnung, so the dev database shows the contribution rules (#4664); both
+// roles go in one assignment (#5144). The operator also invites a person
+// without a moto account (#5144). Signed in to the Träger-Portal,
 // the admin then invites a colleague for the Abrechnung and one for the
 // Personal (#4650), so the page "Personen" shows a person and open
 // invitations.
@@ -43,12 +51,14 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.OperatorAuth)
 	defer rt.Client.BindAuth(previousAuth)
 	path := fmt.Sprintf("/operator/organizations/%d/traeger-members", rt.Bootstrap.OrganizationID)
-	for _, role := range []string{"administration", "billing"} {
-		if _, err := rt.Client.Post(path, map[string]string{"email": rt.Bootstrap.AdminEmail, "role": role}); err != nil {
-			return fmt.Errorf("assign the Träger-Büro: %w", err)
-		}
+	if _, err := rt.Client.Post(path, map[string]any{"email": rt.Bootstrap.AdminEmail, "roles": []string{"administration", "billing"}}); err != nil {
+		return fmt.Errorf("assign the Träger-Büro: %w", err)
 	}
 	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung and Abrechnung")
+	if _, err := rt.Client.Post(path+"/invitations", map[string]any{"email": seedTraegerOperatorInvitee.email, "roles": seedTraegerOperatorInvitee.roles}); err != nil {
+		return fmt.Errorf("invite into the Träger-Büro from the operator portal: %w", err)
+	}
+	fmt.Println("  Träger-Büro: operator invited a person with roles Verwaltung and Abrechnung")
 	return seedTraegerInvitation(rt)
 }
 
@@ -392,7 +402,8 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		return map[string]any{"week_id": period.Weeks[week].ID, "time_model_id": period.Weeks[week].TimeModels[model].ID}
 	}
 	return period.PublicToken, map[string]any{
-		"guardian": map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
+		"second_guardian": map[string]any{"first_name": "Thomas", "last_name": "Ferienkind", "email": "thomas.ferienkind@example.org", "phone": "0151 0000002"},
+		"guardian":        map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
 		"children": []map[string]any{
 			{"first_name": "Lotta", "last_name": "Ferienkind", "birth_date": "2018-04-12", "home_school_id": homeSchool,
 				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)}},

@@ -16,6 +16,7 @@ import {
 } from "react";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
@@ -316,12 +317,14 @@ export function AttendanceCorrectionModal({
         </div>
 
         <div>
-          <label
+          <FieldLabel
             htmlFor="correction-reason"
-            className="mb-1 block text-sm font-medium text-gray-700"
+            required
+            invalid={Boolean(reasonError)}
+            className="mb-1"
           >
-            Grund der Korrektur <span aria-hidden="true">*</span>
-          </label>
+            Grund der Korrektur
+          </FieldLabel>
           <textarea
             id="correction-reason"
             name="reason"
