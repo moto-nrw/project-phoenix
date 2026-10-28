@@ -44,12 +44,15 @@ export function isRequiredField(props: {
 export function FieldLabel({
   children,
   required = false,
+  invalid = false,
   htmlFor,
   id,
   className,
 }: Readonly<{
   children: ReactNode;
   required?: boolean;
+  /** The field failed a check: the label turns red like its hint. */
+  invalid?: boolean;
   htmlFor?: string;
   id?: string;
   className?: string;
@@ -66,7 +69,11 @@ export function FieldLabel({
   );
   return (
     <span
-      className={cn("mb-2 block text-sm font-medium text-gray-700", className)}
+      className={cn(
+        "mb-2 block text-sm font-medium",
+        invalid ? "text-moto-red-strong" : "text-gray-700",
+        className,
+      )}
     >
       {text}
       {required && <RequiredMark />}

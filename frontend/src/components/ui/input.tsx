@@ -9,6 +9,12 @@ import { FieldLabel, isRequiredField } from "./field-label";
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   readonly label?: string;
   readonly error?: string;
+  /**
+   * Read the hint out the moment it appears (`role="alert"`), for a check
+   * that runs while the person types. A hint after Speichern stays quiet:
+   * the form's `FormErrorAlert` announces the failure once.
+   */
+  readonly errorLive?: boolean;
   readonly controlSize?: "default" | "compact";
 }
 
@@ -18,6 +24,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
     name,
     id,
     error,
+    errorLive = false,
     className = "",
     controlSize = "default",
     maxLength,
@@ -42,7 +49,13 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   return (
     <div>
       {label && (
-        <FieldLabel htmlFor={inputId} required={isRequiredField(props)}>
+        <FieldLabel
+          htmlFor={inputId}
+          required={isRequiredField(props)}
+          invalid={
+            Boolean(error) || ariaInvalid === true || ariaInvalid === "true"
+          }
+        >
           {label}
         </FieldLabel>
       )}
@@ -62,7 +75,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
       {error && (
         <p
           id={errorId}
-          role="alert"
+          role={errorLive ? "alert" : undefined}
           className="text-moto-red-strong mt-1 text-xs"
         >
           {error}

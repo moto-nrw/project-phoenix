@@ -5,6 +5,12 @@ import { FieldLabel, isRequiredField } from "./field-label";
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   readonly label?: string;
   readonly error?: string;
+  /**
+   * Read the hint out the moment it appears (`role="alert"`), for a check
+   * that runs while the person types. A hint after Speichern stays quiet:
+   * the form's `FormErrorAlert` announces the failure once.
+   */
+  readonly errorLive?: boolean;
 }
 
 // Multiline counterpart to ui/Input — same ring-based chrome and focus
@@ -15,6 +21,7 @@ export function Textarea({
   name,
   id,
   error,
+  errorLive = false,
   className = "",
   "aria-describedby": describedBy,
   "aria-invalid": ariaInvalid,
@@ -26,7 +33,13 @@ export function Textarea({
   return (
     <div>
       {label && (
-        <FieldLabel htmlFor={inputId} required={isRequiredField(props)}>
+        <FieldLabel
+          htmlFor={inputId}
+          required={isRequiredField(props)}
+          invalid={
+            Boolean(error) || ariaInvalid === true || ariaInvalid === "true"
+          }
+        >
           {label}
         </FieldLabel>
       )}
@@ -43,7 +56,7 @@ export function Textarea({
       {error && (
         <p
           id={errorId}
-          role="alert"
+          role={errorLive ? "alert" : undefined}
           className="text-moto-red-strong mt-1 text-xs"
         >
           {error}

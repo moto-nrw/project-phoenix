@@ -22,8 +22,18 @@ describe("Input", () => {
     expect(screen.getByText("Invalid email address")).toBeInTheDocument();
   });
 
-  it("announces the error as an alert when provided", () => {
-    render(<Input name="email" error="Invalid email address" />);
+  it("keeps a hint after Speichern quiet and links it to the field", () => {
+    // The form's FormErrorAlert announces the failure once (#5217).
+    render(<Input name="email" label="E-Mail" error="Invalid email address" />);
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const input = screen.getByRole("textbox", { name: "E-Mail" });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAccessibleDescription("Invalid email address");
+  });
+
+  it("announces the error as an alert for a check while typing", () => {
+    render(<Input name="email" error="Invalid email address" errorLive />);
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Invalid email address",
