@@ -130,7 +130,16 @@ async function holdResponse(
   let reportHeld!: (setCookie: boolean) => void;
   const held = new Promise<boolean>((resolve) => (reportHeld = resolve));
   await page.route(pattern, async (route: Route) => {
-    const response = await route.fetch();
+    // The fixture host names resolve only in Chromium (CI disables them for
+    // Node), so the held request goes to loopback under its own Host.
+    const request = route.request();
+    const target = new URL(request.url());
+    const host = target.host;
+    target.hostname = "127.0.0.1";
+    const response = await route.fetch({
+      url: target.toString(),
+      headers: { ...(await request.allHeaders()), host },
+    });
     reportHeld(
       response
         .headersArray()
