@@ -33,6 +33,7 @@ import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
 import {
   currentSWRDataGeneration,
+  currentSWRGeneration,
   dataGenerationOf,
   isCurrentSWRError,
   isCurrentSWRValue,
@@ -392,6 +393,12 @@ export function useImmutableSWR<T, E = Error>(
  */
 export function useTenantMutate() {
   const { prefix } = useSWRScope();
+  useSyncExternalStore(
+    subscribeSWRDataGeneration,
+    currentSWRDataGeneration,
+    currentSWRDataGeneration,
+  );
+  const originatingGeneration = currentSWRGeneration();
 
   return useCallback(
     (
@@ -402,6 +409,11 @@ export function useTenantMutate() {
       if (prefix === null || isSWRSessionPending())
         return Promise.resolve(undefined);
       const cacheKey = scopedSWRKey(prefix, key);
+      // A retained action or passive effect must not restamp captured data
+      // after a layout-effect reset. Only this key's data bumps count, so
+      // an unrelated drop (including `except`) leaves the callback usable.
+      if (dataGenerationOf(cacheKey) > originatingGeneration)
+        return Promise.resolve(undefined);
       if (data === undefined) {
         return currentResult(cacheKey, swrMutate(cacheKey));
       }
@@ -412,7 +424,7 @@ export function useTenantMutate() {
         swrMutate(cacheKey, locked, lockedOptions as never),
       );
     },
-    [prefix],
+    [prefix, originatingGeneration],
   );
 }
 

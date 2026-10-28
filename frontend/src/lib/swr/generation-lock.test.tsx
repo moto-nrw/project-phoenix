@@ -28,11 +28,13 @@ import { setTestClock } from "~/test/clock";
 import {
   _resetSWRFallbacksForTests,
   isCurrentSWRValue,
+  isFallbackVisible,
   preloadSWR,
 } from "./generation";
 import {
   useDiscardRefusedEntity,
   useSWRAuth,
+  useTenantMutate,
   useTenantMutateMatching,
 } from "./hooks";
 import {
@@ -102,10 +104,12 @@ function Reader({
 let tools: {
   discard: ReturnType<typeof useDiscardRefusedEntity>;
   matching: ReturnType<typeof useTenantMutateMatching>;
+  mutate: ReturnType<typeof useTenantMutate>;
 };
 function Tools() {
   tools = {
     discard: useDiscardRefusedEntity(),
+    mutate: useTenantMutate(),
     matching: useTenantMutateMatching(["student-7-"]),
   };
   return null;
@@ -211,6 +215,116 @@ describe.each([
   ["with cleanup", true],
   ["lock only, cleanup off", false],
 ])("generation lock %s (#5006)", (_mode, cleanup) => {
+  describe.each(OPERATIONS.slice(4))(
+    "unseen fallback after %s",
+    (_name, operation) => {
+      it.each(["fallbackData", "provider"])(
+        "rejects an invalidated %s",
+        async (source) => {
+          const view = render(<Page />);
+          _setSWRCleanupForTests(cleanup);
+          act(() => operation(() => view.rerender(<Page />)));
+          const answer = deferred<string>();
+          const fetcher = vi.fn(() => answer.promise);
+          const key = "student-7-unseen";
+          const kept = "student-8-unseen";
+          const options =
+            source === "fallbackData"
+              ? { fallbackData: "veraltet" }
+              : {
+                  fallback: {
+                    [FULL(key)]: "veraltet",
+                    [FULL(kept)]: "veraltet",
+                  },
+                };
+          view.rerender(
+            <Page>
+              <Reader name={key} fetcher={fetcher} options={options} />
+              <Reader name={kept} fetcher={fetcher} options={options} />
+            </Page>,
+          );
+          // Anker: ein nicht verworfener, ebenfalls neuer Key zeigt den Fallback.
+          expect(screen.getByTestId(kept)).toHaveTextContent("veraltet");
+          expect(screen.getByTestId(key)).toHaveTextContent("leer");
+          expect(seen[key]).not.toContain("veraltet");
+          answer.resolve("frisch");
+          await flush();
+          expect(screen.getByTestId(key)).toHaveTextContent("frisch");
+          expect(fetcher).toHaveBeenCalledTimes(2);
+          expect(isFallbackVisible(FULL(key))).toBe(true);
+        },
+      );
+    },
+  );
+
+  it("keeps an unseen fallback key named in except", async () => {
+    const view = render(<Page />);
+    _setSWRCleanupForTests(cleanup);
+    act(() => {
+      void tools.matching({ clear: true, except: ["student-7-unseen-kept"] });
+    });
+    const fetcher = vi.fn(() => new Promise<string>(() => {}));
+    view.rerender(
+      <Page>
+        <Reader
+          name="student-7-unseen-kept"
+          fetcher={fetcher}
+          options={{ fallbackData: "behalten" }}
+        />
+        <Reader
+          name="student-7-unseen-dropped"
+          fetcher={fetcher}
+          options={{ fallbackData: "veraltet" }}
+        />
+      </Page>,
+    );
+    // Anker: der ausgenommene Key zeigt seinen Fallback beim ersten Lesen.
+    expect(screen.getByTestId("student-7-unseen-kept")).toHaveTextContent(
+      "behalten",
+    );
+    expect(screen.getByTestId("student-7-unseen-dropped")).toHaveTextContent(
+      "leer",
+    );
+    expect(seen["student-7-unseen-dropped"]).not.toContain("veraltet");
+    await flush();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("rejects a tenant write from a passive effect after the boundary reset", async () => {
+    const fetcher = answers("stand", "neu");
+    const writes: unknown[] = [];
+    function Writer({ write }: Readonly<{ write: boolean }>) {
+      const mutate = useTenantMutate();
+      const { data } = useSWRAuth("student-7-effect", fetcher);
+      useEffect(() => {
+        if (write && data)
+          void mutate("student-7-effect-copy", data, {
+            revalidate: false,
+          }).then((value) => writes.push(value));
+      }, [write, data, mutate]);
+      return <p data-testid="effect-source">{data ?? "leer"}</p>;
+    }
+    const view = render(
+      <Page>
+        <Writer write={false} />
+      </Page>,
+    );
+    await flush();
+    // Anker: der Effekt wird mit den Daten vor dem Rechtewechsel gerendert.
+    expect(screen.getByTestId("effect-source")).toHaveTextContent("stand");
+    _setSWRCleanupForTests(cleanup);
+    mockUseSession.mockReturnValue(signedIn({ permissions: ["x"] }));
+    view.rerender(
+      <Page>
+        <Writer write />
+      </Page>,
+    );
+    await flush();
+    expect(screen.getByTestId("effect-source")).toHaveTextContent("neu");
+    expect(cachedData("student-7-effect-copy")).not.toBe("stand");
+    expect(writes).not.toContain("stand");
+  });
+
   it.each(["value", "updater", "promise"] as const)(
     "binds a retained %s mutation to its captured key",
     async (kind) => {
@@ -442,6 +556,50 @@ describe.each([
       expect(seen["student-7-late"]).not.toContain("alt");
       expect(cachedData("student-7-late")).not.toBe("alt");
     });
+
+    it.each(["value", "updater", "promise", "revalidate"] as const)(
+      "rejects a retained tenant %s mutation after the bump",
+      async (kind) => {
+        const key = `student-7-tenant-${kind}`;
+        const fetcher = vi.fn(answers("stand", "neu"));
+        let retained = tools?.mutate;
+        await run(
+          <Page>
+            <Reader name={key} fetcher={fetcher} />
+          </Page>,
+          async () => {
+            await flush();
+            // Anker: der Leser zeigt Daten der Ursprungsgeneration.
+            expect(screen.getByTestId(key)).toHaveTextContent("stand");
+            retained = tools.mutate;
+          },
+        );
+        await flush();
+        seen = {};
+        const calls = fetcher.mock.calls.length;
+        const updater = vi.fn(() => "veraltet");
+        let result: unknown;
+        await act(async () => {
+          result = await retained(
+            key,
+            kind === "value"
+              ? "veraltet"
+              : kind === "updater"
+                ? updater
+                : kind === "promise"
+                  ? Promise.resolve("veraltet")
+                  : undefined,
+            { revalidate: false },
+          );
+        });
+        await flush();
+        expect(result).toBeUndefined();
+        expect(updater).not.toHaveBeenCalled();
+        expect(fetcher).toHaveBeenCalledTimes(calls);
+        expect(cachedData(key)).not.toBe("veraltet");
+        expect(seen[key] ?? []).not.toContain("veraltet");
+      },
+    );
 
     it("shows no deduped answer to a reader that joins after the bump", async () => {
       const answer = deferred<string>();
@@ -907,6 +1065,7 @@ describe("what the lock leaves alone (#5006)", () => {
     );
     await flush();
     const retained = responses["student-7-kept"]!.mutate;
+    const tenantMutate = tools.mutate;
     act(() => {
       void responses["student-7-kept"]!.mutate();
     });
@@ -924,6 +1083,10 @@ describe("what the lock leaves alone (#5006)", () => {
       await retained("aktuell", { revalidate: false });
     });
     expect(screen.getByTestId("student-7-kept")).toHaveTextContent("aktuell");
+    await act(async () => {
+      await tenantMutate("student-7-kept", "erhalten", { revalidate: false });
+    });
+    expect(screen.getByTestId("student-7-kept")).toHaveTextContent("erhalten");
   });
 
   it("revalidates on a bare mutate() and keeps the data on screen", async () => {

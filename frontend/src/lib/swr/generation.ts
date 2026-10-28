@@ -37,6 +37,11 @@ let dataBumps: { generation: number; matches: (key: string) => boolean }[] = [];
 // matter, and SWR keys each of them.
 let requestBumps = new Map<string, number>();
 
+/** Captures the generation in which a caller can originate a mutation. */
+export function currentSWRGeneration(): number {
+  return counter;
+}
+
 /** The generation data of `key` must carry to be shown. */
 export function dataGenerationOf(key: string): number {
   const plain = plainSWRKey(key);
@@ -194,7 +199,9 @@ export function _resetSWRFallbacksForTests(): void {
 /** Whether an unstamped value of `key` may be shown now. */
 export function isFallbackVisible(key: string): boolean {
   const from = fallbackGenerations.get(plainSWRKey(key));
-  return from === undefined || from >= dataGenerationOf(key);
+  // A predicate drop also invalidates keys first read after it. An unseen
+  // fallback starts in this scope, not after a matching data bump.
+  return (from ?? scopeGeneration) >= dataGenerationOf(key);
 }
 
 /**
@@ -211,7 +218,7 @@ export function noteFallbackShown(key: string, generation: number): void {
 function noteFreshData(key: string, generation: number): void {
   const plain = plainSWRKey(key);
   const from = fallbackGenerations.get(plain);
-  if (from !== undefined && from < generation) {
+  if (from === undefined || from < generation) {
     fallbackGenerations.set(plain, generation);
   }
 }
