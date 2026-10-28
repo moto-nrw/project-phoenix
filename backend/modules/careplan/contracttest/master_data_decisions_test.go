@@ -285,6 +285,22 @@ func TestMasterDataReview_ApproveAppliesOtherPersonFields(t *testing.T) {
 	assert.Equal(t, "2017-12-24", person.Birthday.String())
 }
 
+func TestMasterDataReview_RejectRequiresReason(t *testing.T) {
+	t.Parallel()
+	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
+	svc := f.decisions(t)
+	row := f.insert(t, peopledirectory.DataChangeTargetPerson, "first_name", `"Felix"`, `"Max"`)
+
+	_, err := f.decide(t, svc, masterdatarequests.DecideInput{
+		RequestID:  row.ID,
+		Reason:     " \n\t ",
+		ReviewedBy: f.chain.AccountID,
+	})
+
+	require.ErrorIs(t, err, parentrequests.ErrReasonRequired)
+	assert.Equal(t, masterdatarequests.StatusPending, f.status(t, row.ID))
+}
+
 func TestMasterDataReview_ApproveAppliesSchoolClass(t *testing.T) {
 	t.Parallel()
 	f := newMasterDataFixture(t, testpkg.SetupTestDB(t))
@@ -337,7 +353,9 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 		wg.Add(1)
 		go func(idx int, approve bool) {
 			defer wg.Done()
-			_, errs[idx] = f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: approve})
+			// A reason makes both decisions reach the locked-row race; a rejection
+			// without one is rejected before the concurrency contract is exercised.
+			_, errs[idx] = f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: approve, Reason: "Gleichzeitig geprüft"})
 		}(i, approve)
 	}
 	wg.Wait()
