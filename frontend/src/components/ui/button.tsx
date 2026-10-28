@@ -92,12 +92,14 @@ export function buttonClassName({
     danger:
       "bg-moto-red text-white shadow-md hover:bg-moto-red-strong hover:shadow-lg",
     // Bestätigung mit Nebenwirkung, die kein Löschen ist (Schließtag trotzdem
-    // planen, Einzelanpassungen verwerfen): Orange statt Rot. Dunkler Text wie
-    // bei success: Weiß auf moto-orange erreicht nur 2,4:1 und verfehlt AA.
+    // planen, Einzelanpassungen verwerfen): Orange statt Rot. Dunkler Text:
+    // Weiß auf moto-orange erreicht nur 2,4:1 und verfehlt AA.
     warning:
       "bg-moto-orange text-gray-950 shadow-md hover:bg-moto-orange-hover hover:shadow-lg",
+    // Weiß auf Grün (#5141) braucht die dunklen Füllstufen: moto-green selbst
+    // trägt Weiß nur mit 1,96:1. fill 4,84:1, fill-hover 6,0:1, fill-active 7,0:1.
     success:
-      "bg-moto-green text-gray-950 shadow-md hover:bg-moto-green-hover hover:shadow-lg active:scale-95",
+      "bg-moto-green-fill text-white shadow-md hover:bg-moto-green-fill-hover hover:shadow-lg active:bg-moto-green-fill-active active:scale-95",
     surface:
       "bg-white text-gray-700 ring-1 ring-gray-200 shadow-sm hover:bg-gray-50 hover:ring-gray-300 active:bg-gray-100",
     ghost:

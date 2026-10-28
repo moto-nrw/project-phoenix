@@ -39,6 +39,11 @@ import { dirname, normalize } from "node:path/posix";
 //   ui-kit/no-tabs-as-value-switcher — ui/Tabs is for content panels; values
 //                                     go on SegmentedControl
 //
+// One more guards text on green fills (#5141):
+//
+//   ui-kit/green-fill-white-text    — opaque green surfaces carry white text,
+//                                     only on the dark bg-moto-green-fill steps
+//
 // The tiny-text baseline below is SHRINK-ONLY: matches may be removed when
 // a file is migrated, but never added.
 
@@ -391,6 +396,90 @@ const noRounded3xl = makeClassStringRule({
     "rounded-3xl is off the brand radius scale. Cards/panels use rounded-2xl via moto-content-surface (see .claude/rules/frontend-ui-kit.md).",
 });
 
+// ui-kit/green-fill-white-text — auf einer deckend grünen Fläche steht weiße
+// Schrift, und zwar nur auf den dunklen Füllstufen (#5141). Zwei Fehlerbilder:
+// dunkle Schrift (gray-900/950, black) auf irgendeinem deckenden Grün, und
+// Weiß auf den hellen Grundtönen (moto-green 1,96:1, -hover 2,43:1, -light
+// 1,76:1, -active, -vivid 3,25:1), die WCAG AA verfehlen. Getönte Flächen
+// (bg-moto-green/10, -soft, -muted) tragen weiter dunkle oder grüne Schrift
+// und fallen nicht unter die Regel. Geprüft wird je Element: ein String und
+// jede gerenderte Kombination eines className-Ausdrucks.
+const CLASS_VARIANT = String.raw`(?:[^\s:]+:)*!?`;
+const classToken = (body) =>
+  new RegExp(String.raw`(?:^|\s)${CLASS_VARIANT}${body}!?(?=\s|$)`);
+const GREEN_OPAQUE_FILL_RE = classToken(
+  String.raw`bg-moto-green(?:-(?:hover|active|light|vivid|strong|fill|fill-hover|fill-active))?`,
+);
+const GREEN_LIGHT_FILL_RE = classToken(
+  String.raw`bg-moto-green(?:-(?:hover|active|light|vivid))?`,
+);
+const DARK_TEXT_RE = classToken(String.raw`text-(?:gray-(?:900|950)|black)`);
+const WHITE_TEXT_RE = classToken("text-white");
+
+function greenFillViolation(text) {
+  if (GREEN_OPAQUE_FILL_RE.test(text) && DARK_TEXT_RE.test(text)) {
+    return "darkText";
+  }
+  if (GREEN_LIGHT_FILL_RE.test(text) && WHITE_TEXT_RE.test(text)) {
+    return "whiteOnLightGreen";
+  }
+  return null;
+}
+
+const greenFillWhiteText = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Green fills carry white text on the dark fill steps (bg-moto-green-fill, -fill-hover, -fill-active); no dark text on opaque green, no white text on the light brand greens.",
+    },
+    messages: {
+      darkText:
+        'Dark text on an opaque green fill. Green surfaces carry white text: use bg-moto-green-fill text-white (hover:bg-moto-green-fill-hover, active:bg-moto-green-fill-active), or Button variant="success" (#5141).',
+      whiteOnLightGreen:
+        "White text on a light brand green misses WCAG AA (moto-green 1.96:1). Use bg-moto-green-fill (4.84:1) with hover:bg-moto-green-fill-hover and active:bg-moto-green-fill-active (#5141).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key)) return {};
+
+    const check = (node, text) => {
+      const messageId = greenFillViolation(text);
+      if (messageId) context.report({ node, messageId });
+    };
+
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) {
+          check(node, quasi.value.raw);
+        }
+      },
+      JSXAttribute(node) {
+        if (
+          node.name.type !== "JSXIdentifier" ||
+          node.name.name !== "className"
+        )
+          return;
+
+        const chunks = [];
+        collectStaticStrings(node.value, chunks);
+        if (chunks.some((chunk) => greenFillViolation(chunk))) {
+          return; // already reported by the Literal/TemplateLiteral visitors
+        }
+        const combos = classCombinations(node.value) ?? [chunks.join(" ")];
+        const rendered = combos.find((combo) => greenFillViolation(combo));
+        if (rendered !== undefined) check(node, rendered);
+      },
+    };
+  },
+};
+
 // ui-kit/no-tiny-text — Schrift unter 12 px (text-[9px], text-[10px],
 // text-[11px]) ist unter dem Typo-Boden des Portals: text-xs (12 px) ist die
 // Untergrenze und selbst die ist Versalien-Labels vorbehalten, nie Werten,
@@ -487,7 +576,7 @@ src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@480 text-[11px]@57
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
 src/components/students/care-schedule-manager.tsx|text-[10px]@1223 text-[11px]@1384 text-[11px]@1473 text-[11px]@1483 text-[11px]@1513
 src/components/students/planned-status-days-modal.tsx|text-[10px]@927 text-[11px]@927
-src/components/students/school-checkin-fab.tsx|text-[10px]@198
+src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
 src/components/time-tracking/leave-requests-card.tsx|text-[10px]@542
 src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
@@ -496,7 +585,7 @@ src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@147 text-
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@163 text-[11px]@233 text-[11px]@266 text-[11px]@343 text-[11px]@349 text-[11px]@397
 src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-[11px]@146
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
-src/components/timetable/instance-detail-modal.tsx|text-[10px]@314 text-[9px]@434 text-[9px]@1067 text-[11px]@1381 text-[11px]@1407 text-[11px]@1583 text-[10px]@1692 text-[11px]@1715
+src/components/timetable/instance-detail-modal.tsx|text-[10px]@319 text-[9px]@439 text-[9px]@1072 text-[11px]@1386 text-[11px]@1412 text-[11px]@1588 text-[10px]@1697 text-[11px]@1720
 src/components/timetable/month-planner-grid.tsx|text-[11px]@65 text-[11px]@141 text-[11px]@150 text-[11px]@171 text-[9px]@203 text-[10px]@237
 src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@396 text-[11px]@461
@@ -937,6 +1026,7 @@ const requireCheckboxLabel = {
 export default {
   meta: { name: "ui-kit" },
   rules: {
+    "green-fill-white-text": greenFillWhiteText,
     "no-generic-brand-colors": noGenericBrandColors,
     "no-hand-rolled-overlay": noHandRolledOverlay,
     "no-hand-rolled-page-card": noHandRolledPageCard,

@@ -42,6 +42,7 @@
     "school-class/no-hand-built-label": "error",
     "swr/no-direct-import": "error",
     "test-clock/no-real-clock": "error",
+    "ui-kit/green-fill-white-text": "error",
     "ui-kit/no-generic-brand-colors": "error",
     "ui-kit/no-hand-rolled-overlay": "error",
     "ui-kit/no-hand-rolled-surface": "error",

@@ -63,6 +63,13 @@
   --color-moto-green-active: #6db118;
   --color-moto-green-strong: #3f6f12;
   --color-moto-green-soft: #eef9e1;
+  /* Grüne Fläche mit weißer Schrift oder weißem Icon (#5141). Die Grundtöne
+     oben tragen kein Weiß: #83cd2d erreicht 1,96:1, #74b825 2,43:1. Die
+     Füllstufen halten WCAG AA für normale Schrift in jedem Zustand:
+     fill 4,84:1, fill-hover 6,0:1 (= strong), fill-active 7,0:1. */
+  --color-moto-green-fill: #4a7f14;
+  --color-moto-green-fill-hover: #3f6f12;
+  --color-moto-green-fill-active: #386410;
   --color-moto-blue: #5080d8;
   --color-moto-blue-light: #6b95e0;
   --color-moto-blue-hover: #3b68c0;
