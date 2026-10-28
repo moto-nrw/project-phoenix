@@ -1699,6 +1699,7 @@
     "errorObject": "die Ferienanmeldung",
     "window": "Anmeldung vom {opens} bis {closes}",
     "binding": "Die Anmeldung ist verbindlich.",
+    "requiredHint": "Felder mit * müssen Sie ausfüllen.",
     "notesTitle": "Hinweise vom Träger",
     "closedTitle": "Die Anmeldung ist nicht offen",
     "closedText": "Sie können Ihr Kind vom {opens} bis {closes} anmelden.",

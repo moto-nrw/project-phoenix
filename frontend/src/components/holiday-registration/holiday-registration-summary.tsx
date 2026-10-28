@@ -147,31 +147,34 @@ export function HolidayRegistrationSummary({
         onBenefitsDeclaredChange={onBenefitsDeclaredChange}
       />
 
-      {securityCheck}
-
-      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          disabled={submitting}
-          onClick={onBack}
-        >
-          {t("back")}
-        </Button>
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          disabled={submitting || !canSubmit}
-          onClick={onSubmit}
-        >
-          {submitting
-            ? t("submitting")
-            : offer.binding
-              ? t("submitBinding")
-              : t("submit")}
-        </Button>
+      {/* The security check sits in the row of the send button: one step,
+          no gap below the contribution. */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        {securityCheck}
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            disabled={submitting}
+            onClick={onBack}
+          >
+            {t("back")}
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            disabled={submitting || !canSubmit}
+            onClick={onSubmit}
+          >
+            {submitting
+              ? t("submitting")
+              : offer.binding
+                ? t("submitBinding")
+                : t("submit")}
+          </Button>
+        </div>
       </div>
     </div>
   );

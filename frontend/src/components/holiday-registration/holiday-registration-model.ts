@@ -238,19 +238,33 @@ function validateContacts(
   });
 }
 
-/** Checks a registration before the summary; empty means complete. */
+/**
+ * Checks a registration before the summary; empty means complete. The
+ * errors follow the order of the form, so the first one is the field the
+ * parent reaches first: the form focuses it after a failed check.
+ */
 export function validateRegistration(
   draft: RegistrationDraft,
   offer: HolidayRegistrationOffer,
 ): Record<string, FieldErrorKey> {
   const errors: Record<string, FieldErrorKey> = {};
+  draft.children.forEach((child, index) => {
+    const prefix = `children.${index}`;
+    requireText(errors, `${prefix}.first_name`, child.firstName);
+    requireText(errors, `${prefix}.last_name`, child.lastName);
+    requireText(errors, `${prefix}.birth_date`, child.birthDate);
+    if (child.school === "") errors[`${prefix}.home_school_id`] = "school";
+    if (bookedWeeks(child, offer).length === 0) {
+      errors[`${prefix}.bookings`] = "weeks";
+    }
+  });
   requireText(errors, "guardian.first_name", draft.guardian.firstName);
   requireText(errors, "guardian.last_name", draft.guardian.lastName);
-  requireText(errors, "guardian.phone", draft.guardian.phone);
   if (!EMAIL.test(draft.guardian.email.trim())) {
     errors["guardian.email"] =
       draft.guardian.email.trim() === "" ? "required" : "email";
   }
+  requireText(errors, "guardian.phone", draft.guardian.phone);
   if (hasSecondGuardian(draft)) {
     const second = draft.secondGuardian;
     requireText(errors, "second_guardian.first_name", second.firstName);
@@ -262,16 +276,6 @@ export function validateRegistration(
       errors["second_guardian.phone"] = "phone";
     }
   }
-  draft.children.forEach((child, index) => {
-    const prefix = `children.${index}`;
-    requireText(errors, `${prefix}.first_name`, child.firstName);
-    requireText(errors, `${prefix}.last_name`, child.lastName);
-    requireText(errors, `${prefix}.birth_date`, child.birthDate);
-    if (child.school === "") errors[`${prefix}.home_school_id`] = "school";
-    if (bookedWeeks(child, offer).length === 0) {
-      errors[`${prefix}.bookings`] = "weeks";
-    }
-  });
   validateContacts(errors, "emergency_contacts", draft.emergencyContacts, true);
   validateContacts(errors, "pickup_persons", draft.pickupPersons, false);
   if (!draft.privacyConsent) errors.privacy_consent = "privacy";
