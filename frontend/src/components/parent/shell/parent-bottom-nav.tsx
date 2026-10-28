@@ -13,9 +13,9 @@ import {
 import { LogoutModal } from "~/components/ui/logout-modal";
 import { NavLink } from "~/components/ui/nav-link";
 import { NotificationBadge } from "~/components/ui/notification-badge";
+import { PortalNavSheetLink } from "~/components/ui/portal-bottom-nav";
 import { BELOW_LG, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { parentPath } from "~/lib/parent-url";
-import { ChevronRight } from "lucide-react";
 import { isParentNavActive } from "./parent-nav-active";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import {
@@ -293,41 +293,29 @@ export function ParentBottomNav({
                         : undefined
                     }
                   >
-                    <NavLink
+                    <PortalNavSheetLink
                       href={item.external ? item.href : parentPath(item.href)}
-                      {...(item.external
-                        ? { target: "_blank", rel: "noopener noreferrer" }
-                        : {})}
+                      label={t(item.tKey)}
+                      concept={item.concept}
+                      active={active}
+                      newTab={item.external}
                       data-parent-nav-item={item.key}
-                      data-active={active ? "true" : "false"}
                       onClick={() => setMoreOpen(false)}
-                      className={`flex items-center gap-3 rounded-xl px-4 py-3 text-base font-medium transition-colors ${
-                        active
-                          ? "bg-gray-100 font-semibold text-gray-900"
-                          : "bg-gray-50 text-gray-900 hover:bg-gray-100 active:bg-gray-200"
-                      }`}
-                    >
-                      <MotoNavIcon
-                        concept={item.concept}
-                        active={active}
-                        className={`h-5 w-5 ${active ? "" : "text-gray-600"}`}
-                      />
-                      <span className="flex-1">{t(item.tKey)}</span>
-                      {count > 0 && (
-                        <NotificationBadge
-                          count={count}
-                          tone="parents"
-                          ariaLabel={t(
-                            item.badge === "news" ? "openCount" : "unreadCount",
-                            { count },
-                          )}
-                        />
-                      )}
-                      <ChevronRight
-                        className="h-5 w-5 shrink-0 text-gray-400"
-                        aria-hidden="true"
-                      />
-                    </NavLink>
+                      badge={
+                        count > 0 ? (
+                          <NotificationBadge
+                            count={count}
+                            tone="parents"
+                            ariaLabel={t(
+                              item.badge === "news"
+                                ? "openCount"
+                                : "unreadCount",
+                              { count },
+                            )}
+                          />
+                        ) : null
+                      }
+                    />
                   </li>
                 );
               })}

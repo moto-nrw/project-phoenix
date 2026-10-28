@@ -128,3 +128,15 @@ type TraegerAccountManagement interface {
 	// AcceptTraegerInvitation returns the address the invitee signs in with.
 	AcceptTraegerInvitation(ctx context.Context, token string, acceptance TraegerInvitationAcceptance) (string, error)
 }
+
+// TraegerOperatorInvitation lets the moto team invite a person into a
+// Träger-Büro from the operator portal (spec #4611 user story 2, #5144),
+// also the first one: the same invitation, mail and acceptance as the
+// Träger-Büro's own, so the Träger-Büro sees it among its open invitations.
+// It participates in the caller's administrative transaction and refuses
+// without one (ErrTraegerTransactionRequired); the operator audit of the
+// caller records the step. A Träger that is not live is
+// ErrNoTraegerMembership.
+type TraegerOperatorInvitation interface {
+	InviteTraegerAccountForOperator(ctx context.Context, organizationID int64, email string, roles []string) (TraegerInvitation, error)
+}

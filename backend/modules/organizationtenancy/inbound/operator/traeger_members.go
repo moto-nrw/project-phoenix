@@ -11,17 +11,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
-// The people of a Träger-Büro (ADR 0084, #4649): the operator lists them and
-// assigns the first person with a Träger role.
+// The people of a Träger-Büro (ADR 0084, #4649, #5144): the operator lists
+// them, assigns an existing account or invites a person, each with one or
+// more Träger roles.
 
-type assignTraegerMemberRequest struct {
-	Email string `json:"email"`
-	Role  string `json:"role"`
+// traegerMemberRequest is the body of the assignment and the invitation.
+type traegerMemberRequest struct {
+	Email string   `json:"email"`
+	Roles []string `json:"roles"`
 }
 
-func (req *assignTraegerMemberRequest) Bind(_ *http.Request) error {
+func (req *traegerMemberRequest) Bind(_ *http.Request) error {
 	req.Email = strings.TrimSpace(req.Email)
-	req.Role = strings.TrimSpace(req.Role)
 	return nil
 }
 
@@ -36,13 +37,13 @@ func (rs *ProvisioningResource) AssignTraegerMember(w http.ResponseWriter, r *ht
 	if !ok {
 		return
 	}
-	req := &assignTraegerMemberRequest{}
+	req := &traegerMemberRequest{}
 	if err := render.Bind(r, req); err != nil {
 		common.RenderError(w, r, common.OperatorInvalidRequest(err))
 		return
 	}
 	member, err := rs.service.AssignTraegerMember(r.Context(), organizationtenancy.AssignTraegerMember{
-		OrganizationID: organizationID, Email: req.Email, Role: req.Role,
+		OrganizationID: organizationID, Email: req.Email, Roles: req.Roles,
 		OperatorID: int64(sessiontoken.ClaimsFromCtx(r.Context()).ID), ClientIP: common.ParseClientIP(r),
 	})
 	if err != nil {
@@ -50,6 +51,29 @@ func (rs *ProvisioningResource) AssignTraegerMember(w http.ResponseWriter, r *ht
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, member, "Träger member assigned successfully")
+}
+
+// InviteTraegerMember answers POST
+// /operator/organizations/{id}/traeger-members/invitations (#5144).
+func (rs *ProvisioningResource) InviteTraegerMember(w http.ResponseWriter, r *http.Request) {
+	organizationID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
+	if !ok {
+		return
+	}
+	req := &traegerMemberRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.OperatorInvalidRequest(err))
+		return
+	}
+	invitation, err := rs.service.InviteTraegerMember(r.Context(), organizationtenancy.InviteTraegerMember{
+		OrganizationID: organizationID, Email: req.Email, Roles: req.Roles,
+		OperatorID: int64(sessiontoken.ClaimsFromCtx(r.Context()).ID), ClientIP: common.ParseClientIP(r),
+	})
+	if err != nil {
+		common.RenderError(w, r, ProvisioningErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, invitation, "Träger invitation sent successfully")
 }
 
 // resetTraegerMemberMFARequest is the body of the second-factor reset; the
@@ -98,6 +122,12 @@ func traegerErrorRenderer(err error) (render.Renderer, bool) {
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "No account with this e-mail address"), true
 	case errors.Is(err, organizationtenancy.ErrTraegerMemberNotFound):
 		return common.OperatorRejection(http.StatusNotFound, common.CodeIdentityAccountNotFound, "Account is no member of this Träger-Büro"), true
+	case errors.Is(err, organizationtenancy.ErrTraegerAlreadyMember):
+		return common.OperatorRejection(http.StatusConflict, common.CodeTraegerAlreadyMember, "The person already belongs to the Träger-Büro"), true
+	case errors.Is(err, organizationtenancy.ErrTraegerInvalidEmail):
+		return common.OperatorInvalidField(common.CodeGeneralInput, "email", "Invalid e-mail address"), true
+	case errors.Is(err, organizationtenancy.ErrInvalidTraegerRole):
+		return common.OperatorInvalidField(common.CodeGeneralInput, "roles", "Choose at least one valid Träger role"), true
 	case errors.Is(err, organizationtenancy.ErrOrganizationInactive):
 		return common.OperatorRejection(http.StatusConflict, common.CodeGeneralBusinessRejection, "Organization is inactive"), true
 	}

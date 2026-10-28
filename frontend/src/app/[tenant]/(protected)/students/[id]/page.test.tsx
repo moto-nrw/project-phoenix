@@ -14,6 +14,7 @@ import { catalogText } from "~/test/error-catalog-text";
 import { SWRConfig } from "swr";
 import { useSession } from "next-auth/react";
 import { getDayData as getArrivalDayData } from "~/lib/arrival-schedule-helpers";
+import { getDayData as getPickupDayData } from "~/lib/pickup-schedule-helpers";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { setTestClock } from "~/test/clock";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
@@ -816,7 +817,7 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Full Access View", () => {
-    it("uses Friday's arrival plan in the header when the weekend follows Friday", async () => {
+    it("uses Berlin's calendar day for the header plans", async () => {
       setTestClock("2026-09-12T12:00:00+02:00");
       vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
 
@@ -828,7 +829,7 @@ describe("StudentDetailPage", () => {
 
       await waitFor(() => {
         expect(getArrivalDayData).toHaveBeenLastCalledWith(
-          expect.any(Date),
+          new Date(2026, 8, 12),
           [],
           [],
           [],
@@ -836,6 +837,20 @@ describe("StudentDetailPage", () => {
           false,
           null,
           true,
+          "2026-09-12",
+        );
+        expect(getPickupDayData).toHaveBeenLastCalledWith(
+          new Date(2026, 8, 12),
+          [],
+          [],
+          false,
+          undefined,
+          false,
+          null,
+          undefined,
+          true,
+          [],
+          "2026-09-12",
         );
       });
       expect(screen.getByTestId("care-schedule-manager")).toHaveAttribute(

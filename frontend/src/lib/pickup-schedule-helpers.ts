@@ -1,5 +1,5 @@
 // Pickup Schedule Type Definitions and Mapping Helpers
-import { toISODate as formatDateISO } from "./date-helpers";
+import { berlinTodayISO, toISODate as formatDateISO } from "./date-helpers";
 import type { StudentStatusKind } from "./student-status-days-api";
 import type { DepartureMode } from "./student-helpers";
 
@@ -448,18 +448,19 @@ export function getDayData(
   effectiveSchedules: DatedPickupSchedule[] = [],
   weekendFollowsFriday = false,
   departureExceptions: DepartureException[] = [],
+  todayISO = berlinTodayISO(),
 ): DayData {
   const calendarWeekday = getWeekdayFromDate(date);
   const weekday = calendarWeekday ?? 5;
   const dateStr = formatDateISO(date);
-  const today = new Date();
+  const isToday = dateStr === todayISO;
 
   // Handle weekend dates explicitly - no schedule available
   if (calendarWeekday === null && !weekendFollowsFriday) {
     return {
       date,
       weekday: 0, // Weekend indicator
-      isToday: isSameDay(date, today),
+      isToday,
       showSick: false,
       showClassTrip: false,
       showExcused: false,
@@ -479,7 +480,6 @@ export function getDayData(
   // Check if this is today and student is sick / excused. The two flags are
   // mutually exclusive at the backend level; if they somehow both arrive as
   // true we let sick win to stay consistent with LocationBadge precedence.
-  const isToday = isSameDay(date, today);
   const showSick = statusForDate
     ? statusForDate === "sick"
     : isToday && isSickToday;
