@@ -198,6 +198,9 @@ const (
 	CodeSettingsModuleRequires                        = "settings.module_requires"
 	CodeSettingsNotFound                              = "settings.not_found"
 	CodeSettingsPresenceModeSwitchBlocked             = "settings.presence_mode_switch_blocked"
+	CodeStaffExitAlreadyDue                           = "staff.exit_already_due"
+	CodeStaffExitDayInPast                            = "staff.exit_day_in_past"
+	CodeStaffExitNotPlanned                           = "staff.exit_not_planned"
 	CodeStaffExternalAccessInvalid                    = "staff.external_access_invalid"
 	CodeStaffExternalEmailInvalid                     = "staff.external_email_invalid"
 	CodeStaffExternalEmailInvited                     = "staff.external_email_invited"
@@ -299,9 +302,6 @@ const (
 	CodeTimetableActivitySystemProtected              = "timetable.activity_system_protected"
 	CodeTimetableActivityTemplateProtected            = "timetable.activity_template_protected"
 	CodeTimetableAmbiguousTemplateInstanceDelete      = "timetable.ambiguous_template_instance_delete"
-	CodeTimetableAttendanceEntryNotFound              = "timetable.attendance_entry_not_found"
-	CodeTimetableAttendanceFrozen                     = "timetable.attendance_frozen"
-	CodeTimetableAttendanceInvalid                    = "timetable.attendance_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -501,6 +501,9 @@ var errorCodeClasses1 = map[string]string{
 	"settings.module_requires":                           "input",
 	"settings.not_found":                                 "business_rejection",
 	"settings.presence_mode_switch_blocked":              "business_rejection",
+	"staff.exit_already_due":                             "business_rejection",
+	"staff.exit_day_in_past":                             "input",
+	"staff.exit_not_planned":                             "business_rejection",
 	"staff.external_access_invalid":                      "input",
 	"staff.external_email_invalid":                       "input",
 	"staff.external_email_invited":                       "business_rejection",
@@ -602,9 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.activity_system_protected":                "permission",
 	"timetable.activity_template_protected":              "business_rejection",
 	"timetable.ambiguous_template_instance_delete":       "business_rejection",
-	"timetable.attendance_entry_not_found":               "business_rejection",
-	"timetable.attendance_frozen":                        "business_rejection",
-	"timetable.attendance_invalid":                       "input",
 }
 
 func init() {

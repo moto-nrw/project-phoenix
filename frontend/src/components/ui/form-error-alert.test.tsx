@@ -65,12 +65,16 @@ describe("FormErrorAlert", () => {
       <form>
         <FormErrorAlert message="Bitte prüfen Sie die markierten Felder." />
         <input aria-label="Vorname" />
-        <input aria-label="Einwilligung" aria-invalid="true" />
+        <button type="button" data-form-invalid="true">
+          Einwilligung
+        </button>
         <input aria-label="Telefon" aria-invalid="true" />
       </form>,
     );
 
-    expect(scrolled).toEqual([screen.getByLabelText("Einwilligung")]);
+    expect(scrolled).toEqual([
+      screen.getByRole("button", { name: "Einwilligung" }),
+    ]);
   });
 
   it("scrolls again for a repeated attempt with the same message", () => {

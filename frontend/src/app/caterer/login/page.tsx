@@ -12,7 +12,6 @@ import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClass,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
@@ -23,6 +22,8 @@ import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { hasSessionAccess } from "~/lib/session-access";
 import { requestCatererPasswordReset } from "~/lib/auth-api";
@@ -197,40 +198,35 @@ function LoginForm() {
 
             <div className="space-y-4">
               <div className="text-left">
-                <label
-                  htmlFor="email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  E-Mail-Adresse
-                </label>
-                <input
+                <Input
                   id="email"
                   name="email"
                   type="email"
+                  label="E-Mail-Adresse"
+                  controlSize="compact"
                   autoComplete="username"
                   required
                   disabled={isSubmitting}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  aria-invalid={Boolean(emailError)}
-                  aria-describedby={emailError ? "email-error" : undefined}
-                  className={authInputClass(Boolean(emailError))}
+                  error={emailError}
                 />
-                <AuthFieldError id="email-error" message={emailError} />
               </div>
 
               <div className="text-left">
-                <label
+                <FieldLabel
                   htmlFor="password"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  required
+                  invalid={Boolean(passwordError)}
                 >
                   Passwort
-                </label>
+                </FieldLabel>
                 <div className="relative">
-                  <input
+                  <Input
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
+                    controlSize="compact"
                     autoComplete="current-password"
                     required
                     disabled={isSubmitting}
@@ -240,7 +236,7 @@ function LoginForm() {
                     aria-describedby={
                       passwordError ? "password-error" : undefined
                     }
-                    className={`${authInputClass(Boolean(passwordError))} pr-10`}
+                    className="pr-10"
                   />
                   <PasswordToggleButton
                     showPassword={showPassword}

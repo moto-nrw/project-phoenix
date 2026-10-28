@@ -64467,6 +64467,17 @@
     },
     {
       "source_owner": "school-membership",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.ClearPlannedExit",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.ClearPlannedExit",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.ClearPlannedExit to scope its own membership write (#4809). No persistent, lock or scope effect in tenant-runtime."
+    },
+    {
+      "source_owner": "school-membership",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.CountChildQuota",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.CountChildQuota",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
@@ -64885,6 +64896,17 @@
     },
     {
       "source_owner": "school-membership",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.RecordPlannedExitProgress",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.RecordPlannedExitProgress",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.RecordPlannedExitProgress to scope its own membership write (#4809). No persistent, lock or scope effect in tenant-runtime."
+    },
+    {
+      "source_owner": "school-membership",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.ReinstateStaff",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.ReinstateStaff",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
@@ -64926,6 +64948,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Read-only newly exposed target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.ResumeStudentCare. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "school-membership",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.SavePlannedExit",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.SavePlannedExit",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only target: school-membership reaches tenant.TenantFromContext (tenant-runtime) through modules/schoolmembership/internal/adapters/postgres.Store.SavePlannedExit to scope its own membership write (#4809). No persistent, lock or scope effect in tenant-runtime."
     },
     {
       "source_owner": "school-membership",

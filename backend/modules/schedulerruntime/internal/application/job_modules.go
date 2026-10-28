@@ -69,6 +69,9 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// The holiday guests of a hosted week belong to moto Basis like its
 	// participant list (ADR 0116, ADR 0120).
 	"holiday-guest-reconciliation": jobScopeBasis,
+	// A planned staff exit is the staff administration of moto Basis
+	// (#4809).
+	"planned-staff-exits": jobScopeBasis,
 
 	// Zeiterfassung: breaks and work sessions of the time clock.
 	"break-auto-end": {moduleSettingKey: settingModuleZeiterfassung},

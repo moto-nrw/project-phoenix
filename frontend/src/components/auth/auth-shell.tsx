@@ -6,23 +6,6 @@ import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Skeleton } from "~/components/ui/skeleton";
 
-export const authInputClassName =
-  "moto-content-surface h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500";
-
-/**
- * The auth input class, red when a server or pre-send check refused the
- * field (#2517). `moto-content-surface` is unlayered and would win over the
- * red border, so an invalid field drops it (as CustomSelect does).
- */
-export function authInputClass(invalid: boolean): string {
-  return invalid
-    ? authInputClassName.replace(
-        "moto-content-surface",
-        "border-moto-red bg-moto-red/5",
-      )
-    : authInputClassName;
-}
-
 /** The hint under a refused auth field, linked by `aria-describedby`. */
 export function AuthFieldError({
   id,
