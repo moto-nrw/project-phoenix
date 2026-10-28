@@ -479,7 +479,7 @@ func TestCommandEffectsCheckRejectsNoncanonicalRegister(t *testing.T) {
 	if err := GenerateCommandEffects(project, policy); err != nil {
 		t.Fatal(err)
 	}
-	filename := filepath.Join(project, commandEffectInventory)
+	filename := filepath.Join(project, "architecture", "command-effects", "reviews", "enrollment.json")
 	var document any
 	if err := json.Unmarshal([]byte(readFile(t, filename)), &document); err != nil {
 		t.Fatal(err)
@@ -488,9 +488,7 @@ func TestCommandEffectsCheckRejectsNoncanonicalRegister(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := artifacts.WriteInventory(filename, artifacts.CommandEffects, blob); err != nil {
-		t.Fatal(err)
-	}
+	writeFile(t, filename, string(blob))
 	_, err = LoadGraph(project, policy)
 	if err == nil || !strings.Contains(err.Error(), "scripts/backend-architecture.sh effects") {
 		t.Fatalf("noncanonical register passed or omitted generator command: %v", err)

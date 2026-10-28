@@ -127,3 +127,20 @@ No merge queue, blind union merge, automatic snapshot approval or budget growth.
 - Remaining long checks: 218-package affected closure, complete architecture
   behavior suite after mechanical fixture repairs, final source/context gates.
 - Actual GitHub screenshot benchmark and bundle artifact integration still pending.
+
+### Concurrent base integration
+
+- Development advanced to a9da0bcbc0 while verification ran. Integrated its
+  accepted careplan fixes, missing proxy-row repair and latest approved bundle
+  reference values. All 184 incoming ceilings are transferred using exactly the
+  pre-existing 2%/10-KiB tolerance; no new observation was accepted as policy.
+- The 218-package local run reached a database connection timeout and the API
+  package's 10-minute timeout on shared port 5433. This is not a green run.
+  Separate focused production-router checks had passed. A first isolated retry
+  started before the new throwaway server was ready and is also not a pass.
+- Three old source-level inventory fixtures needed mechanical writer/reader
+  adaptation. Their full contract assertions remain; the intentionally compact
+  JSON fixture now corrupts a real review fragment and still proves rejection
+  plus canonical repair. Focused tests pass.
+- Task-owned throwaway database startup uses existing Docker bridge and tmpfs,
+  never a persistent volume. Record its container ID before using or cleanup.

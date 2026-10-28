@@ -3,32 +3,32 @@
   "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
   "routes": {
     "/[tenant]/admin/change-requests": {
-      "referenceBytes": 906021,
-      "maxBytes": 924141
+      "referenceBytes": 914251,
+      "maxBytes": 932536
     },
     "/[tenant]/admin/enrollments": {
-      "referenceBytes": 954485,
-      "maxBytes": 973575
+      "referenceBytes": 961405,
+      "maxBytes": 980633
     },
     "/[tenant]/admin/enrollments/[id]": {
-      "referenceBytes": 1006516,
-      "maxBytes": 1026646
+      "referenceBytes": 1016675,
+      "maxBytes": 1037009
     },
     "/[tenant]/admin/enrollments/change-requests": {
-      "referenceBytes": 906021,
-      "maxBytes": 924141
+      "referenceBytes": 914251,
+      "maxBytes": 932536
     },
     "/[tenant]/admin/enrollments/change-requests/[id]": {
-      "referenceBytes": 939973,
-      "maxBytes": 958772
+      "referenceBytes": 952079,
+      "maxBytes": 971121
     },
     "/[tenant]/admin/enrollments/phases/[phaseId]": {
-      "referenceBytes": 969201,
-      "maxBytes": 988585
+      "referenceBytes": 976513,
+      "maxBytes": 996043
     },
     "/[tenant]/admin/guardian-approvals": {
-      "referenceBytes": 941443,
-      "maxBytes": 960272
+      "referenceBytes": 948262,
+      "maxBytes": 967227
     }
   }
 }

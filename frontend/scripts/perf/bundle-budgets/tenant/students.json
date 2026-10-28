@@ -3,24 +3,24 @@
   "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
   "routes": {
     "/[tenant]/students/[id]": {
-      "referenceBytes": 1220870,
-      "maxBytes": 1245287
+      "referenceBytes": 1231913,
+      "maxBytes": 1256551
     },
     "/[tenant]/students/[id]/change-history": {
-      "referenceBytes": 946388,
-      "maxBytes": 965316
+      "referenceBytes": 953610,
+      "maxBytes": 972682
     },
     "/[tenant]/students/[id]/feedback-history": {
-      "referenceBytes": 1137091,
-      "maxBytes": 1159833
+      "referenceBytes": 1144507,
+      "maxBytes": 1167397
     },
     "/[tenant]/students/[id]/room-history": {
-      "referenceBytes": 1139247,
-      "maxBytes": 1162032
+      "referenceBytes": 1146469,
+      "maxBytes": 1169398
     },
     "/[tenant]/students/search": {
-      "referenceBytes": 1113761,
-      "maxBytes": 1136036
+      "referenceBytes": 1122680,
+      "maxBytes": 1145134
     }
   }
 }
