@@ -982,7 +982,8 @@ function TimetablesContent() {
     !!connectTemplateID && canManageSchedules && view === "series";
   const needsConnectLookup =
     resolveConnectTemplate &&
-    !!templateData &&
+    periodsReady &&
+    (!templatePeriodID || !!templateData) &&
     !templates.some((entry) => entry.id === connectTemplateID);
   // The period-free list is metadata only. Switch periods before using the
   // normal scoped list, so the editor never receives an unscoped roster.
@@ -1031,7 +1032,12 @@ function TimetablesContent() {
       updateUrlParams({ verbinden: null });
       return;
     }
-    if (view !== "series" || !templateData) return;
+    if (
+      view !== "series" ||
+      !periodsReady ||
+      (templatePeriodID && !templateData)
+    )
+      return;
     if (templatesError) return;
     const template = templates.find((entry) => entry.id === connectTemplateID);
     if (!template) {
@@ -1093,6 +1099,7 @@ function TimetablesContent() {
     connectTemplatesError,
     connectTemplatesValidating,
     calendarPeriods,
+    periodsReady,
     templatePeriodID,
     dayISO,
     rosterDeviations,

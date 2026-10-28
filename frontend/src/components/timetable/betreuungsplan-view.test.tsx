@@ -1385,35 +1385,39 @@ describe("BetreuungsplanView", () => {
     ).toBeVisible();
   });
 
-  it("resolves a linked template in a later planning period", async () => {
-    setUrl("view=serien&verbinden=7");
-    const laterTemplate = {
-      ...template,
-      schedules: template.schedules.map((schedule) => ({
-        ...schedule,
-        calendarPeriodId: laterPeriod.id,
-      })),
-    };
-    setupSWR({
-      periods: [period, laterPeriod],
-      templates: [],
-      templatesByPeriod: { "timetable-templates-6": [laterTemplate] },
-      allTemplates: [laterTemplate],
-      rosterDeviations: [deviation],
-    });
-    render(<BetreuungsplanView />);
+  it.each(["", "&d=2027-06-07"])(
+    "resolves a linked template in a later planning period from the initial week %s",
+    async (initialDate) => {
+      setUrl(`view=serien&verbinden=7${initialDate}`);
+      const laterTemplate = {
+        ...template,
+        schedules: template.schedules.map((schedule) => ({
+          ...schedule,
+          calendarPeriodId: laterPeriod.id,
+        })),
+      };
+      setupSWR({
+        periods: [period, laterPeriod],
+        templates: [],
+        templatesByPeriod: { "timetable-templates-6": [laterTemplate] },
+        allTemplates: [laterTemplate],
+        rosterDeviations: [deviation],
+      });
+      render(<BetreuungsplanView />);
 
-    expect(
-      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
-    ).toBeVisible();
-    expect(urlParams().get("d")).toBe(laterPeriod.startDate);
-    expect(urlParams().has("verbinden")).toBe(false);
-    expect(mockUseSWRAuth).toHaveBeenCalledWith(
-      "timetable-templates-6",
-      expect.any(Function),
-      expect.objectContaining({ keepPreviousData: false }),
-    );
-  });
+      expect(
+        await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+      ).toBeVisible();
+      expect(urlParams().get("d")).toBe(laterPeriod.startDate);
+      expect(urlParams().get("zeitraum")).toBe(laterPeriod.id);
+      expect(urlParams().has("verbinden")).toBe(false);
+      expect(mockUseSWRAuth).toHaveBeenCalledWith(
+        "timetable-templates-6",
+        expect.any(Function),
+        expect.objectContaining({ keepPreviousData: false }),
+      );
+    },
+  );
 
   // Invariante (#5137): Nach dem Link ist der Zeitraum des Regeltermins
   // aktiv, auch wenn ein Zeitraum mit kleinerer ID dieselben Tage abdeckt.
