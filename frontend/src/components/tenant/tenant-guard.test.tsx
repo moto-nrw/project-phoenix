@@ -943,7 +943,7 @@ describe("TenantGuard", () => {
     }
 
     const CHECK_FAILED =
-      "moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es noch einmal. Wenn das nicht hilft, melden Sie sich neu an.";
+      "moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es gleich noch einmal.";
 
     beforeEach(() => {
       providerUpdate.mockReset();
@@ -1045,9 +1045,10 @@ describe("TenantGuard", () => {
       expect(
         screen.getByRole("button", { name: "Erneut versuchen" }),
       ).toBeInTheDocument();
+      // Review of #5175: no sign-out that a late answer could undo.
       expect(
-        screen.getByRole("button", { name: "Neu anmelden" }),
-      ).toBeInTheDocument();
+        screen.queryByRole("button", { name: "Neu anmelden" }),
+      ).not.toBeInTheDocument();
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
 
@@ -1065,16 +1066,6 @@ describe("TenantGuard", () => {
       await act(async () => settleLookup(1));
 
       expect(screen.getByText("Protected Content")).toBeInTheDocument();
-    });
-
-    it("signs out on request when the check failed", async () => {
-      render(<Tab />);
-      act(() => reportSessionTenantMismatch());
-      await act(async () => settleLookup(null));
-
-      fireEvent.click(screen.getByRole("button", { name: "Neu anmelden" }));
-
-      expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
     });
 
     it("starts one check for repeated refusals and never shows the old page", async () => {

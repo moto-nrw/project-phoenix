@@ -286,7 +286,12 @@ browser a fetch observer (`frontend/src/lib/session-tenant-mismatch-observer.ts`
 installed by `TenantGuard`) and `apiErrorFromBody` report the refusal, also
 for clients that read only `response.ok`. The session cache drops its session
 and wakes the `SessionProvider`; `TenantGuard` hides the page at once and
-switches back once the provider answers. Only because of this check may the
+shows it again only after a session lookup started after the refusal names
+this tab's school. An answer naming another school hands over to the switch,
+and while the provider names another school, refusals start no lookup. Without
+a valid answer within 10 s the guard offers only `Erneut versuchen`: a
+sign-out would not make a cookie that a late answer writes back worthless,
+because access tokens are stateless until they expire. Only because of this check may the
 session cache keep the provider's session until its next poll. Path mode
 (`{TENANT_DOMAIN}/{school}/...`) names no school in its host: the tenant
 layout redirects it to the school's subdomain (path and query from the

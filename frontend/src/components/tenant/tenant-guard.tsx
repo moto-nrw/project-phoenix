@@ -132,7 +132,7 @@ function GuardedTenant({
   // After a tenant route refused a request (#5130) the page stays hidden
   // until a session lookup that started after the refusal names the school.
   // "checking": that lookup runs; "failed": it brought no valid answer in
-  // time, so the person decides how to go on. Never the old page meanwhile.
+  // time, so the person checks again. Never the old page meanwhile.
   const [refusal, setRefusalState] = useState<"checking" | "failed" | null>(
     null,
   );
@@ -466,30 +466,16 @@ function GuardedTenant({
   ]);
 
   if (refusal === "failed") {
+    // No sign-out here: it would delete the cookie without making a copy
+    // that a late answer writes back worthless (access tokens stay valid
+    // until they expire). Checking again is the safe way out.
     return (
       <div className="mx-auto flex min-h-[200px] max-w-3xl items-center p-4">
         <div className="w-full space-y-3">
-          <LoadErrorAlert error="moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es noch einmal. Wenn das nicht hilft, melden Sie sich neu an." />
-          <span className="flex flex-wrap gap-2">
-            <Button type="button" size="md" onClick={checkSessionSchool}>
-              Erneut versuchen
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              variant="outline"
-              onClick={() => {
-                void signOut({ callbackUrl: "/" }).catch((err: unknown) => {
-                  logger.warn("tenant_refusal_relogin_signout_failed", {
-                    error: err instanceof Error ? err.message : String(err),
-                  });
-                  void showActionError(err, { object: "die Abmeldung" });
-                });
-              }}
-            >
-              Neu anmelden
-            </Button>
-          </span>
+          <LoadErrorAlert error="moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es gleich noch einmal." />
+          <Button type="button" size="md" onClick={checkSessionSchool}>
+            Erneut versuchen
+          </Button>
         </div>
       </div>
     );
