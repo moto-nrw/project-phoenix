@@ -1691,6 +1691,9 @@
     "signatureEyebrow": "Potwierdzenie"
   },
   "holidayRegistration": {
+    "secondGuardianTitle": "Drugi opiekun prawny",
+    "secondGuardianText": "Opcjonalnie. Jeśli podasz dane, imię i nazwisko są wymagane.",
+    "emailOptional": "Adres e-mail (opcjonalnie)",
     "eyebrow": "Opieka w ferie",
     "loading": "Zgłoszenie się ładuje.",
     "errorObject": "zgłoszenie na ferie",
@@ -1773,6 +1776,7 @@
     "doneText": "Wyślemy potwierdzenie na adres {email}.",
     "doneNext": "To jeszcze nie jest potwierdzenie miejsca. Organizator sprawdzi zgłoszenie i napisze, czy dziecko dostanie miejsce.",
     "errors": {
+      "phone": "Proszę podać prawidłowy numer telefonu.",
       "required": "Wypełnij to pole.",
       "email": "Podaj prawidłowy adres e-mail.",
       "school": "Wybierz szkołę dziecka.",

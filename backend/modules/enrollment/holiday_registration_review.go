@@ -170,6 +170,7 @@ type HolidayRegistrationEvent struct {
 // entered, its consents and its history.
 type HolidayRegistrationDetail struct {
 	HolidayRegistrationSummary
+	SecondGuardian     *HolidayGuardianInput        `json:"second_guardian,omitempty"`
 	Health             []HolidayRegistrationHealth  `json:"health"`
 	Contacts           []HolidayRegistrationContact `json:"contacts"`
 	PrivacyConsentAt   time.Time                    `json:"privacy_consent_at"`
@@ -181,9 +182,10 @@ type HolidayRegistrationDetail struct {
 // HolidayRegistrationExportRow is one booking of the export: one row per
 // child and week.
 type HolidayRegistrationExportRow struct {
-	Registration HolidayRegistrationSummary
-	Child        HolidayRegistrationChild
-	Booking      HolidayRegistrationBooking
+	SecondGuardian *HolidayGuardianInput
+	Registration   HolidayRegistrationSummary
+	Child          HolidayRegistrationChild
+	Booking        HolidayRegistrationBooking
 }
 
 // HolidayReviewer is the person of the Träger-Büro who reviews: the Träger

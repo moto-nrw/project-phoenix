@@ -115,6 +115,12 @@ export interface HolidayRegistrationEvent {
 }
 
 export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
+  readonly secondGuardian: {
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly email: string;
+    readonly phone: string;
+  } | null;
   readonly health: readonly HolidayRegistrationHealth[];
   readonly contacts: readonly HolidayRegistrationContact[];
   readonly privacyConsentAt: string;
@@ -168,6 +174,12 @@ interface BackendBookingChange {
 }
 
 interface BackendDetail extends BackendSummary {
+  second_guardian?: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  } | null;
   health?:
     | {
         child_id: number;
@@ -244,6 +256,14 @@ function detailFromBackend(
 ): HolidayRegistrationDetail {
   return {
     ...summaryFromBackend(registration),
+    secondGuardian: registration.second_guardian
+      ? {
+          firstName: registration.second_guardian.first_name,
+          lastName: registration.second_guardian.last_name,
+          email: registration.second_guardian.email,
+          phone: registration.second_guardian.phone,
+        }
+      : null,
     health: (registration.health ?? []).map((entry) => ({
       childId: String(entry.child_id),
       allergies: entry.allergies,

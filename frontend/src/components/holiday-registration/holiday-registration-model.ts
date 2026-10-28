@@ -49,6 +49,7 @@ export interface RegistrationDraft {
     readonly email: string;
     readonly phone: string;
   };
+  readonly secondGuardian: RegistrationDraft["guardian"];
   readonly children: readonly ChildDraft[];
   readonly emergencyContacts: readonly ContactDraft[];
   readonly pickupPersons: readonly ContactDraft[];
@@ -61,7 +62,14 @@ export interface RegistrationDraft {
 
 /** The reason a field is refused, as a key of `holidayRegistration.errors`. */
 export type FieldErrorKey =
-  "required" | "email" | "school" | "weeks" | "privacy" | "health" | "binding";
+  | "required"
+  | "email"
+  | "phone"
+  | "school"
+  | "weeks"
+  | "privacy"
+  | "health"
+  | "binding";
 
 let keyCounter = 0;
 const nextKey = (prefix: string) => `${prefix}-${++keyCounter}`;
@@ -88,6 +96,7 @@ export function emptyContact(): ContactDraft {
 export function emptyRegistration(): RegistrationDraft {
   return {
     guardian: { firstName: "", lastName: "", email: "", phone: "" },
+    secondGuardian: { firstName: "", lastName: "", email: "", phone: "" },
     children: [emptyChild()],
     emergencyContacts: [emptyContact()],
     pickupPersons: [],
@@ -195,6 +204,16 @@ export function bookedWeeks(
   });
 }
 
+/** Matches the canonical optional contact formats of Enrollment intake. */
+const SECOND_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
+const PHONE = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
+
+export function hasSecondGuardian(draft: RegistrationDraft): boolean {
+  return Object.values(draft.secondGuardian).some(
+    (value) => value.trim() !== "",
+  );
+}
+
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function requireText(
@@ -246,6 +265,17 @@ export function validateRegistration(
       draft.guardian.email.trim() === "" ? "required" : "email";
   }
   requireText(errors, "guardian.phone", draft.guardian.phone);
+  if (hasSecondGuardian(draft)) {
+    const second = draft.secondGuardian;
+    requireText(errors, "second_guardian.first_name", second.firstName);
+    requireText(errors, "second_guardian.last_name", second.lastName);
+    if (second.email.trim() && !SECOND_EMAIL.test(second.email.trim())) {
+      errors["second_guardian.email"] = "email";
+    }
+    if (second.phone.trim() && !PHONE.test(second.phone.trim())) {
+      errors["second_guardian.phone"] = "phone";
+    }
+  }
   validateContacts(errors, "emergency_contacts", draft.emergencyContacts, true);
   validateContacts(errors, "pickup_persons", draft.pickupPersons, false);
   if (!draft.privacyConsent) errors.privacy_consent = "privacy";
@@ -290,6 +320,16 @@ export function payloadFromDraft(
       email: draft.guardian.email.trim(),
       phone: draft.guardian.phone.trim(),
     },
+    ...(hasSecondGuardian(draft)
+      ? {
+          second_guardian: {
+            first_name: draft.secondGuardian.firstName.trim(),
+            last_name: draft.secondGuardian.lastName.trim(),
+            email: draft.secondGuardian.email.trim().toLowerCase(),
+            phone: draft.secondGuardian.phone.trim(),
+          },
+        }
+      : {}),
     children: draft.children.map((child) => {
       const guest = child.school === OTHER_SCHOOL;
       return {

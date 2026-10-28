@@ -13,6 +13,7 @@ import type { HolidayRegistrationOffer } from "~/lib/holiday-registration-api";
 import {
   bookedWeeks,
   type ContactDraft,
+  hasSecondGuardian,
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
@@ -122,6 +123,22 @@ export function HolidayRegistrationSummary({
           </DataField>
         </DataGrid>
       </SectionCard>
+
+      {hasSecondGuardian(draft) ? (
+        <SectionCard title={t("secondGuardianTitle")} headingLevel={3}>
+          <DataGrid>
+            <DataField
+              label={t("name")}
+            >{`${draft.secondGuardian.firstName.trim()} ${draft.secondGuardian.lastName.trim()}`}</DataField>
+            <DataField label={t("email")}>
+              {draft.secondGuardian.email.trim() || none}
+            </DataField>
+            <DataField label={t("phone")}>
+              {draft.secondGuardian.phone.trim() || none}
+            </DataField>
+          </DataGrid>
+        </SectionCard>
+      ) : null}
 
       <HolidayRegistrationContribution
         token={token}
