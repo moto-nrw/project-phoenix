@@ -112,12 +112,12 @@ export function PhoneListInput({
               value={p.phone_number}
               onChange={(e) => setRow(idx, { phone_number: e.target.value })}
             />
-            <label className="block" htmlFor={`phone-type-${idx}`}>
+            <label className="block" htmlFor={`${inputName}-${idx}-type`}>
               <span className="text-xs font-medium text-gray-700">
                 {tr("structured.type")}
               </span>
               <CustomSelect
-                id={`phone-type-${idx}`}
+                id={`${inputName}-${idx}-type`}
                 value={p.phone_type}
                 onChange={(value) =>
                   setRow(idx, {

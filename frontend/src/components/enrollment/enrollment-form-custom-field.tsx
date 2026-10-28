@@ -259,7 +259,7 @@ export function CustomFieldInput({
   }
 
   if (field.type === "date") {
-    const dateId = `enrollment-${field.key}`;
+    const dateId = controlId;
     return (
       <div>
         <FieldLabel
@@ -273,6 +273,7 @@ export function CustomFieldInput({
         <ISODatePicker
           {...datePicker}
           id={dateId}
+          name={inputName}
           controlSize="md"
           value={valueStr}
           onChange={onChange}

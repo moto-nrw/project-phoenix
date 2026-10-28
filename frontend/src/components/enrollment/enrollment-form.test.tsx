@@ -1262,6 +1262,9 @@ describe("EnrollmentForm", () => {
         name: "Mehr anzeigen",
       }),
     ).not.toBeInTheDocument();
+    expect(
+      within(emailContactNotice!).getByText("Notice"),
+    ).toBeInTheDocument();
   });
 
   // #3377: texts the school wrote itself follow the chosen language, per
@@ -1473,6 +1476,80 @@ describe("EnrollmentForm", () => {
         name: /Status-Benachrichtigungen/,
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses instance-specific IDs for date and phone controls", async () => {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "appointment",
+        label: "Termin",
+        type: "date",
+        required: false,
+        applies_to_child: false,
+        sort_order: 1,
+      },
+      {
+        key: "appointment",
+        label: "Termin",
+        type: "date",
+        required: false,
+        applies_to_child: true,
+        sort_order: 2,
+      },
+      {
+        key: "contacts",
+        label: "Notfallkontakte",
+        type: "contact_list",
+        required: false,
+        applies_to_child: true,
+        sort_order: 3,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+
+    renderForm({
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Lina", last_name: "Muster" },
+        { id: "c-2", first_name: "Noah", last_name: "Muster" },
+      ]),
+    });
+    await waitForLoaded();
+
+    const dateIDs = screen
+      .getAllByLabelText("Termin")
+      .map((picker) => picker.id);
+    expect(dateIDs).toEqual([
+      "enrollment-custom_appointment",
+      "enrollment-children_0_custom_appointment",
+      "enrollment-children_1_custom_appointment",
+    ]);
+    expect(new Set(dateIDs)).toHaveSize(dateIDs.length);
+
+    const addContact = screen.getAllByRole("button", {
+      name: "Kontakt hinzufügen",
+    });
+    fireEvent.click(addContact[0]!);
+    fireEvent.click(
+      screen.getAllByRole("button", { name: "Kontakt hinzufügen" })[0]!,
+    );
+
+    const addPhones = screen.getAllByRole("button", {
+      name: "Telefonnummer hinzufügen",
+    });
+    fireEvent.click(addPhones[0]!);
+    fireEvent.click(addPhones[1]!);
+
+    const phoneTypeIDs = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[id^="children_0_custom_contacts_"][id$="-type"]',
+      ),
+    ).map((control) => control.id);
+    expect(phoneTypeIDs).toEqual([
+      "children_0_custom_contacts_0_phones-0-type",
+      "children_0_custom_contacts_1_phones-0-type",
+    ]);
+    expect(new Set(phoneTypeIDs)).toHaveSize(phoneTypeIDs.length);
   });
 
   it("hides the legal section and submits empty consent flags when no blocks are configured", async () => {
@@ -4447,6 +4524,50 @@ describe("EnrollmentForm — fixed pickup times", () => {
       return found!;
     });
     await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  it("marks, scrolls, and focuses a required custom date field", async () => {
+    const customSchema = pickupSchema();
+    customSchema.fields = [
+      {
+        key: "appointment",
+        label: "Wunschtermin",
+        type: "date",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+
+    renderForm({ initialDraft: draftWithPickup({}) });
+    await waitForLoaded();
+
+    const picker = screen.getByLabelText("Wunschtermin");
+    expect(picker).toHaveAttribute(
+      "id",
+      "enrollment-children_0_custom_appointment",
+    );
+    expect(
+      document.querySelector(
+        'input[type="hidden"][name="children_0_custom_appointment"]',
+      ),
+    ).toBeInTheDocument();
+
+    const scrolls = recordScrolls();
+    try {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      await waitFor(() => {
+        expect(picker).toHaveAttribute("aria-invalid", "true");
+        expect(picker).toHaveFocus();
+      });
+      await settle();
+      expect(scrolls.scrolled).toEqual([picker]);
+    } finally {
+      scrolls.restore();
+    }
   });
 
   it("offers the request ID and resends the current form on a server error", async () => {

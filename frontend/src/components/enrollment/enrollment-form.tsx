@@ -2642,10 +2642,7 @@ export function EnrollmentForm({
                     onViewLegal={
                       block.text ? () => setOpenLegalDoc(block) : undefined
                     }
-                    detailsLabel={tr("actions.details")}
-                    detailsAriaLabel={tr("actions.detailsAria", {
-                      title: block.title,
-                    })}
+                    tr={tr}
                   />
                 ) : (
                   <EnrollmentConsent

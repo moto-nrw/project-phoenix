@@ -87,13 +87,11 @@ export function EnrollmentConsent({
 export function EmailContactNotice({
   block,
   onViewLegal,
-  detailsLabel,
-  detailsAriaLabel,
+  tr,
 }: {
   readonly block: PublicLegalBlock;
   readonly onViewLegal?: () => void;
-  readonly detailsLabel: string;
-  readonly detailsAriaLabel: string;
+  readonly tr: TranslationFn;
 }) {
   return (
     <div className="border-moto-blue/25 bg-moto-blue/5 flex items-center gap-3 rounded-lg border p-3 text-sm leading-6 text-gray-700">
@@ -103,15 +101,15 @@ export function EmailContactNotice({
       <div className="min-w-0 flex-1">
         <div className="mb-1 flex flex-wrap items-center gap-2">
           <span className="text-moto-blue text-xs font-semibold tracking-wide uppercase">
-            Hinweis
+            {tr("actions.notice")}
           </span>
         </div>
         <span className="font-medium">{block.label}</span>{" "}
         {onViewLegal && (
           <LegalDetailsButton
             title={block.title}
-            label={detailsLabel}
-            ariaLabel={detailsAriaLabel}
+            label={tr("actions.details")}
+            ariaLabel={tr("actions.detailsAria", { title: block.title })}
             onClick={onViewLegal}
           />
         )}
