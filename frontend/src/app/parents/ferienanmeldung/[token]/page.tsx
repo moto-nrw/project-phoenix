@@ -115,6 +115,7 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
               <div className="space-y-2 text-sm text-gray-700">
                 <p>{t("window", dates)}</p>
                 {offer.binding ? <p>{t("binding")}</p> : null}
+                {offer.open ? <p>{t("requiredHint")}</p> : null}
                 {offer.notes ? (
                   <div>
                     <p className="font-semibold text-gray-900">

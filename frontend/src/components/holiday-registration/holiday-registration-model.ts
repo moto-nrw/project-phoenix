@@ -387,19 +387,16 @@ function validateContacts(
   });
 }
 
-/** Checks a registration before the summary; empty means complete. */
+/**
+ * Checks a registration before the summary; empty means complete. The
+ * errors follow the order of the form, so the first one is the field the
+ * parent reaches first: the form focuses it after a failed check.
+ */
 export function validateRegistration(
   draft: RegistrationDraft,
   offer: HolidayRegistrationOffer,
 ): Record<string, FieldErrorKey> {
   const errors: Record<string, FieldErrorKey> = {};
-  requireText(errors, "guardian.first_name", draft.guardian.firstName);
-  requireText(errors, "guardian.last_name", draft.guardian.lastName);
-  requireText(errors, "guardian.phone", draft.guardian.phone);
-  if (!EMAIL.test(draft.guardian.email.trim())) {
-    errors["guardian.email"] =
-      draft.guardian.email.trim() === "" ? "required" : "email";
-  }
   draft.children.forEach((child, index) => {
     const prefix = `children.${index}`;
     requireText(errors, `${prefix}.first_name`, child.firstName);
@@ -420,6 +417,14 @@ export function validateRegistration(
       child.answers,
     );
   });
+  requireText(errors, "guardian.first_name", draft.guardian.firstName);
+  requireText(errors, "guardian.last_name", draft.guardian.lastName);
+  if (!EMAIL.test(draft.guardian.email.trim())) {
+    errors["guardian.email"] =
+      draft.guardian.email.trim() === "" ? "required" : "email";
+  }
+  requireText(errors, "guardian.phone", draft.guardian.phone);
+  // The questions per family follow the parent in the form.
   requireAnswers(
     errors,
     "",

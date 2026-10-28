@@ -1696,6 +1696,7 @@
     "errorObject": "the holiday registration",
     "window": "Registration from {opens} to {closes}",
     "binding": "The registration is binding.",
+    "requiredHint": "Fields marked * are required.",
     "notesTitle": "Notes from the provider",
     "closedTitle": "Registration is not open",
     "closedText": "You can register your child from {opens} to {closes}.",

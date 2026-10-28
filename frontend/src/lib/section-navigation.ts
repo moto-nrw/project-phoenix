@@ -68,9 +68,8 @@ export const ENROLLMENT_SECTION: HubSectionRoot = {
 };
 
 /**
- * Planung hat keine eigene Hub-Seite: /planung ist nur ein Redirect-Frame auf
- * die erste Unterseite. Ohne `href` rendert die Breadcrumb den Namen als
- * reinen Text statt als Link ins Leere.
+ * Planung hat keine eigene Hub-Seite. Ohne `href` rendert die Breadcrumb den
+ * Namen als reinen Text statt als Link ins Leere.
  */
 export const PLANNING_SECTION: SectionRoot = {
   label: "Planung",

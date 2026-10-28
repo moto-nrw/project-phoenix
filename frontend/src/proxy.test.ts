@@ -455,17 +455,23 @@ describe("proxy", () => {
       ["/planung?tab=dienstplan", "/dienstplan", ""],
       ["/planung", "/betreuungsplan", ""],
     ])(
-      "answers %s on a tenant subdomain with a server redirect",
+      "answers %s in every tenant URL form with a server redirect",
       (source, pathname, search) => {
-        const { status, location } = redirectOf(
-          `http://school-a.localhost:3000${source}`,
-          "school-a.localhost:3000",
-        );
+        for (const [host, prefix] of [
+          ["school-a.localhost:3000", ""],
+          ["school-a.localhost:3000", "/school-a"],
+          ["localhost:3000", "/school-a"],
+        ] as const) {
+          const { status, location } = redirectOf(
+            `http://${host}${prefix}${source}`,
+            host,
+          );
 
-        expect(status).toBe(307);
-        expect(location?.host).toBe("school-a.localhost:3000");
-        expect(location?.pathname).toBe(pathname);
-        expect(location?.search).toBe(search);
+          expect(status).toBe(307);
+          expect(location?.host).toBe(host);
+          expect(location?.pathname).toBe(`${prefix}${pathname}`);
+          expect(location?.search).toBe(search);
+        }
       },
     );
 

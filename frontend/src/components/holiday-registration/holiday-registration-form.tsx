@@ -42,6 +42,7 @@ import {
   ChildCard,
   ContactList,
   KnownChildPicker,
+  requiredLabel,
 } from "./holiday-registration-sections";
 import { HolidayQuestions } from "./holiday-registration-questions";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
@@ -254,7 +255,8 @@ export function HolidayRegistrationForm({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             name="guardian.first_name"
-            label={t("firstName")}
+            required
+            label={requiredLabel(t("firstName"))}
             autoComplete="given-name"
             maxLength={100}
             value={draft.guardian.firstName}
@@ -263,7 +265,8 @@ export function HolidayRegistrationForm({
           />
           <Input
             name="guardian.last_name"
-            label={t("lastName")}
+            required
+            label={requiredLabel(t("lastName"))}
             autoComplete="family-name"
             maxLength={100}
             value={draft.guardian.lastName}
@@ -272,8 +275,9 @@ export function HolidayRegistrationForm({
           />
           <Input
             name="guardian.email"
+            required
             type="email"
-            label={t("email")}
+            label={requiredLabel(t("email"))}
             autoComplete="email"
             maxLength={254}
             value={draft.guardian.email}
@@ -282,8 +286,9 @@ export function HolidayRegistrationForm({
           />
           <Input
             name="guardian.phone"
+            required
             type="tel"
-            label={t("phone")}
+            label={requiredLabel(t("phone"))}
             autoComplete="tel"
             maxLength={40}
             value={draft.guardian.phone}
@@ -334,7 +339,7 @@ export function HolidayRegistrationForm({
         <div className="space-y-3">
           <ConsentCheckbox
             name="privacy_consent"
-            label={t("privacyConsent")}
+            label={requiredLabel(t("privacyConsent"))}
             checked={draft.privacyConsent}
             error={fieldError("privacy_consent")}
             onChange={(privacyConsent) =>
@@ -344,7 +349,7 @@ export function HolidayRegistrationForm({
           {hasHealthInfo(draft, offer.form) ? (
             <ConsentCheckbox
               name="health_consent"
-              label={t("healthConsent")}
+              label={requiredLabel(t("healthConsent"))}
               checked={draft.healthConsent}
               error={fieldError("health_consent")}
               onChange={(healthConsent) =>
@@ -355,7 +360,7 @@ export function HolidayRegistrationForm({
           {offer.binding ? (
             <ConsentCheckbox
               name="binding_confirmed"
-              label={t("bindingConfirmed")}
+              label={requiredLabel(t("bindingConfirmed"))}
               checked={draft.bindingConfirmed}
               error={fieldError("binding_confirmed")}
               onChange={(bindingConfirmed) =>
@@ -393,6 +398,7 @@ function ConsentCheckbox({
           id={name}
           name={name}
           checked={checked}
+          required
           aria-invalid={error ? true : undefined}
           aria-describedby={error ? `${name}-error` : undefined}
           onChange={(event) => onChange(event.target.checked)}
