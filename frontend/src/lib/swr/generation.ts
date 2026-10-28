@@ -309,7 +309,10 @@ export function lockMutation(
 ): [unknown, unknown] {
   const start = startOf(key);
   const stamp = <V>(value: V): V => {
-    stampSWRValue(key, value, start.data);
+    // A stale result may equal a fresh primitive or share its object
+    // reference. Do not replace that value's current stamp before the
+    // populateCache guard rejects the stale write.
+    if (isStillCurrent(key, start)) stampSWRValue(key, value, start.data);
     return value;
   };
   const settle = (value: unknown): unknown =>

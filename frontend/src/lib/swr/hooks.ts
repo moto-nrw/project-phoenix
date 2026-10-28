@@ -161,9 +161,17 @@ function currentResult<V>(
 function lockBoundMutate<T>(
   key: string | null,
   mutate: ReturnType<typeof useSWRConfig>["mutate"],
+  dataGeneration: number,
 ): SWRResponse<T>["mutate"] {
   return ((...args: unknown[]) => {
-    if (key === null) return Promise.resolve(undefined);
+    // An action may retain this callback while awaiting an API response.
+    // It must not introduce that response into a later data generation.
+    if (
+      key === null ||
+      isSWRSessionPending() ||
+      dataGenerationOf(key) !== dataGeneration
+    )
+      return Promise.resolve(undefined);
     // SWR's bound mutate follows the hook's latest key. A retained callback
     // must write to the same captured key that its generation lock checks.
     // SWR counts the arguments: `mutate()` revalidates, while an explicit
@@ -294,9 +302,10 @@ function useScopedSWR<T, E>(
     void revalidate();
   }, [reload, revalidate]);
 
+  const mutationGeneration = fullKey === null ? 0 : dataGenerationOf(fullKey);
   const mutate = useMemo(
-    () => lockBoundMutate<T>(fullKey, cacheMutate),
-    [fullKey, cacheMutate],
+    () => lockBoundMutate<T>(fullKey, cacheMutate, mutationGeneration),
+    [fullKey, cacheMutate, mutationGeneration],
   );
   return {
     data,

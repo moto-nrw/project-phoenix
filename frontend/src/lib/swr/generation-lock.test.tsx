@@ -25,7 +25,11 @@ import { useSWRConfig, type SWRConfiguration, type SWRResponse } from "swr";
 import { ApiError } from "~/lib/api-error";
 import { _resetPersonalStorageLeave } from "~/lib/personal-storage";
 import { setTestClock } from "~/test/clock";
-import { _resetSWRFallbacksForTests, preloadSWR } from "./generation";
+import {
+  _resetSWRFallbacksForTests,
+  isCurrentSWRValue,
+  preloadSWR,
+} from "./generation";
 import {
   useDiscardRefusedEntity,
   useSWRAuth,
@@ -265,6 +269,120 @@ describe.each([
       );
       return view;
     }
+
+    it.each(["value", "updater", "promise"] as const)(
+      "rejects a retained %s mutation after its generation ended",
+      async (kind) => {
+        const name = `student-7-retained-generation-${kind}`;
+        let retained: SWRResponse<string>["mutate"];
+        await run(
+          <Page>
+            <Reader name={name} fetcher={answers("stand", "neu")} />
+          </Page>,
+          async () => {
+            await flush();
+            expect(screen.getByTestId(name)).toHaveTextContent("stand");
+            retained = responses[name]!.mutate;
+          },
+        );
+        await flush();
+        expect(responses[name]!.mutate).not.toBe(retained!);
+        const before = cachedData(name);
+        const updater = vi.fn(() => "alt");
+        await act(async () => {
+          await retained!(
+            kind === "value"
+              ? "alt"
+              : kind === "updater"
+                ? updater
+                : Promise.resolve("alt"),
+            { optimisticData: "alt", revalidate: false },
+          );
+        });
+        await flush();
+        expect(cachedData(name)).toBe(before);
+        expect(seen[name]).not.toContain("alt");
+        expect(updater).not.toHaveBeenCalled();
+        if (responses[name]!.data === "neu") {
+          await act(async () => {
+            await responses[name]!.mutate("aktuell", { revalidate: false });
+          });
+          expect(screen.getByTestId(name)).toHaveTextContent("aktuell");
+        }
+      },
+    );
+
+    it.each(["primitive", "shared object"] as const)(
+      "keeps the fresh stamp when an old mutation resolves to the same %s",
+      async (kind) => {
+        const name = `student-7-shared-${kind}`;
+        const fresh = kind === "primitive" ? 0 : { count: 0 };
+        const pending = deferred<typeof fresh>();
+        let response: SWRResponse<typeof fresh>;
+        let saving: Promise<unknown>;
+        function SharedReader() {
+          response = useSWRAuth(name, () => Promise.resolve(fresh));
+          return <p data-testid={name}>{JSON.stringify(response.data)}</p>;
+        }
+        const view = await run(
+          <Page>
+            <SharedReader />
+          </Page>,
+          async () => {
+            await flush();
+            expect(screen.getByTestId(name)).toHaveTextContent(
+              JSON.stringify(fresh),
+            );
+            saving = response.mutate(pending.promise, { revalidate: false });
+          },
+        );
+        await flush();
+        // Resume only operations that removed access. The other rows
+        // commit in the generation raised by the operation itself.
+        if (
+          _name === "logout" ||
+          _name === "school mismatch (provider names another school)" ||
+          _name === "another account in another tab"
+        ) {
+          resumeSWRSession();
+          mockUseSession.mockReturnValue(signedIn({ permissions: ["fresh"] }));
+          view.rerender(
+            <Page>
+              <SharedReader />
+            </Page>,
+          );
+          await flush();
+        }
+        // SWR itself suppresses fetch writes while the older mutation is
+        // pending when cleanup is off. Commit a fresh mutation instead;
+        // it shares the same stamp registry as a fresh fetch result.
+        await act(async () => {
+          await response.mutate(fresh, { revalidate: false });
+        });
+        view.rerender(
+          <Page>
+            <SharedReader />
+          </Page>,
+        );
+        expect(screen.getByTestId(name)).toHaveTextContent(
+          JSON.stringify(fresh),
+        );
+        expect(isCurrentSWRValue(FULL(name), fresh)).toBe(true);
+        await act(async () => {
+          pending.resolve(fresh);
+          await saving!;
+        });
+        expect(isCurrentSWRValue(FULL(name), fresh)).toBe(true);
+        view.rerender(
+          <Page>
+            <SharedReader />
+          </Page>,
+        );
+        expect(screen.getByTestId(name)).toHaveTextContent(
+          JSON.stringify(fresh),
+        );
+      },
+    );
 
     it("shows, logs and retries no late error", async () => {
       const answer = deferred<string>();
@@ -788,6 +906,7 @@ describe("what the lock leaves alone (#5006)", () => {
       </Page>,
     );
     await flush();
+    const retained = responses["student-7-kept"]!.mutate;
     act(() => {
       void responses["student-7-kept"]!.mutate();
     });
@@ -800,6 +919,11 @@ describe("what the lock leaves alone (#5006)", () => {
 
     // Anker: der Leser zeigt die Antwort, die nach dem Stand kam.
     expect(screen.getByTestId("student-7-kept")).toHaveTextContent("neu");
+    expect(responses["student-7-kept"]!.mutate).toBe(retained);
+    await act(async () => {
+      await retained("aktuell", { revalidate: false });
+    });
+    expect(screen.getByTestId("student-7-kept")).toHaveTextContent("aktuell");
   });
 
   it("revalidates on a bare mutate() and keeps the data on screen", async () => {
@@ -847,6 +971,7 @@ describe("what the lock leaves alone (#5006)", () => {
     await flush();
     // Anker: geladen.
     expect(screen.getByTestId("student-7-steady")).toHaveTextContent("stand");
+    const retained = responses["student-7-steady"]!.mutate;
 
     view.rerender(ui);
     act(() => {
@@ -861,5 +986,6 @@ describe("what the lock leaves alone (#5006)", () => {
 
     expect(screen.getByTestId("student-7-steady")).toHaveTextContent("stand");
     expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(responses["student-7-steady"]!.mutate).toBe(retained);
   });
 });
