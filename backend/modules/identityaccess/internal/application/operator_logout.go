@@ -2,44 +2,45 @@ package application
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
-// LogoutOperator revokes the operator refresh-token family the presented
-// refresh token belongs to (#5194). The operator routes check that family
-// per request, so its access tokens end at once, also in a cookie a late
-// response writes back. Other families of the operator stay valid. An
-// unknown token is a successful logout; a token of another operator is
-// refused.
-func (s *OperatorAuthentication) LogoutOperator(ctx context.Context, operatorID int64, refreshToken string) error {
+// maxLogoutPasses bounds the revocation passes of an operator logout.
+const maxLogoutPasses = 4
+
+// LogoutOperator revokes the operator refresh-token family the logged-in
+// access token names (#5194). The operator routes check that family per
+// request (RequiresActiveOperator), so its access tokens end at once, also in
+// a cookie a late response writes back; other families stay valid. The route
+// runs behind that check, so the family is the operator's own and live.
+//
+// Each pass deletes the family in its own transaction. A rotation that
+// locked the newest row before a pass commits its successor once that pass
+// stops waiting; the pass ran on an older snapshot and missed it, the next
+// one sees it. The passes end when one finds nothing left.
+func (s *OperatorAuthentication) LogoutOperator(ctx context.Context, operatorID int64, familyID string) error {
 	if s == nil {
 		return errOperatorAuthenticationUnavailable
 	}
+	if operatorID <= 0 || familyID == "" {
+		return identityaccess.ErrOperatorRefreshTokenInvalid
+	}
 	ctx = bindRuntime(s.attach, ctx)
-	return operatorError(s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		session, err := s.operators.findOperatorSessionForUpdate(txCtx, refreshToken)
-		if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
-			return nil
-		}
+	revoked := 0
+	for pass := 0; pass < maxLogoutPasses; pass++ {
+		deleted, err := s.operators.RevokeOperatorSessionFamily(ctx, familyID)
 		if err != nil {
-			return fmt.Errorf("failed to find operator refresh token: %w", err)
+			return operatorError(fmt.Errorf("failed to revoke operator refresh-token family: %w", err))
 		}
-		if session.OperatorID != operatorID {
-			return identityaccess.ErrOperatorRefreshTokenInvalid
+		if len(deleted) == 0 {
+			break
 		}
-		if err := s.revokeFamilyWithAudit(txCtx, session, "logout"); err != nil {
-			return fmt.Errorf("failed to revoke operator refresh-token family: %w", err)
-		}
-		// A rotation that locked the family's newest row before this delete
-		// commits its successor once the delete stops waiting; the statement
-		// above ran on an older snapshot and missed it. A second statement
-		// sees it. A rotation that starts later finds its row gone.
-		if _, err := s.operators.RevokeOperatorSessionFamily(txCtx, session.FamilyID); err != nil {
-			return fmt.Errorf("failed to revoke operator refresh-token successor: %w", err)
-		}
+		revoked += len(deleted)
+	}
+	if revoked == 0 {
 		return nil
-	}))
+	}
+	return operatorError(s.auditRevocation(ctx, operatorID, familyID, "logout", revoked))
 }

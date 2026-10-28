@@ -243,7 +243,7 @@ describe("inventory", () => {
     "src/app/traeger/login/page.tsx": "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/components/tenant/tenant-relogin.ts":
       "DELIBERATE_LOGOUT_KEY (session-cache)",
-    "src/components/auth/logout-modal.tsx":
+    "src/components/ui/logout-modal.tsx":
       "DELIBERATE_LOGOUT_KEY (session-cache)",
     "src/components/notifications/notification-setup-dialog.tsx":
       "setupStorageKey (notification-setup-decision)",

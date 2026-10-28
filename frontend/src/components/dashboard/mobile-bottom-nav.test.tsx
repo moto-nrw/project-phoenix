@@ -1,22 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { releaseFakeTimers } from "~/test/clock";
-import {
-  render as renderComponent,
-  screen,
-  fireEvent,
-  act,
-  within,
-} from "@testing-library/react";
-import { ToastProvider } from "~/contexts/ToastContext";
+import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import {
   expectIdleRenderBudget,
   RENDER_BUDGET_MAX_COMMITS,
 } from "~/test/render-budget";
-
-// Match the root providers: the mounted logout error path needs toast context.
-function render(ui: React.ReactNode) {
-  return renderComponent(ui, { wrapper: ToastProvider });
-}
 
 // Mock dependencies before importing component
 vi.mock("next/navigation", () => ({
@@ -2010,11 +1998,7 @@ describe("MobileBottomNav", () => {
         mockUseSession.mockReturnValue(createMockSession(admin));
         mockUsePathname.mockReturnValue(pathname);
 
-        await expectIdleRenderBudget(
-          <ToastProvider>
-            <MobileBottomNav />
-          </ToastProvider>,
-        );
+        await expectIdleRenderBudget(<MobileBottomNav />);
       },
     );
   });

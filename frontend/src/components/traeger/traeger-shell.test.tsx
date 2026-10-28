@@ -44,17 +44,17 @@ function renderPortal({
   testSystem = false,
 }: { organizationName?: string; testSystem?: boolean } = {}) {
   return render(
-    <TraegerShellProvider organizationName={organizationName}>
-      <BreadcrumbProvider>
-        <ShellIntlProvider>
-          <ToastProvider>
+    <ToastProvider>
+      <TraegerShellProvider organizationName={organizationName}>
+        <BreadcrumbProvider>
+          <ShellIntlProvider>
             <TraegerShell testSystem={testSystem}>
               <p>Inhalt</p>
             </TraegerShell>
-          </ToastProvider>
-        </ShellIntlProvider>
-      </BreadcrumbProvider>
-    </TraegerShellProvider>,
+          </ShellIntlProvider>
+        </BreadcrumbProvider>
+      </TraegerShellProvider>
+    </ToastProvider>,
   );
 }
 

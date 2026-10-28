@@ -11,7 +11,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import deMessages from "~/i18n/messages/de.generated";
 import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { ParentBottomNav } from "./parent-bottom-nav";
-import { ToastProvider } from "~/contexts/ToastContext";
 
 const pathnameMock = vi.fn(() => "/parents");
 const logoutMock = vi.fn();
@@ -47,14 +46,12 @@ function renderNav(
 ) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
-      <ToastProvider>
-        <ParentBottomNav
-          badges={{ messages: 0, news: 0 }}
-          gates={{ news: true, mealPlan: true }}
-          childCount={2}
-          {...overrides}
-        />
-      </ToastProvider>
+      <ParentBottomNav
+        badges={{ messages: 0, news: 0 }}
+        gates={{ news: true, mealPlan: true }}
+        childCount={2}
+        {...overrides}
+      />
     </NextIntlClientProvider>,
   );
 }

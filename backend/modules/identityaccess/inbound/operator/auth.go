@@ -172,17 +172,13 @@ func (rs *Resource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	}, "Token refreshed")
 }
 
-// Logout revokes the operator session family of the presented refresh token
-// (#5194). 204 confirms the revocation; a failed revocation answers 503 so
-// the browser does not take the logout for done.
+// Logout revokes the operator session family of the logged-in access token
+// (#5194). The route runs behind RequiresActiveOperator, which proved that
+// family live and the operator's own. 204 confirms the revocation; a failed
+// revocation answers 503 so the browser does not take the logout for done.
 func (rs *Resource) Logout(w http.ResponseWriter, r *http.Request) {
-	var claims sessiontoken.RefreshClaims
-	_, rawClaims, _ := jwtauth.FromContext(r.Context())
-	if sessiontoken.RefreshTokenFromCtx(r.Context()) == "" || claims.ParseClaims(rawClaims) != nil || claims.Scope != "platform" || claims.Token == "" {
-		common.RenderError(w, r, rs.responses.Unauthorized())
-		return
-	}
-	err := rs.identity.LogoutOperator(r.Context(), int64(claims.ID), claims.Token)
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	err := rs.identity.LogoutOperator(r.Context(), int64(claims.ID), claims.FamilyID)
 	switch {
 	case err == nil:
 		common.RespondNoContent(w, r)

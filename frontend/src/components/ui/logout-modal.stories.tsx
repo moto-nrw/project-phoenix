@@ -4,7 +4,7 @@ import { TeacherShellProvider } from "~/lib/shell-auth-context";
 import { LogoutModal } from "./logout-modal";
 
 const meta = {
-  title: "components/auth/LogoutModal",
+  title: "components/ui/LogoutModal",
   component: LogoutModal,
   decorators: [
     (Story) => (

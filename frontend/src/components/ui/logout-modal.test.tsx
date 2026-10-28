@@ -24,10 +24,25 @@ vi.mock("~/lib/shell-auth-context", () => ({
   }),
 }));
 
-// The shared error path; the toast itself is tested with ToastContext.
-const mockShowError = vi.fn();
-vi.mock("~/contexts/ToastContext", () => ({
-  useApiErrorDisplay: () => ({ show: mockShowError }),
+// Mock Modal component
+vi.mock("./modal", () => ({
+  Modal: ({
+    isOpen,
+    onClose,
+    children,
+  }: {
+    isOpen: boolean;
+    onClose: () => void;
+    children: React.ReactNode;
+  }) =>
+    isOpen ? (
+      <div data-testid="modal">
+        <button type="button" onClick={onClose} data-testid="modal-close">
+          Close
+        </button>
+        {children}
+      </div>
+    ) : null,
 }));
 
 describe("LogoutModal", () => {
@@ -55,9 +70,7 @@ describe("LogoutModal", () => {
   it("renders modal when open", () => {
     render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
 
-    expect(
-      screen.getByRole("dialog", { name: "Abmelden" }),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId("modal")).toBeInTheDocument();
   });
 
   it("displays logout title", () => {
@@ -142,8 +155,7 @@ describe("LogoutModal", () => {
       await vi.advanceTimersByTimeAsync(100);
     });
 
-    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
-    const closeButton = screen.getByRole("button", { name: "Modal schließen" });
+    const closeButton = screen.getByTestId("modal-close");
     fireEvent.click(closeButton);
     expect(mockOnClose).not.toHaveBeenCalled();
   });
@@ -196,32 +208,5 @@ describe("LogoutModal", () => {
     );
 
     consoleErrorSpy.mockRestore();
-  });
-
-  it("closes on a failed logout and shows the error with a retry (#5194)", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    const failure = new Error("logout could not revoke the session");
-    mockLogout.mockRejectedValueOnce(failure).mockResolvedValueOnce(undefined);
-
-    render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
-    fireEvent.click(screen.getByRole("button", { name: /Abmelden/i }));
-    await act(async () => {
-      await vi.runAllTimersAsync();
-    });
-
-    expect(mockShowError).toHaveBeenCalledWith(failure, {
-      object: "die Abmeldung",
-      retry: expect.any(Function),
-    });
-    expect(mockOnClose).toHaveBeenCalledTimes(1);
-
-    const [[, options]] = mockShowError.mock.calls as [
-      [unknown, { retry: () => void }],
-    ];
-    await act(async () => {
-      options.retry();
-      await vi.runAllTimersAsync();
-    });
-    expect(mockLogout).toHaveBeenCalledTimes(2);
   });
 });

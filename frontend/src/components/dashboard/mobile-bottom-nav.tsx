@@ -89,7 +89,7 @@ import {
   DrawerTitle,
 } from "~/components/ui/drawer";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { LogoutModal } from "~/components/auth/logout-modal";
+import { LogoutModal } from "~/components/ui/logout-modal";
 import { StaffPreviewModal } from "~/components/staff-preview/staff-preview-modal";
 import { RefreshButton } from "./header/refresh-button";
 import { Bell, Eye } from "lucide-react";

@@ -11,6 +11,7 @@ import { traegerPath } from "~/lib/traeger-url";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
 import { createLogger } from "~/lib/logger";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { apiErrorFromResponse } from "~/lib/api-error";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
@@ -19,6 +20,36 @@ import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { mutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "ShellAuthContext" });
+
+type ShowLogoutError = ReturnType<typeof useApiErrorDisplay>["show"];
+
+/**
+ * Wraps a portal's logout. A failure keeps the session signed in, is shown
+ * once with a retry, and still reaches the caller, which only closes its
+ * confirmation (#5194, #5126).
+ */
+function reportingLogout(
+  endSession: () => Promise<void>,
+  showLogoutError: ShowLogoutError,
+): () => Promise<void> {
+  const logout = async (): Promise<void> => {
+    try {
+      await endSession();
+    } catch (err: unknown) {
+      try {
+        sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
+      } catch {
+        // sessionStorage unavailable: the login page then shows its notice.
+      }
+      void showLogoutError(err, {
+        object: "die Abmeldung",
+        retry: () => void logout().catch(() => undefined),
+      });
+      throw err;
+    }
+  };
+  return logout;
+}
 
 /**
  * Revokes the portal session's refresh-token family on the server (#5194).
@@ -111,6 +142,7 @@ export function TeacherShellProvider({
   readonly children: React.ReactNode;
 }) {
   const { data: session, status: sessionStatus, update } = useSession();
+  const { show: showLogoutError } = useApiErrorDisplay();
   const { profile } = useProfile();
   // Das Logo folgt derselben Portalentscheidung wie der Login-Redirect. Der
   // relative Schulpfad ist auch beim serverseitigen Rendern sicher; der Proxy
@@ -151,7 +183,7 @@ export function TeacherShellProvider({
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: async () => {
+      logout: reportingLogout(async () => {
         // Mark as deliberate logout so the login page suppresses the
         // "session expired" banner that NextAuth's required-session
         // redirect would otherwise trigger (race with useSession).
@@ -187,7 +219,7 @@ export function TeacherShellProvider({
         clearSessionCache();
         await signOut({ redirect: false });
         window.location.href = "/";
-      },
+      }, showLogoutError),
       mode: "teacher" as const,
       homeUrl,
       profileUrl: "/profile",
@@ -200,7 +232,7 @@ export function TeacherShellProvider({
       canStartStaffPreview:
         !session?.user?.isPreview && hasPermission(session, "admin:*"),
     };
-  }, [session, sessionStatus, profile, homeUrl, update]);
+  }, [session, sessionStatus, profile, homeUrl, update, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>
@@ -215,6 +247,7 @@ export function OperatorShellProvider({
   readonly children: React.ReactNode;
 }) {
   const { data: session, status: sessionStatus } = useSession();
+  const { show: showLogoutError } = useApiErrorDisplay();
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
@@ -247,7 +280,7 @@ export function OperatorShellProvider({
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: async () => {
+      logout: reportingLogout(async () => {
         // The operator family is checked on every operator request; revoking
         // it ends this session's tokens at once (#5194).
         await revokeSessionFamily("/api/operator/auth/logout");
@@ -256,12 +289,12 @@ export function OperatorShellProvider({
         clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
-      },
+      }, showLogoutError),
       mode: "operator" as const,
       homeUrl: operatorPath("/operator/organizations"),
       profileUrl: operatorPath("/operator/settings"),
     };
-  }, [session, sessionStatus]);
+  }, [session, sessionStatus, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>
@@ -279,6 +312,7 @@ export function SchoolShellProvider({
   readonly children: React.ReactNode;
 }) {
   const { data: session, status: sessionStatus } = useSession();
+  const { show: showLogoutError } = useApiErrorDisplay();
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
@@ -311,7 +345,7 @@ export function SchoolShellProvider({
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: async () => {
+      logout: reportingLogout(async () => {
         // Suppress the "session expired" banner the login page would
         // otherwise show after the NextAuth redirect race.
         try {
@@ -332,14 +366,14 @@ export function SchoolShellProvider({
         clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
-      },
+      }, showLogoutError),
       mode: "school" as const,
       homeUrl: schoolPath("/school"),
       // Einstellungen (#2208): Benachrichtigungen und Geräte, wie im
       // Elternportal seit #1671.
       profileUrl: schoolPath("/school/einstellungen"),
     };
-  }, [session, sessionStatus]);
+  }, [session, sessionStatus, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>
@@ -357,6 +391,7 @@ export function CatererShellProvider({
   readonly children: React.ReactNode;
 }) {
   const { data: session, status: sessionStatus } = useSession();
+  const { show: showLogoutError } = useApiErrorDisplay();
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
@@ -380,7 +415,7 @@ export function CatererShellProvider({
       profile: null,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: async () => {
+      logout: reportingLogout(async () => {
         try {
           sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
         } catch {
@@ -392,13 +427,13 @@ export function CatererShellProvider({
         clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: catererAbsoluteUrl("/caterer/login") });
-      },
+      }, showLogoutError),
       mode: "caterer" as const,
       homeUrl: catererPath("/caterer"),
       // Die Konto-Seite mit „Passwort ändern“ (#4496).
       profileUrl: catererPath("/caterer/konto"),
     };
-  }, [session, sessionStatus]);
+  }, [session, sessionStatus, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>
@@ -423,6 +458,7 @@ export function TraegerShellProvider({
   readonly organizationName?: string;
 }) {
   const { data: session, status: sessionStatus } = useSession();
+  const { show: showLogoutError } = useApiErrorDisplay();
 
   const value = useMemo<ShellAuthContextType>(() => {
     const user: ShellUser | null = session?.user
@@ -446,7 +482,7 @@ export function TraegerShellProvider({
       profile: null,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: async () => {
+      logout: reportingLogout(async () => {
         try {
           sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
         } catch {
@@ -464,14 +500,14 @@ export function TraegerShellProvider({
         // the session without its redirect and stay on the Träger host.
         await signOut({ redirect: false });
         window.location.assign(traegerPath("/traeger/login"));
-      },
+      }, showLogoutError),
       mode: "traeger" as const,
       homeUrl: traegerPath("/traeger"),
       // Kein eigenes Profil: Passwort und Code gehören zum moto-Konto.
       profileUrl: null,
       ...(organizationName ? { brandLabel: organizationName } : {}),
     };
-  }, [organizationName, session, sessionStatus]);
+  }, [organizationName, session, sessionStatus, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>
@@ -503,6 +539,7 @@ export function ParentShellProvider({
   };
 }) {
   const { data: session, status: sessionStatus } = useSession();
+  const { show: showLogoutError } = useApiErrorDisplay();
   const profileFirstName = accountName?.firstName?.trim() ?? "";
   const profileLastName = accountName?.lastName?.trim() ?? "";
 
@@ -550,7 +587,7 @@ export function ParentShellProvider({
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: async () => {
+      logout: reportingLogout(async () => {
         // Best-effort: drop this device's Web Push registration first, while
         // the session can still authenticate it.
         await unsubscribePushSilently("parent");
@@ -561,14 +598,20 @@ export function ParentShellProvider({
         clearPersonalStorage();
         clearSessionCache();
         await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
-      },
+      }, showLogoutError),
       mode: "parent" as const,
       homeUrl: parentPath("/parents"),
       // Was null until #1671: the parents portal had no page of its own for
       // account settings, so the avatar menu offered nothing but "Abmelden".
       profileUrl: parentPath("/parents/settings"),
     };
-  }, [profileFirstName, profileLastName, session, sessionStatus]);
+  }, [
+    profileFirstName,
+    profileLastName,
+    session,
+    sessionStatus,
+    showLogoutError,
+  ]);
 
   return (
     <ShellAuthContext.Provider value={value}>

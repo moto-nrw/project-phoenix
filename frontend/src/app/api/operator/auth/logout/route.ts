@@ -17,16 +17,19 @@ async function POSTHandler(request: NextRequest) {
   try {
     const session = await operatorAuth();
 
-    const refreshToken = session?.user?.refreshToken;
-    if (!refreshToken) {
+    // The session read renews an access token near its expiry, so the token
+    // the backend checks against its live family is current.
+    const accessToken = session?.user?.token;
+    if (!accessToken) {
       return problemResponse(401, "No active session", request);
     }
 
-    // The backend route authenticates the operator refresh token.
+    // The backend route runs behind the operator session chain and revokes
+    // the family this access token names.
     const response = await fetch(`${getServerApiUrl()}/operator/auth/logout`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${refreshToken}`,
+        Authorization: `Bearer ${accessToken}`,
         "Content-Type": "application/json",
         ...getClientForwardHeaders(request),
       },
