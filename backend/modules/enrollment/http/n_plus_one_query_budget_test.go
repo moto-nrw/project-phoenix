@@ -226,15 +226,19 @@ func TestOfferingWeekdayBookingsListsTheBookedWeekdays(t *testing.T) {
 
 // TestOfferingTemplateGapDecisionTravelsWithTheBookings: the school's
 // decision "Kein eigener Regeltermin nötig" (#5140) is stored on the
-// offering with its classes trimmed, deduplicated and sorted, travels with
-// every booking of the offering and can be withdrawn. Another school neither
-// sees nor changes the offering.
+// offering for one planning period, with its classes trimmed, deduplicated
+// and sorted. It travels with every booking read for that period, never
+// with a read for another period, and can be withdrawn. Each booking carries
+// the validity of its link. Another school neither sees nor changes the
+// offering.
 func TestOfferingTemplateGapDecisionTravelsWithTheBookings(t *testing.T) {
 	t.Parallel()
 	env := setupDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	source := createAdjustmentCareOffering(t, env, uniqueSchemaName("Randstunde Entscheidung"))
 	submitApprovedAdjustmentChild(t, env, "entscheidung@example.com", "Entscheidung", []*offeringContract.CareOfferingRecord{source})
+	decided := createCareOfferingTestPeriod(t, env.db, "gap-decided", calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 8, 31))
+	other := createCareOfferingTestPeriod(t, env.db, "gap-other", calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 8, 31))
 	lister := env.bookings.(careplan.OfferingSourceEditor)
 	inTenant := func(tenantID int64, fn func(context.Context) error) error {
 		base := ctx
@@ -243,33 +247,38 @@ func TestOfferingTemplateGapDecisionTravelsWithTheBookings(t *testing.T) {
 		}
 		return testpkg.WithTenantTx(t, base, env.db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
 	}
-	decided := func() []string {
+	booked := func(periodID int64) careplan.OfferingWeekdayBooking {
 		var bookings []careplan.OfferingWeekdayBooking
 		require.NoError(t, inTenant(testpkg.Tenant(t), func(txCtx context.Context) error {
 			var err error
-			bookings, err = lister.OfferingWeekdayBookings(txCtx, nil, calendar.Date(env.sourcePhase.ServiceStartDate))
+			bookings, err = lister.OfferingWeekdayBookings(txCtx, &periodID, calendar.Date(env.sourcePhase.ServiceStartDate))
 			return err
 		}))
 		require.Len(t, bookings, 1)
-		return bookings[0].TemplateGapAckClasses
+		return bookings[0]
 	}
 	decide := func(tenantID int64, classes []string) error {
 		return inTenant(tenantID, func(txCtx context.Context) error {
-			return env.offeringCatalog.DecideOfferingTemplateGap(txCtx, source.ID, classes)
+			return env.offeringCatalog.DecideOfferingTemplateGap(txCtx, source.ID, decided.ID, classes)
 		})
 	}
 
-	assert.Empty(t, decided(), "no decision before the school decides")
+	first := booked(decided.ID)
+	assert.Empty(t, first.TemplateGapAckClasses, "no decision before the school decides")
+	require.Len(t, first.Windows, 1, "the link's validity travels with the booking")
+	assert.Equal(t, first.Weekdays, first.Windows[0].Weekdays)
+
 	require.NoError(t, decide(testpkg.Tenant(t), []string{"4a ", "3a", "", "3a"}))
-	assert.Equal(t, []string{"", "3a", "4a"}, decided())
+	assert.Equal(t, []string{"", "3a", "4a"}, booked(decided.ID).TemplateGapAckClasses)
+	assert.Empty(t, booked(other.ID).TemplateGapAckClasses, "a decision holds for its planning period only")
 
 	otherSchool, _ := testpkg.CreateTestTenant(t, env.db)
 	err := decide(otherSchool, nil)
 	require.ErrorIs(t, err, careplan.ErrCareOfferingNotFound, "another school cannot reach the offering")
-	assert.Equal(t, []string{"", "3a", "4a"}, decided())
+	assert.Equal(t, []string{"", "3a", "4a"}, booked(decided.ID).TemplateGapAckClasses)
 
 	require.NoError(t, decide(testpkg.Tenant(t), nil))
-	assert.Empty(t, decided(), "withdrawing removes the decision")
+	assert.Empty(t, booked(decided.ID).TemplateGapAckClasses, "withdrawing removes the decision")
 }
 
 func TestOfferingWeekdayBookingsQueryBudget(t *testing.T) {

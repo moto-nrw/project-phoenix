@@ -36,19 +36,27 @@ type stubOfferingSources struct {
 	options  []timetable.OfferingSourceOption
 	bookings []timetable.OfferingWeekdayBooking
 	err      error
-	// decisions records the template-gap decisions (#5140) by offering.
-	decisions map[int64][]string
+	// decisions records the template-gap decisions (#5140) by offering and
+	// planning period, as Care Plan stores them.
+	decisions map[offeringPeriod][]string
 }
 
-func (s *stubOfferingSources) DecideOfferingTemplateGap(_ context.Context, offeringID int64, schoolClasses []string) error {
+type offeringPeriod struct{ offeringID, periodID int64 }
+
+func (s *stubOfferingSources) DecideOfferingTemplateGap(_ context.Context, offeringID, periodID int64, schoolClasses []string) error {
 	if s.err != nil {
 		return s.err
 	}
 	if s.decisions == nil {
-		s.decisions = make(map[int64][]string)
+		s.decisions = make(map[offeringPeriod][]string)
 	}
-	s.decisions[offeringID] = schoolClasses
+	s.decisions[offeringPeriod{offeringID: offeringID, periodID: periodID}] = schoolClasses
 	return nil
+}
+
+// decided is the stored decision of the offering for the period.
+func (s *stubOfferingSources) decided(offeringID, periodID int64) []string {
+	return s.decisions[offeringPeriod{offeringID: offeringID, periodID: periodID}]
 }
 
 func (s *stubOfferingSources) ListOfferingSourceOptions(
@@ -102,16 +110,16 @@ func (s *stubOfferingSources) TemplateRosterMaintenance(
 
 func (s *stubOfferingSources) OfferingWeekdayBookings(
 	_ context.Context,
-	_ *int64,
+	periodID *int64,
 	_ calendar.Date,
 ) ([]timetable.OfferingWeekdayBooking, error) {
-	if s.decisions == nil {
+	if s.decisions == nil || periodID == nil {
 		return s.bookings, s.err
 	}
-	// The recorded decisions travel with each booking, as Care Plan's do.
+	// The period's decisions travel with each booking, as Care Plan's do.
 	bookings := slices.Clone(s.bookings)
 	for i := range bookings {
-		bookings[i].TemplateGapAckClasses = s.decisions[bookings[i].OfferingID]
+		bookings[i].TemplateGapAckClasses = s.decided(bookings[i].OfferingID, *periodID)
 	}
 	return bookings, s.err
 }

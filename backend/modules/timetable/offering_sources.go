@@ -36,11 +36,11 @@ type OfferingSourceSupport interface {
 }
 
 // OfferingTemplateGapDecision stores the school's decision that the booked
-// children of the listed classes need no Regeltermin of an offering
-// (#5140); an empty list withdraws it. Care Plan owns the offering row; the
-// composition root binds its catalog.
+// children of the listed classes need no Regeltermin of an offering in one
+// planning period (#5140); an empty list withdraws it for that period. Care
+// Plan owns the offering row; the composition root binds its catalog.
 type OfferingTemplateGapDecision interface {
-	DecideOfferingTemplateGap(ctx context.Context, offeringID int64, schoolClasses []string) error
+	DecideOfferingTemplateGap(ctx context.Context, offeringID, calendarPeriodID int64, schoolClasses []string) error
 }
 
 // OfferingWeekdayBooking is one child's approved booking of an offering with
@@ -58,8 +58,21 @@ type OfferingWeekdayBooking struct {
 	CountsAsCare  bool
 	IncludesLunch bool
 	// TemplateGapAckClasses are the classes the school decided need no
-	// Regeltermin of the offering (#5140); empty without a decision.
+	// Regeltermin of the offering in the requested planning period (#5140);
+	// empty without a decision there.
 	TemplateGapAckClasses []string
+	// Windows are the child's links to the offering that still run, each
+	// with its validity and weekdays; Weekdays is their union. Without
+	// windows the weekdays hold for the whole period.
+	Windows []OfferingBookingWindow
+}
+
+// OfferingBookingWindow is one booking link: the ISO weekdays it plans from
+// ValidFrom (inclusive, nil = open) to ValidUntil (exclusive, nil = open).
+type OfferingBookingWindow struct {
+	ValidFrom  *calendar.Date
+	ValidUntil *calendar.Date
+	Weekdays   []int
 }
 
 // OfferingSourceOption is one selectable Betreuungsangebot of the editor with

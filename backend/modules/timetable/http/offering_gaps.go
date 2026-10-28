@@ -31,11 +31,18 @@ type offeringGapsResponse struct {
 	Gaps []offeringGapResponse `json:"gaps"`
 }
 
+// errInactivePlanningPeriod refuses a period the Betreuungsplan does not
+// plan in: unknown, inactive or of another school. Only an active period
+// shows hints and takes decisions, so no decision can stem from a period
+// nobody plans in.
+var errInactivePlanningPeriod = errors.New("period_id must name an active planning period")
+
 // listOfferingGaps handles GET /offering-gaps: per offering of the period,
-// the booked children no Regeltermin takes over, with the school's decision.
-// Every read is batched over the period's templates and bookings.
+// the booked children no Regeltermin takes over, with the school's decision
+// for this period. An unknown or inactive period shows no hints. Every read
+// is batched over the period's templates and bookings.
 func (rs *Resource) listOfferingGaps(w http.ResponseWriter, r *http.Request) {
-	if rs.TimetableData == nil {
+	if rs.TimetableData == nil || rs.CalendarPeriods == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable offering gaps not wired")))
 		return
 	}
@@ -48,6 +55,9 @@ func (rs *Resource) listOfferingGaps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	gaps, err := rs.offeringGaps(r.Context(), *periodID)
+	if errors.Is(err, errInactivePlanningPeriod) {
+		gaps, err = []timetable.OfferingGap{}, nil
+	}
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list offering gaps failed", err))
 		return
@@ -59,43 +69,55 @@ func (rs *Resource) listOfferingGaps(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, offeringGapsResponse{Gaps: result}, "Offering gaps retrieved")
 }
 
-// offeringGaps compares the period's bookings from today on with the
-// Regeltermine the offerings feed. Without the offering side there is
-// nothing to compare.
+// offeringGaps compares the bookings of an active period from today on with
+// the Regeltermine the offerings feed, date by date.
+// errInactivePlanningPeriod for an unknown or inactive period. Without the
+// offering side there is nothing to compare.
 func (rs *Resource) offeringGaps(ctx context.Context, periodID int64) ([]timetable.OfferingGap, error) {
-	if rs.OfferingSourceOptions == nil {
+	period, err := rs.activePlanningPeriod(ctx, periodID)
+	if err != nil || rs.OfferingSourceOptions == nil {
+		return []timetable.OfferingGap{}, err
+	}
+	scope := timetable.OfferingGapScope{From: max(rs.todayDate(), calendar.Date(period.StartDate)), Until: calendar.Date(period.EndDate)}
+	if scope.From.After(scope.Until) {
 		return []timetable.OfferingGap{}, nil
 	}
-	today := rs.todayDate()
-	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(ctx, &periodID, today)
+	bookings, err := rs.OfferingSourceOptions.OfferingWeekdayBookings(ctx, &periodID, scope.From)
 	if err != nil || len(bookings) == 0 {
 		return []timetable.OfferingGap{}, err
 	}
-	templates, err := rs.offeringGapTemplates(ctx, periodID, today)
+	templates, err := rs.offeringGapTemplates(ctx, period)
 	if err != nil {
 		return nil, err
 	}
-	return timetable.DetectOfferingGaps(templates, bookings), nil
+	return timetable.DetectOfferingGaps(scope, templates, bookings), nil
+}
+
+// activePlanningPeriod loads the period through the tenant-scoped School
+// Calendar; another school's id is not found.
+func (rs *Resource) activePlanningPeriod(ctx context.Context, periodID int64) (schoolcalendar.CalendarPeriod, error) {
+	period, err := rs.CalendarPeriods.FindCalendarPeriod(ctx, periodID)
+	if errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) || (err == nil && !period.IsActive) {
+		return schoolcalendar.CalendarPeriod{}, errInactivePlanningPeriod
+	}
+	return period, err
 }
 
 // offeringGapTemplates reads the period's Regeltermine with the offerings
 // that feed them. Unlike the template list, a failed offering read fails
 // the request: without it every booking would look uncovered.
-func (rs *Resource) offeringGapTemplates(ctx context.Context, periodID int64, today calendar.Date) ([]timetable.OfferingGapTemplate, error) {
+func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalendar.CalendarPeriod) ([]timetable.OfferingGapTemplate, error) {
 	ratio := rs.childrenPerStaffRatio(ctx)
-	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &periodID, ratio)
-	if err != nil {
-		return nil, err
-	}
-	if len(rows) == 0 || rows[0].PlanningPeriod == nil {
-		return []timetable.OfferingGapTemplate{}, nil
+	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &period.ID, ratio)
+	if err != nil || len(rows) == 0 {
+		return []timetable.OfferingGapTemplate{}, err
 	}
 	templates := mapTemplateRows(rows, ratio, nil)
 	queries := make([]timetable.TemplateRosterMaintenanceQuery, 0, len(templates))
 	for _, template := range templates {
 		queries = append(queries, timetable.TemplateRosterMaintenanceQuery{
 			TemplateID:            template.ID,
-			CalendarPeriodID:      rosterMaintenanceCalendarPeriodID(template, &periodID),
+			CalendarPeriodID:      rosterMaintenanceCalendarPeriodID(template, &period.ID),
 			SourceCareOfferingIDs: template.SourceCareOfferingIDs,
 			SourceGradeLevels:     template.SourceGradeLevels,
 			SourceSchoolClasses:   template.SourceSchoolClasses,
@@ -110,7 +132,7 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, periodID int64, to
 		if template.Type == timetable.GroupTypeDuty {
 			continue
 		}
-		result = append(result, offeringGapTemplate(template, feeds[template.ID], *rows[0].PlanningPeriod, today))
+		result = append(result, offeringGapTemplate(template, feeds[template.ID], period))
 	}
 	return result, nil
 }
@@ -118,9 +140,9 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, periodID int64, to
 // offeringGapTemplate splits the feeding offerings into the source rule,
 // which keeps its Jahrgang or Klassen filter, and the offerings' own links,
 // which feed every booked child.
-func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, period timetable.TemplateCapacityPeriod, today calendar.Date) timetable.OfferingGapTemplate {
+func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, period schoolcalendar.CalendarPeriod) timetable.OfferingGapTemplate {
 	gapTemplate := timetable.OfferingGapTemplate{
-		Weekdays:          runningWeekdays(template, period, today),
+		Runs:              scheduleRuns(template, period),
 		LinkedOfferingIDs: append([]int64(nil), feeds.LinkedOfferingIDs...),
 		Sources: timetable.OfferingSourceFilter{
 			GradeLevels: feeds.GradeLevels, SchoolClasses: feeds.SchoolClasses,
@@ -134,35 +156,48 @@ func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRost
 	return gapTemplate
 }
 
-// runningWeekdays counts only schedules with an eligible occurrence left
-// in the period, respecting split bounds, the series end and A/B weeks.
-func runningWeekdays(template templateResponse, period timetable.TemplateCapacityPeriod, today calendar.Date) []int {
-	first := max(today, calendar.Date(period.StartDate))
-	last := calendar.Date(period.EndDate)
+// scheduleRuns dates each schedule of the period from its first to its last
+// occurrence, within the period, the split bounds (valid_until exclusive)
+// and the series end, with the A/B pattern deciding which weeks occur. A
+// schedule without an occurrence gives no run.
+func scheduleRuns(template templateResponse, period schoolcalendar.CalendarPeriod) []timetable.OfferingGapRun {
+	periodFirst, periodLast := calendar.Date(period.StartDate), calendar.Date(period.EndDate)
 	if template.EndDate != nil {
-		last = min(last, calendar.Date(*template.EndDate))
+		periodLast = min(periodLast, calendar.Date(*template.EndDate))
 	}
-	weekdays := make([]int, 0, len(template.Schedules))
 	cycle := schoolcalendar.WeekCycle{Length: period.WeekCycleLength, Anchor: period.WeekCycleAnchor}
+	runs := make([]timetable.OfferingGapRun, 0, len(template.Schedules))
 	for _, schedule := range template.Schedules {
 		if schedule.CalendarPeriodID != nil && *schedule.CalendarPeriodID != period.ID {
 			continue
 		}
-		start := max(first, calendar.Date(schedule.ValidFrom))
-		end := last
+		first := max(periodFirst, calendar.Date(schedule.ValidFrom))
+		last := periodLast
 		if schedule.ValidUntil != "" {
-			end = min(end, calendar.Date(schedule.ValidUntil).AddDays(-1))
+			last = min(last, calendar.Date(schedule.ValidUntil).AddDays(-1))
 		}
-		// Jump to this weekday, then test only its weekly occurrences.
-		next := start.AddDays((schedule.Weekday - int(start.Weekday()) + 7) % 7)
-		for date := next; date <= end; date = date.AddDays(7) {
-			if schoolcalendar.WeekPatternApplies(schedule.WeekPattern, date.String(), cycle) {
-				weekdays = append(weekdays, schedule.Weekday)
-				break
-			}
+		occurs := func(date calendar.Date) bool {
+			return schoolcalendar.WeekPatternApplies(schedule.WeekPattern, date.String(), cycle)
+		}
+		from, ok := firstOccurrence(timetable.NextWeekdayOnOrAfter(first, schedule.Weekday), last, 7, occurs)
+		if !ok {
+			continue
+		}
+		until, _ := firstOccurrence(timetable.PreviousWeekdayOnOrBefore(last, schedule.Weekday), from, -7, occurs)
+		runs = append(runs, timetable.OfferingGapRun{Weekday: schedule.Weekday, From: from, Until: until})
+	}
+	return runs
+}
+
+// firstOccurrence walks from start towards bound in steps of days and
+// returns the first date the pattern lets occur.
+func firstOccurrence(start, bound calendar.Date, days int, occurs func(calendar.Date) bool) (calendar.Date, bool) {
+	for date := start; (days > 0 && !date.After(bound)) || (days < 0 && !date.Before(bound)); date = date.AddDays(days) {
+		if occurs(date) {
+			return date, true
 		}
 	}
-	return weekdays
+	return calendar.Date(""), false
 }
 
 func offeringGapResponseFrom(gap timetable.OfferingGap) offeringGapResponse {
@@ -199,14 +234,15 @@ type offeringGapAckResponse struct {
 // setOfferingGapAck handles PUT /offering-gaps/{offeringId}/acknowledgement:
 // "Kein eigener Regeltermin nötig" for the classes the hint names right now,
 // or its undo. The classes come from the server's own comparison, never from
-// the client, so the decision covers exactly what the hint showed. Both
-// directions need the offering's hint in the period, decided or not.
+// the client, so the decision covers exactly what the hint showed, and it
+// holds for this planning period only. Both directions need an active period
+// and the offering's hint in it, decided or not.
 func (rs *Resource) setOfferingGapAck(w http.ResponseWriter, r *http.Request) {
 	offeringID, ok := common.ParsePositiveInt64IDWithError(w, r, "offeringId", "invalid offering id")
 	if !ok {
 		return
 	}
-	if rs.TimetableData == nil || rs.OfferingSourceOptions == nil || rs.OfferingGapDecisions == nil {
+	if rs.TimetableData == nil || rs.CalendarPeriods == nil || rs.OfferingSourceOptions == nil || rs.OfferingGapDecisions == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable offering gaps not wired")))
 		return
 	}
@@ -223,7 +259,7 @@ func (rs *Resource) setOfferingGapAck(w http.ResponseWriter, r *http.Request) {
 	if !*req.Acknowledged {
 		classes = []string{}
 	}
-	if err := rs.OfferingGapDecisions.DecideOfferingTemplateGap(r.Context(), offeringID, classes); err != nil {
+	if err := rs.OfferingGapDecisions.DecideOfferingTemplateGap(r.Context(), offeringID, req.PeriodID, classes); err != nil {
 		renderOfferingGapError(w, r, err)
 		return
 	}
@@ -247,9 +283,14 @@ func (rs *Resource) openOfferingGapClasses(ctx context.Context, periodID, offeri
 	return nil, timetable.ErrOfferingGapNotFound
 }
 
-// renderOfferingGapError answers an offering without a hint, or one Care
-// Plan no longer knows, with 404 and everything else with 500.
+// renderOfferingGapError answers an unknown or inactive period with 400, an
+// offering without a hint, or one Care Plan no longer knows, with 404 and
+// everything else with 500.
 func renderOfferingGapError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, errInactivePlanningPeriod) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	if errors.Is(err, timetable.ErrOfferingGapNotFound) || errors.Is(err, careplan.ErrCareOfferingNotFound) {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return

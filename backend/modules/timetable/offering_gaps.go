@@ -5,6 +5,8 @@ import (
 	"maps"
 	"slices"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrOfferingGapNotFound refuses a decision on an offering the period shows
@@ -13,27 +15,38 @@ import (
 var ErrOfferingGapNotFound = errors.New("offering has no booked children without a Regeltermin")
 
 // Offering without a matching Regeltermin (#5140): a child booked an
-// offering on a weekday, but no Regeltermin of the planning period takes it
-// over on that day. Only Regeltermine the offering feeds count: the source
-// rule with its Jahrgang or Klassen filter, or the offering's own link. The
-// same children on a hand-kept list or in another offering's Regeltermin do
-// not cover the booking; the roster review (#5103) handles hand-kept lists.
-// A Regeltermin for Klasse 1/2 therefore never hides Klasse 3/4.
+// offering on a school day, but no Regeltermin of the planning period takes
+// it over on that date. Only Regeltermine the offering feeds count: the
+// source rule with its Jahrgang or Klassen filter, or the offering's own
+// link. The same children on a hand-kept list or in another offering's
+// Regeltermin do not cover the booking; the roster review (#5103) handles
+// hand-kept lists. A Regeltermin for Klasse 1/2 therefore never hides
+// Klasse 3/4, and a series that only runs in November never hides a
+// booking in December.
 //
 // The school may decide that the uncovered children need no Regeltermin of
-// their own. Care Plan stores that decision on the offering as the classes
-// it covers; the hint returns once a child of another class is uncovered.
+// their own. Care Plan stores that decision per offering and planning
+// period as the classes it covers; the hint returns once a child of another
+// class is uncovered in that period.
 
 // offeringGapWeekdays are the school days the check covers. A booking
 // without weekday restriction books every day, but no school plans
 // Regeltermine on Saturday or Sunday.
 var offeringGapWeekdays = []int{1, 2, 3, 4, 5}
 
+// OfferingGapScope is the stretch of the planning period the check looks
+// at: from today, or the period start if later, to the period end, both
+// inclusive.
+type OfferingGapScope struct {
+	From  calendar.Date
+	Until calendar.Date
+}
+
 // OfferingGapTemplate is one Regeltermin of the period as the gap check sees
 // it.
 type OfferingGapTemplate struct {
-	// Weekdays are the ISO weekdays the series still runs on from today.
-	Weekdays []int
+	// Runs are the dated stretches the series runs on, one per schedule.
+	Runs []OfferingGapRun
 	// Sources are the offerings feeding the roster through the source rule,
 	// with its Jahrgang or Klassen filter.
 	Sources OfferingSourceFilter
@@ -42,33 +55,45 @@ type OfferingGapTemplate struct {
 	LinkedOfferingIDs []int64
 }
 
+// OfferingGapRun is one weekly schedule from its first to its last
+// occurrence in the period, both inclusive. Weeks between them that an A/B
+// pattern or a closing day skips count as covered: the child still has its
+// Regeltermin.
+type OfferingGapRun struct {
+	Weekday int
+	From    calendar.Date
+	Until   calendar.Date
+}
+
 // OfferingGap is one offering with booked children no Regeltermin takes
 // over.
 type OfferingGap struct {
 	OfferingID   int64
 	OfferingName string
 	// StudentCount is the number of children with at least one uncovered
-	// weekday.
+	// booked date.
 	StudentCount int
 	// SchoolClasses are the classes of those children, sorted; "" stands for
 	// children without a class.
 	SchoolClasses []string
-	// Weekdays are the uncovered ISO weekdays, ascending.
+	// Weekdays are the ISO weekdays with an uncovered booked date, ascending.
 	Weekdays []int
-	// Acknowledged is true when the school decided that every listed class
-	// needs no Regeltermin of the offering.
+	// Acknowledged is true when the school decided for this period that every
+	// listed class needs no Regeltermin of the offering.
 	Acknowledged bool
-	// AcknowledgedClasses are the classes of the school's stored decision.
+	// AcknowledgedClasses are the classes of the school's stored decision
+	// for this period.
 	AcknowledgedClasses []string
 }
 
-// DetectOfferingGaps lists, per offering, the booked children no
-// Regeltermin covers on a booked school day, ordered by offering name.
-func DetectOfferingGaps(templates []OfferingGapTemplate, bookings []OfferingWeekdayBooking) []OfferingGap {
+// DetectOfferingGaps lists, per offering, the booked children with a booked
+// school day in scope that no Regeltermin fed by the offering covers,
+// ordered by offering name.
+func DetectOfferingGaps(scope OfferingGapScope, templates []OfferingGapTemplate, bookings []OfferingWeekdayBooking) []OfferingGap {
 	byOffering := make(map[int64]*offeringGapCollector)
 	order := make([]int64, 0)
 	for _, booking := range bookings {
-		uncovered := uncoveredWeekdays(templates, booking)
+		uncovered := uncoveredWeekdays(scope, templates, booking)
 		if len(uncovered) == 0 {
 			continue
 		}
@@ -90,31 +115,40 @@ func DetectOfferingGaps(templates []OfferingGapTemplate, bookings []OfferingWeek
 	for _, offeringID := range order {
 		gaps = append(gaps, byOffering[offeringID].result())
 	}
-	slices.SortFunc(gaps, func(left, right OfferingGap) int {
-		if order := strings.Compare(strings.ToLower(left.OfferingName), strings.ToLower(right.OfferingName)); order != 0 {
-			return order
-		}
-		switch {
-		case left.OfferingID < right.OfferingID:
-			return -1
-		case left.OfferingID > right.OfferingID:
-			return 1
-		}
-		return 0
-	})
+	slices.SortFunc(gaps, compareOfferingGaps)
 	return gaps
 }
 
-// uncoveredWeekdays are the booked school days of the booking no
-// Regeltermin fed by its offering runs on.
-func uncoveredWeekdays(templates []OfferingGapTemplate, booking OfferingWeekdayBooking) []int {
+func compareOfferingGaps(left, right OfferingGap) int {
+	if order := strings.Compare(strings.ToLower(left.OfferingName), strings.ToLower(right.OfferingName)); order != 0 {
+		return order
+	}
+	switch {
+	case left.OfferingID < right.OfferingID:
+		return -1
+	case left.OfferingID > right.OfferingID:
+		return 1
+	}
+	return 0
+}
+
+// uncoveredWeekdays are the school weekdays with a booked date in scope that
+// no run of a Regeltermin fed by the booking's offering covers.
+func uncoveredWeekdays(scope OfferingGapScope, templates []OfferingGapTemplate, booking OfferingWeekdayBooking) []int {
+	runs := make([]OfferingGapRun, 0)
+	for _, template := range templates {
+		if template.feeds(booking) {
+			runs = append(runs, template.Runs...)
+		}
+	}
+	windows := booking.Windows
+	if len(windows) == 0 {
+		windows = []OfferingBookingWindow{{Weekdays: booking.Weekdays}}
+	}
 	uncovered := make([]int, 0)
 	for _, weekday := range offeringGapWeekdays {
-		if !slices.Contains(booking.Weekdays, weekday) {
-			continue
-		}
-		if !slices.ContainsFunc(templates, func(template OfferingGapTemplate) bool {
-			return template.covers(booking, weekday)
+		if slices.ContainsFunc(windows, func(window OfferingBookingWindow) bool {
+			return window.hasUncoveredDate(scope, weekday, runs)
 		}) {
 			uncovered = append(uncovered, weekday)
 		}
@@ -122,14 +156,49 @@ func uncoveredWeekdays(templates []OfferingGapTemplate, booking OfferingWeekdayB
 	return uncovered
 }
 
-func (t OfferingGapTemplate) covers(booking OfferingWeekdayBooking, weekday int) bool {
-	if !slices.Contains(t.Weekdays, weekday) {
-		return false
-	}
+// feeds reports whether the Regeltermin takes its children from the
+// booking's offering: through the offering's own link, or through the source
+// rule when the child passes its filter.
+func (t OfferingGapTemplate) feeds(booking OfferingWeekdayBooking) bool {
 	if slices.Contains(t.LinkedOfferingIDs, booking.OfferingID) {
 		return true
 	}
 	return slices.Contains(t.Sources.OfferingIDs, booking.OfferingID) && bookingPassesSourceFilter(t.Sources, booking)
+}
+
+// hasUncoveredDate reports whether the window books a date of the weekday in
+// scope that no run of that weekday covers.
+func (w OfferingBookingWindow) hasUncoveredDate(scope OfferingGapScope, weekday int, runs []OfferingGapRun) bool {
+	if !slices.Contains(w.Weekdays, weekday) {
+		return false
+	}
+	first, last := scope.From, scope.Until
+	if w.ValidFrom != nil && w.ValidFrom.After(first) {
+		first = *w.ValidFrom
+	}
+	if w.ValidUntil != nil && w.ValidUntil.AddDays(-1).Before(last) {
+		last = w.ValidUntil.AddDays(-1)
+	}
+	for date := NextWeekdayOnOrAfter(first, weekday); !date.After(last); date = date.AddDays(7) {
+		if !slices.ContainsFunc(runs, func(run OfferingGapRun) bool {
+			return run.Weekday == weekday && !date.Before(run.From) && !date.After(run.Until)
+		}) {
+			return true
+		}
+	}
+	return false
+}
+
+// NextWeekdayOnOrAfter is the first date on or after d that falls on the ISO
+// weekday (1 = Monday … 7 = Sunday).
+func NextWeekdayOnOrAfter(d calendar.Date, weekday int) calendar.Date {
+	return d.AddDays((weekday - int(d.Weekday()) + 14) % 7)
+}
+
+// PreviousWeekdayOnOrBefore is the last date on or before d that falls on
+// the ISO weekday.
+func PreviousWeekdayOnOrBefore(d calendar.Date, weekday int) calendar.Date {
+	return d.AddDays(-((int(d.Weekday()) - weekday + 14) % 7))
 }
 
 type offeringGapCollector struct {

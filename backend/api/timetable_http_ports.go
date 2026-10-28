@@ -349,9 +349,22 @@ func (s timetableOfferingSources) OfferingWeekdayBookings(ctx context.Context, c
 			CountsAsCare:          booking.CountsAsCare,
 			IncludesLunch:         booking.IncludesLunch,
 			TemplateGapAckClasses: booking.TemplateGapAckClasses,
+			Windows:               timetableBookingWindows(booking.Windows),
 		})
 	}
 	return result, nil
+}
+
+// timetableBookingWindows translates the validity of each booking link
+// (#5140).
+func timetableBookingWindows(windows []careplan.OfferingBookingWindow) []timetable.OfferingBookingWindow {
+	result := make([]timetable.OfferingBookingWindow, 0, len(windows))
+	for _, window := range windows {
+		result = append(result, timetable.OfferingBookingWindow{
+			ValidFrom: window.ValidFrom, ValidUntil: window.ValidUntil, Weekdays: window.Weekdays,
+		})
+	}
+	return result
 }
 
 func timetableOfferingRefs(offerings []careplan.RosterMaintenanceOffering) []timetable.OfferingRef {

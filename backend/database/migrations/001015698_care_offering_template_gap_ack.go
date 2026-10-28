@@ -25,28 +25,30 @@ func init() {
 
 // careOfferingTemplateGapAckUpSQL records the school's decision that the
 // booked children of a care offering need no Regeltermin of their own
-// (#5140). The column holds the school classes the decision covers; NULL
-// means no decision. A child of another class without a Regeltermin brings
-// the hint back. The value names classes, no person, and goes with its
-// offering; a copied offering of the next school year starts without it.
+// (#5140). The column maps a planning period id to the school classes the
+// decision covers in that period; NULL means no decision anywhere. A child of
+// another class without a Regeltermin brings the hint back, and a decision
+// for one period never hides the hint of another. The value names periods and
+// classes, no person, and goes with its offering; a copied offering of the
+// next school year starts without it.
 const careOfferingTemplateGapAckUpSQL = `
 		ALTER TABLE enrollment.care_offerings
-			ADD COLUMN IF NOT EXISTS template_gap_ack_classes TEXT[];
+			ADD COLUMN IF NOT EXISTS template_gap_acks JSONB;
 
-		COMMENT ON COLUMN enrollment.care_offerings.template_gap_ack_classes IS
-			'School classes whose booked children need no Regeltermin of this offering, as decided by the school; NULL = no decision, '''' = children without a class (#5140).';
+		COMMENT ON COLUMN enrollment.care_offerings.template_gap_acks IS
+			'Planning period id -> school classes whose booked children need no Regeltermin of this offering in that period, as decided by the school; NULL = no decision (#5140).';
 `
 
 func careOfferingTemplateGapAckUp(ctx context.Context, db *bun.DB) error {
 	if _, err := db.ExecContext(ctx, careOfferingTemplateGapAckUpSQL); err != nil {
-		return fmt.Errorf("add enrollment.care_offerings.template_gap_ack_classes: %w", err)
+		return fmt.Errorf("add enrollment.care_offerings.template_gap_acks: %w", err)
 	}
 	return nil
 }
 
 func careOfferingTemplateGapAckDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `ALTER TABLE enrollment.care_offerings DROP COLUMN IF EXISTS template_gap_ack_classes;`); err != nil {
-		return fmt.Errorf("drop enrollment.care_offerings.template_gap_ack_classes: %w", err)
+	if _, err := db.ExecContext(ctx, `ALTER TABLE enrollment.care_offerings DROP COLUMN IF EXISTS template_gap_acks;`); err != nil {
+		return fmt.Errorf("drop enrollment.care_offerings.template_gap_acks: %w", err)
 	}
 	return nil
 }

@@ -15,12 +15,12 @@ import (
 const maxTemplateGapAckClassLength = 50
 
 // SetCareOfferingTemplateGapAck stores the school's decision on an offering
-// without a matching Regeltermin (#5140). The classes are trimmed,
-// deduplicated and sorted; "" stays for children without a class. An empty
-// list withdraws the decision.
-func (s *Service) SetCareOfferingTemplateGapAck(ctx context.Context, offeringID int64, schoolClasses []string) error {
-	if offeringID <= 0 {
-		return invalid(careplan.ErrInvalidCareOffering, "care offering ID is required")
+// without a matching Regeltermin (#5140) for one planning period. The
+// classes are trimmed, deduplicated and sorted; "" stays for children
+// without a class. An empty list withdraws the decision for that period.
+func (s *Service) SetCareOfferingTemplateGapAck(ctx context.Context, offeringID, calendarPeriodID int64, schoolClasses []string) error {
+	if offeringID <= 0 || calendarPeriodID <= 0 {
+		return invalid(careplan.ErrInvalidCareOffering, "care offering and planning period IDs are required")
 	}
 	if len(schoolClasses) > careplan.MaxTemplateGapAckClasses {
 		return invalid(careplan.ErrInvalidCareOffering, "too many school classes")
@@ -36,7 +36,7 @@ func (s *Service) SetCareOfferingTemplateGapAck(ctx context.Context, offeringID 
 	slices.Sort(classes)
 	classes = slices.Compact(classes)
 	return s.run(ctx, "set_care_offering_template_gap_ack", func(ctx context.Context, stats *domain.OperationStats) error {
-		queryStats, err := s.store.SetCareOfferingTemplateGapAck(ctx, offeringID, classes)
+		queryStats, err := s.store.SetCareOfferingTemplateGapAck(ctx, offeringID, calendarPeriodID, classes)
 		stats.Add(queryStats)
 		return err
 	})

@@ -121,6 +121,19 @@ type OfferingWeekdayBooking struct {
 	CountsAsCare  bool
 	IncludesLunch bool
 	// TemplateGapAckClasses are the classes the school decided need no
-	// Regeltermin of this offering (#5140); empty without a decision.
+	// Regeltermin of this offering in the requested planning period (#5140);
+	// empty without a decision there.
 	TemplateGapAckClasses []string
+	// Windows are the child's links to the offering that still run on or
+	// after from, each with its own validity and weekdays; Weekdays is their
+	// union.
+	Windows []OfferingBookingWindow
+}
+
+// OfferingBookingWindow is one booking link: the ISO weekdays it plans from
+// ValidFrom (inclusive, nil = open) to ValidUntil (exclusive, nil = open).
+type OfferingBookingWindow struct {
+	ValidFrom  *calendar.Date
+	ValidUntil *calendar.Date
+	Weekdays   []int
 }

@@ -32,7 +32,7 @@ type CatalogRecords interface {
 	UpdateCareOffering(context.Context, careplan.UpdateCareOffering) (careplan.CareOffering, error)
 	DeleteCareOffering(context.Context, int64) error
 	ReplaceAutoAddTriggers(context.Context, int64, []int64) error
-	SetCareOfferingTemplateGapAck(context.Context, int64, []string) error
+	SetCareOfferingTemplateGapAck(context.Context, int64, int64, []string) error
 }
 
 // CatalogPhases reads the Enrollment phase an offering belongs to.

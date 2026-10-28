@@ -176,9 +176,6 @@ type StudentWeekQuery interface {
 type TemplateListEntry struct {
 	TemplateListRow
 	Targets []GroupTarget
-	// PlanningPeriod is the selected active period, already loaded for the
-	// capacity calculation. Consumers can evaluate recurrence without rereading it.
-	PlanningPeriod *TemplateCapacityPeriod
 	// SourceCareOfferingIDs, SourceGradeLevels and SourceSchoolClasses are
 	// the decoded offering-source rule (#2137, #2482); a corrupt stored value
 	// reads as no filter instead of failing the list.

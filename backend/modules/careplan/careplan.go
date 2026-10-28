@@ -98,10 +98,10 @@ type CareOffering struct {
 	// Description (#3377). Enrollment owns its shape; Care Plan stores it.
 	Translations              json.RawMessage
 	AutoAddTriggerOfferingIDs []int64
-	// TemplateGapAckClasses are the school classes whose booked children
-	// need no Regeltermin of this offering, as the school decided (#5140);
-	// empty means no decision, "" stands for children without a class.
-	TemplateGapAckClasses []string
+	// TemplateGapAcks maps a planning period id to the school classes whose
+	// booked children need no Regeltermin of this offering in that period,
+	// as the school decided (#5140); "" stands for children without a class.
+	TemplateGapAcks map[int64][]string
 }
 
 // CareOfferingFields is the writable catalog state. Trigger IDs are part of
