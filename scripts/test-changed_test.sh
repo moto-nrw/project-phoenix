@@ -18,7 +18,7 @@ cleanup() {
 trap cleanup EXIT
 
 mkdir -p "$fixture"/{backend/probe,fake-bin,scripts}
-for script in test-backend.sh test-changed.sh test-run-id.sh go-package-workers.sh go-test-workspace.sh; do
+for script in test-backend.sh test-changed.sh test-frontend-changed.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh; do
   cp "$repo_root/scripts/$script" "$fixture/scripts/$script"
 done
 cat >"$fixture/scripts/total-memory-gb.sh" <<'EOF'
@@ -39,19 +39,21 @@ case "$1" in
     [ "$CI" = true ]
     exit "${PHX_FIXTURE_INSTALL_STATUS:-0}"
     ;;
+  exec)
+    if [ "$3" = list ]; then
+      printf '[{"file":"%s/src/listed.test.ts"},{"file":"%s/src/app/api/proxy-routes.test.ts"}]\n' "$PWD" "$PWD"
+      exit "${PHX_FIXTURE_CHANGED_STATUS:-0}"
+    fi
+    [ "$3" = run ]
+    echo 'expected error log from a behavior test' >&2
+    exit "${PHX_FIXTURE_VITEST_STATUS:-0}"
+    ;;
   vitest)
     echo 'expected error log from a behavior test' >&2
     exit "${PHX_FIXTURE_VITEST_STATUS:-0}"
     ;;
   *) exit 99 ;;
 esac
-EOF
-cat >"$fixture/fake-bin/node" <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-[ "$1" = ../scripts/test-frontend-changed.mjs ]
-printf 'node:%s\n' "$*" >>"$TEST_CHANGED_CALL_LOG"
-exit "${PHX_FIXTURE_VITEST_STATUS:-0}"
 EOF
 cat >"$fixture/fake-bin/go" <<'EOF'
 #!/usr/bin/env bash
@@ -129,7 +131,6 @@ chmod +x \
   "$fixture/fake-bin/getconf" \
   "$fixture/fake-bin/uname" \
   "$fixture/fake-bin/pnpm" \
-  "$fixture/fake-bin/node" \
   "$fixture/fake-bin/go"
 
 printf 'package probe\n' >"$fixture/backend/probe/probe.go"
@@ -269,34 +270,51 @@ run_wrapper test-changed.sh 0 origin/development
 run_wrapper test-backend.sh 0 ./probe
 unset PHX_FIXTURE_TMPDIR
 
+# Keep this list explicit: these are the filesystem scan contracts, not
+# import dependencies. The fake list returns one guard too: it must run only once.
+guards=(
+  src/app/api/proxy-routes.test.ts
+  src/app/api/route-cache-policy.test.ts
+  src/server/auth/route-handler-coverage.test.ts
+  src/lib/app-route-invariants.test.ts
+  src/lib/analytics-routes.test.ts
+  src/lib/help-topics.test.ts
+  src/lib/loading-boundaries.test.ts
+  src/lib/navigation-sync.test.ts
+  src/lib/personal-storage.test.ts
+  src/lib/browser-token-ratchet.test.ts
+  src/components/ui/tenant-page-scaffold.test.ts
+  src/components/ui/plan-design-guards.test.ts
+  src/components/settings/settings-filter.test.ts
+  src/components/school-setup/setup-tour-targets.test.ts
+)
+# Validate against real source files, not only the mirrored fixture list.
+node "$repo_root/scripts/test-frontend-changed.mjs" --check-guards
+guard_call="pnpm:exec vitest run ${guards[*]} src/listed.test.ts"
+changed_call='pnpm:exec vitest list --filesOnly --json --changed origin/development'
+
 # Frontend failures must survive both the frontend-only path (no EXIT trap)
 # and the mixed-stack path, whose backend cleanup runs after Vitest.
 mkdir -p "$fixture/frontend/src"
 for no_backend in 0 1; do
   export PHX_FIXTURE_NO_BACKEND=$no_backend
-  for selection in changed full settings e2e; do
-    mkdir -p "$fixture/backend/modules/settings/internal/defaults" "$fixture/.github/workflows"
-    rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts" \
-      "$fixture/backend/modules/settings/internal/defaults/probe.go" "$fixture/.github/workflows/e2e.yml"
-    vitest_call='node:../scripts/test-frontend-changed.mjs origin/development'
-    case "$selection" in
-      full)
-        printf '{}\n' >"$fixture/frontend/package.json"
-        vitest_call='pnpm:vitest run'
-        ;;
-      changed) printf 'export {};\n' >"$fixture/frontend/src/probe.ts" ;;
-      settings)
-        printf 'package defaults\n' >"$fixture/backend/modules/settings/internal/defaults/probe.go"
-        vitest_call='pnpm:vitest run src/components/settings/settings-filter.test.ts'
-        ;;
-      e2e) printf 'name: E2E\n' >"$fixture/.github/workflows/e2e.yml" ;;
-    esac
-    for failure in success install vitest; do
-      export PHX_FIXTURE_INSTALL_STATUS=0 PHX_FIXTURE_VITEST_STATUS=0
+  for selection in changed full; do
+    rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts"
+    if [ "$selection" = full ]; then
+      printf '{}\n' >"$fixture/frontend/package.json"
+      vitest_call='pnpm:vitest run'
+    else
+      printf 'export {};\n' >"$fixture/frontend/src/probe.ts"
+      vitest_call="$changed_call"
+    fi
+    for failure in success install vitest changed; do
+      if [ "$selection" = full ] && [ "$failure" = changed ]; then continue; fi
+      export PHX_FIXTURE_INSTALL_STATUS=0 PHX_FIXTURE_VITEST_STATUS=0 PHX_FIXTURE_CHANGED_STATUS=0
       expected_status=0
       case "$failure" in
         install) export PHX_FIXTURE_INSTALL_STATUS=6; expected_status=6 ;;
         vitest) export PHX_FIXTURE_VITEST_STATUS=8; expected_status=8 ;;
+        changed) export PHX_FIXTURE_CHANGED_STATUS=9; expected_status=9 ;;
       esac
       : >"$call_log"
       status=0
@@ -315,6 +333,9 @@ for no_backend in 0 1; do
       fi
       expected_calls+='pnpm:install --frozen-lockfile'
       if [ "$failure" != install ]; then expected_calls+=$'\n'"$vitest_call"; fi
+      if [ "$selection" = changed ] && [[ "$failure" = success || "$failure" = vitest ]]; then
+        expected_calls+=$'\n'"$guard_call"
+      fi
       if [ "$no_backend" -eq 0 ]; then expected_calls+=$'\nsweep'; fi
       assert_calls "$expected_calls"
       [ ! -e "$fixture/.git/phx-test-run.lock" ]
@@ -322,4 +343,45 @@ for no_backend in 0 1; do
   done
 done
 
-echo 'full/changed-test resource budget, build workspace and lifecycle tests passed'
+# Backend-only settings defaults need the frontend category guard as well.
+rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts"
+mkdir -p "$fixture/backend/modules/settings/internal/defaults"
+printf 'package defaults\n' >"$fixture/backend/modules/settings/internal/defaults/probe.go"
+export PHX_FIXTURE_INSTALL_STATUS=0 PHX_FIXTURE_VITEST_STATUS=0 PHX_FIXTURE_CHANGED_STATUS=0
+: >"$call_log"
+(cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+  scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
+assert_calls $'pnpm:install --frozen-lockfile\npnpm:vitest run src/components/settings/settings-filter.test.ts'
+
+# Project filters used by CI reach both invocations unchanged.
+: >"$call_log"
+(cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+  node scripts/test-frontend-changed.mjs origin/development --disableConsoleIntercept --project api-node --project logic-node) >"$output_log" 2>&1
+options='--disableConsoleIntercept --project api-node --project logic-node'
+assert_calls "$changed_call $options"$'\n'"${guard_call/pnpm:exec vitest run/pnpm:exec vitest run $options}"
+
+# Committed defaults still select the guard when modified or deleted.
+git -C "$fixture" add backend/modules/settings/internal/defaults/probe.go
+git -C "$fixture" commit -qm defaults
+git -C "$fixture" update-ref refs/remotes/origin/development HEAD
+for change in modify delete; do
+  if [ "$change" = modify ]; then
+    printf '// changed\n' >>"$fixture/backend/modules/settings/internal/defaults/probe.go"
+  else
+    rm "$fixture/backend/modules/settings/internal/defaults/probe.go"
+  fi
+  : >"$call_log"
+  (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+    scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
+  assert_calls $'pnpm:install --frozen-lockfile\npnpm:vitest run src/components/settings/settings-filter.test.ts'
+done
+
+# Workflow-only changes must select the tour guard, not skip frontend tests.
+mkdir -p "$fixture/.github/workflows"
+printf '# changed E2E paths\n' >"$fixture/.github/workflows/e2e.yml"
+: >"$call_log"
+(cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+  scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
+assert_calls $'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
+
+echo 'full/changed-test resource budget, build workspace, filesystem guards and lifecycle tests passed'

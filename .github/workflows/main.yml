@@ -109,6 +109,13 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/architecture/policy.json'
+              - 'backend/architecture/policy/**'
+              - 'backend/architecture/artifacts/**'
+              - 'backend/architecture/command-effects.json'
+              - 'backend/architecture/command-effects/**'
+              - 'backend/architecture/passthrough.json'
+              - 'backend/architecture/passthrough/**'
+              - 'backend/test/query-budgets/**'
               - 'backend/**/testdata/**'
               # Shrink-only ratchet registers, read by ./test.
               - 'backend/test/*.json'
@@ -295,10 +302,12 @@ jobs:
               - 'scripts/env-check.sh'
               - 'scripts/check-runtime-env.py'
             error-codes:
-              - 'error-registry.json'
+              - 'error-registry/**'
+              - 'scripts/error-registry.mjs'
               - 'scripts/generate-error-codes*'
               - 'backend/api/common/error_codes*.generated.go'
               - 'frontend/src/lib/error-codes.generated.ts'
+              - 'frontend/src/lib/error-codes/*.generated.ts'
               - '.github/workflows/lint.yml'
 
       # A large refactor must not squeeze almost the whole suite through the
@@ -418,6 +427,7 @@ jobs:
   lint:
     permissions:
       contents: read
+      actions: read
     needs: detect-changes
     uses: ./.github/workflows/lint.yml
     with:

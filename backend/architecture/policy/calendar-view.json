@@ -1,0 +1,71 @@
+{
+  "packages": [
+    {
+      "path": "modules/supervisiondashboard",
+      "owner": "calendar-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/supervisiondashboard/internal/adapters/nameorder",
+      "owner": "calendar-view",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/supervisiondashboard/compose",
+      "owner": "calendar-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/supervisiondashboard/http",
+      "owner": "calendar-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "calendar-view.http.security-contract",
+      "description": "The supervision dashboard HTTP adapter names the permissions it checks for its caller (#4082).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/supervisiondashboard/http"
+    },
+    {
+      "id": "calendar-view.http.calendar-view.public",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "http",
+      "target_owner": "calendar-view",
+      "target_role": "public",
+      "source_package": "modules/supervisiondashboard/http"
+    },
+    {
+      "id": "calendar-view.http.tenant-runtime.http",
+      "description": "Owner HTTP transport moved from the shared student/presence resource (#4079, #4314).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "calendar-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/supervisiondashboard/http"
+    }
+  ]
+}

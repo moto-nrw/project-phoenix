@@ -1,0 +1,2604 @@
+{
+  "entries": [
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointment",
+      "binding_digest": "fe2743fc08fe6dccc26b8ac59693dafa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointment",
+      "binding_digest": "3890f6c9d9fd34af763e4af6add9f80d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointment",
+      "binding_digest": "3890f6c9d9fd34af763e4af6add9f80d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointmentOccurrence",
+      "binding_digest": "31ccc39917716348be2f0d7045209d74",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointmentOccurrence",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointmentOccurrence",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointmentOccurrence",
+      "binding_digest": "eb313fb79d7a3aa9a2bb1607ed7e2521",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointmentOccurrence",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointmentOccurrence",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointmentOccurrence",
+      "binding_digest": "eb313fb79d7a3aa9a2bb1607ed7e2521",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CancelAppointmentOccurrence",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CancelAppointmentOccurrence",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ClaimReminderPushDelivery",
+      "binding_digest": "f6a8e12cc37db5f6d537854cafdbd0a0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ClaimReminderPushDelivery",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ClaimReminderPushDelivery",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ClaimReminderPushDelivery",
+      "binding_digest": "e5481b16257c7648c07d63aac8a71595",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ClaimReminderPushDelivery",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ClaimReminderPushDelivery",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ClaimReminderPushDelivery",
+      "binding_digest": "e5481b16257c7648c07d63aac8a71595",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ClaimReminderPushDelivery",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ClaimReminderPushDelivery",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CountAppointmentRecipientStudents",
+      "binding_digest": "917a5ec43638b2ac2ce3cb8688975bad",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CountAppointmentRecipientStudents",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CountAppointmentRecipientStudents",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CountAppointmentRecipientStudents",
+      "binding_digest": "91c3e122d21ca7cd667221b89bdf7090",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CountAppointmentRecipientStudents",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CountAppointmentRecipientStudents",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CountAppointmentRecipientStudents",
+      "binding_digest": "91c3e122d21ca7cd667221b89bdf7090",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CountAppointmentRecipientStudents",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CountAppointmentRecipientStudents",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointment",
+      "binding_digest": "50b73a2d6d70d2b4c35891d5844f4f10",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointment",
+      "binding_digest": "058095a11fcd35feef051f2259cbb115",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointment",
+      "binding_digest": "058095a11fcd35feef051f2259cbb115",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointmentRecipients",
+      "binding_digest": "3b8ad4d4685bb54b8aedbf44a0b3f419",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointmentRecipients",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointmentRecipients",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointmentRecipients",
+      "binding_digest": "f40859146f8695c20e83eb9d577d65be",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointmentRecipients",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointmentRecipients",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointmentRecipients",
+      "binding_digest": "f40859146f8695c20e83eb9d577d65be",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateAppointmentRecipients",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateAppointmentRecipients",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateOccurrenceOverride",
+      "binding_digest": "e9ab5af3293b0c3d514b8a21e4e86989",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateOccurrenceOverride",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateOccurrenceOverride",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateOccurrenceOverride",
+      "binding_digest": "86350186c0894d191508038c236eb4cc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateOccurrenceOverride",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateOccurrenceOverride",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateOccurrenceOverride",
+      "binding_digest": "86350186c0894d191508038c236eb4cc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateOccurrenceOverride",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateOccurrenceOverride",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateRecurrenceRule",
+      "binding_digest": "3f500a8d4d137a086bd574a8cd57c9ec",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateRecurrenceRule",
+      "binding_digest": "3d55f0ccd3964e148e7117de89648daf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateRecurrenceRule",
+      "binding_digest": "3d55f0ccd3964e148e7117de89648daf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.CreateRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.CreateRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteAppointment",
+      "binding_digest": "f7e077badcc8518da05023fdb6603338",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteAppointment",
+      "binding_digest": "e120d11110f7bfa449431a453cf149f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteAppointment",
+      "binding_digest": "e120d11110f7bfa449431a453cf149f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteFeedTombstonesBefore",
+      "binding_digest": "4e43fc564b07fee1a670270b496be645",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteFeedTombstonesBefore",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteFeedTombstonesBefore",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteFeedTombstonesBefore",
+      "binding_digest": "c66ce1bc6eb7bb4aca9def2c78e7c412",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteFeedTombstonesBefore",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteFeedTombstonesBefore",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteFeedTombstonesBefore",
+      "binding_digest": "c66ce1bc6eb7bb4aca9def2c78e7c412",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteFeedTombstonesBefore",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteFeedTombstonesBefore",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteOccurrenceOverrides",
+      "binding_digest": "d29ab9e2ac2e1894aa10e330a32ad99d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteOccurrenceOverrides",
+      "binding_digest": "e4296a6b67d71e89195c8c1ea53ed91a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteOccurrenceOverrides",
+      "binding_digest": "e4296a6b67d71e89195c8c1ea53ed91a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteRecurrenceRule",
+      "binding_digest": "d040be31cb715adf2e5e202fbbbb80d5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteRecurrenceRule",
+      "binding_digest": "22e18929ad81273fdb39101cf1f2e070",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteRecurrenceRule",
+      "binding_digest": "22e18929ad81273fdb39101cf1f2e070",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.DeleteRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.DeleteRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointment",
+      "binding_digest": "29575502bfa7551890a3143449d521e7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointment",
+      "binding_digest": "4a41b7127ea2e7001ea8a4fe59dbfd3e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointment",
+      "binding_digest": "4a41b7127ea2e7001ea8a4fe59dbfd3e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentForUpdate",
+      "binding_digest": "aefa9e26378cb04422f7a05df3f32085",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentForUpdate",
+      "binding_digest": "bde0d4ab92d096c5ca92bc7fe2062baa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentForUpdate",
+      "binding_digest": "bde0d4ab92d096c5ca92bc7fe2062baa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipient",
+      "binding_digest": "0993e18478190d644a0bf764b63af029",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipient",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipient",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipient",
+      "binding_digest": "4010fbcd04fbce664f7bb481e5787180",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipient",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipient",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipient",
+      "binding_digest": "4010fbcd04fbce664f7bb481e5787180",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipient",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipient",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientStudents",
+      "binding_digest": "b8c1c3633f52f5d65f55cabb284bca12",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientStudents",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientStudents",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientStudents",
+      "binding_digest": "0c3b84a393aa798e5f9cef674b0d225d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientStudents",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientStudents",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientStudents",
+      "binding_digest": "0c3b84a393aa798e5f9cef674b0d225d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientStudents",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientStudents",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipients",
+      "binding_digest": "82620453255d492e91ab9c6a90057528",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipients",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipients",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipients",
+      "binding_digest": "426a0b4146dd9018900897f47cb11edf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipients",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipients",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipients",
+      "binding_digest": "426a0b4146dd9018900897f47cb11edf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipients",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipients",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientsByAppointmentIDs",
+      "binding_digest": "dff663f6af674cab184dae425d390e2c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientsByAppointmentIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientsByAppointmentIDs",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientsByAppointmentIDs",
+      "binding_digest": "e9962987c105a89f78e79201c139572f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientsByAppointmentIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientsByAppointmentIDs",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientsByAppointmentIDs",
+      "binding_digest": "e9962987c105a89f78e79201c139572f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentRecipientsByAppointmentIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentRecipientsByAppointmentIDs",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentTargets",
+      "binding_digest": "5407cf03913511607f9ed05d004dbdb0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentTargets",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentTargets",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentTargets",
+      "binding_digest": "ea1c857537fd8dcb742904ab4f6d8dbf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentTargets",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentTargets",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentTargets",
+      "binding_digest": "ea1c857537fd8dcb742904ab4f6d8dbf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindAppointmentTargets",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindAppointmentTargets",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindCancelledOccurrenceOverrides",
+      "binding_digest": "57cb0c14c5d921f3146a1accf9a1a8b6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindCancelledOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindCancelledOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindCancelledOccurrenceOverrides",
+      "binding_digest": "1da9684980f2a612270732e210710c99",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindCancelledOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindCancelledOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindCancelledOccurrenceOverrides",
+      "binding_digest": "1da9684980f2a612270732e210710c99",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindCancelledOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindCancelledOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverrides",
+      "binding_digest": "053b81396a866793eca640782972c758",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverrides",
+      "binding_digest": "7aa33eeb7075cfb1e4423221418f195b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverrides",
+      "binding_digest": "7aa33eeb7075cfb1e4423221418f195b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverrides",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverrides",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverridesByStartDates",
+      "binding_digest": "b20d975ee1ad75c48a415b8a5cb9bf48",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverridesByStartDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverridesByStartDates",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverridesByStartDates",
+      "binding_digest": "4955dfbf1a0aad42f48e98e3d40da883",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverridesByStartDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverridesByStartDates",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverridesByStartDates",
+      "binding_digest": "4955dfbf1a0aad42f48e98e3d40da883",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindOccurrenceOverridesByStartDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindOccurrenceOverridesByStartDates",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRule",
+      "binding_digest": "80a921915d55c821f5129beac2b56d11",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRule",
+      "binding_digest": "5eaf98bde46c7772590271a2a78e7fd4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRule",
+      "binding_digest": "5eaf98bde46c7772590271a2a78e7fd4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRule",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRule",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRules",
+      "binding_digest": "33de9fb8f6d23d95f081d789a423e2f4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRules",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRules",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRules",
+      "binding_digest": "9b4b1768852b67e774fc48889445068b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRules",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRules",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRules",
+      "binding_digest": "9b4b1768852b67e774fc48889445068b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindRecurrenceRules",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindRecurrenceRules",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidateForUpdate",
+      "binding_digest": "952298f0c269ed92f0b193b36b6c32bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidateForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidateForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidateForUpdate",
+      "binding_digest": "4c3908bb921ab3d4cd7e10aaab3c5a84",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidateForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindReminderCandidateForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindReminderCandidateForUpdate",
+      "binding_digest": "4c3908bb921ab3d4cd7e10aaab3c5a84",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidateForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindReminderCandidateForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidatesForUpdate",
+      "binding_digest": "d1e7ecc488e19cc5b50aa64c7e4cb1cc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidatesForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidatesForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidatesForUpdate",
+      "binding_digest": "59d6b34af347fae5a19c1326b0e69d71",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidatesForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindReminderCandidatesForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindReminderCandidatesForUpdate",
+      "binding_digest": "59d6b34af347fae5a19c1326b0e69d71",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.FindReminderCandidatesForUpdate",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.FindReminderCandidatesForUpdate",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToGuardians",
+      "binding_digest": "635d0ad82756c0354844ef4f882b8f95",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToGuardians",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToGuardians",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToGuardians",
+      "binding_digest": "2a5ea085bfc2d6e8ad8c590b167dbec0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToGuardians",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToGuardians",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToGuardians",
+      "binding_digest": "2a5ea085bfc2d6e8ad8c590b167dbec0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToGuardians",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToGuardians",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToStaff",
+      "binding_digest": "3ac54db98c0805e79a9efeb8b7103fdc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToStaff",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToStaff",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToStaff",
+      "binding_digest": "d1d8e6d1607debab0c0e2ff60ce0d12f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToStaff",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToStaff",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToStaff",
+      "binding_digest": "d1d8e6d1607debab0c0e2ff60ce0d12f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListAppointmentsVisibleToStaff",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListAppointmentsVisibleToStaff",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianCancellationTombstones",
+      "binding_digest": "2a9b3282638c18deb547b6e9d6deabce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianCancellationTombstones",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianCancellationTombstones",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianCancellationTombstones",
+      "binding_digest": "95822b344858b522924299d9941d86e9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianCancellationTombstones",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianCancellationTombstones",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianCancellationTombstones",
+      "binding_digest": "95822b344858b522924299d9941d86e9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianCancellationTombstones",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianCancellationTombstones",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianReminderCandidates",
+      "binding_digest": "4fc446fef8b7f125fb08f2bfc3717dc3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianReminderCandidates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianReminderCandidates",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianReminderCandidates",
+      "binding_digest": "07519491acebf1f8a345b9257ce8c6e6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianReminderCandidates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianReminderCandidates",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianReminderCandidates",
+      "binding_digest": "07519491acebf1f8a345b9257ce8c6e6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListGuardianReminderCandidates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListGuardianReminderCandidates",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListStaffCancellationTombstones",
+      "binding_digest": "4e8e242d715f183e66768820fd53e366",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListStaffCancellationTombstones",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListStaffCancellationTombstones",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListStaffCancellationTombstones",
+      "binding_digest": "d7ac9d56883f89384d8db9227c355909",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListStaffCancellationTombstones",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListStaffCancellationTombstones",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListStaffCancellationTombstones",
+      "binding_digest": "d7ac9d56883f89384d8db9227c355909",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ListStaffCancellationTombstones",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ListStaffCancellationTombstones",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReleaseReminderPushDelivery",
+      "binding_digest": "19858b46932264675648d53417e81cea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReleaseReminderPushDelivery",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReleaseReminderPushDelivery",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReleaseReminderPushDelivery",
+      "binding_digest": "faacacfdf5178c2d9ccb679990447747",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReleaseReminderPushDelivery",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReleaseReminderPushDelivery",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReleaseReminderPushDelivery",
+      "binding_digest": "faacacfdf5178c2d9ccb679990447747",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReleaseReminderPushDelivery",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReleaseReminderPushDelivery",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReplaceAppointmentTargets",
+      "binding_digest": "b9904bc6729e0ec611d149a10ab5f041",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReplaceAppointmentTargets",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReplaceAppointmentTargets",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReplaceAppointmentTargets",
+      "binding_digest": "a5f0c3c08eca85405628717b2f00f6b8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReplaceAppointmentTargets",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReplaceAppointmentTargets",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReplaceAppointmentTargets",
+      "binding_digest": "a5f0c3c08eca85405628717b2f00f6b8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.ReplaceAppointmentTargets",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.ReplaceAppointmentTargets",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.SoftDeleteAppointment",
+      "binding_digest": "333e54d9758ab1b6234bf2a45e430f24",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.SoftDeleteAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.SoftDeleteAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.SoftDeleteAppointment",
+      "binding_digest": "dcc43d45e4530b46bdc9dfc5de6fc5f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.SoftDeleteAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.SoftDeleteAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.SoftDeleteAppointment",
+      "binding_digest": "dcc43d45e4530b46bdc9dfc5de6fc5f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.SoftDeleteAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.SoftDeleteAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointment",
+      "binding_digest": "013c23bb2c193765514b46b07deb76b7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointment",
+      "binding_digest": "28874085fdbcd91c9dcf9cc06bd1662c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointment",
+      "binding_digest": "28874085fdbcd91c9dcf9cc06bd1662c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointment",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointment",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
+      "binding_digest": "6ad6cf5626346ee6ade1699cb01450b1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
+      "binding_digest": "3364d243d4ed5701e9d59e08e4ea4268",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointmentRecipientResponse",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointmentRecipientResponse",
+      "binding_digest": "3364d243d4ed5701e9d59e08e4ea4268",
+      "port": "github.com/moto-nrw/project-phoenix/modules/appointments.Capability.UpdateAppointmentRecipientResponse",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/appointments.Owner.UpdateAppointmentRecipientResponse",
+      "target_owner": "appointments"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.AddCalendarPeriod",
+      "binding_digest": "921676abd55c94e75b0a5a5c4fed1766",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.AddCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.AddCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.AddCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ChangeCalendarPeriod",
+      "binding_digest": "4933a6c6a93d2e3afafe135908c50686",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ChangeCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidateCalendarPeriodChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ChangeCalendarPeriod",
+      "binding_digest": "f77a934784e55271550f6b4075e8ec31",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ChangeCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidateCalendarPeriodChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ChangeCalendarPeriod",
+      "binding_digest": "0e2b5c44494fd47bb401ebf5d63b46b6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ChangeCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidateCalendarPeriodChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ChangeCalendarPeriod",
+      "binding_digest": "921676abd55c94e75b0a5a5c4fed1766",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ChangeCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ChangeCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ChangeCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ClosingDayDates",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CreateCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CreateCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CreateCalendarPeriodIfAbsent",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CreateCalendarPeriodIfAbsent",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CreateClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CreateClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CreateDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CreateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.DeleteCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.DeleteCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.DeleteClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.DeleteClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.DeleteDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.DeleteDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.EnsureDefaultSchoolYear",
+      "binding_digest": "921676abd55c94e75b0a5a5c4fed1766",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.EnsureDefaultSchoolYear",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.EnsureDefaultSchoolYear",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.EnsureDefaultSchoolYear",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.FindCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.FindClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.FindDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ListActiveOverlaps",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListActiveOverlaps",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ListCalendarPeriods",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListCalendarPeriods",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ListClosingDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ListDateframes",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListDateframes",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.NonWorkingDayDates",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.NonWorkingDayDates",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.NonWorkingDayDates",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.RemoveCalendarPeriod",
+      "binding_digest": "4933a6c6a93d2e3afafe135908c50686",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.RemoveCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidateCalendarPeriodChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.RemoveCalendarPeriod",
+      "binding_digest": "f77a934784e55271550f6b4075e8ec31",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.RemoveCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidateCalendarPeriodChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.RemoveCalendarPeriod",
+      "binding_digest": "0e2b5c44494fd47bb401ebf5d63b46b6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.RemoveCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidateCalendarPeriodChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.RemoveCalendarPeriod",
+      "binding_digest": "921676abd55c94e75b0a5a5c4fed1766",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.RemoveCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.RemoveCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.RemoveCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayDates",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayDates",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayRegion",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayRegion",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidays",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidays",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.UpdateCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.UpdateCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.UpdateClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.UpdateClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.UpdateDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.UpdateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CreateCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.CreateCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CreateCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.CreateCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CreateCalendarPeriodIfAbsent",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.CreateCalendarPeriodIfAbsent",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CreateCalendarPeriodIfAbsent",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.CreateCalendarPeriodIfAbsent",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CreateClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.CreateClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CreateClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.CreateClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.CreateDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.CreateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CreateDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.CreateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.DeleteCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.DeleteCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.DeleteCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.DeleteCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.DeleteClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.DeleteClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.DeleteClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.DeleteClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.DeleteDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.DeleteDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.DeleteDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.DeleteDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListCalendarPeriods",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListCalendarPeriods",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListCalendarPeriods",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListClosingDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListDateframes",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListDateframes",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListDateframes",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListDateframes",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.UpdateCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.UpdateCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.UpdateCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.UpdateCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.UpdateClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.UpdateClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.UpdateClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.UpdateClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.UpdateDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.UpdateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.UpdateDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.UpdateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ClosingDayDates",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ClosingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CreateCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CreateCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CreateCalendarPeriodIfAbsent",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CreateCalendarPeriodIfAbsent",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CreateClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CreateClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.CreateDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.CreateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.DeleteCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.DeleteCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.DeleteClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.DeleteClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.DeleteDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.DeleteDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.FindCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.FindClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.FindDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ListCalendarPeriods",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ListClosingDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.ListDateframes",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListDateframes",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.NonWorkingDayDates",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.NonWorkingDayDates",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.NonWorkingDayDates",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayDates",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayDates",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayRegion",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayRegion",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidayRegion",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayRegion",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidays",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.TenantHolidays",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.UpdateCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.UpdateCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.UpdateClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.UpdateClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/application.Service.UpdateDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.UpdateDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.ClosingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ClosingDayDates",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.ClosingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.NonWorkingDayDates",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.NonWorkingDayDates",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.NonWorkingDayDates",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.NonWorkingDayDates",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.NonWorkingDayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayDates",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayDates",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayDates",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayRegion",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayRegion",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayRegion",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayRegion",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayRegion",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayRegion",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidayRegion",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidays",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidays",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidays",
+      "binding_digest": "c1f9fffc60148d95efb4a9d2de3f1d80",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidays",
+      "binding_digest": "e93b79fd843a252a26ed70c82a17ffa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.NonWorkingDayQuery.TenantHolidays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindCalendarPeriod",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindCalendarPeriod",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindClosingDay",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindClosingDay",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.FindDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.FindDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.FindDateframe",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.FindDateframe",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListCalendarPeriods",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListCalendarPeriods",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListCalendarPeriods",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListCalendarPeriods",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListCalendarPeriods",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListClosingDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListClosingDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListDateframes",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListDateframes",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Capability.ListDateframes",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListDateframes",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListDateframes",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Query.ListDateframes",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarCalDAVPolicy.Enabled",
+      "binding_digest": "f6fc4d51f88f39e0123f8597db6422bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal.CalDAVPolicy.Enabled",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarCalDAVPolicy.EnabledForTenant",
+      "binding_digest": "0626caa948b5c25a19c4761d381a5a8f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal.CalDAVPolicy.EnabledForTenant",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBoolForTenant",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CalendarMailGuardians.FilterAccountsWithStudentAccess",
+      "binding_digest": "36aef290365c473ccc9d90e66c8e7169",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/application.GuardianChildAccessChecker.FilterAccountsWithStudentAccess",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.FilterAccountsWithStudentAccess",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.GetLoginImageURL",
+      "binding_digest": "71c93a4fd03c0126f67d07fa7dffd9d9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/application.LogoResolver.GetLoginImageURL",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.GetLoginImageURL",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CalendarOutbox.CancelPendingByRelatedEntity",
+      "binding_digest": "d21f6b9c3cf655e6cd733c8bde9bec6e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/application.OutboxEnqueuer.CancelPendingByRelatedEntity",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.CancelPendingByRelatedEntity",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CalendarOutbox.Enqueue",
+      "binding_digest": "152810ef9083314e471756beda4ac488",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/application.OutboxEnqueuer.Enqueue",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.EmailOutbox.Enqueue",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/delivery/compose.DurablePushOutbox.CancelPendingByRelatedEntity",
+      "binding_digest": "7d70325c983bc22ecf303730514ae09d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/application.PushOutboxCanceller.CancelPendingByRelatedEntity",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/compose.DurablePushOutbox.CancelPendingByRelatedEntity",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAccountPort.EnsureCalendarFeedToken",
+      "binding_digest": "b17046266cbfc43b33f4e542e51ee910",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Accounts.EnsureCalendarFeedToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureParentCalendarFeedToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAccountPort.EnsureCalendarFeedToken",
+      "binding_digest": "e7bf06ab0be87f9b0b6797e8e0c9f1d8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Accounts.EnsureCalendarFeedToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentCalendarFeeds.EnsureParentCalendarFeedToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAccountPort.FindByCalendarFeedToken",
+      "binding_digest": "56aab23b727c71fd6b40a70ffeff4f5f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Accounts.FindByCalendarFeedToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindParentCalendarFeedOwner",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAccountPort.FindByCalendarFeedToken",
+      "binding_digest": "c0571d625634c157ad91cbe350e450a7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Accounts.FindByCalendarFeedToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentCalendarFeeds.FindParentCalendarFeedOwner",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAccountPort.FindByID",
+      "binding_digest": "10b90173d88dfd8671fd8be33b7a4488",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Accounts.FindByID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindParentCalendarFeedAccount",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAccountPort.FindByID",
+      "binding_digest": "4545f5a23e741f5f5ff4cb2878306400",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Accounts.FindByID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentCalendarFeeds.FindParentCalendarFeedAccount",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAccountPort.SetCalendarFeedToken",
+      "binding_digest": "3f1394fc73f506dab5e753e98a3015e0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Accounts.SetCalendarFeedToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RotateParentCalendarFeedToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAccountPort.SetCalendarFeedToken",
+      "binding_digest": "7ba0e0c89bd93a6bc0aee3d1baae1238",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Accounts.SetCalendarFeedToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.ParentCalendarFeeds.RotateParentCalendarFeedToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarAssignmentPort.FindByStaffAndDateRange",
+      "binding_digest": "dd6fba2c10f7dc68e3c21abed5131d31",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Assignments.FindByStaffAndDateRange",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.FindCalendarAssignments",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarChildPort.ListByAccount",
+      "binding_digest": "2ea8ef01f947e349552937851d6f5679",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Children.ListByAccount",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.ParentChildLinks.ListByAccount",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarGroupPort.List",
+      "binding_digest": "7e1e452a1f90fbbd10e069fa1680fdc7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Groups.List",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose.LegacyGroupRepository.List",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarGuardianPort.FindActivePortalProfilesByIDs",
+      "binding_digest": "37262611a1cfda0e6a01d93888449276",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianDirectory.FindActivePortalProfilesByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.FindActivePortalProfilesByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarGuardianPort.FindByIDs",
+      "binding_digest": "8897fe1e973098397b66d40974a4de2c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianDirectory.FindByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarGuardianPort.ListPortalContacts",
+      "binding_digest": "78bf5a0b2168035834ef42b43f58eb62",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianDirectory.ListPortalContacts",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianPortalContacts.ListGuardianPortalContacts",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarGuardianPort.SearchByText",
+      "binding_digest": "178d5a65abb0d9fa97aea6406fc6056e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianDirectory.SearchByText",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.SearchByText",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarRelationshipPort.FindByGuardianProfileID",
+      "binding_digest": "91a83fb6b4837dc28cc73170b4ee42e9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.GuardianRelationships.FindByGuardianProfileID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.FindByGuardianProfileID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarIdentityPort.GetCurrentStaff",
+      "binding_digest": "c5083ed366a9bac383c00dc059527284",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Identity.GetCurrentStaff",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerIdentities.StaffID",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarIdentityPort.GetCurrentUser",
+      "binding_digest": "1411cd0f73d72036d7d2fa1c65a3364a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Identity.GetCurrentUser",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerIdentities.Account",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarIdentityPort.MySchoolClasses",
+      "binding_digest": "242712fe8db76f01a2523302c26d4737",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Identity.MySchoolClasses",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerReach.MySchoolClasses",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarInstancePort.FindByIDs",
+      "binding_digest": "e135b411a1dc465838e0dba64e66cfa4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Instances.FindByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.FindCalendarInstances",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CalendarNotifier.Notify",
+      "binding_digest": "9c69296141b996aee35b08244194407b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Notifier.Notify",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CalendarNotifier.Notify",
+      "binding_digest": "fdf4cb1860e6606c5e989b1fa95a8b46",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Notifier.Notify",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Service.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CalendarNotifier.Notify",
+      "binding_digest": "7f4eadbfaf6961ba21d1b0c1f3575489",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Notifier.Notify",
+      "source_owner": "school-calendar",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/api.send",
+      "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarPersonPort.FindByAccountID",
+      "binding_digest": "6a44c948aa0640c68dd6de710d3617a9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Persons.FindByAccountID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByAccountID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "binding_digest": "5c04d6a8f316d3b319391ebbd6dc2968",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Preferences.FilterNotOptedOut",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterOptedIn",
+      "binding_digest": "0a85f30676ebfe589a878adcb68e5aa6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Preferences.FilterOptedIn",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterOptedIn",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarRoomPort.FindByIDs",
+      "binding_digest": "d326b7ed736a321ee3598b4bcd771a0c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Rooms.FindByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/facilities/compose.FindRoomNames",
+      "target_owner": "facilities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListCalendarPeriods",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.SchoolDays.ListCalendarPeriods",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "binding_digest": "be95033208c6ac1126d984e6f084406e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.SchoolDays.ListClosingDays",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarSchoolPort.FindByID",
+      "binding_digest": "c735f4f097926a212a17d8030fe022c4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Schools.FindByID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarSchoolPort.FindByID",
+      "binding_digest": "273342c6c7371136073c430b52da83b0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Schools.FindByID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarShiftTypePort.ListAll",
+      "binding_digest": "1d42d04038a0fc0798742ab5e4952ee9",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.ShiftTypes.ListAll",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.ListCalendarShiftTypes",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarShiftPort.FindByStaffAndDateRange",
+      "binding_digest": "7127c8c79c07fb09b1d271d70fe69924",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.Shifts.FindByStaffAndDateRange",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.FindCalendarShifts",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindByPersonID",
+      "binding_digest": "202527b8c8fb68a5ee3f6d98722b85cd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindByPersonID",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindByPersonID",
+      "binding_digest": "008f1c00a6b0b2b4a0c586374e03b376",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindByPersonID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindByPersonID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindByPersonID",
+      "binding_digest": "e4fa9cf743c93311cb54c586db000d8d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindByPersonID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.FindStaffByPerson",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindByPersonID",
+      "binding_digest": "4eebaa283b1ffe727091a7226dc711da",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindByPersonID",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffByPerson",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs",
+      "binding_digest": "5774ff273c531cde1015aff967bcf08a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableCalendarStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.ReachableStaffIDs",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs",
+      "binding_digest": "c4476402d918c94456a6c6e02fe63160",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableCalendarStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableCalendarStaffIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableCalendarStaffIDs",
+      "binding_digest": "6270dd870c300e6bff8d87bb67624f9d",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableCalendarStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "binding_digest": "e6d9213154a129f15b1799cd222b9dc2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.ReachableStaffIDs",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "binding_digest": "96457d707936ece25a9dc6ee250beb34",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindReachableSchoolCalendarStaffIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindReachableSchoolCalendarStaffIDs",
+      "binding_digest": "91ebc08a9ad60b8cea60e0f1f3215eb3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindReachableSchoolCalendarStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "binding_digest": "24abe266b8493b84994d06e495fe9dd7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.SchoolPortalStaffIDs",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "binding_digest": "8a363eb5baab982208fe939c62476640",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindSchoolPortalStaffIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindSchoolPortalStaffIDs",
+      "binding_digest": "943405b0433fa73424b0f41f8aeb8020",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindSchoolPortalStaffIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindWithPersonByIDs",
+      "binding_digest": "7f2cb87eb49f39d7900843a38dd74da7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindWithPersonByIDs",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindWithPersonByIDs",
+      "binding_digest": "cbc0d5d73de87ecbb94629b2d48e6eb1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindWithPersonByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindWithPersonByIDs",
+      "binding_digest": "8eac8df957e7f477f8ef8aba9908e655",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindWithPersonByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.FindWithPersonByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindWithPersonByIDs",
+      "binding_digest": "ebeda9e84159f7a9f1215beacc8bee9b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindWithPersonByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindWithPersonByIDs",
+      "binding_digest": "db1fc8f8eb89235d5ff21986f958846a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindWithPersonByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.FindWithPersonByIDs",
+      "binding_digest": "f0f37c4b1ab8b4c4b0b16ba085e0ece6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.FindWithPersonByIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.ListAllWithPerson",
+      "binding_digest": "eb2d459d7cd5aa6c5dd793fdd4d9bc12",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.ListAllWithPerson",
+      "source_owner": "school-calendar",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.Staff.SetTenantID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.ListAllWithPerson",
+      "binding_digest": "1e9f7bdb6bfbb9c236e9ed183f4ead4e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.ListAllWithPerson",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonRepository.FindByIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.ListAllWithPerson",
+      "binding_digest": "da8d0ed300a395007019c3bfa1581df6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.ListAllWithPerson",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListAllWithPerson",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.ListAllWithPerson",
+      "binding_digest": "9299d3fd80e4b5235e29259022271f34",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.ListAllWithPerson",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.ListAllWithPerson",
+      "binding_digest": "5f56c582b6c2fc7995c0c3ed18581a61",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.ListAllWithPerson",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.ExternalCaregiver",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffPort.ListAllWithPerson",
+      "binding_digest": "0fe0ada7a9ca524d531d309eab9e5959",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffDirectory.ListAllWithPerson",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.ListStaff",
+      "target_owner": "school-membership"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffFeedPort.EnsureToken",
+      "binding_digest": "13eb6b0afcb66e9767e0c481a8298e5a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffFeeds.EnsureToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.EnsureStaffCalendarFeedToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffFeedPort.EnsureToken",
+      "binding_digest": "a6e4f9fd852c2df6e7ceafc2d7b5a580",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffFeeds.EnsureToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.StaffCalendarFeeds.EnsureStaffCalendarFeedToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffFeedPort.FindOwnerByTokenHash",
+      "binding_digest": "d25dc22b09ce5e491e7b2bb0c8d15fdb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffFeeds.FindOwnerByTokenHash",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindStaffCalendarFeedOwner",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffFeedPort.FindOwnerByTokenHash",
+      "binding_digest": "6b7cc874c32a5189340d398c5fa3c451",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffFeeds.FindOwnerByTokenHash",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.StaffCalendarFeeds.FindStaffCalendarFeedOwner",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffFeedPort.RotateToken",
+      "binding_digest": "385267cd06eab2c9bb469b041f145bbe",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffFeeds.RotateToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.RotateStaffCalendarFeedToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStaffFeedPort.RotateToken",
+      "binding_digest": "301862f33b556dbad91e0efbbd3e4844",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StaffFeeds.RotateToken",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.StaffCalendarFeeds.RotateStaffCalendarFeedToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStudentPort.FindAllWithGroups",
+      "binding_digest": "4d6fbebc8cdcea45d567a89cd7f7ca9b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StudentDirectory.FindAllWithGroups",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindAllWithGroups",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStudentPort.FindAllWithGroups",
+      "binding_digest": "39e23341a9528a39ac8a948690f7d3b4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StudentDirectory.FindAllWithGroups",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStudentPort.FindAllWithGroups",
+      "binding_digest": "8460b6b99c341f77494b90f6f98ea25f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StudentDirectory.FindAllWithGroups",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStudentPort.FindAllWithGroups",
+      "binding_digest": "1d52b9982a682b06bb6836698865f820",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StudentDirectory.FindAllWithGroups",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStudentPort.FindByGroupIDs",
+      "binding_digest": "c0af7972d56b9e9c67db4b31a11f5970",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StudentDirectory.FindByGroupIDs",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByGroupIDs",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStudentPort.ListActive",
+      "binding_digest": "996d3bf4b757bb2d8b5f89fbb2a6f6c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StudentDirectory.ListActive",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.List",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.calendarStudentPort.ListSchoolClasses",
+      "binding_digest": "4a66bc8820c53691fd3cd1a68f996656",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.StudentDirectory.ListSchoolClasses",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ListSchoolClasses",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CalendarReminderNotifier.NotifySynchronously",
+      "binding_digest": "82ff2cbc126603def8c59c424a9b71d4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.SynchronousNotifier.NotifySynchronously",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.NotifySynchronously",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CalendarReminderNotifier.NotifySynchronously",
+      "binding_digest": "bfee245f9a411bd66fc8be39e049fe16",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports.SynchronousNotifier.NotifySynchronously",
+      "source_owner": "school-calendar",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.SynchronousService.NotifySynchronously",
+      "target_owner": "delivery-platform"
+    }
+  ]
+}

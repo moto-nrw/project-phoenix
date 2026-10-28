@@ -1,0 +1,17 @@
+{
+  "api/parent/calendar": [
+    "GET parent /parent/me/calendar"
+  ],
+  "api/parent/calendar/appointments/[appointmentId]/overview": [
+    "GET parent /parent/me/calendar/appointments/appointmentId%2F1/overview"
+  ],
+  "api/parent/calendar/feed": [
+    "GET parent /parent/me/calendar/feed"
+  ],
+  "api/parent/calendar/feed/rotate": [
+    "POST parent /parent/me/calendar/feed/rotate"
+  ],
+  "api/parent/calendar/recipients/[recipientId]/response": [
+    "POST parent /parent/me/calendar/recipients/recipientId%2F1/response"
+  ]
+}

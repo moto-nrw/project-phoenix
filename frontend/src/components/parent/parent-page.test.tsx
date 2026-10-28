@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { ParentPageSkeleton, ParentSectionSkeleton } from "./parent-page";
 
 function withIntl(children: ReactNode) {

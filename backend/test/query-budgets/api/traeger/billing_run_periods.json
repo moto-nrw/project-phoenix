@@ -1,0 +1,6 @@
+{
+  "scenario": "api.traeger.billing_run_periods",
+  "max": 4,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/billing-runs/periods (#4668, ADR\n0119): the Träger binding of the Träger transaction, then Enrollment's\nlist of the periods with their weeks and time models. Flat in the number\nof periods."
+}

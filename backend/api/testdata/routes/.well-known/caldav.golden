@@ -1,0 +1,10 @@
+CONNECT /.well-known/caldav
+DELETE /.well-known/caldav
+GET /.well-known/caldav
+HEAD /.well-known/caldav
+OPTIONS /.well-known/caldav
+PATCH /.well-known/caldav
+POST /.well-known/caldav
+PUT /.well-known/caldav
+QUERY /.well-known/caldav
+TRACE /.well-known/caldav

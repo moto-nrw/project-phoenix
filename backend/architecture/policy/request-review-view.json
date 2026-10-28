@@ -1,0 +1,291 @@
+{
+  "packages": [
+    {
+      "path": "modules/requestreview",
+      "owner": "request-review-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/requestreview/compose",
+      "owner": "request-review-view",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/requestreview/http",
+      "owner": "request-review-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "request-review-view.integration.care-plan-public",
+      "description": "Native queue contract and tenant-isolation tests use Care Plan review facts (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.integration.care-plan-contract",
+      "description": "Native queue serialization tests assert the owner's plain request records (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.integration.people-compose",
+      "description": "Native directory integration tests exercise the public People Directory with PostgreSQL (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "request-review-view.integration.test-support",
+      "description": "Native request-review integration tests use isolated tenant fixtures (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "request-review-view.public.care-plan.public",
+      "description": "Request Review owns the native staff response mapping over public owner facts (#4079, ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.public.care-plan.contract",
+      "description": "Request Review owns the native staff response mapping over public owner facts (#4079, ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.public.security-runtime.public",
+      "description": "Request Review owns the native staff response mapping over public owner facts (#4079, ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "public",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.http.tenant-runtime.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.security-runtime.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.identity-access.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "contract",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.identity-access.http",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.security-runtime.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.people-directory.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.care-plan.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.care-plan.contract",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "contract",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.http.request-review-view.public",
+      "description": "Owner-owned HTTP transport uses native capabilities and runtime contracts (#4079, ADR 0056).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "http",
+      "target_owner": "request-review-view",
+      "target_role": "public",
+      "source_package": "modules/requestreview/http"
+    },
+    {
+      "id": "request-review-view.adapter-test.tenant-runtime.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "request-review-view.adapter-test.care-plan.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.adapter-test.care-plan.contract.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "care-plan",
+      "target_role": "contract"
+    },
+    {
+      "id": "request-review-view.adapter-test.enrollment.public.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "request-review-view.adapter-test.identity-access.http.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "external_test",
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "request-review-view.adapter-test.identity-access.contract.http",
+      "description": "Tests move with their owner HTTP handlers; retain the native contracts and runtime, in the original test scopes (#4079).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "request-review-view",
+      "source_role": "adapter-test",
+      "source_package": "modules/requestreview/http",
+      "target_owner": "identity-access",
+      "target_role": "contract"
+    }
+  ]
+}

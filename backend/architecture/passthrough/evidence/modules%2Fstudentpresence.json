@@ -1,0 +1,1082 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) NotifyAbsenceReported(ctx context.Context, tenantID int64, studentIDs []int64, status string, dates []calendar.Date, fromParent bool, actorAccountID int64) error {\n\tif rs.AbsenceNotifier == nil {\n\t\treturn nil\n\t}\n\treturn rs.AbsenceNotifier.NotifyAbsenceReported(ctx, studentpresence.AbsenceReport{TenantID: tenantID, StudentIDs: studentIDs, Status: status, Dates: dates, FromParent: fromParent, ActorAccountID: actorAccountID})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/http/Resource.NotifyAbsenceReported",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e missingStudentError) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/studentpresence/http/missingStudentError.Error",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (req *ActiveGroupRequest) Bind(_ *http.Request) error {\n\tif req.GroupID \u003c= 0 {\n\t\treturn errors.New(\"group ID is required\")\n\t}\n\tif req.RoomID \u003c= 0 {\n\t\treturn errors.New(\"room ID is required\")\n\t}\n\tif req.StartTime.IsZero() {\n\t\treturn errors.New(errMsgStartTimeRequired)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/ActiveGroupRequest.Bind",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (req *CombinedGroupRequest) Bind(_ *http.Request) error {\n\tif req.Name == \"\" {\n\t\treturn errors.New(\"name is required\")\n\t}\n\tif req.RoomID \u003c= 0 {\n\t\treturn errors.New(\"room ID is required\")\n\t}\n\tif req.StartTime.IsZero() {\n\t\treturn errors.New(errMsgStartTimeRequired)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/CombinedGroupRequest.Bind",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (req *SupervisorRequest) Bind(_ *http.Request) error {\n\tif req.StaffID \u003c= 0 {\n\t\treturn errors.New(\"staff ID is required\")\n\t}\n\tif req.ActiveGroupID \u003c= 0 {\n\t\treturn errors.New(errMsgActiveGroupIDRequired)\n\t}\n\tif req.StartTime.IsZero() {\n\t\treturn errors.New(errMsgStartTimeRequired)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/SupervisorRequest.Bind",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (req *VisitRequest) Bind(_ *http.Request) error {\n\tif req.StudentID \u003c= 0 {\n\t\treturn errors.New(\"student ID is required\")\n\t}\n\tif req.ActiveGroupID \u003c= 0 {\n\t\treturn errors.New(errMsgActiveGroupIDRequired)\n\t}\n\tif req.CheckInTime.IsZero() {\n\t\treturn errors.New(\"check-in time is required\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/VisitRequest.Bind",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) PersonIDByAccount(ctx context.Context, accountID int64) (int64, bool) {\n\tperson, err := q.resource.PersonService.FindByAccountID(ctx, accountID)\n\tif err != nil || person == nil {\n\t\treturn 0, false\n\t}\n\treturn person.ID, person.ID \u003e 0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.PersonIDByAccount",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) StaffIDByPerson(ctx context.Context, personID int64) (int64, bool) {\n\tstaff, err := q.resource.PersonService.GetStaffByPersonID(ctx, personID)\n\tif err != nil || staff == nil {\n\t\treturn 0, false\n\t}\n\treturn staff.ID, staff.ID \u003e 0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.StaffIDByPerson",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) StudentCurrentActiveGroupID(ctx context.Context, studentID int64) (int64, bool) {\n\tvisit, err := q.resource.currentPresenceVisit(ctx, studentID)\n\tif err != nil || visit == nil {\n\t\treturn 0, false\n\t}\n\treturn visit.ActiveGroupID, true\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.StudentCurrentActiveGroupID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) StudentGroupID(ctx context.Context, studentID int64) (int64, bool) {\n\tstudent, err := q.resource.PersonService.GetStudentByID(ctx, studentID)\n\tif err != nil || student == nil || student.GroupID == nil {\n\t\treturn 0, false\n\t}\n\treturn *student.GroupID, true\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.StudentGroupID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) StudentIDByPerson(ctx context.Context, personID int64) (int64, bool) {\n\tstudent, err := q.resource.PersonService.GetStudentByPersonID(ctx, personID)\n\tif err != nil || student == nil {\n\t\treturn 0, false\n\t}\n\treturn student.ID, student.ID \u003e 0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.StudentIDByPerson",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) SupervisedActiveGroupIDs(ctx context.Context, staffID int64) []int64 {\n\tday := calendar.TodayDate().String()\n\tsupervisors, err := q.resource.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: \u0026staffID, ActiveOn: \u0026day})\n\tif err != nil {\n\t\treturn nil\n\t}\n\tids := make([]int64, 0, len(supervisors))\n\tfor _, supervisor := range supervisors {\n\t\tids = append(ids, supervisor.GroupID)\n\t}\n\treturn ids\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.SupervisedActiveGroupIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) TeacherGroupIDs(ctx context.Context, teacherID int64) ([]int64, error) {\n\treturn q.resource.EducationService(ctx, teacherID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.TeacherGroupIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) TeacherIDByStaff(ctx context.Context, staffID int64) (int64, bool) {\n\tteacher, err := q.resource.PersonService.GetTeacherByStaffID(ctx, staffID)\n\tif err != nil || teacher == nil {\n\t\treturn 0, false\n\t}\n\treturn teacher.ID, teacher.ID \u003e 0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.TeacherIDByStaff",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (q visitAccessQuery) VisitStudentID(ctx context.Context, visitID int64) (int64, error) {\n\tvisit, err := q.resource.findPresenceVisit(ctx, visitID)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn visit.StudentID, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/inbound/presence/visitAccessQuery.VisitStudentID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRepository) Create(ctx context.Context, group *ActiveGroupRow) error {\n\tif group == nil {\n\t\treturn errors.New(\"group cannot be nil or zero value\")\n\t}\n\tif err := group.Validate(); err != nil {\n\t\treturn err\n\t}\n\trow, err := r.records.RecordGroup(ctx, liveGroup(group))\n\tif err != nil {\n\t\treturn err\n\t}\n\tgroup.ID, group.CreatedAt, group.UpdatedAt, group.TenantID = row.ID, row.CreatedAt, row.UpdatedAt, row.TenantID\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SessionRepository.Create",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRepository) Delete(ctx context.Context, id int64) error {\n\treturn r.records.DeleteGroup(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SessionRepository.Delete",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*ActiveGroupRow, error) {\n\tgroups, err := r.query(ctx, studentpresence.LiveGroupFilter{OpenOnly: true, DeviceManagedOnly: true, LastActivityBefore: \u0026cutoffTime})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tslices.SortStableFunc(groups, func(a, b *ActiveGroupRow) int {\n\t\treturn a.LastActivity.Compare(b.LastActivity)\n\t})\n\tif err := attachDevices(ctx, r.devices, groups); err != nil {\n\t\treturn nil, r.errors.WrapRecordError(\"find active sessions older than\", err)\n\t}\n\treturn groups, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SessionRepository.FindActiveSessionsOlderThan",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRepository) FindByIDForUpdate(ctx context.Context, id int64) (*ActiveGroupRow, error) {\n\trow, err := r.records.LockGroup(ctx, id)\n\tif errors.Is(err, studentpresence.ErrGroupNotFound) {\n\t\treturn nil, nil\n\t}\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn activeGroup(row), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SessionRepository.FindByIDForUpdate",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRepository) GetOccupiedActivityGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]bool, error) {\n\tif len(groupIDs) == 0 {\n\t\treturn make(map[int64]bool), nil\n\t}\n\toccupiedGroupIDs, err := r.records.OccupiedActivityGroupIDs(ctx, groupIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]bool, len(occupiedGroupIDs))\n\tfor _, id := range occupiedGroupIDs {\n\t\tresult[id] = true\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SessionRepository.GetOccupiedActivityGroupIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRepository) Update(ctx context.Context, group *ActiveGroupRow) error {\n\tif group == nil {\n\t\treturn errors.New(\"group cannot be nil or zero value\")\n\t}\n\tif err := group.Validate(); err != nil {\n\t\treturn err\n\t}\n\trow, err := r.records.ReviseGroup(ctx, liveGroup(group))\n\tif err != nil {\n\t\treturn err\n\t}\n\tgroup.CreatedAt, group.UpdatedAt, group.TenantID = row.CreatedAt, row.UpdatedAt, row.TenantID\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SessionRepository.Update",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRepository) UpdateLastActivity(ctx context.Context, id int64, at time.Time) error {\n\treturn r.records.RecordGroupActivity(ctx, id, at)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SessionRepository.UpdateLastActivity",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SupervisionRepository) Delete(ctx context.Context, id int64) error {\n\treturn r.records.RemoveSupervision(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SupervisionRepository.Delete",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SupervisionRepository) EndAllActiveByStaffID(ctx context.Context, staffID int64) (int, error) {\n\treturn r.records.EndStaffSupervisionsOn(ctx, staffID, r.today().String())\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SupervisionRepository.EndAllActiveByStaffID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SupervisionRepository) EndByActiveGroupAndStaffID(ctx context.Context, activeGroupID, staffID int64) (int, error) {\n\treturn r.records.EndOpenGroupSupervisions(ctx, activeGroupID, staffID, r.today().String())\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SupervisionRepository.EndByActiveGroupAndStaffID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SupervisionRepository) EndSupervision(ctx context.Context, id int64) error {\n\t_, err := r.records.EndSupervisionOn(ctx, id, r.today().String())\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SupervisionRepository.EndSupervision",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SupervisionRepository) GetStaffIDsWithSupervisionToday(ctx context.Context) ([]int64, error) {\n\treturn r.records.StaffIDsWithSupervisionOn(ctx, r.today().String())\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SupervisionRepository.GetStaffIDsWithSupervisionToday",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SupervisionRepository) ListActiveSupervisedRooms(ctx context.Context) ([]studentpresence.StaffRoomSupervision, error) {\n\treturn r.records.SupervisedRoomsOn(ctx, r.today().String())\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SupervisionRepository.ListActiveSupervisedRooms",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SupervisionRepository) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]ports.SupervisionBlocker, error) {\n\tday := r.today().String()\n\trows, err := r.records.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: \u0026staffID, ActiveOn: \u0026day})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]ports.SupervisionBlocker, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, ports.SupervisionBlocker{ID: row.ID, GroupID: row.GroupID, StartDate: row.StartDate})\n\t}\n\tsort.SliceStable(result, func(i, j int) bool {\n\t\treturn result[i].StartDate \u003e result[j].StartDate\n\t})\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SupervisionRepository.ListActiveSupervisionBlockers",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SupervisionRepository) SetEndDate(ctx context.Context, row *ports.GroupSupervisor) (int64, error) {\n\tif row == nil || row.EndDate == nil {\n\t\treturn 0, fmt.Errorf(\"supervision end date is required\")\n\t}\n\treturn r.records.SetSupervisionEnd(ctx, row.ID, row.EndDate.String(), row.UpdatedAt)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/adapters/postgres/SupervisionRepository.SetEndDate",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) AddGroupToCombination(ctx context.Context, combinedID, groupID int64) error {\n\treturn s.runWrite(ctx, \"add_group_to_combination\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif combinedID \u003c= 0 || groupID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid group mapping IDs\")\n\t\t}\n\t\treturn s.store.AddGroupToCombination(txCtx, combinedID, groupID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.AddGroupToCombination",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CheckInParticipants(ctx context.Context, participantIDs []int64, at time.Time) (int64, error) {\n\treturn s.participantWrite(ctx, \"check_in_participants\", participantIDs, at, func(txCtx context.Context) (ports.Stats, error) {\n\t\treturn s.store.CheckInParticipants(txCtx, participantIDs, at, false)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CheckInParticipants",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CheckOutParticipants(ctx context.Context, participantIDs []int64, at time.Time) (int64, error) {\n\treturn s.participantWrite(ctx, \"check_out_participants\", participantIDs, at, func(txCtx context.Context) (ports.Stats, error) {\n\t\treturn s.store.CheckOutParticipants(txCtx, participantIDs, at)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CheckOutParticipants",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CloseGroupVisits(ctx context.Context, ids []int64) (result int64, err error) {\n\terr = s.runWrite(ctx, \"close_group_visits\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tstats, writeErr := s.store.CloseGroupVisits(txCtx, ids)\n\t\tresult = stats.Rows\n\t\treturn stats, writeErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CloseGroupVisits",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CloseOpenParticipants(ctx context.Context, participantIDs []int64, at time.Time) (int64, error) {\n\treturn s.participantWrite(ctx, \"close_open_participants\", participantIDs, at, func(txCtx context.Context) (ports.Stats, error) {\n\t\treturn s.store.CloseOpenParticipants(txCtx, participantIDs, at)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CloseOpenParticipants",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CloseStaleAttendance(ctx context.Context, id int64, at, updatedAt time.Time) (result int64, err error) {\n\terr = s.runWrite(ctx, \"close_stale_attendance\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 || at.IsZero() || updatedAt.IsZero() {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid stale attendance close\")\n\t\t}\n\t\tstats, writeErr := s.store.CloseStaleAttendance(txCtx, id, at, updatedAt)\n\t\tif writeErr == nil {\n\t\t\tresult = stats.Rows\n\t\t}\n\t\treturn stats, writeErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CloseStaleAttendance",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CompleteActivitySessionsByGroups(ctx context.Context, activeGroupIDs []int64, at time.Time) (result int64, err error) {\n\terr = s.runWrite(ctx, \"complete_activity_sessions_by_groups\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif !validIDs(activeGroupIDs) || at.IsZero() {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid bulk activity session completion\")\n\t\t}\n\t\tstats, completeErr := s.store.CompleteActivitySessionsByGroups(txCtx, activeGroupIDs, at)\n\t\tresult = stats.Rows\n\t\treturn stats, completeErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CompleteActivitySessionsByGroups",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountAttendanceByStaff(ctx context.Context, id int64) (result int, err error) {\n\terr = s.runWrite(ctx, \"count_attendance_by_staff\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid attendance query\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.CountAttendanceByStaff(ctx, id)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CountAttendanceByStaff",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountAttendanceRecords(ctx context.Context, studentID int64) (result int, err error) {\n\terr = s.runWrite(ctx, \"count_attendance_records\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif studentID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid student ID\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.CountAttendanceRecords(ctx, studentID)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CountAttendanceRecords",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountExpiredVisits(ctx context.Context, policy studentpresence.VisitRetentionPolicy) (result int64, err error) {\n\terr = s.runWrite(ctx, \"count_expired_visits\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.CountExpiredVisits(ctx, policy)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CountExpiredVisits",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountOpenVisitsInGroup(ctx context.Context, id int64) (result int, err error) {\n\terr = s.runWrite(ctx, \"count_open_visits_in_group\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.CountOpenVisitsInGroup(ctx, id)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CountOpenVisitsInGroup",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountOpenVisitsInGroupWithRevision(ctx context.Context, id int64) (count int, revision int64, err error) {\n\terr = s.runWrite(ctx, \"count_open_visits_in_group_with_revision\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid session ID\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tcount, revision, stats, err = s.store.CountOpenVisitsInGroupWithRevision(ctx, id)\n\t\treturn stats, err\n\t})\n\treturn count, revision, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CountOpenVisitsInGroupWithRevision",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountOpenVisitsInRoom(ctx context.Context, id int64) (result int, err error) {\n\terr = s.runWrite(ctx, \"count_open_visits_in_room\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.CountOpenVisitsInRoom(ctx, id)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CountOpenVisitsInRoom",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountStudentVisitsForDeletion(ctx context.Context, studentID int64) (result int, err error) {\n\terr = s.runWrite(ctx, \"count_student_visits_for_deletion\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif studentID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid student ID\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.CountStudentVisitsForDeletion(ctx, studentID)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CountStudentVisitsForDeletion",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteAttendance(ctx context.Context, id int64) error {\n\treturn s.runWrite(ctx, \"delete_attendance\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid attendance ID\")\n\t\t}\n\t\treturn s.store.DeleteAttendance(txCtx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.DeleteAttendance",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteCombination(ctx context.Context, id int64) error {\n\treturn s.runWrite(ctx, \"delete_combination\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid combination ID\")\n\t\t}\n\t\treturn s.store.DeleteCombination(txCtx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.DeleteCombination",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteCompletedVisitsBefore(ctx context.Context, studentID int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (result int64, err error) {\n\terr = s.runWrite(ctx, \"delete_completed_visits_before\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif studentID \u003c= 0 || cutoff.IsZero() {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid visit retention request\")\n\t\t}\n\t\tstats, writeErr := s.store.DeleteCompletedVisitsBefore(txCtx, studentID, policy, cutoff)\n\t\tresult = stats.Rows\n\t\treturn stats, writeErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.DeleteCompletedVisitsBefore",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteGroup(ctx context.Context, id int64) error {\n\treturn s.runWrite(ctx, \"delete_group\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid group ID\")\n\t\t}\n\t\treturn s.store.DeleteGroup(txCtx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.DeleteGroup",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteGroupMapping(ctx context.Context, id int64) error {\n\treturn s.runWrite(ctx, \"delete_group_mapping\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid group mapping ID\")\n\t\t}\n\t\treturn s.store.DeleteGroupMapping(txCtx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.DeleteGroupMapping",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteVisit(ctx context.Context, id int64) error {\n\treturn s.runWrite(ctx, \"delete_visit\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid visit ID\")\n\t\t}\n\t\treturn s.store.DeleteVisit(txCtx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.DeleteVisit",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DiscardActivitySession(ctx context.Context, instanceID int64) error {\n\treturn s.runWrite(ctx, \"discard_activity_session\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif instanceID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid instance ID\")\n\t\t}\n\t\treturn s.store.DiscardActivitySession(txCtx, instanceID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.DiscardActivitySession",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) EndCombination(ctx context.Context, id int64, at time.Time) error {\n\treturn s.runWrite(ctx, \"end_combination\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 || at.IsZero() {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid combination end\")\n\t\t}\n\t\treturn s.store.EndCombination(txCtx, id, at)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.EndCombination",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) EndGroup(ctx context.Context, groupID int64, at time.Time) error {\n\tif groupID \u003c= 0 || at.IsZero() {\n\t\treturn s.runWrite(ctx, \"end_group\", func(ctx context.Context) (ports.Stats, error) {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid group end\")\n\t\t})\n\t}\n\treturn s.runWrite(ctx, \"end_group\", func(txCtx context.Context) (ports.Stats, error) {\n\t\treturn s.store.EndGroup(txCtx, groupID, at)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.EndGroup",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) GetCombinedGroup(ctx context.Context, id int64) (result studentpresence.CombinedGroup, err error) {\n\terr = s.runWrite(ctx, \"get_combined_group\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid combination ID\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.GetCombinedGroup(ctx, id)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.GetCombinedGroup",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) HasAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) (result bool, err error) {\n\tif err := validAttendanceFilterDates(filter); err != nil {\n\t\treturn false, err\n\t}\n\terr = s.runWrite(ctx, \"has_attendance\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif !validIDs(filter.IDs) || !validIDs(filter.StudentIDs) || filter.ForUpdate {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid attendance query\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.HasAttendance(ctx, filter)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.HasAttendance",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LatestPresenceDate(ctx context.Context, studentID int64) (result *string, err error) {\n\terr = s.runWrite(ctx, \"latest_presence_date\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif studentID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid student ID\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.LatestPresenceDate(ctx, studentID)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.LatestPresenceDate",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListAcceptedRetentionSettings(ctx context.Context) (rows []studentpresence.StudentRetentionSetting, err error) {\n\terr = s.runWrite(ctx, \"list_accepted_retention_settings\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\trows, stats, err = s.store.ListAcceptedRetentionSettings(ctx)\n\t\treturn stats, err\n\t})\n\treturn listResult(rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListAcceptedRetentionSettings",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListActivitySessions(ctx context.Context, filter studentpresence.ActivitySessionFilter) (result []studentpresence.ActivitySession, err error) {\n\terr = s.runWrite(ctx, \"list_activity_sessions\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif !validIDs(filter.InstanceIDs) || !validIDs(filter.ActiveGroupIDs) || !validActivitySessionStatus(filter.Status, true) {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid activity session filter\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListActivitySessions(ctx, filter)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListActivitySessions",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListCombinedGroups(ctx context.Context, filter studentpresence.CombinedGroupFilter) (result []studentpresence.CombinedGroup, err error) {\n\terr = s.runWrite(ctx, \"list_combined_groups\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif filter.Limit \u003c 0 || filter.Offset \u003c 0 || filter.ID != nil \u0026\u0026 *filter.ID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid combination list options\")\n\t\t}\n\t\tif filter.From != nil \u0026\u0026 filter.Until != nil \u0026\u0026 filter.From.After(*filter.Until) {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid combination time range\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListCombinedGroups(ctx, filter)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListCombinedGroups",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListExpiredVisitMonths(ctx context.Context, policy studentpresence.VisitRetentionPolicy) (result []studentpresence.VisitMonthCount, err error) {\n\terr = s.runWrite(ctx, \"list_expired_visit_months\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListExpiredVisitMonths(ctx, policy)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListExpiredVisitMonths",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListGroupMappings(ctx context.Context, filter studentpresence.GroupMappingFilter) (result []studentpresence.GroupMapping, err error) {\n\terr = s.runWrite(ctx, \"list_group_mappings\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif filter.CombinedGroupID != nil \u0026\u0026 *filter.CombinedGroupID \u003c= 0 || filter.ActiveGroupID != nil \u0026\u0026 *filter.ActiveGroupID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid group mapping filter\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListGroupMappings(ctx, filter)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListGroupMappings",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListOpenAttendanceStudentIDs(ctx context.Context, date string) (result []int64, err error) {\n\tif _, err := calendar.ParseDate(date); err != nil {\n\t\treturn nil, err\n\t}\n\terr = s.runWrite(ctx, \"list_open_attendance_student_ids\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif date == \"\" {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid attendance query\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListOpenAttendanceStudentIDs(ctx, date)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListOpenAttendanceStudentIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListOpenPresence(ctx context.Context, ids []int64) (result []int64, err error) {\n\terr = s.runWrite(ctx, \"list_open_presence\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif !validIDs(ids) {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid student ID\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListOpenPresence(ctx, ids)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListOpenPresence",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListOpenRoomSessions(ctx context.Context, ids []int64) (result []studentpresence.OpenRoomSession, err error) {\n\terr = s.runWrite(ctx, \"list_open_room_sessions\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListOpenRoomSessions(ctx, ids)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListOpenRoomSessions",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListOpenVisitRooms(ctx context.Context, roomID int64) (result []studentpresence.OpenVisitRoom, err error) {\n\terr = s.runWrite(ctx, \"list_open_visit_rooms\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListOpenVisitRooms(ctx, roomID)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListOpenVisitRooms",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListOpenVisitStudentIDs(ctx context.Context, hostingTenantID int64) (result []int64, err error) {\n\terr = s.runWrite(ctx, \"list_open_visit_student_ids\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListOpenVisitStudentIDs(ctx, hostingTenantID)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListOpenVisitStudentIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPrivacyConsents(ctx context.Context, studentID int64) (rows []studentpresence.PrivacyConsent, err error) {\n\terr = s.runWrite(ctx, \"list_privacy_consents\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif studentID \u003c= 0 {\n\t\t\treturn ports.Stats{}, studentpresence.ErrInvalidPrivacyConsent\n\t\t}\n\t\tvar stats ports.Stats\n\t\trows, stats, err = s.store.ListPrivacyConsents(ctx, studentID)\n\t\treturn stats, err\n\t})\n\treturn listResult(rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListPrivacyConsents",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListRoomOccupancy(ctx context.Context, ids []int64) (result []studentpresence.RoomOccupancy, err error) {\n\terr = s.runWrite(ctx, \"list_room_occupancy\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListRoomOccupancy(ctx, ids)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListRoomOccupancy",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListRoomSessionHistory(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) (result []studentpresence.RoomSessionHistory, err error) {\n\terr = s.runWrite(ctx, \"list_room_session_history\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif roomID \u003c= 0 || start.After(end) || staffID != nil \u0026\u0026 *staffID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid room session history query\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListRoomSessionHistory(ctx, roomID, start, end, staffID)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListRoomSessionHistory",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListSessionAttendance(ctx context.Context, participantIDs []int64) (result []studentpresence.SessionAttendance, err error) {\n\terr = s.runWrite(ctx, \"list_session_attendance\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif !validIDs(participantIDs) {\n\t\t\treturn ports.Stats{}, errInvalidParticipants\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListSessionAttendance(ctx, participantIDs)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListSessionAttendance",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListVisitRetentionCounts(ctx context.Context, policy studentpresence.VisitRetentionPolicy) (result []studentpresence.VisitRetentionCount, err error) {\n\terr = s.runWrite(ctx, \"list_visit_retention_counts\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ListVisitRetentionCounts(ctx, policy)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ListVisitRetentionCounts",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) MarkParticipantsNotScheduled(ctx context.Context, participantIDs []int64) (int64, error) {\n\treturn s.participantWrite(ctx, \"mark_participants_not_scheduled\", participantIDs, time.Now(), func(txCtx context.Context) (ports.Stats, error) {\n\t\treturn s.store.MarkParticipantsNotScheduled(txCtx, participantIDs)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.MarkParticipantsNotScheduled",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) OccupiedActivityGroupIDs(ctx context.Context, ids []int64) (result []int64, err error) {\n\terr = s.runWrite(ctx, \"occupied_activity_group_ids\", func(ctx context.Context) (ports.Stats, error) {\n\t\tfor _, id := range ids {\n\t\t\tif id \u003c= 0 {\n\t\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid activity group ID\")\n\t\t\t}\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.OccupiedActivityGroupIDs(ctx, ids)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.OccupiedActivityGroupIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) OldestExpiredVisitDate(ctx context.Context, policy studentpresence.VisitRetentionPolicy) (result *time.Time, err error) {\n\terr = s.runWrite(ctx, \"oldest_expired_visit_date\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.OldestExpiredVisitDate(ctx, policy)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.OldestExpiredVisitDate",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) PatchSessionAttendance(ctx context.Context, participantID int64, patch studentpresence.SessionAttendancePatch) error {\n\treturn s.runWrite(ctx, \"patch_session_attendance\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif participantID \u003c= 0 || !validSessionAttendancePatch(patch) {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid session attendance patch\")\n\t\t}\n\t\treturn s.store.PatchSessionAttendance(txCtx, participantID, patch, time.Now().UTC())\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.PatchSessionAttendance",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReconcileParticipantInterval(ctx context.Context, participantID int64, previousCheckIn time.Time, previousCheckOut *time.Time, checkIn time.Time, checkOut *time.Time) (updated bool, err error) {\n\terr = s.runWrite(ctx, \"reconcile_participant_interval\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif participantID \u003c= 0 || previousCheckIn.IsZero() || checkIn.IsZero() {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid participant interval\")\n\t\t}\n\t\tstats, reconcileErr := s.store.ReconcileParticipantInterval(txCtx, participantID, previousCheckIn, previousCheckOut, checkIn, checkOut)\n\t\tupdated = stats.Rows \u003e 0\n\t\treturn stats, reconcileErr\n\t})\n\treturn updated, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ReconcileParticipantInterval",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReconnectParticipantPickupExceptions(ctx context.Context, links []studentpresence.ParticipantPickupException) error {\n\treturn s.runWrite(ctx, \"reconnect_participant_pickup_exceptions\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tfor _, link := range links {\n\t\t\tif link.ParticipantID \u003c= 0 || link.PickupExceptionID \u003c= 0 {\n\t\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid participant pickup exception\")\n\t\t\t}\n\t\t}\n\t\treturn s.store.ReconnectParticipantPickupExceptions(txCtx, links)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ReconnectParticipantPickupExceptions",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordActivitySessionCompleted(ctx context.Context, instanceID int64, at time.Time) error {\n\treturn s.runWrite(ctx, \"record_activity_session_completed\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif instanceID \u003c= 0 || at.IsZero() {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid activity session completion\")\n\t\t}\n\t\treturn s.store.RecordActivitySessionCompleted(txCtx, instanceID, at)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.RecordActivitySessionCompleted",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordAttendance(ctx context.Context, value studentpresence.Attendance) (studentpresence.Attendance, error) {\n\trow, err := attendanceFromPublic(value)\n\tif err != nil {\n\t\treturn studentpresence.Attendance{}, err\n\t}\n\terr = s.runWrite(ctx, \"record_attendance\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif row.StudentID \u003c= 0 || row.Date == \"\" || row.CheckInTime.IsZero() || row.DeviceID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid attendance\")\n\t\t}\n\t\treturn s.store.RecordAttendance(txCtx, row)\n\t})\n\treturn attendanceToPublic(row), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.RecordAttendance",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordCombination(ctx context.Context, start time.Time, end *time.Time) (result studentpresence.CombinedGroup, err error) {\n\terr = s.runWrite(ctx, \"record_combination\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif err := validateCombinationTimes(start, end); err != nil {\n\t\t\treturn ports.Stats{}, err\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.RecordCombination(txCtx, start, end)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.RecordCombination",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordGroupActivity(ctx context.Context, id int64, at time.Time) error {\n\treturn s.runWrite(ctx, \"record_group_activity\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 || at.IsZero() {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid group activity\")\n\t\t}\n\t\treturn s.store.RecordGroupActivity(txCtx, id, at)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.RecordGroupActivity",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordGroupMapping(ctx context.Context, combinedID, groupID int64) (result studentpresence.GroupMapping, err error) {\n\terr = s.runWrite(ctx, \"record_group_mapping\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif combinedID \u003c= 0 || groupID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid group mapping IDs\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.RecordGroupMapping(txCtx, combinedID, groupID)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.RecordGroupMapping",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordVisit(ctx context.Context, value studentpresence.Visit) (studentpresence.Visit, error) {\n\terr := s.runWrite(ctx, \"record_visit\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif err := validateVisit(\u0026value); err != nil {\n\t\t\treturn ports.Stats{}, err\n\t\t}\n\t\treturn s.store.RecordVisit(txCtx, \u0026value)\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.RecordVisit",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RemoveGroupFromCombination(ctx context.Context, combinedID, groupID int64) error {\n\treturn s.runWrite(ctx, \"remove_group_from_combination\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif combinedID \u003c= 0 || groupID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid group mapping IDs\")\n\t\t}\n\t\treturn s.store.RemoveGroupFromCombination(txCtx, combinedID, groupID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.RemoveGroupFromCombination",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RemoveSupervision(ctx context.Context, id int64) error {\n\treturn s.runWrite(ctx, \"remove_supervision\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid supervision ID\")\n\t\t}\n\t\treturn s.store.RemoveSupervision(txCtx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.RemoveSupervision",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReviseAttendance(ctx context.Context, value studentpresence.Attendance) (studentpresence.Attendance, error) {\n\trow, err := attendanceFromPublic(value)\n\tif err != nil {\n\t\treturn studentpresence.Attendance{}, err\n\t}\n\terr = s.runWrite(ctx, \"revise_attendance\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif row.StudentID \u003c= 0 || row.Date == \"\" || row.CheckInTime.IsZero() || row.DeviceID \u003c= 0 || row.ID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid attendance\")\n\t\t}\n\t\treturn s.store.ReviseAttendance(txCtx, row)\n\t})\n\treturn attendanceToPublic(row), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ReviseAttendance",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReviseCombination(ctx context.Context, id int64, start time.Time, end *time.Time) (result studentpresence.CombinedGroup, err error) {\n\terr = s.runWrite(ctx, \"revise_combination\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid combination ID\")\n\t\t}\n\t\tif err := validateCombinationTimes(start, end); err != nil {\n\t\t\treturn ports.Stats{}, err\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.ReviseCombination(txCtx, id, start, end)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ReviseCombination",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReviseVisit(ctx context.Context, value studentpresence.Visit) (studentpresence.Visit, error) {\n\terr := s.runWrite(ctx, \"revise_visit\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif value.ID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid visit ID\")\n\t\t}\n\t\tif err := validateVisit(\u0026value); err != nil {\n\t\t\treturn ports.Stats{}, err\n\t\t}\n\t\treturn s.store.ReviseVisit(txCtx, \u0026value)\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.ReviseVisit",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SessionExecution(ctx context.Context, filter studentpresence.SessionExecutionFilter) (result studentpresence.SessionExecution, err error) {\n\terr = s.runWrite(ctx, \"session_execution\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif !validIDs(filter.InstanceIDs) || !validIDs(filter.ParticipantIDs) {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid session execution filter\")\n\t\t}\n\t\tif len(filter.InstanceIDs) == 0 \u0026\u0026 len(filter.ParticipantIDs) == 0 {\n\t\t\treturn ports.Stats{}, nil\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.SessionExecution(ctx, filter)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.SessionExecution",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) StaffIDsWithSupervisionOn(ctx context.Context, value string) (result []int64, err error) {\n\tdate, err := calendar.ParseDate(value)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\terr = s.runWrite(ctx, \"staff_ids_with_supervision\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.StaffIDsWithSupervisionOn(ctx, date)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.StaffIDsWithSupervisionOn",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SupervisedRoomsOn(ctx context.Context, value string) (result []studentpresence.StaffRoomSupervision, err error) {\n\tdate, err := calendar.ParseDate(value)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\terr = s.runWrite(ctx, \"supervised_rooms_on\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.SupervisedRoomsOn(ctx, date)\n\t\treturn stats, err\n\t})\n\treturn listResult(result, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.SupervisedRoomsOn",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) TransferOpenVisits(ctx context.Context, from, to int64) (result int64, err error) {\n\terr = s.runWrite(ctx, \"transfer_open_visits\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif from \u003c= 0 || to \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid visit transfer\")\n\t\t}\n\t\tstats, writeErr := s.store.TransferOpenVisits(txCtx, from, to)\n\t\tresult = stats.Rows\n\t\treturn stats, writeErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.TransferOpenVisits",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) TransferRecentDeviceVisits(ctx context.Context, to, deviceID int64) (result int64, err error) {\n\terr = s.runWrite(ctx, \"transfer_recent_device_visits\", func(txCtx context.Context) (ports.Stats, error) {\n\t\tif to \u003c= 0 || deviceID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid visit transfer\")\n\t\t}\n\t\tstats, writeErr := s.store.TransferRecentDeviceVisits(txCtx, to, deviceID)\n\t\tresult = stats.Rows\n\t\treturn stats, writeErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.TransferRecentDeviceVisits",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UnclaimedGroups(ctx context.Context, value string) (rows []studentpresence.UnclaimedGroup, err error) {\n\tdate, err := calendar.ParseDate(value)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\terr = s.runWrite(ctx, \"unclaimed_groups\", func(ctx context.Context) (ports.Stats, error) {\n\t\tvar stats ports.Stats\n\t\trows, stats, err = s.store.UnclaimedGroups(ctx, date)\n\t\treturn stats, err\n\t})\n\treturn listResult(rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.UnclaimedGroups",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) CheckRoomConflict(ctx context.Context, roomID, excludeGroupID int64) (bool, *studentpresence.LiveGroup, error) {\n\tconflict, group, err := r.sessionRepository.CheckRoomConflict(ctx, roomID, excludeGroupID)\n\treturn conflict, livePointer(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.CheckRoomConflict",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error) {\n\tgroup, err := r.sessionRepository.FindActiveByDeviceIDWithNames(ctx, deviceID)\n\treturn sessionDetailOf(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindActiveByDeviceIDWithNames",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindActiveByRoomID(ctx context.Context, roomID int64) ([]*studentpresence.LiveGroup, error) {\n\tgroups, err := r.sessionRepository.FindActiveByRoomID(ctx, roomID)\n\treturn livePointers(groups), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindActiveByRoomID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error) {\n\trows, err := r.GroupSupervisorRepository.FindActiveByStaffID(ctx, staffID)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]*studentpresence.GroupSupervision, 0, len(rows))\n\tfor _, row := range rows {\n\t\tvalue := supervisionOf(row)\n\t\tresult = append(result, \u0026value)\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindActiveByStaffID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindActiveGroups(ctx context.Context) ([]*studentpresence.LiveGroup, error) {\n\tgroups, err := r.sessionRepository.FindActiveGroups(ctx)\n\treturn livePointers(groups), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindActiveGroups",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindByActiveGroupID(ctx context.Context, activeGroupID int64, activeOnly bool) ([]*studentpresence.StaffedSupervision, error) {\n\trows, err := r.GroupSupervisorRepository.FindByActiveGroupID(ctx, activeGroupID, activeOnly)\n\treturn staffedSupervisions(rows), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindByActiveGroupID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, activeOnly bool) ([]*studentpresence.StaffedSupervision, error) {\n\trows, err := r.GroupSupervisorRepository.FindByActiveGroupIDs(ctx, activeGroupIDs, activeOnly)\n\treturn staffedSupervisions(rows), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindByActiveGroupIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindByIDForUpdate(ctx context.Context, id int64) (*studentpresence.LiveGroup, error) {\n\tgroup, err := r.sessionRepository.FindByIDForUpdate(ctx, id)\n\treturn livePointer(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindByIDForUpdate",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindByIDs(ctx context.Context, ids []int64) (map[int64]*studentpresence.SessionDetail, error) {\n\tgroups, err := r.sessionRepository.FindByIDs(ctx, ids)\n\tif groups == nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]*studentpresence.SessionDetail, len(groups))\n\tfor id, group := range groups {\n\t\tresult[id] = sessionDetailOf(group)\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindByIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) FindSession(ctx context.Context, id int64) (*studentpresence.LiveGroup, error) {\n\tgroup, err := r.sessionRepository.FindByID(ctx, id)\n\treturn livePointer(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.FindSession",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SessionRecords) ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]studentpresence.SupervisionBlocker, error) {\n\trows, err := r.GroupSupervisorRepository.ListActiveSupervisionBlockers(ctx, staffID)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]studentpresence.SupervisionBlocker, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, studentpresence.SupervisionBlocker(row))\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/SessionRecords.ListActiveSupervisionBlockers",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d carePlanDirectory) FindPickupException(ctx context.Context, id int64) (*ports.PickupException, error) {\n\tvalue, err := d.query.FindPickupException(ctx, id)\n\tif value == nil || err != nil {\n\t\treturn nil, err\n\t}\n\tresult := ports.PickupException(*value)\n\treturn \u0026result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/carePlanDirectory.FindPickupException",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d carePlanDirectory) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (*ports.StudentStatusDay, error) {\n\tvalue, err := d.query.FindStudentStatusDay(ctx, id, activeOnly)\n\tif value == nil || err != nil {\n\t\treturn nil, err\n\t}\n\tresult := ports.StudentStatusDay(*value)\n\treturn \u0026result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/carePlanDirectory.FindStudentStatusDay",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d carePlanDirectory) ListPickupExceptions(ctx context.Context, filter ports.PickupExceptionFilter) ([]ports.PickupException, error) {\n\tvalues, err := d.query.ListPickupExceptions(ctx, studentpresence.SessionPickupExceptionFilter(filter))\n\tresult := make([]ports.PickupException, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, ports.PickupException(value))\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/carePlanDirectory.ListPickupExceptions",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d carePlanDirectory) ListStudentStatusDays(ctx context.Context, filter ports.StudentStatusDayFilter) ([]ports.StudentStatusDay, error) {\n\tvalues, err := d.query.ListStudentStatusDays(ctx, studentpresence.SessionStudentStatusDayFilter(filter))\n\tresult := make([]ports.StudentStatusDay, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, ports.StudentStatusDay(value))\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/carePlanDirectory.ListStudentStatusDays",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r plannedRoster) ListPlannedParticipants(ctx context.Context, filter ports.PlannedRosterFilter) ([]ports.PlannedParticipant, error) {\n\tvalues, err := r.query.ListPlannedParticipants(ctx, studentpresence.PlannedRosterFilter(filter))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]ports.PlannedParticipant, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, ports.PlannedParticipant(value))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/plannedRoster.ListPlannedParticipants",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) AdmitVisit(ctx context.Context, visit studentpresence.Visit) (studentpresence.Visit, error) {\n\tif err := p.active.CreateVisit(ctx, \u0026visit); err != nil {\n\t\treturn studentpresence.Visit{}, err\n\t}\n\treturn visit, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.AdmitVisit",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) AmendCombination(ctx context.Context, group studentpresence.CombinedGroup) (studentpresence.CombinedGroup, error) {\n\tif err := p.active.UpdateCombinedGroup(ctx, \u0026group); err != nil {\n\t\treturn studentpresence.CombinedGroup{}, err\n\t}\n\treturn group, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.AmendCombination",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) AmendSupervision(ctx context.Context, row studentpresence.GroupSupervision) error {\n\tsupervisor, err := supervisorRow(row)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn p.active.UpdateGroupSupervisor(ctx, supervisor)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.AmendSupervision",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) AmendVisit(ctx context.Context, visit studentpresence.Visit) error {\n\treturn p.active.UpdateVisit(ctx, \u0026visit)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.AmendVisit",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) AssignSupervision(ctx context.Context, row studentpresence.GroupSupervision) (studentpresence.GroupSupervision, error) {\n\tsupervisor, err := supervisorRow(row)\n\tif err != nil {\n\t\treturn studentpresence.GroupSupervision{}, err\n\t}\n\tif err := p.active.CreateGroupSupervisor(ctx, supervisor); err != nil {\n\t\treturn studentpresence.GroupSupervision{}, err\n\t}\n\treturn groupSupervision(supervisor), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.AssignSupervision",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) AssignTransitStudents(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (studentpresence.TransitAssignResult, error) {\n\tresult, err := p.active.AssignTransitStudentsToActiveGroupAuthorized(ctx, studentIDs, activeGroupID, auth)\n\tif err != nil {\n\t\treturn studentpresence.TransitAssignResult{}, err\n\t}\n\tskipped := make([]studentpresence.TransitAssignSkipped, 0, len(result.Skipped))\n\tfor _, item := range result.Skipped {\n\t\tskipped = append(skipped, studentpresence.TransitAssignSkipped{StudentID: item.StudentID, Reason: item.Reason})\n\t}\n\treturn studentpresence.TransitAssignResult{Assigned: result.Assigned, Skipped: skipped, ActiveGroupID: result.ActiveGroupID, RoomID: result.RoomID}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.AssignTransitStudents",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) CheckOutStudent(ctx context.Context, studentID, staffID int64) (studentpresence.CheckoutOutcome, error) {\n\tresult, err := p.active.CheckOutStudent(ctx, studentID, staffID, true)\n\tif err != nil {\n\t\treturn studentpresence.CheckoutOutcome{}, err\n\t}\n\treturn studentpresence.CheckoutOutcome{Action: result.Action, AttendanceID: result.AttendanceID}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.CheckOutStudent",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) ClaimSupervision(ctx context.Context, groupID, staffID int64, role string) (studentpresence.ClaimedSupervision, error) {\n\trow, err := p.active.ClaimActiveGroup(ctx, groupID, staffID, role)\n\tif err != nil {\n\t\treturn studentpresence.ClaimedSupervision{}, err\n\t}\n\treturn studentpresence.ClaimedSupervision{ID: row.ID, TenantID: row.TenantID, GroupID: row.GroupID, StaffID: row.StaffID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Role: row.Role, StartDate: row.StartDate.String()}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.ClaimSupervision",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) CreateCombination(ctx context.Context, group studentpresence.CombinedGroup, groupIDs []int64) (studentpresence.CombinedGroup, error) {\n\tif err := p.active.CreateCombinedGroupWithGroups(ctx, \u0026group, groupIDs); err != nil {\n\t\treturn studentpresence.CombinedGroup{}, err\n\t}\n\treturn group, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.CreateCombination",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) CrossTenantStudents(ctx context.Context, hostingTenantID int64) ([]studentpresence.CrossTenantStudent, error) {\n\trows, err := p.active.GetCrossTenantStudents(ctx, hostingTenantID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]studentpresence.CrossTenantStudent, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, studentpresence.CrossTenantStudent{StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName, GroupName: row.GroupName, HomeTenant: row.HomeTenant})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.CrossTenantStudents",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) MoveStudentsToSession(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {\n\tresult, err := p.active.MoveStudentsToActiveGroupAuthorized(ctx, studentIDs, activeGroupID, auth)\n\tif err != nil {\n\t\treturn studentpresence.StudentMoveResult{}, err\n\t}\n\treturn studentMoveResult(result), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.MoveStudentsToSession",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) MoveStudentsToTransit(ctx context.Context, studentIDs []int64, auth studentpresence.StudentMoveAuthorization) (studentpresence.StudentMoveResult, error) {\n\tresult, err := p.active.MoveStudentsToTransitAuthorized(ctx, studentIDs, auth)\n\tif err != nil {\n\t\treturn studentpresence.StudentMoveResult{}, err\n\t}\n\treturn studentMoveResult(result), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.MoveStudentsToTransit",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) ReviseSession(ctx context.Context, group studentpresence.LiveGroup) (studentpresence.LiveGroup, error) {\n\trow := groupRow(group)\n\tif err := p.active.UpdateActiveGroup(ctx, row); err != nil {\n\t\treturn studentpresence.LiveGroup{}, err\n\t}\n\treturn liveGroup(row), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.ReviseSession",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) SessionRooms(ctx context.Context, ids []int64) ([]studentpresence.SessionRoomSummary, error) {\n\trooms, err := p.sessions.GetRoomsByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]studentpresence.SessionRoomSummary, 0, len(rooms))\n\tfor _, room := range rooms {\n\t\tif room == nil {\n\t\t\tcontinue\n\t\t}\n\t\tresult = append(result, studentpresence.SessionRoomSummary{ID: room.ID, Name: room.Name, Category: room.Category, Color: room.Color})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.SessionRooms",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) StartSession(ctx context.Context, group studentpresence.LiveGroup) (studentpresence.LiveGroup, error) {\n\trow := groupRow(group)\n\tif err := p.active.CreateActiveGroup(ctx, row); err != nil {\n\t\treturn studentpresence.LiveGroup{}, err\n\t}\n\treturn liveGroup(row), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.StartSession",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) StudentAttendanceStatus(ctx context.Context, studentID int64) (*studentpresence.AttendanceStatus, error) {\n\tstatus, err := p.active.GetStudentAttendanceStatus(ctx, studentID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn attendanceStatus(status), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.StudentAttendanceStatus",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p PresenceOperations) StudentsAttendanceStatuses(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.AttendanceStatus, error) {\n\tstatuses, err := p.active.GetStudentsAttendanceStatuses(ctx, studentIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]*studentpresence.AttendanceStatus, len(statuses))\n\tfor id, status := range statuses {\n\t\tresult[id] = attendanceStatus(status)\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/PresenceOperations.StudentsAttendanceStatuses",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStatusDayService) UpsertReported(ctx context.Context, entry *absencerecords.StudentStatusDay) error {\n\tif entry != nil \u0026\u0026 s.pickupExceptions != nil {\n\t\tif s.db == nil {\n\t\t\treturn errors.New(\"student status day service database is not configured\")\n\t\t}\n\t\tif err := s.lockStatusDate(ctx, entry.StudentID, entry.Date.String()); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tif err := s.ensureNoPartialAbsenceConflicts(ctx, entry.StudentID, []calendar.Date{entry.Date}); err != nil {\n\t\t\treturn err\n\t\t}\n\t}\n\treturn s.repo.UpsertReported(ctx, entry)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/StudentStatusDayService.UpsertReported",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*studentpresence.SessionDetail, error) {\n\tgroup, err := p.presenceEngine.EnsureOpenRoomSession(ctx, roomID, activityID)\n\treturn sessionDetail(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.EnsureOpenRoomSession",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) FindDeviceActiveGroupInRoom(ctx context.Context, roomID, deviceID int64) (*studentpresence.SessionDetail, error) {\n\tgroup, err := p.presenceEngine.FindDeviceActiveGroupInRoom(ctx, roomID, deviceID)\n\treturn sessionDetail(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.FindDeviceActiveGroupInRoom",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*studentpresence.SessionDetail, error) {\n\tgroup, err := p.presenceEngine.ForceStartActivitySessionWithSupervisors(ctx, activityID, deviceID, supervisorIDs, roomID)\n\treturn sessionDetail(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.ForceStartActivitySessionWithSupervisors",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) GetActiveGroup(ctx context.Context, id int64) (*studentpresence.SessionDetail, error) {\n\tgroup, err := p.presenceEngine.GetActiveGroup(ctx, id)\n\treturn sessionDetail(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.GetActiveGroup",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) GetActiveGroupsByIDs(ctx context.Context, groupIDs []int64) (map[int64]*studentpresence.SessionDetail, error) {\n\tgroups, err := p.presenceEngine.GetActiveGroupsByIDs(ctx, groupIDs)\n\tif groups == nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]*studentpresence.SessionDetail, len(groups))\n\tfor id, group := range groups {\n\t\tresult[id] = sessionDetail(group)\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.GetActiveGroupsByIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error) {\n\tgroup, err := p.presenceEngine.GetDeviceCurrentSession(ctx, deviceID)\n\treturn sessionDetail(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.GetDeviceCurrentSession",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*studentpresence.SessionRoomSummary, error) {\n\trooms, err := p.rooms.FindByIDs(ctx, ids)\n\tif rooms == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]*studentpresence.SessionRoomSummary, len(rooms))\n\tfor i, room := range rooms {\n\t\tresult[i] = sessionRoom(room)\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.GetRoomsByIDs",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) GetUnclaimedActiveGroups(ctx context.Context) ([]*studentpresence.SessionDetail, error) {\n\tgroups, err := p.presenceEngine.GetUnclaimedActiveGroups(ctx)\n\tif groups == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]*studentpresence.SessionDetail, len(groups))\n\tfor i, group := range groups {\n\t\tresult[i] = sessionDetail(group)\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.GetUnclaimedActiveGroups",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) HasOpenAttendanceOn(ctx context.Context, date calendar.Date) (bool, error) {\n\treturn p.attendance.HasAttendance(ctx, studentpresence.AttendanceFilter{FromDate: date.String(), UntilDate: date.String(), OpenOnly: true})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.HasOpenAttendanceOn",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*studentpresence.SessionDetail, error) {\n\tgroup, err := p.presenceEngine.StartActivitySessionWithSupervisors(ctx, activityID, deviceID, supervisorIDs, roomID)\n\treturn sessionDetail(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.StartActivitySessionWithSupervisors",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *presenceFacade) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupID int64, supervisorIDs []int64) (*studentpresence.SessionDetail, error) {\n\tgroup, err := p.presenceEngine.UpdateActiveGroupSupervisors(ctx, activeGroupID, supervisorIDs)\n\treturn sessionDetail(group), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/presenceFacade.UpdateActiveGroupSupervisors",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) CountActiveVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) (int, error) {\n\tcount, err := s.SchoolPresence.CountOpenVisitsInGroup(ctx, activeGroupID)\n\tif err != nil {\n\t\treturn 0, \u0026ActiveError{Op: \"CountActiveVisitsByActiveGroupID\", Err: ErrDatabaseOperation}\n\t}\n\treturn count, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.CountActiveVisitsByActiveGroupID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) CreateCombinedGroup(ctx context.Context, group *studentpresence.CombinedGroup) error {\n\tif !validPresenceCombination(group) {\n\t\treturn \u0026ActiveError{Op: \"CreateCombinedGroup\", Err: ErrInvalidData}\n\t}\n\tgroup.TenantID = tenant.FromContext(ctx)\n\trow, err := s.SchoolPresence.RecordCombination(ctx, group.StartTime, group.EndTime)\n\tif err != nil {\n\t\treturn \u0026ActiveError{Op: \"CreateCombinedGroup\", Err: ErrDatabaseOperation}\n\t}\n\t*group = row\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.CreateCombinedGroup",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*ports.ActiveGroup, error) {\n\tgroup, err := s.GroupRepo.FindActiveByRoomIDAndDeviceID(ctx, roomID, deviceID)\n\tif err != nil {\n\t\treturn nil, \u0026ActiveError{Op: \"FindDeviceActiveGroupInRoom\", Err: fmt.Errorf(\"find by room and device: %w\", err)}\n\t}\n\treturn group, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.FindDeviceActiveGroupInRoom",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error) {\n\tvisits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true})\n\tif err != nil {\n\t\treturn nil, \u0026ActiveError{Op: \"FindVisitsByStudentID\", Err: ErrDatabaseOperation}\n\t}\n\treturn visits, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.FindVisitsByStudentID",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*ports.ActiveGroup, error) {\n\tsession, err := s.GroupRepo.FindActiveByDeviceIDWithNames(ctx, deviceID)\n\tif err != nil {\n\t\treturn nil, \u0026ActiveError{Op: \"GetDeviceCurrentSession\", Err: err}\n\t}\n\tif session == nil {\n\t\treturn nil, \u0026ActiveError{Op: \"GetDeviceCurrentSession\", Err: ErrNoActiveSession}\n\t}\n\treturn session, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.GetDeviceCurrentSession",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetPresenceMode(ctx context.Context) (string, error) {\n\tif s.settings == nil {\n\t\treturn \"\", errors.New(\"resolve presence mode: settings service is not configured\")\n\t}\n\tmode, err := s.settings.PresenceMode(ctx)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"resolve presence mode: %w\", err)\n\t}\n\tif mode != PresenceModeDetailed \u0026\u0026 mode != PresenceModeBinary {\n\t\treturn \"\", fmt.Errorf(\"resolve presence mode: invalid value %q\", mode)\n\t}\n\treturn mode, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.GetPresenceMode",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error) {\n\tvisits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: []int64{studentID}, OpenOnly: true, NewestFirst: true, Limit: 1})\n\tif err != nil {\n\t\treturn nil, \u0026ActiveError{Op: \"GetStudentCurrentVisit\", Err: ErrDatabaseOperation}\n\t}\n\tif len(visits) == 0 {\n\t\treturn nil, \u0026ActiveError{Op: \"GetStudentCurrentVisit\", Err: ErrVisitNotFound}\n\t}\n\treturn \u0026visits[0], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.GetStudentCurrentVisit",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) ListOpenVisitStudentIDsByRoom(ctx context.Context) (map[int64][]int64, error) {\n\trows, err := s.SchoolPresence.ListOpenVisitRooms(ctx, 0)\n\tif err != nil {\n\t\treturn nil, \u0026ActiveError{Op: \"ListOpenVisitStudentIDsByRoom\", Err: fmt.Errorf(\"list open visits by room: %w\", err)}\n\t}\n\trooms := make(map[int64][]int64)\n\tfor _, row := range rows {\n\t\trooms[row.RoomID] = append(rooms[row.RoomID], row.StudentID)\n\t}\n\treturn rooms, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.ListOpenVisitStudentIDsByRoom",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) ListStudentsPresentInRoom(ctx context.Context, roomID int64) ([]int64, error) {\n\tif roomID \u003c= 0 {\n\t\treturn []int64{}, nil\n\t}\n\trows, err := s.SchoolPresence.ListOpenVisitRooms(ctx, roomID)\n\tif err != nil {\n\t\treturn nil, \u0026ActiveError{Op: \"ListStudentsPresentInRoom\", Err: fmt.Errorf(\"list active student IDs: %w\", err)}\n\t}\n\tids := make([]int64, 0, len(rows))\n\tfor _, row := range rows {\n\t\tids = append(ids, row.StudentID)\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.ListStudentsPresentInRoom",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) ListStudentsPresentToday(ctx context.Context) ([]int64, error) {\n\tids, err := s.SchoolPresence.ListOpenAttendanceStudentIDs(ctx, s.todayDate().String())\n\tif err != nil {\n\t\treturn nil, \u0026ActiveError{Op: \"ListStudentsPresentToday\", Err: ErrDatabaseOperation}\n\t}\n\tif ids == nil {\n\t\treturn []int64{}, nil\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.ListStudentsPresentToday",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) UpdateCombinedGroup(ctx context.Context, group *studentpresence.CombinedGroup) error {\n\tif !validPresenceCombination(group) || group.ID == 0 {\n\t\treturn \u0026ActiveError{Op: \"UpdateCombinedGroup\", Err: ErrInvalidData}\n\t}\n\trow, err := s.SchoolPresence.ReviseCombination(ctx, group.ID, group.StartTime, group.EndTime)\n\tif err != nil {\n\t\treturn \u0026ActiveError{Op: \"UpdateCombinedGroup\", Err: ErrDatabaseOperation}\n\t}\n\t*group = row\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/service.UpdateCombinedGroup",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (h studentHistory) RecordDataAccess(ctx context.Context, entry *studentpresence.DataAccessEvent) error {\n\treturn h.accessLog.Create(ctx, dataAccessEvent(entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/presence/studentHistory.RecordDataAccess",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g *ActiveGroup) GetDuration() time.Duration {\n\tif g.EndTime == nil {\n\t\treturn time.Since(g.StartTime)\n\t}\n\treturn g.EndTime.Sub(g.StartTime)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/ports/ActiveGroup.GetDuration",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g *ActiveGroup) SetEndTime(endTime time.Time) error {\n\tif g.StartTime.After(endTime) {\n\t\treturn errors.New(\"end time cannot be before start time\")\n\t}\n\tg.EndTime = \u0026endTime\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/ports/ActiveGroup.SetEndTime",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
+      "evidence": "func (gs *GroupSupervisor) SetEndDate(endDate Date) error {\n\tif gs.StartDate.After(endDate) {\n\t\treturn errors.New(\"end date cannot be before start date\")\n\t}\n\tgs.EndDate = \u0026endDate\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/ports/GroupSupervisor.SetEndDate",
+      "owner": "modules/studentpresence"
+    }
+  ]
+}

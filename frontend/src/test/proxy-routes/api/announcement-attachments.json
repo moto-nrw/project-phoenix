@@ -1,0 +1,5 @@
+{
+  "api/announcement-attachments/[announcementId]/[attachmentId]": [
+    "DELETE tenant /api/announcement-attachments/announcementId%2F1/attachmentId%2F1"
+  ]
+}

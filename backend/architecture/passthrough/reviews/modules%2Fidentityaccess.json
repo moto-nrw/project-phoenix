@@ -1,0 +1,1334 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/AuthenticationError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/DemoAccess.DemoAccessStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/DemoAccess.RedeemDemoAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/DemoAccess.RequestDemoAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/DemoAccess.ResetDemoAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/DemoAccessExpiry.ExpireDemoAccesses",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/DemoAccessRateLimitError.RetryAfterSeconds",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/GuardianInvitationValidationError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/account/ReplaceAccountRoleRequest.Bind",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/PasskeyResource.PasskeyEnrollmentChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/PasskeyResource.PasskeyList",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/Resource.ListAccountTenantAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/Resource.RevokeAccountTenantAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/Sessions.MFAEnrollment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/Sessions.Operator",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/Sessions.Refresh",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/grantAccountTenantAccessRequest.Bind",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/inbound/operator/updateAccountTenantRoleRequest.Bind",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.AccountBelongsToTenant",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ActivateChallenge",
+      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ConsumeChallenge",
+      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.CountChallengesSince",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.DeleteCredentials",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.DeleteGlobalOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.DeleteTenantOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindAccountIdentity",
+      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveChallengeForAccount",
+      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveChallengeInScope",
+      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindCredential",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindGlobalOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.IncrementMFAAttempts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0091",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.InvalidateSessionMFA",
+      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.LockAccountForOverrideWrite",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ResetMFAAttempts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.RevokeAllTrustedDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.RevokeTenantTrustedDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.RevokeTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.TouchCredential",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.TouchTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/RoleStore.ListAccountEmails",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountAdministration.FindManageableAccount",
+      "reason": "ADR 0104: removing the former org branch (ADR 0084) leaves the transaction wrapper of the manageable-account read."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountAdministration.UpdateManageableAccount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountAuthentication.CountExpiredTokens",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountAuthentication.ListActiveSessions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountAuthentication.MarkAccountWideWipeCompleted",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountAuthentication.VerifyAccountTenantMembership",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountLifecycle.ApproveInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountLifecycle.HasLiveCaregiverProfile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountLifecycle.RejectInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetGlobalMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetTenantMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallengeForScope",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountPasskey.ListActiveCredentials",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountPasskey.RecordUse",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountPasskey.RevokeCredential",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountPasskeyFlows.ListCredentials",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AccountPasskeyFlows.RevokeCredential",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AuthAudit.ClaimPendingAccountWideWipes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/AuthAudit.ListPendingAccountWideWipes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerAccounts.FindAccountMetadata",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerAccounts.FindAccountProfile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.Account",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.GroupStudentIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.GroupVisits",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.HasCurrentStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MyActiveSessionIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MyActivityGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MyGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MySchoolClasses",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MySupervisedSessionIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MyTeacherGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.Person",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.Profile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.SSESubscription",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.StaffID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.StudentAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.SubstitutedGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.TeacherID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.UpdateAvatar",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerEngine.UpdateProfile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerPeople.FindPersonByAccount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CallerSessions.SessionVisits",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CanonicalTagStore.FindRFIDCard",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.HasEnrollment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.IsRequired",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.IsTrustedDeviceEnabled",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.ResolvePolicy",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.ResolvePolicyInTx",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.StartChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending. #4651 maps the org scope of the Träger-Portal onto its challenge scope."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.TrustedDeviceDays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.VerifyTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0077",
+      "id": "modules/identityaccess/internal/application/CatererAccess.RevokeCatererInvitation",
+      "reason": "Exact method evidence for the caterer and meal ordering contracts; preserves guards, error mapping and tenant transactions. ADR 0075 eligibility unchanged."
+    },
+    {
+      "decision": "0077",
+      "id": "modules/identityaccess/internal/application/CatererAccess.SchoolCaterer",
+      "reason": "Exact method evidence for the caterer and meal ordering contracts; preserves guards, error mapping and tenant transactions. ADR 0075 eligibility unchanged."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.AccountBelongsToSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.AdminDisableMFA",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.DisableMFA",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.EnrollMFA",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.GetGlobalMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.GetMFAAdminState",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.GetTenantMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.HasMFAEnrollment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.IsRequired",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.IsTrustedDeviceEnabled",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ListTrustedDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.OperatorDisableMFA",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.OperatorSetGlobalMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.OperatorSetMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.PrepareTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallengeForScope",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResolveMFAPolicy",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResolveMFAPolicyInTx",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.RevokeTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.SetMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.StartMFAChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.TrustedDeviceDays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyMFAChallengeForOwner",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyMFAChallengeForScope",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyMFACodeForAccount",
+      "reason": "Reviewed #3841-c: reset-generation persistence and proof-carrying MFA verification; owner-edge/adapter evidence, no new forwarding debt."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoAccessEngine.DemoAccessStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoAccessEngine.RedeemDemoAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoAccessEngine.RequestDemoAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoAccessEngine.ResetDemoAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoAccessMail.SendDemoAccessLink",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoAccessMail.SendDemoLead",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoSchoolsPort.DemoSchoolEntry",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoSchoolsPort.PrepareDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/DemoSchoolsPort.ReplaceDemoSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.CreateGuardianProfile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindGuardianProfile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindGuardianProfileByEmail",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindGuardianProfiles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindPersonNamesByIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindStudentGuardianLinkForUpdate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.GuardianRoleClass",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.LinkStudentGuardianIfAbsent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.ListStudentGuardianLinksByProfile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.ListStudentGuardianLinksByStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianEnrollmentClaims.ClaimGuardianEnrollments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationDelivery.EnqueueExistingAccountEmail",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationDelivery.EnqueueInvitationEmail",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationDelivery.EnqueueWelcomeEmail",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationReads.ListGuardianInvitations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationReads.ListOpenGuardianInvitations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationReads.ListRedeemableGuardianInvitations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/InvitationGrantPolicy.CanGrantRole",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/MFAAuditTrail.RecordOperatorAction",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/MFAChallengeCodec.IssueChallengeToken",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/MFAChallengeCodec.ParseChallengeToken",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/MFAMail.EnqueueCode",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/MFAMail.NotifyTrustedDeviceAdded",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperationError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorAudit.RecordOperatorAction",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorEmailChangeDelivery.DispatchOperatorEmailChangeRequested",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorEmailChangeDelivery.DispatchOperatorEmailChangeVerification",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorInvitationDelivery.DispatchOperatorInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.ActivateChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.ConsumeChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.CountChallengesSince",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.DeleteCredentials",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.ListActiveTrustedDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.RevokeTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.RevokeTrustedDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.TouchCredential",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.TouchTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.HasEnrollment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ListOperatorTrustedDevices",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFAGate.HasEnrollment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFAGate.StartChallenge",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFAGate.TrustedDeviceDays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorMFAGate.VerifyTrustedDevice",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorPasskey.ListActiveCredentials",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorPasskey.RecordUse",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorPasskey.RevokeCredential",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorPasskeyFlows.ListCredentials",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorPasskeyFlows.RevokeCredential",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorProvisioning.ListPendingOperatorInvitations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorProvisioning.RevokeOperatorInvitationByActor",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorProvisioning.ValidateOperatorInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.CountEmailChangesCreatedAfter",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.CountInvitationsCreatedAfter",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.CreateEmailChange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.CreateInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.DeleteExpiredOperatorInvitations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.DeleteStaleEmailChanges",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.FindInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.FindRedeemableInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.ListRedeemableInvitations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RecordInvitationDelivery",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RecordOperatorEmailChangeDelivery",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RedeemEmailChange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RedeemInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeEmailChanges",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeExpiredEmailChanges",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitationsForEmail",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OrganizationDirectory.ListOrganizationNames",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OrganizationDirectory.ListSchools",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/PasswordReset.DeleteSpentPasswordResetTokens",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/PasswordReset.DeleteStalePasswordResetWindows",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/PasswordResetDelivery.DispatchPasswordReset",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/PreviewAudit.RecordStaffPreviewEndOnce",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/PreviewAudit.RecordStaffPreviewStart",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ReviewEngine.AbsenceReviewScope",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ReviewEngine.ReviewAccessLevel",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ReviewEngine.ReviewScope",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/RoleAdministration.AccountHoldsLehrkraftRole",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/RoleAdministration.GetAccountRoles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/RoleAdministration.ReplaceAccountRole",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolDirectory.FindSchool",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolDirectory.FindSchoolBySubdomain",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolDirectory.ListActiveSchoolsByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolDirectory.LockSchoolShared",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolIdentityProvisioner.ListAccountIdentityFacts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolIdentityProvisioner.ListAccountPersons",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolInvitation.InvitationDeliverySent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolInvitation.ListPendingInvitations",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolInvitation.RevokeInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolInvitationDelivery.DispatchSchoolInvitation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/SchoolInvitationDelivery.QueueSchoolWelcome",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.DeleteAccountSession",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.DeleteExpiredRotatedAccountSessions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.DeleteExpiredRotatedOperatorSessions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.DeleteOperator",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.DeleteOperatorSession",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.FindInvitedPersonIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.FindRolePermissions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.HasActiveSchoolMembership",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.ListAccountRoleIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.ListActiveSchoolAccountIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.ListSchoolRoles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.RecordOperatorLogin",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.ResetOperatorMFAAttempts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/Service.RetireAccountSessionFamily",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.CreatePerson",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindCaregiverProfile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindPerson",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindPersonByAccount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindPersonByTag",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindPersonNames",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindStaffByPerson",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/TokenCodec.IssueAccessToken",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/TokenCodec.IssueTokenPair",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/TokenCodec.ParseAccessToken",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/TokenCodec.ParseAccessTokenAllowExpired",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/TokenCodec.ParseRefreshToken",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorDisableMFA",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorSetMFAOverride",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/ceremonyRejection.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/mintGuardError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/domain/DemoAccess.CoolingDown",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/domain/GuardianInvitationValidationError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/domain/OperatorMFAChallenge.Validate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/domain/OperatorTrustedDevice.Validate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/domain/PasswordResetToken.Validate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/domain/PasswordResetWindow.Exceeded",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/domain/SchoolInvitation.Redeemable",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateJWT",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateRefreshJWT",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

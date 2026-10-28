@@ -1,0 +1,14 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/mealplan/internal/application/Service.Available",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0078",
+      "id": "modules/mealplan/internal/domain/OrderingRules.ParentRegistrationUntil",
+      "reason": "Exact method evidence for the caterer and meal ordering contracts; preserves guards, error mapping and tenant transactions. ADR 0075 eligibility unchanged."
+    }
+  ]
+}

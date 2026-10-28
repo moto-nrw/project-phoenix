@@ -1,0 +1,137 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (o *Offboarding) ReinstateStaff(ctx context.Context, staffID int64) (Staff, error) {\n\tif staffID \u003c= 0 {\n\t\treturn Staff{}, invalid(\"staff ID is required\")\n\t}\n\tif o.reinstate.Staff == nil {\n\t\treturn Staff{}, errReinstatementUnbound\n\t}\n\treturn o.reinstate.Staff(ctx, staffID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/Offboarding.ReinstateStaff",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o *Offboarding) ReinstateTeacher(ctx context.Context, teacherID int64) (Teacher, error) {\n\tif teacherID \u003c= 0 {\n\t\treturn Teacher{}, invalid(\"teacher ID is required\")\n\t}\n\tif o.reinstate.Teacher == nil {\n\t\treturn Teacher{}, errReinstatementUnbound\n\t}\n\treturn o.reinstate.Teacher(ctx, teacherID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/Offboarding.ReinstateTeacher",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) Router() chi.Router {\n\trouter := chi.NewRouter()\n\trouter.Use(render.SetContentType(render.ContentTypeJSON))\n\trs.runtime.Protected(router, func(protected chi.Router, withTx Middleware) {\n\t\trs.Register(protected, withTx)\n\t})\n\treturn router\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/http/Resource.Router",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateExternalCaregiverRecord(ctx context.Context, input schoolmembership.CreateExternalCaregiverRecord) (result schoolmembership.ExternalCaregiverRecord, err error) {\n\tif err := validateExternalCaregiverRecordFields(\u0026input.ExternalCaregiverRecordFields); err != nil {\n\t\treturn schoolmembership.ExternalCaregiverRecord{}, err\n\t}\n\tfields := input.ExternalCaregiverRecordFields\n\terr = s.runWrite(ctx, \"create_external_caregiver_record\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar createStats domain.OperationStats\n\t\tresult, createStats, err = s.store.CreateExternalCaregiverRecord(txCtx, fields)\n\t\tstats.Add(createStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.CreateExternalCaregiverRecord",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteClassAssignment(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"class assignment ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"delete_class_assignment\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.DeleteClassAssignment(txCtx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.DeleteClassAssignment",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteClassAssignmentsByStaff(ctx context.Context, staffID int64) (rows int64, err error) {\n\tif staffID \u003c= 0 {\n\t\treturn 0, invalid(\"staff ID is required\")\n\t}\n\terr = s.runWrite(ctx, \"delete_class_assignments_by_staff\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, deleteErr := s.store.DeleteClassAssignmentsByStaff(txCtx, staffID)\n\t\tstats.Add(queryStats)\n\t\trows = queryStats.Rows\n\t\treturn deleteErr\n\t})\n\treturn rows, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.DeleteClassAssignmentsByStaff",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteClassListEntry(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"class list entry ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"delete_class_list_entry\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tdeleteStats, err := s.store.DeleteClassListEntry(txCtx, id)\n\t\tstats.Add(deleteStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.DeleteClassListEntry",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteExternalCaregiverRecord(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"external caregiver record ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"delete_external_caregiver_record\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tdeleteStats, err := s.store.DeleteExternalCaregiverRecord(txCtx, id)\n\t\tstats.Add(deleteStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.DeleteExternalCaregiverRecord",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteGroupAssignment(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"group assignment ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"delete_group_assignment\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.DeleteGroupAssignment(txCtx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.DeleteGroupAssignment",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteGroupAssignmentsByTeacher(ctx context.Context, teacherID int64) (rows int64, err error) {\n\tif teacherID \u003c= 0 {\n\t\treturn 0, invalid(\"teacher ID is required\")\n\t}\n\treturn s.deleteGroupAssignments(ctx, \"delete_group_assignments_by_teacher\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.store.DeleteGroupAssignmentsByTeacher(txCtx, teacherID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.DeleteGroupAssignmentsByTeacher",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteStaff(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"staff ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"delete_staff\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif err := s.requireStaffLocked(txCtx, id, stats); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tdeleteStats, err := s.store.SoftDeleteStaff(txCtx, id)\n\t\tstats.Add(deleteStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.DeleteStaff",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListClassAssignments(ctx context.Context, filter schoolmembership.ClassAssignmentFilter) (result []schoolmembership.ClassAssignment, err error) {\n\tfilter.IDs = uniquePositive(filter.IDs)\n\tfilter.StaffIDs = uniquePositive(filter.StaffIDs)\n\tfor index := range filter.ClassKeys {\n\t\tfilter.ClassKeys[index] = strings.ToLower(strings.TrimSpace(filter.ClassKeys[index]))\n\t}\n\terr = s.runRead(ctx, \"list_class_assignments\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListClassAssignments(txCtx, filter, false)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.ListClassAssignments",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListClassListEntries(ctx context.Context, filter schoolmembership.ClassListEntryFilter) (result []schoolmembership.ClassListEntry, err error) {\n\tfilter = normalizeClassListEntryFilter(filter)\n\terr = s.runRead(ctx, \"list_class_list_entries\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListClassListEntries(txCtx, filter)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.ListClassListEntries",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListClassListEntriesInDisplayOrder(ctx context.Context, filter schoolmembership.ClassListEntryFilter) (result []schoolmembership.ClassListEntry, err error) {\n\tfilter = normalizeClassListEntryFilter(filter)\n\terr = s.runRead(ctx, \"list_class_list_entries_in_display_order\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListClassListEntriesInDisplayOrder(txCtx, filter)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.ListClassListEntriesInDisplayOrder",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListGroupAssignments(ctx context.Context, filter schoolmembership.GroupAssignmentFilter) (result []schoolmembership.GroupAssignment, err error) {\n\tfilter.IDs = uniquePositive(filter.IDs)\n\tfilter.GroupIDs = uniquePositive(filter.GroupIDs)\n\tfilter.TeacherIDs = uniquePositive(filter.TeacherIDs)\n\tfilter.TeacherStaffIDs = uniquePositive(filter.TeacherStaffIDs)\n\terr = s.runRead(ctx, \"list_group_assignments\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListGroupAssignments(txCtx, filter, false)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.ListGroupAssignments",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListTeachers(ctx context.Context, filter schoolmembership.TeacherFilter) (result []schoolmembership.Teacher, err error) {\n\tfilter.IDs = uniquePositive(filter.IDs)\n\tfilter.StaffIDs = uniquePositive(filter.StaffIDs)\n\tfilter.Specialization = strings.TrimSpace(filter.Specialization)\n\tfilter.SpecializationContains = strings.TrimSpace(filter.SpecializationContains)\n\tfilter.RoleContains = strings.TrimSpace(filter.RoleContains)\n\terr = s.runRead(ctx, \"list_teachers\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListTeachers(txCtx, filter)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.ListTeachers",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockGroupAssignments(ctx context.Context) error {\n\treturn s.runWrite(ctx, \"lock_group_assignments\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.LockGroupAssignments(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/Service.LockGroupAssignments",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e employmentBinding[Profile]) SaveStaffEmployment(ctx context.Context, value domain.StaffEmployment) error {\n\treturn e.port.SaveStaffEmployment(ctx, Profile(value))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/employmentBinding[Profile].SaveStaffEmployment",
+      "owner": "modules/schoolmembership"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e employmentBinding[Profile]) StaffEmployments(ctx context.Context, ids []int64) (map[int64]domain.StaffEmployment, error) {\n\tvalues, err := e.port.StaffEmployments(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]domain.StaffEmployment, len(values))\n\tfor id, value := range values {\n\t\tresult[id] = domain.StaffEmployment(value)\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolmembership/internal/application/employmentBinding[Profile].StaffEmployments",
+      "owner": "modules/schoolmembership"
+    }
+  ]
+}

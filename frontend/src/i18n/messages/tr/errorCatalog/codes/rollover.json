@@ -1,0 +1,9 @@
+{
+  "deadline_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "duplicate_name": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "invalid_request": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "review_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "review_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "source_already_rolled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "source_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+}

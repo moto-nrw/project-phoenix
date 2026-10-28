@@ -1,0 +1,5 @@
+DELETE /api/class-list-entries/{id}
+GET /api/class-list-entries/
+POST /api/class-list-entries/
+POST /api/class-list-entries/{id}/assign
+PUT /api/class-list-entries/{id}

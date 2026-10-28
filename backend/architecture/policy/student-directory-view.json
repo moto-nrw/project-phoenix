@@ -1,0 +1,31 @@
+{
+  "packages": [
+    {
+      "path": "modules/studentdirectoryview/internal/adapters/postgres",
+      "owner": "student-directory-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentdirectoryview/compose",
+      "owner": "student-directory-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "student-directory-view",
+      "package": "modules/studentdirectoryview/internal/adapters/postgres",
+      "data_objects": [
+        "users.student_profiles",
+        "users.student_school_memberships",
+        "users.student_care_profiles",
+        "users.persons"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

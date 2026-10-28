@@ -1,0 +1,6 @@
+{
+  "scenario": "api.auth.tenant_resolve.setting_values",
+  "max": 1,
+  "exact": true,
+  "description": "api/auth — #2065: shell settings prefetch → one config.setting_values read."
+}

@@ -25,12 +25,13 @@ function fixture(t) {
 // each failure must stop the chain, including tools that fail without output.
 for (const name of ['check', 'check:fresh']) {
   test(`${name} propagates each stage failure and stops before later tools`, async t => {
-    const stages = ['scripts/verify-locales.mjs', 'scripts/verify-error-catalog.mjs', 'oxlint', './node_modules/typescript-native/bin/tsc'];
+    const stages = ['scripts/verify-locales.mjs', 'scripts/generate-help-index.mjs', 'test:source-contracts', 'scripts/verify-error-catalog.mjs', 'oxlint', './node_modules/typescript-native/bin/tsc'];
     for (const failed of [...stages, '']) {
       await t.test(failed || 'passing tools with expected error logs', t => {
         const f = fixture(t);
         const tool = `#!/bin/sh
 stage=$1
+[ "$stage" != run ] || stage=$2
 [ "$stage" != . ] || stage=oxlint
 printf '%s\\n' "$stage" >>"$CALL_LOG"
 if [ "$stage" = "$FAILED_STAGE" ]; then exit 7; fi
@@ -38,6 +39,7 @@ echo 'expected error log from a passing tool' >&2
 `;
         f.write('bin/node', tool);
         f.write('bin/oxlint', tool);
+        f.write('bin/pnpm', tool);
         const result = f.run(scripts[name], { FAILED_STAGE: failed }, 'sh');
         assert.equal(result.status, failed ? 7 : 0, result.stdout + result.stderr);
         const last = failed ? stages.indexOf(failed) + 1 : stages.length;

@@ -1,0 +1,48 @@
+{
+  "days": {
+    "label": "Hangi günlerde?",
+    "all": "Her gün",
+    "some": "Sadece belirli günlerde",
+    "pickOne": "Lütfen en az bir gün seçin."
+  },
+  "weekday": {
+    "1": "Pzt",
+    "2": "Sal",
+    "3": "Çar",
+    "4": "Per",
+    "5": "Cum"
+  },
+  "weekdayLong": {
+    "1": "Pazartesi",
+    "2": "Salı",
+    "3": "Çarşamba",
+    "4": "Perşembe",
+    "5": "Cuma"
+  },
+  "signature": {
+    "title": "İzniniz",
+    "procedure": "Çizilmiş imzalı basit bir elektronik imza ile imzalıyorsunuz.",
+    "missing": "Lütfen imzalayın ve „İmzayı onayla“ ya dokunun."
+  },
+  "statement": {
+    "permissionAll": "{person} kişisinin çocuğu her gün OGS'den almasına izin veriyorum.",
+    "permissionSome": "{person} kişisinin çocuğu şu günlerde OGS'den almasına izin veriyorum: {days}.",
+    "day": "{person} kişisinin çocuğu {date} tarihinde OGS'den almasına izin veriyorum.",
+    "aloneDay": "Çocuğun {date} tarihinde eve yalnız gitmesine izin veriyorum.",
+    "aloneWeekly": "Çocuğun şu günlerde eve yalnız gitmesine izin veriyorum: {days}."
+  },
+  "waitsForOgs": "OGS izni onaylar. O zamana kadar izin geçerli değildir.",
+  "pendingBadge": "OGS onayı bekleniyor",
+  "pending": "OGS onayı bekleniyor: {days}",
+  "onlyDays": "Sadece {days}",
+  "requestSent": "Talebiniz OGS'de. Onaylandığında burada göreceksiniz.",
+  "proofPdf": "Belge (PDF)",
+  "errorObjectProof": "Belge",
+  "errorObjectRequest": "Çocuğu alma izni",
+  "pickupPerson": {
+    "label": "Kim alıyor?",
+    "none": "Her zamanki gibi",
+    "hint": "Sadece kişilerinize eklediğiniz kişiler.",
+    "manageLink": "Kişilerinize yeni bir kişi ekleyin"
+  }
+}
