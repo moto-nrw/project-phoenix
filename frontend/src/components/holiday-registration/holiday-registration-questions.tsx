@@ -15,7 +15,7 @@ import {
   isFieldVisible,
 } from "~/lib/enrollment-field-visibility";
 import type { HolidayFormField } from "~/lib/holiday-form-field";
-import type { FieldError } from "./holiday-registration-sections";
+import type { FieldError } from "./holiday-registration-model";
 
 // The calendar is large; only a form with a date question loads it.
 const CustomDateFieldInput = dynamic(

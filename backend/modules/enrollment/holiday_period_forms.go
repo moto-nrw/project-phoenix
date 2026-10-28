@@ -63,9 +63,6 @@ var holidayFormFieldTypes = map[FormFieldType]bool{
 	FormFieldInfo:     true,
 }
 
-// IsHolidayFormFieldType reports whether a holiday form offers the type.
-func IsHolidayFormFieldType(t FormFieldType) bool { return holidayFormFieldTypes[t] }
-
 var (
 	// ErrHolidayFormFieldNotAllowed reports a field type, target, condition
 	// source or attribute the holiday form does not offer.

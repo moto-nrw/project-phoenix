@@ -31,14 +31,12 @@ import {
   type ChildDraft,
   type ContactDraft,
   emptyContact,
+  type FieldError,
   hasRoomForKnownChild,
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
 import { HolidayQuestions } from "./holiday-registration-questions";
-
-/** Hint of a refused field, translated, or undefined. */
-export type FieldError = (name: string) => string | undefined;
 
 /**
  * The label of a field the parent must fill in. Like the enrollment form, a

@@ -74,6 +74,9 @@ export interface RegistrationDraft {
   readonly answers: Readonly<Record<string, unknown>>;
 }
 
+/** Hint of a refused field, translated, or undefined. */
+export type FieldError = (name: string) => string | undefined;
+
 /** The reason a field is refused, as a key of `holidayRegistration.errors`. */
 export type FieldErrorKey =
   | "required"
