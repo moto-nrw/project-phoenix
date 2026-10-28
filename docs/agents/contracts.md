@@ -389,7 +389,9 @@ lock refresh takes first, so a rotation committing during logout is revoked
 with its family, and a switch mints nothing out of a family that is gone.
 `/auth/logout` (tenant, parent, school, caterer, Träger) and
 `/operator/auth/logout` answer 204 only after the revocation committed and
-503 when it failed. Every portal shell revokes through its BFF logout route
+503 when it failed. Operator logout also answers 503 if its bounded deletion
+passes cannot confirm that the family is empty; deleting rows on the last
+pass alone is not confirmation. Every portal shell revokes through its BFF logout route
 (`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
 Auth.js clears the cookie; a failed revocation keeps the session and shows
 the error with a retry, as does the tenant relogin action. Portal cookies
