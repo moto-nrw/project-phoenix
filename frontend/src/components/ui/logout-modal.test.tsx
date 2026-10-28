@@ -8,9 +8,13 @@ import { LogoutModal } from "./logout-modal";
 
 // Mock logout function
 const mockLogout = vi.fn();
+const mockFailureReported = vi.hoisted(() =>
+  vi.fn((_error: unknown): boolean => false),
+);
 
 // Mock shell auth context
 vi.mock("~/lib/shell-auth-context", () => ({
+  logoutFailureReported: mockFailureReported,
   useShellAuth: () => ({
     user: { name: "Test User", email: "test@example.com", roles: [] },
     profile: { firstName: "Test", lastName: "User" },
@@ -208,5 +212,36 @@ describe("LogoutModal", () => {
     );
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it("closes for a failure the shell already reported, so its toast stays usable (#5126)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failure = new Error("Sign out failed");
+    mockLogout.mockRejectedValue(failure);
+    mockFailureReported.mockImplementation((error) => error === failure);
+
+    render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /Abmelden/i }));
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(mockOnClose).toHaveBeenCalledOnce();
+  });
+
+  it("stays open for a failure no shell reported (#5126)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mockLogout.mockRejectedValue(new Error("Sign out failed"));
+    mockFailureReported.mockReturnValue(false);
+
+    render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /Abmelden/i }));
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    // Anker: the modal is still there with a usable button.
+    expect(screen.getByRole("button", { name: "Abmelden" })).toBeEnabled();
+    expect(mockOnClose).not.toHaveBeenCalled();
   });
 });

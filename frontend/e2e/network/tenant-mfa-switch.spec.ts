@@ -253,6 +253,39 @@ test("a hanging sign-out releases the tab and reports a recoverable logout failu
   await expect(page.locator('input[type="email"]')).toBeVisible();
 });
 
+// #5126: the menu logout opens a modal above the toasts. When the sign-out
+// hangs, the modal closes so the failure and its retry stay usable.
+test("a hanging menu logout closes the modal and offers a usable retry", async ({
+  page,
+  context,
+}) => {
+  await login(page, context);
+  await page.route("**/api/auth/signout", () => undefined);
+  await page
+    .locator('button[aria-haspopup="dialog"]')
+    .filter({ hasText: "Test Fixture" })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Abmelden" }).first().click();
+  const modal = page.getByRole("dialog").filter({ hasText: "abmelden?" });
+  await modal.getByRole("button", { name: "Abmelden" }).click();
+  const failure = page
+    .getByRole("alert")
+    .filter({ hasText: "Abmeldung ist gerade nicht erreichbar" });
+  await expect(failure).toBeVisible();
+  await expect(modal).toBeHidden();
+  expect(page.url()).toBe(`${source}/home`);
+  if (process.env.TENANT_SWITCH_SHOT_DIR)
+    await page.screenshot({
+      path: join(process.env.TENANT_SWITCH_SHOT_DIR, "hanging-menu-logout.png"),
+    });
+  await page.unroute("**/api/auth/signout");
+  // A real click: nothing may cover the toast's retry.
+  await failure.getByRole("button", { name: "Wiederholen" }).click();
+  await page.waitForURL(`${source}/`);
+  await expect(page.locator('input[type="email"]')).toBeVisible();
+});
+
 test("a failed Auth.js cookie deletion stops at the target guard and permits explicit recovery", async ({
   page,
   context,

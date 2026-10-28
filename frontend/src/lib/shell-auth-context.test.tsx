@@ -89,6 +89,7 @@ import {
   ParentShellProvider,
   SchoolShellProvider,
   CatererShellProvider,
+  logoutFailureReported,
   useShellAuth,
 } from "./shell-auth-context";
 import { sidebarMemoryKey } from "./sidebar-memory";
@@ -528,7 +529,21 @@ describe("TeacherShellProvider", () => {
       expect(cancelSessionEnd).toHaveBeenCalledOnce();
       expect(mockShowLogoutError).toHaveBeenCalledWith(failure, {
         object: "die Abmeldung",
+        retry: expect.any(Function),
       });
+      // The logout modal closes for a failure the shell already reported.
+      expect(logoutFailureReported(failure)).toBe(true);
+      expect(logoutFailureReported(new Error("other"))).toBe(false);
+      expect(sessionStorage.getItem("deliberateLogout")).toBeNull();
+
+      // The toast's retry runs the whole logout again.
+      const [, options] = mockShowLogoutError.mock.calls[0] as [
+        unknown,
+        { retry: () => void },
+      ];
+      mockSignOut.mockResolvedValueOnce(undefined);
+      options.retry();
+      await vi.waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(2));
     } finally {
       vi.unstubAllGlobals();
     }

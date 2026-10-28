@@ -21,6 +21,16 @@ import { mutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "ShellAuthContext" });
 
+// Logout failures a shell already showed to the person (#5126).
+const reportedLogoutFailures = new WeakSet<object>();
+
+/** Whether the shell already reported this logout failure with a retry. */
+export function logoutFailureReported(error: unknown): boolean {
+  return typeof error === "object" && error !== null
+    ? reportedLogoutFailures.has(error)
+    : false;
+}
+
 interface ShellUser {
   /**
    * Kontokennung der angemeldeten Person. Jede Portal-Hülle löst die Sitzung
@@ -132,66 +142,86 @@ export function TeacherShellProvider({
           ? "authenticated"
           : "unauthenticated";
 
+    const endSession = async (): Promise<void> => {
+      // Mark as deliberate logout so the login page suppresses the
+      // "session expired" banner that NextAuth's required-session
+      // redirect would otherwise trigger (race with useSession).
+      try {
+        sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+      } catch {
+        // sessionStorage unavailable (e.g. private browsing quota)
+      }
+      // Abmelden aus einer laufenden Vorschau beendet zuerst die Vorschau
+      // (#2893): sie endet hier genauso wie per Klick, also gehört ihr Ende
+      // ins Protokoll — und der Aufruf braucht das Admin-Token, das erst das
+      // Zurückschalten wiederherstellt. Danach widerruft der Logout die
+      // Admin-Familie wie gewohnt.
+      if (session?.user?.isPreview) {
+        try {
+          await performEndStaffPreview(update, mutate);
+        } catch (err: unknown) {
+          logger.warn("staff_preview_end_before_logout_failed", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+      // Best-effort: drop this device's Web Push registration while the
+      // session is still valid. Must never block logout.
+      await unsubscribePushSilently("tenant");
+      // Finish backend revocation before clearing the Auth.js cookie. The
+      // response-aware route may persist a just-refreshed session cookie;
+      // awaiting it guarantees signOut remains the final cookie mutation.
+      try {
+        await fetch("/api/auth/logout", {
+          method: "POST",
+          signal: AbortSignal.timeout(5000),
+        });
+      } catch (err: unknown) {
+        logger.warn("backend_logout_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+      // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+      // Gerät (#5000).
+      clearPersonalStorage();
+      clearSessionCache();
+      // A request answered after signOut would set the cookie again.
+      const cancelSessionEnd = await holdRequestsUntilSessionEnds();
+      try {
+        await signOut({ redirect: false });
+      } catch (err: unknown) {
+        cancelSessionEnd();
+        throw err;
+      }
+      window.location.href = "/";
+    };
+    // The tenant shell reports every failed logout itself, with a retry, so
+    // the logout modal only closes (#5126). Still signed in afterwards.
+    const logout = async (): Promise<void> => {
+      try {
+        await endSession();
+      } catch (err: unknown) {
+        try {
+          sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
+        } catch {
+          // sessionStorage unavailable
+        }
+        if (typeof err === "object" && err !== null)
+          reportedLogoutFailures.add(err);
+        void showLogoutError(err, {
+          object: "die Abmeldung",
+          retry: () => void logout().catch(() => undefined),
+        });
+        throw err;
+      }
+    };
+
     return {
       user,
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: async () => {
-        // Mark as deliberate logout so the login page suppresses the
-        // "session expired" banner that NextAuth's required-session
-        // redirect would otherwise trigger (race with useSession).
-        try {
-          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
-        } catch {
-          // sessionStorage unavailable (e.g. private browsing quota)
-        }
-        // Abmelden aus einer laufenden Vorschau beendet zuerst die Vorschau
-        // (#2893): sie endet hier genauso wie per Klick, also gehört ihr Ende
-        // ins Protokoll — und der Aufruf braucht das Admin-Token, das erst das
-        // Zurückschalten wiederherstellt. Danach widerruft der Logout die
-        // Admin-Familie wie gewohnt.
-        if (session?.user?.isPreview) {
-          try {
-            await performEndStaffPreview(update, mutate);
-          } catch (err: unknown) {
-            logger.warn("staff_preview_end_before_logout_failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-        // Best-effort: drop this device's Web Push registration while the
-        // session is still valid. Must never block logout.
-        await unsubscribePushSilently("tenant");
-        // Finish backend revocation before clearing the Auth.js cookie. The
-        // response-aware route may persist a just-refreshed session cookie;
-        // awaiting it guarantees signOut remains the final cookie mutation.
-        try {
-          await fetch("/api/auth/logout", {
-            method: "POST",
-            signal: AbortSignal.timeout(5000),
-          });
-        } catch (err: unknown) {
-          logger.warn("backend_logout_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
-        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
-        // Gerät (#5000).
-        clearPersonalStorage();
-        clearSessionCache();
-        // A request answered after signOut would set the cookie again.
-        const cancelSessionEnd = await holdRequestsUntilSessionEnds();
-        try {
-          await signOut({ redirect: false });
-        } catch (err: unknown) {
-          cancelSessionEnd();
-          // Still signed in: report the failure before the modal allows a retry.
-          void showLogoutError(err, { object: "die Abmeldung" });
-          throw err;
-        }
-        window.location.href = "/";
-      },
+      logout,
       mode: "teacher" as const,
       homeUrl,
       profileUrl: "/profile",
