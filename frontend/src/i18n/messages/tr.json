@@ -1696,6 +1696,7 @@
     "errorObject": "tatil kaydı",
     "window": "Kayıt {opens} ile {closes} arasında",
     "binding": "Kayıt bağlayıcıdır.",
+    "requiredHint": "* ile işaretli alanlar zorunludur.",
     "notesTitle": "Kurumdan notlar",
     "closedTitle": "Kayıt açık değil",
     "closedText": "Çocuğunuzu {opens} ile {closes} arasında kaydedebilirsiniz.",

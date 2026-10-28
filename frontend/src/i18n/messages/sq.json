@@ -1696,6 +1696,7 @@
     "errorObject": "regjistrimin për pushimet",
     "window": "Regjistrimi nga {opens} deri më {closes}",
     "binding": "Regjistrimi është detyrues.",
+    "requiredHint": "Fushat me * janë të detyrueshme.",
     "notesTitle": "Udhëzime nga organizatori",
     "closedTitle": "Regjistrimi nuk është i hapur",
     "closedText": "Mund ta regjistroni fëmijën nga {opens} deri më {closes}.",

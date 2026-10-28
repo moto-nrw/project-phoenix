@@ -729,7 +729,7 @@ describe("InvitationAcceptForm", () => {
   });
 
   describe("Scroll to error and field highlighting", () => {
-    it("scrolls to error when validation fails on missing names", async () => {
+    it("scrolls to the first missing name when validation fails", async () => {
       const scrollIntoViewMock = vi.fn();
       Element.prototype.scrollIntoView = scrollIntoViewMock;
 
@@ -757,8 +757,13 @@ describe("InvitationAcceptForm", () => {
         ).toBeInTheDocument();
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "nearest",
+          block: "center",
         });
+        // FormErrorAlert brings the marked field into view, not itself.
+        expect(scrollIntoViewMock.mock.contexts[0]).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        );
       });
     });
 

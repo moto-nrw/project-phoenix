@@ -97,6 +97,28 @@ describe("validateRegistration", () => {
     });
   });
 
+  it("names the missing fields in the order of the form", () => {
+    // The form focuses the first refused field; it must be the first one
+    // on the screen, not the parent's own fields below the children.
+    expect(
+      Object.keys(validateRegistration(emptyRegistration(), offer)),
+    ).toEqual([
+      "children.0.first_name",
+      "children.0.last_name",
+      "children.0.birth_date",
+      "children.0.home_school_id",
+      "children.0.bookings",
+      "guardian.first_name",
+      "guardian.last_name",
+      "guardian.email",
+      "guardian.phone",
+      "emergency_contacts.0.name",
+      "emergency_contacts.0.phone",
+      "privacy_consent",
+      "binding_confirmed",
+    ]);
+  });
+
   it("asks for the health consent only when a child has health information", () => {
     const draft = complete();
     expect(validateRegistration(draft, offer)).toEqual({});
