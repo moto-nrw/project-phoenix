@@ -7,6 +7,13 @@ import {
 } from "~/test/render-budget";
 
 // Mock dependencies before importing component
+// LogoutModal reports a failed logout through the error path (#5126); these
+// tests render the shell without the root ToastProvider.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useApiErrorDisplay: () => ({ show: vi.fn(), showMessage: vi.fn() }),
+}));
+
 vi.mock("next/navigation", () => ({
   usePathname: vi.fn(),
   useSearchParams: vi.fn(() => ({
