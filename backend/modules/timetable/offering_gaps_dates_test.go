@@ -106,6 +106,23 @@ func TestDetectOfferingGapsNeedsOverlappingDates(t *testing.T) {
 	}
 }
 
+// TestDetectOfferingGapsSkipsClosedDays: the materializer creates no
+// occurrence on a holiday or closing day, and no child is cared for there,
+// so a booked closed day is no gap. An open day without an occurrence is.
+func TestDetectOfferingGapsSkipsClosedDays(t *testing.T) {
+	t.Parallel()
+	booking := mondayBooking(datePtr(calendar.NewDate(2030, 11, 4)), datePtr(calendar.NewDate(2030, 12, 1)))
+	templates := randstundeTemplate(november)
+	holiday := calendar.NewDate(2030, 11, 11)
+	delete(templates[0].Occurrences, holiday)
+
+	require.Len(t, DetectOfferingGaps(datesScope, templates, booking), 1, "an open Monday without an occurrence is a gap")
+
+	scope := datesScope
+	scope.ClosedDays = map[calendar.Date]bool{holiday: true}
+	assert.Empty(t, DetectOfferingGaps(scope, templates, booking))
+}
+
 // TestDetectOfferingGapsPerLinkWindow: a child whose first link books Monday
 // until November and whose second link books Wednesday from December on is
 // checked link by link, not with the union of both weekdays over the year.
