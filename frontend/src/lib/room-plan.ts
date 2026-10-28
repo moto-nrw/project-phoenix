@@ -5,6 +5,7 @@
 // -helpers, -types): die Raumseite trägt sonst deren ganzes Bundle (#4768).
 
 import {
+  berlinTodayISO,
   careWeekDayCount,
   isCareWeekendDay,
   parseISODate,
@@ -114,8 +115,12 @@ function shiftDays(iso: string, days: number): string {
  * folgende Montag, außer die Schule betreut das Wochenende nach dem
  * Freitagsplan (#3921) und es ist das heutige Wochenende (#5028).
  */
-export function roomPlanCareDay(iso: string, weekendOpen: boolean): string {
-  if (isCareWeekendDay(iso, weekendOpen)) return iso;
+export function roomPlanCareDay(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): string {
+  if (isCareWeekendDay(iso, weekendOpen, todayISO)) return iso;
   const weekday = parseISODate(iso).getDay();
   if (weekday === 6) return shiftDays(iso, 2);
   if (weekday === 0) return shiftDays(iso, 1);
@@ -127,11 +132,12 @@ export function roomPlanStepDay(
   iso: string,
   direction: 1 | -1,
   weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
 ): string {
   let next = shiftDays(iso, direction);
   while (
     [0, 6].includes(parseISODate(next).getDay()) &&
-    !isCareWeekendDay(next, weekendOpen)
+    !isCareWeekendDay(next, weekendOpen, todayISO)
   ) {
     next = shiftDays(next, direction);
   }

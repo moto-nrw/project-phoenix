@@ -43,7 +43,7 @@ export type { RoomPlanView } from "./room-plan-navigation";
 function useRoomPlanDays(view: RoomPlanView, anchorISO: string) {
   const weekendOpen = useWeekendFollowsFriday();
   const todayISO = useBerlinToday();
-  const dayISO = roomPlanCareDay(anchorISO, weekendOpen);
+  const dayISO = roomPlanCareDay(anchorISO, weekendOpen, todayISO);
   return useMemo(() => {
     if (view === "tag") {
       return { dayISO, days: [dayISO], todayISO, weekendOpen };
@@ -85,7 +85,7 @@ export function RoomPlanControls({
     view,
     anchorISO,
   );
-  const todayTarget = roomPlanCareDay(todayISO, weekendOpen);
+  const todayTarget = roomPlanCareDay(todayISO, weekendOpen, todayISO);
   const showsToday = days.includes(todayTarget);
   const label =
     view === "tag"
@@ -97,7 +97,9 @@ export function RoomPlanControls({
 
   const step = (direction: 1 | -1) => {
     if (view === "tag") {
-      onChange({ d: roomPlanStepDay(dayISO, direction, weekendOpen) });
+      onChange({
+        d: roomPlanStepDay(dayISO, direction, weekendOpen, todayISO),
+      });
       return;
     }
     onChange({ d: roomPlanStepWeek(days[0]!, direction) });

@@ -8,6 +8,7 @@
  */
 
 import {
+  berlinTodayISO,
   formatDate,
   isCareWeekendDay,
   parseISODate,
@@ -369,23 +370,37 @@ export function previousWorkdayISO(iso: string): string {
  * (operations.weekend_follows_friday, #3921) und es ist das heutige
  * Wochenende (#5028, `isCareWeekendDay`).
  */
-export function careDayISO(iso: string, weekendOpen: boolean): string {
-  return isCareWeekendDay(iso, weekendOpen) ? iso : nextWorkdayISO(iso);
+export function careDayISO(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): string {
+  return isCareWeekendDay(iso, weekendOpen, todayISO)
+    ? iso
+    : nextWorkdayISO(iso);
 }
 
 /** Der nächste Betreuungstag nach `iso` (siehe `careDayISO`). */
-export function nextCareDayISO(iso: string, weekendOpen: boolean): string {
+export function nextCareDayISO(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() + 1);
-  return careDayISO(toISODate(d), weekendOpen);
+  return careDayISO(toISODate(d), weekendOpen, todayISO);
 }
 
 /** Der Betreuungstag vor `iso` (siehe `careDayISO`). */
-export function previousCareDayISO(iso: string, weekendOpen: boolean): string {
+export function previousCareDayISO(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() - 1);
   const previousISO = toISODate(d);
-  return isCareWeekendDay(previousISO, weekendOpen)
+  return isCareWeekendDay(previousISO, weekendOpen, todayISO)
     ? previousISO
     : previousWorkdayISO(iso);
 }

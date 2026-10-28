@@ -81,12 +81,17 @@ const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
  * weekend on Friday's plan (operations.weekend_follows_friday, #3921) and it
  * is today's weekend (#5028, `isCareWeekendDay`).
  */
-function stepWeekday(iso: string, dir: 1 | -1, weekendOpen: boolean): string {
+function stepWeekday(
+  iso: string,
+  dir: 1 | -1,
+  weekendOpen: boolean,
+  todayISO: string,
+): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() + dir);
   while (
     (d.getDay() === 0 || d.getDay() === 6) &&
-    !isCareWeekendDay(toISODate(d), weekendOpen)
+    !isCareWeekendDay(toISODate(d), weekendOpen, todayISO)
   ) {
     d.setDate(d.getDate() + dir);
   }
@@ -333,7 +338,7 @@ export function CarePlanView({
               <NavButton
                 ariaLabel="Vorheriger Tag"
                 onClick={() =>
-                  setSelectedDate((d) => stepWeekday(d, -1, weekendOpen))
+                  setSelectedDate((d) => stepWeekday(d, -1, weekendOpen, today))
                 }
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -355,7 +360,7 @@ export function CarePlanView({
               <NavButton
                 ariaLabel="Nächster Tag"
                 onClick={() =>
-                  setSelectedDate((d) => stepWeekday(d, 1, weekendOpen))
+                  setSelectedDate((d) => stepWeekday(d, 1, weekendOpen, today))
                 }
               >
                 <span className="hidden sm:inline">Nächster Tag</span>

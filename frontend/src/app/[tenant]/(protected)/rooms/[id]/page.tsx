@@ -204,7 +204,11 @@ function RoomDetailPageContent() {
     rawPlanDay !== null && isValidISODate(rawPlanDay) ? rawPlanDay : todayISO;
   // Der Reiter zeigt Wochenend-Deeplinks ohne Wochenendbetreuung ab Montag.
   // Der Druck muss dieselbe angezeigte Woche verwenden.
-  const planExportDayISO = roomPlanCareDay(planAnchorISO, weekendOpen);
+  const planExportDayISO = roomPlanCareDay(
+    planAnchorISO,
+    weekendOpen,
+    todayISO,
+  );
   const planView = parseRoomPlanView(searchParams.get("view"));
   const planHref = useRoomPlanHref(
     roomId,

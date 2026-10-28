@@ -24,6 +24,7 @@ import {
   formatBerlinDate,
   relativeDaysLabel,
   careWeekDayCount,
+  isCareWeekendDay,
 } from "./date-helpers";
 import { setTestClock } from "~/test/clock";
 
@@ -719,5 +720,11 @@ describe("careWeekDayCount", () => {
     // Monday 00:30 Berlin is still Sunday in UTC.
     setTestClock("2026-09-14T00:30:00+02:00");
     expect(careWeekDayCount("2026-09-07", true)).toBe(5);
+  });
+
+  it("uses the supplied Berlin date for weekend-day navigation", () => {
+    setTestClock("2026-09-12T00:01:00+02:00"); // Samstag
+    expect(isCareWeekendDay("2026-09-12", true, "2026-09-11")).toBe(false);
+    expect(isCareWeekendDay("2026-09-12", true, "2026-09-12")).toBe(true);
   });
 });

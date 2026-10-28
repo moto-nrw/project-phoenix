@@ -319,7 +319,7 @@ function TimetablesContent() {
   // anchors to Monday.
   const dayISO =
     view === "week" || view === "day"
-      ? careDayISO(requestedDayISO, weekendOpen)
+      ? careDayISO(requestedDayISO, weekendOpen, todayISO)
       : requestedDayISO;
   const selectedInstanceId = params.block;
   // Gruppen- und Personenfilter (#4766). Ungültige Werte fallen still weg;
@@ -344,7 +344,7 @@ function TimetablesContent() {
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
   const todayTargetISO = useMemo(
-    () => careDayISO(todayISO, weekendOpen),
+    () => careDayISO(todayISO, weekendOpen, todayISO),
     [todayISO, weekendOpen],
   );
 
@@ -433,11 +433,11 @@ function TimetablesContent() {
     (direction: 1 | -1) => {
       const target =
         direction === 1
-          ? nextCareDayISO(dayISO, weekendOpen)
-          : previousCareDayISO(dayISO, weekendOpen);
+          ? nextCareDayISO(dayISO, weekendOpen, todayISO)
+          : previousCareDayISO(dayISO, weekendOpen, todayISO);
       updateUrlParams({ d: target, block: null });
     },
-    [dayISO, updateUrlParams, weekendOpen],
+    [dayISO, todayISO, updateUrlParams, weekendOpen],
   );
   const goToToday = useCallback(
     () =>
@@ -473,11 +473,11 @@ function TimetablesContent() {
     (dateISO: string) => {
       updateUrlParams({
         view: null,
-        d: careDayISO(dateISO, weekendOpen),
+        d: careDayISO(dateISO, weekendOpen, todayISO),
         block: null,
       });
     },
-    [updateUrlParams, weekendOpen],
+    [todayISO, updateUrlParams, weekendOpen],
   );
 
   // Beim Schließen darf `block` nicht der letzte Plan-Parameter sein: die
@@ -902,7 +902,7 @@ function TimetablesContent() {
       assignment.period !== null &&
       (view !== "month" ||
         assignment.date.slice(0, 7) === dayISO.slice(0, 7)) &&
-      careDayISO(assignment.date, weekendOpen) === assignment.date,
+      careDayISO(assignment.date, weekendOpen, todayISO) === assignment.date,
   )?.date;
   const planningDisabledDateISOs = useMemo(
     () =>
@@ -2059,7 +2059,7 @@ function TimetablesContent() {
         }}
         defaultDate={
           quickPrefill
-            ? careDayISO(quickPrefill.date, weekendOpen)
+            ? careDayISO(quickPrefill.date, weekendOpen, todayISO)
             : (firstCoveredDateISO ?? dayISO)
         }
         closingDayRanges={closingDayRanges}

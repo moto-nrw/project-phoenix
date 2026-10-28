@@ -214,6 +214,7 @@ function VertretungContent() {
   const dayISO = careDayISO(
     rawDay !== null && isValidISODate(rawDay) ? rawDay : today,
     weekendOpen,
+    today,
   );
   const selectedInstanceId = params.block;
   const historyOpen = params.verlauf === "1";
@@ -226,7 +227,7 @@ function VertretungContent() {
   // Ziel des Heute-Buttons: am Wochenende der nächste Montag, außer die
   // Schule betreut dort nach dem Freitagsplan. `today` selbst bleibt überall
   // sonst der echte Kalendertag (isPast, Gaps-Klemmung).
-  const todayTarget = careDayISO(today, weekendOpen);
+  const todayTarget = careDayISO(today, weekendOpen, today);
 
   // Woche, die `d` enthält. Immer über den Montag ankern, nie
   // getWeekdays(parseISODate(d)) direkt: getWeekdays validiert nicht, dass

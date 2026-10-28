@@ -154,10 +154,14 @@ function mondayOfWeekISO(iso: string): string {
  * in the week of today's weekend, by the same rule as `careWeekDayCount`.
  * Day navigation uses it so a selected day never falls outside its grid.
  */
-export function isCareWeekendDay(iso: string, weekendOpen: boolean): boolean {
+export function isCareWeekendDay(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): boolean {
   const weekday = parseISODate(iso).getDay();
   if (weekday !== 0 && weekday !== 6) return false;
-  return careWeekDayCount(iso, weekendOpen) === 7;
+  return careWeekDayCount(iso, weekendOpen, todayISO) === 7;
 }
 
 /** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */
