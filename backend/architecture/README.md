@@ -937,8 +937,19 @@ scripts/backend-architecture.sh dependencies \
 scripts/backend-architecture.sh cycles
 ```
 
-`effects` regenerates `backend/architecture/command-effects.json` for every
-policy domain source owner, preserving only exact reviewed identities. Review
+`effects` regenerates the `backend/architecture/command-effects.json` descriptor
+and owner-local `command-effects/{reviews,evidence}/<owner>.json` fragments for
+every policy domain source owner, preserving only exact reviewed identities.
+Review labels and reasons live in `reviews`, frozen binding digests in `evidence`;
+observed evidence never approves a classification. The equivalent pass-through
+layout is `passthrough/{reviews,evidence}/<owner>.json`. Loaders reject missing,
+duplicate, misplaced and orphan fragments before immutable-base comparisons.
+
+Policy metadata and owner definitions remain in `policy.json`; packages, rules,
+data objects and read projections live in `policy/<owner>.json`. All consumers
+compose the full policy before global ownership, dependency and cycle checks.
+Use `scripts/backend-architecture.sh policy-export` when a tool needs materialized
+JSON rather than parsing the descriptor with `jq`. Review
 all new `unknown` labels before running `check`; do not label locking/audited
 reads as queries. `check` enforces canonical generator JSON and one effect per
 target method without rewriting files. E1–E5, workflow-backed bindings, known

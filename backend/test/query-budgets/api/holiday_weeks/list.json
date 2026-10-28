@@ -1,0 +1,6 @@
+{
+  "scenario": "api.holiday_weeks.list",
+  "max": 2,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-weeks (#4665, ADR 0116): the\ntenant binding of the school's transaction, then the weeks the school\nhosts with their confirmed children counted. Flat in the number of\nweeks and children."
+}

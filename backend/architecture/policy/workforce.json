@@ -1,0 +1,595 @@
+{
+  "packages": [
+    {
+      "path": "modules/workforce/contracttest",
+      "owner": "workforce",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/workforce/workforcetest",
+      "owner": "workforce",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/openingbalance",
+      "owner": "workforce",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/http/absencetypes",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/workforce/http/shifttypes",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/workforce/http/staffshifts",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/workforce/http/substitutions",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/workforce/http/worktimemodels",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/workforce/internal/adapters/workforcepostgres",
+      "owner": "workforce",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce",
+      "owner": "workforce",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/compose",
+      "owner": "workforce",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/adapters/postgres",
+      "owner": "workforce",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/application",
+      "owner": "workforce",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/domain",
+      "owner": "workforce",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/ports",
+      "owner": "workforce",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/adapters/substitutions",
+      "owner": "workforce",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/application/timetracking",
+      "owner": "workforce",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/http/timetracking",
+      "owner": "workforce",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/workforce/internal/planning",
+      "owner": "workforce",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "active.staff_absence_audit",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_absence_type_allowance_changes",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_absence_type_allowances",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_absence_types",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_absences",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_balance_adjustments",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_month_balance_snapshots",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_vacation_openings",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_vacation_quota",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.staff_vacation_quota_changes",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.work_session_breaks",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "active.work_sessions",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "config.staff_work_schedules",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "config.staff_target_overrides",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "config.work_time_model_entries",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "config.work_time_models",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "education.group_substitution",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "schedule.shift_types",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "schedule.staff_shift_series",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "schedule.staff_shift_series_exceptions",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "schedule.staff_shifts",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_employment_profiles",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_document_file_cleanup",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_offboarding_cleanup",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_documents",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_financial_data",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_master_data",
+      "write_owner": "workforce"
+    },
+    {
+      "name": "users.staff_qualifications",
+      "write_owner": "workforce"
+    }
+  ],
+  "rules": [
+    {
+      "id": "workforce.domain.vacation-opening-contract",
+      "description": "Validate import and native ledger takeovers with the same Workforce value contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "domain",
+      "target_owner": "workforce",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.port-domain",
+      "description": "Workforce ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "workforce.compose.orm-sql",
+      "description": "Workforce composition supplies the concrete Bun database dependency and preserves the legacy no-rows error value.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.compose.tenant-runtime",
+      "description": "Workforce composition resolves the ambient tenant transaction and the staff balance lock through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.compose.security-contract",
+      "description": "Workforce HTTP composition supplies the established time-tracking permission.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.integration-test.support",
+      "description": "Workforce integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "workforce.adapter.public",
+      "description": "Workforce compatibility and inbound adapters call the public Workforce capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.adapter.orm-sql",
+      "description": "Workforce adapters preserve the legacy no-rows error value and pass the concrete Bun database to the shared tenant middleware.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "workforce.behaviour-test.settings-support",
+      "description": "The time-tracking export and schedule adapter suites script a school's payroll and work-schedule settings through the settings test support (#3213, #3413).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "settings-platform",
+      "target_role": "test-support"
+    },
+    {
+      "id": "workforce.http.public",
+      "description": "The Workforce shift-planning HTTP composition serves and calls the public Workforce contracts.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.http.tenant-runtime.common",
+      "description": "The Workforce shift-planning HTTP composition binds shared tenant middleware, response rendering and the plan export permission check.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "workforce.http.security-contract",
+      "description": "The Workforce shift-planning HTTP composition supplies the established time-tracking, schedule and user permissions.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.http.tenant-runtime",
+      "description": "The Workforce shift-planning HTTP composition marks the request transaction for rollback after a rejected plan change.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.student-presence-public",
+      "description": "The time-tracking services (modules/workforce/internal/application/timetracking) name the session and supervision records of the public Student Presence contract for the checkout that ends open supervisions (#3422, #3413).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.school-calendar.public",
+      "description": "The Workforce planning commands ask the School Calendar's public contract for the A/B-week decision (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.timetable-activities.public",
+      "description": "The Dienstplan overview takes the shift-coverage interval math and the calendar-week helpers from the Timetable owner's public contract (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.module-internal-test.timetable-activities.public",
+      "description": "The Dienstplan overview suites assert the Timetable owner's public coverage intervals (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.module-behavior-test.timetable-activities.public",
+      "description": "The Workforce planning contract suite builds overviews over the Timetable owner's public coverage intervals (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.delivery-public",
+      "description": "The Workforce planning commands hold the tenant-wide SSE broadcaster (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.document-rendering-public",
+      "description": "The planning facade renders the printable Dienstplan through the public plan export capability (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.tenant-runtime",
+      "description": "The Workforce planning commands read the tenant id and register after-commit work (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.application.transaction-runtime",
+      "description": "Workforce application code keeps the retained not-found shape through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.compose.document-rendering-public",
+      "description": "Workforce composition binds the plan export capability to the planning facade (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.compose.delivery-public",
+      "description": "Workforce composition binds the SSE broadcaster to the planning commands (#3418).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.behaviour-test.subject",
+      "description": "The Workforce planning behaviour suites drive the planning package they moved with (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "same_owner": true,
+      "target_role": "application"
+    },
+    {
+      "id": "workforce.behaviour-test.document-rendering-public",
+      "description": "The planning contract suite renders the printable plan through the public plan export capability (#3418).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.behaviour-test.tenant-runtime",
+      "description": "The Workforce planning behaviour suites run inside a tenant context.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-behavior-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.internal-test.delivery-public",
+      "description": "The shift broadcast unit suites record the SSE events.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.internal-test.tenant-runtime",
+      "description": "The Workforce planning unit suites run inside a tenant context.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "workforce.e2e-test.school-structure-contract",
+      "description": "Consumes the storage-neutral School Structure contract (#3555).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "workforce",
+      "source_role": "e2e-test",
+      "target_owner": "school-structure",
+      "target_role": "contract"
+    },
+    {
+      "id": "workforce.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "workforce",
+      "source_role": "postgres",
+      "source_package": "modules/workforce/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    }
+  ]
+}

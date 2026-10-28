@@ -1,0 +1,11 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {\n\tr.With(common.RequiresAnyPermission(permissions.UsersRead, permissions.StudentsRead), withTx).Get(\"/ogs-group-live\", rs.getOGSGroupLive)\n\tr.With(withTx).Get(\"/ogs-group-navigation\", common.Fetch(func(ctx context.Context) ([]grouplive.Group, error) {\n\t\tif rs.OGSGroupLiveService == nil {\n\t\t\treturn nil, errors.New(\"OGS group live service is not configured\")\n\t\t}\n\t\treturn rs.OGSGroupLiveService.ListGroups(ctx)\n\t}, common.ErrorInternalServer, \"OGS group navigation retrieved successfully\"))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/grouplive/http/Resource.Register",
+      "owner": "modules/grouplive"
+    }
+  ]
+}

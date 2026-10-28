@@ -1,0 +1,14 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/jwtauth/v5.Verify# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/inbound/operator.RequiresOperatorScope > api.SecurityPrincipalMiddleware > modules/identityaccess/inbound/operator.RequiresActiveOperator#
+	DELETE /operator/accounts/{accountId}/tenants/{tenantId}
+	GET /operator/accounts
+	GET /operator/accounts/{accountId}/mfa/global-override
+	GET /operator/accounts/{accountId}/tenants
+	GET /operator/accounts/{accountId}/tenants/
+	GET /operator/accounts/{accountId}/tenants/{tenantId}/roles
+	POST /operator/accounts/{accountId}/tenants
+	POST /operator/accounts/{accountId}/tenants/
+	PUT /operator/accounts/{accountId}/mfa/global-override
+	PUT /operator/accounts/{accountId}/tenants/{tenantId}

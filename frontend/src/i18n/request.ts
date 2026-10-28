@@ -12,11 +12,12 @@ import {
   type Messages,
 } from "./locale-resolution";
 
+import { messageLoaders } from "./messages/loaders.generated";
+
 async function loadMessages(locale: AppLocale): Promise<Messages> {
-  const fallback = (await import("./messages/de.json")).default as Messages;
+  const fallback = (await messageLoaders.de()).default as Messages;
   if (locale === DEFAULT_LOCALE) return fallback;
-  const selected = (await import(`./messages/${locale}.json`))
-    .default as Messages;
+  const selected = (await messageLoaders[locale]()).default as Messages;
   return mergeMessages(fallback, selected);
 }
 

@@ -1,0 +1,151 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountAppointmentRecipientStudents(ctx context.Context, studentID int64) (result int, err error) {\n\tif studentID \u003c= 0 {\n\t\treturn 0, invalid(\"student ID is required\")\n\t}\n\terr = s.runUnit(ctx, \"count_appointment_recipient_students\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.CountAppointmentRecipientStudents(ctx, studentID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.CountAppointmentRecipientStudents",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteAppointment(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"appointment ID is required\")\n\t}\n\treturn s.runUnit(ctx, \"delete_appointment\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.DeleteAppointment(ctx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.DeleteAppointment",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteOccurrenceOverrides(ctx context.Context, appointmentID int64) error {\n\tif appointmentID \u003c= 0 {\n\t\treturn invalid(\"appointment ID is required\")\n\t}\n\treturn s.runUnit(ctx, \"delete_occurrence_overrides\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.DeleteOccurrenceOverrides(ctx, appointmentID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.DeleteOccurrenceOverrides",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteRecurrenceRule(ctx context.Context, appointmentID int64) error {\n\tif appointmentID \u003c= 0 {\n\t\treturn invalid(\"appointment ID is required\")\n\t}\n\treturn s.runUnit(ctx, \"delete_recurrence_rule\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.DeleteRecurrenceRule(ctx, appointmentID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.DeleteRecurrenceRule",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindAppointmentRecipient(ctx context.Context, recipientID int64) (result *appointments.AppointmentRecipient, err error) {\n\tif recipientID \u003c= 0 {\n\t\treturn nil, invalid(\"appointment recipient ID is required\")\n\t}\n\terr = s.runUnit(ctx, \"find_appointment_recipient\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindAppointmentRecipient(ctx, recipientID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindAppointmentRecipient",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindAppointmentRecipientStudents(ctx context.Context, recipientIDs []int64) (result []*appointments.AppointmentRecipientStudent, err error) {\n\trecipientIDs = positiveIDs(recipientIDs)\n\tif len(recipientIDs) == 0 {\n\t\treturn []*appointments.AppointmentRecipientStudent{}, nil\n\t}\n\terr = s.runUnit(ctx, \"find_appointment_recipient_students\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindAppointmentRecipientStudents(ctx, recipientIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindAppointmentRecipientStudents",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindAppointmentTargets(ctx context.Context, appointmentID int64) (result []*appointments.AppointmentTarget, err error) {\n\tif appointmentID \u003c= 0 {\n\t\treturn nil, invalid(\"appointment ID is required\")\n\t}\n\terr = s.runUnit(ctx, \"find_appointment_targets\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindAppointmentTargets(ctx, appointmentID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindAppointmentTargets",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindCancelledOccurrenceOverrides(ctx context.Context, appointmentIDs []int64) (result []*appointments.AppointmentOccurrenceOverride, err error) {\n\tappointmentIDs = positiveIDs(appointmentIDs)\n\terr = s.runUnit(ctx, \"find_cancelled_occurrence_overrides\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindCancelledOccurrenceOverrides(ctx, appointmentIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindCancelledOccurrenceOverrides",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindOccurrenceOverrides(ctx context.Context, appointmentIDs []int64, dates []appointments.Date) (result []*appointments.AppointmentOccurrenceOverride, err error) {\n\tappointmentIDs = positiveIDs(appointmentIDs)\n\terr = s.runUnit(ctx, \"find_occurrence_overrides\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindOccurrenceOverrides(ctx, appointmentIDs, dates)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindOccurrenceOverrides",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindOccurrenceOverridesByStartDates(ctx context.Context, appointmentIDs []int64, dates []appointments.Date) (result []*appointments.AppointmentOccurrenceOverride, err error) {\n\tappointmentIDs = positiveIDs(appointmentIDs)\n\tif len(appointmentIDs) == 0 || len(dates) == 0 {\n\t\treturn []*appointments.AppointmentOccurrenceOverride{}, nil\n\t}\n\terr = s.runUnit(ctx, \"find_occurrence_overrides_by_start_date\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindOccurrenceOverridesByStartDates(ctx, appointmentIDs, dates)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindOccurrenceOverridesByStartDates",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindRecurrenceRule(ctx context.Context, appointmentID int64) (result *appointments.RecurrenceRule, err error) {\n\tif appointmentID \u003c= 0 {\n\t\treturn nil, invalid(\"appointment ID is required\")\n\t}\n\terr = s.runUnit(ctx, \"find_recurrence_rule\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindRecurrenceRule(ctx, appointmentID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindRecurrenceRule",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindRecurrenceRules(ctx context.Context, appointmentIDs []int64) (result []*appointments.RecurrenceRule, err error) {\n\tappointmentIDs = positiveIDs(appointmentIDs)\n\tif len(appointmentIDs) == 0 {\n\t\treturn []*appointments.RecurrenceRule{}, nil\n\t}\n\terr = s.runUnit(ctx, \"find_recurrence_rules\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindRecurrenceRules(ctx, appointmentIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindRecurrenceRules",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindReminderCandidateForUpdate(ctx context.Context, id int64) (result *appointments.Appointment, err error) {\n\tif id \u003c= 0 {\n\t\treturn nil, invalid(\"appointment ID is required\")\n\t}\n\terr = s.run(ctx, \"lock_reminder_candidate\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindReminderCandidateForUpdate(ctx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindReminderCandidateForUpdate",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindReminderCandidatesForUpdate(ctx context.Context, ids []int64) (result []*appointments.Appointment, err error) {\n\tids = positiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn []*appointments.Appointment{}, nil\n\t}\n\terr = s.run(ctx, \"lock_reminder_candidates\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.FindReminderCandidatesForUpdate(ctx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.FindReminderCandidatesForUpdate",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListAppointmentsVisibleToGuardians(ctx context.Context, guardianIDs, studentIDs []int64, from, to appointments.Date) (result []*appointments.Appointment, err error) {\n\tif from.IsZero() || to.IsZero() || to.Before(from) {\n\t\treturn nil, invalid(\"a valid appointment window is required\")\n\t}\n\tguardianIDs, studentIDs = positiveIDs(guardianIDs), positiveIDs(studentIDs)\n\terr = s.runUnit(ctx, \"list_guardian_appointments\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListAppointmentsVisibleToGuardians(ctx, guardianIDs, studentIDs, from, to)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.ListAppointmentsVisibleToGuardians",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListAppointmentsVisibleToStaff(ctx context.Context, staffID int64, from, to appointments.Date) (result []*appointments.Appointment, err error) {\n\tif staffID \u003c= 0 || from.IsZero() || to.IsZero() || to.Before(from) {\n\t\treturn nil, invalid(\"staff ID and a valid appointment window are required\")\n\t}\n\terr = s.runUnit(ctx, \"list_staff_appointments\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListAppointmentsVisibleToStaff(ctx, staffID, from, to)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.ListAppointmentsVisibleToStaff",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListGuardianCancellationTombstones(ctx context.Context, guardianIDs, studentIDs []int64, since time.Time) (result []*appointments.Appointment, err error) {\n\tif since.IsZero() {\n\t\treturn nil, invalid(\"tombstone cutoff is required\")\n\t}\n\tguardianIDs, studentIDs = positiveIDs(guardianIDs), positiveIDs(studentIDs)\n\terr = s.runUnit(ctx, \"list_guardian_cancellation_tombstones\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListGuardianCancellationTombstones(ctx, guardianIDs, studentIDs, since)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.ListGuardianCancellationTombstones",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListGuardianReminderCandidates(ctx context.Context, from, to appointments.Date) (result []*appointments.Appointment, err error) {\n\tif from.IsZero() || to.IsZero() || to.Before(from) {\n\t\treturn nil, invalid(\"a valid reminder window is required\")\n\t}\n\terr = s.runUnit(ctx, \"list_guardian_reminder_candidates\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListGuardianReminderCandidates(ctx, from, to)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.ListGuardianReminderCandidates",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStaffCancellationTombstones(ctx context.Context, staffID int64, since time.Time) (result []*appointments.Appointment, err error) {\n\tif staffID \u003c= 0 || since.IsZero() {\n\t\treturn nil, invalid(\"staff ID and tombstone cutoff are required\")\n\t}\n\terr = s.runUnit(ctx, \"list_staff_cancellation_tombstones\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListStaffCancellationTombstones(ctx, staffID, since)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.ListStaffCancellationTombstones",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReleaseReminderPushDelivery(ctx context.Context, appointmentID int64, revision int, occurrenceDate appointments.Date, guardianProfileID int64) error {\n\tif appointmentID \u003c= 0 || revision \u003c 0 || occurrenceDate.IsZero() || guardianProfileID \u003c= 0 {\n\t\treturn invalid(\"appointment ID, revision, occurrence date, and guardian profile ID are required\")\n\t}\n\treturn s.runUnit(ctx, \"release_reminder_push_delivery\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t_, queryStats, err := s.store.ReleaseReminderPushDelivery(ctx, appointmentID, revision, occurrenceDate, guardianProfileID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.ReleaseReminderPushDelivery",
+      "owner": "modules/appointments"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SoftDeleteAppointment(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"appointment ID is required\")\n\t}\n\treturn s.runUnit(ctx, \"soft_delete_appointment\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.SoftDeleteAppointment(ctx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/appointments/internal/application/Service.SoftDeleteAppointment",
+      "owner": "modules/appointments"
+    }
+  ]
+}

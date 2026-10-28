@@ -1,0 +1,5 @@
+GET /operator/billing/key-date-counts
+GET /operator/billing/key-date-counts/export
+GET /operator/billing/key-day
+POST /operator/billing/key-date-counts/seed
+PUT /operator/billing/key-day

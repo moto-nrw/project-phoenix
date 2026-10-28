@@ -1,0 +1,130 @@
+{
+  "codes": [
+    {
+      "code": "communication.announcement_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.announcement_not_found"
+    },
+    {
+      "code": "communication.announcement_not_published",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "announcement_not_published"
+    },
+    {
+      "code": "communication.announcement_published_immutable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "announcement_published_immutable"
+    },
+    {
+      "code": "communication.announcement_reminder_sent",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "announcement_reminder_sent"
+    },
+    {
+      "code": "communication.declaration_has_submissions",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "declaration_has_submissions"
+    },
+    {
+      "code": "communication.group_thread_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_closed"
+    },
+    {
+      "code": "communication.group_thread_no_recipients",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.group_thread_no_recipients"
+    },
+    {
+      "code": "communication.survey_already_answered",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.survey_already_answered"
+    },
+    {
+      "code": "communication.survey_anonymous",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.survey_anonymous"
+    },
+    {
+      "code": "communication.survey_not_draft",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.survey_not_draft"
+    },
+    {
+      "code": "communication.survey_not_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.survey_not_open"
+    },
+    {
+      "code": "communication.notifications_disabled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.notifications_disabled"
+    },
+    {
+      "code": "communication.parent_news_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "parent_news_disabled"
+    },
+    {
+      "code": "communication.poll_not_open",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "poll_not_open"
+    },
+    {
+      "code": "communication.staff_counterpart_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "staff_counterpart_unavailable"
+    },
+    {
+      "code": "communication.staff_messaging_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "staff_messaging_disabled"
+    },
+    {
+      "code": "communication.staff_notice_outdated",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.staff_notice_outdated"
+    },
+    {
+      "code": "communication.class_letter_class_not_reachable",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "communication.class_letter_class_not_reachable"
+    },
+    {
+      "code": "communication.class_letter_read_only",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "communication.class_letter_read_only"
+    },
+    {
+      "code": "communication.leadership_messages_unavailable",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "communication.leadership_messages_unavailable"
+    },
+    {
+      "code": "communication.system_announcement_immutable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "system_announcement_immutable"
+    }
+  ]
+}

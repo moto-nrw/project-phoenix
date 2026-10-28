@@ -1,0 +1,74 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/BlockStartBinding.EarliestPlannedBlockStartForClass",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/CallerBinding.CurrentStaffID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/CareDayBinding.ResolveForDate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/ClassArrivalExceptionBinding.DeleteClassArrivalException",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/ClassArrivalExceptionBinding.ListClassArrivalExceptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/ClassArrivalExceptionBinding.UpsertClassArrivalException",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/EffectiveTimeBinding.ArrivalTimes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/EffectiveTimeBinding.PickupTimes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/MappedError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/PickupBaselineBinding.RegularPickupTimes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/arrivalExceptions.ClearArrivalException",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/arrivalExceptions.EarliestBlockStart",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/arrivalExceptions.MayWriteArrivalExceptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/classday/internal/application/classDayService.ResolveClass",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

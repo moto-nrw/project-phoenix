@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.classday.slot_list.build",
+  "max": 16,
+  "exact": false,
+  "description": "modules/classday — one slot reconciliation over the owner facades\ninside its tenant transaction, 3 and then 8 planned children (#2701).\nEvery read is a bulk load by ID set; the count must not move with the\nroster."
+}

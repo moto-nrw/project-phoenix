@@ -1,0 +1,93 @@
+{
+  "switcherLabel": "Choose a child",
+  "overviewKicker": "Children at a glance",
+  "overviewDescription": "Choose a child to view care, details and contacts.",
+  "ogsLabel": "OGS",
+  "careEnded": {
+    "title": "Care has ended",
+    "body": "Your child is no longer in care at this school. You can still view everything from before. New reports are no longer possible."
+  },
+  "notFound": "There is no child at this address in your account. Please choose your child from the overview.",
+  "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",
+  "sections": {
+    "today": "Today",
+    "care": "Care at the OGS",
+    "data": "Child details",
+    "people": "Parents and pick-up contacts"
+  },
+  "areas": {
+    "label": "Child sections",
+    "open": "View",
+    "openLabel": "View {area}",
+    "back": "Back to overview",
+    "care": {
+      "title": "Care & weekly plan",
+      "shortTitle": "Care",
+      "description": "Bookings, regular pick-up times and the journey home."
+    },
+    "data": {
+      "title": "Child details",
+      "shortTitle": "Child details",
+      "description": "Personal details, class and health information."
+    },
+    "contacts": {
+      "title": "Contacts & pick-up",
+      "shortTitle": "Contacts",
+      "description": "Guardians, pick-up permissions and app access."
+    }
+  },
+  "today": {
+    "pickupLabel": "Pick-up",
+    "pickup": "Pick-up today at {time}",
+    "pickupChanged": "Pick-up today at {time}, changed for today",
+    "pickupAbsent": "Reported absent today, no pick-up",
+    "pickupNone": "No pick-up is recorded for today",
+    "pickupUnknown": "The pick-up time is not available right now"
+  },
+  "care": {
+    "weekTitle": "OGS weekly schedule",
+    "absenceTitle": "Absences"
+  },
+  "consents": {
+    "title": "Consents and confirmations",
+    "description": "Here you can see your child's consents.",
+    "staffDescription": "For information only. Parents change photo consent in the parent portal.",
+    "photoDescription": "You can change photo consent here.",
+    "items": {
+      "agb": "General terms and conditions",
+      "data_processing": "Privacy information acknowledged",
+      "email_contact": "Contact by email allowed",
+      "photo": "Photo consent"
+    },
+    "states": {
+      "granted": "Recorded",
+      "withdrawn": "Withdrawn",
+      "not_recorded": "Not recorded"
+    },
+    "dates": {
+      "granted": "Recorded on {date}",
+      "withdrawn": "Withdrawn on {date}",
+      "not_recorded": "Not recorded"
+    },
+    "withdrawButton": "Withdraw photo consent",
+    "withdrawButtonShort": "Withdraw",
+    "confirmTitle": "Withdraw photo consent?",
+    "confirmBody": "The consent ends immediately. If a photo is stored, it will be deleted.",
+    "confirmButton": "Withdraw now",
+    "withdrawing": "Withdrawing",
+    "cancel": "Cancel",
+    "close": "Close dialog",
+    "success": "Photo consent was withdrawn. If a photo was stored, it was deleted.",
+    "grantButton": "Give photo consent again",
+    "grantButtonShort": "Give again",
+    "grantConfirmTitle": "Give photo consent again?",
+    "grantConfirmBody": "The OGS may store a photo again afterwards.",
+    "grantConfirmButton": "Give consent",
+    "granting": "Saving",
+    "grantSuccess": "Photo consent was given again.",
+    "errorObjectList": "the list of consents",
+    "errorObjectPhoto": "the photo consent"
+  },
+  "errorObject": "the list of your children",
+  "errorObjectCare": "the care overview"
+}

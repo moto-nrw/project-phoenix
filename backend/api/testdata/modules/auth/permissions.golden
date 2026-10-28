@@ -1,0 +1,5 @@
+DELETE /auth/permissions/{id}/ -> basis
+GET /auth/permissions/ -> basis
+GET /auth/permissions/{id}/ -> basis
+POST /auth/permissions/ -> basis
+PUT /auth/permissions/{id}/ -> basis

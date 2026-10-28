@@ -1,0 +1,1236 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ActivateQueuedStaffDocumentFileCleanup(ctx context.Context, storedName string) error {\n\treturn a.engine.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ActivateQueuedStaffDocumentFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) CreateStaffDocument(ctx context.Context, input CreateStaffDocumentInput, actor StaffDocumentActor) (*StaffDocumentInfo, error) {\n\treturn a.engine.CreateStaffDocument(ctx, input, actor)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.CreateStaffDocument",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) DeleteStaffDocument(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*StaffDocument, error) {\n\treturn a.engine.DeleteStaffDocument(ctx, staffID, documentID, actor)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.DeleteStaffDocument",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor StaffDocumentActor) ([]StaffDocument, error) {\n\treturn a.engine.ListDeletedStaffDocumentsPendingFileCleanup(ctx, staffID, actor)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ListDeletedStaffDocumentsPendingFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ListDeletedStaffDocumentsPendingFileCleanups(ctx context.Context) ([]StaffDocument, error) {\n\treturn a.engine.ListDeletedStaffDocumentsPendingFileCleanups(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ListDeletedStaffDocumentsPendingFileCleanups",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.Context) ([]StaffDocument, error) {\n\treturn a.engine.ListOffboardedStaffDocumentsPendingFileCleanup(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ListOffboardedStaffDocumentsPendingFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ListQueuedStaffDocumentFileCleanup(ctx context.Context, staffID int64) ([]StaffDocumentFileCleanup, error) {\n\treturn a.engine.ListQueuedStaffDocumentFileCleanup(ctx, staffID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ListQueuedStaffDocumentFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ListQueuedStaffDocumentFileCleanups(ctx context.Context) ([]StaffDocumentFileCleanup, error) {\n\treturn a.engine.ListQueuedStaffDocumentFileCleanups(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ListQueuedStaffDocumentFileCleanups",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ListStaffDocuments(ctx context.Context, staffID int64, category string, actor StaffDocumentActor) ([]StaffDocumentInfo, []string, error) {\n\treturn a.engine.ListStaffDocuments(ctx, staffID, category, actor)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ListStaffDocuments",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ListStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64) ([]StaffDocument, error) {\n\treturn a.engine.ListStaffDocumentsPendingFileCleanup(ctx, staffID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ListStaffDocumentsPendingFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error {\n\treturn a.engine.MarkQueuedStaffDocumentFileCleanupComplete(ctx, cleanupID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.MarkQueuedStaffDocumentFileCleanupComplete",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx context.Context, storedName string) error {\n\treturn a.engine.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx, storedName)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.MarkQueuedStaffDocumentFileCleanupCompleteByFilename",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) MarkStaffDocumentFileDeleted(ctx context.Context, documentID int64) error {\n\treturn a.engine.MarkStaffDocumentFileDeleted(ctx, documentID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.MarkStaffDocumentFileDeleted",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) QueueStaffDocumentFileCleanup(ctx context.Context, staffID int64, storedName string) error {\n\treturn a.engine.QueueStaffDocumentFileCleanup(ctx, staffID, storedName)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.QueueStaffDocumentFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ReplaceStaffQualificationList(ctx context.Context, staffID int64, inputs []StammdatenQualificationInput, changedByStaffID int64, note string) error {\n\treturn a.engine.ReplaceStaffQualificationList(ctx, staffID, inputs, changedByStaffID, note)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ReplaceStaffQualificationList",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*StaffDocument, error) {\n\treturn a.engine.ResolveStaffDocumentCleanup(ctx, staffID, documentID, actor)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ResolveStaffDocumentCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) ResolveStaffDocumentDownload(ctx context.Context, staffID, documentID int64, actor StaffDocumentActor) (*StaffDocument, error) {\n\treturn a.engine.ResolveStaffDocumentDownload(ctx, staffID, documentID, actor)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.ResolveStaffDocumentDownload",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) RevealStaffFinancial(ctx context.Context, staffID, actorAccountID int64, actorRole string) (*StaffFinancialPlain, error) {\n\treturn a.engine.RevealStaffFinancial(ctx, staffID, actorAccountID, actorRole)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.RevealStaffFinancial",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) StaffFinancialMasked(ctx context.Context, staffID, actorAccountID int64, actorRole string) (*StaffFinancialMasked, error) {\n\treturn a.engine.StaffFinancialMasked(ctx, staffID, actorAccountID, actorRole)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.StaffFinancialMasked",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) StaffStammdaten(ctx context.Context, staffID int64) (*StaffStammdaten, error) {\n\treturn a.engine.StaffStammdaten(ctx, staffID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.StaffStammdaten",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*StaffProfile, error) {\n\treturn a.engine.UpdatePersonnelNumber(ctx, staffID, value, changedByStaffID, note)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.UpdatePersonnelNumber",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) UpdateStaffFinancial(ctx context.Context, staffID int64, input StammdatenFinancialInput, changedByAccountID int64, note string) error {\n\treturn a.engine.UpdateStaffFinancial(ctx, staffID, input, changedByAccountID, note)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.UpdateStaffFinancial",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) UpdateStaffStammdatenArbeitsvertrag(ctx context.Context, staffID int64, input StammdatenArbeitsvertragInput, changedByStaffID int64, note string) error {\n\treturn a.engine.UpdateStaffStammdatenArbeitsvertrag(ctx, staffID, input, changedByStaffID, note)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.UpdateStaffStammdatenArbeitsvertrag",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) UpdateStaffStammdatenKontakt(ctx context.Context, staffID int64, input StammdatenKontaktInput, changedByStaffID int64, note string) error {\n\treturn a.engine.UpdateStaffStammdatenKontakt(ctx, staffID, input, changedByStaffID, note)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.UpdateStaffStammdatenKontakt",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *StaffAdmin) UpdateStaffStammdatenPerson(ctx context.Context, staffID int64, input StammdatenPersonInput, changedByStaffID int64, note string) error {\n\treturn a.engine.UpdateStaffStammdatenPerson(ctx, staffID, input, changedByStaffID, note)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/StaffAdmin.UpdateStaffStammdatenPerson",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *SubstitutionOperationError) Error() string {\n\tif e.Cause != nil {\n\t\treturn e.Message + \": \" + e.Cause.Error()\n\t}\n\treturn e.Message\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/SubstitutionOperationError.Error",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *WorkSessionSide) TimeTracking() (*TimeTracking, error) {\n\tvalue, err := s.WorkSessionSide.TimeTracking()\n\treturn (*TimeTracking)(value), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/compose/WorkSessionSide.TimeTracking",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) Router() chi.Router {\n\tr := chi.NewRouter()\n\tr.Use(render.SetContentType(render.ContentTypeJSON))\n\trs.runtime.Protected(r, func(r chi.Router, withTx Middleware) {\n\t\tr.With(withTx).Get(\"/\", rs.overview)\n\t\tr.With(withTx).Post(\"/\", rs.assign)\n\t\tr.With(withTx).Post(\"/end\", rs.end)\n\t})\n\treturn r\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/http/substitutions/Resource.Router",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (rs *StaffAdminResource) CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int, error) {\n\treturn rs.documentFiles.CleanupOrphanedStaffDocumentFiles(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/http/timetracking/StaffAdminResource.CleanupOrphanedStaffDocumentFiles",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a Assignments) AssignedStaffIDs(ctx context.Context, workTimeModelID int64) ([]int64, error) {\n\tids, err := a.Store.StaffOnWorkTimeModel(ctx, workTimeModelID)\n\tif err != nil || len(ids) == 0 {\n\t\treturn ids, err\n\t}\n\treturn a.Live(ctx, ids)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/adapters/postgres/Assignments.AssignedStaffIDs",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a Assignments) RebaseAnchor(ctx context.Context, staffIDs []int64, anchorDate string) error {\n\tif len(staffIDs) == 0 {\n\t\treturn nil\n\t}\n\treturn a.Store.RebaseStaffRotationAnchor(ctx, staffIDs, anchorDate)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/adapters/postgres/Assignments.RebaseAnchor",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *databaseError) Error() string {\n\tif e.err == nil {\n\t\treturn \"database error during \" + e.op\n\t}\n\treturn \"database error during \" + e.op + \": \" + e.err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/adapters/substitutions/databaseError.Error",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *groupSubstitutionRepository) Create(ctx context.Context, entity *GroupSubstitution) error {\n\tif entity == nil {\n\t\treturn errors.New(\"group_substitution cannot be nil or zero value\")\n\t}\n\tcreated, err := r.workforce.CreateGroupSubstitution(ctx, substitutionToWorkforce(entity))\n\tif err != nil {\n\t\treturn writeError(\"create\", err)\n\t}\n\tapplySubstitutionToLegacy(entity, created)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.Create",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *groupSubstitutionRepository) Delete(ctx context.Context, id any) error {\n\tsubstitutionID, err := legacyID(id)\n\tif err != nil {\n\t\treturn \u0026databaseError{op: \"delete\", err: err}\n\t}\n\tif err := r.workforce.DeleteGroupSubstitution(ctx, substitutionID); err != nil {\n\t\treturn writeError(\"delete\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.Delete",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *groupSubstitutionRepository) FindByID(ctx context.Context, id any) (*GroupSubstitution, error) {\n\tsubstitutionID, err := legacyID(id)\n\tif err != nil {\n\t\treturn nil, \u0026databaseError{op: \"find by id\", err: err}\n\t}\n\tvalue, err := r.workforce.FindGroupSubstitution(ctx, substitutionID)\n\tif err != nil {\n\t\treturn nil, readError(\"find by id\", err, workforce.ErrGroupSubstitutionNotFound)\n\t}\n\treturn substitutionToLegacy(value), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.FindByID",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *groupSubstitutionRepository) FindByIDForUpdate(ctx context.Context, id any) (*GroupSubstitution, error) {\n\tsubstitutionID, err := legacyID(id)\n\tif err != nil {\n\t\treturn nil, \u0026databaseError{op: \"find by id for update\", err: err}\n\t}\n\tvalue, err := r.workforce.LockGroupSubstitution(ctx, substitutionID)\n\tif err != nil {\n\t\treturn nil, readError(\"find by id for update\", err, workforce.ErrGroupSubstitutionNotFound)\n\t}\n\treturn substitutionToLegacy(value), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.FindByIDForUpdate",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *groupSubstitutionRepository) Update(ctx context.Context, entity *GroupSubstitution) error {\n\tif entity == nil {\n\t\treturn errors.New(\"group_substitution cannot be nil or zero value\")\n\t}\n\tupdated, err := r.workforce.UpdateGroupSubstitution(ctx, substitutionToWorkforce(entity))\n\tif err != nil {\n\t\tif errors.Is(err, workforce.ErrGroupSubstitutionNotFound) {\n\t\t\treturn rowsAffectedError(\"update group_substitution\")\n\t\t}\n\t\treturn writeError(\"update\", err)\n\t}\n\tapplySubstitutionToLegacy(entity, updated)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.Update",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error) {\n\tif staffID \u003c= 0 || year \u003c 2000 || year \u003e 2100 {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(domain.ErrAbsenceTypeAllowanceInvalid)\n\t}\n\tabsenceType, err := s.findAllowanceType(ctx, absenceTypeID)\n\tif err != nil {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(err)\n\t}\n\taccounts, err := s.loadAllowanceAccounts(ctx, staffID, absenceType, year, year)\n\tif err != nil {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(err)\n\t}\n\treturn allowanceSummaryToPublic(accounts.ledger(s.clock.Today()).Summary(staffID, absenceTypeID, year)), MapError(nil)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.AllowanceSummary",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ClosedMonthSnapshots(ctx context.Context, year, month int) ([]*workforce.StaffMonthBalanceSnapshot, error) {\n\tvar result []*domain.StaffMonthBalanceSnapshot\n\tvar err error\n\terr = s.run(ctx, \"closed_month_snapshots\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ClosedMonthSnapshots(ctx, year, month)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn monthSnapshotsToPublic(result), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.ClosedMonthSnapshots",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ClosedMonthSnapshotsForStaff(ctx context.Context, staffIDs []int64) ([]*workforce.StaffMonthBalanceSnapshot, error) {\n\tvar result []*domain.StaffMonthBalanceSnapshot\n\tvar err error\n\terr = s.run(ctx, \"closed_month_snapshots_for_staff\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ClosedMonthSnapshotsForStaff(ctx, staffIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn monthSnapshotsToPublic(result), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.ClosedMonthSnapshotsForStaff",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CurrentStaffSchedule(ctx context.Context, staffID int64) ([]workforce.StaffWorkSchedule, error) {\n\tif staffID \u003c= 0 {\n\t\treturn nil, invalid(\"staff ID is required\")\n\t}\n\tvar result []domain.StaffWorkSchedule\n\tvar err error\n\terr = s.run(ctx, \"current_staff_schedule\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.CurrentStaffSchedule(ctx, staffID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn schedulesToPublic(result), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.CurrentStaffSchedule",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ExpiredWorkSessionBreaks(ctx context.Context, before time.Time) ([]workforce.WorkSessionBreak, error) {\n\tvar result []workforce.WorkSessionBreak\n\tvar err error\n\terr = s.run(ctx, \"expired_work_session_breaks\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ExpiredWorkSessionBreaks(ctx, before)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, mapWorkSessionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.ExpiredWorkSessionBreaks",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) HasStaffScheduleHistory(ctx context.Context, staffID int64) (bool, error) {\n\tif staffID \u003c= 0 {\n\t\treturn false, invalid(\"staff ID is required\")\n\t}\n\tvar result bool\n\tvar err error\n\terr = s.run(ctx, \"has_staff_schedule_history\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.HasStaffScheduleHistory(ctx, staffID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.HasStaffScheduleHistory",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListOverlappingWorkSessions(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) ([]workforce.WorkSession, error) {\n\tif len(staffIDs) == 0 {\n\t\treturn []workforce.WorkSession{}, nil\n\t}\n\tvar result []workforce.WorkSession\n\tvar err error\n\terr = s.run(ctx, \"list_overlapping_work_sessions\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListOverlappingWorkSessions(ctx, staffIDs, from, to)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, mapWorkSessionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.ListOverlappingWorkSessions",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStaffQualifications(ctx context.Context, staffID int64) ([]workforce.StaffQualification, error) {\n\tif staffID \u003c= 0 {\n\t\treturn nil, invalidStaffRecord(\"staff ID is required\")\n\t}\n\tvar result []domain.StaffQualification\n\tvar err error\n\terr = s.run(ctx, \"list_staff_qualifications\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListStaffQualifications(ctx, staffID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn qualificationsToPublic(result), mapStaffRecordError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.ListStaffQualifications",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListWorkTimeModels(ctx context.Context) ([]workforce.WorkTimeModel, error) {\n\tvar result []domain.WorkTimeModel\n\tvar err error\n\terr = s.run(ctx, \"list_work_time_models\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListWorkTimeModels(ctx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn modelsToPublic(result), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.ListWorkTimeModels",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListWorkTimeModelsByIDs(ctx context.Context, ids []int64) ([]workforce.WorkTimeModel, error) {\n\tif len(ids) == 0 {\n\t\treturn nil, nil\n\t}\n\tvar result []domain.WorkTimeModel\n\tvar err error\n\terr = s.run(ctx, \"list_work_time_models_by_ids\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListWorkTimeModelsByIDs(ctx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn modelsToPublic(result), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.ListWorkTimeModelsByIDs",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockGroupSubstitutions(ctx context.Context) error {\n\tif _, ok := tenant.TransactionFromContext(ctx); !ok {\n\t\treturn errors.New(\"workforce: group substitution locks require a transaction\")\n\t}\n\treturn MapError(s.run(ctx, \"lock_group_substitutions\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.store.LockGroupSubstitutions(ctx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.LockGroupSubstitutions",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {\n\tif staffID \u003c= 0 {\n\t\treturn invalidWorkSession(\"staff ID is required\")\n\t}\n\treturn mapWorkSessionError(s.observeOperation(\"lock_staff_balance_writes\", func(*domain.OperationStats) error {\n\t\treturn s.transaction.LockStaffBalance(ctx, staffID)\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.LockStaffBalanceWrites",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockStaffOffboarding(ctx context.Context, staffID int64) error {\n\tif _, ok := tenant.TransactionFromContext(ctx); !ok {\n\t\treturn errors.New(\"workforce: offboarding lock requires a transaction\")\n\t}\n\tif err := s.LockStaffAbsenceWrites(ctx, staffID); err != nil {\n\t\treturn err\n\t}\n\treturn MapError(s.transaction.LockStaffShifts(ctx, staffID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.LockStaffOffboarding",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) PreviewStaffOffboarding(ctx context.Context, staffID int64, from string) (result workforce.OffboardingPreview, err error) {\n\terr = s.run(ctx, \"preview_staff_offboarding\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\treturn s.transaction.RunWrite(ctx, func(txCtx context.Context) error {\n\t\t\t_, result, err = s.offboardingSnapshot(txCtx, staffID, from, stats)\n\t\t\treturn err\n\t\t})\n\t})\n\treturn result, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.PreviewStaffOffboarding",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SeriesExceptionDates(ctx context.Context, seriesID int64) ([]string, error) {\n\tif seriesID \u003c= 0 {\n\t\treturn nil, invalidSeries(\"series ID is required\")\n\t}\n\tvar result []string\n\tvar err error\n\terr = s.run(ctx, \"series_exception_dates\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.SeriesExceptionDates(ctx, seriesID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, mapShiftError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.SeriesExceptionDates",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) StaffAbsenceTypeInUse(ctx context.Context, id int64) (bool, error) {\n\tif id \u003c= 0 {\n\t\treturn false, nil\n\t}\n\tvar result bool\n\tvar err error\n\terr = s.run(ctx, \"staff_absence_type_in_use\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.StaffAbsenceTypeInUse(ctx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.StaffAbsenceTypeInUse",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) StaffIDsWithScheduleHistory(ctx context.Context, staffIDs []int64) (map[int64]bool, error) {\n\tif len(staffIDs) == 0 {\n\t\treturn map[int64]bool{}, nil\n\t}\n\tvar result map[int64]bool\n\tvar err error\n\terr = s.run(ctx, \"staff_ids_with_schedule_history\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.StaffIDsWithScheduleHistory(ctx, staffIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/Service.StaffIDsWithScheduleHistory",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ActivateQueuedStaffDocumentFileCleanup(ctx context.Context, storedName string) error {\n\treturn MapStaffAdminError(e.admin.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ActivateQueuedStaffDocumentFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) CreateStaffDocument(ctx context.Context, input workforce.CreateStaffDocumentInput, actor workforce.StaffDocumentActor) (*workforce.StaffDocumentInfo, error) {\n\tinfo, err := e.admin.CreateStaffDocument(ctx, CreateDocumentInput(input), domain.DocumentActor(actor))\n\tif err != nil {\n\t\treturn nil, MapStaffAdminError(err)\n\t}\n\treturn new(documentInfoToPublic(info)), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.CreateStaffDocument",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) DeleteStaffDocument(ctx context.Context, staffID, documentID int64, actor workforce.StaffDocumentActor) (*workforce.StaffDocument, error) {\n\treturn publicDocument(e.admin.DeleteStaffDocument(ctx, staffID, documentID, domain.DocumentActor(actor)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.DeleteStaffDocument",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ListDeletedStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64, actor workforce.StaffDocumentActor) ([]workforce.StaffDocument, error) {\n\treturn publicDocuments(e.admin.ListDeletedStaffDocumentsPendingFileCleanup(ctx, staffID, domain.DocumentActor(actor)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListDeletedStaffDocumentsPendingFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ListDeletedStaffDocumentsPendingFileCleanups(ctx context.Context) ([]workforce.StaffDocument, error) {\n\treturn publicRecordDocuments(e.records.ListStaffDocuments(ctx, workforce.StaffDocumentFilter(domain.DeletedPendingFileCleanupFilter(0, nil))))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListDeletedStaffDocumentsPendingFileCleanups",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ListOffboardedStaffDocumentsPendingFileCleanup(ctx context.Context) ([]workforce.StaffDocument, error) {\n\treturn publicDocuments(e.admin.ListOffboardedStaffDocumentsPendingFileCleanup(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListOffboardedStaffDocumentsPendingFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ListQueuedStaffDocumentFileCleanup(ctx context.Context, staffID int64) ([]workforce.StaffDocumentFileCleanup, error) {\n\treturn publicRecordCleanups(e.records.ListQueuedStaffDocumentFileCleanups(ctx, staffID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListQueuedStaffDocumentFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ListQueuedStaffDocumentFileCleanups(ctx context.Context) ([]workforce.StaffDocumentFileCleanup, error) {\n\treturn publicRecordCleanups(e.records.ListQueuedStaffDocumentFileCleanups(ctx, 0))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListQueuedStaffDocumentFileCleanups",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ListStaffDocuments(ctx context.Context, staffID int64, category string, actor workforce.StaffDocumentActor) ([]workforce.StaffDocumentInfo, []string, error) {\n\tinfos, categories, err := e.admin.ListStaffDocuments(ctx, staffID, category, domain.DocumentActor(actor))\n\tif err != nil {\n\t\treturn nil, nil, MapStaffAdminError(err)\n\t}\n\tresult := make([]workforce.StaffDocumentInfo, 0, len(infos))\n\tfor _, info := range infos {\n\t\tresult = append(result, documentInfoToPublic(info))\n\t}\n\treturn result, categories, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListStaffDocuments",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ListStaffDocumentsPendingFileCleanup(ctx context.Context, staffID int64) ([]workforce.StaffDocument, error) {\n\treturn publicRecordDocuments(e.records.ListStaffDocuments(ctx, workforce.StaffDocumentFilter(domain.PendingFileCleanupFilter(staffID))))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListStaffDocumentsPendingFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) MarkQueuedStaffDocumentFileCleanupComplete(ctx context.Context, cleanupID int64) error {\n\treturn MapStaffAdminError(e.admin.MarkQueuedStaffDocumentFileCleanupComplete(ctx, cleanupID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.MarkQueuedStaffDocumentFileCleanupComplete",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx context.Context, storedName string) error {\n\treturn MapStaffAdminError(e.admin.MarkQueuedStaffDocumentFileCleanupCompleteByFilename(ctx, storedName))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.MarkQueuedStaffDocumentFileCleanupCompleteByFilename",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) MarkStaffDocumentFileDeleted(ctx context.Context, documentID int64) error {\n\treturn MapStaffAdminError(e.admin.MarkStaffDocumentFileDeleted(ctx, documentID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.MarkStaffDocumentFileDeleted",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) QueueStaffDocumentFileCleanup(ctx context.Context, staffID int64, storedName string) error {\n\treturn MapStaffAdminError(e.admin.QueueStaffDocumentFileCleanup(ctx, staffID, storedName))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.QueueStaffDocumentFileCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ReplaceStaffQualificationList(ctx context.Context, staffID int64, inputs []workforce.StammdatenQualificationInput, changedByStaffID int64, note string) error {\n\trows := make([]domain.QualificationInput, 0, len(inputs))\n\tfor _, input := range inputs {\n\t\trows = append(rows, domain.QualificationInput(input))\n\t}\n\treturn MapStaffAdminError(e.admin.ReplaceStaffQualifications(ctx, staffID, rows, changedByStaffID, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ReplaceStaffQualificationList",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ResolveStaffDocumentCleanup(ctx context.Context, staffID, documentID int64, actor workforce.StaffDocumentActor) (*workforce.StaffDocument, error) {\n\treturn publicDocument(e.admin.ResolveStaffDocumentCleanup(ctx, staffID, documentID, domain.DocumentActor(actor)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ResolveStaffDocumentCleanup",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) ResolveStaffDocumentDownload(ctx context.Context, staffID, documentID int64, actor workforce.StaffDocumentActor) (*workforce.StaffDocument, error) {\n\treturn publicDocument(e.admin.ResolveStaffDocumentDownload(ctx, staffID, documentID, domain.DocumentActor(actor)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ResolveStaffDocumentDownload",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) RevealStaffFinancial(ctx context.Context, staffID, actorAccountID int64, actorRole string) (*workforce.StaffFinancialPlain, error) {\n\tdata, err := e.admin.RevealStaffFinancial(ctx, staffID, actorAccountID, actorRole)\n\tif err != nil {\n\t\treturn nil, MapStaffAdminError(err)\n\t}\n\treturn \u0026workforce.StaffFinancialPlain{StaffID: staffID, IBAN: data.IBAN, TaxID: data.TaxID, SocialSecurityNumber: data.SocialSecurityNumber}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.RevealStaffFinancial",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) StaffFinancialMasked(ctx context.Context, staffID, actorAccountID int64, actorRole string) (*workforce.StaffFinancialMasked, error) {\n\tmasked, err := e.admin.StaffFinancialMasked(ctx, staffID, actorAccountID, actorRole)\n\tif err != nil {\n\t\treturn nil, MapStaffAdminError(err)\n\t}\n\treturn new(workforce.StaffFinancialMasked(masked)), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.StaffFinancialMasked",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) StaffStammdaten(ctx context.Context, staffID int64) (*workforce.StaffStammdaten, error) {\n\tdata, err := e.admin.StaffStammdaten(ctx, staffID)\n\tif err != nil {\n\t\treturn nil, MapStaffAdminError(err)\n\t}\n\tresult := \u0026workforce.StaffStammdaten{Staff: workforce.StaffProfile(data.Staff), Qualifications: []workforce.StaffQualification{}}\n\tif data.MasterData != nil {\n\t\tresult.MasterData = new(masterDataToPublic(*data.MasterData))\n\t}\n\tresult.Qualifications = append(result.Qualifications, qualificationsToPublic(data.Qualifications)...)\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.StaffStammdaten",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) UpdatePersonnelNumber(ctx context.Context, staffID int64, value *string, changedByStaffID int64, note string) (*workforce.StaffProfile, error) {\n\tsubject, err := e.admin.UpdatePersonnelNumber(ctx, staffID, value, changedByStaffID, note)\n\tif err != nil {\n\t\treturn nil, MapStaffAdminError(err)\n\t}\n\treturn new(workforce.StaffProfile(subject)), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdatePersonnelNumber",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) UpdateStaffFinancial(ctx context.Context, staffID int64, input workforce.StammdatenFinancialInput, changedByAccountID int64, note string) error {\n\treturn MapStaffAdminError(e.admin.UpdateStaffFinancial(ctx, staffID, domain.FinancialSection(input), changedByAccountID, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdateStaffFinancial",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) UpdateStaffStammdatenArbeitsvertrag(ctx context.Context, staffID int64, input workforce.StammdatenArbeitsvertragInput, changedByStaffID int64, note string) error {\n\treturn MapStaffAdminError(e.admin.UpdateStaffStammdatenArbeitsvertrag(ctx, staffID, domain.ContractSection(input), changedByStaffID, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdateStaffStammdatenArbeitsvertrag",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) UpdateStaffStammdatenKontakt(ctx context.Context, staffID int64, input workforce.StammdatenKontaktInput, changedByStaffID int64, note string) error {\n\treturn MapStaffAdminError(e.admin.UpdateStaffStammdatenKontakt(ctx, staffID, domain.ContactSection(input), changedByStaffID, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdateStaffStammdatenKontakt",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e StaffAdminEngine) UpdateStaffStammdatenPerson(ctx context.Context, staffID int64, input workforce.StammdatenPersonInput, changedByStaffID int64, note string) error {\n\treturn MapStaffAdminError(e.admin.UpdateStaffStammdatenPerson(ctx, staffID, domain.PersonSection(input), changedByStaffID, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdateStaffStammdatenPerson",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e missingRecord) Is(target error) bool {\n\treturn target == transactionruntime.ErrNoRows || e.RecordNotFoundError.Is(target) || target == workforce.ErrStaffDocumentNotFound\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/missingRecord.Is",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a staffAudit) RecordDataAccess(ctx context.Context, access domain.DataAccess) error {\n\treturn a.port.RecordDataAccess(ctx, workforce.StaffDataAccess(access))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffAudit.RecordDataAccess",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a staffAudit) RecordMasterDataChange(ctx context.Context, change domain.MasterDataChange) error {\n\treturn a.port.RecordMasterDataChange(ctx, workforce.StaffMasterDataChange(change))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffAudit.RecordMasterDataChange",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a staffAudit) RecordPersonnelNumberChange(ctx context.Context, change domain.PersonnelNumberChange) error {\n\treturn a.port.RecordPersonnelNumberChange(ctx, workforce.PersonnelNumberChange(change))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffAudit.RecordPersonnelNumberChange",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e staffEmployment) RebaseStaffRotationAnchor(ctx context.Context, membershipIDs []int64, anchorDate string) error {\n\tif err := domain.ValidateDate(anchorDate, \"rotation_anchor_date\"); err != nil {\n\t\treturn \u0026workforce.InvalidWorkTimeError{Reason: err.Error()}\n\t}\n\treturn e.write(ctx, \"rebase_staff_rotation_anchor\", 1, func(ctx context.Context) error {\n\t\treturn e.store.RebaseStaffRotationAnchor(ctx, membershipIDs, anchorDate)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffEmployment.RebaseStaffRotationAnchor",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e staffEmployment) SaveStaffEmployment(ctx context.Context, value workforce.StaffEmployment) error {\n\treturn e.write(ctx, \"save_staff_employment\", 1, func(ctx context.Context) error {\n\t\treturn e.store.SaveStaffEmployment(ctx, value)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffEmployment.SaveStaffEmployment",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e staffEmployment) SetStaffBirthdayDisplayOptOut(ctx context.Context, membershipID int64, optOut bool) error {\n\treturn e.write(ctx, \"set_staff_birthday_display_opt_out\", 1, func(ctx context.Context) error {\n\t\treturn e.store.SetStaffBirthdayDisplayOptOut(ctx, membershipID, optOut)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffEmployment.SetStaffBirthdayDisplayOptOut",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e staffEmployment) StaffEmployments(ctx context.Context, membershipIDs []int64) (map[int64]workforce.StaffEmployment, error) {\n\tresult := make(map[int64]workforce.StaffEmployment, len(membershipIDs))\n\tif len(membershipIDs) == 0 {\n\t\treturn result, nil\n\t}\n\terr := e.read(ctx, \"list_staff_employments\", 1, func(ctx context.Context) error {\n\t\tvalues, err := e.store.StaffEmployments(ctx, membershipIDs)\n\t\tfor id, value := range values {\n\t\t\tresult[id] = value\n\t\t}\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffEmployment.StaffEmployments",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e staffEmployment) StaffOnWorkTimeModel(ctx context.Context, workTimeModelID int64) (ids []int64, err error) {\n\terr = e.read(ctx, \"list_staff_on_work_time_model\", 1, func(ctx context.Context) error {\n\t\tids, err = e.store.StaffOnWorkTimeModel(ctx, workTimeModelID)\n\t\treturn err\n\t})\n\treturn ids, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffEmployment.StaffOnWorkTimeModel",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffSubjects) LockStaff(ctx context.Context, staffID int64, withPerson bool) (domain.StaffSubject, error) {\n\tprofile, err := s.StaffAdminSubjects.LockStaff(ctx, staffID, withPerson)\n\treturn domain.StaffSubject(profile), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffSubjects.LockStaff",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffSubjects) SetPersonnelNumber(ctx context.Context, staffID int64, value *string) error {\n\terr := s.StaffAdminSubjects.SetPersonnelNumber(ctx, staffID, value)\n\tif errors.Is(err, workforce.ErrPersonnelNumberTaken) {\n\t\treturn domain.ErrStaffPersonnelNumberTaken\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffSubjects.SetPersonnelNumber",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s staffSubjects) StaffWithPerson(ctx context.Context, staffID int64) (domain.StaffSubject, error) {\n\tprofile, err := s.StaffAdminSubjects.StaffWithPerson(ctx, staffID)\n\treturn domain.StaffSubject(profile), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/staffSubjects.StaffWithPerson",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a AutoCheckIn) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*workforce.WorkSession, error) {\n\tsession, err := a.sessions.EnsureCheckedIn(ctx, staffID, source)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn publicWorkSession(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/AutoCheckIn.EnsureCheckedIn",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a absenceTypeAdministration) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error) {\n\tsummary, err := a.catalog.AllowanceSummary(ctx, staffID, absenceTypeID, year)\n\tif err != nil {\n\t\treturn workforce.AbsenceTypeAllowanceSummary{}, mapNativeAbsenceTypeError(err)\n\t}\n\treturn summary, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeAdministration.AllowanceSummary",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a absenceTypeAdministration) ListAbsenceTypes(ctx context.Context) ([]workforce.StaffAbsenceType, error) {\n\ttypes, err := a.catalog.ListStaffAbsenceTypes(ctx)\n\tif err != nil {\n\t\treturn nil, mapAbsenceTypeError(fmt.Errorf(\"database error during list all staff absence types: %w\", err))\n\t}\n\tif types == nil {\n\t\treturn []workforce.StaffAbsenceType{}, nil\n\t}\n\treturn types, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeAdministration.ListAbsenceTypes",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a absenceTypeAdministration) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error) {\n\tpreviews, err := a.catalog.PreviewAllowanceBooking(ctx, staffID, absenceTypeID, start, end, halfDay)\n\tif err != nil {\n\t\treturn previews, mapNativeAbsenceTypeError(err)\n\t}\n\treturn previews, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeAdministration.PreviewAllowanceBooking",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a absenceTypeAdministration) SetAllowance(ctx context.Context, input workforce.SetAbsenceTypeAllowance) (workforce.AbsenceTypeAllowanceSummary, error) {\n\tsummary, err := a.catalog.SetAllowance(ctx, input)\n\tif err != nil {\n\t\treturn workforce.AbsenceTypeAllowanceSummary{}, mapNativeAbsenceTypeError(err)\n\t}\n\treturn summary, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeAdministration.SetAllowance",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r absenceTypeReader) GetAbsenceType(ctx context.Context, id int64) (*StaffAbsenceType, error) {\n\tif id \u003c= 0 {\n\t\treturn nil, mapNativeAbsenceTypeError(workforce.ErrAbsenceTypeNotFound)\n\t}\n\tvalue, err := r.catalog.FindStaffAbsenceType(ctx, id)\n\tif errors.Is(err, workforce.ErrAbsenceTypeNotFound) {\n\t\treturn nil, mapNativeAbsenceTypeError(workforce.ErrAbsenceTypeNotFound)\n\t}\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"find absence type: database error during find by id: %w\", err)\n\t}\n\treturn legacyAbsenceType(value), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeReader.GetAbsenceType",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r absenceTypeReader) LabelsByID(ctx context.Context) (map[int64]string, error) {\n\tvalues, err := r.catalog.ListStaffAbsenceTypes(ctx)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"database error during list all staff absence types: %w\", err)\n\t}\n\tlabels := make(map[int64]string, len(values))\n\tfor _, value := range values {\n\t\tlabels[value.ID] = value.Name\n\t}\n\treturn labels, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeReader.LabelsByID",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r absenceTypeReader) PreviewAllowanceBooking(ctx context.Context, staffID, typeID int64, start, end calendar.Date, halfDay bool) ([]*AbsenceTypeAllowanceSummary, error) {\n\treturn legacyAllowancePreviews(r.catalog.PreviewAllowanceBooking(ctx, staffID, typeID, start.String(), end.String(), halfDay))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeReader.PreviewAllowanceBooking",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r absenceTypeReader) PreviewAllowanceRebooking(ctx context.Context, staffID, typeID int64, absenceIDs []int64) ([]*AbsenceTypeAllowanceSummary, error) {\n\treturn legacyAllowancePreviews(r.catalog.PreviewAllowanceRebooking(ctx, staffID, typeID, absenceIDs))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeReader.PreviewAllowanceRebooking",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c balanceAdjustmentCapability) CreateAdjustment(ctx context.Context, staffID, decidedBy int64, request workforce.CreateBalanceAdjustmentRequest) (*workforce.StaffBalanceAdjustment, error) {\n\teffective, err := parseCapabilityDate(request.EffectiveDate, \"effective_date\")\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn c.adjustment(c.ledger.CreateAdjustment(ctx, staffID, decidedBy, CreateBalanceAdjustmentRequest{Type: request.Type, MinutesDelta: request.MinutesDelta, EffectiveDate: effective, Note: request.Note}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.CreateAdjustment",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c balanceAdjustmentCapability) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate string, balanceMinutes int, note string) (*workforce.StaffBalanceAdjustment, error) {\n\teffective, err := parseCapabilityDate(effectiveDate, \"effective_date\")\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn c.adjustment(c.ledger.CreateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.CreateOpeningBalance",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c balanceAdjustmentCapability) DeleteAdjustment(ctx context.Context, staffID, adjustmentID, deletedBy int64) error {\n\treturn mapTimeTrackingFailure(c.ledger.DeleteAdjustment(ctx, staffID, adjustmentID, deletedBy))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.DeleteAdjustment",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c balanceAdjustmentCapability) ResetBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate string, carryoverMinutes int, note string) (*workforce.StaffBalanceAdjustment, error) {\n\teffective, err := parseCapabilityDate(effectiveDate, \"effective_date\")\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn c.adjustment(c.ledger.ResetBalance(ctx, staffID, decidedBy, effective, carryoverMinutes, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.ResetBalance",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c balanceAdjustmentCapability) ValidateOpeningBalance(ctx context.Context, staffID, decidedBy int64, effectiveDate string, balanceMinutes int, note string) error {\n\teffective, err := parseCapabilityDate(effectiveDate, \"effective_date\")\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn mapTimeTrackingFailure(c.ledger.ValidateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.ValidateOpeningBalance",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *capabilityError) Error() string {\n\treturn e.cause.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/internal/application/timetracking/capabilityError.Error",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c monthClosingCapability) CloseMonth(ctx context.Context, closedBy int64, year, month int, reason string) (*workforce.MonthCloseResult, error) {\n\tresult, err := c.closing.CloseMonth(ctx, closedBy, year, month, reason)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\tif result == nil {\n\t\treturn nil, nil\n\t}\n\treturn \u0026workforce.MonthCloseResult{Year: result.Year, Month: result.Month, ClosedStaff: result.ClosedStaff, SkippedStaff: result.SkippedStaff, Snapshots: publicMonthSnapshots(result.Snapshots)}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/monthClosingCapability.CloseMonth",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c monthClosingCapability) ListMonthStatus(ctx context.Context, year, month int) ([]*workforce.StaffMonthBalanceSnapshot, error) {\n\tsnapshots, err := c.closing.ListMonthStatus(ctx, year, month)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicMonthSnapshots(snapshots), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/monthClosingCapability.ListMonthStatus",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c monthClosingCapability) ReopenMonth(ctx context.Context, staffID, reopenedBy int64, year, month int, reason string) error {\n\treturn mapTimeTrackingFailure(c.closing.ReopenMonth(ctx, staffID, reopenedBy, year, month, reason))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/monthClosingCapability.ReopenMonth",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c monthSnapshotCapability) ClosedMonthSnapshots(ctx context.Context, year, month int) ([]*MonthSnapshot, error) {\n\tvalues, err := c.MonthSnapshots.ClosedMonthSnapshots(ctx, year, month)\n\treturn consumerMonthSnapshots(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/monthSnapshotCapability.ClosedMonthSnapshots",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c monthSnapshotCapability) ClosedMonthSnapshotsForStaff(ctx context.Context, staffIDs []int64) ([]*MonthSnapshot, error) {\n\tvalues, err := c.MonthSnapshots.ClosedMonthSnapshotsForStaff(ctx, staffIDs)\n\treturn consumerMonthSnapshots(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/monthSnapshotCapability.ClosedMonthSnapshotsForStaff",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c monthSnapshotCapability) LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*MonthSnapshot, error) {\n\tvalue, err := c.MonthSnapshots.LatestClosedMonth(ctx, staffID, year, month)\n\tif value == nil {\n\t\treturn nil, err\n\t}\n\tresult := MonthSnapshot(*value)\n\treturn \u0026result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/monthSnapshotCapability.LatestClosedMonth",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c monthSnapshotCapability) RecordClosedMonth(ctx context.Context, value MonthSnapshot) (MonthSnapshot, error) {\n\tresult, err := c.MonthSnapshots.RecordClosedMonth(ctx, workforce.StaffMonthBalanceSnapshot(value))\n\treturn MonthSnapshot(result), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/monthSnapshotCapability.RecordClosedMonth",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) AbsencesForRange(ctx context.Context, staffID int64, from, to string) ([]*workforce.StaffAbsenceResponse, error) {\n\tfromDate, toDate, err := parseCapabilityRange(from, to)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalues, err := c.absences.GetAbsencesForRange(ctx, staffID, fromDate, toDate)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicAbsenceResponses(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.AbsencesForRange",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error) {\n\treturn c.absence(c.absences.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ApproveAbsence",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error {\n\treturn mapTimeTrackingFailure(c.absences.CancelAbsence(ctx, staffID, actorAccountID, absenceID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.CancelAbsence",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) DeleteVacationOpening(ctx context.Context, staffID, deletedBy int64, year int) error {\n\treturn mapTimeTrackingFailure(c.absences.DeleteVacationOpening(ctx, staffID, deletedBy, year))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.DeleteVacationOpening",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) DenyAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, reason string) (*workforce.StaffAbsenceResponse, error) {\n\treturn c.absence(c.absences.DenyAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, reason))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.DenyAbsence",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) ListPendingRequests(ctx context.Context) ([]*workforce.StaffAbsenceResponse, error) {\n\tvalues, err := c.absences.ListPendingRequests(ctx)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicAbsenceResponses(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ListPendingRequests",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) QuestionAbsence(ctx context.Context, absenceID, actorAccountID int64, note string) (*workforce.StaffAbsenceResponse, error) {\n\treturn c.absence(c.absences.QuestionAbsence(ctx, absenceID, actorAccountID, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.QuestionAbsence",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) RequestVacation(ctx context.Context, staffID int64, request workforce.RequestVacationRequest) (*workforce.StaffAbsenceResponse, error) {\n\treturn c.absence(c.absences.RequestVacation(ctx, staffID, RequestVacationRequest(request)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.RequestVacation",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) ResubmitAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64, note string) (*workforce.StaffAbsenceResponse, error) {\n\treturn c.absence(c.absences.ResubmitAbsence(ctx, staffID, actorAccountID, absenceID, note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ResubmitAbsence",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) SetVacationOpening(ctx context.Context, staffID, decidedBy int64, request workforce.SetVacationOpeningRequest) (*workforce.StaffVacationOpening, error) {\n\teffective, err := parseCapabilityDate(request.EffectiveDate, \"effective_date\")\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\topening, err := c.absences.SetVacationOpening(ctx, staffID, decidedBy, SetVacationOpeningRequest{EffectiveDate: effective, RemainingDays: request.RemainingDays, Note: request.Note})\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicVacationOpening(opening), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.SetVacationOpening",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) SetVacationQuota(ctx context.Context, change workforce.VacationQuotaChange) error {\n\treturn mapTimeTrackingFailure(c.absences.SetVacationQuota(ctx, VacationQuotaChange(change)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.SetVacationQuota",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) UpsertVacationQuota(ctx context.Context, staffID int64, year int, entitled, carryover float64) error {\n\treturn mapTimeTrackingFailure(c.absences.UpsertVacationQuota(ctx, staffID, year, entitled, carryover))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.UpsertVacationQuota",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) VacationQuotaSummary(ctx context.Context, staffID int64, year int) (*workforce.VacationQuotaSummary, error) {\n\tsummary, err := c.absences.GetVacationQuotaSummary(ctx, staffID, year)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\tif summary == nil {\n\t\treturn nil, nil\n\t}\n\treturn \u0026workforce.VacationQuotaSummary{StaffID: summary.StaffID, Year: summary.Year, EntitledDays: summary.EntitledDays, CarryoverDays: summary.CarryoverDays, TakenBeforeDays: summary.TakenBeforeDays, TakenDays: summary.TakenDays, ReservedDays: summary.ReservedDays, RemainingDays: summary.RemainingDays, Opening: publicVacationOpening(summary.Opening)}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.VacationQuotaSummary",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffAbsenceCapability) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate string) error {\n\teffective, err := parseCapabilityDate(effectiveDate, \"effective_date\")\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn mapTimeTrackingFailure(c.absences.ValidateVacationOpeningAbsencesBefore(ctx, staffID, effective))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ValidateVacationOpeningAbsencesBefore",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *staffAbsenceService) GetTodayAbsenceMap(ctx context.Context) (map[int64]string, error) {\n\tvalues, err := s.absenceRepo.StaffAbsenceMapForDate(ctx, calendar.TodayDate().String())\n\tif err != nil {\n\t\treturn nil, rowReadError(\"get effective absences for date\", err, nil)\n\t}\n\treturn values, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceService.GetTodayAbsenceMap",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *staffAbsenceService) GetVacationOpening(ctx context.Context, staffID int64, year int) (*StaffVacationOpening, error) {\n\tif staffID \u003c= 0 {\n\t\treturn nil, fmt.Errorf(\"%w: staff id is required\", ErrVacationOpeningInvalid)\n\t}\n\tif s.openingRepo == nil {\n\t\treturn nil, nil\n\t}\n\tvalues, err := s.openingRepo.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})\n\tif err != nil {\n\t\treturn nil, rowReadError(\"get vacation opening by staff+year\", err, nil)\n\t}\n\treturn firstOpening(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceService.GetVacationOpening",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *staffBalanceAdjustmentService) ListAdjustments(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffBalanceAdjustment, error) {\n\tif staffID \u003c= 0 {\n\t\treturn nil, fmt.Errorf(\"%w: staff id is required\", ErrAdjustmentInvalid)\n\t}\n\tif from.IsZero() || to.IsZero() || to.Before(from) {\n\t\treturn nil, fmt.Errorf(\"%w: from and to must form a valid range\", ErrAdjustmentInvalid)\n\t}\n\tvalues, err := s.adjustmentRepo.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{StaffID: staffID, EffectiveFrom: from.String(), EffectiveTo: to.String()})\n\tif err != nil {\n\t\treturn nil, rowReadError(\"get balance adjustments by staff+range\", err, nil)\n\t}\n\treturn adjustmentsToRecords(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffBalanceAdjustmentService.ListAdjustments",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *staffMonthCloseService) ListMonthStatus(ctx context.Context, year, month int) ([]*MonthSnapshot, error) {\n\tif err := validateMonth(year, month); err != nil {\n\t\treturn nil, fmt.Errorf(\"%w: %s\", ErrMonthCloseInvalid, err.Error())\n\t}\n\treturn s.snapshotRepo.ClosedMonthSnapshots(ctx, year, month)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffMonthCloseService.ListMonthStatus",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffOverviewCapability) TimeTrackingOverview(ctx context.Context, filters workforce.OverviewFilters) (*workforce.TimeTrackingOverview, error) {\n\toverview, err := c.overview.GetTimeTrackingOverview(ctx, OverviewFilters(filters))\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\tif overview == nil {\n\t\treturn nil, nil\n\t}\n\tresult := \u0026workforce.TimeTrackingOverview{Year: overview.Year, Month: overview.Month, Rows: make([]workforce.TimeTrackingOverviewRow, 0, len(overview.Rows))}\n\tfor _, row := range overview.Rows {\n\t\tresult.Rows = append(result.Rows, workforce.TimeTrackingOverviewRow(row))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffOverviewCapability.TimeTrackingOverview",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c staffTimeExportCapability) ExportStaffTime(ctx context.Context, request workforce.TimeExportRequest, actorAccountID int64, actorRole string) (*workforce.ExportFile, error) {\n\tfile, err := c.export.Export(ctx, TimeExportRequest(request), actorAccountID, actorRole)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicExportFile(file), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/staffTimeExportCapability.ExportStaffTime",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c timeClock) CheckOut(ctx context.Context, staffID int64, reason string) (workforce.WorkSession, error) {\n\tsession, err := c.sessions.CheckOut(ctx, staffID, reason)\n\tif err != nil {\n\t\treturn workforce.WorkSession{}, MapTimeTrackingError(err)\n\t}\n\treturn WorkSessionToCapability(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.CheckOut",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c timeClock) CheckOutOn(ctx context.Context, staffID int64, day, reason string) (workforce.WorkSession, error) {\n\tdate, err := timeClockDay(day)\n\tif err != nil {\n\t\treturn workforce.WorkSession{}, err\n\t}\n\tsession, err := c.sessions.CheckOutOn(ctx, staffID, date, reason)\n\tif err != nil {\n\t\treturn workforce.WorkSession{}, MapTimeTrackingError(err)\n\t}\n\treturn WorkSessionToCapability(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.CheckOutOn",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c timeClock) EndBreak(ctx context.Context, staffID int64) (workforce.WorkSession, error) {\n\tsession, err := c.sessions.EndBreak(ctx, staffID)\n\tif err != nil {\n\t\treturn workforce.WorkSession{}, MapTimeTrackingError(err)\n\t}\n\treturn WorkSessionToCapability(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.EndBreak",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c timeClock) EndBreakOn(ctx context.Context, staffID int64, day string) (workforce.WorkSession, error) {\n\tdate, err := timeClockDay(day)\n\tif err != nil {\n\t\treturn workforce.WorkSession{}, err\n\t}\n\tsession, err := c.sessions.EndBreakOn(ctx, staffID, date)\n\tif err != nil {\n\t\treturn workforce.WorkSession{}, MapTimeTrackingError(err)\n\t}\n\treturn WorkSessionToCapability(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.EndBreakOn",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c timeClock) LatestOpenSession(ctx context.Context, staffID int64) (workforce.WorkSession, bool, error) {\n\tsession, err := c.sessions.GetLatestOpenSession(ctx, staffID)\n\tif err != nil {\n\t\treturn workforce.WorkSession{}, false, MapTimeTrackingError(err)\n\t}\n\tif session == nil {\n\t\treturn workforce.WorkSession{}, false, nil\n\t}\n\treturn WorkSessionToCapability(session), true, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.LatestOpenSession",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c timeClock) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (workforce.WorkSessionBreak, error) {\n\tworkBreak, err := c.sessions.StartBreak(ctx, staffID, plannedDurationMinutes)\n\tif err != nil {\n\t\treturn workforce.WorkSessionBreak{}, MapTimeTrackingError(err)\n\t}\n\treturn WorkSessionBreakToCapability(workBreak), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.StartBreak",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c timeClock) StartBreakOn(ctx context.Context, staffID int64, day string, plannedDurationMinutes *int) (workforce.WorkSessionBreak, error) {\n\tdate, err := timeClockDay(day)\n\tif err != nil {\n\t\treturn workforce.WorkSessionBreak{}, err\n\t}\n\tworkBreak, err := c.sessions.StartBreakOn(ctx, staffID, date, plannedDurationMinutes)\n\tif err != nil {\n\t\treturn workforce.WorkSessionBreak{}, MapTimeTrackingError(err)\n\t}\n\treturn WorkSessionBreakToCapability(workBreak), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.StartBreakOn",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*workforce.WorkSession, error) {\n\tsession, err := c.sessions.CheckIn(ctx, staffID, status, source, reason)\n\tif err != nil {\n\t\treturn nil, classifyCheckInError(ctx, err)\n\t}\n\treturn publicWorkSession(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.CheckIn",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) CheckOut(ctx context.Context, staffID int64, reason string) (*workforce.WorkSession, error) {\n\tsession, err := c.sessions.CheckOut(ctx, staffID, reason)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSession(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.CheckOut",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, request workforce.AdminCreateSessionRequest) (*workforce.WorkSession, error) {\n\tsession, err := c.sessions.CreateSessionAsAdmin(ctx, editorStaffID, targetStaffID, AdminCreateSessionRequest(request))\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSession(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.CreateSessionAsAdmin",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) EndBreak(ctx context.Context, staffID int64) (*workforce.WorkSession, error) {\n\tsession, err := c.sessions.EndBreak(ctx, staffID)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSession(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.EndBreak",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) ExportSessions(ctx context.Context, staffID int64, from, to, format string) (*workforce.ExportFile, error) {\n\tfromDate, toDate, err := parseCapabilityRange(from, to)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tfile, err := c.sessions.ExportSessions(ctx, staffID, fromDate, toDate, format)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicExportFile(file), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.ExportSessions",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) HistoryIntersecting(ctx context.Context, staffID int64, from, to string) (*workforce.HistoryResponse, error) {\n\tfromDate, toDate, err := parseCapabilityRange(from, to)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\thistory, err := c.sessions.GetHistoryIntersecting(ctx, staffID, fromDate, toDate)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicHistory(history), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.HistoryIntersecting",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) LatestOpenSession(ctx context.Context, staffID int64) (*workforce.WorkSession, error) {\n\tsession, err := c.sessions.GetLatestOpenSession(ctx, staffID)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSession(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.LatestOpenSession",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) SessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*workforce.WorkSessionBreak, error) {\n\tbreaks, err := c.sessions.GetSessionBreaks(ctx, staffID, sessionID)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSessionBreaks(breaks), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.SessionBreaks",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) SessionEdits(ctx context.Context, staffID, sessionID int64) ([]*workforce.WorkSessionEditView, error) {\n\tedits, err := c.sessions.GetSessionEdits(ctx, staffID, sessionID)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSessionEdits(edits), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.SessionEdits",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) SessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*workforce.WorkSessionEditView, error) {\n\tedits, err := c.sessions.GetSessionEditsForStaff(ctx, staffID, sessionID)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSessionEdits(edits), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.SessionEditsForStaff",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*workforce.WorkSessionBreak, error) {\n\tworkBreak, err := c.sessions.StartBreak(ctx, staffID, plannedDurationMinutes)\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSessionBreak(workBreak), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.StartBreak",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) UpdateSession(ctx context.Context, staffID, sessionID int64, updates workforce.SessionUpdateRequest) (*workforce.WorkSession, error) {\n\tsession, err := c.sessions.UpdateSession(ctx, staffID, sessionID, legacySessionUpdate(updates))\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSession(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.UpdateSession",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) UpdateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID, sessionID int64, updates workforce.SessionUpdateRequest) (*workforce.WorkSession, error) {\n\tsession, err := c.sessions.UpdateSessionAsAdmin(ctx, editorStaffID, targetStaffID, sessionID, legacySessionUpdate(updates))\n\tif err != nil {\n\t\treturn nil, mapTimeTrackingFailure(err)\n\t}\n\treturn publicWorkSession(session), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.UpdateSessionAsAdmin",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c workSessionCapability) UpdateStaffSchedule(ctx context.Context, staffID int64, input workforce.ScheduleUpdateInput) error {\n\tif input.ValidFrom != \"\" \u0026\u0026 (input.Mode == \"template\" || input.SaveAsTemplateName != \"\") {\n\t\treturn fmt.Errorf(\"%w: valid_from is only supported for a custom schedule\", workforce.ErrScheduleValidation)\n\t}\n\tbinding, err := c.staff(ctx, staffID)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn mapTimeTrackingFailure(c.sessions.UpdateSchedule(ctx, \u0026binding, input))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.UpdateStaffSchedule",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error) {\n\tsessionRecords, err := s.repo.TodayOpenWorkSession(ctx, staffID)\n\tsession := workSessionReadRecord(sessionRecords, err)\n\terr = rowReadError(\"get current by staff ID\", err, workforce.ErrWorkSessionNotFound)\n\tif err != nil {\n\t\tif isRecordNotFound(err) {\n\t\t\treturn nil, nil\n\t\t}\n\t\treturn nil, fmt.Errorf(errGetCurrentSession, err)\n\t}\n\treturn session, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetCurrentSession",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {\n\tsessionsRecords, err := s.repo.ListWorkSessions(ctx, workforce.WorkSessionFilter{StaffID: staffID, DateFrom: from.String(), DateTo: to.String(), Order: workSessionOrder(workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime)})\n\tsessions := workSessionsToRecords(sessionsRecords)\n\terr = rowReadError(\"get history by staff ID\", err, nil)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to get session history: %w\", err)\n\t}\n\treturn s.historyResponse(ctx, staffID, sessions, from, to)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetHistory",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {\n\tend := to.AddDays(1).BerlinMidnight()\n\tsessionsRecords, err := s.repo.ListOverlappingWorkSessions(ctx, []int64{staffID}, from.BerlinMidnight(), \u0026end)\n\tsessions := workSessionsToRecords(sessionsRecords)\n\terr = rowReadError(\"list overlapping by staff ID\", err, nil)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to get intersecting session history: %w\", err)\n\t}\n\treturn s.historyResponse(ctx, staffID, sessions, from, to)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetHistoryIntersecting",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error) {\n\tsessionRecords, err := s.repo.LatestOpenWorkSession(ctx, staffID)\n\tsession := workSessionReadRecord(sessionRecords, err)\n\terr = rowReadError(\"get latest open by staff ID\", err, workforce.ErrWorkSessionNotFound)\n\tif err != nil {\n\t\tif isRecordNotFound(err) {\n\t\t\treturn nil, nil\n\t\t}\n\t\treturn nil, fmt.Errorf(\"failed to get latest open session: %w\", err)\n\t}\n\treturn session, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetLatestOpenSession",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *workSessionService) GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {\n\tsessionRecords, err := s.repo.FindWorkSession(ctx, sessionID)\n\tsession := workSessionReadRecord(sessionRecords, err)\n\terr = rowReadError(\"find by id\", err, workforce.ErrWorkSessionNotFound)\n\tif err != nil {\n\t\treturn nil, s.handleSessionNotFoundError(err)\n\t}\n\tif session.StaffID != staffID {\n\t\treturn nil, workforce.ErrSessionNotOwned\n\t}\n\treturn s.loadSessionEditsView(ctx, session, sessionID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetSessionEdits",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *workSessionService) GetSessionEditsForStaff(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error) {\n\tsessionRecords, err := s.repo.FindWorkSession(ctx, sessionID)\n\tsession := workSessionReadRecord(sessionRecords, err)\n\terr = rowReadError(\"find by id\", err, workforce.ErrWorkSessionNotFound)\n\tif err != nil {\n\t\treturn nil, s.handleSessionNotFoundError(err)\n\t}\n\tif session.StaffID != staffID {\n\t\treturn nil, \u0026workforce.TimeTrackingError{Kind: workforce.ErrAdminSessionNotOwned, Cause: fmt.Errorf(\"session does not belong to staff %d\", staffID)}\n\t}\n\treturn s.loadSessionEditsView(ctx, session, sessionID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetSessionEditsForStaff",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {\n\tpresenceMap, err := s.repo.WorkPresenceMap(ctx)\n\terr = rowReadError(\"get today presence map\", err, nil)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to get today's presence map: %w\", err)\n\t}\n\treturn presenceMap, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetTodayPresenceMap",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c StaffDocumentFileCleanup) Validate() error {\n\tif c.StaffID \u003c= 0 {\n\t\treturn invalidStaffRecord(\"staff_id is required\")\n\t}\n\tif c.FilenameStored == \"\" {\n\t\treturn invalidStaffRecord(\"filename_stored is required\")\n\t}\n\tif c.RetryAfter.IsZero() {\n\t\treturn invalidStaffRecord(\"retry_after is required\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/domain/StaffDocumentFileCleanup.Validate",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *capabilityError) Error() string {\n\treturn e.cause.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/internal/planning/capabilityError.Error",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *reasonError) Error() string {\n\treturn e.cause.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/workforce/internal/planning/reasonError.Error",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p schoolCalendarPeriods) FindSeriesPeriod(ctx context.Context, id int64) (SeriesPeriod, error) {\n\tperiod, err := p.calendar.FindCalendarPeriod(ctx, id)\n\tif err != nil {\n\t\treturn SeriesPeriod{}, err\n\t}\n\treturn SeriesPeriod{StartDate: calendar.Date(period.StartDate), EndDate: calendar.Date(period.EndDate), WeekCycleLength: period.WeekCycleLength, WeekCycleAnchor: period.WeekCycleAnchor}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/schoolCalendarPeriods.FindSeriesPeriod",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a shiftTypeAdministration) CreateDefaultShiftTypes(ctx context.Context) ([]workforce.ShiftType, error) {\n\ttypes, err := a.types.CreateDefaultShiftTypes(ctx)\n\tif err != nil {\n\t\treturn nil, mapShiftTypeError(err)\n\t}\n\treturn shiftTypesToCapability(types), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/shiftTypeAdministration.CreateDefaultShiftTypes",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a shiftTypeAdministration) CreateShiftType(ctx context.Context, input workforce.ShiftTypeInput) (workforce.ShiftType, error) {\n\tshiftType := shiftTypeInputToModel(input)\n\tif input.IsActive == nil {\n\t\tshiftType.IsActive = true\n\t}\n\tsaved, err := a.types.CreateShiftType(ctx, shiftType)\n\tif err != nil {\n\t\treturn workforce.ShiftType{}, mapShiftTypeError(err)\n\t}\n\tif err := a.syncCategoryLinks(ctx, saved.ID, input.CategoryIDs); err != nil {\n\t\treturn workforce.ShiftType{}, err\n\t}\n\treturn shiftTypeToCapability(saved), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/shiftTypeAdministration.CreateShiftType",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a shiftTypeAdministration) DeleteShiftType(ctx context.Context, id int64) error {\n\treturn mapShiftTypeError(a.types.DeleteShiftType(ctx, id))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/shiftTypeAdministration.DeleteShiftType",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a shiftTypeAdministration) ListShiftTypes(ctx context.Context) ([]workforce.ShiftType, error) {\n\ttypes, err := a.types.ListShiftTypes(ctx)\n\tif err != nil {\n\t\treturn nil, mapShiftTypeError(err)\n\t}\n\treturn shiftTypesToCapability(types), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/shiftTypeAdministration.ListShiftTypes",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *shiftTypeService) ListShiftTypes(ctx context.Context) ([]*workforce.ShiftTypeRecord, error) {\n\tvalues, err := s.repo.ListShiftTypes(ctx)\n\tif err != nil {\n\t\treturn nil, shiftReadError(\"list all shift types\", err, nil)\n\t}\n\treturn shiftTypesToRows(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/shiftTypeService.ListShiftTypes",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p staffShiftPlanning) CreateSeries(ctx context.Context, input workforce.CreateStaffShiftSeries) (workforce.StaffShiftSeriesResult, error) {\n\tseries, err := seriesInputToModel(input.StaffShiftSeriesInput)\n\tif err != nil {\n\t\treturn workforce.StaffShiftSeriesResult{}, err\n\t}\n\tseries.CreatedBy = input.ActorStaffID\n\tresult, err := p.deps.Series.CreateSeries(ctx, series)\n\tif err != nil {\n\t\treturn workforce.StaffShiftSeriesResult{}, mapPlanningError(err)\n\t}\n\treturn seriesResultToCapability(result), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.CreateSeries",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p staffShiftPlanning) CreateShift(ctx context.Context, input workforce.CreateStaffShift) (workforce.PlannedShift, error) {\n\tshift, err := shiftInputToModel(input.StaffShiftInput)\n\tif err != nil {\n\t\treturn workforce.PlannedShift{}, err\n\t}\n\tshift.CreatedBy = input.ActorStaffID\n\tcreated, err := p.deps.Shifts.CreateShift(ctx, shift)\n\tif err != nil {\n\t\treturn workforce.PlannedShift{}, mapPlanningError(err)\n\t}\n\treturn plannedShiftToCapability(created), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.CreateShift",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p staffShiftPlanning) DeleteShift(ctx context.Context, id int64) error {\n\treturn mapPlanningError(p.deps.Shifts.DeleteShift(ctx, id))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.DeleteShift",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p staffShiftPlanning) EndSeries(ctx context.Context, seriesID int64, from string) (workforce.StaffShiftSeriesResult, error) {\n\tdate, err := planningDate(from, \"from\")\n\tif err != nil {\n\t\treturn workforce.StaffShiftSeriesResult{}, err\n\t}\n\tresult, err := p.deps.Series.EndSeries(ctx, seriesID, date)\n\tif err != nil {\n\t\treturn workforce.StaffShiftSeriesResult{}, mapPlanningError(err)\n\t}\n\treturn seriesResultToCapability(result), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.EndSeries",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p staffShiftPlanning) GetSeries(ctx context.Context, id int64) (workforce.StaffShiftSeries, error) {\n\tseries, err := p.deps.Series.GetSeries(ctx, id)\n\tif err != nil {\n\t\treturn workforce.StaffShiftSeries{}, mapPlanningError(err)\n\t}\n\treturn seriesToCapability(series), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.GetSeries",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *staffShiftService) ListShifts(ctx context.Context, start, end calendar.Date) ([]*workforce.ShiftRecord, error) {\n\tif err := validateShiftRange(start, end); err != nil {\n\t\treturn nil, err\n\t}\n\tshifts, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{From: start.String(), To: end.String(), Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime)})\n\terr = shiftReadError(\"find staff shifts by date range\", err, nil)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif err := s.attachShiftTypes(ctx, shifts); err != nil {\n\t\treturn nil, err\n\t}\n\treturn shifts, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/planning/staffShiftService.ListShifts",
+      "owner": "modules/workforce"
+    }
+  ]
+}

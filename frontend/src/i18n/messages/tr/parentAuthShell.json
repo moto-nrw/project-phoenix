@@ -1,0 +1,33 @@
+{
+  "badges": {
+    "audience": "Tam gün okul için yapıldı",
+    "hosting": "Almanya'da barındırılıyor"
+  },
+  "testimonialButtonLabel": "{number}. deneyim yazısını göster",
+  "testimonials": {
+    "infoHub": {
+      "quote": "OGS ile ilgili en önemli bilgileri tek bir yerde buluyorum. Artık e-postalarda veya kağıtlarda aramam gerekmiyor.",
+      "author": "Veli",
+      "role": "OGS iletişimi",
+      "metric": "Her şey tek bir yerde"
+    },
+    "easyReplies": {
+      "quote": "Bakım ekibine geri dönüş yapmak çok daha kolay. Her konu için telefon etmek veya ayrı e-posta yazmak gerekmiyor.",
+      "author": "Veli",
+      "role": "OGS ile iletişim",
+      "metric": "Daha kolay yanıt"
+    },
+    "lookUpLater": {
+      "quote": "Günlük hayat yoğun olduğunda, OGS'nin ne bildirdiğine sonradan tekrar bakabilmek çok yardımcı oluyor.",
+      "author": "Veli",
+      "role": "Aile hayatı",
+      "metric": "Güvenilir bilgi"
+    },
+    "organized": {
+      "quote": "İletişim çok daha düzenli hissettiriyor. Neyin önemli olduğunu ve nerede bulacağımızı daha hızlı biliyoruz.",
+      "author": "Veli",
+      "role": "Günlük bakım",
+      "metric": "Daha düzenli"
+    }
+  }
+}

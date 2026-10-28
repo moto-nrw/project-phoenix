@@ -59,18 +59,6 @@ export const ERROR_CATALOG = {
         "Die Unterschrift konnte nicht gespeichert werden. Bitte unterschreiben Sie noch einmal.",
       "care.declaration_signature_required":
         "Bitte unterschreiben Sie, bevor Sie zustimmen.",
-      "care.pickup_permission_request_required":
-        "Eine neue Abholerlaubnis braucht Ihre Unterschrift. Die OGS bestätigt sie dann.",
-      "care.pickup_permission_unchanged":
-        "Diese Person darf an diesen Tagen schon abholen.",
-      "care.pickup_person_not_linked":
-        "Diese Person ist kein Kontakt Ihres Kindes. Bitte tragen Sie sie zuerst bei den Kontakten ein.",
-      "care.pickup_proof_not_found":
-        "Zu dieser Anfrage gibt es keinen Nachweis mit Ihrer Unterschrift.",
-      "care.pickup_signature_invalid":
-        "Die Unterschrift ist nicht lesbar. Bitte unterschreiben Sie noch einmal.",
-      "care.pickup_signature_required":
-        "Bitte unterschreiben Sie die Erlaubnis und bestätigen Sie die Unterschrift.",
       "care.declaration_version_changed":
         "Die Schule hat den Text geändert. Bitte lesen Sie ihn noch einmal und antworten Sie dann neu.",
       "care.excused_request_not_pending":
@@ -123,6 +111,18 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "care.pickup_change_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "care.pickup_permission_request_required":
+        "Eine neue Abholerlaubnis braucht Ihre Unterschrift. Die OGS bestätigt sie dann.",
+      "care.pickup_permission_unchanged":
+        "Diese Person darf an diesen Tagen schon abholen.",
+      "care.pickup_person_not_linked":
+        "Diese Person ist kein Kontakt Ihres Kindes. Bitte tragen Sie sie zuerst bei den Kontakten ein.",
+      "care.pickup_proof_not_found":
+        "Zu dieser Anfrage gibt es keinen Nachweis mit Ihrer Unterschrift.",
+      "care.pickup_signature_invalid":
+        "Die Unterschrift ist nicht lesbar. Bitte unterschreiben Sie noch einmal.",
+      "care.pickup_signature_required":
+        "Bitte unterschreiben Sie die Erlaubnis und bestätigen Sie die Unterschrift.",
       "care.poll_closed":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
       "care.remove_disabled":
@@ -199,20 +199,18 @@ export const ERROR_CATALOG = {
         "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "communication.announcement_reminder_sent":
         "Die Erinnerung ist schon verschickt. Sie lässt sich nicht mehr ändern.",
+      "communication.class_letter_class_not_reachable":
+        "Diese Klasse ist Ihnen nicht zugeordnet. Bitte wählen Sie eine eigene Klasse.",
+      "communication.class_letter_read_only":
+        "Diesen Elternbrief hat eine Lehrkraft geschrieben. Nur sie kann ihn ändern, senden oder löschen.",
       "communication.declaration_has_submissions":
         "Auf dieses Einverständnis haben Eltern schon geantwortet. Deshalb lässt es sich nicht löschen. Sie können es zurückziehen, dann sehen Eltern es nicht mehr.",
       "communication.group_thread_closed":
         "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
       "communication.group_thread_no_recipients":
         "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
-      "communication.survey_already_answered":
-        "Sie haben an dieser Umfrage schon teilgenommen. Die Antwort lässt sich nicht mehr ändern.",
-      "communication.survey_anonymous":
-        "Diese Umfrage ist anonym. Einzelne Antworten gibt es dafür nicht.",
-      "communication.survey_not_draft":
-        "Diese Umfrage ist schon veröffentlicht. Sie lässt sich nicht mehr ändern.",
-      "communication.survey_not_open":
-        "Diese Umfrage nimmt keine Antworten mehr an.",
+      "communication.leadership_messages_unavailable":
+        "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
       "communication.notifications_disabled":
         "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
       "communication.parent_news_disabled":
@@ -223,12 +221,14 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
         "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
-      "communication.class_letter_class_not_reachable":
-        "Diese Klasse ist Ihnen nicht zugeordnet. Bitte wählen Sie eine eigene Klasse.",
-      "communication.class_letter_read_only":
-        "Diesen Elternbrief hat eine Lehrkraft geschrieben. Nur sie kann ihn ändern, senden oder löschen.",
-      "communication.leadership_messages_unavailable":
-        "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
+      "communication.survey_already_answered":
+        "Sie haben an dieser Umfrage schon teilgenommen. Die Antwort lässt sich nicht mehr ändern.",
+      "communication.survey_anonymous":
+        "Diese Umfrage ist anonym. Einzelne Antworten gibt es dafür nicht.",
+      "communication.survey_not_draft":
+        "Diese Umfrage ist schon veröffentlicht. Sie lässt sich nicht mehr ändern.",
+      "communication.survey_not_open":
+        "Diese Umfrage nimmt keine Antworten mehr an.",
       "devices.tag_scan_already_resolved":
         "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":
@@ -377,6 +377,10 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_guest_group_invalid":
+        "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
+      "enrollment.holiday_guest_not_found":
+        "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
       "enrollment.holiday_host_school_outside_traeger":
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie eine Schule aus der Liste.",
       "enrollment.holiday_period_incomplete":
@@ -389,12 +393,6 @@ export const ERROR_CATALOG = {
         "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
       "enrollment.holiday_registration_entry_not_found":
         "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Liste neu.",
-      "enrollment.hosted_holiday_week_not_found":
-        "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
-      "enrollment.holiday_guest_not_found":
-        "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
-      "enrollment.holiday_guest_group_invalid":
-        "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
       "enrollment.holiday_registration_frozen":
         "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
       "enrollment.holiday_registration_invalid":
@@ -405,12 +403,10 @@ export const ERROR_CATALOG = {
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
+      "enrollment.hosted_holiday_week_not_found":
+        "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
       "enrollment.invalid_email":
         "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
-      "enrollment.signature_invalid":
-        "Die Unterschrift konnte nicht gelesen werden. Bitte unterschreiben Sie noch einmal.",
-      "enrollment.signature_required":
-        "Bitte unterschreiben Sie die Anmeldung.",
       "enrollment.invalid_phone":
         "Bitte geben Sie eine gültige Telefonnummer ein.",
       "enrollment.late_invite_invalid":
@@ -474,6 +470,12 @@ export const ERROR_CATALOG = {
         "Diese Formularvorlage gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "enrollment.selected_day_not_available":
         "Dieser Wochentag ist für das Angebot nicht möglich. Bitte wählen Sie nur die angezeigten Tage.",
+      "enrollment.signature_invalid":
+        "Die Unterschrift konnte nicht gelesen werden. Bitte unterschreiben Sie noch einmal.",
+      "enrollment.signature_not_found":
+        "Zu dieser Anmeldung gibt es keine Unterschrift.",
+      "enrollment.signature_required":
+        "Bitte unterschreiben Sie die Anmeldung.",
       "enrollment.status_link_invalid":
         "Dieser Link ist ungültig oder abgelaufen. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
       "enrollment.student_exists":
@@ -484,8 +486,6 @@ export const ERROR_CATALOG = {
         "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_invalid":
         "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
-      "enrollment.signature_not_found":
-        "Zu dieser Anmeldung gibt es keine Unterschrift.",
       "enrollment.upload_not_found":
         "Diese Datei gibt es nicht mehr. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_rate_limited":
@@ -689,8 +689,34 @@ export const ERROR_CATALOG = {
         "Ihre Schule hat das Modul {module_label} nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
       "operator.audit_unavailable":
         "Die Anfrage konnte nicht sicher protokolliert werden. Bitte versuchen Sie es später erneut.",
+      "parent_billing.bank_account_missing":
+        "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Briefkopf“ ein Konto ein.",
       "parent_billing.benefits_exemption_unavailable":
         "Für eine Befreiung bei Leistungsbezug braucht es eine Regel unter „Beiträge“. Bitte fragen Sie die Abrechnung.",
+      "parent_billing.billing_correction_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_family_not_found":
+        "Dieses Kind ist nicht mehr im Lauf. Bitte laden Sie die Seite neu.",
+      "parent_billing.billing_letter_not_found":
+        "Dieses Schreiben gibt es noch nicht. Bitte erstellen Sie zuerst die Schreiben des Laufs.",
+      "parent_billing.billing_letters_exist":
+        "Die Schreiben dieses Laufs sind schon erstellt. Sie lassen sich nicht ändern.",
+      "parent_billing.billing_letters_invalid":
+        "Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.billing_letters_missing":
+        "Es gibt noch keine Bestätigungsschreiben. Bitte erstellen Sie zuerst die Schreiben.",
+      "parent_billing.billing_run_changed":
+        "Seit Ihrer Prüfung hat sich der Lauf geändert. Bitte prüfen Sie die neue Vorschau und geben Sie dann frei.",
+      "parent_billing.billing_run_empty":
+        "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
+      "parent_billing.billing_run_not_found":
+        "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
+      "parent_billing.billing_run_not_released":
+        "Schreiben und Übersicht gibt es erst nach der Freigabe. Bitte geben Sie den Lauf zuerst frei.",
+      "parent_billing.billing_run_open":
+        "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
+      "parent_billing.billing_run_released":
+        "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
       "parent_billing.contribution_rule_invalid":
         "Bitte prüfen Sie die markierten Felder.",
       "parent_billing.contribution_rule_not_found":
@@ -699,6 +725,20 @@ export const ERROR_CATALOG = {
         "In dieser Zeit gilt schon eine Regel dieser Art. Bitte ändern Sie zuerst „Gilt bis“ der anderen Regel.",
       "parent_billing.holiday_quote_invalid":
         "Der Beitrag lässt sich für diese Wochen nicht berechnen. Bitte laden Sie die Seite neu.",
+      "parent_billing.invoice_number_taken":
+        "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
+      "parent_billing.letter_mail_pending":
+        "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
+      "parent_billing.letterhead_too_long":
+        "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
+      "parent_billing.number_range_invalid":
+        "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
+      "parent_billing.number_range_missing":
+        "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
+      "parent_billing.parent_document_not_found":
+        "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.recipient_email_missing":
+        "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
       "pickup.bulk_exception_confirmation_required":
         "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
       "pickup.invalid":
@@ -885,10 +925,6 @@ export const ERROR_CATALOG = {
         "{object} ist nicht mehr offen. Bitte laden Sie die Seite neu.",
       "students.change_request_stale":
         "{object} wurde inzwischen geändert. Bitte laden Sie die Seite neu.",
-      "students.pickup_permission_contact_gone":
-        "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
-      "students.pickup_proof_not_found":
-        "Zu dieser Anfrage gibt es keine Unterschrift.",
       "students.checkin_care_ended":
         "Die Betreuung dieses Kindes ist beendet. Bitte laden Sie die Seite neu.",
       "students.checkout_note_too_long":
@@ -963,6 +999,10 @@ export const ERROR_CATALOG = {
         "Der Tag liegt in der Vergangenheit. Bitte lehnen Sie {object} ab.",
       "students.pickup_change_impact_changed":
         "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu.",
+      "students.pickup_permission_contact_gone":
+        "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
+      "students.pickup_proof_not_found":
+        "Zu dieser Anfrage gibt es keine Unterschrift.",
       "students.reason_required":
         "Für {object} fehlt eine Begründung. Bitte tragen Sie eine ein.",
       "students.request_not_decided":
@@ -1279,10 +1319,10 @@ export const ERROR_CATALOG = {
         "Diese Person gehört nicht mehr zum Träger-Büro. Bitte laden Sie die Seite neu.",
       "traeger.no_membership":
         "Ihr Konto hat keinen Zugang zum Träger-Portal. Bitte wenden Sie sich an das moto-Team.",
-      "traeger.second_factor_required":
-        "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
       "traeger.school_not_found":
         "Diese Schule gehört nicht zu Ihrem Träger. Bitte laden Sie die Seite neu.",
+      "traeger.second_factor_required":
+        "Zum Öffnen einer Schule brauchen Sie einen zweiten Anmeldenachweis. Bitte melden Sie sich im Träger-Portal neu an.",
       "workforce.absence_allowance_exceeded":
         "Für diese Art sind nicht mehr genug Tage übrig. Der Anspruch muss zuerst erhöht werden.",
       "workforce.absence_already_decided":
@@ -1413,46 +1453,6 @@ export const ERROR_CATALOG = {
         "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
         "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
-      "parent_billing.billing_correction_invalid":
-        "Bitte prüfen Sie die markierten Felder.",
-      "parent_billing.billing_family_not_found":
-        "Dieses Kind ist nicht mehr im Lauf. Bitte laden Sie die Seite neu.",
-      "parent_billing.billing_run_changed":
-        "Seit Ihrer Prüfung hat sich der Lauf geändert. Bitte prüfen Sie die neue Vorschau und geben Sie dann frei.",
-      "parent_billing.billing_run_empty":
-        "Der Lauf hat keine Rechnung. Es gibt nichts freizugeben.",
-      "parent_billing.billing_run_not_found":
-        "Diesen Abrechnungslauf gibt es nicht. Bitte öffnen Sie ihn über „Abrechnung“.",
-      "parent_billing.billing_run_open":
-        "Für diesen Ferienzeitraum gibt es schon einen Lauf in der Vorschau. Bitte öffnen Sie diesen Lauf.",
-      "parent_billing.billing_run_released":
-        "Der Lauf ist schon freigegeben. Ausgestellte Rechnungen lassen sich nicht ändern.",
-      "parent_billing.invoice_number_taken":
-        "Diese Rechnungsnummer gibt es schon. Bitte ändern Sie das Muster unter „Abrechnung“.",
-      "parent_billing.number_range_invalid":
-        "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
-      "parent_billing.number_range_missing":
-        "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
-      "parent_billing.bank_account_missing":
-        "Für die Schreiben fehlt eine Bankverbindung. Bitte tragen Sie unter „Briefkopf“ ein Konto ein.",
-      "parent_billing.billing_letter_not_found":
-        "Dieses Schreiben gibt es noch nicht. Bitte erstellen Sie zuerst die Schreiben des Laufs.",
-      "parent_billing.billing_letters_exist":
-        "Die Schreiben dieses Laufs sind schon erstellt. Sie lassen sich nicht ändern.",
-      "parent_billing.billing_letters_invalid":
-        "Bitte prüfen Sie die markierten Felder.",
-      "parent_billing.billing_run_not_released":
-        "Schreiben und Übersicht gibt es erst nach der Freigabe. Bitte geben Sie den Lauf zuerst frei.",
-      "parent_billing.letterhead_too_long":
-        "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
-      "parent_billing.billing_letters_missing":
-        "Es gibt noch keine Bestätigungsschreiben. Bitte erstellen Sie zuerst die Schreiben.",
-      "parent_billing.letter_mail_pending":
-        "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
-      "parent_billing.recipient_email_missing":
-        "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
-      "parent_billing.parent_document_not_found":
-        "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
     },
   },
   en: {
@@ -1502,18 +1502,6 @@ export const ERROR_CATALOG = {
       "care.declaration_signature_invalid":
         "The signature could not be saved. Please sign again.",
       "care.declaration_signature_required": "Please sign before you agree.",
-      "care.pickup_permission_request_required":
-        "A new pickup permission needs your signature. The OGS then confirms it.",
-      "care.pickup_permission_unchanged":
-        "This person may already pick up on these days.",
-      "care.pickup_person_not_linked":
-        "This person is not a contact of your child. Please add them to your contacts first.",
-      "care.pickup_proof_not_found":
-        "There is no proof with your signature for this request.",
-      "care.pickup_signature_invalid":
-        "The signature cannot be read. Please sign again.",
-      "care.pickup_signature_required":
-        "Please sign the permission and confirm your signature.",
       "care.declaration_version_changed":
         "The school has changed the text. Please read it again and then answer again.",
       "care.excused_request_not_pending":
@@ -1566,6 +1554,18 @@ export const ERROR_CATALOG = {
         "{object} is not available here at the moment. Please ask your contact person.",
       "care.pickup_change_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "care.pickup_permission_request_required":
+        "A new pickup permission needs your signature. The OGS then confirms it.",
+      "care.pickup_permission_unchanged":
+        "This person may already pick up on these days.",
+      "care.pickup_person_not_linked":
+        "This person is not a contact of your child. Please add them to your contacts first.",
+      "care.pickup_proof_not_found":
+        "There is no proof with your signature for this request.",
+      "care.pickup_signature_invalid":
+        "The signature cannot be read. Please sign again.",
+      "care.pickup_signature_required":
+        "Please sign the permission and confirm your signature.",
       "care.poll_closed":
         "{object} is no longer open. Please ask your contact person.",
       "care.remove_disabled":
@@ -1614,19 +1614,19 @@ export const ERROR_CATALOG = {
         "Attendance can only be recorded for today. Please open today.",
       "classday.morning_attendance_unknown_child":
         "A child no longer belongs to this class. Please reload the page.",
-      "communication.group_thread_closed":
-        "This group message is closed. You can no longer reply.",
-      "communication.group_thread_no_recipients":
-        "No child in this group has parents with access to moto. The message was not sent.",
-      "communication.survey_already_answered":
-        "You have already taken part in this survey. Your answer cannot be changed.",
-      "communication.survey_not_open": "This survey no longer accepts answers.",
       "communication.class_letter_class_not_reachable":
         "This class is not assigned to you. Please choose one of your own classes.",
       "communication.class_letter_read_only":
         "A teacher wrote this parent letter. Only that teacher can change, send or delete it.",
+      "communication.group_thread_closed":
+        "This group message is closed. You can no longer reply.",
+      "communication.group_thread_no_recipients":
+        "No child in this group has parents with access to moto. The message was not sent.",
       "communication.leadership_messages_unavailable":
         "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
+      "communication.survey_already_answered":
+        "You have already taken part in this survey. Your answer cannot be changed.",
+      "communication.survey_not_open": "This survey no longer accepts answers.",
       "enrollment.captcha_failed":
         "The security check did not work. Please try again.",
       "enrollment.captcha_required": "Please complete the security check.",
@@ -1702,6 +1702,10 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_name_required":
         "Please enter the first and last name.",
       "enrollment.guardian_phone_required": "Please enter a phone number.",
+      "enrollment.holiday_guest_group_invalid":
+        "This group no longer exists. Please choose another group.",
+      "enrollment.holiday_guest_not_found":
+        "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
       "enrollment.holiday_host_school_outside_traeger":
         "This school does not belong to your Träger. Please choose a school from the list.",
       "enrollment.holiday_period_incomplete":
@@ -1713,12 +1717,6 @@ export const ERROR_CATALOG = {
         "Registration for these holidays is not open. Please check the start and end of registration.",
       "enrollment.holiday_registration_entry_not_found":
         "This registration no longer exists. Please reload the list.",
-      "enrollment.hosted_holiday_week_not_found":
-        "There is no participant list for this week any more. It is only available until the last day of the week.",
-      "enrollment.holiday_guest_not_found":
-        "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
-      "enrollment.holiday_guest_group_invalid":
-        "This group no longer exists. Please choose another group.",
       "enrollment.holiday_registration_frozen":
         "The registration is frozen. Choose “Reopen” first.",
       "enrollment.holiday_registration_invalid":
@@ -1729,10 +1727,9 @@ export const ERROR_CATALOG = {
         "This is not possible for this registration right now. Please reload the page.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed.",
+      "enrollment.hosted_holiday_week_not_found":
+        "There is no participant list for this week any more. It is only available until the last day of the week.",
       "enrollment.invalid_email": "Please enter a valid email address.",
-      "enrollment.signature_invalid":
-        "The signature could not be read. Please sign again.",
-      "enrollment.signature_required": "Please sign the enrollment.",
       "enrollment.invalid_phone": "Please enter a valid phone number.",
       "enrollment.late_invite_invalid":
         "This link is invalid, has expired or was already used. Please contact the school.",
@@ -1747,6 +1744,11 @@ export const ERROR_CATALOG = {
         "Please select the required care option for each child.",
       "enrollment.selected_day_not_available":
         "This weekday is not available for this option. Please only choose the days shown.",
+      "enrollment.signature_invalid":
+        "The signature could not be read. Please sign again.",
+      "enrollment.signature_not_found":
+        "There is no signature for this enrollment.",
+      "enrollment.signature_required": "Please sign the enrollment.",
       "enrollment.status_link_invalid":
         "This link is invalid or has expired. Please use the link from your email.",
       "enrollment.submission_rate_limited":
@@ -1755,8 +1757,6 @@ export const ERROR_CATALOG = {
         "An uploaded file has expired. Please upload it again.",
       "enrollment.upload_invalid":
         "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
-      "enrollment.signature_not_found":
-        "There is no signature for this enrollment.",
       "enrollment.upload_not_found":
         "This file no longer exists. Please upload it again.",
       "enrollment.upload_rate_limited":
@@ -1847,6 +1847,8 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
+      "parent_billing.parent_document_not_found":
+        "This document is no longer available. Please reload the page.",
       "staff.exit_already_due":
         "The last working day is over. The exit is already running and can no longer be changed.",
       "staff.exit_day_in_past":
@@ -1869,16 +1871,16 @@ export const ERROR_CATALOG = {
         "{object} is not available here at the moment. Please ask your contact person.",
       "students.change_request_stale":
         "{object} has been changed in the meantime. Please reload the page.",
-      "students.pickup_permission_contact_gone":
-        "{object} could not be changed. Please check the current state.",
-      "students.pickup_proof_not_found":
-        "{object} could not be changed. Please check the current state.",
       "students.export_selection_too_large":
         "The selection has {total} children. A list can have at most {limit} children. Please narrow the selection, for example by group or class.",
       "students.offering_change_capacity_full":
         "One of the offerings has no free places left. Please check the occupancy.",
       "students.offering_changes_no_enrollment":
         "The child no longer has a valid enrollment. Please decline {object}.",
+      "students.pickup_permission_contact_gone":
+        "{object} could not be changed. Please check the current state.",
+      "students.pickup_proof_not_found":
+        "{object} could not be changed. Please check the current state.",
       "students.reason_required":
         "A reason is missing for {object}. Please enter one.",
       "students.staff_profile_required":
@@ -1914,12 +1916,10 @@ export const ERROR_CATALOG = {
         "This person no longer belongs to the Träger office. Please reload the page.",
       "traeger.no_membership":
         "Your account has no access to the Träger portal. Please contact the moto team.",
-      "traeger.second_factor_required":
-        "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
       "traeger.school_not_found":
         "This school does not belong to your Träger. Please reload the page.",
-      "parent_billing.parent_document_not_found":
-        "This document is no longer available. Please reload the page.",
+      "traeger.second_factor_required":
+        "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
     },
   },
   ru: {
@@ -1970,18 +1970,6 @@ export const ERROR_CATALOG = {
         "Не удалось сохранить подпись. Пожалуйста, распишитесь ещё раз.",
       "care.declaration_signature_required":
         "Пожалуйста, распишитесь, прежде чем согласиться.",
-      "care.pickup_permission_request_required":
-        "Для нового разрешения нужна ваша подпись. Затем OGS его подтвердит.",
-      "care.pickup_permission_unchanged":
-        "Этот человек уже может забирать ребёнка в эти дни.",
-      "care.pickup_person_not_linked":
-        "Этот человек не является контактом вашего ребёнка. Пожалуйста, сначала добавьте его в контакты.",
-      "care.pickup_proof_not_found":
-        "Для этого запроса нет подтверждения с вашей подписью.",
-      "care.pickup_signature_invalid":
-        "Подпись не читается. Пожалуйста, распишитесь ещё раз.",
-      "care.pickup_signature_required":
-        "Пожалуйста, подпишите разрешение и подтвердите подпись.",
       "care.declaration_version_changed":
         "Школа изменила текст. Прочитайте его ещё раз и затем ответьте заново.",
       "care.excused_request_not_pending":
@@ -2033,6 +2021,18 @@ export const ERROR_CATALOG = {
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "care.pickup_change_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "care.pickup_permission_request_required":
+        "Для нового разрешения нужна ваша подпись. Затем OGS его подтвердит.",
+      "care.pickup_permission_unchanged":
+        "Этот человек уже может забирать ребёнка в эти дни.",
+      "care.pickup_person_not_linked":
+        "Этот человек не является контактом вашего ребёнка. Пожалуйста, сначала добавьте его в контакты.",
+      "care.pickup_proof_not_found":
+        "Для этого запроса нет подтверждения с вашей подписью.",
+      "care.pickup_signature_invalid":
+        "Подпись не читается. Пожалуйста, распишитесь ещё раз.",
+      "care.pickup_signature_required":
+        "Пожалуйста, подпишите разрешение и подтвердите подпись.",
       "care.poll_closed":
         "Больше не открыто: {object}. Обратитесь к контактному лицу.",
       "care.remove_disabled":
@@ -2080,11 +2080,11 @@ export const ERROR_CATALOG = {
         "Это групповое сообщение закрыто. Ответить больше нельзя.",
       "communication.group_thread_no_recipients":
         "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
+      "communication.leadership_messages_unavailable":
+        "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
       "communication.survey_already_answered":
         "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
-      "communication.leadership_messages_unavailable":
-        "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
       "enrollment.captcha_failed":
         "Проверка безопасности не пройдена. Попробуйте ещё раз.",
       "enrollment.captcha_required": "Пройдите проверку безопасности.",
@@ -2163,9 +2163,6 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_not_found":
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
       "enrollment.invalid_email": "Укажите правильный адрес электронной почты.",
-      "enrollment.signature_invalid":
-        "Не удалось прочитать подпись. Пожалуйста, подпишите ещё раз.",
-      "enrollment.signature_required": "Пожалуйста, подпишите заявку.",
       "enrollment.invalid_phone": "Укажите правильный номер телефона.",
       "enrollment.late_invite_invalid":
         "Эта ссылка недействительна, устарела или уже использована. Обратитесь в школу.",
@@ -2180,6 +2177,10 @@ export const ERROR_CATALOG = {
         "Выберите обязательную программу для каждого ребёнка.",
       "enrollment.selected_day_not_available":
         "Этот день недели недоступен для программы. Выбирайте только показанные дни.",
+      "enrollment.signature_invalid":
+        "Не удалось прочитать подпись. Пожалуйста, подпишите ещё раз.",
+      "enrollment.signature_not_found": "Для этой заявки нет подписи.",
+      "enrollment.signature_required": "Пожалуйста, подпишите заявку.",
       "enrollment.status_link_invalid":
         "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
       "enrollment.submission_rate_limited":
@@ -2188,7 +2189,6 @@ export const ERROR_CATALOG = {
         "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
       "enrollment.upload_invalid":
         "Этот файл не подходит. Выберите разрешённый тип файла размером не более {max_mb} МБ.",
-      "enrollment.signature_not_found": "Для этой заявки нет подписи.",
       "enrollment.upload_not_found":
         "Этого файла больше нет. Загрузите его ещё раз.",
       "enrollment.upload_rate_limited":
@@ -2277,22 +2277,24 @@ export const ERROR_CATALOG = {
         "Ваша школа не подключила модуль {module_label}. Чтобы подключить его, обратитесь в команду moto.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
+      "parent_billing.parent_document_not_found":
+        "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
       "students.care_exception_raced":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
       "students.change_request_stale":
         "Данные изменились: {object}. Обновите страницу.",
-      "students.pickup_permission_contact_gone":
-        "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
-      "students.pickup_proof_not_found":
-        "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
       "students.export_selection_too_large":
         "Выбрано детей: {total}. В списке может быть не больше {limit} детей. Сузьте выбор, например по группе или классу.",
       "students.offering_change_capacity_full":
         "В одном из вариантов больше нет свободных мест. Проверьте заполненность.",
       "students.offering_changes_no_enrollment":
         "У ребёнка больше нет действующей записи. Отклоните: {object}.",
+      "students.pickup_permission_contact_gone":
+        "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
+      "students.pickup_proof_not_found":
+        "{object}: изменить не удалось. Пожалуйста, проверьте текущее состояние.",
       "students.reason_required": "Не указана причина: {object}. Укажите её.",
       "students.staff_profile_required":
         "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
@@ -2308,8 +2310,6 @@ export const ERROR_CATALOG = {
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
       "traeger.access_log_export_too_large":
         "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
-      "parent_billing.parent_document_not_found":
-        "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
     },
   },
   sq: {
@@ -2360,18 +2360,6 @@ export const ERROR_CATALOG = {
         "Nënshkrimi nuk u ruajt dot. Ju lutemi nënshkruani përsëri.",
       "care.declaration_signature_required":
         "Ju lutemi nënshkruani para se të jepni pëlqimin.",
-      "care.pickup_permission_request_required":
-        "Një leje e re për marrjen e fëmijës kërkon nënshkrimin tuaj. Pastaj OGS e konfirmon.",
-      "care.pickup_permission_unchanged":
-        "Ky person e merr tashmë fëmijën në këto ditë.",
-      "care.pickup_person_not_linked":
-        "Ky person nuk është kontakt i fëmijës suaj. Ju lutemi shtojeni fillimisht te kontaktet.",
-      "care.pickup_proof_not_found":
-        "Për këtë kërkesë nuk ka dëshmi me nënshkrimin tuaj.",
-      "care.pickup_signature_invalid":
-        "Nënshkrimi nuk lexohet. Ju lutemi nënshkruani përsëri.",
-      "care.pickup_signature_required":
-        "Ju lutemi nënshkruani lejen dhe konfirmoni nënshkrimin.",
       "care.declaration_version_changed":
         "Shkolla e ka ndryshuar tekstin. Ju lutemi lexojeni përsëri dhe pastaj përgjigjuni sërish.",
       "care.excused_request_not_pending":
@@ -2424,6 +2412,18 @@ export const ERROR_CATALOG = {
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "care.pickup_change_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "care.pickup_permission_request_required":
+        "Një leje e re për marrjen e fëmijës kërkon nënshkrimin tuaj. Pastaj OGS e konfirmon.",
+      "care.pickup_permission_unchanged":
+        "Ky person e merr tashmë fëmijën në këto ditë.",
+      "care.pickup_person_not_linked":
+        "Ky person nuk është kontakt i fëmijës suaj. Ju lutemi shtojeni fillimisht te kontaktet.",
+      "care.pickup_proof_not_found":
+        "Për këtë kërkesë nuk ka dëshmi me nënshkrimin tuaj.",
+      "care.pickup_signature_invalid":
+        "Nënshkrimi nuk lexohet. Ju lutemi nënshkruani përsëri.",
+      "care.pickup_signature_required":
+        "Ju lutemi nënshkruani lejen dhe konfirmoni nënshkrimin.",
       "care.poll_closed":
         "Nuk është më i hapur: {object}. Pyetni personin tuaj të kontaktit.",
       "care.remove_disabled":
@@ -2472,11 +2472,11 @@ export const ERROR_CATALOG = {
         "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
       "communication.group_thread_no_recipients":
         "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
+      "communication.leadership_messages_unavailable":
+        "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
       "communication.survey_already_answered":
         "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
-      "communication.leadership_messages_unavailable":
-        "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
       "enrollment.captcha_failed":
         "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
       "enrollment.captcha_required":
@@ -2565,9 +2565,6 @@ export const ERROR_CATALOG = {
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
       "enrollment.invalid_email":
         "Ju lutemi shkruani një adresë emaili të vlefshme.",
-      "enrollment.signature_invalid":
-        "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
-      "enrollment.signature_required": "Ju lutemi nënshkruani regjistrimin.",
       "enrollment.invalid_phone":
         "Ju lutemi shkruani një numër telefoni të vlefshëm.",
       "enrollment.late_invite_invalid":
@@ -2583,6 +2580,10 @@ export const ERROR_CATALOG = {
         "Ju lutemi zgjidhni ofertën e detyrueshme për çdo fëmijë.",
       "enrollment.selected_day_not_available":
         "Kjo ditë nuk ofrohet për këtë ofertë. Ju lutemi zgjidhni vetëm ditët e treguara.",
+      "enrollment.signature_invalid":
+        "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
+      "enrollment.signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
+      "enrollment.signature_required": "Ju lutemi nënshkruani regjistrimin.",
       "enrollment.status_link_invalid":
         "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
       "enrollment.submission_rate_limited":
@@ -2591,7 +2592,6 @@ export const ERROR_CATALOG = {
         "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
       "enrollment.upload_invalid":
         "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
-      "enrollment.signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
       "enrollment.upload_not_found":
         "Ky skedar nuk ekziston më. Ngarkojeni përsëri.",
       "enrollment.upload_rate_limited":
@@ -2681,22 +2681,24 @@ export const ERROR_CATALOG = {
         "Shkolla juaj nuk e ka rezervuar modulin {module_label}. Për ta rezervuar, kontaktoni ekipin e moto.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
+      "parent_billing.parent_document_not_found":
+        "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
       "students.care_exception_raced":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
       "students.change_request_stale":
         "Ndërkohë është ndryshuar: {object}. Ju lutemi ringarkoni faqen.",
-      "students.pickup_permission_contact_gone":
-        "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
-      "students.pickup_proof_not_found":
-        "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
       "students.export_selection_too_large":
         "Përzgjedhja ka {total} fëmijë. Një listë mund të ketë më së shumti {limit} fëmijë. Ju lutemi ngushtoni përzgjedhjen, p.sh. sipas grupit ose klasës.",
       "students.offering_change_capacity_full":
         "Në njërën nga ofertat nuk ka më vende të lira. Kontrolloni zënien e vendeve.",
       "students.offering_changes_no_enrollment":
         "Fëmija nuk ka më një regjistrim të vlefshëm. Refuzoni: {object}.",
+      "students.pickup_permission_contact_gone":
+        "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
+      "students.pickup_proof_not_found":
+        "{object} nuk mund të ndryshohej. Ju lutemi kontrolloni gjendjen aktuale.",
       "students.reason_required":
         "Mungon arsyeja: {object}. Ju lutemi shkruani një.",
       "students.staff_profile_required":
@@ -2713,8 +2715,6 @@ export const ERROR_CATALOG = {
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
       "traeger.access_log_export_too_large":
         "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
-      "parent_billing.parent_document_not_found":
-        "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
     },
   },
   pl: {
@@ -2765,18 +2765,6 @@ export const ERROR_CATALOG = {
         "Nie udało się zapisać podpisu. Podpisz się ponownie.",
       "care.declaration_signature_required":
         "Podpisz się, zanim wyrazisz zgodę.",
-      "care.pickup_permission_request_required":
-        "Nowa zgoda na odbiór wymaga Państwa podpisu. OGS ją potem potwierdzi.",
-      "care.pickup_permission_unchanged":
-        "Ta osoba już może odbierać dziecko w te dni.",
-      "care.pickup_person_not_linked":
-        "Ta osoba nie jest kontaktem Państwa dziecka. Proszę najpierw dodać ją do kontaktów.",
-      "care.pickup_proof_not_found":
-        "Dla tej prośby nie ma potwierdzenia z Państwa podpisem.",
-      "care.pickup_signature_invalid":
-        "Podpis jest nieczytelny. Proszę podpisać się jeszcze raz.",
-      "care.pickup_signature_required":
-        "Proszę podpisać zgodę i potwierdzić podpis.",
       "care.declaration_version_changed":
         "Szkoła zmieniła tekst. Przeczytaj go ponownie, a potem odpowiedz jeszcze raz.",
       "care.excused_request_not_pending":
@@ -2829,6 +2817,18 @@ export const ERROR_CATALOG = {
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "care.pickup_change_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "care.pickup_permission_request_required":
+        "Nowa zgoda na odbiór wymaga Państwa podpisu. OGS ją potem potwierdzi.",
+      "care.pickup_permission_unchanged":
+        "Ta osoba już może odbierać dziecko w te dni.",
+      "care.pickup_person_not_linked":
+        "Ta osoba nie jest kontaktem Państwa dziecka. Proszę najpierw dodać ją do kontaktów.",
+      "care.pickup_proof_not_found":
+        "Dla tej prośby nie ma potwierdzenia z Państwa podpisem.",
+      "care.pickup_signature_invalid":
+        "Podpis jest nieczytelny. Proszę podpisać się jeszcze raz.",
+      "care.pickup_signature_required":
+        "Proszę podpisać zgodę i potwierdzić podpis.",
       "care.poll_closed":
         "Już nie jest otwarte: {object}. Zapytaj swoją osobę kontaktową.",
       "care.remove_disabled":
@@ -2876,12 +2876,12 @@ export const ERROR_CATALOG = {
         "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
       "communication.group_thread_no_recipients":
         "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
+      "communication.leadership_messages_unavailable":
+        "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
       "communication.survey_already_answered":
         "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
       "communication.survey_not_open":
         "Ta ankieta nie przyjmuje już odpowiedzi.",
-      "communication.leadership_messages_unavailable":
-        "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
       "enrollment.captcha_failed":
         "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
       "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
@@ -2959,9 +2959,6 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
       "enrollment.invalid_email": "Wpisz prawidłowy adres e-mail.",
-      "enrollment.signature_invalid":
-        "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
-      "enrollment.signature_required": "Prosimy podpisać zgłoszenie.",
       "enrollment.invalid_phone": "Wpisz prawidłowy numer telefonu.",
       "enrollment.late_invite_invalid":
         "Ten link jest nieprawidłowy, wygasł lub został już użyty. Skontaktuj się ze szkołą.",
@@ -2976,6 +2973,10 @@ export const ERROR_CATALOG = {
         "Wybierz obowiązkową ofertę dla każdego dziecka.",
       "enrollment.selected_day_not_available":
         "Ten dzień tygodnia nie jest dostępny dla oferty. Wybieraj tylko pokazane dni.",
+      "enrollment.signature_invalid":
+        "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
+      "enrollment.signature_not_found": "To zgłoszenie nie ma podpisu.",
+      "enrollment.signature_required": "Prosimy podpisać zgłoszenie.",
       "enrollment.status_link_invalid":
         "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
       "enrollment.submission_rate_limited":
@@ -2984,7 +2985,6 @@ export const ERROR_CATALOG = {
         "Przesłany plik wygasł. Prześlij go ponownie.",
       "enrollment.upload_invalid":
         "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
-      "enrollment.signature_not_found": "To zgłoszenie nie ma podpisu.",
       "enrollment.upload_not_found":
         "Tego pliku już nie ma. Prześlij go ponownie.",
       "enrollment.upload_rate_limited":
@@ -3074,22 +3074,24 @@ export const ERROR_CATALOG = {
         "Twoja szkoła nie zamówiła modułu {module_label}. Aby go zamówić, skontaktuj się z zespołem moto.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
+      "parent_billing.parent_document_not_found":
+        "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
       "students.care_exception_raced":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
       "students.change_request_stale":
         "W międzyczasie zmieniono: {object}. Odśwież stronę.",
-      "students.pickup_permission_contact_gone":
-        "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
-      "students.pickup_proof_not_found":
-        "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
       "students.export_selection_too_large":
         "Wybrano {total} dzieci. Lista może mieć najwyżej {limit} dzieci. Zawęź wybór, na przykład według grupy lub klasy.",
       "students.offering_change_capacity_full":
         "W jednej z ofert nie ma już wolnych miejsc. Sprawdź obłożenie.",
       "students.offering_changes_no_enrollment":
         "Dziecko nie ma już ważnego zapisu. Odrzuć: {object}.",
+      "students.pickup_permission_contact_gone":
+        "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
+      "students.pickup_proof_not_found":
+        "{object} nie udało się zmienić. Proszę sprawdzić aktualny stan.",
       "students.reason_required": "Brakuje uzasadnienia: {object}. Wpisz je.",
       "students.staff_profile_required":
         "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
@@ -3105,8 +3107,6 @@ export const ERROR_CATALOG = {
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
       "traeger.access_log_export_too_large":
         "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
-      "parent_billing.parent_document_not_found":
-        "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
     },
   },
   tr: {
@@ -3157,18 +3157,6 @@ export const ERROR_CATALOG = {
         "İmza kaydedilemedi. Lütfen yeniden imza atın.",
       "care.declaration_signature_required":
         "Lütfen onay vermeden önce imza atın.",
-      "care.pickup_permission_request_required":
-        "Yeni bir alma izni imzanızı gerektirir. Ardından OGS onaylar.",
-      "care.pickup_permission_unchanged":
-        "Bu kişi bu günlerde zaten çocuğu alabilir.",
-      "care.pickup_person_not_linked":
-        "Bu kişi çocuğunuzun kişileri arasında değil. Lütfen önce kişilerinize ekleyin.",
-      "care.pickup_proof_not_found":
-        "Bu talep için imzanızı içeren bir belge yok.",
-      "care.pickup_signature_invalid":
-        "İmza okunamıyor. Lütfen tekrar imzalayın.",
-      "care.pickup_signature_required":
-        "Lütfen izni imzalayın ve imzanızı onaylayın.",
       "care.declaration_version_changed":
         "Okul metni değiştirdi. Lütfen tekrar okuyun ve ardından yeniden yanıtlayın.",
       "care.excused_request_not_pending":
@@ -3221,6 +3209,18 @@ export const ERROR_CATALOG = {
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "care.pickup_change_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "care.pickup_permission_request_required":
+        "Yeni bir alma izni imzanızı gerektirir. Ardından OGS onaylar.",
+      "care.pickup_permission_unchanged":
+        "Bu kişi bu günlerde zaten çocuğu alabilir.",
+      "care.pickup_person_not_linked":
+        "Bu kişi çocuğunuzun kişileri arasında değil. Lütfen önce kişilerinize ekleyin.",
+      "care.pickup_proof_not_found":
+        "Bu talep için imzanızı içeren bir belge yok.",
+      "care.pickup_signature_invalid":
+        "İmza okunamıyor. Lütfen tekrar imzalayın.",
+      "care.pickup_signature_required":
+        "Lütfen izni imzalayın ve imzanızı onaylayın.",
       "care.poll_closed":
         "{object} artık açık değil. Lütfen ilgili kişinize danışın.",
       "care.remove_disabled":
@@ -3269,11 +3269,11 @@ export const ERROR_CATALOG = {
         "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
       "communication.group_thread_no_recipients":
         "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
+      "communication.leadership_messages_unavailable":
+        "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
       "communication.survey_already_answered":
         "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
-      "communication.leadership_messages_unavailable":
-        "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
       "enrollment.captcha_failed":
         "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
       "enrollment.captcha_required":
@@ -3357,9 +3357,6 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_not_found":
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
       "enrollment.invalid_email": "Lütfen geçerli bir e-posta adresi girin.",
-      "enrollment.signature_invalid":
-        "İmza okunamadı. Lütfen tekrar imzalayın.",
-      "enrollment.signature_required": "Lütfen kaydı imzalayın.",
       "enrollment.invalid_phone": "Lütfen geçerli bir telefon numarası girin.",
       "enrollment.late_invite_invalid":
         "Bu bağlantı geçersiz, süresi dolmuş veya kullanılmış. Lütfen okulla iletişime geçin.",
@@ -3374,6 +3371,10 @@ export const ERROR_CATALOG = {
         "Lütfen her çocuk için zorunlu hizmeti seçin.",
       "enrollment.selected_day_not_available":
         "Bu gün bu hizmet için mümkün değil. Lütfen yalnızca gösterilen günleri seçin.",
+      "enrollment.signature_invalid":
+        "İmza okunamadı. Lütfen tekrar imzalayın.",
+      "enrollment.signature_not_found": "Bu kayıt için imza yok.",
+      "enrollment.signature_required": "Lütfen kaydı imzalayın.",
       "enrollment.status_link_invalid":
         "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
       "enrollment.submission_rate_limited":
@@ -3382,7 +3383,6 @@ export const ERROR_CATALOG = {
         "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_invalid":
         "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
-      "enrollment.signature_not_found": "Bu kayıt için imza yok.",
       "enrollment.upload_not_found":
         "Bu dosya artık yok. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_rate_limited":
@@ -3471,22 +3471,24 @@ export const ERROR_CATALOG = {
         "Okulunuz {module_label} modülünü almamış. Almak için moto ekibiyle iletişime geçin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
+      "parent_billing.parent_document_not_found":
+        "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
       "students.care_exception_raced":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
       "students.change_request_stale":
         "{object} bu arada değiştirildi. Lütfen sayfayı yenileyin.",
-      "students.pickup_permission_contact_gone":
-        "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
-      "students.pickup_proof_not_found":
-        "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
       "students.export_selection_too_large":
         "Seçimde {total} çocuk var. Bir liste en fazla {limit} çocuk içerebilir. Lütfen seçimi daraltın, örneğin gruba veya sınıfa göre.",
       "students.offering_change_capacity_full":
         "Tekliflerden birinde boş yer kalmadı. Lütfen doluluk durumunu kontrol edin.",
       "students.offering_changes_no_enrollment":
         "Çocuğun artık geçerli bir kaydı yok. Lütfen şunu reddedin: {object}.",
+      "students.pickup_permission_contact_gone":
+        "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
+      "students.pickup_proof_not_found":
+        "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
       "students.reason_required":
         "{object} için gerekçe eksik. Lütfen bir gerekçe girin.",
       "students.staff_profile_required":
@@ -3503,8 +3505,6 @@ export const ERROR_CATALOG = {
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
       "traeger.access_log_export_too_large":
         "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
-      "parent_billing.parent_document_not_found":
-        "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
     },
   },
   uk: {
@@ -3554,18 +3554,6 @@ export const ERROR_CATALOG = {
         "Не вдалося зберегти підпис. Будь ласка, підпишіться ще раз.",
       "care.declaration_signature_required":
         "Будь ласка, підпишіться, перш ніж погодитися.",
-      "care.pickup_permission_request_required":
-        "Для нового дозволу потрібен ваш підпис. Потім OGS його підтвердить.",
-      "care.pickup_permission_unchanged":
-        "Ця особа вже може забирати дитину в ці дні.",
-      "care.pickup_person_not_linked":
-        "Ця особа не є контактом вашої дитини. Будь ласка, спершу додайте її до контактів.",
-      "care.pickup_proof_not_found":
-        "Для цього запиту немає підтвердження з вашим підписом.",
-      "care.pickup_signature_invalid":
-        "Підпис неможливо прочитати. Будь ласка, підпишіться ще раз.",
-      "care.pickup_signature_required":
-        "Будь ласка, підпишіть дозвіл і підтвердьте підпис.",
       "care.declaration_version_changed":
         "Школа змінила текст. Будь ласка, прочитайте його ще раз і дайте відповідь заново.",
       "care.excused_request_not_pending":
@@ -3617,6 +3605,18 @@ export const ERROR_CATALOG = {
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "care.pickup_change_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "care.pickup_permission_request_required":
+        "Для нового дозволу потрібен ваш підпис. Потім OGS його підтвердить.",
+      "care.pickup_permission_unchanged":
+        "Ця особа вже може забирати дитину в ці дні.",
+      "care.pickup_person_not_linked":
+        "Ця особа не є контактом вашої дитини. Будь ласка, спершу додайте її до контактів.",
+      "care.pickup_proof_not_found":
+        "Для цього запиту немає підтвердження з вашим підписом.",
+      "care.pickup_signature_invalid":
+        "Підпис неможливо прочитати. Будь ласка, підпишіться ще раз.",
+      "care.pickup_signature_required":
+        "Будь ласка, підпишіть дозвіл і підтвердьте підпис.",
       "care.poll_closed":
         "Уже не відкрито: {object}. Зверніться до контактної особи.",
       "care.remove_disabled":
@@ -3664,12 +3664,12 @@ export const ERROR_CATALOG = {
         "Це групове повідомлення закрито. Відповісти більше не можна.",
       "communication.group_thread_no_recipients":
         "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
+      "communication.leadership_messages_unavailable":
+        "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS.",
       "communication.survey_already_answered":
         "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
       "communication.survey_not_open":
         "Це опитування більше не приймає відповіді.",
-      "communication.leadership_messages_unavailable":
-        "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS.",
       "enrollment.captcha_failed":
         "Перевірка безпеки не вдалася. Спробуйте ще раз.",
       "enrollment.captcha_required": "Пройдіть перевірку безпеки.",
@@ -3747,9 +3747,6 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_not_found":
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
       "enrollment.invalid_email": "Вкажіть правильну адресу електронної пошти.",
-      "enrollment.signature_invalid":
-        "Не вдалося прочитати підпис. Будь ласка, підпишіть ще раз.",
-      "enrollment.signature_required": "Будь ласка, підпишіть заявку.",
       "enrollment.invalid_phone": "Вкажіть правильний номер телефону.",
       "enrollment.late_invite_invalid":
         "Це посилання недійсне, застаріле або вже використане. Зверніться до школи.",
@@ -3764,6 +3761,10 @@ export const ERROR_CATALOG = {
         "Оберіть обов'язкову програму для кожної дитини.",
       "enrollment.selected_day_not_available":
         "Цей день тижня недоступний для програми. Обирайте лише показані дні.",
+      "enrollment.signature_invalid":
+        "Не вдалося прочитати підпис. Будь ласка, підпишіть ще раз.",
+      "enrollment.signature_not_found": "Для цієї заявки немає підпису.",
+      "enrollment.signature_required": "Будь ласка, підпишіть заявку.",
       "enrollment.status_link_invalid":
         "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
       "enrollment.submission_rate_limited":
@@ -3772,7 +3773,6 @@ export const ERROR_CATALOG = {
         "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
       "enrollment.upload_invalid":
         "Цей файл не підходить. Виберіть дозволений тип файлу розміром не більше {max_mb} МБ.",
-      "enrollment.signature_not_found": "Для цієї заявки немає підпису.",
       "enrollment.upload_not_found":
         "Цього файлу більше немає. Завантажте його ще раз.",
       "enrollment.upload_rate_limited":
@@ -3861,22 +3861,24 @@ export const ERROR_CATALOG = {
         "Ваша школа не підключила модуль {module_label}. Щоб підключити його, зверніться до команди moto.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
+      "parent_billing.parent_document_not_found":
+        "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
       "students.care_exception_raced":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
       "students.change_request_stale":
         "Дані змінилися: {object}. Оновіть сторінку.",
-      "students.pickup_permission_contact_gone":
-        "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
-      "students.pickup_proof_not_found":
-        "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
       "students.export_selection_too_large":
         "Вибрано дітей: {total}. У списку може бути не більше {limit} дітей. Звузьте вибір, наприклад за групою або класом.",
       "students.offering_change_capacity_full":
         "В одній із пропозицій більше немає вільних місць. Перевірте заповненість.",
       "students.offering_changes_no_enrollment":
         "Дитина більше не має чинного запису. Відхиліть: {object}.",
+      "students.pickup_permission_contact_gone":
+        "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
+      "students.pickup_proof_not_found":
+        "{object}: змінити не вдалося. Будь ласка, перевірте поточний стан.",
       "students.reason_required": "Не вказано причину: {object}. Вкажіть її.",
       "students.staff_profile_required":
         "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
@@ -3892,8 +3894,6 @@ export const ERROR_CATALOG = {
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
       "traeger.access_log_export_too_large":
         "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
-      "parent_billing.parent_document_not_found":
-        "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
     },
   },
 } as const;

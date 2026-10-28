@@ -1,0 +1,6 @@
+{
+  "scenario": "services.enrollment.rollover_review_queue.reads",
+  "max": 3,
+  "exact": false,
+  "description": "modules/careplan — OfferingWeekdayBookings (#5103): the care-offerings\nsetting, the offerings, the phases (with the period) and the approved\nchildren in one batch. Flat in the number of approved children."
+}
