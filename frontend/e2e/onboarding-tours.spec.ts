@@ -235,6 +235,8 @@ async function walkTour(
       )
       .toBe(true);
     if (moved) {
+      // Die Station ist entfallen, nicht besucht.
+      visited.pop();
       if ((await tourPosition(page)) === null) {
         annotateStations(visited);
         return { visited, stoppedAt: null };
@@ -408,17 +410,23 @@ for (const device of VIEWPORTS) {
       await loginToTenant(page, staffAccess);
       // Jeder Lauf beginnt mit offener Checkliste; eine beendete Tour hakt
       // ihren Schritt ab.
+      // Nacheinander: Jede Route liest den ganzen Stand und schreibt ihn
+      // zurück. Parallel überschriebe ein Schritt das Einblenden wieder.
       const reset = [
-        page.request.put(`${tenantBase}/api/staff-onboarding/dismissal`, {
-          data: { dismissed: false },
-        }),
-        ...STAFF_ONBOARDING_STEP_KEYS.map((step) =>
-          page.request.put(`${tenantBase}/api/staff-onboarding/steps/${step}`, {
-            data: { state: "open" },
+        () =>
+          page.request.put(`${tenantBase}/api/staff-onboarding/dismissal`, {
+            data: { dismissed: false },
           }),
+        ...STAFF_ONBOARDING_STEP_KEYS.map(
+          (step) => () =>
+            page.request.put(
+              `${tenantBase}/api/staff-onboarding/steps/${step}`,
+              { data: { state: "open" } },
+            ),
         ),
       ];
-      for (const response of await Promise.all(reset)) {
+      for (const send of reset) {
+        const response = await send();
         expect(response.ok(), await response.text()).toBe(true);
       }
       await page.goto(`${tenantBase}/dashboard`, {
@@ -435,6 +443,16 @@ for (const device of VIEWPORTS) {
         await startTour(page, title);
         const { visited, stoppedAt } = await walkTour(page, tours[step]);
         expect(stoppedAt, visited.join(" → ")).toBeNull();
+        // Die Betreuungskraft sieht jede Station auf den Seiten der Tour. Eine
+        // optionale Station (etwa ein Reiter der Kindakte), deren Stelle
+        // fehlt, entfiele sonst still.
+        expect(visited).toEqual(
+          expect.arrayContaining(
+            tours[step].stops
+              .filter((stop) => !stop.nav)
+              .map((stop) => stop.title),
+          ),
+        );
         expectSidebarPath(tours[step], visited, device.mobile);
         // Wer die Tour bis zum Ende sieht, hat den Schritt erledigt.
         const checklist = page.getByRole("region", {
