@@ -203,12 +203,24 @@ test("an aborted navigation after sign-out reports a held write as not saved", a
     .filter({ hasText: "nicht gespeichert" });
   if (process.env.TENANT_SWITCH_SHOT_DIR) {
     await notice.waitFor({ timeout: 12_000 }).catch(() => undefined);
+    // Let the toast finish fading in; endless spinners are skipped.
+    await page.evaluate(() =>
+      Promise.all(
+        document
+          .getAnimations()
+          .filter(
+            (animation) =>
+              animation.effect?.getTiming().iterations !== Infinity,
+          )
+          .map((animation) => animation.finished.catch(() => undefined)),
+      ),
+    );
     await page.screenshot({
       path: join(process.env.TENANT_SWITCH_SHOT_DIR, "aborted-navigation.png"),
     });
   }
   await expect(notice).toHaveText(
-    "Ihre letzte Änderung wurde nicht gespeichert, weil die Abmeldung lief. Bitte speichern Sie sie noch einmal.",
+    "Ihre letzte Änderung wurde nicht gespeichert, weil Sie gerade abgemeldet wurden. Bitte speichern Sie sie noch einmal.",
   );
   expect(page.url()).toBe(`${source}/home`);
   expect(writes).toBe(0);
