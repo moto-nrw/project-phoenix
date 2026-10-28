@@ -14,6 +14,10 @@ const (
 	webManualDeviceName = "Web-Portal (Manuell)"
 )
 
+// seedModuleNotBooked is the registered code of a request to a module the
+// school did not book.
+const seedModuleNotBooked = "module.not_booked"
+
 type configureProfileStep struct {
 	definition demoProfileDefinition
 }
@@ -203,10 +207,6 @@ func verifyDeviceAdministrationLocked(rt *Runtime) (SeedDevice, error) {
 	}
 	return verifyWebManualDeviceProtection(rt, webDevice)
 }
-
-// seedModuleNotBooked is the registered code of a route whose module the
-// school did not book.
-const seedModuleNotBooked = "module.not_booked"
 
 func verifyDeviceAdministrationRefusal(rt *Runtime) error {
 	_, err := listSeedDevices(rt, "terminal")
