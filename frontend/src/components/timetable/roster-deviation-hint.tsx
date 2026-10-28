@@ -1,7 +1,6 @@
 "use client";
 
-import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { DecisionHint } from "~/components/timetable/decision-hint";
 import {
   describeRosterDeviation,
   type RosterDeviation,
@@ -27,41 +26,20 @@ export function RosterDeviationHint({
   busy?: boolean;
   className?: string;
 }>) {
-  const actions =
-    onConnect || onKeepManual ? (
-      <span className="flex flex-wrap gap-2">
-        {onConnect ? (
-          <Button
-            type="button"
-            variant="surface"
-            size="compact"
-            onClick={onConnect}
-            disabled={busy}
-          >
-            Mit Angebot verbinden
-          </Button>
-        ) : null}
-        {onKeepManual ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={onKeepManual}
-            disabled={busy}
-          >
-            Bleibt von Hand gepflegt
-          </Button>
-        ) : null}
-      </span>
-    ) : undefined;
   return (
-    <Alert
-      type="warning"
-      // A hint in a list, not an event: it must not interrupt screen readers.
-      announce="off"
+    <DecisionHint
       message={describeRosterDeviation(deviation)}
-      action={actions}
-      actionLayout="stacked"
+      primary={
+        onConnect
+          ? { label: "Mit Angebot verbinden", onClick: onConnect }
+          : undefined
+      }
+      secondary={
+        onKeepManual
+          ? { label: "Bleibt von Hand gepflegt", onClick: onKeepManual }
+          : undefined
+      }
+      busy={busy}
       className={className}
     />
   );

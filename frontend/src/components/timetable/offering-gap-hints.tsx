@@ -1,16 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
-import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { DecisionActions } from "~/components/timetable/decision-hint";
+import { Tooltip } from "~/components/ui/tooltip";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
-  describeGapClasses,
-  describeOfferingGap,
+  describeGapChildren,
+  describeGapWeekdays,
+  summarizeGapClasses,
   type OfferingGap,
 } from "~/lib/offering-gap";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -25,9 +33,10 @@ function offeringGapsKey(periodId: string): string {
 
 /**
  * Offerings whose booked children no Regeltermin of the period takes over
- * (#5140), above the Regeltermine. Planners create a Regeltermin or decide
- * that these children need none; a decided offering moves into the folded
- * list below, from where the hint can come back. Readers without planning
+ * (#5140): one warning above the Regeltermine with a short row per offering
+ * and the two equal decisions (DecisionActions, shared with the roster
+ * review). Decided offerings wait in a folded card, from where the hint can
+ * come back. Readers without planning
  * rights only see the open hints. A failed check shows the load error with a
  * retry, never an empty list: no hint must not read as "no gaps". Every
  * reload of the template list reloads the hints too, so a new Regeltermin
@@ -113,39 +122,40 @@ export function OfferingGapHints({
 
   return (
     <div className="flex flex-col gap-3" data-testid="offering-gap-hints">
-      {open.map((gap) => (
+      {open.length > 0 ? (
         <Alert
-          key={gap.offering.id}
           type="warning"
           // A hint in a list, not an event: it must not interrupt screen readers.
           announce="off"
-          message={describeOfferingGap(gap)}
-          actionLayout="stacked"
-          action={
-            canManage ? (
-              <span className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="surface"
-                  size="compact"
-                  onClick={onCreateSeries}
-                >
-                  Regeltermin anlegen
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  onClick={() => void decide(gap, true)}
-                  disabled={busyOfferingId === gap.offering.id}
-                >
-                  Kein Regeltermin nötig
-                </Button>
-              </span>
-            ) : undefined
+          title={
+            open.length === 1
+              ? "1 Angebot ohne Regeltermin"
+              : `${open.length} Angebote ohne Regeltermin`
+          }
+          message="Diese Kinder haben ein Angebot gebucht, aber kein Regeltermin übernimmt sie."
+          details={
+            <ul className="mt-2 flex flex-col gap-2">
+              {open.map((gap) => (
+                <OfferingGapRow key={gap.offering.id} gap={gap}>
+                  {canManage ? (
+                    <DecisionActions
+                      primary={{
+                        label: "Regeltermin anlegen",
+                        onClick: onCreateSeries,
+                      }}
+                      secondary={{
+                        label: "Kein Regeltermin nötig",
+                        onClick: () => void decide(gap, true),
+                      }}
+                      busy={busyOfferingId === gap.offering.id}
+                    />
+                  ) : null}
+                </OfferingGapRow>
+              ))}
+            </ul>
           }
         />
-      ))}
+      ) : null}
       {decided.length > 0 ? (
         <SectionCard
           title={`Ohne eigenen Regeltermin (${decided.length})`}
@@ -156,28 +166,51 @@ export function OfferingGapHints({
         >
           <ul className="flex flex-col gap-2">
             {decided.map((gap) => (
-              <li
-                key={gap.offering.id}
-                className="flex flex-wrap items-center justify-between gap-2 text-sm text-gray-700"
-              >
-                <span>
-                  „{gap.offering.name}“ ·{" "}
-                  {describeGapClasses(gap.schoolClasses)}
-                </span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="compact"
-                  onClick={() => void decide(gap, false)}
-                  disabled={busyOfferingId === gap.offering.id}
-                >
-                  Hinweis wieder zeigen
-                </Button>
-              </li>
+              <OfferingGapRow key={gap.offering.id} gap={gap}>
+                <DecisionActions
+                  primary={{
+                    label: "Hinweis wieder zeigen",
+                    onClick: () => void decide(gap, false),
+                  }}
+                  busy={busyOfferingId === gap.offering.id}
+                />
+              </OfferingGapRow>
             ))}
           </ul>
         </SectionCard>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * One offering: its name, the short facts (children, classes, days) and the
+ * actions. A long class list sits in the kit tooltip, so the row stays one
+ * line on a desktop.
+ */
+function OfferingGapRow({
+  gap,
+  children,
+}: Readonly<{
+  gap: OfferingGap;
+  children?: ReactNode;
+}>) {
+  const classes = summarizeGapClasses(gap.schoolClasses);
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+      <div className="min-w-0">
+        <span className="font-medium">„{gap.offering.name}“</span>{" "}
+        <span>
+          {describeGapChildren(gap.studentCount)} ·{" "}
+          {classes.full === classes.short ? (
+            classes.short
+          ) : (
+            <Tooltip content={classes.full}>{classes.short}</Tooltip>
+          )}{" "}
+          · {describeGapWeekdays(gap.weekdays)}
+        </span>
+      </div>
+      {children}
+    </li>
   );
 }

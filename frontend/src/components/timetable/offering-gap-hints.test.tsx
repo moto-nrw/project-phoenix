@@ -91,19 +91,67 @@ describe("OfferingGapHints", () => {
     mockSetAcknowledged.mockResolvedValue(undefined);
   });
 
-  it("names the offering, the children, their classes and days", () => {
+  it("lists every open offering as one row in one warning", () => {
+    mockGaps.current = [
+      randstunde,
+      { ...randstunde, offering: { id: "9", name: "Kurzbetreuung" } },
+      mittag,
+    ];
     renderHints();
 
+    expect(screen.getByText("2 Angebote ohne Regeltermin")).toBeInTheDocument();
+    expect(screen.getByText("„Randstunde“")).toBeInTheDocument();
+    expect(screen.getByText("„Kurzbetreuung“")).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "46 Kinder haben „Randstunde“ gebucht, aber keinen Regeltermin. Klassen 3a, 3b, 4a · Mo, Di, Mi, Do, Fr",
-      ),
-    ).toBeInTheDocument();
-    // The decided offering waits in the folded list, not as a warning.
+      screen.getAllByText(/46 Kinder · Klassen 3a, 3b, 4a · Mo–Fr/),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("button", { name: "Kein Regeltermin nötig" }),
+    ).toHaveLength(2);
+    // The decided offering waits folded below, not as a warning.
     expect(
       screen.getByRole("heading", { name: "Ohne eigenen Regeltermin (1)" }),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/„Mittagessen“ gebucht/)).not.toBeInTheDocument();
+    expect(screen.queryByText("„Mittagessen“")).not.toBeInTheDocument();
+  });
+
+  it("shortens many classes and keeps the full list in the tooltip", () => {
+    mockGaps.current = [
+      {
+        ...randstunde,
+        schoolClasses: ["1a", "1b", "2a", "2b", "3a", "3b", "4a", "4b"],
+        weekdays: [1, 3],
+      },
+    ];
+    renderHints();
+
+    expect(
+      screen.getByText("Klassen 1a, 1b und 6 weitere"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Klassen 1a, 1b, 2a, 2b, 3a, 3b, 4a, 4b"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/· Mo, Mi/)).toBeInTheDocument();
+  });
+
+  it("offers both ways as equal buttons", () => {
+    renderHints();
+
+    const create = screen.getByRole("button", { name: "Regeltermin anlegen" });
+    const none = screen.getByRole("button", { name: "Kein Regeltermin nötig" });
+    expect(create.className).toBe(none.className);
+  });
+
+  it("shows no warning when every offering is decided", () => {
+    mockGaps.current = [mittag];
+    renderHints();
+
+    expect(
+      screen.getByRole("heading", { name: "Ohne eigenen Regeltermin (1)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Angebote? ohne Regeltermin/),
+    ).not.toBeInTheDocument();
   });
 
   it("creates a Regeltermin or records that none is needed", async () => {
@@ -137,7 +185,7 @@ describe("OfferingGapHints", () => {
       }),
     );
     expect(
-      screen.getByText("„Mittagessen“ · Kinder ohne Klasse"),
+      screen.getByText(/1 Kind · Kinder ohne Klasse · Mi/),
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "Hinweis wieder zeigen" }),
@@ -168,11 +216,14 @@ describe("OfferingGapHints", () => {
   it("only shows open hints to readers without planning rights", () => {
     renderHints(false);
 
-    expect(screen.getByText(/„Randstunde“ gebucht/)).toBeInTheDocument();
-    expect(screen.queryByRole("button")).not.toBeInTheDocument();
+    expect(screen.getByText("„Randstunde“")).toBeInTheDocument();
     expect(
-      screen.queryByText(/Ohne eigenen Regeltermin/),
+      screen.queryByRole("button", { name: "Regeltermin anlegen" }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Kein Regeltermin nötig" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("„Mittagessen“")).not.toBeInTheDocument();
   });
   it("shows a failed check with a retry instead of an empty list", async () => {
     mockLoadError.current = new ApiError("boom", 500);
@@ -181,7 +232,7 @@ describe("OfferingGapHints", () => {
     expect(
       await screen.findByText(/Prüfung der Angebote ohne Regeltermin/),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/gebucht, aber/)).not.toBeInTheDocument();
+    expect(screen.queryByText("„Randstunde“")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() =>
       expect(mockMutate).toHaveBeenCalledWith("offering-gaps-5"),

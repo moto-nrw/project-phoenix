@@ -62,7 +62,7 @@ it("removes old hints until the selected period has loaded", async () => {
     </SWRConfig>
   );
   const { rerender } = render(view("5"));
-  expect(await screen.findByText(/„Randstunde“ gebucht/)).toBeInTheDocument();
+  expect(await screen.findByText("„Randstunde“")).toBeInTheDocument();
 
   rerender(view("6"));
   expect(screen.queryAllByRole("button")).toHaveLength(0);
@@ -71,8 +71,8 @@ it("removes old hints until the selected period has loaded", async () => {
     resolveNext([{ ...oldGap, offering: { id: "8", name: "Mittagessen" } }]);
   });
   // Anker: die Hinweise des neu gewählten Zeitraums sind geladen.
-  expect(await screen.findByText(/„Mittagessen“ gebucht/)).toBeInTheDocument();
-  expect(screen.queryByText(/„Randstunde“ gebucht/)).not.toBeInTheDocument();
+  expect(await screen.findByText("„Mittagessen“")).toBeInTheDocument();
+  expect(screen.queryByText("„Randstunde“")).not.toBeInTheDocument();
   fireEvent.click(
     screen.getByRole("button", { name: "Kein Regeltermin nötig" }),
   );

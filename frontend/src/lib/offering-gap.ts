@@ -1,3 +1,5 @@
+import { schoolClassesLabel } from "~/lib/school-class-label";
+
 /**
  * An offering whose booked children no Regeltermin of the planning period
  * takes over (#5140). The backend compares bookings and Regeltermine; the
@@ -46,24 +48,46 @@ export function mapOfferingGaps(
 
 const WEEKDAY_SHORT = ["", "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 
-/** „3a, 3b, ohne Klasse“: the classes as the school names them. */
-export function describeGapClasses(schoolClasses: string[]): string {
-  const named = schoolClasses
-    .filter((schoolClass) => schoolClass !== "")
-    .map((schoolClass) => schoolClass.replace(/^klasse\s+/i, ""));
-  if (schoolClasses.includes("")) named.push("ohne Klasse");
-  const label = named.length === 1 ? "Klasse" : "Klassen";
-  return schoolClasses.length === 1 && schoolClasses[0] === ""
-    ? "Kinder ohne Klasse"
-    : `${label} ${named.join(", ")}`;
+/** „1 Kind“ or „46 Kinder“. */
+export function describeGapChildren(count: number): string {
+  return count === 1 ? "1 Kind" : `${count} Kinder`;
 }
 
-/** The hint in two short sentences: who is affected, then where and when. */
-export function describeOfferingGap(gap: OfferingGap): string {
-  const children =
-    gap.studentCount === 1 ? "1 Kind hat" : `${gap.studentCount} Kinder haben`;
-  const days = gap.weekdays
-    .map((weekday) => WEEKDAY_SHORT[weekday] ?? "")
-    .join(", ");
-  return `${children} „${gap.offering.name}“ gebucht, aber keinen Regeltermin. ${describeGapClasses(gap.schoolClasses)} · ${days}`;
+/**
+ * The classes in short and in full. Up to three classes stand as they are
+ * („Klassen 3a, 3b, 4a“); more read „Klassen 1a, 1b und 6 weitere“, the full
+ * list goes into the tooltip. Children without a class are named last.
+ */
+export function summarizeGapClasses(schoolClasses: string[]): {
+  short: string;
+  full: string;
+} {
+  const named = schoolClasses.filter((c) => c.trim() !== "");
+  const withoutClass = named.length < schoolClasses.length;
+  if (named.length === 0) {
+    return { short: "Kinder ohne Klasse", full: "Kinder ohne Klasse" };
+  }
+  const suffix = withoutClass ? " und Kinder ohne Klasse" : "";
+  const full = schoolClassesLabel(named) + suffix;
+  const short =
+    named.length > 3
+      ? schoolClassesLabel(
+          named,
+          (names) =>
+            `${names.slice(0, 2).join(", ")} und ${names.length - 2} weitere`,
+        ) + suffix
+      : full;
+  return { short, full };
+}
+
+/** „Mo–Fr“ for a run of days, else „Mo, Mi“. */
+export function describeGapWeekdays(weekdays: number[]): string {
+  const sorted = [...weekdays].sort((a, b) => a - b);
+  const contiguous = sorted.every(
+    (day, i) => i === 0 || day === (sorted[i - 1] ?? 0) + 1,
+  );
+  if (sorted.length >= 3 && contiguous) {
+    return `${WEEKDAY_SHORT[sorted[0] ?? 0]}–${WEEKDAY_SHORT[sorted[sorted.length - 1] ?? 0]}`;
+  }
+  return sorted.map((day) => WEEKDAY_SHORT[day] ?? "").join(", ");
 }
