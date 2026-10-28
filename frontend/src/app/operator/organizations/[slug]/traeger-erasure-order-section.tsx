@@ -61,8 +61,10 @@ export function TraegerErasureOrderSection({
     error,
     isLoading,
     mutate,
-  } = useSWRAuth(operatorProvisioningKeys.orgErasureOrder(organizationId), () =>
-    operatorProvisioningService.getTraegerErasureOrder(organizationId),
+  } = useSWRAuth(
+    operatorProvisioningKeys.orgErasureOrder(organizationId),
+    () => operatorProvisioningService.getTraegerErasureOrder(organizationId),
+    { keepPreviousData: false },
   );
   const loadError = useSwrLoadError(
     error,

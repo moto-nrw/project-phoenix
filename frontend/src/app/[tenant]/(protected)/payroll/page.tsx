@@ -60,7 +60,9 @@ export default function PayrollPage() {
     data: status,
     error,
     mutate,
-  } = useSWRAuth(isReady ? payrollKeys.status() : null, fetchPayrollStatus);
+  } = useSWRAuth(isReady ? payrollKeys.status() : null, fetchPayrollStatus, {
+    keepPreviousData: false,
+  });
 
   const loadError = useSwrLoadError(
     error,

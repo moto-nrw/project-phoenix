@@ -337,6 +337,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
   const { data: privacyConsent } = useSWRAuth(
     privacyStudentId ? studentKeys.privacyConsent(privacyStudentId) : null,
     () => fetchPrivacyConsentForStudent(privacyStudentId!),
+    { keepPreviousData: false },
   );
   const [formData, setFormData] = useState<Record<string, unknown>>({});
   const formRef = useRef<HTMLFormElement>(null);

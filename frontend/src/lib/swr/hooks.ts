@@ -624,7 +624,23 @@ export function useSWRPreload() {
       const fullKey = scopedSWRKey(prefix, key);
       if (dataGenerationOf(fullKey) > originatingGeneration)
         return Promise.resolve(undefined);
-      return preloadSWR(fullKey, fetcher);
+      const start = startOf(fullKey);
+      return preloadSWR(fullKey, fetcher).then(
+        (value) =>
+          isStillCurrent(fullKey, start) &&
+          isCurrentSWRValue(fullKey, value) !== false
+            ? value
+            : undefined,
+        (error: unknown) => {
+          if (
+            isDiscardedAnswer(error) ||
+            !isStillCurrent(fullKey, start) ||
+            !isCurrentSWRError(fullKey, error)
+          )
+            return undefined;
+          throw error;
+        },
+      );
     },
     [prefix, originatingGeneration],
   );

@@ -97,7 +97,7 @@ function AudiencePreview({
   const { data, error, mutate } = useSWRAuth<GroupChild[]>(
     messageKeys.groupMessageAudience(type, id),
     () => fetchGroupAudience(type, id),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(
     error,

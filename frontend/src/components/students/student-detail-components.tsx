@@ -180,7 +180,11 @@ function FieldHistoryInfo({
   const { data } = useSWRAuth<FieldChangeEntry[]>(
     studentKeys.changeHistory(studentId),
     () => changeHistoryFetcher(`/api/students/${studentId}/change-history`),
-    { shouldRetryOnError: false, revalidateOnFocus: false },
+    {
+      keepPreviousData: false,
+      shouldRetryOnError: false,
+      revalidateOnFocus: false,
+    },
   );
 
   const [open, setOpen] = useState(false);

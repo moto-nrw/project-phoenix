@@ -13,7 +13,10 @@ const preload = useSWRPreload();
 const invalidateFamily = useInvalidateFamily();
 
 // On intent, with the same parameters as the destination:
-void preload(rooms.key(params), () => rooms.fetcher(params));
+// The destination owns load errors; intent must not show an error toast.
+void preload(rooms.key(params), () => rooms.fetcher(params)).catch(
+  () => undefined,
+);
 // After a write, refresh every parameter set, including preload-only keys:
 void invalidateFamily(rooms.family);
 ```
@@ -21,7 +24,8 @@ void invalidateFamily(rooms.family);
 1. Factory keys are **unscoped**. The hooks add the authenticated portal,
    school and account through `scope.ts`. Never give an unscoped key to the
    global cache or a package-level preload. Without session access there is
-   no cache key, fetch, preload or mutation.
+   no cache key, fetch, preload or mutation. Discarded preloads resolve to
+   `undefined`; failures of the current generation still reject.
 2. Use `useSWRCacheKey()` to resolve the same identity for a cache read or
    list-overlay ID. A cache-derived detail seed must retain its source's
    generation stamp. Do not restamp old data as a fresh fallback. A partial
@@ -38,6 +42,10 @@ void invalidateFamily(rooms.family);
    projections stay separate: system rooms, paginated room lists, the staff
    directory and its teacher projection must not overwrite one another.
    Filter/sort display transformations belong outside the shared cache.
+
+Migrated direct readers explicitly retain SWR’s former `keepPreviousData: false`
+default unless they already opted in. Do not carry a previous child, thread or
+audience into a newly selected key.
 
 The pure `*-keys.ts` modules keep API clients out of always-mounted invalidators.
 `portal-keys.ts` contains the smaller portal resource families. There is no

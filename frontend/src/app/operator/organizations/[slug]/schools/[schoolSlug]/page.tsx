@@ -142,7 +142,11 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   } = useSWRAuth(
     isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const organization: OrganizationSummary | undefined = useMemo(
@@ -171,7 +175,11 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       operatorProvisioningService.listOrganizationSchools(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const school: SchoolSummary | undefined = useMemo(
@@ -195,7 +203,11 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   } = useSWRAuth(
     accountsActive ? operatorProvisioningKeys.schoolAccounts(school?.id) : null,
     () => operatorProvisioningService.listSchoolAccounts(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const devicesActive =
@@ -208,7 +220,11 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   } = useSWRAuth(
     devicesActive ? operatorProvisioningKeys.schoolDevices(school?.id) : null,
     () => operatorProvisioningService.listSchoolDevices(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const personsActive =
@@ -221,7 +237,11 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   } = useSWRAuth(
     personsActive ? operatorProvisioningKeys.schoolPersons(school?.id) : null,
     () => operatorProvisioningService.listSchoolPersons(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   // PWA standalone usage (#2189): shown in the header, so it loads with the
@@ -235,7 +255,11 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
       ? operatorProvisioningKeys.schoolPwaUsage(school.id)
       : null,
     () => operatorProvisioningService.getSchoolPWAUsage(school?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   // One alert for the page head: the provider and school lists it is built

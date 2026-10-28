@@ -235,7 +235,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       operatorProvisioningService.listOrganizationAccounts(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const devicesActive =
@@ -253,7 +257,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       operatorProvisioningService.listOrganizationDevices(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const personsActive =
@@ -271,7 +279,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       operatorProvisioningService.listOrganizationPersons(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const traegerMembersActive =
@@ -287,7 +299,11 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
       : null,
     () =>
       operatorProvisioningService.listTraegerMembers(organization?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const organizationsLoadError = useSwrLoadError(

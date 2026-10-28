@@ -45,6 +45,7 @@ export function useAnnouncements() {
     announcementKeys.unread(),
     fetchUnread,
     {
+      keepPreviousData: false,
       refreshInterval: 60000, // Poll every 60s
       revalidateOnFocus: false, // Don't revalidate on window focus to avoid showing dismissed items again
       revalidateOnMount: true, // Always fetch fresh data on component mount

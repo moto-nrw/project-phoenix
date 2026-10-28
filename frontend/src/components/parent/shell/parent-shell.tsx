@@ -40,6 +40,7 @@ export function ParentShell({
   const { data: linkedChildren } = useSWRAuth(
     authenticated ? parentKeys.shellChildren() : null,
     listMyChildren,
+    { keepPreviousData: false },
   );
   const newsEnabled = useParentNewsEnabled(
     authenticated,

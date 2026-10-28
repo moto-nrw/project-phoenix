@@ -170,6 +170,7 @@ function MessageThreadContent() {
       }
     },
     {
+      keepPreviousData: false,
       revalidateOnFocus: false,
       isPaused: () => leavingAsUnreadRef.current,
       fallbackData: seed,

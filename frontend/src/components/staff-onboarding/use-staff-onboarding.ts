@@ -34,7 +34,7 @@ export function useStaffOnboarding(): {
     fetchStaffOnboarding,
     // Der Stand ändert sich nur durch die Person selbst; die Schule wird
     // beim Zurückkehren in den Tab bereit.
-    { revalidateOnFocus: true },
+    { keepPreviousData: false, revalidateOnFocus: true },
   );
 
   return {

@@ -57,6 +57,7 @@ export function ParentMessagesCard({
     studentKeys.studentThreads(studentId),
     () => fetchStudentThreads(studentId),
     {
+      keepPreviousData: false,
       revalidateOnFocus: false,
       onError: (err: unknown) =>
         logger.warn("parent_messages_load_failed", {

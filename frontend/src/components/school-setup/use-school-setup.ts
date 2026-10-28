@@ -39,7 +39,11 @@ export function useSchoolSetup(
   const { data, mutate } = useSWRAuth<SchoolSetupState | null>(
     cacheKey,
     fetchSchoolSetup,
-    { revalidateOnFocus: true, refreshInterval: live ? LIVE_REFRESH_MS : 0 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: true,
+      refreshInterval: live ? LIVE_REFRESH_MS : 0,
+    },
   );
 
   return {

@@ -158,6 +158,7 @@ describe("useAnnouncements", () => {
         revalidateOnFocus: false,
         revalidateOnMount: true,
         dedupingInterval: 5000,
+        keepPreviousData: false,
       },
     );
   });

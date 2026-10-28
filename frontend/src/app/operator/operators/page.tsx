@@ -55,7 +55,7 @@ export default function OperatorOperatorsPage() {
   } = useSWRAuth<OperatorInvitationsData>(
     operatorInvitationKeys.list(),
     () => listOperatorInvitations(),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(
     fetchError,

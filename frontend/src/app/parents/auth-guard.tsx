@@ -68,6 +68,7 @@ export function ParentAuthGuard({
       ? parentKeys.profile()
       : null,
     fetchParentProfile,
+    { keepPreviousData: false },
   );
 
   // Login page: render without auth guards.

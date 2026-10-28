@@ -110,8 +110,10 @@ export default function OperatorAnnouncementsPage() {
     error: announcementsError,
     isLoading,
     mutate,
-  } = useSWRAuth(operatorAnnouncementKeys.list(), () =>
-    operatorAnnouncementsService.fetchAll(),
+  } = useSWRAuth(
+    operatorAnnouncementKeys.list(),
+    () => operatorAnnouncementsService.fetchAll(),
+    { keepPreviousData: false },
   );
   const announcementsLoadError = useSwrLoadError(
     announcementsError,
@@ -1361,7 +1363,7 @@ function AnnouncementViewsAccordionWrapper({
   } = useSWRAuth<AnnouncementStats>(
     operatorAnnouncementKeys.stats(announcementId),
     () => operatorAnnouncementsService.fetchStats(announcementId),
-    { refreshInterval: 30000 },
+    { keepPreviousData: false, refreshInterval: 30000 },
   );
   const loadError = useSwrLoadError(
     error,

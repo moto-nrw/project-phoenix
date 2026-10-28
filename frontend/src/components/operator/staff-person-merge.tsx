@@ -63,7 +63,7 @@ export function StaffPersonMerge({
   const { data, error, isLoading, mutate } = useSWRAuth(
     staffMergeKeys.preview(schoolId),
     () => previewStaffPersonMerges(schoolId),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmed, setConfirmed] = useState(false);

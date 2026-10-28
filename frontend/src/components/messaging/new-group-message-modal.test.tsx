@@ -8,12 +8,14 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 import {
+  act,
   fireEvent,
   render,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
+import type { GroupChild } from "~/lib/parent-group-threads-api";
 import type { ReactNode } from "react";
 import { SWRConfig } from "swr";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -105,6 +107,36 @@ describe("Neue Gruppennachricht", () => {
       within(audience).getByText("Kein Eltern-Zugang"),
     ).toBeInTheDocument();
     expect(mocks.fetchGroupAudience).toHaveBeenCalledWith("group", "5");
+  });
+
+  it("does not carry the previous group audience into a newly selected group", async () => {
+    render(<NewGroupMessageModal onClose={vi.fn()} onCreated={vi.fn()} />, {
+      wrapper,
+    });
+    await pickGroup("Bären");
+    await screen.findByText(/Mia Ohne/);
+    let release!: (children: GroupChild[]) => void;
+    mocks.fetchGroupAudience.mockReturnValueOnce(
+      new Promise<GroupChild[]>((resolve) => {
+        release = resolve;
+      }),
+    );
+    await pickGroup("Füchse");
+    expect(
+      await screen.findByText("Empfänger werden geladen…"),
+    ).toBeInTheDocument();
+    await act(async () =>
+      release([
+        {
+          student_id: "3",
+          first_name: "Lina",
+          last_name: "Fuchs",
+          reachable: false,
+          read: false,
+        },
+      ]),
+    );
+    expect(await screen.findByText(/Lina Fuchs/)).toBeInTheDocument();
   });
 
   it("sends the message to the chosen group and hands over the new thread", async () => {

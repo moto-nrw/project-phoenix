@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useSWRConfig } from "swr";
 import { SWRGlobalState } from "swr/_internal";
 import { roomKeys } from "./rooms-keys";
@@ -7,7 +7,12 @@ import { groupKeys } from "./groups-keys";
 import { staffKeys } from "./staff-keys";
 import { meKeys } from "./me-keys";
 import { messageKeys, operatorProvisioningKeys } from "./portal-keys";
-import { resetSWRScope, suspendSWRSession, resumeSWRSession } from "./scope";
+import {
+  _setSWRCleanupForTests,
+  resetSWRScope,
+  suspendSWRSession,
+  resumeSWRSession,
+} from "./scope";
 import {
   useSWRAuth,
   useSWRCacheKey,
@@ -46,6 +51,8 @@ beforeEach(() => {
     slug: "school-a",
   });
 });
+
+afterEach(() => _setSWRCleanupForTests(true));
 
 const factories = [roomKeys, groupKeys, staffKeys, meKeys];
 
@@ -169,6 +176,76 @@ describe("shared resource factories", () => {
     expect(preloads[`${own}-preload-only`]).toBeUndefined();
     for (const key of keys.slice(2))
       expect(result.current.cache.get(key)?.data).toEqual([key]);
+  });
+
+  it.each(["answer", "failure"] as const)(
+    "resolves a late preload %s without exposing an old generation",
+    async (kind) => {
+      let resolve!: (value: string) => void;
+      let reject!: (error: Error) => void;
+      const pending = new Promise<string>((yes, no) => {
+        resolve = yes;
+        reject = no;
+      });
+      const { result } = renderHook(() => useSWRPreload());
+      const observed = result
+        .current(roomKeys.key(), () => pending)
+        .then(
+          (value) => ({ value }),
+          (error) => ({ error }),
+        );
+      act(() => resetSWRScope({ revalidate: false }));
+      await act(async () => {
+        if (kind === "answer") resolve("old room");
+        else reject(new Error("old failure"));
+        expect(await observed).toEqual({ value: undefined });
+      });
+    },
+  );
+
+  it("does not relabel a completed preload after a generation change without cleanup", async () => {
+    _setSWRCleanupForTests(false);
+    const key = roomKeys.key();
+    const tools = renderHook(() => useSWRPreload());
+    await tools.result.current(key, async () => "old room");
+    act(() => resetSWRScope({ revalidate: false }));
+    await tools.result.current(key, async () => "unused preload");
+    const seen: (string | undefined)[] = [];
+    const fresh = vi.fn(async () => "fresh room");
+    const reader = renderHook(() => {
+      const state = useSWRAuth(key, fresh);
+      seen.push(state.data);
+      return state;
+    });
+    await waitFor(() => expect(reader.result.current.data).toBe("fresh room"));
+    expect(seen).not.toContain("old room");
+    expect(fresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not expose a cached preload failure after a generation change without cleanup", async () => {
+    _setSWRCleanupForTests(false);
+    const key = roomKeys.key();
+    const tools = renderHook(() => useSWRPreload());
+    const old = new Error("cached old failure");
+    await expect(
+      tools.result.current(key, async () => {
+        throw old;
+      }),
+    ).rejects.toBe(old);
+    act(() => resetSWRScope({ revalidate: false }));
+    await expect(
+      tools.result.current(key, async () => "new room"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("preserves a preload failure of the current generation", async () => {
+    const error = new Error("current failure");
+    const { result } = renderHook(() => useSWRPreload());
+    await expect(
+      result.current(roomKeys.key(), async () => {
+        throw error;
+      }),
+    ).rejects.toBe(error);
   });
 
   it("does not start an intent preload from a retained or suspended session", async () => {

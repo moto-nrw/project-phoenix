@@ -56,6 +56,7 @@ export function useParentMealPlanEnabled(
       : null,
     () => fetchAnyMealPlanEnabled(children ?? undefined),
     {
+      keepPreviousData: false,
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
     },

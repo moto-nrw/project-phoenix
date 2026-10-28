@@ -68,7 +68,7 @@ export function useHomeLayout(): {
   const { data, isLoading, mutate } = useSWRAuth<HomeLayoutState>(
     cacheKey,
     fetchHomeLayout,
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
 
   useEffect(() => {

@@ -261,8 +261,10 @@ function OperatorBillingPageContent() {
     error: keyDayError,
     isLoading: keyDayLoading,
     mutate: mutateKeyDay,
-  } = useSWRAuth(isAuthenticated ? KEY_DAY_SWR_KEY : null, () =>
-    operatorBillingService.getKeyDay(),
+  } = useSWRAuth(
+    isAuthenticated ? KEY_DAY_SWR_KEY : null,
+    () => operatorBillingService.getKeyDay(),
+    { keepPreviousData: false },
   );
   const keyDayLoadError = useSwrLoadError(
     keyDayError,
@@ -274,8 +276,10 @@ function OperatorBillingPageContent() {
     isLoading: countsLoading,
     error: countsError,
     mutate: mutateCounts,
-  } = useSWRAuth(isAuthenticated ? COUNTS_SWR_KEY : null, () =>
-    operatorBillingService.listKeyDateCounts(),
+  } = useSWRAuth(
+    isAuthenticated ? COUNTS_SWR_KEY : null,
+    () => operatorBillingService.listKeyDateCounts(),
+    { keepPreviousData: false },
   );
   const countsLoadError = useSwrLoadError(
     countsError,

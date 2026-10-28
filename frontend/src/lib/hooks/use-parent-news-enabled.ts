@@ -78,6 +78,7 @@ export function useParentNewsEnabled(
       : null,
     () => fetchAnyNewsEnabled(children ?? undefined),
     {
+      keepPreviousData: false,
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
     },

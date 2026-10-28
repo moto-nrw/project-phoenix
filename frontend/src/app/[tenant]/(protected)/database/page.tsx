@@ -244,6 +244,7 @@ function DatabaseContent() {
     session?.user ? databaseKeys.counts() : null,
     () => fetchDatabaseCounts("/api/database/counts"),
     {
+      keepPreviousData: false,
       onError: (error: unknown) => {
         logger.error("failed to fetch counts", {
           error: error instanceof Error ? error.message : String(error),

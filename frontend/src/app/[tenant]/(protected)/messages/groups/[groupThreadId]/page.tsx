@@ -50,7 +50,7 @@ function GroupMessageContent() {
   const { data, error, isLoading, mutate } = useSWRAuth<GroupThreadDetail>(
     messageKeys.groupMessage(threadId),
     () => fetchGroupThread(threadId),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(error, "die Gruppennachricht", mutate);
 

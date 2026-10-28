@@ -161,6 +161,7 @@ export function ParentLocaleProvider({
   const { data: profile, error: profileError } = useSWRAuth(
     authenticated && session?.user?.id ? parentKeys.profile() : null,
     fetchParentProfile,
+    { keepPreviousData: false },
   );
   const { show: showError } = useApiErrorDisplay();
   const router = useRouter();
