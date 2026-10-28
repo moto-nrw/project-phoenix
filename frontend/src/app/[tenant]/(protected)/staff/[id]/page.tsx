@@ -1,5 +1,7 @@
 "use client";
 
+import { createCrudService } from "~/lib/database/service-factory";
+import { teachersConfig } from "~/components/database/configs/teachers.config";
 import { staff as staffKeys } from "~/lib/swr/staff";
 import { isScopeBooked, STAFF_TAB_MODULES } from "~/lib/module-register";
 import { useBookedModules } from "~/lib/tenant-context";
@@ -131,6 +133,7 @@ export default function StaffDetailContent() {
   const handleDeleteRecordRef = useRef<() => Promise<void>>(
     async () => undefined,
   );
+  const recordService = useMemo(() => createCrudService(teachersConfig), []);
   const tenantMutate = useTenantMutate();
   const refreshStaffFamily = useTenantMutateMatching([staffKeys.family]);
   // Effective admin: the backend grants everything to `admin:*` / `*:*`
@@ -274,7 +277,7 @@ export default function StaffDetailContent() {
   const [kontoEditing, setKontoEditing] = useState(false);
   const { data: staffDirectory } = useSWRAuth<Teacher[]>(
     kontoEditing && canManageStaffRecords ? staffKeys.teachersKey() : null,
-    staffKeys.teachersFetcher,
+    () => staffKeys.teachersFetcher(recordService),
   );
   const existingPositions = useMemo(() => {
     const positions = new Set<string>();

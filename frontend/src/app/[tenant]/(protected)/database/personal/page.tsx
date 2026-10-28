@@ -1,5 +1,7 @@
 "use client";
 
+import { createCrudService } from "~/lib/database/service-factory";
+import { teachersConfig } from "~/components/database/configs/teachers.config";
 import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
@@ -135,11 +137,15 @@ function TeachersPageContent() {
     useState<ExternalInvitationTarget | null>(null);
   const toast = useToast();
 
+  const service = useMemo(() => createCrudService(teachersConfig), []);
+
   const {
     data: teachersData,
     isLoading: loading,
     error: teachersError,
-  } = useSWRAuth(staffKeys.teachersKey(), staffKeys.teachersFetcher);
+  } = useSWRAuth(staffKeys.teachersKey(), () =>
+    staffKeys.teachersFetcher(service),
+  );
 
   const refreshTeachers = useTenantMutateMatching([staffKeys.family]);
 
