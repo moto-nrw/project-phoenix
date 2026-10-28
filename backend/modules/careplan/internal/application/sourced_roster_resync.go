@@ -127,6 +127,17 @@ func (m *BookingMaterialization) wantedSourcedRoster(
 	if len(in.OfferingIDs) == 0 {
 		return nil, wanted, nil
 	}
+	// The wanted windows are additionally bounded by the template's own
+	// schedule envelope: the tenant-wide resync also visits capped split
+	// predecessors, whose rows must never be extended past the segment end
+	// (#2147 review). Open envelopes leave the windows untouched.
+	schedules, err := m.catalog.deps.Timetable.GroupSchedules(ctx, []int64{in.TemplateID})
+	if err != nil {
+		return nil, nil, fmt.Errorf("offering roster resync: load template schedules: %w", err)
+	}
+	// The rows carry the period the template's instances materialize under,
+	// as the approval and correction feeds plan them (#5176).
+	in.CalendarPeriodID = sourcedRowPeriodID(in.CalendarPeriodID, schedules)
 	sources, err := m.catalog.LoadOfferingSources(ctx, in.OfferingIDs, in.CalendarPeriodID, in.TolerateDriftedSources)
 	if err != nil {
 		return nil, nil, err
@@ -143,14 +154,6 @@ func (m *BookingMaterialization) wantedSourcedRoster(
 	}
 	if len(sources.Offerings) == 0 {
 		return nil, wanted, nil
-	}
-	// The wanted windows are additionally bounded by the template's own
-	// schedule envelope: the tenant-wide resync also visits capped split
-	// predecessors, whose rows must never be extended past the segment end
-	// (#2147 review). Open envelopes leave the windows untouched.
-	schedules, err := m.catalog.deps.Timetable.GroupSchedules(ctx, []int64{in.TemplateID})
-	if err != nil {
-		return nil, nil, fmt.Errorf("offering roster resync: load template schedules: %w", err)
 	}
 	envelopeFrom, envelopeUntil := scheduleValidityBounds(schedules)
 	window := rosterWindow{phase: *sources.Phase, effectiveFrom: in.EffectiveFrom, envelopeFrom: envelopeFrom, envelopeUntil: envelopeUntil}

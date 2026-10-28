@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -15,83 +16,80 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// Regeltermine whose schedules all share one period Q that differs from the
-// template's own period P, or whose template has no period (#5176). Every
-// resync plans a sourced template under the template's period
-// (templateResync → sourcedTemplateDraft), NULL without one. Approval and
-// both corrections must write the same period; otherwise each switch between
-// a correction and a resync deletes or caps an unchanged row and re-creates it.
+// Sourced Regeltermine whose rows must carry the period their instances
+// materialize under (#5176). Timetable gives each instance its schedule's
+// period, else the template's, and counts a row only when the row's period
+// is NULL or that period. So a sourced row carries the one period all the
+// template's schedules resolve to, NULL when they resolve to different
+// periods or none — in approval, both corrections and every resync alike.
+// Otherwise the child drops off the instances, and every switch between a
+// correction and a resync replaces an unchanged row.
 
-// createDivergingPeriodSourcedTemplate creates a live template that sources
-// the offering, pins templatePeriodID (nil for none), and has a Monday and a
-// Wednesday schedule that both pin schedulePeriodID.
-func createDivergingPeriodSourcedTemplate(
-	t *testing.T,
-	env *decisionTestEnv,
-	name string,
-	offeringID int64,
-	templatePeriodID *int64,
-	schedulePeriodID int64,
-) *timetable.Group {
-	t.Helper()
-	group := createCareOfferingTemplateGroup(t, env.db, name)
-	group.TargetGroupType = timetable.TargetGroupTypeOffering
-	group.SourceCareOfferingIDs = []int64{offeringID}
-	group.CalendarPeriodID = templatePeriodID
-	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(testpkg.Ctx(t), group))
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayMonday, &schedulePeriodID)
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayWednesday, &schedulePeriodID)
-	return group
+// periodKey names one of the fixture's planning periods: "" is none, "P"
+// the template's, "Q" and "Q2" two schedule periods. All contain the phase.
+type periodKey string
+
+type divergingPeriodCase struct {
+	template  periodKey
+	monday    periodKey
+	wednesday periodKey
+	want      periodKey
 }
 
 // divergingPeriodFixture is one approved child holding the template's source
-// offering plus another offering on a template whose period diverges from
-// its schedules' shared period.
+// offering (Monday) plus another offering.
 type divergingPeriodFixture struct {
 	env          *decisionTestEnv
 	template     *timetable.Group
 	source       *offeringContract.CareOfferingRecord
 	requestID    int64
 	childID      int64
+	studentID    int64
 	wantPeriodID *int64
+	timetable    api.TimetableTestModule
 }
 
-func setupDivergingPeriodFixture(t *testing.T, email string, withTemplatePeriod bool) divergingPeriodFixture {
+func setupDivergingPeriodFixture(t *testing.T, email string, c divergingPeriodCase) divergingPeriodFixture {
 	t.Helper()
 	env := setupDecisionTest(t)
 	source := createAdjustmentCareOfferingWith(t, env, "Mittagessen", nil)
 	other := createAdjustmentCareOfferingWith(t, env, "Spaetbetreuung", nil)
-	schedulePeriodID := createMixedPeriodCalendarPeriod(t, env, "zeitplan")
-	var templatePeriodID *int64
-	if withTemplatePeriod {
-		id := createMixedPeriodCalendarPeriod(t, env, "termin")
-		require.NotEqual(t, schedulePeriodID, id)
-		templatePeriodID = &id
+	periods := map[periodKey]*int64{"": nil}
+	for _, key := range []periodKey{"P", "Q", "Q2"} {
+		id := createMixedPeriodCalendarPeriod(t, env, "zeitraum-"+string(key))
+		periods[key] = &id
 	}
-	template := createDivergingPeriodSourcedTemplate(t, env, "MittagessenAbweichend", source.ID, templatePeriodID, schedulePeriodID)
+	group := createCareOfferingTemplateGroup(t, env.db, "MittagessenZeitraum")
+	group.TargetGroupType = timetable.TargetGroupTypeOffering
+	group.SourceCareOfferingIDs = []int64{source.ID}
+	group.CalendarPeriodID = periods[c.template]
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(testpkg.Ctx(t), group))
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayMonday, periods[c.monday])
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayWednesday, periods[c.wednesday])
 
-	requestID, childID, studentID := submitApprovedAdjustmentChild(t, env, email, "Abweichend",
+	module, _, _, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db))
+	require.NoError(t, err)
+
+	requestID, childID, studentID := submitApprovedAdjustmentChild(t, env, email, "Zeitraum",
 		[]*offeringContract.CareOfferingRecord{source, other})
-	rows := loadTemplateEnrollments(t, env, template.ID)
-	require.Len(t, rows, 1, "approval plans the child on the template")
-	require.Equal(t, studentID, rows[0].StudentID)
-
 	return divergingPeriodFixture{
-		env: env, template: template, source: source,
-		requestID: requestID, childID: childID, wantPeriodID: templatePeriodID,
+		env: env, template: group, source: source,
+		requestID: requestID, childID: childID, studentID: studentID,
+		wantPeriodID: periods[c.want], timetable: module,
 	}
 }
 
 // requireSingleRow loads the template's only row and checks it carries the
-// template's period, not the schedules' one.
+// period the template's instances materialize under.
 func (f divergingPeriodFixture) requireSingleRow(t *testing.T, step string) timetable.StudentEnrollment {
 	t.Helper()
 	rows := loadTemplateEnrollments(t, f.env, f.template.ID)
 	require.Len(t, rows, 1, "%s: the child keeps exactly one row on the template", step)
+	assert.Equal(t, f.studentID, rows[0].StudentID, "%s", step)
 	if f.wantPeriodID == nil {
-		assert.Nil(t, rows[0].CalendarPeriodID, "%s: a template without a period plans a row without one", step)
-	} else if assert.NotNil(t, rows[0].CalendarPeriodID, "%s: the row carries the template period", step) {
-		assert.Equal(t, *f.wantPeriodID, *rows[0].CalendarPeriodID, "%s: the template period wins over the schedules' period", step)
+		assert.Nil(t, rows[0].CalendarPeriodID, "%s: schedules without one shared period plan a row without one", step)
+	} else if assert.NotNil(t, rows[0].CalendarPeriodID, "%s: the row carries the schedules' shared period", step) {
+		assert.Equal(t, *f.wantPeriodID, *rows[0].CalendarPeriodID, "%s: the row carries the schedules' shared period", step)
 	}
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays, "%s", step)
 	return rows[0]
@@ -108,6 +106,28 @@ func requireUnchanged(t *testing.T, step string, before, after timetable.Student
 	assert.Equal(t, before.ValidUntil, after.ValidUntil, "%s: the row must not be capped", step)
 }
 
+// requirePlannedOn materializes date with the Timetable owner's materializer
+// and asserts the child is planned on the template's instance there.
+func (f divergingPeriodFixture) requirePlannedOn(t *testing.T, step string, date calendar.Date) {
+	t.Helper()
+	_, err := f.timetable.Materialization.MaterializeForTenant(testpkg.Ctx(t), date, date, timetable.MaterializationSourceManual)
+	require.NoError(t, err)
+	var instanceIDs []int64
+	require.NoError(t, f.env.db.NewSelect().
+		Column("id").
+		TableExpr("schedule.activity_instances").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("activity_group_id = ?", f.template.ID).
+		Where("date = ?", date).
+		Scan(testpkg.Ctx(t), &instanceIDs))
+	require.Len(t, instanceIDs, 1, "%s: the template has one instance on %s", step, date)
+	var students []int64
+	for _, row := range loadSourcedInstanceStudents(t, f.env, instanceIDs[0]) {
+		students = append(students, row.StudentID)
+	}
+	assert.Equal(t, []int64{f.studentID}, students, "%s: the child is planned on the instance of %s", step, date)
+}
+
 func (f divergingPeriodFixture) resyncTenant(t *testing.T) {
 	t.Helper()
 	resyncAll, ok := f.env.bookings.(interface {
@@ -117,6 +137,8 @@ func (f divergingPeriodFixture) resyncTenant(t *testing.T) {
 	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(testpkg.Ctx(t), offeringResyncToday))
 }
 
+// resyncTemplateSave mirrors the template save's resync, which hands over
+// the template's stored period.
 func (f divergingPeriodFixture) resyncTemplateSave(t *testing.T, effectiveFrom calendar.Date) {
 	t.Helper()
 	require.NoError(t, offeringResyncer(t, f.env).ResyncTemplateOfferingRoster(testpkg.Ctx(t), timetable.OfferingRosterResyncInput{
@@ -148,24 +170,30 @@ func (f divergingPeriodFixture) correct(t *testing.T, name string, effectiveFrom
 }
 
 // runDivergingPeriodCycle alternates approval, both corrections and every
-// resync entry and requires the row to stay on the template period
-// throughout, with resyncs leaving it untouched.
-func runDivergingPeriodCycle(t *testing.T, email string, withTemplatePeriod bool) {
+// resync entry. The row keeps the materialization period throughout,
+// resyncs leave it untouched, and the child stays planned on the instances.
+func runDivergingPeriodCycle(t *testing.T, email string, c divergingPeriodCase) {
 	t.Helper()
-	f := setupDivergingPeriodFixture(t, email, withTemplatePeriod)
+	f := setupDivergingPeriodFixture(t, email, c)
 	phaseStart := calendar.Date(f.env.sourcePhase.ServiceStartDate)
+	monday := firstFutureMondayOnOrAfter(phaseStart)
 
 	approved := f.requireSingleRow(t, "approval")
+	f.requirePlannedOn(t, "approval", monday)
 
 	f.resyncTenant(t)
 	requireUnchanged(t, "tenant-wide resync after approval", approved, f.requireSingleRow(t, "tenant-wide resync after approval"))
 	f.resyncTenant(t)
 	requireUnchanged(t, "repeated tenant-wide resync", approved, f.requireSingleRow(t, "repeated tenant-wide resync"))
+	f.requirePlannedOn(t, "tenant-wide resync", monday)
+	f.requirePlannedOn(t, "tenant-wide resync", monday.AddDays(7))
 
 	// The undated correction rebuilds the child's rows; it must rebuild them
 	// on the period the resync uses.
 	f.correct(t, "Fruehbetreuung", nil)
 	corrected := f.requireSingleRow(t, "undated correction")
+	f.requirePlannedOn(t, "undated correction", monday.AddDays(7))
+	f.requirePlannedOn(t, "undated correction", monday.AddDays(14))
 
 	f.resyncTemplateSave(t, phaseStart)
 	requireUnchanged(t, "template-save resync after undated correction", corrected, f.requireSingleRow(t, "template-save resync after undated correction"))
@@ -173,6 +201,7 @@ func runDivergingPeriodCycle(t *testing.T, email string, withTemplatePeriod bool
 	// re-seed it on another period.
 	f.resyncTemplateSave(t, phaseStart.AddDays(30))
 	requireUnchanged(t, "mid-phase template-save resync", corrected, f.requireSingleRow(t, "mid-phase template-save resync"))
+	f.requirePlannedOn(t, "template-save resync", monday.AddDays(14))
 
 	switchDate := phaseStart.AddDays(60)
 	f.correct(t, "Ferienbetreuung", &switchDate)
@@ -180,14 +209,30 @@ func runDivergingPeriodCycle(t *testing.T, email string, withTemplatePeriod bool
 
 	f.resyncTenant(t)
 	requireUnchanged(t, "tenant-wide resync after dated correction", corrected, f.requireSingleRow(t, "tenant-wide resync after dated correction"))
+	f.requirePlannedOn(t, "tenant-wide resync after dated correction", monday.AddDays(21))
 }
 
-func TestSourcedTemplatePeriod_TemplatePeriodWinsOverSchedulePeriodAcrossCorrectionsAndResyncs(t *testing.T) {
+func TestSourcedRowPeriod_SchedulePeriodWinsOverDivergingTemplatePeriod(t *testing.T) {
 	t.Parallel()
-	runDivergingPeriodCycle(t, "zeitraum-abweichend@example.com", true)
+	runDivergingPeriodCycle(t, "zeitraum-abweichend@example.com", divergingPeriodCase{template: "P", monday: "Q", wednesday: "Q", want: "Q"})
 }
 
-func TestSourcedTemplatePeriod_TemplateWithoutPeriodPlansNullAcrossCorrectionsAndResyncs(t *testing.T) {
+func TestSourcedRowPeriod_SchedulePeriodAppliesToTemplateWithoutPeriod(t *testing.T) {
 	t.Parallel()
-	runDivergingPeriodCycle(t, "zeitraum-ohne-termin@example.com", false)
+	runDivergingPeriodCycle(t, "zeitraum-ohne-termin@example.com", divergingPeriodCase{template: "", monday: "Q", wednesday: "Q", want: "Q"})
+}
+
+func TestSourcedRowPeriod_MixedSchedulePeriodsPlanWithoutPeriod(t *testing.T) {
+	t.Parallel()
+	runDivergingPeriodCycle(t, "zeitraum-gemischt@example.com", divergingPeriodCase{template: "P", monday: "Q", wednesday: "Q2", want: ""})
+}
+
+func TestSourcedRowPeriod_ScheduleAndTemplateFallbackDisagreePlanWithoutPeriod(t *testing.T) {
+	t.Parallel()
+	runDivergingPeriodCycle(t, "zeitraum-rueckfall@example.com", divergingPeriodCase{template: "P", monday: "Q", wednesday: "", want: ""})
+}
+
+func TestSourcedRowPeriod_MatchingTemplateAndSchedulePeriodStays(t *testing.T) {
+	t.Parallel()
+	runDivergingPeriodCycle(t, "zeitraum-gleich@example.com", divergingPeriodCase{template: "P", monday: "P", wednesday: "", want: "P"})
 }

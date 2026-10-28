@@ -18,9 +18,10 @@ import (
 // Regeltermine whose schedules name different planning periods (#5153):
 // the schedules do not resolve one calendar_period_id, so the decision and
 // adjustment flows cannot take the period from them. The template resync
-// plans such a template on the template's own period pin (templateResync →
-// sourcedTemplateDraft); the flows must plan it the same way instead of
-// skipping it — otherwise a correction deletes rows it never re-creates.
+// plans such a template without a period, as its instances materialize
+// under different ones (sourcedRowPeriodID, #5176); the flows must plan it
+// the same way instead of skipping it — otherwise a correction deletes rows
+// it never re-creates.
 
 // createMixedPeriodSourcedTemplate creates a live template that sources the
 // offering, carries templatePeriodID as its own pin, and has a Monday
@@ -59,7 +60,7 @@ func createMixedPeriodCalendarPeriod(t *testing.T, env *decisionTestEnv, name st
 
 // mixedPeriodTemplateFixture is one approved child holding the template's
 // source offering plus one other offering, with its row on the
-// mixed-period template planned by the template resync on the template pin.
+// mixed-period template planned by the template resync without a period.
 type mixedPeriodTemplateFixture struct {
 	env       *decisionTestEnv
 	template  *timetable.Group
@@ -85,10 +86,9 @@ func setupMixedPeriodTemplateFixture(t *testing.T, email string) mixedPeriodTemp
 		EffectiveFrom:    offeringResyncToday,
 	}))
 	rows := loadTemplateEnrollments(t, env, template.ID)
-	require.Len(t, rows, 1, "the template resync plans the child on the template pin")
+	require.Len(t, rows, 1, "the template resync plans the child on the template")
 	require.Equal(t, studentID, rows[0].StudentID)
-	require.NotNil(t, rows[0].CalendarPeriodID)
-	require.Equal(t, pinID, *rows[0].CalendarPeriodID)
+	require.Nil(t, rows[0].CalendarPeriodID, "the schedules name different periods, so the row carries none (#5176)")
 
 	return mixedPeriodTemplateFixture{
 		env: env, template: template, source: source,
@@ -111,8 +111,7 @@ func TestDecide_PlansChildOnMixedPeriodTemplateWithTemplatePin(t *testing.T) {
 	assert.Equal(t, studentID, rows[0].StudentID)
 	require.NotNil(t, rows[0].EnrollmentRequestChildID)
 	assert.Equal(t, childID, *rows[0].EnrollmentRequestChildID)
-	require.NotNil(t, rows[0].CalendarPeriodID, "the row carries the template pin, as the resync writes it")
-	assert.Equal(t, pinID, *rows[0].CalendarPeriodID)
+	assert.Nil(t, rows[0].CalendarPeriodID, "the row carries no period, as the resync writes it (#5176)")
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
 }
 

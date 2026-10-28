@@ -268,14 +268,11 @@ func (m *BookingMaterialization) sourcedTemplateSegment(
 		return careplan.LinkedSegment{}, false
 	}
 	group := careplan.LinkedGroup{ID: tmpl.ID, IsTemplate: true, CalendarPeriodID: tmpl.CalendarPeriodID}
-	// The template's own period, nil when it has none: every resync plans a
-	// sourced template under it (templateResync → sourcedTemplateDraft),
-	// whatever its schedules name, so approval and correction must too. A
-	// period the schedules share but the template does not pin would make
-	// each resync replace the row (#5176); schedules without a period or with
-	// different periods must not skip the template either, or a correction
-	// deletes rows it never re-creates (#5114, #5153).
-	period, err := m.catalog.offeringSourcePeriod(ctx, group.CalendarPeriodID)
+	// Every resync plans a sourced template under the same period
+	// (sourcedRowPeriodID); a template whose schedules name no period or
+	// different periods must not be skipped here, or a correction deletes
+	// rows it never re-creates (#5114, #5153).
+	period, err := m.catalog.offeringSourcePeriod(ctx, sourcedRowPeriodID(group.CalendarPeriodID, schedules))
 	if err != nil {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
 		return careplan.LinkedSegment{}, false
