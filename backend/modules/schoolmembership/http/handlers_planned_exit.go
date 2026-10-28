@@ -39,7 +39,7 @@ func (rs *Resource) planExit(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.ExitFailure(w, r, err)
 		return
 	}
-	rs.respond(w, r, http.StatusOK, PlannedExitResponse{LastWorkingDay: day}, "Planned exit saved")
+	rs.respond(w, r, http.StatusOK, PlannedExitResponse{LastWorkingDay: day}, "Austritt gespeichert")
 }
 
 func (rs *Resource) withdrawExit(w http.ResponseWriter, r *http.Request) {
@@ -51,5 +51,5 @@ func (rs *Resource) withdrawExit(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.ExitFailure(w, r, err)
 		return
 	}
-	rs.respond(w, r, http.StatusOK, nil, "Planned exit withdrawn")
+	rs.respond(w, r, http.StatusOK, nil, "Austritt zurückgenommen")
 }

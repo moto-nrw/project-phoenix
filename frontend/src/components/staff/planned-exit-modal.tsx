@@ -47,15 +47,24 @@ export function PlannedExitModal({
   const [saving, setSaving] = useState(false);
   const formErrors = useApiFormError();
   const clearFormErrors = formErrors.clear;
+  // Contract data can load while the form is open. It supplies the initial
+  // suggestion, but must not replace a day the Leitung already chose.
+  const latestSuggestionRef = useRef(suggestion);
+  latestSuggestionRef.current = suggestion;
   const latestSaveRef = useRef<() => Promise<void>>(async () => undefined);
 
   useEffect(() => {
     if (isOpen) {
-      setDay(plannedDay ?? suggestion ?? "");
+      setDay(plannedDay ?? latestSuggestionRef.current ?? "");
       setSaving(false);
+    }
+  }, [isOpen, plannedDay]);
+
+  useEffect(() => {
+    if (isOpen) {
       clearFormErrors();
     }
-  }, [isOpen, plannedDay, suggestion, clearFormErrors]);
+  }, [isOpen, plannedDay, clearFormErrors]);
 
   const handleSave = async () => {
     setSaving(true);

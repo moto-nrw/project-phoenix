@@ -45,7 +45,7 @@ function renderModal(
 ) {
   const onSaved = vi.fn();
   const onClose = vi.fn();
-  render(
+  const view = render(
     <PlannedExitModal
       isOpen
       staffId="7"
@@ -55,7 +55,7 @@ function renderModal(
       {...props}
     />,
   );
-  return { onSaved, onClose };
+  return { onSaved, onClose, ...view };
 }
 
 // The test clock stands on Wednesday, 2026-09-09.
@@ -91,6 +91,28 @@ describe("PlannedExitModal", () => {
     expect(
       screen.getByRole("button", { name: "Austritt planen" }),
     ).toBeDisabled();
+  });
+
+  it("keeps a selected day when the contract end loads", () => {
+    const { rerender } = renderModal();
+
+    fireEvent.change(screen.getByLabelText("Letzter Arbeitstag"), {
+      target: { value: "2026-10-15" },
+    });
+    rerender(
+      <PlannedExitModal
+        isOpen
+        staffId="7"
+        staffName="Ada Lovelace"
+        contractEndDate="2026-12-31"
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByLabelText("Letzter Arbeitstag")).toHaveValue(
+      "2026-10-15",
+    );
   });
 
   it("opens a planned exit on its day for changing", () => {
