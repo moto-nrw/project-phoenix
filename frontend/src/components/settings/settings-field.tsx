@@ -38,7 +38,7 @@ import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
-import { ColorField } from "./fields/color-field";
+import { type ColorPreset, ColorField } from "./fields/color-field";
 import { TextareaField } from "./fields/textarea-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
@@ -1852,6 +1852,15 @@ async function persistSetting(
   }
 }
 
+/** The preset colours a colour setting offers (registry `options.static`). */
+function colorPresets(setting: ResolvedSetting): ColorPreset[] {
+  return (setting.options?.static ?? []).flatMap((option) =>
+    typeof option.value === "string"
+      ? [{ label: option.label, value: option.value }]
+      : [],
+  );
+}
+
 function renderField(
   setting: ResolvedSetting,
   localValue: unknown,
@@ -1927,6 +1936,7 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
+          presets={colorPresets(setting)}
         />
       );
     case "textarea":
