@@ -6,7 +6,6 @@
   "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": 2,
   "src/app/[tenant]/(protected)/database/students/ended-care/page.tsx": 1,
   "src/app/[tenant]/(protected)/database/students/page.tsx": 3,
-  "src/app/[tenant]/(protected)/ferienwochen/holiday-guest-group-card.tsx": 1,
   "src/app/[tenant]/(protected)/ferienwochen/page.tsx": 2,
   "src/app/[tenant]/(protected)/home/page.tsx": 2,
   "src/app/[tenant]/(protected)/info-displays/page.tsx": 1,

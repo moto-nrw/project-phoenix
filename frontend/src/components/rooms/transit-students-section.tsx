@@ -8,11 +8,7 @@ import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
-import {
-  useSWRAuth,
-  useTenantMutate,
-  useTenantMutateMatching,
-} from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
@@ -138,7 +134,6 @@ export function TransitStudentsSection({
   // „Wiederholen“ weist die aktuell gewählten Kinder dem aktuellen Ziel zu.
   const retryAssignRef = useRef<() => void>(() => undefined);
   const { success: toastSuccess } = useToast();
-  const mutateKey = useTenantMutate();
   // "dashboard" (matching the aggregated active-supervision-dashboard key,
   // which carries the room's visits since #2096) and "timetable-roster-"
   // keep the /active-supervisions room grid and roster in sync when this
@@ -149,7 +144,7 @@ export function TransitStudentsSection({
   const mutateMatching = useTenantMutateMatching([
     "room-students-",
     "room-detail-",
-    roomsKeys.key({ includeSystem: true }),
+    roomsKeys.family,
     "dashboard",
     "timetable-roster-",
     SEARCH_STUDENTS_KEY_PREFIX,
@@ -342,7 +337,6 @@ export function TransitStudentsSection({
       setSelectedIds(new Set());
       setTargetValue("");
       await mutateStudents();
-      await mutateKey(roomsKeys.key({ includeSystem: true }));
       await mutateMatching();
       toastSuccess(message);
     } catch (err) {

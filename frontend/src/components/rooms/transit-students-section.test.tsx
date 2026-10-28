@@ -3,11 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { activeService } from "~/lib/active-service";
 import type { ActiveGroup } from "~/lib/active-helpers";
 import type { Student } from "~/lib/api";
-import {
-  useSWRAuth,
-  useTenantMutate,
-  useTenantMutateMatching,
-} from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { studentService } from "~/lib/api";
 import { TransitStudentsSection } from "./transit-students-section";
 import {
@@ -61,7 +57,6 @@ vi.mock("~/lib/tenant-router", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
-  useTenantMutate: vi.fn(),
   useTenantMutateMatching: vi.fn(),
 }));
 
@@ -161,7 +156,6 @@ const mockRooms: Room[] = [
 ];
 
 const mutateStudents = vi.fn();
-const mutateKey = vi.fn();
 const mutateMatching = vi.fn();
 const refreshRooms = vi.fn();
 
@@ -265,10 +259,8 @@ describe("TransitStudentsSection", () => {
       update: vi.fn(),
     });
     mutateStudents.mockResolvedValue(undefined);
-    mutateKey.mockResolvedValue(undefined);
     mutateMatching.mockResolvedValue(undefined);
     mockToastSuccess.mockReset();
-    vi.mocked(useTenantMutate).mockReturnValue(mutateKey as never);
     vi.mocked(useTenantMutateMatching).mockReturnValue(mutateMatching as never);
     vi.mocked(activeService.assignTransitStudents).mockResolvedValue({
       assigned: [11],
@@ -483,7 +475,6 @@ describe("TransitStudentsSection", () => {
     });
     expect(mockToastSuccess).toHaveBeenCalledWith("1 Kind ist zugewiesen.");
     expect(mutateStudents).toHaveBeenCalledTimes(1);
-    expect(mutateKey).toHaveBeenCalledWith('rooms-list-{"includeSystem":true}');
     expect(mutateMatching).toHaveBeenCalledTimes(1);
     // The needle list must cover the /active-supervisions caches too:
     // when this section is embedded there, the aggregated dashboard key
@@ -492,6 +483,7 @@ describe("TransitStudentsSection", () => {
     expect(vi.mocked(useTenantMutateMatching)).toHaveBeenCalledWith(
       expect.arrayContaining([
         "room-students-",
+        "rooms-",
         "dashboard",
         "timetable-roster-",
         // #5026: „Alle Kinder“ (Liste) und der Unterwegs-Zähler
@@ -631,10 +623,8 @@ describe("TransitStudentsSection booking into a released room", () => {
       update: vi.fn(),
     });
     mutateStudents.mockResolvedValue(undefined);
-    mutateKey.mockResolvedValue(undefined);
     mutateMatching.mockResolvedValue(undefined);
     refreshRooms.mockResolvedValue(undefined);
-    vi.mocked(useTenantMutate).mockReturnValue(mutateKey as never);
     vi.mocked(useTenantMutateMatching).mockReturnValue(mutateMatching as never);
     vi.mocked(activeService.moveStudentsToOpenRoom).mockResolvedValue({
       moved: [11],

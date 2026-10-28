@@ -28,8 +28,7 @@ import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
-import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 type RoomsGroupingMode = "none" | "building" | "floor";
@@ -97,11 +96,7 @@ function RoomsPageContent() {
   });
 
   const service = useMemo(() => createCrudService(roomsConfig), []);
-  const tenantMutate = useTenantMutate();
-  const refreshRoomLists = useCallback(
-    () => Promise.all(ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key))),
-    [tenantMutate],
-  );
+  const refreshRoomLists = useTenantMutateMatching([roomsKeys.family]);
 
   const {
     data: roomsData,

@@ -1,5 +1,7 @@
 "use client";
 
+import { roomKeys } from "~/lib/swr/rooms-keys";
+
 import {
   Suspense,
   useCallback,
@@ -59,10 +61,7 @@ import { roomPlanCareDay } from "~/lib/room-plan";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { formatFloor, isSystemRoom, type Room } from "~/lib/room-helpers";
 import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
-import {
-  ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
-  ROOM_LIST_CACHE_KEYS,
-} from "~/lib/swr/room-derived-caches";
+import { ROOM_DERIVED_CACHE_KEY_FRAGMENTS } from "~/lib/swr/room-derived-caches";
 import { usePresenceMode, useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { resolveDetailReferrer, useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
@@ -130,6 +129,7 @@ function RoomDetailPageContent() {
   const { clear: clearDeleteErrors, show: showDeleteError } = deleteErrors;
   const retryDeleteRef = useRef<() => void>(() => undefined);
   const tenantMutate = useTenantMutate();
+  const refreshRoomFamily = useTenantMutateMatching([roomKeys.family]);
   const refreshRoomConsumers = useTenantMutateMatching(
     ROOM_DERIVED_CACHE_KEY_FRAGMENTS,
   );
@@ -263,11 +263,8 @@ function RoomDetailPageContent() {
 
   const refreshRoomLists = useCallback(
     () =>
-      Promise.all([
-        tenantMutate(roomDetailKey(roomId)),
-        ...ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key)),
-      ]),
-    [roomId, tenantMutate],
+      Promise.all([tenantMutate(roomDetailKey(roomId)), refreshRoomFamily()]),
+    [roomId, tenantMutate, refreshRoomFamily],
   );
 
   const handleSaveRoom = useCallback(
@@ -323,7 +320,7 @@ function RoomDetailPageContent() {
     }
     try {
       toastSuccess(`Der Raum „${room.name}“ ist gelöscht.`);
-      await Promise.all(ROOM_LIST_CACHE_KEYS.map((key) => tenantMutate(key)));
+      await refreshRoomFamily();
       setShowDeleteModal(false);
       router.push(referrer);
     } finally {
@@ -335,7 +332,7 @@ function RoomDetailPageContent() {
     referrer,
     room,
     router,
-    tenantMutate,
+    refreshRoomFamily,
     toastSuccess,
   ]);
   useLayoutEffect(() => {

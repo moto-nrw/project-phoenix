@@ -67,7 +67,7 @@ import { useTenantSlugSafe } from "~/lib/tenant-context";
  * build (null without access, nothing is fetched) and its auth generation.
  * For keys built outside the wrappers, e.g. a server seed or a key factory.
  */
-export function useSWRScope(): {
+function useSWRScope(): {
   prefix: string | null;
   generation: string | null;
 } {

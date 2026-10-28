@@ -32,7 +32,7 @@ import {
 } from "~/lib/staff-api";
 import type { BackendStaffResponse, Staff } from "~/lib/staff-api";
 import { teacherService, type Teacher } from "~/lib/teacher-api";
-import { mapTeacherResponse } from "~/components/database/configs/teachers.config";
+import { mapTeacherResponse } from "~/lib/teacher-helpers";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
@@ -41,7 +41,11 @@ import {
   getStaffDisplayType,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import {
+  useSWRAuth,
+  useTenantMutate,
+  useTenantMutateMatching,
+} from "~/lib/swr";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import {
   loadAccountRoleAssignment,
@@ -128,6 +132,7 @@ export default function StaffDetailContent() {
     async () => undefined,
   );
   const tenantMutate = useTenantMutate();
+  const refreshStaffFamily = useTenantMutateMatching([staffKeys.family]);
   // Effective admin: the backend grants everything to `admin:*` / `*:*`
   // holders regardless of the role name, so a custom role carrying the
   // wildcard must see the same admin-gated UI as the literal admin role
@@ -301,9 +306,9 @@ export default function StaffDetailContent() {
     await Promise.all([
       tenantMutate(staffRecordKey(staffId)),
       tenantMutate(`staff-detail-${staffId}`),
-      tenantMutate(staffKeys.teachersKey()),
+      refreshStaffFamily(),
     ]);
-  }, [staffId, tenantMutate]);
+  }, [staffId, tenantMutate, refreshStaffFamily]);
 
   // EIN Speichern für Name, Position, Notizen und Systemrolle (Bauart 2
   // Regel 4). Der Datensatz geht zuerst; scheitert danach der Rollenwechsel,
@@ -356,7 +361,7 @@ export default function StaffDetailContent() {
     try {
       await teacherService.deleteTeacher(staffId);
       toastSuccess("Die Person ist gelöscht.");
-      await tenantMutate(staffKeys.teachersKey());
+      await refreshStaffFamily();
       setShowDeleteModal(false);
       router.push(referrer);
     } catch (err) {
@@ -377,7 +382,7 @@ export default function StaffDetailContent() {
     router,
     showDeleteError,
     staffId,
-    tenantMutate,
+    refreshStaffFamily,
     toastSuccess,
   ]);
   useLayoutEffect(() => {

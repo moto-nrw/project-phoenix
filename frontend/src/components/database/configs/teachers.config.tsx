@@ -1,15 +1,14 @@
 // Teacher Entity Configuration
 
 import { createLogger } from "~/lib/logger";
-const logger = createLogger({ component: "TeachersConfig" });
-
 import { defineEntityConfig } from "@/lib/database/types";
 import type { Teacher, TeacherWithCredentials } from "@/lib/teacher-api";
 import { teacherService } from "@/lib/teacher-api";
 import { displayEmail } from "~/lib/demo-build";
 
 import { mapTeacherResponse } from "~/lib/teacher-helpers";
-export { mapTeacherResponse } from "~/lib/teacher-helpers";
+
+const logger = createLogger({ component: "TeachersConfig" });
 
 // Prepare teacher data for backend
 function prepareTeacherForBackend(

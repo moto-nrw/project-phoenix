@@ -33,7 +33,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 
 const logger = createLogger({ component: "DatabaseGroupsPage" });
 
@@ -81,7 +81,7 @@ function GroupsPageContent() {
   });
 
   const service = useMemo(() => createCrudService(groupsConfig), []);
-  const tenantMutate = useTenantMutate();
+  const refreshGroups = useTenantMutateMatching([groupsKeys.family]);
 
   const {
     data: groupsData,
@@ -191,9 +191,9 @@ function GroupsPageContent() {
       const created = await service.create(payload);
       toastSuccess(`Die Gruppe „${created.name}“ ist angelegt.`);
       setShowCreateModal(false);
-      await tenantMutate(groupsKeys.key({ page: 1, pageSize: 500 }));
+      await refreshGroups();
     },
-    [service, tenantMutate, toastSuccess],
+    [service, refreshGroups, toastSuccess],
   );
 
   const handleUpdateGroup = useCallback(
@@ -207,9 +207,9 @@ function GroupsPageContent() {
       toastSuccess(
         `Die Gruppe „${data.name ?? selectedGroup.name}“ ist gespeichert.`,
       );
-      await tenantMutate(groupsKeys.key({ page: 1, pageSize: 500 }));
+      await refreshGroups();
     },
-    [selectedGroup, service, tenantMutate, toastSuccess],
+    [selectedGroup, service, refreshGroups, toastSuccess],
   );
 
   const handleDeleteGroup = useCallback(async () => {
@@ -222,7 +222,7 @@ function GroupsPageContent() {
       toastSuccess(`Die Gruppe „${selectedGroup.name}“ ist gelöscht.`);
       handleDeleteCancel();
       handleSelectGroup(null);
-      await tenantMutate(groupsKeys.key({ page: 1, pageSize: 500 }));
+      await refreshGroups();
     } catch (err) {
       logger.warn("group_delete_failed", {
         group_id: selectedGroup.id,
@@ -242,7 +242,7 @@ function GroupsPageContent() {
     toastSuccess,
     handleDeleteCancel,
     handleSelectGroup,
-    tenantMutate,
+    refreshGroups,
     deleteErrors,
   ]);
 

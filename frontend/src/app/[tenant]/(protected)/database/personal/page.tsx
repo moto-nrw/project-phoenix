@@ -41,7 +41,7 @@ import { staffDisplayName } from "~/lib/staff-helpers";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal } from "~/components/ui/modal";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 type StaffGroupingMode = "none" | "role";
@@ -139,8 +139,9 @@ function TeachersPageContent() {
     data: teachersData,
     isLoading: loading,
     error: teachersError,
-    mutate: refreshTeachers,
   } = useSWRAuth(staffKeys.teachersKey(), staffKeys.teachersFetcher);
+
+  const refreshTeachers = useTenantMutateMatching([staffKeys.family]);
 
   const error = teachersError
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."

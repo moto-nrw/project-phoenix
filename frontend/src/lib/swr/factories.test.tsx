@@ -14,7 +14,8 @@ import {
   useSWRPreload,
   useInvalidateFamily,
   useTenantMutate,
-} from "./hooks";
+  useTenantMutateMatching,
+} from "./index";
 
 vi.unmock("swr");
 const { owner } = vi.hoisted(() => ({
@@ -119,6 +120,29 @@ describe("shared resource factories", () => {
       await update;
     });
     expect(reader.result.current.data).toEqual(["saved"]);
+  });
+
+  it("refreshes all parameter sets after a family write, not unrelated resources", async () => {
+    const first = vi.fn(async () => ["first"]);
+    const second = vi.fn(async () => ["second"]);
+    const unrelated = vi.fn(async () => ["group"]);
+    const readers = renderHook(() => ({
+      first: useSWRAuth(roomKeys.key({ page: 1 }), first),
+      second: useSWRAuth(roomKeys.key({ page: 2, pageSize: 17 }), second),
+      unrelated: useSWRAuth(groupKeys.key(), unrelated),
+      refresh: useTenantMutateMatching([roomKeys.family]),
+    }));
+    await waitFor(() => {
+      expect(readers.result.current.first.data).toEqual(["first"]);
+      expect(readers.result.current.second.data).toEqual(["second"]);
+      expect(readers.result.current.unrelated.data).toEqual(["group"]);
+    });
+    await act(async () => {
+      await readers.result.current.refresh();
+    });
+    expect(first).toHaveBeenCalledTimes(2);
+    expect(second).toHaveBeenCalledTimes(2);
+    expect(unrelated).toHaveBeenCalledTimes(1);
   });
 
   it("invalidates only its scoped family, including infinite and preload-only keys", async () => {

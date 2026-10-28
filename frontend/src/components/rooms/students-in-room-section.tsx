@@ -30,7 +30,6 @@ import { useSession } from "next-auth/react";
 import type { Session } from "next-auth";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
-import { ROOM_LIST_CACHE_KEYS } from "~/lib/swr/room-derived-caches";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatabaseSelect } from "~/components/ui/database/database-select";
@@ -94,7 +93,7 @@ export function StudentsInRoomSection({
     "room-students-",
     "room-bulk-source-visits-",
     "room-detail-",
-    ...ROOM_LIST_CACHE_KEYS,
+    roomsKeys.family,
     "search-students-",
     "database-students-list",
   ]);

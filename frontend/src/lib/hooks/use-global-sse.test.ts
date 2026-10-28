@@ -63,10 +63,6 @@ vi.mock("swr", () => ({
   mutate: mockMutate,
 }));
 
-vi.mock("~/lib/swr/room-derived-caches", () => ({
-  ROOM_LIST_CACHE_KEYS: ["rooms-list"],
-}));
-
 import { useGlobalSSE } from "./use-global-sse";
 import type { SSEEvent } from "~/lib/sse-types";
 
