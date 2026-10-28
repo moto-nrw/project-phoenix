@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	parentConferencesVersion     = "1.15.685"
+	parentConferencesVersion     = "1.15.706"
 	parentConferencesDescription = "Elternsprechtag: Lehrkraft legt Zeitfenster an, Eltern buchen je Kind (#4801)"
 )
 
@@ -18,11 +18,10 @@ func init() {
 		Version:     parentConferencesVersion,
 		Description: parentConferencesDescription,
 		DependsOn: []string{
-			parentBillingDocumentInboxVersion, // the last migration before this one
-			schoolCalendarVersion,             // school_event_type the booked appointment carries
-			parentDeclarationsVersion,         // auth.guardian_student_access as the permission store
-			surveysVersion,                    // the deletion kinds this extends
-			holidayGuestErasureVersion,        // the school erasure functions this extends
+			visitRevisionEventsVersion, // the last migration before this one, and the school erasure functions this extends
+			schoolCalendarVersion,      // school_event_type the booked appointment carries
+			parentDeclarationsVersion,  // auth.guardian_student_access as the permission store
+			surveysVersion,             // the deletion kinds this extends
 		},
 	})
 	Migrations.MustRegister(parentConferencesUp, parentConferencesDown)
@@ -319,11 +318,11 @@ func parentConferencesUp(ctx context.Context, db *bun.DB) error {
 func parentConferencesDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		for _, step := range []func(context.Context, bun.Tx) error{
-			installHolidayGuestErasurePlan, installHolidayGuestErasurePreflight, installHolidayGuestErasureResidual,
-			installHolidayGuestErasureDelete, installHolidayGuestErasurePreview,
+			installVisitRevisionErasurePlan, installVisitRevisionErasurePreflight, installVisitRevisionErasureResidual,
+			installVisitRevisionErasureDelete, installVisitRevisionErasurePreview,
 		} {
 			if err := step(ctx, tx); err != nil {
-				return fmt.Errorf("restore the school erasure of 1.15.681: %w", err)
+				return fmt.Errorf("restore the school erasure of 1.15.705: %w", err)
 			}
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM audit.data_deletions WHERE deletion_type = 'parent_conference_retention'`); err != nil {

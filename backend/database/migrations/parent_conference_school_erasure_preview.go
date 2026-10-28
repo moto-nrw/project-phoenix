@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.685 (#4801): the 1.15.681 preview with the two Elternsprechtag tables,
+// 1.15.706 (#4801): the 1.15.705 preview with the two Elternsprechtag tables,
 // calendar.parent_conferences and calendar.parent_conference_bookings.
 func installParentConferenceErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasurePreviewSQL)
@@ -49,6 +49,7 @@ const parentConferenceErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('active.staff_vacation_quota_changes',(SELECT count(*) FROM active.staff_vacation_quota_changes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.student_status_days',(SELECT count(*) FROM active.student_status_days AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.visits',(SELECT count(*) FROM active.visits AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('active.visit_revision_events',(SELECT count(*) FROM active.visit_revision_events AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.work_session_breaks',(SELECT count(*) FROM active.work_session_breaks AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.work_sessions',(SELECT count(*) FROM active.work_sessions AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('activities.categories',(SELECT count(*) FROM activities.categories AS r WHERE r.tenant_id = p_school));

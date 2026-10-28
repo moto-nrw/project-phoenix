@@ -286,6 +286,18 @@ func TestWrapConflictError(t *testing.T) {
 		err := wrapConflictError(apiErr, "organization")
 		assert.Contains(t, err.Error(), "seed organization already exists (409 Conflict)")
 		assert.Contains(t, err.Error(), "migrate reset")
+		assert.ErrorIs(t, err, apiErr, "the cause and its code stay readable")
+	})
+
+	t.Run("keeps the code of the refused request", func(t *testing.T) {
+		// BACKEND-14: a demo rebuild could not rename its deleted school,
+		// and the report named neither cause nor code.
+		apiErr := &APIError{
+			Method: "PUT", Path: "/operator/schools/7", StatusCode: seedHTTPStatusConflict,
+			Code: "provisioning.school_already_deleted", Message: "School is already deleted",
+		}
+		err := wrapConflictError(fmt.Errorf("rename abandoned school: %w", apiErr), "school")
+		assert.Contains(t, err.Error(), "(provisioning.school_already_deleted)")
 	})
 
 	t.Run("passes through non-409 errors unchanged", func(t *testing.T) {
@@ -1230,6 +1242,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/operator/schools/2/devices" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{
+					"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": webManualDeviceName, "status": "active",
+				}},
+			})
+			return
+		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/operator/devices/9000/transfer-status" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"is_protected": true},
@@ -1349,11 +1369,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			return
 		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/iot/" {
+			if manualAuth {
+				w.WriteHeader(seedHTTPStatusForbidden)
+				_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+				return
+			}
 			deviceType := r.URL.Query().Get("device_type")
 			devices := make([]map[string]any, 0)
 			if deviceType == "virtual" {
 				devices = append(devices, map[string]any{"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": "Web-Anwesenheit"})
-			} else if !manualAuth {
+			} else {
 				for _, device := range DemoDevices {
 					devices = append(devices, map[string]any{"device_id": device.DeviceID, "device_type": "terminal", "name": device.Name})
 				}

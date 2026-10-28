@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.685 (#4801): the 1.15.681 delete with the two Elternsprechtag tables,
+// 1.15.706 (#4801): the 1.15.705 delete with the two Elternsprechtag tables,
 // calendar.parent_conferences and calendar.parent_conference_bookings.
 func installParentConferenceErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasureDeleteSQL)
@@ -98,6 +98,9 @@ const parentConferenceErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.sc
    SELECT count(*) INTO v_count FROM active.visits AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.visits AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.visits', v_count);
+   SELECT count(*) INTO v_count FROM active.visit_revision_events AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM active.visit_revision_events AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('active.visit_revision_events', v_count);
    SELECT count(*) INTO v_count FROM active.groups AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.groups AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.groups', v_count);

@@ -11,7 +11,7 @@ import (
 )
 
 // TestParentConferenceBookingConstraints pins the double-booking guard of
-// 1.15.685 (#4801): a slot holds one child, a child one slot per day.
+// 1.15.706 (#4801): a slot holds one child, a child one slot per day.
 func TestParentConferenceBookingConstraints(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -35,7 +35,7 @@ func TestParentConferenceBookingConstraints(t *testing.T) {
 	assert.Error(t, err, "a day ends after it starts")
 }
 
-// TestParentConferencesMigrationRoundTrip rolls 1.15.685 back and forward:
+// TestParentConferencesMigrationRoundTrip rolls 1.15.706 back and forward:
 // the down drops the tables, the booking permission and the booked
 // appointments, and the up restores the erasure plan with the tables.
 func TestParentConferencesMigrationRoundTrip(t *testing.T) {

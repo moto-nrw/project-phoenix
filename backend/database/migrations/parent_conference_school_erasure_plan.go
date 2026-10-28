@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.685 (#4801): the 1.15.681 plan with the two Elternsprechtag tables,
+// 1.15.706 (#4801): the 1.15.705 plan with the two Elternsprechtag tables,
 // calendar.parent_conferences and calendar.parent_conference_bookings.
 func installParentConferenceErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasurePlanSQL)
@@ -42,6 +42,7 @@ const parentConferenceErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.scho
   {"name": "active.staff_vacation_quota_changes","predicate": "r.tenant_id = $1"},
   {"name": "active.student_status_days","predicate": "r.tenant_id = $1"},
   {"name": "active.visits","predicate": "r.tenant_id = $1"},
+  {"name": "active.visit_revision_events","predicate": "r.tenant_id = $1","after": ["active.visits"]},
   {"name": "active.work_session_breaks","predicate": "r.tenant_id = $1"},
   {"name": "active.work_sessions","predicate": "r.tenant_id = $1"},
   {"name": "activities.categories","predicate": "r.tenant_id = $1"},
