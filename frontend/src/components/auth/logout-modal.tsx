@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import { ConfirmationModal } from "./modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
