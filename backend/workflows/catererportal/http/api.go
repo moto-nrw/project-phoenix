@@ -70,14 +70,18 @@ func (rs *Resource) SchoolRouter(protected func(chi.Router, func(chi.Router, com
 }
 
 // CatererRouter serves the caterer under /caterer: the rate-limited sign-in
-// and invitation routes, and the routes of a caterer session.
+// and invitation routes, and the routes of a caterer session, among them
+// the rate-limited password change.
 func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handler, configureSession func(chi.Router)) chi.Router {
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Group(func(r chi.Router) {
+	limitCredentialChecks := func(r chi.Router) {
 		if authRateLimiter != nil {
 			r.Use(authRateLimiter)
 		}
+	}
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Group(func(r chi.Router) {
+		limitCredentialChecks(r)
 		r.Post("/auth/login", rs.login)
 		r.Post("/auth/password-reset", rs.initiatePasswordReset)
 		r.Post("/auth/password-reset/confirm", rs.resetPassword)
@@ -90,6 +94,12 @@ func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handle
 		r.Get("/orders/export", rs.exportDeliveries)
 		r.Get("/schools/{schoolId}/orders", rs.getSchoolOrders)
 		r.Post("/schools/{schoolId}/orders/{orderId}/confirm", rs.confirmOrder)
+		// The current password is a credential check: it shares the
+		// sign-in's rate limit beside the account lock.
+		r.Group(func(r chi.Router) {
+			limitCredentialChecks(r)
+			r.Post("/account/password", rs.changePassword)
+		})
 	})
 	return router
 }

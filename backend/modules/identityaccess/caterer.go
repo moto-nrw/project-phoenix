@@ -108,6 +108,10 @@ type CatererAccessEngine interface {
 	// supplies now.
 	CatererSchools(ctx context.Context, accountID int64) (Caterer, []int64, error)
 	LoginCatererWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	// ChangeCatererPassword replaces a signed-in caterer's password after
+	// checking the current one like a login, and ends every session of the
+	// account (#4496).
+	ChangeCatererPassword(ctx context.Context, accountID int64, currentPassword, newPassword, ipAddress, userAgent string) error
 }
 
 // CatererAccess is the capability of the caterer flows, separate from the

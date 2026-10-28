@@ -26,10 +26,12 @@ type Dependencies struct {
 }
 
 // identityFlows are the Identity & Access flows the portal offers as they
-// are: the revocation of an invitation and the sign-in.
+// are: the revocation of an invitation, the sign-in and the caterer's
+// password change.
 type identityFlows interface {
 	RevokeCatererInvitation(ctx context.Context, invitationID int64) error
 	LoginCatererWithAudit(ctx context.Context, email, password, ipAddress, userAgent string) (string, string, error)
+	ChangeCatererPassword(ctx context.Context, accountID int64, currentPassword, newPassword, ipAddress, userAgent string) error
 }
 
 // Portal implements the caterer portal workflow.
