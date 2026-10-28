@@ -4558,7 +4558,7 @@ describe("EnrollmentForm — fixed pickup times", () => {
         screen.getByRole("button", { name: "Anmeldung absenden" }),
       );
       await waitFor(() => {
-        expect(picker).toHaveAttribute("aria-invalid", "true");
+        expect(picker).toHaveAttribute("data-form-invalid", "true");
         expect(picker).toHaveFocus();
       });
       await settle();

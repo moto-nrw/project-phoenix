@@ -987,7 +987,7 @@ describe("ISODatePicker name", () => {
       "closing-day-start",
     );
     expect(screen.getByRole("button", { name: "15.01.2024" })).toHaveAttribute(
-      "aria-invalid",
+      "data-form-invalid",
       "true",
     );
   });
