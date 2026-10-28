@@ -609,7 +609,8 @@ describe("InvitationForm", () => {
       fireEvent.click(await screen.findByText("Einladung senden"));
 
       await waitFor(() => {
-        expect(screen.getByText("Rolle").className).toContain(
+        // The colour sits on the FieldLabel wrapper around the <label>.
+        expect(screen.getByText("Rolle").parentElement?.className).toContain(
           "text-moto-red-strong",
         );
       });
