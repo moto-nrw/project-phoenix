@@ -203,6 +203,32 @@ describe("session end barrier", () => {
     expect(phases.at(-1)).toEqual({ ending: false, discardedWrites: 1 });
   });
 
+  it("recognises a discarded student list request through both service wrappers", async () => {
+    const barrier = await loadBarrier();
+    const { studentService } = await import("./api");
+    const cancel = await barrier.holdRequestsUntilSessionEnds();
+    const students = studentService.getStudents();
+    await flush();
+    cancel();
+    const error = await students.catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toMatchObject({ cause: { cause: { name: "AbortError" } } });
+    expect(barrier.discardedBySessionEnd(error)).toBe(true);
+    expect(sent).toEqual([]);
+  });
+
+  it("stops at cyclic and non-object causes without marking unrelated errors", async () => {
+    const barrier = await loadBarrier();
+    const first = new Error("first");
+    const second = new Error("second", { cause: first });
+    first.cause = second;
+    expect(barrier.discardedBySessionEnd(first)).toBe(false);
+    expect(
+      barrier.discardedBySessionEnd(new Error("plain", { cause: "offline" })),
+    ).toBe(false);
+    expect(barrier.discardedBySessionEnd(null)).toBe(false);
+  });
+
   it("resets when the navigation after sign-out is aborted", async () => {
     const navigation = new EventTarget();
     Object.defineProperty(window, "navigation", {

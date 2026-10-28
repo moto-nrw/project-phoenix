@@ -59,10 +59,13 @@ export function isSessionEnding(): boolean {
  * reports those itself, once; a caller's error display skips them.
  */
 export function discardedBySessionEnd(error: unknown): boolean {
-  if (typeof error !== "object" || error === null) return false;
-  if (discarded.has(error)) return true;
-  const cause = (error as { cause?: unknown }).cause;
-  return typeof cause === "object" && cause !== null && discarded.has(cause);
+  const seen = new Set<object>();
+  while (typeof error === "object" && error !== null && !seen.has(error)) {
+    if (discarded.has(error)) return true;
+    seen.add(error);
+    error = (error as { cause?: unknown }).cause;
+  }
+  return false;
 }
 
 function requestUrl(input: RequestInfo | URL): URL {
