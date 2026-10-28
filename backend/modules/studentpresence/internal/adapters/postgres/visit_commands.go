@@ -22,7 +22,8 @@ func (s *Store) CloseGroupVisits(ctx context.Context, ids []int64) (ports.Stats,
 	// existing zero-duration clamp so one skewed interval cannot abort a batch.
 	result, err := db.NewUpdate().Table("active.visits").
 		Set("exit_time = GREATEST(now(), entry_time)").Where("tenant_id = ?", tenantID).
-		Where("active_group_id IN (?)", bun.List(ids)).Where("exit_time IS NULL").Exec(ctx)
+		Where("active_group_id IN (?)", bun.List(ids)).Where("exit_time IS NULL").
+		Where(lockListedSessionsFirst, tenantID, bun.List(ids)).Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, err
@@ -40,7 +41,7 @@ func (s *Store) TransferOpenVisits(ctx context.Context, from, to int64) (ports.S
 	result, err := db.NewUpdate().Table("active.visits").
 		Set("active_group_id = ?", to).Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).Where("active_group_id = ?", from).
-		Where("exit_time IS NULL").Exec(ctx)
+		Where("exit_time IS NULL").Where(lockListedSessionsFirst, tenantID, bun.List([]int64{from, to})).Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, err
@@ -60,7 +61,8 @@ func (s *Store) TransferRecentDeviceVisits(ctx context.Context, to, deviceID int
 		Where(`active_group_id IN (
 			SELECT id FROM active.groups WHERE tenant_id = ? AND device_id = ?
 			AND end_time IS NOT NULL AND end_time > NOW() - INTERVAL '1 hour'
-		) AND exit_time IS NULL`, tenantID, deviceID).Exec(ctx)
+		) AND exit_time IS NULL`, tenantID, deviceID).
+		Where(lockDeviceTransferSessions, tenantID, to, deviceID).Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, err

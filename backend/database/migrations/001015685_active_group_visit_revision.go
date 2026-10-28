@@ -34,7 +34,10 @@ func init() {
 //     UPDATE, so visit inserts' FK key-share locks do not conflict) before it
 //     raises them. Writers of one session therefore commit in revision order,
 //     and a writer that reads count and revision after its change sees both
-//     of its own transaction.
+//     of its own transaction. Student Presence's visit writes lock their
+//     sessions first anyway (session lock order in its Postgres adapter), so
+//     for them this lock is already held; it remains the guard for writers
+//     outside that adapter, such as inserts, erasures and direct SQL.
 //   - The revision change does not touch updated_at: a session's own data
 //     did not change.
 const activeGroupVisitRevisionUpSQL = `

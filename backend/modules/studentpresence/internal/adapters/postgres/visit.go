@@ -142,17 +142,11 @@ func (s *Store) ReviseVisit(ctx context.Context, row *studentpresence.Visit) (po
 	}
 	row.TenantID = tenantID
 	started := time.Now()
-	// Match session end's lock order, including the destination of a move.
-	// As in CloseVisits, the uncorrelated subquery locks sessions in id
-	// order before the first visit row reaches the mutation.
+	// Session lock order (session_lock_order.go): the visit's session and,
+	// for a move, its destination, before the visit row.
 	result, err := db.NewUpdate().Model(visitRowFromRecord(row)).ModelTableExpr(`active.visits AS "visit"`).
 		WherePK().Where("visit.tenant_id = ?", tenantID).
-		Where(`(SELECT count(*) FROM (
-			SELECT g.id FROM active.groups AS g
-			WHERE g.tenant_id = ? AND (g.id = ? OR g.id IN (
-				SELECT v.active_group_id FROM active.visits AS v
-				WHERE v.tenant_id = ? AND v.id = ?))
-			ORDER BY g.id FOR NO KEY UPDATE OF g) AS locked_sessions) >= 0`, tenantID, row.ActiveGroupID, tenantID, row.ID).
+		Where(lockRevisedVisitSessionsFirst, tenantID, row.ActiveGroupID, bun.List([]int64{row.ID})).
 		Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
@@ -174,14 +168,9 @@ func (s *Store) DeleteVisit(ctx context.Context, id int64) (ports.Stats, error) 
 		return ports.Stats{}, err
 	}
 	started := time.Now()
-	// Lock the session before deleting its visit, just as session end does.
+	// Session lock order (session_lock_order.go): the session before the visit row.
 	result, err := db.NewDelete().Table("active.visits").Where("tenant_id = ?", tenantID).Where("id = ?", id).
-		Where(`(SELECT count(*) FROM (
-			SELECT g.id FROM active.groups AS g
-			WHERE g.tenant_id = ? AND g.id IN (
-				SELECT v.active_group_id FROM active.visits AS v
-				WHERE v.tenant_id = ? AND v.id = ?)
-			ORDER BY g.id FOR NO KEY UPDATE OF g) AS locked_sessions) >= 0`, tenantID, tenantID, id).
+		Where(lockVisitSessionsFirst, tenantID, bun.List([]int64{id})).
 		Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
@@ -202,21 +191,11 @@ func (s *Store) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]*
 		return []*studentpresence.Visit{}, ports.Stats{}, nil
 	}
 	started := time.Now()
-	// The sessions are locked before the visit rows, in ascending id order:
-	// the visit revision trigger (#5128) locks the sessions it raises, and a
-	// session end locks its session before its visits. The uncorrelated
-	// subquery runs once before the first row reaches the update, so a
-	// checkout and a session end of one session wait for each other instead
-	// of deadlocking.
+	// Session lock order (session_lock_order.go): sessions before visit rows.
 	err = db.NewUpdate().Model((*visitRow)(nil)).ModelTableExpr(`active.visits AS "visit"`).
 		Set("exit_time = ?", at).Where("visit.tenant_id = ?", tenantID).
 		Where("visit.id IN (?)", bun.List(ids)).Where("visit.exit_time IS NULL").
-		Where(`(SELECT count(*) FROM (
-			SELECT g.id FROM active.groups AS g
-			WHERE g.tenant_id = ? AND g.id IN (
-				SELECT v.active_group_id FROM active.visits AS v
-				WHERE v.tenant_id = ? AND v.id IN (?) AND v.exit_time IS NULL)
-			ORDER BY g.id FOR NO KEY UPDATE OF g) AS locked_sessions) >= 0`, tenantID, tenantID, bun.List(ids)).
+		Where(lockOpenVisitSessionsFirst, tenantID, bun.List(ids)).
 		Returning("*").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {

@@ -176,7 +176,8 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	stats.Queries++
 	visits, err := db.NewUpdate().Table("active.visits").
 		Set("exit_time = GREATEST(?, entry_time)", at).Set("updated_at = ?", at).
-		Where("tenant_id = ?", tenantID).Where("active_group_id IN (?)", bun.List(open)).Where("exit_time IS NULL").Exec(ctx)
+		Where("tenant_id = ?", tenantID).Where("active_group_id IN (?)", bun.List(open)).Where("exit_time IS NULL").
+		Where(lockListedSessionsFirst, tenantID, bun.List(open)).Exec(ctx)
 	if err != nil {
 		return result, stats, fmt.Errorf("end group sessions: close visits: %w", err)
 	}

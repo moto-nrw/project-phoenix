@@ -284,7 +284,7 @@ func binaryModeGreeting(action, firstName string) string {
 func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDevice, student *ports.Student, person *ports.Person, command devicescan.ScanCommand) (*devicescan.ScanResult, error) {
 	now := s.now()
 
-	checkout, err := s.checkoutCurrentVisit(ctx, student, person)
+	checkout, err := s.lockSessionsAndCheckout(ctx, student, person, command.RoomID)
 	if err != nil {
 		return nil, err
 	}
@@ -320,11 +320,9 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 	}
 
 	s.applyCheckoutFlags(ctx, result, student, checkout.Visit)
-	counter, err := s.resolveActiveStudentCount(ctx, checkin, command.RoomID, device.ID)
-	if err != nil {
+	if err := s.applyActiveStudentCount(ctx, result, checkin, command.RoomID, device.ID); err != nil {
 		return nil, err
 	}
-	result.ActiveStudents, result.ActiveStudentsSessionID, result.ActiveStudentsRevision = counter.count, counter.sessionID, counter.revision
 	s.applyPickupTime(ctx, result, student.ID, now)
 
 	result.PersonID = student.ID
@@ -339,6 +337,36 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 		slog.String("room", result.RoomName),
 	)
 	return result, nil
+}
+
+// lockSessionsAndCheckout locks every session the checkout and check-in can
+// change before either touches a visit, in one ascending order (#5128), then
+// closes the current room stay. Two scans moving children in opposite
+// directions wait for each other instead of deadlocking.
+func (s *Service) lockSessionsAndCheckout(ctx context.Context, student *ports.Student, person *ports.Person, roomID *int64) (currentVisitCheckout, error) {
+	var room int64
+	if roomID != nil {
+		room = *roomID
+	}
+	if err := s.presence.LockVisitSessions(ctx, student.ID, room); err != nil {
+		s.logger.ErrorContext(ctx, "failed to lock visit sessions",
+			slog.Int64("student_id", student.ID),
+			slog.String("error", err.Error()),
+		)
+		return currentVisitCheckout{}, devicescan.Internal(devicescan.MessageInternalServerError, err)
+	}
+	return s.checkoutCurrentVisit(ctx, student, person)
+}
+
+// applyActiveStudentCount sets the kiosk counter with its session and
+// revision (#5128) and refreshes the device session's heartbeat.
+func (s *Service) applyActiveStudentCount(ctx context.Context, result *devicescan.ScanResult, checkin *checkinResult, roomID *int64, deviceID int64) error {
+	counter, err := s.resolveActiveStudentCount(ctx, checkin, roomID, deviceID)
+	if err != nil {
+		return err
+	}
+	result.ActiveStudents, result.ActiveStudentsSessionID, result.ActiveStudentsRevision = counter.count, counter.sessionID, counter.revision
+	return nil
 }
 
 // buildScanResult names the transition from what happened.

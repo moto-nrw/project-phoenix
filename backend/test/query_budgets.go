@@ -252,9 +252,11 @@ var queryBudgets = map[string]queryBudget{
 	// request settings cache, so each settings read counts. Flat from three
 	// to eight children present.
 	// ADR 0124: +2 statements for SAVEPOINT and RELEASE around the heartbeat.
-	"api.iot.checkin.check_in":    {max: 38},
-	"api.iot.checkin.check_out":   {max: 26},
-	"api.iot.checkin.room_change": {max: 44},
+	// ADR 0131: +1 statement that locks the scan's sessions in ascending id
+	// order before the checkout (#5128).
+	"api.iot.checkin.check_in":    {max: 39},
+	"api.iot.checkin.check_out":   {max: 27},
+	"api.iot.checkin.room_change": {max: 45},
 	// modules/timetable/http — 14-day /week: FindByID + 7 preloads + class-exception
 	// lookup (#2962) with headroom for bun metadata reads; was ~98 pre-fix.
 	"api.timetable.student_week.14d": {max: 13},

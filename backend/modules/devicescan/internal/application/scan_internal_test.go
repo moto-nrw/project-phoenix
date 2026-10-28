@@ -740,3 +740,19 @@ func TestPingAndStatus(t *testing.T) {
 		assert.Equal(t, fixedNow, status.AuthenticatedAt)
 	})
 }
+
+// TestScan_SessionLockFailureStopsBeforeTheCheckout pins the lock order of
+// #5128: the scan takes its session locks before any visit changes, so a
+// failed lock leaves the current visit open.
+func TestScan_SessionLockFailureStopsBeforeTheCheckout(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.visits.current = &ports.CurrentVisit{ID: 77}
+	h.presence.lockErr = errBoom
+
+	_, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+
+	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageInternalServerError)
+	assert.Empty(t, h.visits.ended, "no visit closes before the sessions are locked")
+	assert.Empty(t, h.visits.recorded)
+}

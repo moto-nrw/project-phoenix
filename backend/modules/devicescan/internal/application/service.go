@@ -33,6 +33,9 @@ type Presence interface {
 	CountOpenVisitsInRoom(context.Context, int64) (int, error)
 	CountOpenVisitsInGroup(context.Context, int64) (int, error)
 	CountOpenVisitsInGroupWithRevision(context.Context, int64) (int, int64, error)
+	// LockVisitSessions locks the student's session and the open sessions
+	// of the room before the scan changes a visit (#5128).
+	LockVisitSessions(ctx context.Context, studentID, roomID int64) error
 }
 
 // Rooms is the part of the Facilities capability the scans use.

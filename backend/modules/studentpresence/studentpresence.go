@@ -108,6 +108,12 @@ type CombinedGroupCommand interface {
 // care exits and session recovery.
 type PresenceRecordCommand interface {
 	LockOpenPresence(context.Context, []int64) error
+	// LockVisitSessions locks, in the session lock order, every session a
+	// move of the student into the room can change: the session of the
+	// student's open visit and each open session of the room (#5128). A
+	// room ID of 0 locks only the student's session. It requires the
+	// caller's tenant transaction.
+	LockVisitSessions(ctx context.Context, studentID, roomID int64) error
 	CloseOpenPresence(context.Context, []int64, time.Time) (int64, error)
 	LockOpenVisits(context.Context, int64) error
 	RestoreVisits(context.Context, []int64) error

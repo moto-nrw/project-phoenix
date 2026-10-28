@@ -76650,6 +76650,19 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.LockVisitSessions",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0131",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Session lock of the kiosk scan of #5128 through the module's observer, approved by ADR 0131; a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.MarkExpectedAbsentByActiveGroupIDs",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MarkExpectedAbsentByActiveGroupIDs",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
@@ -78363,6 +78376,19 @@
       "adr": "0083",
       "approval_adr": "0098",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.LockVisitSessions",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0131",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Session lock of the kiosk scan of #5128 through the module's observer, approved by ADR 0131; a changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "student-presence",
@@ -85409,6 +85435,17 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.LockVisitSessions",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.LockVisitSessions",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.LockVisitSessions. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.MarkParticipantsNotScheduled",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.MarkParticipantsNotScheduled",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
@@ -90720,6 +90757,42 @@
     },
     {
       "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.LockVisitSessions",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.LockVisitSessions",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.LockVisitSessions",
+      "target_owner": "student-presence",
+      "binding_digest": "eaeaef0b76ecf5a1e1486911d1796f0d",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence.Capability.LockVisitSessions; modules/studentpresence.Capability (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.LockVisitSessions",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.LockVisitSessions",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "target_owner": "student-presence",
+      "binding_digest": "7019373ef01aa0d5d628228dcf45c162",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence.Owner.LockVisitSessions; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.LockVisitSessions",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "target_owner": "student-presence",
+      "binding_digest": "7019373ef01aa0d5d628228dcf45c162",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence.Owner.LockVisitSessions; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.MarkExpectedAbsentByActiveGroupIDs",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.MarkExpectedAbsentByActiveGroupIDs",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.MarkExpectedAbsentByActiveGroupIDs",
@@ -94255,6 +94328,30 @@
       "classification": "leaf",
       "adr": "0067",
       "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence.Owner.LockSupervisors; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.LockVisitSessions",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.LockVisitSessions",
+      "target_owner": "student-presence",
+      "binding_digest": "8feb1dc9e7760573fa3893308987bffd",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence/internal/application.Service.LockVisitSessions; modules/studentpresence/internal/application/service.go:155.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.LockVisitSessions",
+      "target_owner": "student-presence",
+      "binding_digest": "7019373ef01aa0d5d628228dcf45c162",
+      "effect": "lock",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence.Owner.LockVisitSessions; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "timetable-activities",

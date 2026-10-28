@@ -209,12 +209,16 @@ order of its requests. Both fields are additive; an older kiosk ignores them.
   whose revision is greater than the shown one, ignore a smaller or equal one,
   and never take a revision from another session. A count without a revision
   (room-wide count, older backend) keeps the kiosk's previous rule.
-- **Lock order.** `CloseVisits`, `DeleteVisit` and `ReviseVisit` lock the
-  visits' sessions before the visit rows, like a session end, so these writers
-  and a session end wait instead of deadlocking. `ReviseVisit` locks both the
-  current and destination sessions in ascending id order. Two transfers in
-  opposite directions between the same two sessions at the same moment can
-  still deadlock; PostgreSQL aborts one of them and that scan answers with an error.
+- **Lock order.** Every change of existing visits in Student Presence locks
+  the sessions it changes `FOR UPDATE` in ascending id order before any visit
+  row (`session_lock_order.go` in its Postgres adapter); a session end does
+  the same. A visit insert names one session, which a check-in locks before
+  it. A scan takes all its sessions up front with `LockVisitSessions`: the
+  session of the child's open visit and every open session of the scanned
+  room. Two scans moving children in opposite directions, a care exit and a
+  session end, or a checkout and a session end therefore wait for each other
+  instead of deadlocking. A session the transaction creates itself needs no
+  earlier lock.
 
 Deploy the backend first; the kiosk change in PyrePortal follows.
 

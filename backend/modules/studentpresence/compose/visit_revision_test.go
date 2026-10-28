@@ -390,3 +390,138 @@ func TestVisitWritersWaitForASessionEndWithoutDeadlock(t *testing.T) {
 		})
 	}
 }
+
+// awaitBlockedOrDone waits until the waiter blocks on the holder (true) or
+// its step finishes first (false, with the step's error). The test then
+// knows which interleaving the lock order produced.
+func awaitBlockedOrDone(t *testing.T, db *bun.DB, waiter, holder *txActor, step <-chan error) (bool, error) {
+	t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case err := <-step:
+			return false, err
+		default:
+		}
+		var blocked bool
+		require.NoError(t, db.NewRaw("SELECT ?::int = ANY (pg_blocking_pids(?::int))", holder.pid, waiter.pid).Scan(context.Background(), &blocked))
+		if blocked {
+			return true, nil
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("waiter neither blocked nor finished")
+	return false, nil
+}
+
+// TestOppositeScansWaitInsteadOfDeadlocking replays two scans that move
+// children in opposite directions between two sessions, each as the device
+// scan runs it: lock the scan's sessions, close the current visit, lock the
+// target (CreateVisit) and record the new visit. Locking every session up
+// front in ascending order makes the second scan wait for the first;
+// without it, each holds its source and waits for the other's.
+func TestOppositeScansWaitInsteadOfDeadlocking(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module := newRevisionModule(t, db)
+	activity := testpkg.CreateTestActivityGroup(t, db, "Opposite activity")
+	firstRoom := testpkg.CreateTestRoom(t, db, "Opposite first room")
+	secondRoom := testpkg.CreateTestRoom(t, db, "Opposite second room")
+	first := testpkg.CreateTestActiveGroup(t, db, activity.ID, firstRoom.ID)
+	second := testpkg.CreateTestActiveGroup(t, db, activity.ID, secondRoom.ID)
+	leavingFirst := openVisit(t, ctx, module, db, first.ID, "Forward")
+	leavingSecond := openVisit(t, ctx, module, db, second.ID, "Backward")
+	checkout := func(visit studentpresence.Visit, roomID int64) func(context.Context) error {
+		return func(txCtx context.Context) error {
+			if err := module.LockVisitSessions(txCtx, visit.StudentID, roomID); err != nil {
+				return err
+			}
+			_, err := module.CloseVisits(txCtx, []int64{visit.ID}, time.Now())
+			return err
+		}
+	}
+	checkin := func(studentID, groupID int64) func(context.Context) error {
+		return func(txCtx context.Context) error {
+			if _, err := module.LockGroup(txCtx, groupID); err != nil {
+				return err
+			}
+			_, err := module.RecordVisit(txCtx, studentpresence.Visit{StudentID: studentID, ActiveGroupID: groupID, EntryTime: time.Now()})
+			return err
+		}
+	}
+
+	forward := startTx(t, ctx, db)
+	awaitStep(t, forward.run(checkout(leavingFirst, secondRoom.ID)))
+	backward := startTx(t, ctx, db)
+	backwardCheckout := backward.run(checkout(leavingSecond, firstRoom.ID))
+	blocked, err := awaitBlockedOrDone(t, db, backward, forward, backwardCheckout)
+	if !blocked {
+		require.NoError(t, err)
+		forwardCheckin := forward.run(checkin(leavingFirst.StudentID, second.ID))
+		backwardCheckin := backward.run(checkin(leavingSecond.StudentID, first.ID))
+		require.NoError(t, <-backwardCheckin, "the opposite scan must wait instead of deadlocking")
+		require.NoError(t, <-forwardCheckin, "the opposite scan must wait instead of deadlocking")
+		t.Fatal("the opposite scan did not wait for the sessions the first scan locked")
+	}
+	awaitStep(t, forward.run(checkin(leavingFirst.StudentID, second.ID)))
+	forward.commit(t)
+	awaitStep(t, backwardCheckout)
+	awaitStep(t, backward.run(checkin(leavingSecond.StudentID, first.ID)))
+	backward.commit(t)
+
+	assert.Equal(t, countSnapshot{count: 1, revision: 3}, readSnapshot(t, ctx, module, first.ID))
+	assert.Equal(t, countSnapshot{count: 1, revision: 3}, readSnapshot(t, ctx, module, second.ID))
+}
+
+// TestCareExitWaitsForASessionEndWithoutDeadlock replays a care exit (lock
+// the child's open presence, then close it) next to a session end of the
+// child's session (lock the session, then close its visits). The care exit
+// locks the session before the visit, as the session end does.
+func TestCareExitWaitsForASessionEndWithoutDeadlock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module := newRevisionModule(t, db)
+	activity := testpkg.CreateTestActivityGroup(t, db, "Care exit activity")
+	room := testpkg.CreateTestRoom(t, db, "Care exit room")
+	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	leaving := openVisit(t, ctx, module, db, group.ID, "Leaving")
+	staying := openVisit(t, ctx, module, db, group.ID, "Staying")
+
+	careExit := startTx(t, ctx, db)
+	awaitStep(t, careExit.run(func(txCtx context.Context) error {
+		return module.LockOpenPresence(txCtx, []int64{leaving.StudentID})
+	}))
+	sessionEnd := startTx(t, ctx, db)
+	sessionLock := sessionEnd.run(func(txCtx context.Context) error {
+		_, err := module.LockGroup(txCtx, group.ID)
+		return err
+	})
+	endSession := func(txCtx context.Context) error {
+		_, err := module.EndGroupSession(txCtx, group.ID, time.Now())
+		return err
+	}
+	closePresence := func(txCtx context.Context) error {
+		_, err := module.CloseOpenPresence(txCtx, []int64{leaving.StudentID}, time.Now())
+		return err
+	}
+	blocked, err := awaitBlockedOrDone(t, db, sessionEnd, careExit, sessionLock)
+	if !blocked {
+		require.NoError(t, err)
+		ending := sessionEnd.run(endSession)
+		closing := careExit.run(closePresence)
+		require.NoError(t, <-closing, "the care exit must not deadlock with the session end")
+		require.NoError(t, <-ending, "the session end must not deadlock with the care exit")
+		t.Fatal("the session end did not wait for the session the care exit locked")
+	}
+	awaitStep(t, careExit.run(closePresence))
+	careExit.commit(t)
+	awaitStep(t, sessionLock)
+	awaitStep(t, sessionEnd.run(endSession))
+	sessionEnd.commit(t)
+
+	assert.Equal(t, countSnapshot{count: 0, revision: 4}, readSnapshot(t, ctx, module, group.ID),
+		"two openings, the care exit and the session end each raised the revision")
+	assert.NotZero(t, staying.ID)
+}

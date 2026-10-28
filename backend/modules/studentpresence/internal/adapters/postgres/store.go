@@ -71,7 +71,8 @@ func (s *Store) LockOpenVisits(ctx context.Context, groupID int64) (ports.Stats,
 	started := time.Now()
 	err = db.NewSelect().TableExpr(`active.visits AS "visit"`).ColumnExpr(`"visit".id`).
 		Where(`"visit".tenant_id = ?`, tenantID).Where(`"visit".active_group_id = ?`, groupID).
-		Where(`"visit".exit_time IS NULL`).OrderExpr(`"visit".id ASC`).For("UPDATE").Scan(ctx, &ids)
+		Where(`"visit".exit_time IS NULL`).Where(lockListedSessionsFirst, tenantID, bun.List([]int64{groupID})).
+		OrderExpr(`"visit".id ASC`).For("UPDATE").Scan(ctx, &ids)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(ids)), StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("lock open visits: %w", err)
@@ -89,7 +90,8 @@ func (s *Store) RestoreVisits(ctx context.Context, ids []int64) (ports.Stats, er
 	}
 	started := time.Now()
 	result, err := db.NewUpdate().Table("active.visits").Set("exit_time = NULL").
-		Where("tenant_id = ?", tenantID).Where("id IN (?) AND exit_time IS NOT NULL", bun.List(ids)).Exec(ctx)
+		Where("tenant_id = ?", tenantID).Where("id IN (?) AND exit_time IS NOT NULL", bun.List(ids)).
+		Where(lockVisitSessionsFirst, tenantID, bun.List(ids)).Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("restore visits: %w", err)
@@ -117,7 +119,8 @@ func (s *Store) CloseOpenPresence(ctx context.Context, ids []int64, at time.Time
 		db.NewUpdate().Table("active.attendance").Set("check_out_time = ?", at).Set("updated_at = ?", at).
 			Where("tenant_id = ?", tenantID).Where("student_id IN (?)", bun.List(ids)).Where("check_out_time IS NULL"),
 		db.NewUpdate().Table("active.visits").Set("exit_time = ?", at).Set("updated_at = ?", at).
-			Where("tenant_id = ?", tenantID).Where("student_id IN (?)", bun.List(ids)).Where("exit_time IS NULL"),
+			Where("tenant_id = ?", tenantID).Where("student_id IN (?)", bun.List(ids)).Where("exit_time IS NULL").
+			Where(lockStudentSessionsFirst, tenantID, bun.List(ids)),
 	} {
 		started := time.Now()
 		result, err := query.Exec(ctx)
@@ -206,6 +209,16 @@ func (s *Store) LockOpenPresence(ctx context.Context, ids []int64) (ports.Stats,
 	var stats ports.Stats
 	if len(ids) == 0 {
 		return stats, nil
+	}
+	// Session lock order (session_lock_order.go): the sessions of the
+	// children's open visits before their attendance and visit rows.
+	started := time.Now()
+	var sessions []int64
+	err = db.NewRaw(lockStudentSessions, tenantID, bun.List(ids)).Scan(ctx, &sessions)
+	stats.Queries++
+	stats.StatementDuration += time.Since(started)
+	if err != nil {
+		return stats, fmt.Errorf("lock sessions for care exit: %w", err)
 	}
 	for _, statement := range []struct {
 		op    string
