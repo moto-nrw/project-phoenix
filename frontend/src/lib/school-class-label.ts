@@ -36,6 +36,11 @@ export function schoolClassName(klass: string): string {
   return klass.trim().replace(LEADING_PREFIX, "");
 }
 
+function schoolClassNameForPlural(klass: string): string {
+  const name = schoolClassName(klass);
+  return name === "" ? schoolClassLabel(klass) : name;
+}
+
 /**
  * Mehrere Klassen in einer Zeile: eine Klasse wie `schoolClassLabel`,
  * mehrere als „Klassen 1a, 1b“. `join` setzt die Liste zusammen
@@ -48,5 +53,5 @@ export function schoolClassesLabel(
   const names = classes.map((name) => name.trim()).filter(Boolean);
   if (names.length === 0) return "";
   if (names.length === 1) return schoolClassLabel(names[0] ?? "");
-  return `Klassen ${join(names.map(schoolClassName))}`;
+  return `Klassen ${join(names.map(schoolClassNameForPlural))}`;
 }

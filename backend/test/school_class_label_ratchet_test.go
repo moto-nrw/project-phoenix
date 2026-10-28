@@ -14,9 +14,9 @@ import (
 // "Klasse " in front of one reads "Klasse Klasse 1b". collation.SchoolClassLabel
 // (sharedkernel/collation) is the only backend place that adds the word. This
 // ratchet has no allowlist: it rejects "Klasse " + x and "Klasse %s" in any
-// non-test Go file outside that helper. The demo seeder only parses the
-// prefix and stays outside the scan.
-var handBuiltSchoolClassLabel = regexp.MustCompile(`"[^"]*\bKlassen? „?"\s*\+|"[^"]*\bKlassen? „?%[sqv]`)
+// quoted Go string, including raw strings, outside that helper. The demo
+// seeder only parses the prefix and stays outside the scan.
+var handBuiltSchoolClassLabel = regexp.MustCompile("(?:\"[^\"]*|`[^`]*)\\bKlassen? „?(?:\\s*\\+|%[sqv])")
 
 var schoolClassLabelScanExempt = []string{
 	"sharedkernel/collation/",
@@ -47,6 +47,9 @@ func TestSchoolClassLabelScannerPattern(t *testing.T) {
 		`fmt.Sprintf("Klassen %v", classes)`,
 		`fmt.Sprintf("Die Klasse „%s“ fehlt", class)`,
 		`return "Klasse „" + class + "“"`,
+		"return `Klasse ` + class",
+		"fmt.Sprintf(`Klassen %v`, classes)",
+		"fmt.Sprintf(`Die Klasse „%s“ fehlt`, class)",
 	} {
 		if !handBuiltSchoolClassLabel.MatchString(line) {
 			t.Errorf("scanner misses %s", line)

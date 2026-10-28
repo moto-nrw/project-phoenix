@@ -72,6 +72,10 @@ describe("schoolClassesLabel", () => {
     );
   });
 
+  it("erhält einen Klassennamen, der nur aus dem Wort Klasse besteht", () => {
+    expect(schoolClassesLabel(["Klasse", "1a"])).toBe("Klassen Klasse, 1a");
+  });
+
   it("nimmt eine eigene Verbindung der Namen an", () => {
     expect(
       schoolClassesLabel(["Klasse 1a", "1b"], (names) => names.join(" und ")),
