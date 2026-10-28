@@ -179,11 +179,11 @@ export function TeacherShellProvider({
         clearPersonalStorage();
         clearSessionCache();
         // A request answered after signOut would set the cookie again.
-        const releaseRequests = await holdRequestsUntilSessionEnds();
+        const cancelSessionEnd = await holdRequestsUntilSessionEnds();
         try {
           await signOut({ redirect: false });
         } catch (err: unknown) {
-          releaseRequests();
+          cancelSessionEnd();
           throw err;
         }
         window.location.href = "/";

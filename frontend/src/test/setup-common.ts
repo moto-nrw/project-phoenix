@@ -61,6 +61,7 @@ vi.mock("~/lib/logger", () => {
 vi.mock("~/lib/session-end-barrier", () => ({
   SESSION_END_EVENT: "phoenix:session-end",
   isSessionEnding: () => false,
+  discardedBySessionEnd: vi.fn(() => false),
   installSessionEndBarrier: vi.fn(),
   holdRequestsUntilSessionEnds: vi.fn(() => Promise.resolve(() => undefined)),
 }));

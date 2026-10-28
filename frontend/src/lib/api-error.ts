@@ -69,6 +69,8 @@ export function unavailableApiError(cause?: unknown): ApiError {
     code: "general.unavailable",
   });
   if (cause instanceof Error && cause.name) error.name = cause.name;
+  // Keeps the original failure reachable, e.g. a request a logout discarded.
+  if (cause !== undefined) error.cause = cause;
   error.noResponse = true;
   return error;
 }

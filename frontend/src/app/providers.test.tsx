@@ -33,6 +33,8 @@ vi.mock("~/contexts/ToastContext", () => ({
     warning: vi.fn(),
     remove: vi.fn(),
   }),
+  // SessionEndNotice (#5126) reports discarded writes through the error path.
+  useApiErrorDisplay: () => ({ showMessage: vi.fn() }),
 }));
 
 describe("Providers", () => {

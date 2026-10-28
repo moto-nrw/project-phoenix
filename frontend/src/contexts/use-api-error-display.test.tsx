@@ -13,7 +13,8 @@ import {
   useApiErrorDisplay,
 } from "~/contexts/ToastContext";
 import { clientEnv } from "~/env.client";
-import { ApiError } from "~/lib/api-error";
+import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { discardedBySessionEnd } from "~/lib/session-end-barrier";
 import { releaseFakeTimers } from "~/test/clock";
 
 function TestForm({ error }: { error: ApiError }) {
@@ -64,6 +65,54 @@ describe("useApiErrorDisplay", () => {
     } finally {
       releaseFakeTimers();
     }
+  });
+
+  it("leaves a request a logout discarded to the logout's own notice (#5126)", async () => {
+    const discarded = unavailableApiError(
+      new DOMException("discarded", "AbortError"),
+    );
+    vi.mocked(discardedBySessionEnd).mockImplementationOnce(
+      (error) => error === discarded,
+    );
+    // Separate hooks: a second show in one hook would supersede the first.
+    function ShowButton({ error, name }: { error: unknown; name: string }) {
+      const display = useApiErrorDisplay();
+      return (
+        <button
+          type="button"
+          onClick={() => display.show(error, { object: "Die Gruppe" })}
+        >
+          {name}
+        </button>
+      );
+    }
+    function TestActions() {
+      return (
+        <>
+          <ShowButton error={discarded} name="Verworfen" />
+          <ShowButton
+            error={new ApiError("backend diagnostic", 500)}
+            name="Fehler"
+          />
+        </>
+      );
+    }
+    render(
+      <ToastProvider>
+        <TestActions />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Verworfen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Fehler" }));
+
+    // Anker: the ordinary failure in the same render is shown, alone.
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("Die Gruppe"),
+    );
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 
   it("shows field errors at fields and focuses the first failed field", async () => {

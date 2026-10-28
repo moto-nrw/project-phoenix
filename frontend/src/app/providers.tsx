@@ -4,9 +4,9 @@ import { useEffect } from "react";
 import { ModalProvider } from "@/components/dashboard/modal-context";
 import { NotificationBridge } from "~/components/notifications/notification-bridge";
 import { ServiceWorkerRegistrar } from "~/components/notifications/service-worker-registrar";
+import { SessionEndNotice } from "~/components/notifications/session-end-notice";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { schedulePostHogInitialization } from "~/lib/posthog-client";
-import { installSessionEndBarrier } from "~/lib/session-end-barrier";
 
 /**
  * Root providers — auth-free.
@@ -21,13 +21,12 @@ export function Providers({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   useEffect(schedulePostHogInitialization, []);
-  // A logout waits for this tab's requests before deleting the cookie (#5126).
-  useEffect(installSessionEndBarrier, []);
 
   return (
     <ModalProvider>
       <ToastProvider>
         <NotificationBridge />
+        <SessionEndNotice />
         <ServiceWorkerRegistrar />
         {children}
       </ToastProvider>

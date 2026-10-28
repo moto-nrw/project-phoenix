@@ -17,6 +17,7 @@ import { normalizeLocale, type AppLocale } from "~/i18n/locales";
 import { useModulePortal } from "~/lib/module-portal-context";
 import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { ApiError } from "~/lib/api-error";
+import { discardedBySessionEnd } from "~/lib/session-end-barrier";
 import {
   announceModuleBookingStale,
   moduleNotBookedExplanation,
@@ -564,6 +565,9 @@ function useApiErrorCore(
 
   const show = useCallback(
     async (error: unknown, options: ApiErrorDisplayOptions) => {
+      // A logout discarded the request and reports it once itself
+      // (SessionEndNotice); a second message here would only repeat it.
+      if (discardedBySessionEnd(error)) return;
       const version = showVersion.current + 1;
       showVersion.current = version;
       const locale = normalizeLocale(document.documentElement.lang);

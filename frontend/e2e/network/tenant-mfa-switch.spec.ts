@@ -2,8 +2,11 @@ import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 
-const source = "http://school-a.mfa.localhost:13845";
-const target = "http://school-b.mfa.localhost:13845";
+// Same defaults and overrides as e2e/network/server.mjs.
+const port = process.env.TENANT_SWITCH_PORT ?? "13845";
+const fixture = `http://127.0.0.1:${process.env.TENANT_SWITCH_API_PORT ?? "18445"}`;
+const source = `http://school-a.mfa.localhost:${port}`;
+const target = `http://school-b.mfa.localhost:${port}`;
 
 // Chromium resolves *.localhost even when the CI Node process cannot. Read
 // only session metadata in a browser tab; never render/dump the session JSON.
@@ -137,12 +140,78 @@ test("a log shipment answered late cannot restore the source session after expli
   await page.unroute("**/api/auth/logout");
   await page.getByRole("button", { name: "Wiederholen" }).click();
   await page.waitForURL(`${target}/`);
+  if (process.env.TENANT_SWITCH_SHOT_DIR) {
+    // The target settles on its login form, or on the source session's hint.
+    await expect(
+      page
+        .locator('input[type="email"]')
+        .or(page.getByText("zweiten Anmeldenachweis")),
+    ).toBeVisible();
+    await page.screenshot({
+      path: join(process.env.TENANT_SWITCH_SHOT_DIR, "relogin-target.png"),
+    });
+  }
   await expect(page.locator('input[type="email"]')).toBeVisible();
   expect(
     (await context.cookies(target)).filter(
       (cookie) => cookie.name === "mfa-localhost.session-token",
     ),
   ).toHaveLength(0);
+});
+
+// #5126: a write started while the logout holds the tab's requests is never
+// sent. If the navigation to the target school is aborted, the tab stays: the
+// write is reported as not saved, and requests flow again.
+test("an aborted navigation after sign-out reports a held write as not saved", async ({
+  page,
+  context,
+}) => {
+  await login(page, context);
+  let writes = 0;
+  await context.route("**/api/fixture-write", (route) => {
+    writes++;
+    return route.fulfill({ status: 200, json: {} });
+  });
+  let navigationStarted!: () => void;
+  const navigation = new Promise<void>(
+    (resolve) => (navigationStarted = resolve),
+  );
+  // The target school's page never answers; the test aborts its navigation.
+  await context.route(`${target}/`, () => navigationStarted());
+  // The write starts at the moment the logout begins to hold requests.
+  await page.evaluate(() => {
+    window.addEventListener(
+      "phoenix:session-end",
+      (event) => {
+        if ((event as CustomEvent<{ ending: boolean }>).detail.ending)
+          void fetch("/api/fixture-write", { method: "POST" }).catch(
+            () => undefined,
+          );
+      },
+      { once: true },
+    );
+  });
+  await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
+  await page.getByText("School B", { exact: true }).click();
+  await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
+  await navigation;
+  // The browser's stop button: the tab keeps the source page.
+  await (await context.newCDPSession(page)).send("Page.stopLoading");
+
+  const notice = page
+    .getByRole("alert")
+    .filter({ hasText: "nicht gespeichert" });
+  if (process.env.TENANT_SWITCH_SHOT_DIR) {
+    await notice.waitFor({ timeout: 12_000 }).catch(() => undefined);
+    await page.screenshot({
+      path: join(process.env.TENANT_SWITCH_SHOT_DIR, "aborted-navigation.png"),
+    });
+  }
+  await expect(notice).toHaveText(
+    "Ihre letzte Änderung wurde nicht gespeichert, weil die Abmeldung lief. Bitte speichern Sie sie noch einmal.",
+  );
+  expect(page.url()).toBe(`${source}/home`);
+  expect(writes).toBe(0);
 });
 
 test("a failed Auth.js cookie deletion stops at the target guard and permits explicit recovery", async ({
@@ -174,7 +243,7 @@ test("tenant reauthentication preserves the independent school-portal session", 
   page,
   context,
 }) => {
-  const school = "http://schule.mfa.localhost:13845";
+  const school = `http://schule.mfa.localhost:${port}`;
   await login(page, context);
   await page.goto(`${school}/login`);
   await page.locator('input[type="email"]').fill("fixture@example.invalid");
@@ -206,7 +275,7 @@ for (const entry of ["switcher", "guard"] as const) {
   }) => {
     await login(page, context);
     const before = await (
-      await request.get("http://127.0.0.1:18445/__fixture/switch-state")
+      await request.get(`${fixture}/__fixture/switch-state`)
     ).json();
     if (entry === "switcher") {
       await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
@@ -229,7 +298,7 @@ for (const entry of ["switcher", "guard"] as const) {
     await page.waitForURL(`${target}/`);
     await expect(page.locator('input[type="email"]')).toBeVisible();
     const after = await (
-      await request.get("http://127.0.0.1:18445/__fixture/switch-state")
+      await request.get(`${fixture}/__fixture/switch-state`)
     ).json();
     expect(after.logoutRequests - before.logoutRequests).toBe(1);
     expect(after.switchRequests - before.switchRequests).toBe(1);

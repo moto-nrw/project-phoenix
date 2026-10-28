@@ -3,8 +3,13 @@ import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
 const sharedTenantCookie = process.env.TENANT_SWITCH_EVIDENCE === "1";
-const frontendPort = sharedTenantCookie ? 13845 : 13843;
-const apiPort = sharedTenantCookie ? 18445 : 18443;
+// Local runs of parallel checkouts may move the shared-cookie ports aside.
+const frontendPort = sharedTenantCookie
+  ? Number(process.env.TENANT_SWITCH_PORT ?? 13845)
+  : 13843;
+const apiPort = sharedTenantCookie
+  ? Number(process.env.TENANT_SWITCH_API_PORT ?? 18445)
+  : 18443;
 let switchRequests = 0;
 let logoutRequests = 0;
 const schools = ["school-a", "school-b"].map((subdomain, index) => ({

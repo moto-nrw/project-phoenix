@@ -9,7 +9,8 @@ export default defineConfig({
   testIgnore: "portal-network.spec.ts",
   outputDir: "test-results/tenant-switch",
   webServer: {
-    url: "http://127.0.0.1:13845/api/health",
+    // TENANT_SWITCH_PORT moves the run aside, see e2e/network/server.mjs.
+    url: `http://127.0.0.1:${process.env.TENANT_SWITCH_PORT ?? "13845"}/api/health`,
     timeout: 120_000,
     reuseExistingServer: false,
     stdout: "ignore",

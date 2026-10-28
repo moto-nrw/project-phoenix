@@ -53,14 +53,14 @@ async function endSessionAndNavigate(subdomain: string): Promise<void> {
   const callbackUrl = `${window.location.protocol}//${subdomain}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${port}/`;
   // A request answered after the deletion would set the cookie again, and the
   // target school would see the source session instead of its login.
-  const releaseRequests = await holdRequestsUntilSessionEnds();
+  const cancelSessionEnd = await holdRequestsUntilSessionEnds();
   // Auth.js clears the domain cookie and navigates BEFORE refetching local
   // session consumers. A manual redirect after signOut({redirect:false}) can
   // lose to a protected page's source-school login redirect.
   try {
     await signOut({ callbackUrl });
   } catch (error) {
-    releaseRequests();
+    cancelSessionEnd();
     throw error;
   }
 }
