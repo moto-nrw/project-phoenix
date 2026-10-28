@@ -267,6 +267,37 @@ describe("TimetableRosterContent student meta (#4356)", () => {
     expect(nameLine).not.toHaveTextContent("Gruppe 2a");
   });
 
+  it("does not repeat a group whose class name differs only by case", () => {
+    renderRoster(
+      roster([
+        rosterRow("1", "Anna", {
+          currentlyPresent: true,
+          schoolClass: "klasse",
+          groupName: "Klasse",
+        }),
+      ]),
+    );
+
+    const nameLine = screen.getByText("Anna").parentElement as HTMLElement;
+    expect(nameLine).toHaveTextContent("klasse");
+    expect(nameLine).not.toHaveTextContent("Gruppe Klasse");
+  });
+
+  it("does not repeat the class word in a grade label for screen readers", () => {
+    renderRoster(
+      roster([
+        rosterRow("1", "Anna", {
+          currentlyPresent: true,
+          schoolClass: "1. Klasse",
+        }),
+      ]),
+    );
+
+    const nameLine = screen.getByText("Anna").parentElement as HTMLElement;
+    expect(nameLine).toHaveTextContent("1. Klasse");
+    expect(nameLine).not.toHaveTextContent("Klasse 1. Klasse");
+  });
+
   it("keeps the unplanned marker and leaves out missing values", () => {
     renderRoster(
       roster([

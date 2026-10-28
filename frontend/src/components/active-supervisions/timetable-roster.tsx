@@ -121,9 +121,12 @@ function RosterStudentMeta({
   row,
   instanceIsSpontaneous,
 }: Readonly<{ row: TimetableRosterRow; instanceIsSpontaneous: boolean }>) {
+  const classLabel = schoolClassLabel(row.schoolClass);
+  const groupLabel = schoolClassLabel(row.groupName);
   const className = schoolClassName(row.schoolClass);
-  const groupName = schoolClassName(row.groupName);
-  const showGroup = row.groupName && groupName !== className;
+  const showGroup = row.groupName && groupLabel !== classLabel;
+  const shouldAnnounceClassPrefix =
+    classLabel !== "Klasse" && classLabel !== className;
   return (
     <>
       {className ? (
@@ -131,7 +134,7 @@ function RosterStudentMeta({
           <SchoolClassIcon />
           {/* Das Symbol steht für „Klasse“; der Name kommt ohne das Wort,
               auch wo die Schule „Klasse 2a“ speichert (#5101). */}
-          {schoolClassLabel(row.schoolClass) !== "Klasse" ? (
+          {shouldAnnounceClassPrefix ? (
             <span className="sr-only">Klasse </span>
           ) : null}
           {className}
