@@ -160,6 +160,44 @@ describe("traeger-holiday-registrations-api", () => {
     ]);
   });
 
+  it("maps the pinned form version and the answers per family and child (#5198)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          ...BACKEND_DETAIL,
+          form: {
+            version: 4,
+            fields: [
+              { key: "quelle", label: "Quelle", type: "text", sort_order: 0 },
+            ],
+          },
+          custom_data: { quelle: "Elternbrief" },
+          child_custom_data: [{ child_id: 9, custom_data: { tetanus: "ja" } }],
+        },
+      }),
+    );
+
+    const detail = await fetchHolidayRegistration("5", "7");
+
+    expect(detail.form.version).toBe(4);
+    expect(detail.form.fields.map((field) => field.key)).toEqual(["quelle"]);
+    expect(detail.answers).toEqual({ quelle: "Elternbrief" });
+    expect(detail.childAnswers).toEqual({ "9": { tetanus: "ja" } });
+  });
+
+  it("maps a registration without answers to empty answers", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { status: "success", data: BACKEND_DETAIL }),
+    );
+
+    const detail = await fetchHolidayRegistration("5", "7");
+
+    expect(detail.form).toEqual({ version: 0, fields: [] });
+    expect(detail.answers).toEqual({});
+    expect(detail.childAnswers).toEqual({});
+  });
+
   it("posts an action and puts the bookings of a rebooking", async () => {
     fetchMock.mockImplementation(() =>
       Promise.resolve(

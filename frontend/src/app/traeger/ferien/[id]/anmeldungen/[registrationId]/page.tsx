@@ -7,6 +7,10 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
+import {
+  answeredQuestions,
+  HolidayRegistrationAnswers,
+} from "~/components/traeger/holiday-registration-answers";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
 import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
@@ -259,6 +263,31 @@ export default function TraegerHolidayRegistrationPage() {
               onChanged={changed}
             />
           ))}
+          {registration.form.fields.length > 0 ? (
+            <SectionCard
+              title="Weitere Angaben"
+              description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
+            >
+              {answeredQuestions(
+                registration.form.fields,
+                false,
+                registration.answers,
+              ).length > 0 ? (
+                <HolidayRegistrationAnswers
+                  questions={answeredQuestions(
+                    registration.form.fields,
+                    false,
+                    registration.answers,
+                  )}
+                  answers={registration.answers}
+                />
+              ) : (
+                <p className="text-sm text-gray-700">
+                  Keine Antworten zur Familie.
+                </p>
+              )}
+            </SectionCard>
+          ) : null}
           <SectionCard title="Notfallkontakte und Abholung">
             <div className="space-y-4">
               <div className="space-y-1">

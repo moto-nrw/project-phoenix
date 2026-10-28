@@ -80,6 +80,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	DELETE /traeger/master-data/logo
 	GET /traeger/holiday-periods/
 	GET /traeger/holiday-periods/{id}
+	GET /traeger/holiday-periods/{id}/form
 	GET /traeger/holiday-periods/{id}/registrations
 	GET /traeger/holiday-periods/{id}/registrations/{registrationId}
 	GET /traeger/master-data/
@@ -91,6 +92,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
 	POST /traeger/master-data/bank-accounts
 	PUT /traeger/holiday-periods/{id}
+	PUT /traeger/holiday-periods/{id}/form
 	PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings
 	PUT /traeger/master-data/bank-accounts/{id}
 	PUT /traeger/master-data/contact

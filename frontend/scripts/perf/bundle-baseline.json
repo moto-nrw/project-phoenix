@@ -143,7 +143,7 @@
     "/parents/children/[id]": 911057,
     "/parents/demo": 785485,
     "/parents/documents": 788710,
-    "/parents/ferienanmeldung/[token]": 805187,
+    "/parents/ferienanmeldung/[token]": 873624,
     "/parents/invite": 796173,
     "/parents/login": 795971,
     "/parents/meal-plan": 796794,
@@ -182,6 +182,7 @@
     "/traeger/ferien/[id]": 864552,
     "/traeger/ferien/[id]/anmeldungen": 824756,
     "/traeger/ferien/[id]/anmeldungen/[registrationId]": 822254,
+    "/traeger/ferien/[id]/formular": 836220,
     "/traeger/ferien/neu": 861112,
     "/traeger/invite": 790407,
     "/traeger/login": 797223

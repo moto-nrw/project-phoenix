@@ -406,6 +406,7 @@ basis
 	GET /traeger/holiday-contributions/{periodId}/registrations/{registrationId}
 	GET /traeger/holiday-periods/
 	GET /traeger/holiday-periods/{id}
+	GET /traeger/holiday-periods/{id}/form
 	GET /traeger/holiday-periods/{id}/registrations
 	GET /traeger/holiday-periods/{id}/registrations/export
 	GET /traeger/holiday-periods/{id}/registrations/{registrationId}
@@ -771,6 +772,7 @@ basis
 	PUT /traeger/accounts/{accountId}/roles
 	PUT /traeger/contribution-rules/{id}
 	PUT /traeger/holiday-periods/{id}
+	PUT /traeger/holiday-periods/{id}/form
 	PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings
 	PUT /traeger/master-data/bank-accounts/{id}
 	PUT /traeger/master-data/contact

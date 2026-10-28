@@ -9,6 +9,10 @@
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
+import type {
+  HolidayFormField,
+  HolidayFormVersion,
+} from "./holiday-form-field";
 import { traegerRequest } from "./traeger-api";
 
 export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
@@ -121,6 +125,17 @@ export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
   readonly healthConsentAt: string | null;
   readonly bindingConfirmedAt: string | null;
   readonly history: readonly HolidayRegistrationEvent[];
+  /**
+   * The form version the parents answered (#5198); its labels name the
+   * answers, also after a later change of the form.
+   */
+  readonly form: HolidayFormVersion;
+  /** Answers to the family questions, by key. */
+  readonly answers: Readonly<Record<string, unknown>>;
+  /** Answers to the questions per child, by child ID and key. */
+  readonly childAnswers: Readonly<
+    Record<string, Readonly<Record<string, unknown>>>
+  >;
 }
 
 interface BackendBooking {
@@ -192,6 +207,10 @@ interface BackendDetail extends BackendSummary {
         } | null;
       }[]
     | null;
+  form?: { version: number; fields?: HolidayFormField[] | null } | null;
+  custom_data?: Record<string, unknown> | null;
+  child_custom_data?:
+    { child_id: number; custom_data?: Record<string, unknown> | null }[] | null;
 }
 
 function summaryFromBackend(
@@ -262,6 +281,17 @@ function detailFromBackend(
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
     })),
+    form: {
+      version: registration.form?.version ?? 0,
+      fields: registration.form?.fields ?? [],
+    },
+    answers: registration.custom_data ?? {},
+    childAnswers: Object.fromEntries(
+      (registration.child_custom_data ?? []).map((entry) => [
+        String(entry.child_id),
+        entry.custom_data ?? {},
+      ]),
+    ),
   };
 }
 

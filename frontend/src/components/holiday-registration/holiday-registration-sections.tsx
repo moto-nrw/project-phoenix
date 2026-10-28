@@ -16,6 +16,11 @@ import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { formatDate } from "~/lib/date-helpers";
+import {
+  type ConditionContext,
+  isFieldVisible,
+} from "~/lib/enrollment-field-visibility";
+import type { HolidayFormField } from "~/lib/holiday-form-field";
 import type {
   HolidayKnownChild,
   HolidayRegistrationOffer,
@@ -30,6 +35,7 @@ import {
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
+import { HolidayQuestions } from "./holiday-registration-questions";
 
 /** Hint of a refused field, translated, or undefined. */
 export type FieldError = (name: string) => string | undefined;
@@ -60,6 +66,8 @@ export function ChildCard({
   child,
   offer,
   removable,
+  questions,
+  questionContext,
   fieldError,
   onChange,
   onRemove,
@@ -68,6 +76,10 @@ export function ChildCard({
   child: ChildDraft;
   offer: HolidayRegistrationOffer;
   removable: boolean;
+  /** The Träger's questions per child (#5198). */
+  questions: readonly HolidayFormField[];
+  /** The answers the conditions of these questions read. */
+  questionContext: ConditionContext;
   fieldError: FieldError;
   onChange: (child: ChildDraft) => void;
   onRemove: () => void;
@@ -259,6 +271,24 @@ export function ChildCard({
             onChange={(event) => set({ healthNotes: event.target.value })}
           />
         </fieldset>
+
+        {questions.some((field) => isFieldVisible(field, questionContext)) ? (
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-semibold text-gray-900">
+              {t("childQuestionsTitle")}
+            </legend>
+            <HolidayQuestions
+              fields={questions}
+              answers={child.answers}
+              context={questionContext}
+              prefix={`${prefix}.`}
+              fieldError={fieldError}
+              onChange={(key, value) =>
+                set({ answers: { ...child.answers, [key]: value } })
+              }
+            />
+          </fieldset>
+        ) : null}
       </div>
     </SectionCard>
   );

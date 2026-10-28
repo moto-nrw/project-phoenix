@@ -134,4 +134,10 @@ type HolidayPeriods interface {
 	CreateHolidayPeriod(ctx context.Context, organizationID int64, input HolidayPeriodInput) (HolidayPeriod, error)
 	UpdateHolidayPeriod(ctx context.Context, organizationID, periodID int64, input HolidayPeriodInput) (HolidayPeriod, error)
 	PublishHolidayPeriod(ctx context.Context, organizationID, periodID int64) (HolidayPeriod, error)
+	// HolidayPeriodForm returns the current version of the period's form
+	// with the standard template (#5198).
+	HolidayPeriodForm(ctx context.Context, organizationID, periodID int64) (HolidayFormEditor, error)
+	// SaveHolidayPeriodForm writes the next version of the period's form
+	// and returns it. accountID is the person of the Träger-Büro who saves.
+	SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []HolidayFormField) (HolidayFormEditor, error)
 }

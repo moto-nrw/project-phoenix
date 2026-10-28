@@ -1726,8 +1726,10 @@
     "allergies": "Alergji dhe intoleranca",
     "medication": "Ilaçe",
     "healthNotes": "Udhëzime të tjera për shëndetin",
+    "childQuestionsTitle": "Të dhëna të tjera",
     "guardianTitle": "Të dhënat tuaja",
     "guardianText": "Konfirmimin e dërgojmë në këtë adresë e-maili.",
+    "familyQuestionsTitle": "Të dhëna të tjera për familjen",
     "email": "Adresa e e-mailit",
     "phone": "Telefoni",
     "emergencyTitle": "Kontaktet për emergjenca",
@@ -1778,7 +1780,9 @@
       "weeks": "Ju lutemi zgjidhni të paktën një javë.",
       "privacy": "Ju lutemi jepni pëlqimin. Përndryshe organizatori nuk mund ta përpunojë regjistrimin.",
       "health": "Ju lutemi jepni pëlqimin ose fshini të dhënat shëndetësore.",
-      "binding": "Ju lutemi konfirmoni që regjistrimi është detyrues."
+      "binding": "Ju lutemi konfirmoni që regjistrimi është detyrues.",
+      "yesNo": "Ju lutemi zgjidhni po ose jo.",
+      "choose": "Ju lutemi zgjidhni një përgjigje."
     }
   },
   "parentRequestEdit": {
@@ -2702,10 +2706,12 @@
         "signature_invalid": "Nënshkrimi nuk mund të lexohej. Ju lutemi nënshkruani përsëri.",
         "signature_not_found": "Për këtë regjistrim nuk ka nënshkrim.",
         "holiday_host_school_outside_traeger": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "holiday_form_field_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "holiday_period_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_period_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "holiday_period_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_registration_closed": "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
+        "holiday_registration_form_changed": "Organizatori sapo ndryshoi formularin. Ju lutemi kontrolloni të dhënat dhe dërgojeni regjistrimin përsëri.",
         "holiday_registration_entry_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_registration_frozen": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "holiday_registration_invalid": "Ju lutemi kontrolloni fushat e shënuara.",

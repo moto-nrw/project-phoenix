@@ -353,3 +353,63 @@ func (s *HolidayRegistrationStore) AppendHolidayAudit(ctx context.Context, organ
 	}
 	return nil
 }
+
+const (
+	reviewRegistrationAnswersQuery = `SELECT id, form_version, custom_data
+		FROM enrollment.holiday_registrations
+		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)`
+	reviewChildAnswersQuery = `SELECT id, holiday_registration_id, custom_data
+		FROM enrollment.holiday_registration_children
+		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR holiday_registration_id = ?)
+		ORDER BY holiday_registration_id, position`
+)
+
+// ReadHolidayAnswers reads the form version and the answers of the
+// registrations of a period, or of the one registrationID names, with the
+// answers of their children (#5198): two statements for any number of
+// registrations. Only the detail and the export read them; the list does
+// not.
+func (s *HolidayRegistrationStore) ReadHolidayAnswers(ctx context.Context, organizationID, periodID, registrationID int64) (map[int64]enrollment.HolidayRegistrationAnswers, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var registrations []struct {
+		ID          int64                     `bun:"id"`
+		FormVersion int                       `bun:"form_version"`
+		CustomData  enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+	}
+	if err := db.NewRaw(reviewRegistrationAnswersQuery, organizationID, periodID, registrationID, registrationID).
+		Scan(ctx, &registrations); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday registration answers: %w", err)
+	}
+	answers := make(map[int64]enrollment.HolidayRegistrationAnswers, len(registrations))
+	if len(registrations) == 0 {
+		return answers, nil
+	}
+	for _, row := range registrations {
+		answers[row.ID] = enrollment.HolidayRegistrationAnswers{
+			FormVersion: row.FormVersion, CustomData: answersOrEmpty(row.CustomData), Children: []enrollment.HolidayChildAnswers{},
+		}
+	}
+	var children []struct {
+		ID             int64                     `bun:"id"`
+		RegistrationID int64                     `bun:"holiday_registration_id"`
+		CustomData     enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+	}
+	if err := db.NewRaw(reviewChildAnswersQuery, organizationID, periodID, registrationID, registrationID).
+		Scan(ctx, &children); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday registration child answers: %w", err)
+	}
+	for _, child := range children {
+		registration, ok := answers[child.RegistrationID]
+		if !ok {
+			continue
+		}
+		registration.Children = append(registration.Children, enrollment.HolidayChildAnswers{
+			ChildID: child.ID, CustomData: answersOrEmpty(child.CustomData),
+		})
+		answers[child.RegistrationID] = registration
+	}
+	return answers, nil
+}

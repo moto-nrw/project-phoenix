@@ -87,6 +87,8 @@ type HolidayRegistrationOffer struct {
 	Notes                string
 	Weeks                []HolidayWeek
 	Open                 bool
+	// Form is the current version of the period's form (#5198).
+	Form HolidayPeriodForm
 }
 
 // HolidayGuardianInput is the parent who registers.
@@ -115,6 +117,9 @@ type HolidayChildInput struct {
 	Medication      string
 	HealthNotes     string
 	Bookings        []HolidayBookingInput
+	// CustomData are the answers to the questions of the form per child
+	// (#5198), by field key.
+	CustomData HolidayAnswers
 }
 
 // HolidayContactInput is an emergency contact or a person allowed to
@@ -129,7 +134,9 @@ type HolidayContactInput struct {
 // PrivacyConsent is always required, HealthConsent whenever a child carries
 // health information and BindingConfirmed when the period is binding.
 // BenefitsDeclared states that the family receives benefits (#4664); the
-// Träger-Büro checks it before it applies an exemption.
+// Träger-Büro checks it before it applies an exemption. FormVersion names
+// the version of the period's form the parent filled in (0 when the client
+// does not say); CustomData are the answers per family (#5198).
 type HolidayRegistrationInput struct {
 	Guardian          HolidayGuardianInput
 	Children          []HolidayChildInput
@@ -139,6 +146,8 @@ type HolidayRegistrationInput struct {
 	HealthConsent     bool
 	BindingConfirmed  bool
 	BenefitsDeclared  bool
+	FormVersion       int
+	CustomData        HolidayAnswers
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no

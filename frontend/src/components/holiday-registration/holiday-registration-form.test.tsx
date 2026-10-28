@@ -94,6 +94,7 @@ const offer: HolidayRegistrationOffer = {
   ],
   schools: [{ id: "31", name: "OGS Nord" }],
   captchaSiteKey: "site",
+  form: { version: 1, fields: [] },
 };
 
 const family: HolidayKnownFamily = {
@@ -114,14 +115,19 @@ const family: HolidayKnownFamily = {
   ],
 };
 
-function renderForm(known: HolidayKnownFamily | null = null) {
+function renderForm(
+  known: HolidayKnownFamily | null = null,
+  shown: HolidayRegistrationOffer = offer,
+  onFormChanged?: () => Promise<void>,
+) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
       <ToastProvider>
         <HolidayRegistrationForm
           token="link-key"
-          offer={offer}
+          offer={shown}
           family={known}
+          onFormChanged={onFormChanged}
         />
       </ToastProvider>
     </NextIntlClientProvider>,
@@ -449,5 +455,208 @@ describe("HolidayRegistrationForm", () => {
     expect(
       screen.queryByText("Ihre Kinder aus dem Elternkonto"),
     ).not.toBeInTheDocument();
+  });
+});
+
+/** The Träger's questions (#5198): per child and per family. */
+const offerWithQuestions: HolidayRegistrationOffer = {
+  ...offer,
+  form: {
+    version: 3,
+    fields: [
+      {
+        key: "ausfluege",
+        label: "Darf an Ausflügen teilnehmen",
+        type: "boolean",
+        required: true,
+        applies_to_child: true,
+        sort_order: 0,
+      },
+      {
+        key: "ausflug_hinweis",
+        label: "Was müssen wir bei Ausflügen beachten?",
+        type: "text",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+        visible_when: {
+          source: "field",
+          field: "ausfluege",
+          operator: "eq",
+          value: true,
+        },
+      },
+      {
+        key: "tetanus",
+        label: "Tetanus-Impfschutz",
+        type: "select",
+        applies_to_child: true,
+        health: true,
+        sort_order: 2,
+        options: [
+          { label: "ja", value: "ja" },
+          { label: "nein", value: "nein" },
+        ],
+      },
+      {
+        key: "newsletter",
+        label: "Wie haben Sie von den Ferien erfahren?",
+        type: "text",
+        required: true,
+        sort_order: 3,
+      },
+    ],
+  },
+};
+
+describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  it("marks a missing required answer and skips a hidden required question", async () => {
+    renderForm(null, offerWithQuestions);
+    fillRegistration();
+    expect(screen.getByText("Weitere Angaben")).toBeInTheDocument();
+    expect(screen.getByText("Weitere Angaben zur Familie")).toBeInTheDocument();
+    // The follow-up question waits for its condition.
+    expect(
+      screen.queryByText("Was müssen wir bei Ausflügen beachten?"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+
+    expect(
+      await screen.findByText("Bitte wählen Sie Ja oder Nein."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", {
+        name: /Wie haben Sie von den Ferien erfahren/,
+      }),
+    ).toHaveAttribute("aria-invalid", "true");
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("asks for the health consent when a health question is answered and sends the answers", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(null, offerWithQuestions);
+    fillRegistration();
+    fireEvent.click(screen.getByRole("radio", { name: "Nein" }));
+    choose(screen.getByRole("combobox", { name: "Tetanus-Impfschutz" }), "ja");
+    type(
+      screen.getByRole("textbox", {
+        name: /Wie haben Sie von den Ferien erfahren/,
+      }),
+      " Aus der Zeitung ",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText(
+        "Bitte stimmen Sie zu oder löschen Sie die Gesundheitsangaben.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByLabelText(
+        "Ich bin einverstanden, dass die Betreuung die Gesundheitsangaben meiner Kinder sieht.",
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    // The summary repeats the answers with the question.
+    expect(
+      screen.getByText("Darf an Ausflügen teilnehmen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Tetanus-Impfschutz")).toBeInTheDocument();
+    expect(screen.getByText("Aus der Zeitung")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({
+        form_version: 3,
+        custom_data: { newsletter: "Aus der Zeitung" },
+        health_consent: true,
+        children: [
+          expect.objectContaining({
+            custom_data: { ausfluege: false, tetanus: "ja" },
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("loads the calendar of a date question when the form has one", async () => {
+    renderForm(null, {
+      ...offer,
+      form: {
+        version: 1,
+        fields: [
+          {
+            key: "letzte_impfung",
+            label: "Datum der letzten Tetanus-Impfung",
+            type: "date",
+            applies_to_child: true,
+            sort_order: 0,
+          },
+        ],
+      },
+    });
+    expect(
+      await screen.findByText("Datum der letzten Tetanus-Impfung"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText("Datum der letzten Tetanus-Impfung"),
+    ).toBeInTheDocument();
+  });
+
+  it("loads the form again when the Träger changed it and keeps the answers", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("form changed", 409, {
+        code: "enrollment.holiday_registration_form_changed",
+      }),
+    );
+    const reload = vi.fn().mockResolvedValue(undefined);
+    renderForm(null, offerWithQuestions, reload);
+    fillRegistration();
+    fireEvent.click(screen.getByRole("radio", { name: "Nein" }));
+    type(
+      screen.getByRole("textbox", {
+        name: /Wie haben Sie von den Ferien erfahren/,
+      }),
+      "Schule",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText(
+        "Der Träger hat das Formular gerade geändert. Bitte prüfen Sie Ihre Angaben und senden Sie die Anmeldung noch einmal.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", {
+        name: /Wie haben Sie von den Ferien erfahren/,
+      }),
+    ).toHaveValue("Schule");
   });
 });

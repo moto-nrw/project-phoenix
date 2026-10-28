@@ -1201,6 +1201,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET traeger /traeger/holiday-periods/id%2F1",
     "PUT traeger /traeger/holiday-periods/id%2F1",
   ],
+  "api/traeger/holiday-periods/[id]/form": [
+    "GET traeger /traeger/holiday-periods/id%2F1/form",
+    "PUT traeger /traeger/holiday-periods/id%2F1/form",
+  ],
   "api/traeger/holiday-periods/[id]/publish": [
     "POST traeger /traeger/holiday-periods/id%2F1/publish",
   ],

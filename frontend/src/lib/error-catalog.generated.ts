@@ -393,6 +393,10 @@ export const ERROR_CATALOG = {
         "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
       "enrollment.holiday_guest_group_invalid":
         "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
+      "enrollment.holiday_form_field_not_allowed":
+        "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
+      "enrollment.holiday_registration_form_changed":
+        "Der Träger hat das Formular gerade geändert. Bitte prüfen Sie Ihre Angaben und senden Sie die Anmeldung noch einmal.",
       "enrollment.holiday_registration_frozen":
         "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
       "enrollment.holiday_registration_invalid":
@@ -1710,6 +1714,8 @@ export const ERROR_CATALOG = {
         "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
       "enrollment.holiday_guest_group_invalid":
         "This group no longer exists. Please choose another group.",
+      "enrollment.holiday_registration_form_changed":
+        "The provider has just changed the form. Please check your entries and send the registration again.",
       "enrollment.holiday_registration_frozen":
         "The registration is frozen. Choose “Reopen” first.",
       "enrollment.holiday_registration_invalid":
@@ -2142,6 +2148,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
+      "enrollment.holiday_registration_form_changed":
+        "Организатор только что изменил форму. Пожалуйста, проверьте данные и отправьте заявку ещё раз.",
       "enrollment.holiday_registration_invalid":
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
@@ -2541,6 +2549,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani një numër telefoni.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
+      "enrollment.holiday_registration_form_changed":
+        "Organizatori sapo ndryshoi formularin. Ju lutemi kontrolloni të dhënat dhe dërgojeni regjistrimin përsëri.",
       "enrollment.holiday_registration_invalid":
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
@@ -2935,6 +2945,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
+      "enrollment.holiday_registration_form_changed":
+        "Organizator właśnie zmienił formularz. Sprawdź swoje dane i wyślij zgłoszenie jeszcze raz.",
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
@@ -3330,6 +3342,8 @@ export const ERROR_CATALOG = {
         "Lütfen bir telefon numarası girin.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
+      "enrollment.holiday_registration_form_changed":
+        "Kurum formu az önce değiştirdi. Lütfen bilgilerinizi kontrol edin ve kaydı tekrar gönderin.",
       "enrollment.holiday_registration_invalid":
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
@@ -3718,6 +3732,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
+      "enrollment.holiday_registration_form_changed":
+        "Організатор щойно змінив форму. Будь ласка, перевірте дані й надішліть заявку ще раз.",
       "enrollment.holiday_registration_invalid":
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":

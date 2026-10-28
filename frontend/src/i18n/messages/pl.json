@@ -1726,8 +1726,10 @@
     "allergies": "Alergie i nietolerancje",
     "medication": "Leki",
     "healthNotes": "Inne wskazówki dotyczące zdrowia",
+    "childQuestionsTitle": "Dodatkowe informacje",
     "guardianTitle": "Twoje dane",
     "guardianText": "Na ten adres e-mail wyślemy potwierdzenie.",
+    "familyQuestionsTitle": "Dodatkowe informacje o rodzinie",
     "email": "Adres e-mail",
     "phone": "Telefon",
     "emergencyTitle": "Kontakty alarmowe",
@@ -1778,7 +1780,9 @@
       "weeks": "Wybierz co najmniej jeden tydzień.",
       "privacy": "Wyraź zgodę. Inaczej organizator nie może rozpatrzyć zgłoszenia.",
       "health": "Wyraź zgodę albo usuń informacje o zdrowiu.",
-      "binding": "Potwierdź, że zgłoszenie jest wiążące."
+      "binding": "Potwierdź, że zgłoszenie jest wiążące.",
+      "yesNo": "Wybierz tak lub nie.",
+      "choose": "Wybierz odpowiedź."
     }
   },
   "parentRequestEdit": {
@@ -2702,10 +2706,12 @@
         "signature_invalid": "Nie udało się odczytać podpisu. Prosimy podpisać jeszcze raz.",
         "signature_not_found": "To zgłoszenie nie ma podpisu.",
         "holiday_host_school_outside_traeger": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "holiday_form_field_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "holiday_period_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_period_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "holiday_period_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_registration_closed": "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
+        "holiday_registration_form_changed": "Organizator właśnie zmienił formularz. Sprawdź swoje dane i wyślij zgłoszenie jeszcze raz.",
         "holiday_registration_entry_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_registration_frozen": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "holiday_registration_invalid": "Sprawdź zaznaczone pola.",

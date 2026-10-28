@@ -211,6 +211,7 @@ const (
 	CodeEnrollmentGuardianEmailRequired                  = "enrollment.guardian_email_required"
 	CodeEnrollmentGuardianNameRequired                   = "enrollment.guardian_name_required"
 	CodeEnrollmentGuardianPhoneRequired                  = "enrollment.guardian_phone_required"
+	CodeEnrollmentHolidayFormFieldNotAllowed             = "enrollment.holiday_form_field_not_allowed"
 	CodeEnrollmentHolidayGuestGroupInvalid               = "enrollment.holiday_guest_group_invalid"
 	CodeEnrollmentHolidayGuestNotFound                   = "enrollment.holiday_guest_not_found"
 	CodeEnrollmentHolidayHostSchoolOutsideTraeger        = "enrollment.holiday_host_school_outside_traeger"
@@ -219,6 +220,7 @@ const (
 	CodeEnrollmentHolidayPeriodNotFound                  = "enrollment.holiday_period_not_found"
 	CodeEnrollmentHolidayRegistrationClosed              = "enrollment.holiday_registration_closed"
 	CodeEnrollmentHolidayRegistrationEntryNotFound       = "enrollment.holiday_registration_entry_not_found"
+	CodeEnrollmentHolidayRegistrationFormChanged         = "enrollment.holiday_registration_form_changed"
 	CodeEnrollmentHolidayRegistrationFrozen              = "enrollment.holiday_registration_frozen"
 	CodeEnrollmentHolidayRegistrationInvalid             = "enrollment.holiday_registration_invalid"
 	CodeEnrollmentHolidayRegistrationNotFound            = "enrollment.holiday_registration_not_found"
@@ -300,8 +302,6 @@ const (
 	CodeIdentityCatererAddressTaken                      = "identity.caterer_address_taken"
 	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
-	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
-	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -514,6 +514,7 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.guardian_email_required":                   "input",
 	"enrollment.guardian_name_required":                    "input",
 	"enrollment.guardian_phone_required":                   "input",
+	"enrollment.holiday_form_field_not_allowed":            "input",
 	"enrollment.holiday_guest_group_invalid":               "input",
 	"enrollment.holiday_guest_not_found":                   "business_rejection",
 	"enrollment.holiday_host_school_outside_traeger":       "input",
@@ -522,6 +523,7 @@ var errorCodeClasses0 = map[string]string{
 	"enrollment.holiday_period_not_found":                  "business_rejection",
 	"enrollment.holiday_registration_closed":               "business_rejection",
 	"enrollment.holiday_registration_entry_not_found":      "business_rejection",
+	"enrollment.holiday_registration_form_changed":         "business_rejection",
 	"enrollment.holiday_registration_frozen":               "business_rejection",
 	"enrollment.holiday_registration_invalid":              "input",
 	"enrollment.holiday_registration_not_found":            "business_rejection",
@@ -603,8 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.caterer_address_taken":                       "business_rejection",
 	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
-	"identity.demo_access_expired":                         "business_rejection",
-	"identity.demo_access_invalid":                         "input",
 }
 
 func init() {

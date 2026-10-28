@@ -12,9 +12,12 @@ import { useLocale, useTranslations } from "next-intl";
 import { Check, FileText, Info, Lock, Plus, Trash2 } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
-import { ISODatePicker } from "~/components/ui/date-picker";
+import { CustomDateFieldInput } from "~/components/enrollment/custom-date-field-input";
+import {
+  CustomFieldInput as SharedCustomFieldInput,
+  InfoBlock,
+} from "~/components/enrollment/custom-field-input";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
-import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { useTenant } from "~/lib/tenant-context";
 import deMessages from "~/i18n/messages/de.json";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
@@ -3045,26 +3048,6 @@ function offeringRuleHint(rule: string, tr: TranslationFn): string {
  * preserved via `whitespace-pre-line`. Content is plain text by design (no
  * HTML/markdown), so it is safe to render directly.
  */
-function InfoBlock({
-  field,
-}: {
-  readonly field: PublicFormSchema["fields"][number];
-}) {
-  return (
-    <div className="border-moto-blue/20 bg-moto-blue/5 rounded-lg border p-3">
-      {field.label && (
-        <p className="text-sm font-semibold text-gray-900">{field.label}</p>
-      )}
-      {field.content && (
-        <p className="mt-1 text-sm leading-6 whitespace-pre-line text-gray-600">
-          {field.content}
-        </p>
-      )}
-      <AttachmentList attachments={field.attachments} />
-    </div>
-  );
-}
-
 // OfferingCard renders one care-offering row. Required offerings show as a
 // locked "always included" card (gray, lock indicator) so they never read as
 // a parent's pick; choosable offerings keep the interactive green-check
@@ -3996,229 +3979,123 @@ function CustomFieldInput({
   companionNoteError,
   singleMode,
 }: CustomFieldInputProps) {
-  const datePicker = useLocalizedDatePicker();
-  const labelEl = (
-    <>
-      <span className="block text-sm font-semibold text-gray-700">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </span>
-      {field.help_text && (
-        <span className="mt-1 block text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </span>
-      )}
-    </>
-  );
-  const valueStr = typeof value === "string" ? value : "";
-
-  if (field.type === "boolean") {
-    const selectedValue = value === true ? "yes" : value === false ? "no" : "";
-    return (
-      <fieldset aria-invalid={error ? "true" : undefined}>
-        {labelEl}
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          {[
-            { label: tr("structured.yes"), value: "yes", raw: true },
-            { label: tr("structured.no"), value: "no", raw: false },
-          ].map((option) => (
-            <label
-              key={option.value}
-              className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors ${
-                selectedValue === option.value
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
-            >
-              <input
-                type="radio"
-                name={inputName}
-                value={option.value}
-                checked={selectedValue === option.value}
-                onChange={() => onChange(option.raw)}
-                className="sr-only"
-              />
-              {option.label}
-            </label>
-          ))}
-        </div>
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </fieldset>
-    );
-  }
-  if (field.type === "textarea") {
-    return (
-      <label className="block">
-        {labelEl}
-        <textarea
-          value={valueStr}
-          onChange={(e) => onChange(e.target.value)}
-          rows={3}
-          name={inputName}
-          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
-          aria-required={field.required}
-          aria-invalid={error ? "true" : undefined}
-        />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </label>
-    );
-  }
-  if (field.type === "select") {
-    return (
-      <label className="block">
-        {labelEl}
-        <CustomSelect
-          ariaLabel={field.label}
-          value={valueStr}
+  // The simple types render in the shared renderer (#5198); the structured
+  // types of the online registration stay here.
+  const renderStructured = () => {
+    if (field.type === "date") {
+      return (
+        <CustomDateFieldInput
+          field={field}
+          value={value}
           onChange={onChange}
-          name={inputName}
-          required={field.required}
-          invalid={Boolean(error)}
-          className="mt-1"
-          options={[
-            { value: "", label: tr("fields.choose") },
-            ...(field.options ?? []).map((option) => ({
-              value: option.value,
-              label: option.label,
-            })),
-          ]}
+          error={error}
         />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </label>
-    );
-  }
-  if (field.type === "phone_list") {
-    return (
-      <PhoneListInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-  if (field.type === "weekday_schedule") {
-    return (
-      <WeekdayScheduleInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-        relevantDays={relevantDays}
-        careConstrained={careConstrained}
-      />
-    );
-  }
-  if (field.type === "weekday_boolean") {
-    return (
-      <WeekdayBooleanInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-  if (field.type === "weekday_mode") {
-    return (
-      <WeekdayModeInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-  if (field.type === "weekday_multi_mode") {
-    return (
-      <WeekdayMultiModeInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-        relevantDays={relevantDays}
-        companionNote={companionNote}
-        onCompanionNoteChange={onCompanionNoteChange}
-        companionNoteError={companionNoteError}
-        companionNoteName={companionNoteName}
-        singleMode={singleMode}
-      />
-    );
-  }
-  if (field.type === "file") {
-    return (
-      <FileUploadInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-  if (field.type === "contact_list") {
-    return (
-      <ContactListInput
-        field={field}
-        inputName={inputName}
-        value={value}
-        onChange={onChange}
-        error={error}
-        tr={tr}
-      />
-    );
-  }
-
-  if (field.type === "date") {
-    const dateId = `enrollment-${field.key}`;
-    return (
-      <div className="block">
-        <label htmlFor={dateId}>{labelEl}</label>
-        <ISODatePicker
-          {...datePicker}
-          id={dateId}
-          controlSize="md"
-          value={valueStr}
+      );
+    }
+    if (field.type === "phone_list") {
+      return (
+        <PhoneListInput
+          field={field}
+          inputName={inputName}
+          value={value}
           onChange={onChange}
-          invalid={Boolean(error)}
-          className="mt-1"
-          calendarLayout="popover"
-          // A school-defined date field can be anything from a birthday to a
-          // future appointment, so the year dropdown stays available and no
-          // bound is imposed.
-          monthYearNavigation
+          error={error}
+          tr={tr}
         />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </div>
-    );
-  }
-
-  const inputType = field.type === "number" ? "number" : "text";
+      );
+    }
+    if (field.type === "weekday_schedule") {
+      return (
+        <WeekdayScheduleInput
+          field={field}
+          inputName={inputName}
+          value={value}
+          onChange={onChange}
+          error={error}
+          tr={tr}
+          relevantDays={relevantDays}
+          careConstrained={careConstrained}
+        />
+      );
+    }
+    if (field.type === "weekday_boolean") {
+      return (
+        <WeekdayBooleanInput
+          field={field}
+          inputName={inputName}
+          value={value}
+          onChange={onChange}
+          error={error}
+          tr={tr}
+        />
+      );
+    }
+    if (field.type === "weekday_mode") {
+      return (
+        <WeekdayModeInput
+          field={field}
+          inputName={inputName}
+          value={value}
+          onChange={onChange}
+          error={error}
+          tr={tr}
+        />
+      );
+    }
+    if (field.type === "weekday_multi_mode") {
+      return (
+        <WeekdayMultiModeInput
+          field={field}
+          inputName={inputName}
+          value={value}
+          onChange={onChange}
+          error={error}
+          tr={tr}
+          relevantDays={relevantDays}
+          companionNote={companionNote}
+          onCompanionNoteChange={onCompanionNoteChange}
+          companionNoteError={companionNoteError}
+          companionNoteName={companionNoteName}
+          singleMode={singleMode}
+        />
+      );
+    }
+    if (field.type === "file") {
+      return (
+        <FileUploadInput
+          field={field}
+          inputName={inputName}
+          value={value}
+          onChange={onChange}
+          error={error}
+          tr={tr}
+        />
+      );
+    }
+    if (field.type === "contact_list") {
+      return (
+        <ContactListInput
+          field={field}
+          inputName={inputName}
+          value={value}
+          onChange={onChange}
+          error={error}
+          tr={tr}
+        />
+      );
+    }
+    return null;
+  };
   return (
-    <label className="block">
-      {labelEl}
-      <input
-        name={inputName}
-        type={inputType}
-        value={valueStr}
-        onChange={(e) => onChange(e.target.value)}
-        aria-required={field.required}
-        aria-invalid={error ? "true" : undefined}
-        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
-      />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-    </label>
+    <SharedCustomFieldInput
+      field={field}
+      inputName={inputName}
+      value={value}
+      onChange={onChange}
+      error={error}
+      tr={tr}
+      renderStructured={renderStructured}
+    />
   );
 }
 

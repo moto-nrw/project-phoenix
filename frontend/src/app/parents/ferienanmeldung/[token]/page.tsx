@@ -71,6 +71,19 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
     }
   }, [clear, parentSession, show, t, token]);
 
+  // The Träger changed the form while the parent filled it in (#5198): read
+  // the current questions again. A failure leaves the old offer; the next
+  // submit names the change once more.
+  const reloadOffer = useCallback(async () => {
+    try {
+      setOffer(await fetchHolidayRegistrationOffer(token));
+    } catch (err) {
+      logger.warn("holiday_registration_offer_reload_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, [token]);
+
   useEffect(() => {
     // Wait for the session, so a parent's form starts prefilled.
     if (status === "loading") return;
@@ -117,6 +130,7 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
                 token={token}
                 offer={offer}
                 family={family}
+                onFormChanged={reloadOffer}
               />
             ) : (
               <SectionCard title={t("closedTitle")}>

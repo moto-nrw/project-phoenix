@@ -2,6 +2,10 @@
 // für alle Schulen des Trägers, ohne Elternkonto.
 
 import { unavailableApiError, type ApiError } from "~/lib/api-error";
+import type {
+  HolidayFormField,
+  HolidayFormVersion,
+} from "~/lib/holiday-form-field";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import {
   type BackendContribution,
@@ -44,6 +48,8 @@ export interface HolidayRegistrationOffer {
   readonly weeks: readonly HolidayRegistrationWeek[];
   readonly schools: readonly HolidayRegistrationSchool[];
   readonly captchaSiteKey: string;
+  /** The questions of the Träger in their current version (#5198). */
+  readonly form: HolidayFormVersion;
 }
 
 interface BackendOffer {
@@ -67,6 +73,7 @@ interface BackendOffer {
     | null;
   schools?: { id: number; name: string }[] | null;
   captcha_site_key: string;
+  form?: { version: number; fields?: HolidayFormField[] | null } | null;
 }
 
 /** The registration as the backend reads it; IDs travel as numbers. */
@@ -90,6 +97,8 @@ export interface HolidayRegistrationPayload {
       readonly week_id: number;
       readonly time_model_id: number;
     }[];
+    /** Answers to the questions per child, by key (#5198). */
+    readonly custom_data: Readonly<Record<string, unknown>>;
   }[];
   readonly emergency_contacts: readonly HolidayContactPayload[];
   readonly pickup_persons: readonly HolidayContactPayload[];
@@ -98,6 +107,10 @@ export interface HolidayRegistrationPayload {
   readonly binding_confirmed: boolean;
   readonly benefits_declared: boolean;
   readonly captcha_token: string;
+  /** The form version the parent answered (#5198). */
+  readonly form_version: number;
+  /** Answers to the questions per family, by key (#5198). */
+  readonly custom_data: Readonly<Record<string, unknown>>;
 }
 
 export interface HolidayContactPayload {
@@ -132,6 +145,10 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       name: school.name,
     })),
     captchaSiteKey: offer.captcha_site_key,
+    form: {
+      version: offer.form?.version ?? 0,
+      fields: offer.form?.fields ?? [],
+    },
   };
 }
 

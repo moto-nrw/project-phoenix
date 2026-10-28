@@ -1311,6 +1311,18 @@
       "legacy": "enrollment.holiday_guest_group_invalid"
     },
     {
+      "code": "enrollment.holiday_form_field_not_allowed",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_form_field_not_allowed"
+    },
+    {
+      "code": "enrollment.holiday_registration_form_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_registration_form_changed"
+    },
+    {
       "code": "enrollment.holiday_registration_frozen",
       "class": "business_rejection",
       "parameters": [],
