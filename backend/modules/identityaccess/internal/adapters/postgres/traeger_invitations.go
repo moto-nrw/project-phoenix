@@ -71,16 +71,23 @@ const revokeOpenTraegerInvitationsForEmailQuery = `UPDATE auth.traeger_invitatio
 	SET revoked_at = ?
 	WHERE organization_id = ? AND email = ? AND used_at IS NULL AND revoked_at IS NULL`
 
-// RevokeOpenTraegerInvitationsForEmail spends the open invitations of the
-// address at the Träger.
+// RevokeOpenTraegerInvitationsForEmail takes the address lock of the
+// Träger, then spends the open invitations of the address. The lock holds
+// until the caller's transaction ends, so two invitations of the same
+// address queue instead of both inserting an open one; it also holds when
+// the Träger-Büro has nobody whose Verwaltung row could be locked (#5144).
 func (s *Store) RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organizationID int64, email string, at time.Time) (domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
 	started := time.Now()
+	lockKey := fmt.Sprintf("traeger_invitation:%d:%s", organizationID, email)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", lockKey); err != nil {
+		return domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}, fmt.Errorf("identity access postgres: lock Träger invitation address: %w", err)
+	}
 	result, err := db.NewRaw(revokeOpenTraegerInvitationsForEmailQuery, at, organizationID, email).Exec(ctx)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	stats := domain.OperationStats{Queries: 2, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("identity access postgres: revoke open Träger invitations: %w", err)
 	}

@@ -40,6 +40,7 @@ const (
 	CodeIdentityRoleNameTaken                         = "identity.role_name_taken"
 	CodeIdentityRolePlatformPermission                = "identity.role_platform_permission"
 	CodeIdentitySessionAccountInactive                = "identity.session_account_inactive"
+	CodeIdentitySessionTenantMismatch                 = "identity.session_tenant_mismatch"
 	CodeIdentityTenantAccessDenied                    = "identity.tenant_access_denied"
 	CodeIdentityTenantAccessNotFound                  = "identity.tenant_access_not_found"
 	CodeIdentityUseParentPortal                       = "identity.use_parent_portal"
@@ -301,7 +302,6 @@ const (
 	CodeTimetableAttendanceFrozen                     = "timetable.attendance_frozen"
 	CodeTimetableAttendanceInvalid                    = "timetable.attendance_invalid"
 	CodeTimetableCalendarPeriodCareOfferingConflict   = "timetable.calendar_period_care_offering_conflict"
-	CodeTimetableCalendarPeriodEndBeforeStart         = "timetable.calendar_period_end_before_start"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -343,6 +343,7 @@ var errorCodeClasses1 = map[string]string{
 	"identity.role_name_taken":                           "business_rejection",
 	"identity.role_platform_permission":                  "input",
 	"identity.session_account_inactive":                  "permission",
+	"identity.session_tenant_mismatch":                   "permission",
 	"identity.tenant_access_denied":                      "permission",
 	"identity.tenant_access_not_found":                   "business_rejection",
 	"identity.use_parent_portal":                         "permission",
@@ -604,7 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.attendance_frozen":                        "business_rejection",
 	"timetable.attendance_invalid":                       "input",
 	"timetable.calendar_period_care_offering_conflict":   "business_rejection",
-	"timetable.calendar_period_end_before_start":         "input",
 }
 
 func init() {

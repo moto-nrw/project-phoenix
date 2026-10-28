@@ -206,7 +206,7 @@ func newPortalAccess(dependencies Dependencies, auth *application.AccountAuthent
 	}
 	traegerAccounts, err := application.NewTraegerAccounts(application.TraegerAccountsDependencies{
 		Store: store, Memberships: deps.Memberships, Delivery: deps.Delivery, Audit: deps.Audit, Passwords: deps.Passwords,
-		Credentials: auth.CheckPasswordLogin, Unit: runAdmin, Expiry: deps.Expiry, Logger: deps.Logger,
+		Credentials: auth.CheckPasswordLogin, Unit: runAdmin, InAdminUnit: auth.InAdminUnit, Expiry: deps.Expiry, Logger: deps.Logger,
 	})
 	return demoAccess, traegerAccounts, err
 }

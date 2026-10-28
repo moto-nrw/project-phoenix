@@ -124,6 +124,46 @@ export function formatWeekLabel(from: Date, to: Date): string {
   return `KW ${kw} · ${fromDay}.${fromMonth}.${fromYear}–${toDay}.${toMonth}.${year}`;
 }
 
+/**
+ * How many days a week grid shows for the week containing `dayISO`: 5 (Mo–Fr)
+ * or 7 (Mo–So). Saturday and Sunday appear only when the school runs the
+ * weekend on Friday's plan (operations.weekend_follows_friday, #3921) AND the
+ * week contains today's Saturday or Sunday (#5028). On a weekday every week
+ * stays Mo–Fr, so the demo looks like a normal school week; on a weekend only
+ * the current week opens up, which the demo weekend notice explains.
+ */
+export function careWeekDayCount(
+  dayISO: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): 5 | 7 {
+  if (!weekendOpen) return 5;
+  const todayWeekday = parseISODate(todayISO).getDay(); // 0 = So, 6 = Sa
+  if (todayWeekday !== 0 && todayWeekday !== 6) return 5;
+  return mondayOfWeekISO(dayISO) === mondayOfWeekISO(todayISO) ? 7 : 5;
+}
+
+function mondayOfWeekISO(iso: string): string {
+  const day = parseISODate(iso);
+  day.setDate(day.getDate() - ((day.getDay() + 6) % 7));
+  return toISODate(day);
+}
+
+/**
+ * Whether `iso` is a Saturday or Sunday the school shows as a care day: only
+ * in the week of today's weekend, by the same rule as `careWeekDayCount`.
+ * Day navigation uses it so a selected day never falls outside its grid.
+ */
+export function isCareWeekendDay(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): boolean {
+  const weekday = parseISODate(iso).getDay();
+  if (weekday !== 0 && weekday !== 6) return false;
+  return careWeekDayCount(iso, weekendOpen, todayISO) === 7;
+}
+
 /** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */
 export function todayISO(): string {
   return toISODate(new Date());

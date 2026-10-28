@@ -16,6 +16,7 @@ import { ANNOUNCEMENTS_UNREAD_SWR_KEY } from "~/lib/hooks/use-announcements";
 import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { primeSessionCache } from "~/lib/session-cache";
+import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { mutate } from "~/lib/swr";
 import { staffNoticesTodayKey } from "~/lib/staff-notices-api";
@@ -29,9 +30,10 @@ import { seesLockedModules } from "~/lib/module-register";
  * every API client reads (#2973). A layout effect in a leaf rendered BEFORE
  * the provider tree commits before any SWR hook further down starts its mount
  * revalidation; the hydrated session is therefore reused instead of fetched.
- * Later session changes (poll, update()) go through the cache's own TTL and
- * the explicit clearSessionCache() calls of the flows that rotate tokens. An
- * answer without access (logout here or in another tab) drops the entry.
+ * Later session changes (poll, update()) prime it again; between them the
+ * entry holds, except where a flow that rotates tokens calls
+ * clearSessionCache() or the BFF refuses another school's session (#5130).
+ * An answer without access (logout here or in another tab) drops the entry.
  */
 export function SessionCachePrimer() {
   const { data: session } = useSession();
@@ -178,7 +180,7 @@ export function TenantProviders({
   return (
     <SessionProvider
       session={session ?? undefined}
-      refetchInterval={4 * 60}
+      refetchInterval={SESSION_PROVIDER_POLL_SECONDS}
       refetchOnWindowFocus={false}
     >
       <PersonalStorageGuard
