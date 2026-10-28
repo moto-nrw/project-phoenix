@@ -30,8 +30,23 @@ else
   printf '%s\\n' "$@" > '${root}/args'
 fi
 `, 0o755);
+  function git(...args) {
+    const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  }
+  write(".gitignore", "frontend/node_modules\n");
+  git("init", "-q");
+  git("config", "user.name", "selection-fixture");
+  git("config", "user.email", "selection-fixture@example.invalid");
+  git("config", "commit.gpgSign", "false");
+  git("config", "core.hooksPath", "/dev/null");
+  write("frontend/src/lib/product.ts", "export {};\n");
+  git("add", ".");
+  git("commit", "-qm", "baseline");
+  write("frontend/src/lib/product.ts", "export const changed = true;\n");
   return {
-    root, write,
+    root, write, git,
     run: (...args) => spawnSync(process.execPath, [join(root, "scripts/test-frontend-changed.mjs"), ...args], { encoding: "utf8", env: { ...process.env, PATH: `${root}/bin:${process.env.PATH}` } }),
   };
 }
@@ -55,12 +70,12 @@ for (const directory of ["src", "scripts"]) {
         assert.equal(result.status, 1, result.stderr);
         assert.match(result.stderr, /probe\.spec\.ts/);
       } else {
-        // Script consumers need no registration: even unknown IO classes run.
+        // External consumers need no registration; editing scripts runs in full.
         assert.equal(result.status, 0, result.stderr);
         const selected = f.run("HEAD");
         assert.equal(selected.status, 0, selected.stderr);
         const args = readFileSync(join(f.root, "args"), "utf8").split("\n");
-        assert.equal(args.filter(arg => arg === "scripts/probe.spec.ts").length, 1);
+        assert.deepEqual(args.filter(Boolean), ["exec", "vitest", "run"]);
       }
     });
   }
@@ -69,6 +84,8 @@ for (const directory of ["src", "scripts"]) {
 test("fixed inputs are selected once alongside Vitest's changed files", t => {
   const f = fixture(t);
   f.write("frontend/scripts/product-screenshots/shot-list.test.ts", "");
+  f.git("add", "frontend/scripts");
+  f.git("commit", "-qm", "external guard");
   f.write("bin/pnpm", `#!/bin/sh
 if [ "$3" = list ]; then
   printf '[{"file":"%s/src/lib/service-worker.test.ts"}]' "$PWD"
@@ -95,10 +112,16 @@ test("CI starts frontend guards for backend-only inputs and the native launcher"
   const filter = workflow.match(/            frontend-fs-inputs:\n([\s\S]*?)(?=            [\w-]+:)/)?.[1];
   assert.ok(filter, "frontend input job filter exists");
   assert.match(filter, /- 'backend\/\*\*'/);
-  assert.match(filter, /- 'frontend\/scripts\/\*\*'/);
+  assert.doesNotMatch(filter, /frontend\//);
   assert.match(filter, /- 'scripts\/dev-native\.sh'/);
   assert.match(filter, /- '\.github\/workflows\/e2e\.yml'/);
   assert.match(workflow, /run-frontend:.*steps\.filter\.outputs\.frontend-fs-inputs == 'true'/);
+  assert.match(workflow, /frontend-guards-only:.*frontend != 'true'.*frontend-test-infra != 'true'/);
+  const testWorkflow = readFileSync(new URL("../.github/workflows/test.yml", import.meta.url), "utf8");
+  assert.match(testWorkflow, /inputs.frontend-guards-only && '\["guards"\]'/);
+  assert.match(testWorkflow, /matrix.project == 'node' && inputs.run-frontend-runner-tests/);
+  assert.match(testWorkflow, /elif \[ "\$PROJECT" = guards \]; then[\s\S]*?test_args=\(\)/);
+  assert.match(workflow, /frontend-runner-tests:\n\s+- 'scripts\/\*\*'/);
 });
 
 for (const input of [
@@ -140,16 +163,18 @@ for (const edge of ['import "./missing";', 'import(variable);', 'require(variabl
   });
 }
 
-test("opaque script consumers are unconditional guards, for all test extensions", t => {
+test("unchanged external consumers are guards even when product modules change", t => {
   const f = fixture(t);
-  for (const file of ["scripts/new-class.test.mjs", "scripts/nested/new-class.spec.ts"]) {
+  for (const file of ["scripts/new-class.test.mjs", "tools/nested/new-class.spec.ts", "root.test.ts"]) {
     f.write(`frontend/${file}`, 'import opaqueRunner from "a-new-package"; opaqueRunner();');
   }
   assert.equal(f.run("--check-guards").status, 0);
+  f.git("add", "frontend/scripts", "frontend/tools", "frontend/root.test.ts");
+  f.git("commit", "-qm", "external tests");
   const result = f.run("HEAD", "--project", "logic-node");
   assert.equal(result.status, 0, result.stderr);
   const args = readFileSync(join(f.root, "args"), "utf8").split("\n");
-  for (const file of ["scripts/new-class.test.mjs", "scripts/nested/new-class.spec.ts"]) {
+  for (const file of ["scripts/new-class.test.mjs", "tools/nested/new-class.spec.ts", "root.test.ts"]) {
     assert.equal(args.filter(arg => arg === file).length, 1, file);
   }
 });
@@ -170,4 +195,61 @@ test("the real repository inventory matches source and transitive helpers", () =
     fileURLToPath(new URL("./test-frontend-changed.mjs", import.meta.url)), "--check-guards",
   ], { encoding: "utf8" });
   assert.equal(result.status, 0, result.stderr);
+});
+
+// Exercise the actual shared dispatcher, not a copy of its path expression.
+for (const input of [
+  "frontend/tools/zz-probe/reader.test.ts", "frontend/src/test/node-test-files.ts",
+  "frontend/src/test/phosphor-imports-plugin.ts", "frontend/public/sw.js",
+  "frontend/scripts/plugin.mjs", "frontend/.oxlintrc.json", "frontend/new.config.ts",
+  "frontend/README.md", "frontend/src/lib/new.json", "frontend/src/lib/new.unknown",
+  "frontend/src/lib/product.test.ts", "frontend/src/lib/product.spec.tsx",
+  "frontend/src/types/new.d.ts", "frontend/src/new-area/module.ts",
+  "frontend/src/sentry.config.ts",
+]) {
+  test(`non-product input fails closed to full: ${input}`, t => {
+    const f = fixture(t);
+    f.write(input, "");
+    assert.equal(f.run("--mode", "HEAD").stdout, "full\n");
+    const result = f.run("HEAD", "--project", "logic-node");
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(readFileSync(join(f.root, "args"), "utf8").trim().split("\n"),
+      ["exec", "vitest", "run", "--project", "logic-node"]);
+  });
+}
+
+test("untracked, staged, committed, deleted and renamed inputs use the same fallback", t => {
+  const f = fixture(t);
+  let base = f.git("rev-parse", "HEAD");
+  f.write("frontend/unknown.input", "fixed input");
+  for (const state of ["untracked", "staged", "committed", "modified", "renamed", "deleted"]) {
+    if (state === "staged") f.git("add", "frontend/unknown.input");
+    if (state === "committed") f.git("commit", "-qm", "input");
+    if (state === "modified") f.write("frontend/unknown.input", "changed");
+    if (state === "renamed") f.git("mv", "frontend/unknown.input", "frontend/src/lib/moved.ts");
+    if (state === "deleted") {
+      f.git("add", "frontend/src/lib/moved.ts");
+      f.git("commit", "-qm", "move");
+      rmSync(join(f.root, "frontend/src/lib/moved.ts"));
+    }
+    assert.equal(f.run("--mode", base).stdout, "full\n", state);
+    // Subsequent edits/renames target an input already present at the base.
+    if (state === "committed") base = f.git("rev-parse", "HEAD");
+  }
+});
+
+test("only product modules stay incremental; backend-only changes run guards without list", t => {
+  const f = fixture(t);
+  assert.equal(f.run("--mode", "HEAD").stdout, "incremental\n");
+  f.git("checkout", "--", "frontend/src/lib/product.ts");
+  assert.equal(f.run("--mode", "HEAD").stdout, "none\n");
+  f.write("backend/auth/authorize/permissions/catalog.json", "[]");
+  assert.equal(f.run("--mode", "HEAD").stdout, "guards\n");
+  // Listing would exit 7. Guard-only dispatch must not traverse the import graph.
+  f.write("bin/pnpm", `#!/bin/sh
+if [ "$3" = list ]; then exit 7; fi
+printf '%s\\n' "$@" > '${f.root}/args'
+`, 0o755);
+  assert.equal(f.run("HEAD").status, 0);
+  assert.match(readFileSync(join(f.root, "args"), "utf8"), /permission-labels\.test\.ts/);
 });

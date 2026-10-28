@@ -226,10 +226,11 @@ guards=(
 )
 # CI validates the real inventory and AST regressions in the frontend node job
 # after installing its parser dependency. These fixtures verify dispatch only.
-guard_call="pnpm:exec vitest run ${guards[*]} src/listed.test.ts"
+guard_only_call="pnpm:exec vitest run ${guards[*]}"
+guard_call="$guard_only_call src/listed.test.ts"
 changed_call='pnpm:exec vitest list --filesOnly --json --changed origin/development'
 
-frontend_calls=$'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
+frontend_calls=$'pnpm:install --frozen-lockfile\n'"$guard_only_call"
 
 # Exercise both public wrappers, not just the arithmetic helper. Low memory,
 # low CPU and OS-specific clone-I/O limits must select the same package budget.
@@ -314,16 +315,16 @@ unset PHX_FIXTURE_TMPDIR
 
 # Frontend failures must survive both the frontend-only path (no EXIT trap)
 # and the mixed-stack path, whose backend cleanup runs after Vitest.
-mkdir -p "$fixture/frontend/src"
+mkdir -p "$fixture/frontend/src/lib"
 for no_backend in 0 1; do
   export PHX_FIXTURE_NO_BACKEND=$no_backend
   for selection in changed full; do
-    rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts"
+    rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/lib/probe.ts"
     if [ "$selection" = full ]; then
       printf '{}\n' >"$fixture/frontend/package.json"
-      vitest_call='pnpm:vitest run'
+      vitest_call='pnpm:exec vitest run'
     else
-      printf 'export {};\n' >"$fixture/frontend/src/probe.ts"
+      printf 'export {};\n' >"$fixture/frontend/src/lib/probe.ts"
       vitest_call="$changed_call"
     fi
     for failure in success install vitest changed; do
@@ -363,21 +364,23 @@ for no_backend in 0 1; do
 done
 
 # Backend-only inputs use the same inventory as frontend changes.
-rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts"
+rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/lib/probe.ts"
 mkdir -p "$fixture/backend/modules/settings/internal/defaults"
 printf 'package defaults\n' >"$fixture/backend/modules/settings/internal/defaults/probe.go"
 export PHX_FIXTURE_INSTALL_STATUS=0 PHX_FIXTURE_VITEST_STATUS=0 PHX_FIXTURE_CHANGED_STATUS=0
 : >"$call_log"
 (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
   scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
-assert_calls $'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
+assert_calls "$frontend_calls"
 
 # Project filters used by CI reach both invocations unchanged.
+printf 'export {};\n' >"$fixture/frontend/src/lib/probe.ts"
 : >"$call_log"
 (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
   node scripts/test-frontend-changed.mjs origin/development --disableConsoleIntercept --project api-node --project logic-node) >"$output_log" 2>&1
 options='--disableConsoleIntercept --project api-node --project logic-node'
 assert_calls "$changed_call $options"$'\n'"${guard_call/pnpm:exec vitest run/pnpm:exec vitest run $options}"
+rm "$fixture/frontend/src/lib/probe.ts"
 
 # Committed inputs still select the guards when modified or deleted.
 git -C "$fixture" add backend/modules/settings/internal/defaults/probe.go
@@ -392,7 +395,7 @@ for change in modify delete; do
   : >"$call_log"
   (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
     scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
-  assert_calls $'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
+  assert_calls "$frontend_calls"
 done
 
 # Clear the defaults deletion so it cannot mask a missing fixed-input trigger.
@@ -407,6 +410,12 @@ for input in backend/auth/authorize/permissions/catalog.json \
   backend/modules/identityaccess/mails.go \
   backend/modules/dataimport/internal/application/importservice/staff_import_config.go \
   scripts/dev-native.sh \
+  frontend/tools/new-class/reader.test.ts \
+  frontend/src/test/node-test-files.ts \
+  frontend/src/test/phosphor-imports-plugin.ts \
+  frontend/public/sw.js \
+  frontend/new-file.unknown \
+  frontend/README.md \
   frontend/scripts/runtime-input.md \
   frontend/scripts/swr-import-baseline.json \
   frontend/.oxlintrc.json; do
@@ -425,7 +434,11 @@ for input in backend/auth/authorize/permissions/catalog.json \
     : >"$call_log"
     (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
       scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
-    assert_calls "$frontend_calls"
+    if [[ "$input" = frontend/* ]]; then
+      assert_calls $'pnpm:install --frozen-lockfile\npnpm:exec vitest run'
+    else
+      assert_calls "$frontend_calls"
+    fi
   done
   # Start the next case without the deleted input still selecting guards.
   git -C "$fixture" add -u
@@ -439,6 +452,6 @@ printf '# changed E2E paths\n' >"$fixture/.github/workflows/e2e.yml"
 : >"$call_log"
 (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
   scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
-assert_calls $'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
+assert_calls "$frontend_calls"
 
 echo 'full/changed-test resource budget, build workspace, filesystem guards and lifecycle tests passed'

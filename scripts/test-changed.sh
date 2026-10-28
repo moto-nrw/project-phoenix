@@ -20,8 +20,6 @@ if [ "${1:-}" = --fast ]; then
   shift
 fi
 BASE=${1:-origin/development}
-# Merge-Base statt Drei-Punkt-Diff, damit auch uncommittete Änderungen zählen.
-MB=$(git merge-base HEAD "$BASE")
 
 affected=()
 if [ "$FAST" = true ]; then
@@ -87,37 +85,14 @@ else
   echo "==> backend: keine Go-Änderungen"
 fi
 
-frontend_changes=$(
-  {
-    git diff --name-only "$MB" -- frontend backend scripts/dev-native.sh scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
-    git ls-files --others --exclude-standard -- frontend backend scripts/dev-native.sh scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
-  } | awk '!/\.md$/ || /^frontend\/scripts\//' | sort -u
-)
-run_frontend_vitest() {
+# One fail-closed policy owns local and CI selection, including untracked files.
+frontend_mode=$(node scripts/test-frontend-changed.mjs --mode "$BASE")
+if [ "$frontend_mode" != none ]; then
   (
     cd frontend
-    # The changed-test command is unattended. CI mode lets pnpm recreate a
-    # stale generated modules directory from the frozen lockfile.
     CI=true pnpm install --frozen-lockfile
-    if [ "${1:-}" = --changed ]; then
-      node ../scripts/test-frontend-changed.mjs "$2"
-    else
-      pnpm vitest run "$@"
-    fi
+    node ../scripts/test-frontend-changed.mjs "$BASE"
   )
-}
-
-if printf '%s\n' "$frontend_changes" | grep -qxE \
-  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup(-common)?\.ts)|scripts/test-frontend-changed\.mjs'; then
-  echo "==> vitest (frontend test infrastructure changed)"
-  run_frontend_vitest
-elif [ -n "$frontend_changes" ]; then
-  # Backend inputs also reach the same guard inventory; no separate selector.
-  # Vitest 4 includes committed, staged, unstaged, and untracked files in its
-  # dependency traversal. Filesystem guards run separately because runtime
-  # scans do not create import edges for that traversal.
-  echo "==> vitest --changed $BASE"
-  run_frontend_vitest --changed "$BASE"
 else
   echo "==> frontend: keine Änderungen"
 fi

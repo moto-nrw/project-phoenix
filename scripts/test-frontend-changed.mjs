@@ -7,27 +7,70 @@ import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 
 // Vitest's module graph cannot discover dependencies created by filesystem scans.
-// Use its real changed-file selection, then run that set plus the scan guards once.
+// Only product modules may use its changed-file selection. Everything else in
+// frontend/ fails closed to a full run; runtime scans still need the guards.
 // Usage: node scripts/test-frontend-changed.mjs BASE [Vitest project/options]
-const [base, ...options] = process.argv.slice(2);
+const modeOnly = process.argv[2] === "--mode";
+const [base, ...options] = process.argv.slice(modeOnly ? 3 : 2);
 if (!base) throw new Error("base ref required");
 const cwd = fileURLToPath(new URL("../frontend/", import.meta.url));
 
-// Script tests execute tools with opaque config/plugin inputs. Include the whole
-// group unconditionally, including new tests and unknown IO APIs. Other tests
-// stay incremental unless their local module closure performs IO (checked below).
-function testsIn(directory) {
+// Shared by local dispatch and CI. Use NUL-separated paths and disable rename
+// detection so moving an input INTO src cannot hide its old, full-run path.
+function git(args) {
+  const result = spawnSync("git", args, { cwd: resolve(cwd, ".."), encoding: "utf8" });
+  if (result.error) throw result.error;
+  if (result.status !== 0) throw new Error(result.stderr);
+  return result.stdout;
+}
+function selectionMode() {
+  const mergeBase = git(["merge-base", "HEAD", base]).trim();
+  const changed = new Set([
+    ...git(["diff", "--no-renames", "--name-only", "-z", mergeBase]).split("\0"),
+    ...git(["ls-files", "--others", "--exclude-standard", "-z"]).split("\0"),
+  ]);
+  // This is an allowlist, not an enumeration of unsafe input classes. Tests,
+  // fixtures, config helpers and unknown file types default to the full suite.
+  const productModule = /^frontend\/src\/(?:app|components|contexts|hooks|i18n|lib|server)\/.+\.(?:[cm]?[jt]s|[jt]sx)$/;
+  const testOrDeclaration = /(?:\.(?:test|spec)\.[^/]+|\.d\.[cm]?ts)$/;
+  const frontend = [...changed].filter(file => file.startsWith("frontend/"));
+  if (frontend.some(file => !productModule.test(file) || testOrDeclaration.test(file)) ||
+    ["scripts/test-frontend-changed.mjs", "scripts/test-frontend-changed.test.mjs",
+      "scripts/test-changed.sh", "scripts/test-changed_test.sh",
+      ".github/workflows/main.yml", ".github/workflows/test.yml"].some(file => changed.has(file))) return "full";
+  if (frontend.length) return "incremental";
+  if ([...changed].some(file => file.startsWith("backend/") && !file.endsWith(".md") ||
+    file === "scripts/dev-native.sh" || file === ".github/workflows/e2e.yml")) return "guards";
+  return "none";
+}
+const mode = base === "--check-guards" ? undefined : selectionMode();
+if (modeOnly) {
+  process.stdout.write(mode + "\n");
+  process.exit(0);
+}
+
+if (mode === "none") process.exit(0);
+if (mode === "full") {
+  console.log("==> vitest full (input outside product-module allowlist)");
+  vitest(["run", ...options]);
+  process.exit(0);
+}
+
+// Tests outside src may execute opaque tools or scan product modules. Keep
+// all of them, regardless of location or IO API. src consumers are inventoried.
+function testsIn(directory, externalOnly = false) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const file = join(directory, entry.name);
     if (entry.isDirectory()) {
-      return ["node_modules", "e2e"].includes(entry.name) ? [] : testsIn(file);
+      return ["node_modules", "e2e"].includes(entry.name) ||
+        (externalOnly && directory === cwd && entry.name === "src") ? [] : testsIn(file);
     }
     return /\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name)
       ? [relative(cwd, file).split("\\").join("/")]
       : [];
   }).sort();
 }
-const scriptTests = testsIn(join(cwd, "scripts"));
+const externalTests = testsIn(cwd, true);
 const guards = [
   "src/app/api/proxy-routes.test.ts",
   "src/app/api/route-cache-policy.test.ts",
@@ -54,7 +97,7 @@ const guards = [
   "src/sentry.config.test.ts",
   "src/test/phosphor-imports-plugin.test.ts",
   "src/test/proxy-routes.table.test.ts",
-  ...scriptTests,
+  ...externalTests,
 ];
 
 // This is a conservative local-import inventory, not a second test selector.
@@ -119,7 +162,7 @@ if (base === "--check-guards") {
   }
   assert.deepEqual(
     [...guards].sort(),
-    [...testsIn(join(cwd, "src")).filter(file => usesInputs(resolve(cwd, file))), ...scriptTests].sort(),
+    [...testsIn(join(cwd, "src")).filter(file => usesInputs(resolve(cwd, file))), ...externalTests].sort(),
     "Filesystem/process guard inventory differs from tests and their local helpers",
   );
   process.exit(0);
@@ -136,7 +179,8 @@ function vitest(args, capture = false) {
   return result.stdout;
 }
 
-const selected = JSON.parse(
+console.log(`==> vitest ${mode}`);
+const selected = mode === "guards" ? [] : JSON.parse(
   vitest(
     ["list", "--filesOnly", "--json", "--changed", base, ...options],
     true,
