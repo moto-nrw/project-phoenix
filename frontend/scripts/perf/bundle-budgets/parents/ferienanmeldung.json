@@ -4,7 +4,7 @@
   "routes": {
     "/parents/ferienanmeldung/[token]": {
       "referenceBytes": 874288,
-      "maxBytes": 891773
+      "maxBytes": 891774
     }
   }
 }

@@ -4,7 +4,7 @@
   "routes": {
     "/[tenant]/home": {
       "referenceBytes": 1080182,
-      "maxBytes": 1101785
+      "maxBytes": 1101786
     }
   }
 }
