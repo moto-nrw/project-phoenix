@@ -104,6 +104,7 @@
     "/[tenant]/vertretung": 1054396,
     "/caterer": 702884,
     "/caterer/einladung/[schoolId]/[token]": 694158,
+    "/caterer/konto": 695480,
     "/caterer/login": 697972,
     "/caterer/reset-password": 694430,
     "/demo": 514125,

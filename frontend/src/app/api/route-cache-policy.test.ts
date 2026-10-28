@@ -77,7 +77,11 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
     "proxyDelete",
     "createSchoolDeleteHandler",
   ],
-  "~/lib/caterer/route-wrapper.server": ["proxyGet", "proxyPost"],
+  "~/lib/caterer/route-wrapper.server": [
+    "proxyGet",
+    "proxyPost",
+    "createCatererJsonProxy",
+  ],
   "~/lib/traeger/route-wrapper.server": [
     ...PORTAL_PROXIES,
     "proxyDelete",

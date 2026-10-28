@@ -643,7 +643,7 @@ function handleTraegerSubdomain(request: NextRequest): NextResponse {
 
 /** Paths the caterer host serves (without /caterer prefix); the overview
  * itself lives at the root ("/" → /caterer). */
-const CATERER_PATHS = ["/login", "/reset-password", "/einladung"];
+const CATERER_PATHS = ["/login", "/reset-password", "/einladung", "/konto"];
 
 /** The caterer portal's BFF routes. Only the caterer host serves them; every
  * other host answers 404, so a caterer route never runs beside another

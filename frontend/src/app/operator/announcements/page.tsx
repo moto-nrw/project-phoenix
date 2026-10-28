@@ -873,7 +873,7 @@ export default function OperatorAnnouncementsPage() {
                     <span
                       className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
                         isChecked
-                          ? "border-moto-green bg-moto-green"
+                          ? "border-moto-green-fill bg-moto-green-fill"
                           : "border-gray-300 bg-white"
                       }`}
                     >
@@ -1037,7 +1037,7 @@ export default function OperatorAnnouncementsPage() {
                     <span
                       className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
                         isChecked
-                          ? "border-moto-green bg-moto-green"
+                          ? "border-moto-green-fill bg-moto-green-fill"
                           : "border-gray-300 bg-white"
                       }`}
                     >
@@ -1102,7 +1102,7 @@ export default function OperatorAnnouncementsPage() {
                     <span
                       className={`flex h-4 w-4 items-center justify-center rounded border transition-all ${
                         isChecked
-                          ? "border-moto-green bg-moto-green"
+                          ? "border-moto-green-fill bg-moto-green-fill"
                           : "border-gray-300 bg-white"
                       }`}
                     >
@@ -1350,7 +1350,7 @@ function AnnouncementCard({
           <button
             type="button"
             onClick={() => onPublish(announcement)}
-            className="group bg-moto-green hover:bg-moto-green-hover flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg active:scale-[0.98]"
+            className="group bg-moto-green-fill hover:bg-moto-green-fill-hover flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-medium text-white shadow-md transition-all hover:shadow-lg active:scale-[0.98]"
           >
             <span>Veröffentlichen</span>
             <Send className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />

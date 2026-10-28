@@ -486,3 +486,58 @@ func TestCatererLifecycleTakesNoLockOfItsOwn(t *testing.T) {
 		return nil
 	}))
 }
+
+// #4496: a signed-in caterer changes its own password. The current password
+// counts like a login (wrong attempts lock the account), the new one must
+// pass the policy, and the change ends every session of the account.
+func TestCatererChangesOwnPassword(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	caterers := module.Caterers()
+	school := testpkg.Tenant(t)
+	staffPassword := testpkg.NewTestPassword()
+	staff := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("caterer-change-staff-%d@example.com", time.Now().UnixNano()), staffPassword)
+	email := fmt.Sprintf("kueche-change-%d@example.com", time.Now().UnixNano())
+	acceptance, err := accept(t, db, caterers, school, invite(t, db, caterers, school, staff.ID, email), identityaccess.CatererRegistration{Password: catererPassword, ConfirmPassword: catererPassword})
+	require.NoError(t, err)
+	forgetCaterer(t, db, acceptance)
+	t.Cleanup(func() {
+		_, err := db.NewRaw(`DELETE FROM audit.auth_events WHERE account_id = ?`, acceptance.AccountID).Exec(context.Background())
+		require.NoError(t, err)
+	})
+
+	_, refresh, err := caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "192.0.2.20", "test")
+	require.NoError(t, err)
+
+	err = caterers.ChangeCatererPassword(context.Background(), acceptance.AccountID, testpkg.NewTestPassword(), testpkg.NewTestPassword(), "192.0.2.20", "test")
+	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials, "a wrong current password is refused")
+	err = caterers.ChangeCatererPassword(context.Background(), acceptance.AccountID, catererPassword, "kurz", "192.0.2.20", "test")
+	require.ErrorIs(t, err, identityaccess.ErrPasswordTooWeak)
+	err = caterers.ChangeCatererPassword(context.Background(), staff.ID, staffPassword, testpkg.NewTestPassword(), "", "")
+	require.ErrorIs(t, err, identityaccess.ErrAccountNotCaterer, "the caterer portal changes no other account's password")
+
+	renewed := testpkg.NewTestPassword()
+	require.NoError(t, caterers.ChangeCatererPassword(context.Background(), acceptance.AccountID, catererPassword, renewed, "192.0.2.20", "test"))
+	_, _, err = module.RefreshTokenWithAudit(context.Background(), refresh, "", "192.0.2.20", "test")
+	require.Error(t, err, "the change ends every session of the account")
+	var remaining int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.tokens WHERE account_id = ?`, acceptance.AccountID).Scan(context.Background(), &remaining))
+	assert.Zero(t, remaining)
+	var revoked int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM audit.auth_events WHERE account_id = ? AND event_type = 'token_revoked'`, acceptance.AccountID).Scan(context.Background(), &revoked))
+	assert.Positive(t, revoked, "the revocation is audited")
+	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, catererPassword, "", "")
+	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials, "the old password no longer signs in")
+	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, renewed, "", "")
+	require.NoError(t, err, "the new password signs in")
+
+	for range 5 {
+		err = caterers.ChangeCatererPassword(context.Background(), acceptance.AccountID, testpkg.NewTestPassword(), testpkg.NewTestPassword(), "", "")
+		require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials)
+	}
+	err = caterers.ChangeCatererPassword(context.Background(), acceptance.AccountID, renewed, testpkg.NewTestPassword(), "", "")
+	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials, "wrong attempts lock the account like wrong logins")
+	_, _, err = caterers.LoginCatererWithAudit(context.Background(), email, renewed, "", "")
+	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials, "the lock also holds the login")
+}
