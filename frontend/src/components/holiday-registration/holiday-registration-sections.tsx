@@ -61,7 +61,6 @@ export function useWeekLabels() {
         }),
       // The price per week at the choice: the base line the summary shows
       // under "Beitrag", before any sibling discount or exemption (#5237).
-      // It follows the name, so a narrow field cuts the times, not the price.
       pricedTimeModel: (model: HolidayRegistrationTimeModel) =>
         t("timeModelPrice", {
           name: model.name,
@@ -227,6 +226,7 @@ export function ChildCard({
               </span>
               <CustomSelect
                 name={`${prefix}.bookings`}
+                wrapLabels
                 ariaLabelledBy={`${prefix}-week-${week.id}`}
                 value={child.bookings[week.id] ?? ""}
                 invalid={Boolean(bookingsError)}
