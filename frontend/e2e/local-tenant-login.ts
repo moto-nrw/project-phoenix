@@ -39,11 +39,13 @@ async function hasSession(page: Page, origin: string): Promise<boolean> {
   const response = await page.request.get(`${origin}/api/auth/session`);
   if (!response.ok())
     throw new Error("Test-Sitzung konnte nicht geladen werden.");
+  // Auth.js answers `null` without a session, for example when a cached
+  // cookie belongs to another local database.
   const session = (await response.json()) as {
     user?: { id?: string };
     error?: string;
-  };
-  return !!session.user?.id && !session.error;
+  } | null;
+  return !!session?.user?.id && !session.error;
 }
 
 function localURL(value: string): URL {

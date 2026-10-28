@@ -61,10 +61,21 @@ describe("tenantSlugFromHost", () => {
     expect(tenantSlugFromHost("school-a.localhost:3000")).toBe("school-a");
   });
 
+  it("normalizes the hostname, configured domain, and slug", () => {
+    const prev = process.env.TENANT_DOMAIN;
+    process.env.TENANT_DOMAIN = "MOTO-APP.DE";
+    try {
+      expect(tenantSlugFromHost("SCHULE-A.moto-app.de:443")).toBe("schule-a");
+    } finally {
+      process.env.TENANT_DOMAIN = prev;
+    }
+  });
+
   it("returns null for reserved slugs", () => {
     expect(tenantSlugFromHost("operator.localhost:3000")).toBeNull();
     expect(tenantSlugFromHost("api.localhost")).toBeNull();
     expect(tenantSlugFromHost("www.localhost")).toBeNull();
+    expect(tenantSlugFromHost("OPERATOR.LOCALHOST")).toBeNull();
   });
 
   it("handles a different TENANT_DOMAIN value", () => {

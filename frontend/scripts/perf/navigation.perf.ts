@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
+  dismissNotificationHint,
   gotoTolerant,
   loadAccess,
   loadRoleAccess,
@@ -232,7 +233,8 @@ async function measureHop(
   await armProbe(page);
   recorder.start();
   const started = performance.now();
-  await link.click();
+  // Mit Frist: ein verdeckter Link soll scheitern, nicht den Lauf anhalten.
+  await link.click({ timeout: 15_000 });
   // PERF_NAV_SCREENSHOTS=1 hält den Moment kurz nach dem Klick fest — dort
   // ist zu sehen, was während des Wechsels auf dem Schirm steht.
   if (process.env.PERF_NAV_SCREENSHOTS === "1") {
@@ -283,6 +285,7 @@ test.beforeAll(() => {
 
 test("login", async ({ page }) => {
   await login(page, access);
+  await dismissNotificationHint(page, base);
   await page
     .context()
     .storageState({ path: join(OUT_DIR, "storage-state.json") });
@@ -497,10 +500,7 @@ test("measure cold click after intent", async ({ browser }) => {
   // Seitenleiste. Er merkt sich das Schließen im localStorage.
   const setup = await browser.newContext({ storageState: loginState });
   const setupPage = await setup.newPage();
-  await gotoTolerant(setupPage, `${base}/home`);
-  const dismiss = setupPage.getByRole("button", { name: "Verstanden" });
-  await dismiss.waitFor({ timeout: 10_000 }).catch(() => undefined);
-  if (await dismiss.isVisible()) await dismiss.click();
+  await dismissNotificationHint(setupPage, base);
   await setup.storageState({ path: storageState });
   await setup.close();
 
@@ -666,10 +666,7 @@ test("measure revisit", async ({ browser }) => {
     const setup = await browser.newContext();
     const setupPage = await setup.newPage();
     await login(setupPage, roleAccess);
-    await gotoTolerant(setupPage, `${baseUrl}/home`);
-    const dismiss = setupPage.getByRole("button", { name: "Verstanden" });
-    await dismiss.waitFor({ timeout: 10_000 }).catch(() => undefined);
-    if (await dismiss.isVisible()) await dismiss.click();
+    await dismissNotificationHint(setupPage, baseUrl);
     await setup.storageState({ path: state });
     await setup.close();
     states.set(role, { storageState: state, baseUrl });

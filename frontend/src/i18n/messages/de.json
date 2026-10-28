@@ -78,7 +78,8 @@
     "more": "Mehr",
     "unreadCount": "{count} ungelesen",
     "openCount": "{count} offen",
-    "noticeCount": "{count} Hinweise"
+    "noticeCount": "{count} Hinweise",
+    "documents": "Dokumente"
   },
   "parentFirstSteps": {
     "title": "Erste Schritte",
@@ -272,6 +273,22 @@
     "errorObjectWeekRegister": "die Anmeldung für die Woche",
     "participationCutoffLead": "Sie können die Anmeldung bis {time} Uhr {days, plural, one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}} ändern.",
     "participationSicknessLead": "Eine bestätigte Krankmeldung bis {time} Uhr {days, plural, one {am Werktag vor dem Essen} other {# Werktage vor dem Essen}} meldet Ihr Kind vom Essen ab. Danach bleibt die Anmeldung bestehen."
+  },
+  "parentDocuments": {
+    "title": "Dokumente",
+    "description": "Hier finden Sie Schreiben, die Ihnen der Träger geschickt hat. Zum Beispiel die Bestätigung der Ferienbetreuung.",
+    "emptyTitle": "Noch keine Dokumente",
+    "emptyDescription": "Schickt Ihnen der Träger ein Schreiben, finden Sie es hier. Sie bekommen es auch per Mail.",
+    "confirmationLetter": "Bestätigungsschreiben {period}",
+    "sender": "Von {traeger}",
+    "children": "Für",
+    "amount": "Betrag",
+    "number": "Rechnungsnummer",
+    "sentAt": "Geschickt am",
+    "download": "Als PDF laden",
+    "downloading": "Wird geladen …",
+    "errorObject": "die Dokumente",
+    "downloadErrorObject": "das Dokument"
   },
   "mealOrders": {
     "title": "Bestellung",
@@ -728,6 +745,10 @@
       "parent_care_cancelled": {
         "label": "Betreuung fällt aus",
         "description": "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt."
+      },
+      "parent_billing_document": {
+        "label": "Neues Dokument vom Träger",
+        "description": "Wenn der Träger Ihnen ein Dokument schickt, zum Beispiel ein Bestätigungsschreiben."
       }
     },
     "errorObjectList": "die Liste der Benachrichtigungen",
@@ -2751,6 +2772,7 @@
         "role_name_taken": "Eine Rolle mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
         "role_platform_permission": "Eigene Rollen können dieses Recht nicht bekommen.",
         "session_account_inactive": "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
+        "session_tenant_mismatch": "Die Schule wurde in einem anderen Fenster gewechselt. moto stellt diese Seite gleich wieder um. Bitte versuchen Sie es danach noch einmal.",
         "tenant_access_denied": "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
         "use_parent_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
         "use_school_portal": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
@@ -2868,6 +2890,7 @@
         "letterhead_too_long": "Absender oder Fußzeile im Briefkopf sind zu lang für ein Schreiben. Bitte lassen Sie sie unter „Briefkopf“ kürzen.",
         "number_range_invalid": "Bitte prüfen Sie das Muster. Es braucht genau eine laufende Nummer und darf nur Buchstaben, Ziffern und . / _ - enthalten.",
         "number_range_missing": "Es fehlt das Muster der Rechnungsnummern. Bitte legen Sie es unter „Abrechnung“ fest.",
+        "parent_document_not_found": "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
         "recipient_email_missing": "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie."
       },
       "pickup": {

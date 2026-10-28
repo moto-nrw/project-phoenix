@@ -31,8 +31,11 @@ type ProviderResult struct {
 const ProviderAcceptedStatusCode = 202
 
 type ClaimedIntent struct {
-	ID                int64
-	TenantID          int64
+	ID       int64
+	TenantID int64
+	// OrganizationID is the Träger of an intent without a school (ADR 0110,
+	// ADR 0126); zero for a school or system intent.
+	OrganizationID    int64
 	Transport         Transport
 	Template          string
 	RelatedEntityType *string

@@ -42,6 +42,8 @@ const logger = createLogger({ component: "TraegerLoginPage" });
 
 const SHELL_COPY = {
   eyebrow: "Träger-Portal",
+  // Akzentfarbe wie die Eyebrow des Schul-Logins (#5145).
+  eyebrowClassName: "text-moto-blue",
   title: "Willkommen im Träger-Portal",
   subtitle: "Melden Sie sich mit Ihrem moto-Konto an.",
 } as const;

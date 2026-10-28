@@ -224,9 +224,30 @@ describe("Bauart-Deklaration des Tenant-Portals", () => {
   });
 });
 
-describe("Seitengerüst des Tenant-Portals", () => {
+/**
+ * Das Träger-Portal (#5146) baut aus denselben Bausteinen wie das
+ * Tenant-Portal und rendert deshalb dasselbe Gerüst. Ausgenommen sind nur die
+ * Seiten vor der Anmeldung: Anmelden und Einladung annehmen haben keine
+ * Portalhülle und keinen Seitenkopf, sie sind Formulare auf leerem Grund wie
+ * die Anmeldeseiten der übrigen Portale.
+ */
+const TRAEGER_DIR = path.join(SRC_DIR, "app", "traeger");
+const TRAEGER_PUBLIC = new Set(["login/page.tsx", "invite/page.tsx"]);
+
+const traegerPages = collectPageFiles(TRAEGER_DIR)
+  .map((file) => ({
+    id: path.relative(TRAEGER_DIR, file),
+    file,
+    source: readFileSync(file, "utf8"),
+  }))
+  .filter((page) => !TRAEGER_PUBLIC.has(pageId(page)));
+
+describe.each([
+  { portal: "Tenant-Portals", pages, minimum: 51 },
+  { portal: "Träger-Portals", pages: traegerPages, minimum: 13 },
+])("Seitengerüst des $portal", ({ pages, minimum }) => {
   it("findet Seiten zum Prüfen", () => {
-    expect(pages.length).toBeGreaterThan(50);
+    expect(pages.length).toBeGreaterThanOrEqual(minimum);
   });
 
   it.each(pages.map((page) => [page.id, page] as const))(

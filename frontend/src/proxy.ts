@@ -355,6 +355,8 @@ const PARENTS_PUBLIC_PATHS = [
   "/messages",
   "/news",
   "/meal-plan",
+  // Dokumente des Trägers (#4671).
+  "/documents",
   "/calendar",
   "/settings",
   "/anmeldung",

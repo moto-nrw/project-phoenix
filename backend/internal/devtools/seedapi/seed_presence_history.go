@@ -16,7 +16,7 @@ import (
 // count from the day they were recorded, and the children's consent keeps
 // them for 30 days (seedPrivacyConsentsStep), so the whole history stays
 // inside the room section and the nightly cleanup.
-const presenceHistoryDays = 29
+const presenceHistoryDays = 30
 
 // PastPresenceDay is one finished care day of one child: arrival and
 // departure through a kiosk and, optionally, one room visit in a session.
@@ -35,9 +35,10 @@ type PastVisit struct {
 	Entry, Exit              time.Time
 }
 
-// PresenceHistoryWriter records past care days of one school (#5031). No API
-// writes presence after the fact, so the dev tools bind it to the owner of
-// the attendance directly; nil leaves the past without presence.
+// PresenceHistoryWriter records past care days of one school (#5031). No
+// regular API writes presence after the fact, so the dev tools bind it to the
+// owner of the attendance directly, or, in the public demo, to the operator
+// route only its server mounts (ADR 0127); nil leaves the past without presence.
 type PresenceHistoryWriter func(ctx context.Context, schoolID int64, days []PastPresenceDay) (int, error)
 
 // presenceHistoryStatus is one planned absence, recorded through the regular
@@ -71,6 +72,7 @@ type presenceHistoryPlan struct {
 // presenceHistoryInput is what the plan derives the past from.
 type presenceHistoryInput struct {
 	today    calendar.Date
+	from     calendar.Date
 	careDays func(calendar.Date) bool
 	students []presenceHistoryStudent
 	deviceID int64
@@ -102,7 +104,7 @@ type seedPresenceHistoryStep struct{ seeder *Seeder }
 func (seedPresenceHistoryStep) Name() string { return "Anwesenheits- und Raumverlauf wird angelegt" }
 
 func (s seedPresenceHistoryStep) Run(ctx context.Context, rt *Runtime) error {
-	write := s.seeder.options.PresenceHistory
+	write := presenceHistoryWriterFor(s.seeder.options, rt)
 	if write == nil {
 		fmt.Println("  keine Datenbank für den Anwesenheitsverlauf, vergangene Anwesenheiten werden übersprungen")
 		return nil
@@ -118,7 +120,9 @@ func (s seedPresenceHistoryStep) Run(ctx context.Context, rt *Runtime) error {
 // seedPresenceHistoryPlan writes the two independently committed parts of a
 // history seed. Status days use the normal HTTP write path, while attendance
 // needs the dev-tools-only writer. Keep the IDs from the former so either a
-// failed report or a rejected attendance batch restores a clean retry.
+// failed report or a rejected attendance batch removes the status days again.
+// The demo's route commits its chunks one by one; a retry reuses the chunks
+// that already went through, since the writer recognizes its own rows.
 func seedPresenceHistoryPlan(ctx context.Context, rt *Runtime, schoolID int64, write PresenceHistoryWriter, plan presenceHistoryPlan) error {
 	statusDays, createdStatusDays, err := seedPresenceHistoryStatusDays(rt, plan.statuses)
 	if err != nil {
@@ -349,28 +353,42 @@ func presenceHistoryInputFor(rt *Runtime, definition demoProfileDefinition) (pre
 	if rt.FixedSeeder == nil || rt.Bootstrap == nil {
 		return presenceHistoryInput{}, fmt.Errorf("presence history prerequisites not available")
 	}
+	input, err := pastCareInputFor(rt, definition)
+	if err != nil {
+		return presenceHistoryInput{}, err
+	}
+	if input.deviceID, err = seedTerminalID(rt, DemoDevices[0].DeviceID); err != nil {
+		return presenceHistoryInput{}, err
+	}
+	input.sessions = presenceHistorySessions(rt.FixedSeeder)
+	if input.deviceID == 0 || len(input.students) == 0 || len(input.sessions) == 0 {
+		return presenceHistoryInput{}, fmt.Errorf("presence history prerequisites not available")
+	}
+	return input, nil
+}
+
+// pastCareInputFor reads what decides who came on which past day: the care
+// days of the school and its children. The feedback history (#5029) needs
+// no more; the presence history adds the kiosk and the rooms.
+func pastCareInputFor(rt *Runtime, definition demoProfileDefinition) (presenceHistoryInput, error) {
 	today := calendar.TodayDate()
-	from := today.AddDays(-presenceHistoryDays)
+	return pastCareInputFrom(rt, definition, today, today.AddDays(-presenceHistoryDays))
+}
+
+func pastCareInputFrom(rt *Runtime, definition demoProfileDefinition, today, from calendar.Date) (presenceHistoryInput, error) {
 	closed, err := seedClosedDays(rt, from, today.AddDays(-1))
 	if err != nil {
 		return presenceHistoryInput{}, err
 	}
 	weekendCare := string(definition.Settings[profileSettingWeekendFollowsFriday].Value) == "true"
 	input := presenceHistoryInput{
-		today: today,
+		today: today, from: from,
 		careDays: func(day calendar.Date) bool {
 			return (weekendCare || !calendar.IsWeekend(day)) && !closed[day]
 		},
 	}
-	if input.deviceID, err = seedTerminalID(rt, DemoDevices[0].DeviceID); err != nil {
-		return presenceHistoryInput{}, err
-	}
 	if input.students, err = listPresenceHistoryStudents(rt); err != nil {
 		return presenceHistoryInput{}, err
-	}
-	input.sessions = presenceHistorySessions(rt.FixedSeeder)
-	if input.deviceID == 0 || len(input.students) == 0 || len(input.sessions) == 0 {
-		return presenceHistoryInput{}, fmt.Errorf("presence history prerequisites not available")
 	}
 	return input, nil
 }
@@ -524,7 +542,11 @@ func planPresenceHistory(input presenceHistoryInput) presenceHistoryPlan {
 	var plan presenceHistoryPlan
 	berlin := seedBerlinLocation()
 	statuses := map[int64]map[string][]calendar.Date{}
-	for day := input.today.AddDays(-presenceHistoryDays); day.Before(input.today); day = day.AddDays(1) {
+	from := input.from
+	if from.IsZero() {
+		from = input.today.AddDays(-presenceHistoryDays)
+	}
+	for day := from; day.Before(input.today); day = day.AddDays(1) {
 		if !input.careDays(day) {
 			continue
 		}

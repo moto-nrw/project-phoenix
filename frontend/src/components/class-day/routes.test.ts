@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   CLASS_DAY_CLASS_PARAM,
+  classDayChildPath,
   classDayClassParam,
   classDayDateParam,
   classDayOverviewPath,
@@ -97,5 +98,13 @@ describe("classDayClassParam", () => {
         classDayClassParam(classParamOf(classDayPath(name, "2026-10-26"))),
       ).toBe(name);
     }
+  });
+});
+
+describe("classDayChildPath", () => {
+  it("trägt Klasse, Kind und Tag in die Kind-Ansicht", () => {
+    expect(classDayChildPath("5 b/c", "42", "2026-09-09")).toBe(
+      "/school/klasse/kind?klasse=5%20b%2Fc&kind=42&tag=2026-09-09",
+    );
   });
 });

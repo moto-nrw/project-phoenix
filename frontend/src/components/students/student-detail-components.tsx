@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { stripClassPrefix } from "~/lib/arrival-schedule-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import useSWR from "swr";
@@ -472,7 +472,7 @@ export function StudentHeaderStats({
         <span className="inline-flex flex-wrap items-center gap-2">
           {student.school_class ? (
             <span className="truncate">
-              Klasse {stripClassPrefix(student.school_class)}
+              {schoolClassLabel(student.school_class)}
             </span>
           ) : null}
           {student.school_class && student.group_name ? (

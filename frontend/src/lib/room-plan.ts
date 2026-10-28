@@ -4,7 +4,13 @@
 // (room-plan-api.ts). Bewusst ohne die Planner-Module (timetable-api,
 // -helpers, -types): die Raumseite trägt sonst deren ganzes Bundle (#4768).
 
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  careWeekDayCount,
+  isCareWeekendDay,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 
 /** Ein Block im Raumplan, nur mit den Feldern, die der Reiter zeigt. */
 export interface RoomPlanBlock {
@@ -107,10 +113,14 @@ function shiftDays(iso: string, days: number): string {
 /**
  * Der Betreuungstag zu `iso`, wie im Betreuungsplan: am Wochenende der
  * folgende Montag, außer die Schule betreut das Wochenende nach dem
- * Freitagsplan (#3921).
+ * Freitagsplan (#3921) und es ist das heutige Wochenende (#5028).
  */
-export function roomPlanCareDay(iso: string, weekendOpen: boolean): string {
-  if (weekendOpen) return iso;
+export function roomPlanCareDay(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): string {
+  if (isCareWeekendDay(iso, weekendOpen, todayISO)) return iso;
   const weekday = parseISODate(iso).getDay();
   if (weekday === 6) return shiftDays(iso, 2);
   if (weekday === 0) return shiftDays(iso, 1);
@@ -122,12 +132,14 @@ export function roomPlanStepDay(
   iso: string,
   direction: 1 | -1,
   weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
 ): string {
   let next = shiftDays(iso, direction);
-  if (!weekendOpen) {
-    while ([0, 6].includes(parseISODate(next).getDay())) {
-      next = shiftDays(next, direction);
-    }
+  while (
+    [0, 6].includes(parseISODate(next).getDay()) &&
+    !isCareWeekendDay(next, weekendOpen, todayISO)
+  ) {
+    next = shiftDays(next, direction);
   }
   return next;
 }
@@ -137,11 +149,19 @@ export function roomPlanStepWeek(mondayISO: string, direction: 1 | -1): string {
   return shiftDays(mondayISO, 7 * direction);
 }
 
-/** Montag bis Freitag der Woche von `iso`, mit Wochenende bis Sonntag. */
-export function roomPlanWeekDays(iso: string, weekendOpen: boolean): string[] {
+/**
+ * Montag bis Freitag der Woche von `iso`; bis Sonntag nur in der Woche mit
+ * dem heutigen Wochenende (`careWeekDayCount`, #5028).
+ */
+export function roomPlanWeekDays(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO?: string,
+): string[] {
   const monday = shiftDays(iso, -((parseISODate(iso).getDay() + 6) % 7));
-  return Array.from({ length: weekendOpen ? 7 : 5 }, (_, index) =>
-    shiftDays(monday, index),
+  return Array.from(
+    { length: careWeekDayCount(iso, weekendOpen, todayISO) },
+    (_, index) => shiftDays(monday, index),
   );
 }
 

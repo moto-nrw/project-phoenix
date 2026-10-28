@@ -2,6 +2,8 @@
 package common
 
 const (
+	CodeTimetableCalendarPeriodEndBeforeStart          = "timetable.calendar_period_end_before_start"
+	CodeTimetableCalendarPeriodInvalid                 = "timetable.calendar_period_invalid"
 	CodeTimetableCalendarPeriodNameTaken               = "timetable.calendar_period_name_taken"
 	CodeTimetableCalendarPeriodNotFound                = "timetable.calendar_period_not_found"
 	CodeTimetableCalendarPeriodOverlapConflict         = "timetable.calendar_period_overlap_conflict"
@@ -212,6 +214,8 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.calendar_period_end_before_start":           "input",
+	"timetable.calendar_period_invalid":                    "input",
 	"timetable.calendar_period_name_taken":                 "business_rejection",
 	"timetable.calendar_period_not_found":                  "business_rejection",
 	"timetable.calendar_period_overlap_conflict":           "business_rejection",

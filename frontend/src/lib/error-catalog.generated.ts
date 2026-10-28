@@ -615,6 +615,8 @@ export const ERROR_CATALOG = {
         "Eigene Rollen können dieses Recht nicht bekommen.",
       "identity.session_account_inactive":
         "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
+      "identity.session_tenant_mismatch":
+        "Die Schule wurde in einem anderen Fenster gewechselt. moto stellt diese Seite gleich wieder um. Bitte versuchen Sie es danach noch einmal.",
       "identity.tenant_access_denied":
         "Ihr Konto hat keinen Zugang zu dieser Schule. Bitte melden Sie sich neu an.",
       "identity.tenant_access_not_found":
@@ -1442,6 +1444,8 @@ export const ERROR_CATALOG = {
         "Die Mail an diese Familie wird gerade gesendet. Bitte warten Sie, bis sie gesendet ist oder nicht zugestellt wurde.",
       "parent_billing.recipient_email_missing":
         "Für diese Familie gibt es keine E-Mail-Adresse. Bitte drucken Sie das Schreiben und geben Sie es der Familie.",
+      "parent_billing.parent_document_not_found":
+        "Dieses Dokument gibt es nicht mehr. Bitte laden Sie die Seite neu.",
     },
   },
   en: {
@@ -1806,6 +1810,8 @@ export const ERROR_CATALOG = {
         "The password is too weak. It needs at least 8 characters, upper and lower case letters, a number and a special character.",
       "identity.session_account_inactive":
         "Your account is switched off. Please contact your school's management.",
+      "identity.session_tenant_mismatch":
+        "The school was changed in another window. moto will switch this page back shortly. Please try again afterwards.",
       "meals.child_not_enrolled":
         "{object} is not possible. The child is not in care on this day.",
       "meals.day_closed":
@@ -1898,6 +1904,8 @@ export const ERROR_CATALOG = {
         "To open a school you need a second sign-in factor. Please sign in to the Träger portal again.",
       "traeger.school_not_found":
         "This school does not belong to your Träger. Please reload the page.",
+      "parent_billing.parent_document_not_found":
+        "This document is no longer available. Please reload the page.",
     },
   },
   ru: {
@@ -2227,6 +2235,8 @@ export const ERROR_CATALOG = {
         "Пароль слишком простой. Нужно минимум 8 символов, заглавные и строчные буквы, цифра и специальный символ.",
       "identity.session_account_inactive":
         "Ваш аккаунт отключён. Обратитесь к руководству вашей школы.",
+      "identity.session_tenant_mismatch":
+        "Школа была изменена в другом окне. moto сейчас переключит эту страницу обратно. Попробуйте ещё раз чуть позже.",
       "meals.child_not_enrolled":
         "Невозможно: {object}. В этот день ребёнок не находится под присмотром.",
       "meals.day_closed": "Невозможно: {object}. В этот день школа закрыта.",
@@ -2282,6 +2292,8 @@ export const ERROR_CATALOG = {
         "Для класса этого ребёнка на сегодня нет домашних заданий.",
       "traeger.access_log_export_too_large":
         "В экспорте больше {limit} записей. Выберите более короткий период или другие фильтры.",
+      "parent_billing.parent_document_not_found":
+        "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
     },
   },
   sq: {
@@ -2624,6 +2636,8 @@ export const ERROR_CATALOG = {
         "Fjalëkalimi është shumë i dobët. Duhen të paktën 8 karaktere, shkronja të mëdha dhe të vogla, një numër dhe një karakter special.",
       "identity.session_account_inactive":
         "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
+      "identity.session_tenant_mismatch":
+        "Shkolla u ndryshua në një dritare tjetër. moto do ta kthejë këtë faqe së shpejti. Ju lutemi provoni përsëri pak më vonë.",
       "meals.child_not_enrolled":
         "Nuk është e mundur: {object}. Fëmija nuk është në kujdes në këtë ditë.",
       "meals.day_closed":
@@ -2681,6 +2695,8 @@ export const ERROR_CATALOG = {
         "Për klasën e këtij fëmije nuk ka detyra shtëpie për sot.",
       "traeger.access_log_export_too_large":
         "Eksporti ka më shumë se {limit} hyrje. Zgjidhni një periudhë më të shkurtër ose më shumë filtra.",
+      "parent_billing.parent_document_not_found":
+        "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
     },
   },
   pl: {
@@ -3011,6 +3027,8 @@ export const ERROR_CATALOG = {
         "Hasło jest zbyt słabe. Potrzeba co najmniej 8 znaków, wielkich i małych liter, cyfry i znaku specjalnego.",
       "identity.session_account_inactive":
         "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
+      "identity.session_tenant_mismatch":
+        "Szkoła została zmieniona w innym oknie. moto zaraz przełączy tę stronę z powrotem. Spróbuj ponownie za chwilę.",
       "meals.child_not_enrolled":
         "Nie można: {object}. Dziecko nie jest tego dnia pod opieką.",
       "meals.day_closed":
@@ -3067,6 +3085,8 @@ export const ERROR_CATALOG = {
         "Dla klasy tego dziecka nie ma dziś wpisanych zadań domowych.",
       "traeger.access_log_export_too_large":
         "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
+      "parent_billing.parent_document_not_found":
+        "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
     },
   },
   tr: {
@@ -3403,6 +3423,8 @@ export const ERROR_CATALOG = {
         "Şifre çok zayıf. En az 8 karakter, büyük ve küçük harf, bir rakam ve bir özel karakter gerekir.",
       "identity.session_account_inactive":
         "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
+      "identity.session_tenant_mismatch":
+        "Okul başka bir pencerede değiştirildi. moto bu sayfayı birazdan geri geçirecek. Lütfen biraz sonra tekrar deneyin.",
       "meals.child_not_enrolled":
         "{object} mümkün değil. Çocuk bu gün bakımda değil.",
       "meals.day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
@@ -3459,6 +3481,8 @@ export const ERROR_CATALOG = {
         "Bu çocuğun sınıfı için bugün ev ödevi girilmedi.",
       "traeger.access_log_export_too_large":
         "Dışa aktarma {limit} kayıttan fazla içeriyor. Lütfen daha kısa bir dönem veya daha fazla filtre seçin.",
+      "parent_billing.parent_document_not_found":
+        "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
     },
   },
   uk: {
@@ -3787,6 +3811,8 @@ export const ERROR_CATALOG = {
         "Пароль надто простий. Потрібно щонайменше 8 символів, великі й малі літери, цифра і спеціальний символ.",
       "identity.session_account_inactive":
         "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
+      "identity.session_tenant_mismatch":
+        "Школу змінено в іншому вікні. moto зараз перемкне цю сторінку назад. Спробуйте ще раз трохи пізніше.",
       "meals.child_not_enrolled":
         "Неможливо: {object}. Цього дня дитина не перебуває під доглядом.",
       "meals.day_closed": "Неможливо: {object}. Цього дня школа зачинена.",
@@ -3842,6 +3868,8 @@ export const ERROR_CATALOG = {
         "Для класу цієї дитини на сьогодні немає домашніх завдань.",
       "traeger.access_log_export_too_large":
         "В експорті понад {limit} записів. Виберіть коротший період або інші фільтри.",
+      "parent_billing.parent_document_not_found":
+        "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
     },
   },
 } as const;

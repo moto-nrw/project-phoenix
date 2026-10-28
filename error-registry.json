@@ -2039,6 +2039,12 @@
       "legacy": "account_inactive"
     },
     {
+      "code": "identity.session_tenant_mismatch",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.session_tenant_mismatch"
+    },
+    {
       "code": "identity.tenant_access_denied",
       "class": "permission",
       "parameters": [],
@@ -5018,6 +5024,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "parent_billing.recipient_email_missing"
+    },
+    {
+      "code": "parent_billing.parent_document_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.parent_document_not_found"
     }
   ]
 }

@@ -3975,7 +3975,7 @@ function FormChoice({
       <span
         className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
           checked
-            ? "border-moto-green bg-moto-green text-gray-950"
+            ? "border-moto-green-fill bg-moto-green-fill text-white"
             : "border-gray-300 bg-white"
         }`}
         aria-hidden="true"

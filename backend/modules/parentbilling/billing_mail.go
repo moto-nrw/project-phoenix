@@ -132,6 +132,10 @@ type BillingLetterPost interface {
 	EnqueueLetterMail(ctx context.Context, mail BillingLetterMail) (int64, error)
 	// LetterMailStates reads the mails of a run Delivery still keeps.
 	LetterMailStates(ctx context.Context, organizationID, runID int64) ([]BillingLetterMailState, error)
+	// EnqueueDocumentNotice puts the push of the Träger that the letter is
+	// in the inbox of the parents portal on Delivery's outbox (#4671, ADR
+	// 0126). It is keyed by the letter, so only its first send pushes.
+	EnqueueDocumentNotice(ctx context.Context, notice BillingDocumentNotice) error
 }
 
 // RenderedLetterMail is the mail of a letter as the Delivery worker sends

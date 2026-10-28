@@ -78,7 +78,8 @@
     "more": "More",
     "unreadCount": "{count} unread",
     "openCount": "{count} open",
-    "noticeCount": "{count} notices"
+    "noticeCount": "{count} notices",
+    "documents": "Documents"
   },
   "parentFirstSteps": {
     "title": "Getting started",
@@ -272,6 +273,22 @@
     "errorObjectWeekRegister": "the registration for the week",
     "participationCutoffLead": "You can change the registration until {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}}.",
     "participationSicknessLead": "A confirmed sick note by {time} {days, plural, one {on the working day before the meal} other {# working days before the meal}} cancels lunch. After that, the registration remains unchanged."
+  },
+  "parentDocuments": {
+    "title": "Documents",
+    "description": "Here you find letters the provider sent you. For example the confirmation of holiday care.",
+    "emptyTitle": "No documents yet",
+    "emptyDescription": "When the provider sends you a letter, you find it here. You also get it by email.",
+    "confirmationLetter": "Confirmation letter {period}",
+    "sender": "From {traeger}",
+    "children": "For",
+    "amount": "Amount",
+    "number": "Invoice number",
+    "sentAt": "Sent on",
+    "download": "Download PDF",
+    "downloading": "Downloading …",
+    "errorObject": "the documents",
+    "downloadErrorObject": "the document"
   },
   "mealOrders": {
     "title": "Order",
@@ -728,6 +745,10 @@
       "parent_care_cancelled": {
         "label": "Care cancelled",
         "description": "When the OGS cancels one of your child's care sessions."
+      },
+      "parent_billing_document": {
+        "label": "New document from the provider",
+        "description": "When the provider sends you a document, for example a confirmation letter."
       }
     },
     "errorObjectList": "the list of notifications",
@@ -2751,6 +2772,7 @@
         "role_name_taken": "{object} could not be changed. Please check its current status.",
         "role_platform_permission": "{object} could not be saved. Please check your entries.",
         "session_account_inactive": "Your account is switched off. Please contact your school's management.",
+        "session_tenant_mismatch": "The school was changed in another window. moto will switch this page back shortly. Please try again afterwards.",
         "tenant_access_denied": "You cannot access {object}. Please contact the school.",
         "use_parent_portal": "You cannot access {object}. Please contact the school.",
         "use_school_portal": "You cannot access {object}. Please contact the school.",
@@ -2868,6 +2890,7 @@
         "letterhead_too_long": "{object} could not be changed. Please check its current status.",
         "number_range_invalid": "{object} could not be saved. Please check your entries.",
         "number_range_missing": "{object} could not be changed. Please check its current status.",
+        "parent_document_not_found": "This document is no longer available. Please reload the page.",
         "recipient_email_missing": "{object} could not be changed. Please check its current status."
       },
       "pickup": {

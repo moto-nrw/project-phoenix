@@ -52,7 +52,8 @@ func TestTenantResolveEmitsReasonPolicy(t *testing.T) {
 	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation, authRoute.SettingsService)
 	resource.SettingsService = authRoute.SettingsService
 
-	assert.Equal(t, settings.ReasonPolicyBoth, resolveReasonPolicy(t, slug, resource),
+	// The registry default is "guardians" since #5024.
+	assert.Equal(t, settings.ReasonPolicyGuardians, resolveReasonPolicy(t, slug, resource),
 		"a school that never touched the setting gets the registry default")
 
 	require.NoError(t,

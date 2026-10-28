@@ -260,6 +260,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET operator /operator/organizations/id%2F1/traeger-members",
     "POST operator /operator/organizations/id%2F1/traeger-members",
   ],
+  "api/operator/provisioning/organizations/[id]/traeger-members/invitations": [
+    "POST operator /operator/organizations/id%2F1/traeger-members/invitations",
+  ],
   "api/operator/provisioning/organizations/[id]/persons": [
     "GET operator /operator/organizations/id%2F1/persons",
   ],
@@ -442,6 +445,7 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/parent/me/enrollable-schools": [
     "GET parent /parent/me/enrollable-schools",
   ],
+  "api/parent/me/documents": ["GET parent /parent/me/documents"],
   "api/parent/me/enrollments": ["GET parent /parent/me/enrollments"],
   "api/parent/me/messages": ["GET parent /parent/me/messages"],
   "api/parent/me/messages/children/[studentId]": [
@@ -785,6 +789,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/students/[id]/care-end/resume": [
     "POST tenant /api/students/id%2F1/care-end/resume",
   ],
+  "api/students/[id]/care-withdrawals": [
+    "GET tenant /api/students/id%2F1/care-withdrawals",
+  ],
   "api/students/[id]/companions": [
     "GET tenant /api/students/id%2F1/companions",
   ],
@@ -1036,6 +1043,12 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/offering-sources/combined-counts": [
     "GET tenant /api/timetable/offering-sources/combined-counts",
   ],
+  "api/timetable/offering-sources/preview": [
+    "GET tenant /api/timetable/offering-sources/preview",
+  ],
+  "api/timetable/offering-sources/suggestion": [
+    "GET tenant /api/timetable/offering-sources/suggestion",
+  ],
   "api/timetable/operations/active-groups/[id]/roster": [
     "GET tenant /api/timetable/operations/active-groups/id%2F1/roster",
   ],
@@ -1120,8 +1133,23 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/timetable/templates/id%2F1",
     "PUT tenant /api/timetable/templates/id%2F1",
   ],
+  "api/timetable/templates/[id]/manual-roster": [
+    "PUT tenant /api/timetable/templates/id%2F1/manual-roster",
+  ],
+  "api/timetable/templates/[id]/offering-connection": [
+    "POST tenant /api/timetable/templates/id%2F1/offering-connection",
+  ],
+  "api/timetable/templates/[id]/offering-preview": [
+    "GET tenant /api/timetable/templates/id%2F1/offering-preview",
+  ],
   "api/timetable/templates/[id]/split": [
     "POST tenant /api/timetable/templates/id%2F1/split",
+  ],
+  "api/timetable/templates/[id]/students/[studentId]/remove-days": [
+    "POST tenant /api/timetable/templates/id%2F1/students/studentId%2F1/remove-days",
+  ],
+  "api/timetable/templates/roster-deviations": [
+    "GET tenant /api/timetable/templates/roster-deviations",
   ],
   "api/traeger/access-log": ["GET traeger /traeger/access-log"],
   "api/traeger/access-log/people": ["GET traeger /traeger/access-log/people"],

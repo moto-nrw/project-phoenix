@@ -268,16 +268,38 @@ func (m *BookingMaterialization) sourcedTemplateSegment(
 		return careplan.LinkedSegment{}, false
 	}
 	group := careplan.LinkedGroup{ID: tmpl.ID, IsTemplate: true, CalendarPeriodID: tmpl.CalendarPeriodID}
-	period, err := m.catalog.ResolveTemplatePeriod(ctx, group)
+	period, err := m.sourcedTemplatePeriod(ctx, group, schedules)
 	if err != nil {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
 		return careplan.LinkedSegment{}, false
 	}
-	if err := careplan.ValidatePhaseWithinPeriod(feed.phase, &period); err != nil {
+	if period == nil {
+		return careplan.LinkedSegment{Group: group, Schedules: schedules}, true
+	}
+	if err := careplan.ValidatePhaseWithinPeriod(feed.phase, period); err != nil {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "phase outside template period", err)
 		return careplan.LinkedSegment{}, false
 	}
-	return careplan.LinkedSegment{Group: group, Period: &period, Schedules: schedules}, true
+	return careplan.LinkedSegment{Group: group, Period: period, Schedules: schedules}, true
+}
+
+// sourcedTemplatePeriod is the period a sourced template plans its children
+// under: the one period its schedules share, or else the template's own
+// period, nil when it has none. The template-save resync plans every sourced
+// template under the template's own period (sourcedTemplateDraft), so a
+// template whose schedules name no period or different periods must not be
+// skipped here: a correction would delete rows it never re-creates (#5114,
+// #5153).
+func (m *BookingMaterialization) sourcedTemplatePeriod(
+	ctx context.Context,
+	group careplan.LinkedGroup,
+	schedules []careplan.LinkedSchedule,
+) (*careplan.LinkedPeriod, error) {
+	periodID := group.CalendarPeriodID
+	if shared, err := resolveTemplateSchedulePeriodID(group, schedules); err == nil {
+		periodID = &shared
+	}
+	return m.catalog.offeringSourcePeriod(ctx, periodID)
 }
 
 func addSourcedSegmentDraft(

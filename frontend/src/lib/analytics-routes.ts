@@ -139,6 +139,8 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/children",
   "/children/:id",
   "/demo",
+  // Dokumente des Trägers (#4671).
+  "/documents",
   // Öffentliche Ferienanmeldung eines Trägers (#4661), ohne Konto.
   "/ferienanmeldung/:token",
   "/invite",
@@ -164,6 +166,7 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/invite",
   "/kalender",
   "/klasse",
+  "/klasse/kind",
   "/login",
   "/nachrichten",
   "/nachrichten/:threadID",

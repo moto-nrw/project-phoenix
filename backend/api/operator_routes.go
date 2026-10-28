@@ -94,7 +94,9 @@ type operatorSchoolSettings struct {
 // operatorRouter builds the operator routes. billing (#2791) and
 // schoolSettings (#2736) are optional: without them their routes are not
 // mounted. unregisteredTagScans is the optional Device Fleet review of
-// unregistered RFID scans (#3232). The auth limiter guards operator login
+// unregistered RFID scans (#3232). demoPresenceHistory is Student Presence's
+// write of past care days for the public demo's seeder (ADR 0127); the root
+// passes it under APP_ENV=demo only. The auth limiter guards operator login
 // against brute force; e-mail confirmation and invitations have their own
 // limiters and fall back to the auth limiter.
 func operatorRouter(
@@ -107,6 +109,7 @@ func operatorRouter(
 	limiters authRateLimiters,
 	staffPersonMerge http.Handler,
 	sampleChildren http.HandlerFunc,
+	demoPresenceHistory http.HandlerFunc,
 ) chi.Router {
 	// The root provides the session chains; without the signer the verifier
 	// mounts below would fail with a nil dereference instead of naming the
@@ -135,7 +138,7 @@ func operatorRouter(
 
 		identityRoutes.mountPasskeyRoutes(r)
 		mountOperatorProvisioningRoutes(r, provisioningRoutes, sampleChildren)
-		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings)
+		mountOperatorSchoolRoutes(r, provisioningRoutes, identityRoutes.mfaAdmin, schoolSettings, demoPresenceHistory)
 		mountOperatorPersonRoutes(r, provisioningRoutes)
 		r.Mount("/staff-person-merges", staffPersonMerge)
 		mountOperatorTagScanRoutes(r, unregisteredTagScans, provisioningRoutes)
@@ -300,6 +303,7 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 		r.Get("/{id}/persons", provisioning.AuditReadAccess(organizationtenancy.ReadOrganizationPersons, provisioning.ListOrganizationPersons))
 		r.Get("/{id}/traeger-members", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerMembers, provisioning.ListTraegerMembers))
 		r.Post("/{id}/traeger-members", provisioning.AssignTraegerMember)
+		r.Post("/{id}/traeger-members/invitations", provisioning.InviteTraegerMember)
 		r.Delete("/{id}/traeger-members/{accountId}/mfa", provisioning.ResetTraegerMemberMFA)
 		r.Get("/{id}/erasure-order", provisioning.TraegerErasureOrder)
 		r.Post("/{id}/erasure-order", provisioning.RecordTraegerErasureOrder)
@@ -311,12 +315,13 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 }
 
 // mountOperatorSchoolRoutes registers the /schools subtree, including the
-// optional per-school settings endpoints.
+// optional per-school settings endpoints and the demo's presence history.
 func mountOperatorSchoolRoutes(
 	r chi.Router,
 	provisioning *provisioningOperatorAPI.ProvisioningResource,
 	mfaAdmin *identityOperatorAPI.SchoolAccountMFAResource,
 	schoolSettings *operatorSchoolSettings,
+	demoPresenceHistory http.HandlerFunc,
 ) {
 	r.Route("/schools", func(r chi.Router) {
 		r.Get("/", provisioning.AuditReadAccess(organizationtenancy.ReadSchools, provisioning.ListSchools))
@@ -344,6 +349,9 @@ func mountOperatorSchoolRoutes(
 		r.Get("/{id}/devices", provisioning.ListSchoolDevices)
 		r.Get("/{id}/persons", provisioning.AuditReadAccess(organizationtenancy.ReadSchoolPersons, provisioning.ListSchoolPersons))
 		r.Get("/{id}/pwa-usage", provisioning.GetSchoolPWAUsage)
+		if demoPresenceHistory != nil {
+			r.Post("/{id}/demo-presence-history", provisioning.AuditReadAccess(organizationtenancy.ReadDemoPresenceHistory, demoPresenceHistory))
+		}
 		if schoolSettings != nil {
 			values := schoolSettings.values
 			r.Route("/{id}/settings", func(r chi.Router) {

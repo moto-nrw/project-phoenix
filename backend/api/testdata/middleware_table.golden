@@ -36,6 +36,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /operator/organizations/{id}/erasure-order
 	POST /operator/organizations/{id}/sample-children
 	POST /operator/organizations/{id}/traeger-members
+	POST /operator/organizations/{id}/traeger-members/invitations
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/jwtauth/v5.Verify# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > modules/identityaccess/inbound/operator.RequiresOperatorScope > api.SecurityPrincipalMiddleware > modules/identityaccess/inbound/operator.RequiresActiveOperator# > api.TenantScopeMiddleware > api/common.TenantTxMiddleware
 	GET /operator/staff-person-merges/{schoolId}
@@ -57,6 +58,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 	DELETE /school/class-day/handover/{schoolClass}/{date}
 	DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
+	GET /school/class-day/shared-notes/{schoolClass}/students/{studentId}
 	POST /school/class-day/class-trips/{schoolClass}
 	POST /school/class-day/homework/{schoolClass}
 	PUT /school/class-day/absence-reports/{schoolClass}/{date}/students/{studentId}
@@ -109,6 +111,8 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /parent/holiday-registrations/{token}/family
 	GET /parent/me/children/{studentId}/pickup-permission-requests
 	GET /parent/me/children/{studentId}/pickup-requests/{requestId}/proof
+	GET /parent/me/documents
+	GET /parent/me/documents/{organizationId}/{documentId}/pdf
 	GET /parent/me/messages/group-threads
 	GET /parent/me/messages/group-threads/{groupThreadId}
 	GET /parent/me/news/{announcementId}/survey
@@ -152,13 +156,21 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /api/meal-plan/participants/week/export
 	GET /api/meal-plan/participation/{studentId}
 	GET /api/students/care-schedule-change-requests/{requestId}/proof
+	GET /api/students/{id}/care-withdrawals
 	GET /api/students/{id}/note-subjects
 	GET /api/timetable/holidays
+	GET /api/timetable/offering-sources/preview
+	GET /api/timetable/offering-sources/suggestion
+	GET /api/timetable/templates/roster-deviations
+	GET /api/timetable/templates/{id}/offering-preview
 	POST /api/meal-caterer/invitations
 	POST /api/staff/externals/{id}/invitation
+	POST /api/timetable/templates/{id}/offering-connection
+	POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 	PUT /api/meal-plan/participation/{studentId}/days/{date}
 	PUT /api/meal-plan/participation/{studentId}/schedule
 	PUT /api/timetable/operations/instances/{id}/students/{student_id}/homework-feedback
+	PUT /api/timetable/templates/{id}/manual-roster
 
 api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.requirePermissions.# > api/common.TenantTxMiddleware
 	PUT /api/holiday-weeks/{weekId}/guest-group

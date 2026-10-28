@@ -820,11 +820,7 @@ export const API_KEY_COPY_FAILED_MESSAGE =
 
 // --- Träger-Büro (#4649) ---
 
-export {
-  TRAEGER_ROLES,
-  TRAEGER_ROLE_LABELS,
-  type TraegerRole,
-} from "~/lib/traeger-roles";
+export { TRAEGER_ROLE_LABELS, type TraegerRole } from "~/lib/traeger-roles";
 
 export type TraegerMemberStatus = "active" | "pending" | "inactive";
 
@@ -866,8 +862,11 @@ export function mapTraegerMember(data: BackendTraegerMember): TraegerMember {
 
 export interface AssignTraegerMemberRequest {
   email: string;
-  role: TraegerRole;
+  roles: TraegerRole[];
 }
+
+/** The operator's invitation into a Träger-Büro (#5144). */
+export type InviteTraegerMemberRequest = AssignTraegerMemberRequest;
 
 // Löschauftrag eines deaktivierten Trägers (#4657). Kalenderdaten bleiben
 // "YYYY-MM-DD"-Strings.

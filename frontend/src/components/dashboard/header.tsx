@@ -28,6 +28,7 @@ import {
   getSchoolHelpTopicForPath,
 } from "~/lib/help-topics";
 import { ContextHelpLink } from "~/components/help/context-help-link";
+import { getTraegerHelpTopicForPath } from "~/components/traeger/traeger-help";
 import { getAccountRoleLabel } from "~/lib/auth-helpers";
 import { isDemoBuild } from "~/lib/demo-access";
 
@@ -80,8 +81,14 @@ function schoolTitleForPath(pathname: string): string | null {
   if (pathname === "/" || pathname === "/school") return "Klassenansicht";
   // Die Klassenseite (#2294) ist eine Ebene der Klassenansicht, kein eigener
   // Bereich: der Kopf behält den Namen des Bereichs, den Klassennamen trägt
-  // die Seite selbst.
-  if (pathname === "/klasse" || pathname === "/school/klasse") {
+  // die Seite selbst. Die Beobachtungen der OGS zu einem Kind (#4797)
+  // liegen eine Ebene darunter und bleiben ebenfalls im Bereich.
+  if (
+    pathname === "/klasse" ||
+    pathname === "/school/klasse" ||
+    pathname.startsWith("/klasse/") ||
+    pathname.startsWith("/school/klasse/")
+  ) {
     return "Klassenansicht";
   }
   if (pathname === "/aufsichten" || pathname === "/school/aufsichten") {
@@ -132,6 +139,30 @@ function catererTitleForPath(pathname: string): string | null {
   return null;
 }
 
+// Träger-Portal (#5145): auf dem Träger-Host ohne /traeger-Präfix. Eine
+// Unterseite behält den Namen ihres Bereichs, wie in moto schule; ihren
+// eigenen Namen trägt die Seite selbst.
+const TRAEGER_PAGE_TITLES: ReadonlyArray<
+  readonly [path: string, title: string]
+> = [
+  ["/ferien", "Ferien"],
+  ["/beitraege", "Beiträge"],
+  ["/abrechnung", "Abrechnung"],
+  ["/accounts", "Personen"],
+  ["/access-log", "Zugriffsprotokoll"],
+  ["/briefkopf", "Briefkopf"],
+  ["/einstellungen", "Einstellungen"],
+];
+
+function traegerTitleForPath(pathname: string): string | null {
+  const page = pathname.replace(/^\/traeger(?=\/|$)/, "") || "/";
+  if (page === "/") return "Schulen";
+  for (const [path, title] of TRAEGER_PAGE_TITLES) {
+    if (matchesPathPrefix(page, path)) return title;
+  }
+  return null;
+}
+
 // In moto schule arbeiten Lehrkräfte und die Schulverwaltung (#4789);
 // Sekretariat und Schulleitung sollen nicht als Lehrkraft beschriftet sein.
 function schoolRoleLabel(roles: readonly string[]): string {
@@ -179,6 +210,7 @@ export function Header() {
     homeUrl,
     profileUrl,
     canStartStaffPreview,
+    brandLabel: shellBrandLabel,
   } = useShellAuth();
   // Ein-/Ausklappen der Desktop-Seitenleiste (#2825) — nur in den Portalen
   // mit einklappbarer Leiste; das Eltern- und das Schul-Portal haben eigene
@@ -232,6 +264,8 @@ export function Header() {
       return tParentNav("settings");
     if (pathname === "/parents/meal-plan" || pathname === "/meal-plan")
       return tParentNav("mealPlan");
+    if (pathname === "/parents/documents" || pathname === "/documents")
+      return tParentNav("documents");
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
     if (
@@ -249,7 +283,9 @@ export function Header() {
       ? schoolTitleForPath(pathname)
       : mode === "caterer"
         ? catererTitleForPath(pathname)
-        : null;
+        : mode === "traeger"
+          ? traegerTitleForPath(pathname)
+          : null;
   const displayedPageTitle = parentPageTitle ?? schoolPageTitle ?? pageTitle;
   // Die Seitenhilfe bei den Aktionen. Jedes Portal hat seine eigenen
   // Routen: `/messages` heisst im Personal-Portal etwas anderes als im
@@ -258,6 +294,7 @@ export function Header() {
     if (mode === "teacher") return helpTopic ?? getHelpTopicForPath(pathname);
     if (mode === "parent") return getParentHelpTopicForPath(pathname);
     if (mode === "school") return getSchoolHelpTopicForPath(pathname);
+    if (mode === "traeger") return getTraegerHelpTopicForPath(pathname);
     return null;
   })();
 
@@ -276,7 +313,9 @@ export function Header() {
           ? schoolRoleLabel(userRoles)
           : mode === "caterer"
             ? "Caterer"
-            : getAccountRoleLabel(userRoles, user?.roleIsSystem);
+            : mode === "traeger"
+              ? "Träger-Büro"
+              : getAccountRoleLabel(userRoles, user?.roleIsSystem);
 
   // Beim Scrollen bekommt die Kopfzeile nur noch einen Schatten (Hysterese
   // gegen Flackern). Die Höhe bleibt beim Scrollen fest: 48px auf dem Telefon
@@ -307,7 +346,14 @@ export function Header() {
   const displayName = userName;
   const displayAvatar = profile?.avatar;
   const profileMenuLabel = tParentNav("profileMenu", { name: displayName });
-  const brandLabel = mode === "teacher" ? tenantContext?.tenant?.name : null;
+  // Neben dem Logo steht im Personal-Portal die Schule, im Träger-Portal der
+  // Träger (#5145).
+  const brandLabel =
+    mode === "teacher"
+      ? tenantContext?.tenant?.name
+      : mode === "traeger"
+        ? shellBrandLabel
+        : null;
 
   const isSessionExpired = sessionExpired;
 
@@ -383,7 +429,7 @@ export function Header() {
                 hideLabelBelow={
                   mode === "parent"
                     ? "lg"
-                    : mode === "school"
+                    : mode === "school" || mode === "traeger"
                       ? "md"
                       : undefined
                 }
@@ -428,25 +474,29 @@ export function Header() {
             {contextualHelpTopic ? (
               <ContextHelpLink
                 topic={contextualHelpTopic}
-                // Unter lg sitzt die Hilfe im Seitenkopf. moto schule
-                // behält diese Kopfzeile auf jeder Breite.
+                // Unter lg sitzt die Hilfe im Seitenkopf. moto schule und
+                // das Träger-Portal behalten diese Kopfzeile auf jeder Breite.
                 containerClassName={
-                  mode === "school" ? undefined : "hidden lg:inline-flex"
+                  mode === "school" || mode === "traeger"
+                    ? undefined
+                    : "hidden lg:inline-flex"
                 }
               />
             ) : null}
             {/* Desktop actions */}
             <div className="hidden items-center space-x-2 lg:flex">
               <SessionWarning isExpired={isSessionExpired} variant="desktop" />
-              {/* Das Caterer-Portal lädt ohne SWR, der Knopf frischte dort
-                  nichts auf. */}
-              {mode !== "caterer" && <RefreshButton />}
+              {/* Das Caterer- und das Träger-Portal laden ohne SWR, der
+                  Knopf frischte dort nichts auf. */}
+              {mode !== "caterer" && mode !== "traeger" && <RefreshButton />}
             </div>
 
             {/* Mobile actions */}
             <div className="flex items-center space-x-2 lg:hidden">
               <SessionWarning isExpired={isSessionExpired} variant="mobile" />
-              {mode !== "parent" && mode !== "caterer" && <RefreshButton />}
+              {mode !== "parent" &&
+                mode !== "caterer" &&
+                mode !== "traeger" && <RefreshButton />}
             </div>
 
             {mode === "teacher" ? <RemindersBell /> : null}

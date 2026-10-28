@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -21,12 +22,20 @@ var seedTraegerInvitees = []struct {
 	{"tobias.engel@ganztag-nord.example", "personnel"},
 }
 
+// seedTraegerOperatorInvitee is the person the moto team invites into the
+// Träger-Büro from the operator portal (#5144), with two roles in one step.
+var seedTraegerOperatorInvitee = struct {
+	email string
+	roles []string
+}{"petra.hoffmann@ganztag-nord.example", []string{"administration", "billing"}}
+
 // seedTraegerBueroStep makes the bootstrap school admin the first person of
 // the Träger-Büro (ADR 0084, #4649) through the operator route, so every dev
 // and demo database can sign in to the Träger-Portal with the admin's
 // credentials and sees the Träger's schools. The admin also holds the role
-// Abrechnung, so the dev database shows the contribution rules (#4664).
-// Signed in to the Träger-Portal,
+// Abrechnung, so the dev database shows the contribution rules (#4664); both
+// roles go in one assignment (#5144). The operator also invites a person
+// without a moto account (#5144). Signed in to the Träger-Portal,
 // the admin then invites a colleague for the Abrechnung and one for the
 // Personal (#4650), so the page "Personen" shows a person and open
 // invitations.
@@ -42,12 +51,14 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	rt.Client.BindAuth(rt.OperatorAuth)
 	defer rt.Client.BindAuth(previousAuth)
 	path := fmt.Sprintf("/operator/organizations/%d/traeger-members", rt.Bootstrap.OrganizationID)
-	for _, role := range []string{"administration", "billing"} {
-		if _, err := rt.Client.Post(path, map[string]string{"email": rt.Bootstrap.AdminEmail, "role": role}); err != nil {
-			return fmt.Errorf("assign the Träger-Büro: %w", err)
-		}
+	if _, err := rt.Client.Post(path, map[string]any{"email": rt.Bootstrap.AdminEmail, "roles": []string{"administration", "billing"}}); err != nil {
+		return fmt.Errorf("assign the Träger-Büro: %w", err)
 	}
 	fmt.Println("  Träger-Büro: school admin assigned with roles Verwaltung and Abrechnung")
+	if _, err := rt.Client.Post(path+"/invitations", map[string]any{"email": seedTraegerOperatorInvitee.email, "roles": seedTraegerOperatorInvitee.roles}); err != nil {
+		return fmt.Errorf("invite into the Träger-Büro from the operator portal: %w", err)
+	}
+	fmt.Println("  Träger-Büro: operator invited a person with roles Verwaltung and Abrechnung")
 	return seedTraegerInvitation(rt)
 }
 
@@ -219,6 +230,7 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if err != nil {
 		return "", err
 	}
+	seedHolidayRegistrationByParent(rt, registration)
 	if _, err := rt.Client.PostPublic("/traeger/holiday-quotes/"+token, seedHolidayQuote(registration)); err != nil {
 		return "", fmt.Errorf("show the holiday contribution: %w", err)
 	}
@@ -402,6 +414,25 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"captcha_token": seedTurnstileTestToken,
 	}, nil
+}
+
+// seedHolidayRegistrationByParent lets the first seeded parent register the
+// siblings with the address of the parent's account, as a family with the
+// Eltern-App does after the prefill (#4662). Their confirmation letter then
+// lands in that parent's document inbox (#4671). A run without seeded
+// parents keeps the invented family.
+func seedHolidayRegistrationByParent(rt *Runtime, registration map[string]any) {
+	if len(rt.Parents) == 0 || rt.Parents[0].Email == "" {
+		return
+	}
+	guardian, _ := registration["guardian"].(map[string]any)
+	if guardian == nil {
+		return
+	}
+	guardian["email"] = rt.Parents[0].Email
+	if first, last, ok := strings.Cut(strings.TrimSpace(rt.Parents[0].Name), " "); ok && first != "" && last != "" {
+		guardian["first_name"], guardian["last_name"] = first, last
+	}
 }
 
 // seedTraegerSession is the Träger-Portal session of the bootstrap admin,

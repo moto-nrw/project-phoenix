@@ -433,6 +433,7 @@ GET /api/students/{id}
 GET /api/students/{id}/arrival-schedules
 GET /api/students/{id}/attendance-history
 GET /api/students/{id}/attendance-history/export
+GET /api/students/{id}/care-withdrawals
 GET /api/students/{id}/change-history
 GET /api/students/{id}/companions
 GET /api/students/{id}/current-visit
@@ -488,6 +489,8 @@ GET /api/timetable/instances/{id}/staff-pool
 GET /api/timetable/instances/{instance_id}/students/{student_id}/corrections
 GET /api/timetable/offering-sources
 GET /api/timetable/offering-sources/combined-counts
+GET /api/timetable/offering-sources/preview
+GET /api/timetable/offering-sources/suggestion
 GET /api/timetable/operations/active-groups/{id}/roster
 GET /api/timetable/operations/active-sessions
 GET /api/timetable/operations/capabilities
@@ -500,7 +503,9 @@ GET /api/timetable/planning-tracks/
 GET /api/timetable/student/{id}/day
 GET /api/timetable/student/{id}/week
 GET /api/timetable/templates
+GET /api/timetable/templates/roster-deviations
 GET /api/timetable/templates/{id}
+GET /api/timetable/templates/{id}/offering-preview
 GET /api/users/
 GET /api/users/{id}
 GET /api/work-time-models/
@@ -612,6 +617,8 @@ GET /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
 GET /parent/me/children/{studentId}/requests/{requestType}/{requestId}/events
 GET /parent/me/children/{studentId}/sick-note
 GET /parent/me/children/{studentId}/today
+GET /parent/me/documents
+GET /parent/me/documents/{organizationId}/{documentId}/pdf
 GET /parent/me/enrollable-schools
 GET /parent/me/enrollments
 GET /parent/me/messages
@@ -641,6 +648,7 @@ GET /school/class-day/arrival-exceptions
 GET /school/class-day/arrival-exceptions/block-start
 GET /school/class-day/classes
 GET /school/class-day/school-day
+GET /school/class-day/shared-notes/{schoolClass}/students/{studentId}
 GET /school/notifications/preferences/
 GET /school/notifications/push/public-key
 GET /school/parent-letters/
@@ -959,7 +967,9 @@ POST /api/timetable/shift-coverage
 POST /api/timetable/substitutions/bulk
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
+POST /api/timetable/templates/{id}/offering-connection
 POST /api/timetable/templates/{id}/split
+POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 POST /api/users/
 POST /api/work-time-models/
 POST /auth/accounts/{accountId}/caregiver-capability
@@ -1041,6 +1051,7 @@ POST /operator/organizations/{id}/erasure-order
 POST /operator/organizations/{id}/restore
 POST /operator/organizations/{id}/sample-children
 POST /operator/organizations/{id}/traeger-members
+POST /operator/organizations/{id}/traeger-members/invitations
 POST /operator/profile/email-change
 POST /operator/profile/password
 POST /operator/schools/
@@ -1223,6 +1234,7 @@ PUT /api/timetable/periods/{id}
 PUT /api/timetable/planning-tracks/order
 PUT /api/timetable/planning-tracks/{id}
 PUT /api/timetable/templates/{id}
+PUT /api/timetable/templates/{id}/manual-roster
 PUT /api/users/{id}
 PUT /api/work-time-models/{id}
 PUT /auth/accounts/{accountId}/

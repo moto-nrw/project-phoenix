@@ -51,6 +51,14 @@ import {
 // thrown ApiError.
 // Das Gültigkeitsdatum wird als Feld getestet, nicht als Kalender-Overlay: die
 // Regel dahinter ist, welches Datum die Freigabe mitnimmt (#2484).
+vi.mock("next-auth/react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next-auth/react")>()),
+  useSession: () => ({
+    data: { user: { id: "1", token: "t", permissions: ["schedules:manage"] } },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/components/ui/date-picker", async () =>
   (await import("~/test/mocks/date-picker")).datePickerModuleMock(),
 );
@@ -160,6 +168,55 @@ describe("OfferingRequestReviewItem", () => {
         "2027-02-01",
       ),
     );
+    expect(onDecided).toHaveBeenCalledWith(
+      "Die Änderung ist übernommen und gilt ab 01.02.2027. Die angezeigten Folgeänderungen sind auch übernommen.",
+    );
+  });
+
+  // #5102: the backend reports what the approval did to the Regeltermine.
+  it("names the automatically adjusted Regeltermine in the notice", async () => {
+    mockDecide.mockResolvedValue({
+      effective_from: "2027-02-01",
+      adjusted: [
+        {
+          template_id: "7",
+          name: "Randstunde",
+          removed_weekdays: [3],
+          added_weekdays: [],
+        },
+      ],
+      not_adjusted: [],
+    });
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    await confirmApproval();
+
+    await waitFor(() =>
+      expect(onDecided).toHaveBeenCalledWith(
+        "Die Änderung ist übernommen und gilt ab 01.02.2027. Automatisch angepasst: Randstunde (mittwochs entfernt).",
+      ),
+    );
+  });
+
+  it("keeps the card open while a hand-maintained Regeltermin still plans the child", async () => {
+    mockDecide.mockResolvedValue({
+      effective_from: "2027-02-01",
+      adjusted: [],
+      not_adjusted: [
+        { template_id: "9", name: "RDST 1b", weekdays: [3], via_target: false },
+      ],
+    });
+    const onDecided = vi.fn();
+    renderItem(request(), onDecided);
+
+    await confirmApproval();
+
+    expect(await screen.findByText("RDST 1b")).toBeInTheDocument();
+    expect(screen.getByText(/Kind bleibt eingeplant/)).toBeInTheDocument();
+    expect(onDecided).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
     expect(onDecided).toHaveBeenCalledWith(
       "Die Änderung ist übernommen und gilt ab 01.02.2027. Die angezeigten Folgeänderungen sind auch übernommen.",
     );

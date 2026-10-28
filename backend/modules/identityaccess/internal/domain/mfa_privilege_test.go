@@ -56,6 +56,7 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"calendar:school":                    false,
 		"class_day:absence_report_write":     false,
 		"class_day:all_classes":              false,
+		"class_day:absence_report_write":     false,
 		"class_day:arrival_exception_write":  false,
 		"class_day:class_trip_write":         false,
 		"class_day:day_hint_write":           false,

@@ -52,3 +52,46 @@ func TestEmailDeliveryStatusesAddsNamesAndSorts(t *testing.T) {
 	assert.Equal(t, "Ada", rows[0].FirstName)
 	assert.Equal(t, "Berta", rows[1].FirstName)
 }
+
+// enqueueRecorder records the intents the service hands to the store.
+type enqueueRecorder struct {
+	*workerStore
+	intents []domain.Intent
+}
+
+func (r *enqueueRecorder) Enqueue(_ context.Context, intent domain.Intent) (domain.Enqueued, error) {
+	r.intents = append(r.intents, intent)
+	return domain.Enqueued{ID: int64(len(r.intents))}, nil
+}
+
+// A deferred push names a school or a Träger (ADR 0126), never both and
+// never neither; a push of a Träger keeps its Träger for the store.
+func TestEnqueueDeferredPushNamesExactlyOneScope(t *testing.T) {
+	t.Parallel()
+	store := &enqueueRecorder{workerStore: &workerStore{}}
+	service := NewService(store, guardianDirectory{}, func(domain.Observation) {})
+	intent := deliveryContract.DeferredPushIntent{
+		Template: "parent_billing_document", IdempotencyKey: "parent-billing-document:31", Payload: []byte(`{"document_id":31}`),
+		Related: deliveryContract.RelatedEntity{Type: "parent_billing_document", ID: 31},
+	}
+
+	for name, scope := range map[string][2]int64{"neither": {0, 0}, "both": {21, 4}, "negative Träger": {0, -4}} {
+		refused := intent
+		refused.TenantID, refused.OrganizationID = scope[0], scope[1]
+		_, err := service.EnqueueDeferredPush(context.Background(), refused)
+		assert.Error(t, err, name)
+	}
+	assert.Empty(t, store.intents, "a refused push reaches no store")
+
+	traeger := intent
+	traeger.OrganizationID = 4
+	queued, err := service.EnqueueDeferredPush(context.Background(), traeger)
+	require.NoError(t, err)
+	assert.Equal(t, deliveryContract.TransportPush, queued.Transport)
+	require.Len(t, store.intents, 1)
+	stored := store.intents[0]
+	assert.Equal(t, traeger.OrganizationID, stored.OrganizationID)
+	assert.Zero(t, stored.TenantID)
+	assert.Equal(t, domain.TransportPush, stored.Transport)
+	assert.JSONEq(t, `{"deferred":true}`, string(stored.Recipient))
+}

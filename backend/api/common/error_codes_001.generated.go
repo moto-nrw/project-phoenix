@@ -40,6 +40,7 @@ const (
 	CodeIdentityRoleNameTaken                         = "identity.role_name_taken"
 	CodeIdentityRolePlatformPermission                = "identity.role_platform_permission"
 	CodeIdentitySessionAccountInactive                = "identity.session_account_inactive"
+	CodeIdentitySessionTenantMismatch                 = "identity.session_tenant_mismatch"
 	CodeIdentityTenantAccessDenied                    = "identity.tenant_access_denied"
 	CodeIdentityTenantAccessNotFound                  = "identity.tenant_access_not_found"
 	CodeIdentityUseParentPortal                       = "identity.use_parent_portal"
@@ -132,6 +133,7 @@ const (
 	CodeParentBillingLetterheadTooLong                = "parent_billing.letterhead_too_long"
 	CodeParentBillingNumberRangeInvalid               = "parent_billing.number_range_invalid"
 	CodeParentBillingNumberRangeMissing               = "parent_billing.number_range_missing"
+	CodeParentBillingParentDocumentNotFound           = "parent_billing.parent_document_not_found"
 	CodeParentBillingRecipientEmailMissing            = "parent_billing.recipient_email_missing"
 	CodePickupBulkExceptionConfirmationRequired       = "pickup.bulk_exception_confirmation_required"
 	CodePickupFutureManualReset                       = "pickup.future_manual_reset"
@@ -300,8 +302,6 @@ const (
 	CodeTimetableAttendanceFrozen                     = "timetable.attendance_frozen"
 	CodeTimetableAttendanceInvalid                    = "timetable.attendance_invalid"
 	CodeTimetableCalendarPeriodCareOfferingConflict   = "timetable.calendar_period_care_offering_conflict"
-	CodeTimetableCalendarPeriodEndBeforeStart         = "timetable.calendar_period_end_before_start"
-	CodeTimetableCalendarPeriodInvalid                = "timetable.calendar_period_invalid"
 )
 
 var errorCodeClasses1 = map[string]string{
@@ -343,6 +343,7 @@ var errorCodeClasses1 = map[string]string{
 	"identity.role_name_taken":                           "business_rejection",
 	"identity.role_platform_permission":                  "input",
 	"identity.session_account_inactive":                  "permission",
+	"identity.session_tenant_mismatch":                   "permission",
 	"identity.tenant_access_denied":                      "permission",
 	"identity.tenant_access_not_found":                   "business_rejection",
 	"identity.use_parent_portal":                         "permission",
@@ -435,6 +436,7 @@ var errorCodeClasses1 = map[string]string{
 	"parent_billing.letterhead_too_long":                 "business_rejection",
 	"parent_billing.number_range_invalid":                "input",
 	"parent_billing.number_range_missing":                "business_rejection",
+	"parent_billing.parent_document_not_found":           "business_rejection",
 	"parent_billing.recipient_email_missing":             "business_rejection",
 	"pickup.bulk_exception_confirmation_required":        "input",
 	"pickup.future_manual_reset":                         "business_rejection",
@@ -603,8 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.attendance_frozen":                        "business_rejection",
 	"timetable.attendance_invalid":                       "input",
 	"timetable.calendar_period_care_offering_conflict":   "business_rejection",
-	"timetable.calendar_period_end_before_start":         "input",
-	"timetable.calendar_period_invalid":                  "input",
 }
 
 func init() {

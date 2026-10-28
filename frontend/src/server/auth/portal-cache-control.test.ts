@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { NextAuthRequest, Session } from "next-auth";
 import { NextRequest } from "next/server";
 
@@ -38,6 +38,14 @@ vi.mock("next-auth", () => {
 });
 
 vi.stubGlobal("fetch", mockFetch);
+
+// The session above belongs to school 7; schule-b is school 8 (#5130).
+vi.mock("~/lib/tenant-resolve.server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/tenant-resolve.server")>()),
+  resolveTenantCached: async (slug: string) => ({
+    tenant_id: slug === "schule-b" ? 8 : 7,
+  }),
+}));
 
 const PRIVATE_NO_STORE = "private, no-store";
 
@@ -126,6 +134,14 @@ const routes: Array<[string, () => Promise<Route>]> = [
 
 beforeEach(() => {
   mockFetch.mockReset();
+  // The tenant wrapper compares the session's school with the host's
+  // (#5130); env.js requires TENANT_DOMAIN. A bare localhost host has no
+  // school subdomain, so the check lets these requests pass.
+  vi.stubEnv("TENANT_DOMAIN", "localhost");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
 });
 
 describe("portal route wrappers send private, no-store", () => {
@@ -154,6 +170,70 @@ describe("portal route wrappers send private, no-store", () => {
     expect(response.status).toBe(404);
     expect(response.headers.get("Cache-Control")).toBe(PRIVATE_NO_STORE);
   });
+});
+
+describe("tenant routes on a school subdomain (#5130)", () => {
+  const tenantRoutes = routes.filter(([portal]) => portal.startsWith("tenant"));
+
+  function callOnHost(route: Route, host: string, originalHost = host) {
+    return route(
+      new NextRequest(`http://${host}/api/example`, {
+        headers: { host, "x-moto-original-host": originalHost },
+      }),
+      { params: Promise.resolve({}) },
+    );
+  }
+
+  it.each(tenantRoutes)(
+    "%s: refuses a session of another school before the backend call",
+    async (_portal, load) => {
+      const response = await callOnHost(
+        await load(),
+        "schule-b.localhost:3000",
+      );
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: "identity.session_tenant_mismatch",
+      });
+      expect(response.headers.get("Cache-Control")).toBe(PRIVATE_NO_STORE);
+      expect(mockFetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(tenantRoutes)(
+    "%s: answers a session of the host's school",
+    async (_portal, load) => {
+      mockFetch.mockResolvedValue(
+        backendJson(200, { status: "success", data: { id: 1 } }),
+      );
+
+      const response = await callOnHost(
+        await load(),
+        "schule-a.localhost:3000",
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(tenantRoutes)(
+    "%s: refuses a session of another school through an internal Next.js host",
+    async (_portal, load) => {
+      const response = await callOnHost(
+        await load(),
+        "next-internal:3000",
+        "schule-b.localhost:3000",
+      );
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: "identity.session_tenant_mismatch",
+      });
+      expect(mockFetch).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("file and stream routes keep their own headers", () => {

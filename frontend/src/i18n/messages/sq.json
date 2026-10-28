@@ -78,7 +78,8 @@
     "more": "Më shumë",
     "unreadCount": "{count} të palexuara",
     "openCount": "{count} të hapura",
-    "noticeCount": "{count} njoftime"
+    "noticeCount": "{count} njoftime",
+    "documents": "Dokumentet"
   },
   "parentFirstSteps": {
     "title": "Hapat e parë",
@@ -272,6 +273,22 @@
     "errorObjectWeekRegister": "regjistrimin për javën",
     "participationCutoffLead": "Mund ta ndryshoni regjistrimin deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}}.",
     "participationSicknessLead": "Një njoftim i konfirmuar për sëmundje deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar."
+  },
+  "parentDocuments": {
+    "title": "Dokumentet",
+    "description": "Këtu gjeni letrat që ju ka dërguar ofruesi. Për shembull konfirmimin e kujdesit gjatë pushimeve.",
+    "emptyTitle": "Ende nuk ka dokumente",
+    "emptyDescription": "Kur ofruesi ju dërgon një letër, e gjeni këtu. E merrni edhe me email.",
+    "confirmationLetter": "Konfirmim: {period}",
+    "sender": "Nga: {traeger}",
+    "children": "Për",
+    "amount": "Shuma",
+    "number": "Numri i faturës",
+    "sentAt": "Dërguar më",
+    "download": "Shkarko PDF",
+    "downloading": "Duke u shkarkuar …",
+    "errorObject": "dokumentet",
+    "downloadErrorObject": "dokumenti"
   },
   "mealOrders": {
     "title": "Porosia",
@@ -728,6 +745,10 @@
       "parent_care_cancelled": {
         "label": "Kujdesi anulohet",
         "description": "Kur OGS-ja anulon një nga takimet e kujdesit të fëmijës suaj."
+      },
+      "parent_billing_document": {
+        "label": "Dokument i ri nga ofruesi",
+        "description": "Kur ofruesi ju dërgon një dokument, për shembull një konfirmim."
       }
     },
     "errorObjectList": "lista e njoftimeve",
@@ -2751,6 +2772,7 @@
         "role_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "role_platform_permission": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "session_account_inactive": "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
+        "session_tenant_mismatch": "Shkolla u ndryshua në një dritare tjetër. moto do ta kthejë këtë faqe së shpejti. Ju lutemi provoni përsëri pak më vonë.",
         "tenant_access_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
         "use_school_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
@@ -2868,6 +2890,7 @@
         "letterhead_too_long": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "number_range_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "number_range_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "parent_document_not_found": "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
         "recipient_email_missing": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
       },
       "pickup": {

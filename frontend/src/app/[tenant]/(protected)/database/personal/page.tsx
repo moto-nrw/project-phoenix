@@ -323,6 +323,8 @@ function TeachersPageContent() {
           {
             label: "Personal einladen",
             onClick: () => setShowInviteModal(true),
+            // Ziel der Einrichtungs-Tour (setup-tours.ts, Schritt „team“).
+            tourTarget: "invite-create",
           },
           { label: "Externe Person anlegen", onClick: openExternalCreate },
         ]

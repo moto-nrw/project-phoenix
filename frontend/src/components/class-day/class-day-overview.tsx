@@ -443,7 +443,7 @@ export function ClassDayOverview({
       : schoolMode
         ? "die Tagesübersicht der Schule"
         : firstFailedClass
-          ? `die Klasse ${schoolClassLabel(firstFailedClass)}`
+          ? `die ${schoolClassLabel(firstFailedClass)}`
           : "die Klassenansicht",
     () => {
       if (classesError) return reloadClasses();

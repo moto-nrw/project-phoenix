@@ -107,9 +107,10 @@ import {
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import {
-  berlinTodayISO,
   formatDate as formatCalendarDate,
+  parseISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import {
   fetchStudentCareWithdrawal,
@@ -272,9 +273,11 @@ function studentTabs(
   const withDocuments = canViewDocuments
     ? withCarePlan
     : withCarePlan.filter((tab) => tab !== "dokumente");
-  // Änderungsprotokoll (#2437) mirrors the aggregate route's gate exactly:
-  // RequiresAnyPermission(users:update, users:absence). Without either, the
-  // list would only answer 403, so the tab stays away.
+  // Änderungsprotokoll (#2437) uses the gate of both its sources:
+  // Both sources require users:update, or users:read plus users:absence. The
+  // child's completed withdrawals (/students/{id}/care-withdrawals, #5025)
+  // additionally need read access to the child. Without this gate both would
+  // only answer 403, so the tab stays away.
   const withRequestLog = canViewRequestLog
     ? withDocuments
     : withDocuments.filter((tab) => tab !== "aenderungsprotokoll");
@@ -425,6 +428,7 @@ function StudentDetailPageContent() {
   const dialogErrors = useApiFormError();
   const { data: session, status: sessionStatus } = useSession();
   const weekendFollowsFriday = useWeekendFollowsFriday();
+  const berlinToday = useBerlinToday();
 
   // Switch tabs by updating the `?tab=` query param in place (preserves the
   // `from` referrer). We echo the current `usePathname` back verbatim and only
@@ -548,11 +552,12 @@ function StudentDetailPageContent() {
   // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
   // sieht das Kind nur mit students:read (ADR 0091).
   const canReadParentData = sessionReadsChildDetails;
-  // Same gate the aggregate request route uses (#2437).
+  // Same gate the aggregate request route uses (#2437). users:absence is a
+  // write scope, so it needs users:read and cannot expose the log by itself.
   const canViewRequestLog =
     sessionStatus === "authenticated" &&
     (hasPermission(session, "users:update") ||
-      hasPermission(session, "users:absence"));
+      (sessionReadsChildDetails && hasPermission(session, "users:absence")));
   // Mirrors the backend gate on POST /students/{id}/school-checkin exactly.
   const canCheckin =
     sessionStatus === "authenticated" &&
@@ -759,20 +764,19 @@ function StudentDetailPageContent() {
       (s) =>
         s.status === "sick" &&
         !s.cleared_at &&
-        s.date === berlinTodayISO() &&
+        s.date === berlinToday &&
         s.note,
     );
     return row?.note ?? undefined;
-  }, [student?.sick, statusDays]);
+  }, [berlinToday, student?.sick, statusDays]);
   // Who entered today's status. A parent's Abmeldung looks the same as a
   // staff entry everywhere else, so the lift dialog names it (#3854).
   const todayStatusSource = useCallback(
     (status: StudentStatusKind) =>
       statusDays.find(
-        (s) =>
-          s.status === status && !s.cleared_at && s.date === berlinTodayISO(),
+        (s) => s.status === status && !s.cleared_at && s.date === berlinToday,
       )?.source,
-    [statusDays],
+    [berlinToday, statusDays],
   );
   const sickFromParents = todayStatusSource("sick") === "parent";
   const excusedFromParents = todayStatusSource("excused") === "parent";
@@ -794,7 +798,7 @@ function StudentDetailPageContent() {
     if (!hasFullAccess || !pickupData) return {};
 
     const dayData = getDayData(
-      new Date(),
+      parseISODate(berlinToday),
       pickupData.schedules,
       pickupData.exceptions,
       student?.sick ?? false,
@@ -803,6 +807,8 @@ function StudentDetailPageContent() {
       null,
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
+      [],
+      berlinToday,
     );
 
     if (dayData.effectiveTime) {
@@ -819,13 +825,14 @@ function StudentDetailPageContent() {
     student?.sick,
     student?.excused,
     weekendFollowsFriday,
+    berlinToday,
   ]);
 
   const todayArrival = useMemo<TodayArrival>(() => {
     if (!hasFullAccess || !arrivalData) return {};
 
     const dayData = getArrivalDayData(
-      new Date(),
+      parseISODate(berlinToday),
       arrivalData.schedules,
       arrivalData.exceptions,
       arrivalData.notes,
@@ -833,6 +840,7 @@ function StudentDetailPageContent() {
       student?.excused ?? false,
       null,
       weekendFollowsFriday,
+      berlinToday,
     );
 
     if (dayData.isAbsent) {
@@ -857,6 +865,7 @@ function StudentDetailPageContent() {
     student?.excused,
     student?.sick,
     weekendFollowsFriday,
+    berlinToday,
   ]);
 
   // Clamp the URL tab to the set the current access level actually exposes, so a
@@ -1763,6 +1772,7 @@ function StudentDetailPageContent() {
           activeTab={activeTab}
           tabs={visibleTabs}
           canViewEnrollments={canViewEnrollments}
+          canReadChild={childGrantsFullAccess}
         />
       )}
     </TenantPage>
@@ -1875,6 +1885,11 @@ interface LimitedAccessViewProps {
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
+  /**
+   * Die Antwort zum Kind meldet Lesezugriff (CanReadStudent). Die Ansicht
+   * ist trotzdem eingeschränkt, wenn der Sitzung users:read fehlt.
+   */
+  canReadChild: boolean;
 }
 
 function LimitedAccessView({
@@ -1886,18 +1901,22 @@ function LimitedAccessView({
   activeTab,
   tabs,
   canViewEnrollments,
+  canReadChild,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
+  // Die Kind-Route der Abmeldungen verlangt Lesezugriff auf das Kind
+  // (#5025). Ohne ihn zeigt das Protokoll nur die Anfragen, statt mit 403
+  // zu scheitern.
   const changeProtocolFilters = useMemo<AggregatedRequestFilters>(
     () => ({
       search: "",
       studentId,
       includeEnrollment: false,
-      includeCareWithdrawals: true,
+      includeCareWithdrawals: canReadChild,
       types: [],
       statuses: [],
     }),
-    [studentId],
+    [canReadChild, studentId],
   );
   // Siehe FullAccessView: das Änderungsprotokoll lädt erst beim ersten Öffnen.
   const [protocolTabSeen, setProtocolTabSeen] = useState(

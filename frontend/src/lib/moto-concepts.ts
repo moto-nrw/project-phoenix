@@ -21,6 +21,7 @@ import {
   ClipboardTextIcon,
   ClockIcon,
   ClockCounterClockwiseIcon,
+  CoinsIcon,
   ContactlessPaymentIcon,
   DatabaseIcon,
   DevicesIcon,
@@ -32,6 +33,7 @@ import {
   FolderOpenIcon,
   EyeIcon,
   FileArrowDownIcon,
+  FileTextIcon,
   FingerprintSimpleIcon,
   FirstAidKitIcon,
   ForkKnifeIcon,
@@ -39,6 +41,7 @@ import {
   HouseIcon,
   HouseLineIcon,
   IdentificationCardIcon,
+  InvoiceIcon,
   ListBulletsIcon,
   ListChecksIcon,
   LockKeyIcon,
@@ -273,6 +276,23 @@ export const MOTO_CONCEPTS = {
     "function",
     "planning",
   ),
+  // Träger-Portal (#5145): die Regeln für den Ferienbeitrag (#4664) und die
+  // Abrechnungsläufe an die Familien (#4668). Die Abrechnung des Trägers ist
+  // eine Rechnung an Familien, nicht die Lohnabrechnung (`payroll`).
+  contributions: concept(
+    "Beiträge",
+    CoinsIcon,
+    "gold",
+    "function",
+    "administration",
+  ),
+  billing: concept(
+    "Beitragsabrechnung",
+    InvoiceIcon,
+    "petrol",
+    "function",
+    "administration",
+  ),
 
   messages: concept(
     "Nachrichten",
@@ -433,6 +453,14 @@ export const MOTO_CONCEPTS = {
   // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
   // Mitarbeitenden, über die die OGS entscheidet.
   requests: concept("Anfragen", TrayIcon, "blue", "function", "communication"),
+  // Dokumente des Trägers an die Familie (#4671), etwa Bestätigungsschreiben.
+  documents: concept(
+    "Dokumente",
+    FileTextIcon,
+    "petrol",
+    "function",
+    "communication",
+  ),
   // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
   files: concept("Dateien", FolderOpenIcon, "neutral", "function", "system"),
   rfid: concept(

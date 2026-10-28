@@ -151,6 +151,7 @@ export const HELP_TOPICS = {
   leadStaffNotices: "tagesinformationen-schreiben",
   leadCalendarPeriods: "schuljahr-und-ferien-eintragen",
   leadCarePlan: "betreuungsplan-erstellen",
+  leadRosterDeviation: "regeltermin-mit-angebot-verbinden",
   leadCancelBlock: "termin-absagen",
   leadDutyRoster: "dienstplan-erstellen",
   leadSubstitutionPlan: "vertretung-planen",
@@ -195,6 +196,7 @@ export const HELP_TOPICS = {
   parentSurveys: "an-einer-umfrage-der-ogs-teilnehmen",
   parentCalendar: "als-elternteil-den-kalender-ansehen",
   parentMealPlan: "mittagessen-ansehen",
+  parentDocuments: "dokumente-vom-traeger-finden",
   parentEnroll: "mein-kind-anmelden",
   parentEnrollStatus: "anmeldung-weiter-bearbeiten",
   parentHolidayRegistration: "fuer-die-ferienbetreuung-anmelden",
@@ -233,6 +235,7 @@ export const HELP_TOPICS = {
   teacherClassTrip: "ausflug-oder-klassenfahrt-melden",
   teacherAbsenceReport: "meldung-fuer-ein-fehlendes-kind-nachtragen",
   teacherDayHint: "der-ogs-einen-hinweis-fuer-heute-geben",
+  teacherSharedNotes: "beobachtungen-der-ogs-lesen",
   teacherSupervision: "meine-aufsichten-ansehen",
   teacherStartSupervision: "eine-aufsicht-starten",
   teacherSupervisionRoster: "kinder-meiner-aufsicht-sehen",
@@ -345,6 +348,7 @@ const PARENT_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/calendar": HELP_TOPICS.parentCalendar,
   "/news": HELP_TOPICS.parentNews,
   "/meal-plan": HELP_TOPICS.parentMealPlan,
+  "/documents": HELP_TOPICS.parentDocuments,
   // Die Seite traegt Sprache und Benachrichtigungen. Der Artikel dazu
   // ist `Benachrichtigungen einstellen`.
   "/settings": HELP_TOPICS.parentNotifications,
@@ -373,6 +377,7 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
 const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/": HELP_TOPICS.teacherClassDay,
   "/klasse": HELP_TOPICS.teacherClassList,
+  "/klasse/kind": HELP_TOPICS.teacherSharedNotes,
   "/aufsichten": HELP_TOPICS.teacherSupervision,
   "/tagesinformationen": HELP_TOPICS.teacherNotices,
   "/kalender": HELP_TOPICS.teacherCalendar,

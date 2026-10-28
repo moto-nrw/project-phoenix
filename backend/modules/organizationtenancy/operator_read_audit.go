@@ -30,6 +30,7 @@ const (
 	ReadSchoolAccountCreation        OperatorReadView = "school_account_creation"
 	ReadSchoolSettingsSchema         OperatorReadView = "school_settings_schema"
 	ReadSchoolSettingReveal          OperatorReadView = "school_setting_reveal"
+	ReadDemoPresenceHistory          OperatorReadView = "demo_presence_history"
 	ReadUnregisteredTagScans         OperatorReadView = "unregistered_tag_scans"
 	ReadTraegerMembers               OperatorReadView = "traeger_members"
 	// ReadCaterers is the operator's list of caterer accounts and their
