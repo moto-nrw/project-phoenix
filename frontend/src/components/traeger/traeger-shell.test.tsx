@@ -21,13 +21,6 @@ const { mockSignOut, mockPathname, sessionUser } = vi.hoisted(() => ({
   },
 }));
 
-// LogoutModal reports a failed logout through the error path (#5126); these
-// tests render the shell without the root ToastProvider.
-vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
-  useApiErrorDisplay: () => ({ show: vi.fn(), showMessage: vi.fn() }),
-}));
-
 vi.mock("next/navigation", async (importOriginal) => ({
   ...(await importOriginal<typeof import("next/navigation")>()),
   usePathname: () => mockPathname(),

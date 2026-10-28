@@ -51,7 +51,6 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
         // sessionStorage unavailable
       }
       setIsLoggingOut(false);
-      // The shell reports the failure; keep the modal usable for a retry.
     }
   };
 
