@@ -781,6 +781,12 @@
       "legacy": "communication.class_letter_read_only"
     },
     {
+      "code": "communication.leadership_messages_unavailable",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "communication.leadership_messages_unavailable"
+    },
+    {
       "code": "communication.system_announcement_immutable",
       "class": "business_rejection",
       "parameters": [],

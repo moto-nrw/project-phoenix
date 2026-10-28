@@ -227,6 +227,8 @@ export const ERROR_CATALOG = {
         "Diese Klasse ist Ihnen nicht zugeordnet. Bitte wählen Sie eine eigene Klasse.",
       "communication.class_letter_read_only":
         "Diesen Elternbrief hat eine Lehrkraft geschrieben. Nur sie kann ihn ändern, senden oder löschen.",
+      "communication.leadership_messages_unavailable":
+        "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
       "devices.tag_scan_already_resolved":
         "Dieser Scan ist schon erledigt. Bitte laden Sie die Seite neu.",
       "devices.tag_scan_not_found":
@@ -1618,6 +1620,8 @@ export const ERROR_CATALOG = {
         "This class is not assigned to you. Please choose one of your own classes.",
       "communication.class_letter_read_only":
         "A teacher wrote this parent letter. Only that teacher can change, send or delete it.",
+      "communication.leadership_messages_unavailable":
+        "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
       "enrollment.captcha_failed":
         "The security check did not work. Please try again.",
       "enrollment.captcha_required": "Please complete the security check.",
@@ -2069,6 +2073,8 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
+      "communication.leadership_messages_unavailable":
+        "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
       "enrollment.captcha_failed":
         "Проверка безопасности не пройдена. Попробуйте ещё раз.",
       "enrollment.captcha_required": "Пройдите проверку безопасности.",
@@ -2459,6 +2465,8 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
+      "communication.leadership_messages_unavailable":
+        "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
       "enrollment.captcha_failed":
         "Kontrolli i sigurisë nuk funksionoi. Ju lutemi provoni përsëri.",
       "enrollment.captcha_required":
@@ -2862,6 +2870,8 @@ export const ERROR_CATALOG = {
         "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
       "communication.survey_not_open":
         "Ta ankieta nie przyjmuje już odpowiedzi.",
+      "communication.leadership_messages_unavailable":
+        "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
       "enrollment.captcha_failed":
         "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",
       "enrollment.captcha_required": "Potwierdź weryfikację bezpieczeństwa.",
@@ -3252,6 +3262,8 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
+      "communication.leadership_messages_unavailable":
+        "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
       "enrollment.captcha_failed":
         "Güvenlik doğrulaması başarısız oldu. Lütfen tekrar deneyin.",
       "enrollment.captcha_required":
@@ -3646,6 +3658,8 @@ export const ERROR_CATALOG = {
         "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
       "communication.survey_not_open":
         "Це опитування більше не приймає відповіді.",
+      "communication.leadership_messages_unavailable":
+        "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS.",
       "enrollment.captcha_failed":
         "Перевірка безпеки не вдалася. Спробуйте ще раз.",
       "enrollment.captcha_required": "Пройдіть перевірку безпеки.",

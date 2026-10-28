@@ -23165,6 +23165,30 @@
     },
     {
       "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform",
+      "binding_digest": "bfc59890eee35eb46da41f03e6923344",
+      "effect": "notice",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Hub.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Hub.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "care-plan",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform",
+      "binding_digest": "9333339673207992594abdfafa50ffbd",
+      "effect": "notice",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Broadcaster.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "care-plan",
       "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastParentMessage",
       "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastParentMessage",
       "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastParentMessage",
@@ -23445,6 +23469,94 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentannouncementaudience/internal/adapters/postgres.Projection.GroupStudents; modules/parentannouncementaudience/internal/adapters/postgres/group_threads.go:101. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "8cb06b464960df18eb6db07a9f04b0f8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory",
+      "binding_digest": "a46207a2020b623ca570d8528b7728a2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "3a165244588a44c78ad94ad88af6d4e4",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "8cb06b464960df18eb6db07a9f04b0f8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory",
+      "binding_digest": "a46207a2020b623ca570d8528b7728a2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "3a165244588a44c78ad94ad88af6d4e4",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipSetting.ParentMessageLeadershipEnabled",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.Settings.ParentMessageLeadershipEnabled",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
+      "target_owner": "settings-platform",
+      "binding_digest": "a3826b820077ffc00abd36e7f1a8f605",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipSetting.ParentMessageLeadershipEnabled",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
+      "target_owner": "settings-platform",
+      "binding_digest": "a3826b820077ffc00abd36e7f1a8f605",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "communication",
@@ -24625,46 +24737,79 @@
     {
       "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.FindParentMessageStudent",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessagePeople.FindParentMessageStudent",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.FindParentMessageStudent",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentState.IsAlumnus",
       "target_owner": "people-directory",
       "binding_digest": "0cea0bfcec07c9b09d0d30f484caa1aa",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/peopledirectory.StudentState.IsAlumnus (people-directory) through modules/communication.ParentMessagePeople.FindParentMessageStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.StudentState.IsAlumnus. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.FindParentMessageStudent",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessagePeople.FindParentMessageStudent",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.FindParentMessageStudent",
       "target": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentState.IsAuthorizationStudent",
       "target_owner": "people-directory",
       "binding_digest": "d85baa26ab624c036147b3ca217025b7",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only newly exposed target: communication reaches modules/peopledirectory.StudentState.IsAuthorizationStudent (people-directory) through modules/communication.ParentMessagePeople.FindParentMessageStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory.StudentState.IsAuthorizationStudent. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.FindParentMessageStudent",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessagePeople.FindParentMessageStudent",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.FindParentMessageStudent",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.StudentRows",
       "target_owner": "people-directory",
       "binding_digest": "8345cf405d5cbdc5d72882ad3694427b",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/peopledirectory/ports.PersonDirectory.StudentRows (people-directory) through modules/communication.ParentMessagePeople.FindParentMessageStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.StudentRows. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.FindParentMessageStudent",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessagePeople.FindParentMessageStudent",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.FindParentMessageStudent",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByID",
       "target_owner": "people-directory",
       "binding_digest": "fec28b6b007856f4e35186e50c207b3a",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/peopledirectory/ports.StudentRepository.FindByID (people-directory) through modules/communication.ParentMessagePeople.FindParentMessageStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StudentRepository.FindByID. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "8cb06b464960df18eb6db07a9f04b0f8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory",
+      "binding_digest": "a46207a2020b623ca570d8528b7728a2",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view",
+      "binding_digest": "3a165244588a44c78ad94ad88af6d4e4",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "communication",
@@ -24721,6 +24866,17 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.SchoolQuery.FindSchool; modules/organizationtenancy/organizationtenancy.go:97. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.Settings.ParentMessageLeadershipEnabled",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
+      "target_owner": "settings-platform",
+      "binding_digest": "a3826b820077ffc00abd36e7f1a8f605",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled. May-bind method surface, not a production-call/liveness claim."
     },
     {
       "source_owner": "communication",
@@ -25240,10 +25396,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationParentInbox.ListInboxForStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "307bd46c2189247a2f9e56592347e49b",
+      "binding_digest": "6cb7a4ff81c9d94b1c261e7d4cf1e432",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff; modules/parentmessageinbox/internal/adapters/postgres/projection.go:215. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff; modules/parentmessageinbox/internal/adapters/postgres/projection.go:215. May-bind method surface, not a production-call/liveness claim. #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -25273,10 +25429,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationParentInbox.ListThreadsForStudent",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "37711c9753979c694308bfde70af7ba6",
+      "binding_digest": "86a61991caf0958716372a1a1c55199d",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent; modules/parentmessageinbox/internal/adapters/postgres/projection.go:248. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent; modules/parentmessageinbox/internal/adapters/postgres/projection.go:248. May-bind method surface, not a production-call/liveness claim. #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -25295,10 +25451,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationParentInbox.UnreadMessageCountForStaffInGroups",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "88e79af567a800a97c7e4cda8dabb07a",
+      "binding_digest": "54233922c3bc73d5f3d59c5fcbdaa9c1",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups; modules/parentmessageinbox/internal/adapters/postgres/projection.go:325. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups; modules/parentmessageinbox/internal/adapters/postgres/projection.go:325. May-bind method surface, not a production-call/liveness claim. #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -25306,10 +25462,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationParentInbox.UnreadMessageCountForStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "5b0ba5d768aca4d05e470a570a8344b9",
+      "binding_digest": "7b2e8be982b18d68627e4881bccb2824",
       "effect": "query",
       "classification": "query",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff; modules/parentmessageinbox/internal/adapters/postgres/projection.go:318. May-bind method surface, not a production-call/liveness claim."
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff; modules/parentmessageinbox/internal/adapters/postgres/projection.go:318. May-bind method surface, not a production-call/liveness claim. #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -25548,10 +25704,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListInboxForStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "307bd46c2189247a2f9e56592347e49b",
+      "binding_digest": "6cb7a4ff81c9d94b1c261e7d4cf1e432",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListInboxForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListInboxForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -25746,10 +25902,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForStudent",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "37711c9753979c694308bfde70af7ba6",
+      "binding_digest": "86a61991caf0958716372a1a1c55199d",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.ListThreadsForStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26142,10 +26298,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.UnreadMessageCountForStaffInGroups",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "88e79af567a800a97c7e4cda8dabb07a",
+      "binding_digest": "54233922c3bc73d5f3d59c5fcbdaa9c1",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.UnreadMessageCountForStaffInGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.UnreadMessageCountForStaffInGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26153,10 +26309,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.UnreadMessageCountForStaffInGroups",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "88e79af567a800a97c7e4cda8dabb07a",
+      "binding_digest": "54233922c3bc73d5f3d59c5fcbdaa9c1",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.UnreadMessageCountForStaffInGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.UnreadMessageCountForStaffInGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26164,10 +26320,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.UnreadMessageCountForStaffInGroups",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "88e79af567a800a97c7e4cda8dabb07a",
+      "binding_digest": "54233922c3bc73d5f3d59c5fcbdaa9c1",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.UnreadMessageCountForStaffInGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.UnreadMessageCountForStaffInGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26175,10 +26331,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.UnreadMessageCountForStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "5b0ba5d768aca4d05e470a570a8344b9",
+      "binding_digest": "7b2e8be982b18d68627e4881bccb2824",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.UnreadMessageCountForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.groupParentMessageReadRepository.UnreadMessageCountForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26186,10 +26342,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.UnreadMessageCountForStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "5b0ba5d768aca4d05e470a570a8344b9",
+      "binding_digest": "7b2e8be982b18d68627e4881bccb2824",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.UnreadMessageCountForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.parentMessageStaffRepository.UnreadMessageCountForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26197,10 +26353,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.UnreadMessageCountForStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "5b0ba5d768aca4d05e470a570a8344b9",
+      "binding_digest": "7b2e8be982b18d68627e4881bccb2824",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.UnreadMessageCountForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.schoolParentMessageReadRepository.UnreadMessageCountForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26285,10 +26441,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.ParentMessageReads.ListInboxForStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "307bd46c2189247a2f9e56592347e49b",
+      "binding_digest": "6cb7a4ff81c9d94b1c261e7d4cf1e432",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.ParentMessageReads.ListInboxForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.ListInboxForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.ParentMessageReads.ListInboxForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26318,10 +26474,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.ParentMessageReads.ListThreadsForStudent",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "37711c9753979c694308bfde70af7ba6",
+      "binding_digest": "86a61991caf0958716372a1a1c55199d",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.ParentMessageReads.ListThreadsForStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.ListThreadsForStudent (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.ParentMessageReads.ListThreadsForStudent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26340,10 +26496,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.ParentMessageReads.UnreadMessageCountForStaffInGroups",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "88e79af567a800a97c7e4cda8dabb07a",
+      "binding_digest": "54233922c3bc73d5f3d59c5fcbdaa9c1",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.ParentMessageReads.UnreadMessageCountForStaffInGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaffInGroups (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.ParentMessageReads.UnreadMessageCountForStaffInGroups. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26351,10 +26507,10 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres.ParentMessageReads.UnreadMessageCountForStaff",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff",
       "target_owner": "parent-message-inbox",
-      "binding_digest": "5b0ba5d768aca4d05e470a570a8344b9",
+      "binding_digest": "7b2e8be982b18d68627e4881bccb2824",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.ParentMessageReads.UnreadMessageCountForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+      "reason": "Read-only already reviewed target: communication reaches modules/parentmessageinbox/internal/adapters/postgres.Projection.UnreadMessageCountForStaff (parent-message-inbox) through modules/communication/internal/adapters/parentpostgres.ParentMessageReads.UnreadMessageCountForStaff. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098). #5200: the read takes the staff reach (all students, leadership permission) instead of the all-students flag and leaves the leadership conversations out without that permission; still a read, no mutation or locking."
     },
     {
       "source_owner": "communication",
@@ -26421,6 +26577,30 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.Query.FindSchool; modules/organizationtenancy.Query (supplied contract method). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform",
+      "binding_digest": "bfc59890eee35eb46da41f03e6923344",
+      "effect": "notice",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (notice): communication reaches realtime.Hub.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Hub.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform",
+      "binding_digest": "9333339673207992594abdfafa50ffbd",
+      "effect": "notice",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (notice): communication reaches realtime.Broadcaster.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "communication",
@@ -86211,6 +86391,30 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform",
+      "binding_digest": "bfc59890eee35eb46da41f03e6923344",
+      "effect": "notice",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Hub.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Hub.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform",
+      "binding_digest": "9333339673207992594abdfafa50ffbd",
+      "effect": "notice",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Broadcaster.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastParentMessage",
       "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastParentMessage",
       "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastParentMessage",
@@ -124553,6 +124757,30 @@
       "classification": "leaf",
       "adr": "0067",
       "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: workforce reaches modules/peopledirectory.Owner.SetPersonDetails (people-directory) through modules/workforce/internal/application.staffSubjects.UpdatePerson. Participates in the caller unit; newly visible through #4836 callable resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform",
+      "binding_digest": "bfc59890eee35eb46da41f03e6923344",
+      "effect": "notice",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (notice): workforce reaches realtime.Hub.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Hub.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
+    },
+    {
+      "source_owner": "workforce",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform",
+      "binding_digest": "9333339673207992594abdfafa50ffbd",
+      "effect": "notice",
+      "classification": "platform",
+      "adr": "0098",
+      "reason": "Platform protocol participation (notice): workforce reaches realtime.Broadcaster.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098)."
     },
     {
       "source_owner": "workforce",

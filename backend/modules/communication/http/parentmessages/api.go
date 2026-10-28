@@ -68,17 +68,59 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 // --- wire shapes (int64 ids stringified per the frontend convention) ---
 
 type InboxThreadResponse struct {
-	ThreadID         string     `json:"thread_id"`
-	StudentID        string     `json:"student_id"`
-	StudentName      string     `json:"student_name"`
-	SchoolClass      string     `json:"school_class,omitempty"`
-	GroupName        string     `json:"group_name,omitempty"`
-	GuardianName     string     `json:"guardian_name"`
-	RelationshipType string     `json:"relationship_type,omitempty"`
-	LastMessageAt    *time.Time `json:"last_message_at,omitempty"`
-	LastSenderKind   string     `json:"last_sender_kind,omitempty"`
-	LastMessageBody  string     `json:"last_message_body,omitempty"`
-	UnreadCount      int        `json:"unread_count"`
+	ThreadID         string `json:"thread_id"`
+	StudentID        string `json:"student_id"`
+	StudentName      string `json:"student_name"`
+	SchoolClass      string `json:"school_class,omitempty"`
+	GroupName        string `json:"group_name,omitempty"`
+	GuardianName     string `json:"guardian_name"`
+	RelationshipType string `json:"relationship_type,omitempty"`
+	// Audience is "team" or "leadership" (#5200). A caller without the
+	// leadership permission never receives a leadership row.
+	Audience        string          `json:"audience"`
+	Readers         ReadersResponse `json:"readers"`
+	LastMessageAt   *time.Time      `json:"last_message_at,omitempty"`
+	LastSenderKind  string          `json:"last_sender_kind,omitempty"`
+	LastMessageBody string          `json:"last_message_body,omitempty"`
+	UnreadCount     int             `json:"unread_count"`
+}
+
+// ReadersResponse says who can read a conversation (#5200): the one guardian
+// it belongs to and the school side. Other guardians of the child do not read
+// it. school.kind is "all_staff" or "leadership"; school.names carries the
+// leadership persons' short names on the conversation itself and on the
+// recipient list, and stays empty on inbox rows.
+type ReadersResponse struct {
+	Guardian GuardianReaderResponse `json:"guardian"`
+	School   SchoolReadersResponse  `json:"school"`
+}
+
+type GuardianReaderResponse struct {
+	AccountID        string `json:"account_id"`
+	Name             string `json:"name"`
+	RelationshipType string `json:"relationship_type,omitempty"`
+}
+
+type SchoolReadersResponse struct {
+	Kind  string   `json:"kind"`
+	Names []string `json:"names"`
+}
+
+func toReadersResponse(readers communication.ParentMessageReaders) ReadersResponse {
+	names := readers.School.Names
+	if names == nil {
+		names = []string{}
+	}
+	accountID := ""
+	if readers.Guardian.AccountID > 0 {
+		accountID = strconv.FormatInt(readers.Guardian.AccountID, 10)
+	}
+	return ReadersResponse{
+		Guardian: GuardianReaderResponse{
+			AccountID: accountID, Name: readers.Guardian.Name, RelationshipType: readers.Guardian.RelationshipType,
+		},
+		School: SchoolReadersResponse{Kind: readers.School.Kind, Names: names},
+	}
 }
 
 type MessageResponse struct {
@@ -111,6 +153,8 @@ type ThreadDetailResponse struct {
 	StudentName      string            `json:"student_name"`
 	GuardianName     string            `json:"guardian_name"`
 	RelationshipType string            `json:"relationship_type,omitempty"`
+	Audience         string            `json:"audience"`
+	Readers          ReadersResponse   `json:"readers"`
 	Messages         []MessageResponse `json:"messages"`
 }
 
@@ -120,17 +164,27 @@ type ReachableStudentsResponse struct {
 	StudentIDs []string `json:"student_ids"`
 }
 
+// GuardianResponse is one recipient for a new conversation. readers says
+// who would read the conversation with this guardian in the requested
+// audience (?audience=team|leadership, default team, #5200);
+// leadership_available tells a leadership member whether a new leadership
+// conversation may begin and is false for every other caller.
 type GuardianResponse struct {
-	AccountID        string `json:"account_id"`
-	Name             string `json:"name"`
-	RelationshipType string `json:"relationship_type,omitempty"`
-	IsPrimary        bool   `json:"is_primary"`
+	AccountID           string          `json:"account_id"`
+	Name                string          `json:"name"`
+	RelationshipType    string          `json:"relationship_type,omitempty"`
+	IsPrimary           bool            `json:"is_primary"`
+	Readers             ReadersResponse `json:"readers"`
+	LeadershipAvailable bool            `json:"leadership_available"`
 }
 
+// StartThreadRequest and OpenThreadRequest take an optional audience,
+// "team" (default) or "leadership" (#5200).
 type StartThreadRequest struct {
 	StudentID         string `json:"student_id"`
 	GuardianAccountID string `json:"guardian_account_id"`
 	Body              string `json:"body"`
+	Audience          string `json:"audience,omitempty"`
 }
 
 type PostMessageRequest struct {
@@ -141,6 +195,7 @@ type PostMessageRequest struct {
 type OpenThreadRequest struct {
 	StudentID         string `json:"student_id"`
 	GuardianAccountID string `json:"guardian_account_id"`
+	Audience          string `json:"audience,omitempty"`
 }
 
 func toMessageResponses(messages []communication.ParentMessage) []MessageResponse {
@@ -193,6 +248,8 @@ func toThreadDetail(d *communication.ParentMessageThread) ThreadDetailResponse {
 		StudentName:      d.StudentName,
 		GuardianName:     d.GuardianName,
 		RelationshipType: d.RelationshipType,
+		Audience:         d.Audience,
+		Readers:          toReadersResponse(d.Readers),
 		Messages:         toMessageResponses(d.Messages),
 	}
 }
@@ -220,6 +277,8 @@ func toInboxThreadResponses(rows []communication.ParentMessageInboxThread) []Inb
 			GroupName:        t.GroupName,
 			GuardianName:     t.GuardianName,
 			RelationshipType: t.RelationshipType,
+			Audience:         t.Audience,
+			Readers:          toReadersResponse(t.Readers),
 			LastMessageAt:    t.LastMessageAt,
 			LastSenderKind:   t.LastSenderKind,
 			LastMessageBody:  t.LastMessageBody,
@@ -370,7 +429,7 @@ func (rs *Resource) startThread(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
-	detail, err := rs.Service.StartParentMessageThread(r.Context(), studentID, guardianID, req.Body)
+	detail, err := rs.Service.StartParentMessageThread(r.Context(), studentID, guardianID, req.Body, req.Audience)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -394,7 +453,7 @@ func (rs *Resource) openThread(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
-	detail, err := rs.Service.OpenParentMessageThread(r.Context(), studentID, guardianID)
+	detail, err := rs.Service.OpenParentMessageThread(r.Context(), studentID, guardianID, req.Audience)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -407,7 +466,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	guardians, err := rs.Service.ListMessageableGuardians(r.Context(), studentID)
+	guardians, err := rs.Service.ListMessageableGuardians(r.Context(), studentID, r.URL.Query().Get("audience"))
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -415,10 +474,12 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 	out := make([]GuardianResponse, 0, len(guardians))
 	for _, g := range guardians {
 		out = append(out, GuardianResponse{
-			AccountID:        strconv.FormatInt(g.AccountID, 10),
-			Name:             g.Name,
-			RelationshipType: g.RelationshipType,
-			IsPrimary:        g.IsPrimary,
+			AccountID:           strconv.FormatInt(g.AccountID, 10),
+			Name:                g.Name,
+			RelationshipType:    g.RelationshipType,
+			IsPrimary:           g.IsPrimary,
+			Readers:             toReadersResponse(g.Readers),
+			LeadershipAvailable: g.LeadershipAvailable,
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Guardians retrieved")
@@ -451,8 +512,11 @@ func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, communication.ErrParentMessageEmptyBody),
 		errors.Is(err, communication.ErrParentMessageBodyTooLong),
 		errors.Is(err, communication.ErrParentMessageInvalidGuardian),
-		errors.Is(err, communication.ErrParentMessageInvalidCountScope):
+		errors.Is(err, communication.ErrParentMessageInvalidCountScope),
+		errors.Is(err, communication.ErrParentMessageInvalidAudience):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, communication.ErrParentMessageLeadershipUnavailable):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCommunicationLeadershipMessagesUnavailable))
 	case errors.Is(err, communication.ErrParentMessageGuardianAccessRevoked):
 		common.RenderError(w, r, common.ErrorConflictMessage("Der Empfänger hat keinen Zugriff mehr auf dieses Kind."))
 	case errors.Is(err, communication.ErrParentMessageHandledBoundaryRequired):

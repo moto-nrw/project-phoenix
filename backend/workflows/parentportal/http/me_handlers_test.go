@@ -243,11 +243,11 @@ func (f *fakeParentService) UnreadMessageCount(context.Context, int64) (int, err
 	return 0, nil
 }
 
-func (f *fakeParentService) GetChildConversation(context.Context, int64, int64) (*parentService.MessageThreadView, error) {
+func (f *fakeParentService) GetChildConversationFor(context.Context, int64, int64, string) (*parentService.MessageThreadView, error) {
 	return nil, nil
 }
 
-func (f *fakeParentService) PostChildReply(context.Context, int64, int64, string, int64) (*parentService.MessageThreadView, error) {
+func (f *fakeParentService) PostChildMessageTo(context.Context, int64, int64, string, string, int64) (*parentService.MessageThreadView, error) {
 	return nil, nil
 }
 

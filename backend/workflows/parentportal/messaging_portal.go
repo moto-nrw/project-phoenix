@@ -14,7 +14,18 @@ func (p *Portal) GetChildConversation(ctx context.Context, accountID, studentID 
 	return p.MessagingFlows.GetChildConversation(ctx, accountID, studentID)
 }
 func (p *Portal) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {
-	return p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body, 0)
+	return p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body)
+}
+
+// GetChildConversationFor opens the guardian's conversation of one audience
+// about the child (#5200); an empty audience is the team conversation.
+func (p *Portal) GetChildConversationFor(ctx context.Context, accountID, studentID int64, audience string) (*MessageThreadView, error) {
+	return p.MessagingFlows.GetChildConversation(ctx, accountID, studentID, audience)
+}
+
+// PostChildMessageTo writes to the conversation of one audience (#5200).
+func (p *Portal) PostChildMessageTo(ctx context.Context, accountID, studentID int64, body, audience string, groupThreadID int64) (*MessageThreadView, error) {
+	return p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body, MessageTarget{Audience: audience, GroupThreadID: groupThreadID})
 }
 func (p *Portal) ListAnnouncements(ctx context.Context, accountID int64) ([]*AnnouncementFeedItem, error) {
 	return p.MessagingFlows.ListAnnouncements(ctx, accountID)

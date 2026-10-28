@@ -2582,7 +2582,8 @@
         "survey_not_draft": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "survey_anonymous": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "class_letter_class_not_reachable": "У вас нет доступа к: {object}. Обратитесь в школу.",
-        "class_letter_read_only": "Не удалось изменить: {object}. Проверьте текущее состояние."
+        "class_letter_read_only": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "leadership_messages_unavailable": "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS."
       },
       "enrollment": {
         "form_attachment_invalid": "Проверьте название и PDF-файл.",

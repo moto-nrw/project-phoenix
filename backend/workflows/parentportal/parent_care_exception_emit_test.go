@@ -182,7 +182,7 @@ func loadThreadPills(t *testing.T, db *bun.DB, repos *api.ParentMessagingSuiteRe
 	var threadID int64
 	var msgs []*parentportal.ParentMessage
 	err := testpkg.WithTenantTx(t, testpkg.WithPackageTenantRuntime(context.Background()), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		th, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
+		th, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID, "team")
 		if ferr != nil || th == nil {
 			return ferr
 		}

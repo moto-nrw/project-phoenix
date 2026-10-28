@@ -8,6 +8,9 @@ type Identity struct {
 	AccountID int64
 	TenantID  int64
 	IsAdmin   bool
+	// ReadsLeadershipMessages: the account holds parent_messages:leadership
+	// (or admin:*), so it hears about leadership conversations (#5200).
+	ReadsLeadershipMessages bool
 }
 
 // Runtime binds authentication facts, the accepted token's lifetime and the

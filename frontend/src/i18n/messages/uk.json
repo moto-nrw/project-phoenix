@@ -2582,7 +2582,8 @@
         "survey_not_draft": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "survey_anonymous": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "class_letter_class_not_reachable": "У вас немає доступу до: {object}. Зверніться до школи.",
-        "class_letter_read_only": "Не вдалося змінити: {object}. Перевірте поточний стан."
+        "class_letter_read_only": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "leadership_messages_unavailable": "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS."
       },
       "enrollment": {
         "form_attachment_invalid": "Перевірте назву та PDF-файл.",

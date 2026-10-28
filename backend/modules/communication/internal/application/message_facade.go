@@ -58,7 +58,7 @@ func mapNativeParentThread[T, M any](thread *T, view func(*T) (InboxThread, []*M
 	if err != nil {
 		return nil, err
 	}
-	return &communication.ParentMessageThread{ThreadID: header.ThreadID, StudentID: header.StudentID, StudentName: header.StudentName, GuardianName: header.GuardianName, RelationshipType: header.RelationshipType, Messages: messages}, nil
+	return &communication.ParentMessageThread{ThreadID: header.ThreadID, StudentID: header.StudentID, StudentName: header.StudentName, GuardianName: header.GuardianName, RelationshipType: header.RelationshipType, Audience: header.Audience, Readers: header.Readers(), Messages: messages}, nil
 }
 func mapNativeStaffThread[T, M any](thread *T, view func(*T) (StaffInboxThread, []*M), convert func(*M) *StaffMessage) *communication.StaffMessageThread {
 	if thread == nil {
@@ -93,9 +93,9 @@ func (m *parentMessaging[I, T, M, G]) GetParentMessageThread(ctx context.Context
 		return mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)
 	})
 }
-func (m *parentMessaging[I, T, M, G]) ListMessageableGuardians(ctx context.Context, studentID int64) ([]communication.MessageableGuardian, error) {
+func (m *parentMessaging[I, T, M, G]) ListMessageableGuardians(ctx context.Context, studentID int64, audience string) ([]communication.MessageableGuardian, error) {
 	return observeMessageResult(ctx, m.observe, "parent_messages.list_guardians", func(runCtx context.Context) ([]communication.MessageableGuardian, error) {
-		rows, err := m.service.ListGuardians(runCtx, studentID)
+		rows, preview, err := m.service.ListGuardians(runCtx, studentID, audience)
 		if err != nil {
 			return nil, m.mapError(err)
 		}
@@ -104,6 +104,11 @@ func (m *parentMessaging[I, T, M, G]) ListMessageableGuardians(ctx context.Conte
 			result = append(result, communication.MessageableGuardian{
 				AccountID: row.AccountID, Name: row.Name,
 				RelationshipType: row.RelationshipType, IsPrimary: row.IsPrimary,
+				Readers: communication.ParentMessageReaders{
+					Guardian: communication.ParentMessageGuardianReader{AccountID: row.AccountID, Name: row.Name, RelationshipType: row.RelationshipType},
+					School:   preview.School,
+				},
+				LeadershipAvailable: preview.LeadershipAvailable,
 			})
 		}
 		return result, nil
@@ -121,18 +126,18 @@ func (m *parentMessaging[I, T, M, G]) ListParentMessageThreadsForStudent(ctx con
 		return mapParentMessageInbox(projectMessageRows(rows, m.rows.Inbox)), m.mapError(err)
 	})
 }
-func (m *parentMessaging[I, T, M, G]) StartParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*communication.ParentMessageThread, error) {
+func (m *parentMessaging[I, T, M, G]) StartParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, body, audience string) (*communication.ParentMessageThread, error) {
 	return observeMessageResult(ctx, m.observe, "parent_messages.start_thread", func(runCtx context.Context) (*communication.ParentMessageThread, error) {
-		thread, err := m.service.StartThread(runCtx, studentID, guardianAccountID, body)
+		thread, err := m.service.StartThread(runCtx, studentID, guardianAccountID, body, audience)
 		if err != nil {
 			return nil, m.mapError(err)
 		}
 		return mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)
 	})
 }
-func (m *parentMessaging[I, T, M, G]) OpenParentMessageThread(ctx context.Context, studentID, guardianAccountID int64) (*communication.ParentMessageThread, error) {
+func (m *parentMessaging[I, T, M, G]) OpenParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, audience string) (*communication.ParentMessageThread, error) {
 	return observeMessageResult(ctx, m.observe, "parent_messages.open_thread", func(runCtx context.Context) (*communication.ParentMessageThread, error) {
-		thread, err := m.service.OpenThread(runCtx, studentID, guardianAccountID)
+		thread, err := m.service.OpenThread(runCtx, studentID, guardianAccountID, audience)
 		if err != nil {
 			return nil, m.mapError(err)
 		}
@@ -250,8 +255,8 @@ func mapParentMessageInbox(rows []*InboxThread) []communication.ParentMessageInb
 	for _, row := range rows {
 		result = append(result, communication.ParentMessageInboxThread{
 			ThreadID: row.ThreadID, StudentID: row.StudentID, StudentName: row.StudentName,
-			SchoolClass: row.SchoolClass, GroupName: row.GroupName, GuardianName: row.GuardianName,
-			RelationshipType: row.RelationshipType, LastMessageAt: row.LastMessageAt,
+			SchoolClass: row.SchoolClass, GroupName: row.GroupName, GuardianAccountID: row.GuardianAccountID, GuardianName: row.GuardianName,
+			RelationshipType: row.RelationshipType, Audience: row.Audience, Readers: row.Readers(), LastMessageAt: row.LastMessageAt,
 			LastSenderKind: row.LastSenderKind, LastMessageBody: row.LastMessageBody, UnreadCount: row.UnreadCount,
 		})
 	}

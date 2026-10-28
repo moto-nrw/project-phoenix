@@ -44,6 +44,22 @@ var parentFeaturesDefinitions = []config.Definition{
 		DependsOn:       config.DependsOnEq(config.KeyParentNotesEnabled, true),
 	},
 	{
+		// Leitungs-Unterhaltungen (#5200). Eltern sehen die Auswahl nur, wenn
+		// auch mindestens ein Konto das Recht dazu hat. Ausgeschaltet bleiben
+		// bestehende Unterhaltungen lesbar; neue beginnt niemand.
+		Key:             config.KeyParentMessageLeadershipEnabled,
+		Label:           "Nachrichten nur an die Leitung (Eltern)",
+		Description:     "Eltern können wählen: an das ganze Team oder nur an die Leitung. Nur die Leitung liest diese Nachrichten. Zur Leitung gehört, wer das Recht „Vertrauliche Elternnachrichten lesen“ hat.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn:       config.DependsOnEq(config.KeyParentNotesEnabled, true),
+	},
+	{
 		Key:             config.KeyGuardianParentInviteMode,
 		Levels:          config.LevelBoth,
 		Label:           "Weitere Bezugspersonen einladen (Eltern)",

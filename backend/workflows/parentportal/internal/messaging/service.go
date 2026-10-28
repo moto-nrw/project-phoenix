@@ -37,10 +37,15 @@ type ConversationCore interface {
 	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*ParentMessage) (bool, error)
 	// DecorateReadReceipts stamps the "OGS hat gelesen" indicator.
 	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*ParentMessage)
-	// Broadcast wakes the guardian's tabs and the school's staff after a commit.
-	Broadcast(tenantID, guardianAccountID, threadID, studentID int64)
+	// Broadcast wakes the guardian's tabs and the school's staff after a
+	// commit; a leadership conversation wakes only the leadership's tabs.
+	Broadcast(tenantID, guardianAccountID, threadID, studentID int64, audience string)
 	// BroadcastRead wakes the same fan-out for a read-receipt refresh.
-	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64)
+	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64, audience string)
+	// LeadershipOption reads the school's leadership option in the caller's
+	// tenant transaction (#5200): whether the school offers it and the
+	// leadership persons' short names.
+	LeadershipOption(ctx context.Context) (LeadershipOption, error)
 }
 
 // MessagingGate reports the owner's fail-open feature flag for a school.

@@ -2582,7 +2582,8 @@
         "survey_not_draft": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "survey_anonymous": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "class_letter_class_not_reachable": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
-        "class_letter_read_only": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+        "class_letter_read_only": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "leadership_messages_unavailable": "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS."
       },
       "enrollment": {
         "form_attachment_invalid": "Ju lutemi kontrolloni emrin dhe skedarin PDF.",

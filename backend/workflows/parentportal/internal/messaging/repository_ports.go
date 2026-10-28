@@ -56,8 +56,8 @@ type DeclarationCommands interface {
 // MessageThreadAccess resolves or atomically creates the guardian's conversation
 // inside the child's authorized tenant transaction. It exposes no staff update commands.
 type MessageThreadAccess interface {
-	FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*ParentMessageThread, error)
-	GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*ParentMessageThread, error)
+	FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error)
+	GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error)
 }
 
 // MessageReads loads the conversation snapshot. Communication's shared core

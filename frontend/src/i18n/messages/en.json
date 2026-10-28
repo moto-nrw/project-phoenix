@@ -2582,7 +2582,8 @@
         "survey_not_draft": "{object} could not be changed. Please check its current status.",
         "survey_anonymous": "{object} could not be changed. Please check its current status.",
         "class_letter_class_not_reachable": "This class is not assigned to you. Please choose one of your own classes.",
-        "class_letter_read_only": "A teacher wrote this parent letter. Only that teacher can change, send or delete it."
+        "class_letter_read_only": "A teacher wrote this parent letter. Only that teacher can change, send or delete it.",
+        "leadership_messages_unavailable": "Messages to the leadership only are not possible here right now. Please write to the whole OGS team."
       },
       "enrollment": {
         "form_attachment_invalid": "Please check the label and the PDF file.",

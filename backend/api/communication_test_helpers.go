@@ -44,17 +44,19 @@ func NewParentEventEmitter(
 }
 
 // NewParentConversationCore binds Communication's shared conversation rules
-// to the given stores for the parent-side service under test.
+// to the given stores for the parent-side service under test. An optional
+// leadership option stands in for the school's choice (#5200).
 func NewParentConversationCore(
 	threadRepo communication.ParentThreadRecords,
 	messageRepo communication.ParentMessageRecords,
 	readRepo communication.ParentReadRecords,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
+	leadership ...func(context.Context) (parentportal.LeadershipOption, error),
 ) parentportal.ConversationCore {
 	return owners.BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 		ThreadRepo: threadRepo, MessageRepo: messageRepo, ReadRepo: readRepo, Broadcaster: broadcaster, Logger: logger,
-	}))
+	}), leadership...)
 }
 
 // ParentConversationMessagesFixture reads the same message snapshot through
@@ -111,7 +113,7 @@ func (send communicationDecisionNotification) Notify(ctx context.Context, event 
 func ParentStoreGuardianMessagesFixture(run func(func(context.Context) error) error, threads communication.ParentThreadRecords, messages communication.ParentMessageRecords, studentID, guardianAccountID int64, limit int) ([]*communication.PortalParentMessage, error) {
 	var rows []*communication.PortalParentMessage
 	err := run(func(ctx context.Context) error {
-		thread, err := threads.ParentThreadFindByStudentGuardian(ctx, studentID, guardianAccountID)
+		thread, err := threads.ParentThreadFindByStudentGuardian(ctx, studentID, guardianAccountID, communication.ParentMessageAudienceTeam)
 		if err != nil || thread == nil {
 			return err
 		}
@@ -136,3 +138,10 @@ func ParentStoreLastGuardianEventFixture(run func(func(context.Context) error) e
 	}
 	return pill, nil
 }
+
+// The staff reaches the parent-message repository suites read with (#5200):
+// every child of the school without the leadership conversations, or nothing.
+var (
+	ParentMessageReachAllStudents = communication.ParentMessageStaffReach{AllStudents: true}
+	ParentMessageReachNone        = communication.ParentMessageStaffReach{}
+)

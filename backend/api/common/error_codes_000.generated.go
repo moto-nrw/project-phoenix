@@ -122,6 +122,7 @@ const (
 	CodeCommunicationDeclarationHasSubmissions           = "communication.declaration_has_submissions"
 	CodeCommunicationGroupThreadClosed                   = "communication.group_thread_closed"
 	CodeCommunicationGroupThreadNoRecipients             = "communication.group_thread_no_recipients"
+	CodeCommunicationLeadershipMessagesUnavailable       = "communication.leadership_messages_unavailable"
 	CodeCommunicationNotificationsDisabled               = "communication.notifications_disabled"
 	CodeCommunicationParentNewsDisabled                  = "communication.parent_news_disabled"
 	CodeCommunicationPollNotOpen                         = "communication.poll_not_open"
@@ -301,7 +302,6 @@ const (
 	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
 	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
 	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
-	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -425,6 +425,7 @@ var errorCodeClasses0 = map[string]string{
 	"communication.declaration_has_submissions":            "business_rejection",
 	"communication.group_thread_closed":                    "business_rejection",
 	"communication.group_thread_no_recipients":             "business_rejection",
+	"communication.leadership_messages_unavailable":        "permission",
 	"communication.notifications_disabled":                 "business_rejection",
 	"communication.parent_news_disabled":                   "permission",
 	"communication.poll_not_open":                          "business_rejection",
@@ -604,7 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.caterer_without_school":                      "permission",
 	"identity.current_password_wrong":                      "input",
 	"identity.demo_access_expired":                         "business_rejection",
-	"identity.demo_access_invalid":                         "input",
 }
 
 func init() {

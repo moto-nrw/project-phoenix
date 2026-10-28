@@ -23,6 +23,10 @@ type Client struct {
 	// IsAdmin mirrors the effective admin scope used by tenant handlers:
 	// literal admins plus accounts with admin:* or *:* permissions.
 	IsAdmin bool
+	// ReadsLeadershipMessages marks a staff connection whose account holds
+	// parent_messages:leadership (or admin:*) at connect time. Only these
+	// connections hear about leadership conversations (#5200).
+	ReadsLeadershipMessages bool
 	// IsParent marks a guardian-portal connection. Parent clients are
 	// cross-tenant and routed by their own account id (UserID): they never
 	// match tenant/group broadcasts, only BroadcastParentMessage addressed to
@@ -611,6 +615,50 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 		slog.Int("recipient_count", recipients),
 	)
 	h.observeDelivery(tenantID, string(event.Type), "parent_message", droppedCount)
+	return nil
+}
+
+// BroadcastLeadershipParentMessage is BroadcastParentMessage for a
+// conversation only the leadership reads (#5200): the guardian's own tabs get
+// the full event, and of the tenant's staff only the connections marked
+// ReadsLeadershipMessages get the sanitized copy. Every other staff tab hears
+// nothing, so it cannot even learn that a leadership conversation moved.
+func (h *Hub) BroadcastLeadershipParentMessage(tenantID, guardianAccountID int64, event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := 0
+	droppedCount := 0
+	deliver := func(client *Client, payload Event) {
+		recipients++
+		select {
+		case client.Channel <- payload:
+		default:
+			droppedCount++
+			h.getLogger().Warn("SSE client channel full, skipping leadership parent-message broadcast",
+				slog.Int64("user_id", client.UserID),
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("guardian_account_id", guardianAccountID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
+	staffEvent := staffSafeParentMessage(event)
+	for _, client := range h.guardianClients[guardianAccountID] {
+		deliver(client, event)
+	}
+	for _, client := range h.tenantClients[tenantID] {
+		if client.ReadsLeadershipMessages {
+			deliver(client, staffEvent)
+		}
+	}
+	h.getLogger().Debug("SSE leadership parent-message broadcast",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("guardian_account_id", guardianAccountID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", recipients),
+	)
+	h.observeDelivery(tenantID, string(event.Type), "parent_message_leadership", droppedCount)
 	return nil
 }
 

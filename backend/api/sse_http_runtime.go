@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	sseHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -18,7 +19,12 @@ func NewSSEHTTPRuntime() sseHTTP.Runtime[realtime.Event, *realtime.Client] {
 	return sseHTTP.Runtime[realtime.Event, *realtime.Client]{
 		Identity: func(ctx context.Context) sseHTTP.Identity {
 			claims := sessiontoken.ClaimsFromCtx(ctx)
-			return sseHTTP.Identity{AccountID: int64(claims.ID), TenantID: tenant.FromContext(ctx), IsAdmin: claims.IsAdmin || securityruntime.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx))}
+			perms := sessiontoken.PermissionsFromCtx(ctx)
+			return sseHTTP.Identity{
+				AccountID: int64(claims.ID), TenantID: tenant.FromContext(ctx),
+				IsAdmin:                 claims.IsAdmin || securityruntime.HasAdminWildcard(perms),
+				ReadsLeadershipMessages: securityruntime.HasPermission(permissions.ParentMessagesLeadership, perms),
+			}
 		},
 		TokenDeadline: withSSETokenDeadline,
 		NewClient:     realtime.NewSSEClient,

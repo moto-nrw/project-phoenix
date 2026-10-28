@@ -17,16 +17,21 @@ var (
 	ErrParentMessageGuardianAccessRevoked   = errors.New("messaging: recipient no longer has access to this child")
 	ErrParentMessagingDisabled              = errors.New("messaging: messaging disabled for this school")
 	ErrParentMessageInvalidCountScope       = errors.New("messaging: invalid count scope")
-	ErrStaffMessagingDisabled               = errors.New("staffmessaging: internal messaging disabled for this school")
-	ErrStaffMessagingNotParticipant         = errors.New("staffmessaging: not a participant of this thread")
-	ErrStaffMessageThreadNotFound           = errors.New("staffmessaging: thread not found")
-	ErrStaffMessageRecipientNotAvailable    = errors.New("staffmessaging: recipient is not an active member of this school")
-	ErrStaffMessageCounterpartUnavailable   = errors.New("staffmessaging: the other participant is no longer available")
-	ErrStaffMessageSelfConversation         = errors.New("staffmessaging: cannot start a conversation with yourself")
-	ErrStaffMessageEmptyBody                = errors.New("staffmessaging: message body must not be empty")
-	ErrStaffMessageBodyTooLong              = errors.New("staffmessaging: message body is too long")
-	ErrStaffMessagingNoActor                = errors.New("staffmessaging: no authenticated account in context")
-	ErrStaffMessageRetentionUnresolved      = errors.New("staffmessaging: retention window could not be resolved")
+	ErrParentMessageInvalidAudience         = errors.New("messaging: invalid conversation audience")
+	// ErrParentMessageLeadershipUnavailable means no new leadership
+	// conversation may begin: the school has the choice switched off or no
+	// account holds parent_messages:leadership. Existing ones stay open.
+	ErrParentMessageLeadershipUnavailable = errors.New("messaging: leadership conversations are not available")
+	ErrStaffMessagingDisabled             = errors.New("staffmessaging: internal messaging disabled for this school")
+	ErrStaffMessagingNotParticipant       = errors.New("staffmessaging: not a participant of this thread")
+	ErrStaffMessageThreadNotFound         = errors.New("staffmessaging: thread not found")
+	ErrStaffMessageRecipientNotAvailable  = errors.New("staffmessaging: recipient is not an active member of this school")
+	ErrStaffMessageCounterpartUnavailable = errors.New("staffmessaging: the other participant is no longer available")
+	ErrStaffMessageSelfConversation       = errors.New("staffmessaging: cannot start a conversation with yourself")
+	ErrStaffMessageEmptyBody              = errors.New("staffmessaging: message body must not be empty")
+	ErrStaffMessageBodyTooLong            = errors.New("staffmessaging: message body is too long")
+	ErrStaffMessagingNoActor              = errors.New("staffmessaging: no authenticated account in context")
+	ErrStaffMessageRetentionUnresolved    = errors.New("staffmessaging: retention window could not be resolved")
 )
 
 // ParentMessage is the Communication view of one parent/OGS chat entry.
@@ -57,17 +62,23 @@ type ParentMessage struct {
 }
 
 type ParentMessageInboxThread struct {
-	ThreadID         int64
-	StudentID        int64
-	StudentName      string
-	SchoolClass      string
-	GroupName        string
-	GuardianName     string
-	RelationshipType string
-	LastMessageAt    *time.Time
-	LastSenderKind   string
-	LastMessageBody  string
-	UnreadCount      int
+	ThreadID          int64
+	StudentID         int64
+	StudentName       string
+	SchoolClass       string
+	GroupName         string
+	GuardianAccountID int64
+	GuardianName      string
+	RelationshipType  string
+	// Audience is ParentMessageAudienceTeam or ParentMessageAudienceLeadership.
+	// Readers names the school side by kind only; the leadership names come
+	// with the conversation itself.
+	Audience        string
+	Readers         ParentMessageReaders
+	LastMessageAt   *time.Time
+	LastSenderKind  string
+	LastMessageBody string
+	UnreadCount     int
 }
 
 // ParentMessageCountSetting is the caller's count scope ("all",
@@ -84,7 +95,19 @@ type ParentMessageThread struct {
 	StudentName      string
 	GuardianName     string
 	RelationshipType string
-	Messages         []ParentMessage
+	Audience         string
+	// Readers says who can read the conversation, resolved when it is read.
+	Readers  ParentMessageReaders
+	Messages []ParentMessage
+}
+
+// ParentMessageReaderPreview says who on the school side would read a
+// conversation the caller is about to write in, and whether a new leadership
+// conversation may begin.
+type ParentMessageReaderPreview struct {
+	Audience            string
+	School              ParentMessageSchoolReaders
+	LeadershipAvailable bool
 }
 
 type MessageableGuardian struct {
@@ -92,13 +115,21 @@ type MessageableGuardian struct {
 	Name             string
 	RelationshipType string
 	IsPrimary        bool
+	// Readers says who would read the conversation with this guardian in the
+	// requested audience (#5200); LeadershipAvailable whether a new leadership
+	// conversation may begin. It is false for a caller without the leadership
+	// permission.
+	Readers             ParentMessageReaders
+	LeadershipAvailable bool
 }
 
 // ParentMessagingQuery exposes staff-side reads of parent/OGS conversations.
 type ParentMessagingQuery interface {
 	ListParentMessageInbox(context.Context, bool) ([]ParentMessageInboxThread, error)
 	CountUnreadParentMessages(context.Context) (int, error)
-	ListMessageableGuardians(context.Context, int64) ([]MessageableGuardian, error)
+	// ListMessageableGuardians takes the audience of the conversation about
+	// to be written ("" is the team) and names its readers per guardian.
+	ListMessageableGuardians(ctx context.Context, studentID int64, audience string) ([]MessageableGuardian, error)
 	// ListParentMessageReachableStudents returns, ascending, the IDs of the
 	// school's children with at least one guardian ListMessageableGuardians
 	// would offer (#4362).
@@ -113,8 +144,10 @@ type ParentMessagingQuery interface {
 // GetParentMessageThread advances read state and is therefore a command.
 type ParentMessagingCommand interface {
 	GetParentMessageThread(context.Context, int64) (*ParentMessageThread, error)
-	StartParentMessageThread(context.Context, int64, int64, string) (*ParentMessageThread, error)
-	OpenParentMessageThread(context.Context, int64, int64) (*ParentMessageThread, error)
+	// StartParentMessageThread and OpenParentMessageThread take the audience
+	// last; an empty audience is the team conversation.
+	StartParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, body, audience string) (*ParentMessageThread, error)
+	OpenParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error)
 	PostParentMessage(context.Context, int64, string, int64) ([]ParentMessage, error)
 	// MarkParentMessageThreadUnread marks the conversation unread for the whole
 	// team until a staff member opens or answers it.

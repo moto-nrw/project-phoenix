@@ -204,7 +204,7 @@ func (s *Service) GetGroupThread(ctx context.Context, accountID, threadID int64,
 			// WithinTenant committed the cursor before returning. The staff group-
 			// thread detail subscribes to this existing read receipt trigger, which
 			// deliberately carries no identifiers through the staff SSE fan-out.
-			s.broadcastReadReceipt(tenantID, accountID, 0, 0)
+			s.broadcastReadReceipt(tenantID, accountID, conversationRef{Audience: AudienceTeam}, 0)
 		}
 		detail := &GroupThreadDetail{GroupThreadView: *view}
 		detail.Children, detail.SchoolName = pickChildren(byID, view.StudentIDs)

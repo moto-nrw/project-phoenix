@@ -2582,7 +2582,8 @@
         "survey_not_draft": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "survey_anonymous": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "class_letter_class_not_reachable": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-        "class_letter_read_only": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+        "class_letter_read_only": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "leadership_messages_unavailable": "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın."
       },
       "enrollment": {
         "form_attachment_invalid": "Lütfen adı ve PDF dosyasını kontrol edin.",

@@ -253,14 +253,20 @@ type PortalService interface {
 	// GetChildConversation returns the guardian's conversation about one owned
 	// child (oldest-first) and marks it read. Returns an empty view (ThreadID
 	// 0) when no conversation exists yet. Authorization only.
-	GetChildConversation(ctx context.Context, accountID, studentID int64) (*parentService.MessageThreadView, error)
+	//
+	// The audience ("team" when empty, or "leadership", #5200) selects the
+	// conversation; the view also says who reads it and whether the
+	// leadership option is offered.
+	GetChildConversationFor(ctx context.Context, accountID, studentID int64, audience string) (*parentService.MessageThreadView, error)
 
 	// PostChildReply appends a guardian message to the child's conversation,
 	// creating it on the first message, and notifies the OGS. Gated by
 	// operations.parent_notes_enabled. A positive groupThreadID marks the
 	// message as the answer to that group thread (#4784); it must have reached
 	// the guardian for this child and still be open.
-	PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64) (*parentService.MessageThreadView, error)
+	// The audience selects the conversation (#5200); a new leadership
+	// conversation needs the school's leadership option.
+	PostChildMessageTo(ctx context.Context, accountID, studentID int64, body, audience string, groupThreadID int64) (*parentService.MessageThreadView, error)
 
 	// ListGroupThreads returns the group threads that reached the guardian,
 	// newest first (#4784). Cross-tenant.

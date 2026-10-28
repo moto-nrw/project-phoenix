@@ -59,10 +59,24 @@ type GroupThreadResponse struct {
 
 type GroupThreadSummaryResponse struct {
 	GroupThreadResponse
-	LastMessageBody string `json:"last_message_body"`
-	MessageCount    int    `json:"message_count"`
-	FamilyCount     int    `json:"family_count"`
-	ReadCount       int    `json:"read_count"`
+	LastMessageBody string               `json:"last_message_body"`
+	MessageCount    int                  `json:"message_count"`
+	FamilyCount     int                  `json:"family_count"`
+	ReadCount       int                  `json:"read_count"`
+	Readers         GroupReadersResponse `json:"readers"`
+}
+
+// GroupReadersResponse says who a group thread reached (#5200): the group,
+// class or AG it went to and how many families received it. Answers of the
+// parents go to each child's team conversation.
+type GroupReadersResponse struct {
+	TargetType     string `json:"target_type"`
+	TargetLabel    string `json:"target_label"`
+	RecipientCount int    `json:"recipient_count"`
+}
+
+func toGroupReaders(thread communication.ParentGroupThread, familyCount int) GroupReadersResponse {
+	return GroupReadersResponse{TargetType: thread.Target.Type, TargetLabel: thread.Target.Label, RecipientCount: familyCount}
 }
 
 type GroupMessageResponse struct {
@@ -87,6 +101,7 @@ type GroupThreadDetailResponse struct {
 	Children    []GroupChildResponse   `json:"children"`
 	FamilyCount int                    `json:"family_count"`
 	ReadCount   int                    `json:"read_count"`
+	Readers     GroupReadersResponse   `json:"readers"`
 }
 
 func (rs *Resource) listGroupThreads(w http.ResponseWriter, r *http.Request) {
@@ -100,6 +115,7 @@ func (rs *Resource) listGroupThreads(w http.ResponseWriter, r *http.Request) {
 		out = append(out, GroupThreadSummaryResponse{
 			GroupThreadResponse: toGroupThreadResponse(row.Thread), LastMessageBody: row.LastMessageBody,
 			MessageCount: row.MessageCount, FamilyCount: row.FamilyCount, ReadCount: row.ReadCount,
+			Readers: toGroupReaders(row.Thread, row.FamilyCount),
 		})
 	}
 	common.Respond(w, r, http.StatusOK, out, "Group threads retrieved")
@@ -259,5 +275,6 @@ func toGroupThreadDetail(detail *communication.ParentGroupThreadDetail) GroupThr
 	return GroupThreadDetailResponse{
 		Thread: toGroupThreadResponse(detail.Thread), Messages: messages, Children: toGroupChildResponses(detail.Children),
 		FamilyCount: detail.FamilyCount, ReadCount: detail.ReadCount,
+		Readers: toGroupReaders(detail.Thread, detail.FamilyCount),
 	}
 }
