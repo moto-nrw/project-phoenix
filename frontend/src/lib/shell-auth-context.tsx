@@ -20,6 +20,22 @@ import { mutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "ShellAuthContext" });
 
+/**
+ * Revokes the portal session's refresh-token family on the server (#5194).
+ * Only the revoked family ends the session's access tokens, also in a cookie
+ * a late response writes back; a failed revocation therefore throws and the
+ * caller keeps the session. 401 means nothing is left to revoke.
+ */
+async function revokeSessionFamily(path: string): Promise<void> {
+  const response = await fetch(path, {
+    method: "POST",
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok && response.status !== 401) {
+    throw await apiErrorFromResponse(response, "Logout failed");
+  }
+}
+
 interface ShellUser {
   /**
    * Kontokennung der angemeldeten Person. Jede Portal-Hülle löst die Sitzung
@@ -164,17 +180,7 @@ export function TeacherShellProvider({
         // Finish backend revocation before clearing the Auth.js cookie. The
         // response-aware route may persist a just-refreshed session cookie;
         // awaiting it guarantees signOut remains the final cookie mutation.
-        // Only the revoked family ends the session's access tokens (#5194):
-        // a failed revocation stops here, keeps the session and lets the
-        // caller show the error with a retry. 401 means nothing is left to
-        // revoke.
-        const response = await fetch("/api/auth/logout", {
-          method: "POST",
-          signal: AbortSignal.timeout(5000),
-        });
-        if (!response.ok && response.status !== 401) {
-          throw await apiErrorFromResponse(response, "Tenant logout failed");
-        }
+        await revokeSessionFamily("/api/auth/logout");
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).
         clearPersonalStorage();
@@ -242,10 +248,9 @@ export function OperatorShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
-        // Note: operator backend has no logout endpoint — tokens expire naturally.
-        // The tenant /api/auth/logout route uses tenant auth cookies and would
-        // return 401 for operator sessions. Operator accounts don't do tenant
-        // switching, so the stale-session issue from #1067 doesn't apply here.
+        // The operator family is checked on every operator request; revoking
+        // it ends this session's tokens at once (#5194).
+        await revokeSessionFamily("/api/operator/auth/logout");
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).
         clearPersonalStorage();
@@ -316,17 +321,8 @@ export function SchoolShellProvider({
         }
         // School sessions revoke through the shared scope-preserving
         // /auth/logout (tenant-style), proxied with the school session's
-        // refresh token. Best-effort: logout must never block on it.
-        try {
-          await fetch("/api/school/auth/logout", {
-            method: "POST",
-            signal: AbortSignal.timeout(5000),
-          });
-        } catch (err: unknown) {
-          logger.warn("school_backend_logout_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        // refresh token (#5194).
+        await revokeSessionFamily("/api/school/auth/logout");
         // Dieses Gerät abmelden, bevor die Session weg ist (#2208): sonst
         // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
         // Gerät fände ein Abo ohne Zuordnung vor.
@@ -390,17 +386,7 @@ export function CatererShellProvider({
         } catch {
           // sessionStorage unavailable: the login page shows its notice.
         }
-        // Best effort: signing out of this device must not wait for it.
-        try {
-          await fetch("/api/caterer/auth/logout", {
-            method: "POST",
-            signal: AbortSignal.timeout(5000),
-          });
-        } catch (err: unknown) {
-          logger.warn("caterer_backend_logout_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        await revokeSessionFamily("/api/caterer/auth/logout");
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).
         clearPersonalStorage();
@@ -467,18 +453,8 @@ export function TraegerShellProvider({
           // sessionStorage unavailable: the login page then shows its
           // "session expired" note, which is harmless.
         }
-        // Revoke the backend refresh session first. Best-effort: logout must
-        // never block on it, the local session ends either way.
-        try {
-          await fetch("/api/traeger/auth/logout", {
-            method: "POST",
-            signal: AbortSignal.timeout(5000),
-          });
-        } catch (err: unknown) {
-          logger.warn("traeger_backend_logout_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-        }
+        // Revoke the backend refresh session first (#5194).
+        await revokeSessionFamily("/api/traeger/auth/logout");
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).
         clearPersonalStorage();
@@ -575,11 +551,11 @@ export function ParentShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: async () => {
-        // Parent backend has no logout endpoint yet — tokens expire
-        // naturally. NextAuth signOut clears the parent.session-token
-        // cookie locally and redirects to the parents login page.
-        // Best-effort: drop this device's Web Push registration first.
+        // Best-effort: drop this device's Web Push registration first, while
+        // the session can still authenticate it.
         await unsubscribePushSilently("parent");
+        // Revoke the parent family before Auth.js clears the cookie (#5194).
+        await revokeSessionFamily("/api/parent/auth/logout");
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).
         clearPersonalStorage();

@@ -158,7 +158,11 @@ func (s *AccountAuthentication) VerifyAccessSession(ctx context.Context, session
 	if token.FamilyID == "" {
 		return identityaccess.ErrInvalidToken
 	}
-	head, err := s.sessions.LatestAccountSessionInFamily(bindRuntime(s.attach, ctx), token.FamilyID)
+	// The family is read across schools: a parent or caterer session is
+	// pinned to one school, and a tenant the caller's context may carry must
+	// not hide it. The token names account and portal; the predicate checks
+	// both.
+	head, err := s.sessions.LatestAccountSessionInFamily(s.runtime.Detach(bindRuntime(s.attach, ctx)), token.FamilyID)
 	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
 		return identityaccess.ErrInvalidToken
 	}

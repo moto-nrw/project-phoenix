@@ -552,6 +552,12 @@ describe("OperatorShellProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockSignOut.mockResolvedValue(undefined);
+    // The operator logout revokes its family first (#5194).
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null)));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -901,4 +907,85 @@ describe("logout leaves no personal entries behind (#5000)", () => {
     // Device settings without data of a person stay.
     expect(localStorage.getItem("sidebar-collapsed")).toBe("true");
   });
+});
+
+// #5194: every portal's logout revokes its own refresh-token family on the
+// server before Auth.js clears the cookie; a failed revocation keeps the
+// session instead of passing for a logout.
+describe("every portal logout revokes its session family (#5194)", () => {
+  const portals = [
+    ["OGS", TeacherShellProvider, "/api/auth/logout"],
+    ["Betreiber", OperatorShellProvider, "/api/operator/auth/logout"],
+    ["Schule", SchoolShellProvider, "/api/school/auth/logout"],
+    ["Caterer", CatererShellProvider, "/api/caterer/auth/logout"],
+    ["Eltern", ParentShellProvider, "/api/parent/auth/logout"],
+  ] as const;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUseSession.mockReturnValue({
+      data: {
+        user: { id: "7", name: "User", email: "u@example.com", roles: [] },
+      },
+      status: "authenticated",
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function renderPortal(Provider: (typeof portals)[number][1]) {
+    return renderHook(() => useShellAuth(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <Provider>{children}</Provider>
+      ),
+    });
+  }
+
+  it.each(portals)(
+    "%s: revokes before the cookie goes",
+    async (_portal, Provider, path) => {
+      const order: string[] = [];
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string) => {
+          if (url === path) order.push("revoke");
+          return new Response(null, { status: 204 });
+        }),
+      );
+      mockSignOut.mockImplementation(() => {
+        order.push("signOut");
+        return Promise.resolve(undefined);
+      });
+
+      await renderPortal(Provider).result.current.logout();
+
+      expect(order).toEqual(["revoke", "signOut"]);
+    },
+  );
+
+  it.each(portals)(
+    "%s: a failed revocation keeps the session",
+    async (_portal, Provider) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json(
+            {
+              status: 503,
+              detail: "logout could not revoke the session",
+              code: "general.unavailable",
+            },
+            { status: 503 },
+          ),
+        ),
+      );
+
+      await expect(
+        renderPortal(Provider).result.current.logout(),
+      ).rejects.toThrow();
+      expect(mockSignOut).not.toHaveBeenCalled();
+    },
+  );
 });

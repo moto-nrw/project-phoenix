@@ -107,6 +107,10 @@ type OperatorAuthentication interface {
 	// a new token pair; replays outside the recovery grace revoke the
 	// family.
 	RefreshOperatorToken(ctx context.Context, operatorID int64, refreshToken string) (accessToken, newRefreshToken string, err error)
+	// LogoutOperator revokes the operator's refresh-token family the
+	// presented refresh token belongs to; its access tokens end at once
+	// (#5194). Other families stay valid.
+	LogoutOperator(ctx context.Context, operatorID int64, refreshToken string) error
 	UpdateOperatorProfile(ctx context.Context, operatorID int64, displayName string) (Operator, error)
 	// ChangeOperatorPassword rotates the password and revokes every refresh
 	// session and pending e-mail change of the operator atomically.

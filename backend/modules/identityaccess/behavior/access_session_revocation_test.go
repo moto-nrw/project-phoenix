@@ -285,3 +285,45 @@ func TestVerifyAccessSessionQueryBudget(t *testing.T) {
 	assert.Len(t, rotated, len(fresh), "the check must not grow with the generations of the family")
 	testpkg.AssertQueryBudget(t, "identity.access_session.verify", rotated)
 }
+
+// TestPortalLogoutEndsOnlyThatPortalsAccessTokens pins #5194 for the parent
+// and school portals: their logout revokes their own family through the
+// shared /auth/logout, the per-request check then refuses their access
+// tokens, and the other portal's family of the same account stays valid.
+func TestPortalLogoutEndsOnlyThatPortalsAccessTokens(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	service := newFixtureAuthService(t, db, module)
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	ctx := testpkg.TenantContext(tenantID)
+	email, username := uniqueTestCredentials("portal-logout")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, tenantID)
+	assignSeededRole(t, db, account.ID, tenantID, "user")
+	assignSeededRole(t, db, account.ID, tenantID, "guardian")
+
+	parentAccess, parentRefresh, err := service.LoginParent(ctx, email, testPassword)
+	require.NoError(t, err)
+	tenantAccess, _, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	parent, staff := accessSessionOf(t, parentAccess), accessSessionOf(t, tenantAccess)
+	require.Equal(t, "parent", parent.Scope)
+	require.NoError(t, module.VerifyAccessSession(ctx, parent))
+
+	require.NoError(t, module.LogoutWithAudit(ctx, parentRefresh, "", ""))
+
+	require.ErrorIs(t, module.VerifyAccessSession(ctx, parent), identityaccess.ErrInvalidToken, "the parent token ends with its family")
+	require.NoError(t, module.VerifyAccessSession(ctx, staff), "the staff session of the same account stays valid")
+
+	schoolTenant, _ := testpkg.CreateTestTenant(t, db)
+	_, teacherID := createLehrkraftAccount(t, db, service, "portal-logout-school", schoolTenant)
+	schoolAccess, schoolRefresh, err := service.IssueSchoolTokensForAuthenticatedAccount(testpkg.TenantContext(schoolTenant), teacherID, schoolTenant, "", "")
+	require.NoError(t, err)
+	school := accessSessionOf(t, schoolAccess)
+	require.Equal(t, "school", school.Scope)
+	require.NoError(t, module.VerifyAccessSession(ctx, school))
+	require.NoError(t, module.LogoutWithAudit(ctx, schoolRefresh, "", ""))
+	require.ErrorIs(t, module.VerifyAccessSession(ctx, school), identityaccess.ErrInvalidToken, "the school token ends with its family")
+}

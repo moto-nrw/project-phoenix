@@ -57,11 +57,24 @@ const familyRevoked = (req) => {
     sharedTenantCookie && family !== undefined && !liveFamilies.has(family)
   );
 };
-const familyRoutes = new Set([
-  "/api/me/profile",
-  "/api/me/navigation",
-  "/auth/account/tenants",
+// Every session route of every portal refuses a revoked family; the auth
+// routes answer for themselves.
+const familyRoutes = (path) =>
+  !path.startsWith("/auth/") &&
+  !path.startsWith("/operator/auth/") &&
+  !path.startsWith("/__fixture/") &&
+  path !== "/health";
+// One protected read per other portal, behind its real BFF route.
+const portalReads = new Set([
+  "/parent/me/calendar",
+  "/school/supervisions/",
+  "/operator/organizations",
+  "/caterer/schools",
 ]);
+const refuse = (res, body) => {
+  res.writeHead(401, { "Content-Type": "application/problem+json" });
+  res.end(JSON.stringify(body));
+};
 const profile = {
   id: 1,
   first_name: "Test",
@@ -73,15 +86,12 @@ const api = createServer(async (req, res) => {
   const url = new URL(req.url, `http://localhost:${apiPort}`);
   const path = url.pathname;
   let data;
-  if (familyRoutes.has(path) && familyRevoked(req)) {
-    res.writeHead(401, { "Content-Type": "application/problem+json" });
-    res.end(
-      JSON.stringify({
-        status: 401,
-        detail: "session has been revoked",
-        code: "general.permission",
-      }),
-    );
+  if (familyRoutes(path) && familyRevoked(req)) {
+    refuse(res, {
+      status: 401,
+      detail: "session has been revoked",
+      code: "general.permission",
+    });
     return;
   }
   if (path === "/health") data = {};
@@ -105,6 +115,34 @@ const api = createServer(async (req, res) => {
       student_photos_enabled: true,
       timetable_enabled: false,
     });
+  } else if (sharedTenantCookie && path === "/__fixture/mint") {
+    // A fresh family of the given portal, as its login would open it.
+    const family = `family-${++familySequence}`;
+    liveFamilies.add(family);
+    const token = fixtureToken({
+      ...claims(url.searchParams.get("scope") ?? ""),
+      family_id: family,
+    });
+    data = { access_token: token, refresh_token: token };
+  } else if (sharedTenantCookie && portalReads.has(path)) {
+    data = envelope([]);
+  } else if (sharedTenantCookie && path === "/operator/auth/logout") {
+    logoutRequests++;
+    liveFamilies.delete(bearerClaims(req)?.family_id);
+    res.writeHead(204);
+    res.end();
+    return;
+  } else if (sharedTenantCookie && path === "/operator/auth/refresh") {
+    const presented = bearerClaims(req);
+    if (!liveFamilies.has(presented?.family_id)) {
+      refuse(res, { status: 401, code: "general.permission" });
+      return;
+    }
+    const token = fixtureToken({
+      ...claims("platform"),
+      family_id: presented.family_id,
+    });
+    data = envelope({ access_token: token, refresh_token: token });
   } else if (sharedTenantCookie && path === "/__fixture/switch-state") {
     data = { switchRequests, logoutRequests, liveFamilies: liveFamilies.size };
   } else if (sharedTenantCookie && path === "/auth/switch-tenant") {
@@ -115,14 +153,16 @@ const api = createServer(async (req, res) => {
     );
     return;
   } else if (sharedTenantCookie && path === "/auth/logout") {
+    // Like the backend: 204 only after the family is revoked.
     logoutRequests++;
     liveFamilies.delete(bearerClaims(req)?.family_id);
-    data = {};
+    res.writeHead(204);
+    res.end();
+    return;
   } else if (sharedTenantCookie && path === "/auth/refresh") {
     const presented = bearerClaims(req);
     if (!liveFamilies.has(presented?.family_id)) {
-      res.writeHead(401, { "Content-Type": "application/problem+json" });
-      res.end(JSON.stringify({ status: 401, code: "general.permission" }));
+      refuse(res, { status: 401, code: "general.permission" });
       return;
     }
     const token = fixtureToken({

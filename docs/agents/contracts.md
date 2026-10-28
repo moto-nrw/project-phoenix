@@ -387,9 +387,14 @@ its grace) therefore end the access tokens of that family immediately; a
 cookie a late response writes back opens nothing. Logout takes the account
 lock refresh takes first, so a rotation committing during logout is revoked
 with its family, and a switch mints nothing out of a family that is gone.
-`/auth/logout` answers 204 only after the revocation committed and 503 when
-it failed; the tenant shell and the relogin action keep the session and show
-the error with a retry. Sessions without `family_id` (from before families)
+`/auth/logout` (tenant, parent, school, caterer, Träger) and
+`/operator/auth/logout` answer 204 only after the revocation committed and
+503 when it failed. Every portal shell revokes through its BFF logout route
+(`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
+Auth.js clears the cookie; a failed revocation keeps the session and shows
+the error with a retry, as does the tenant relogin action. Portal cookies
+are host-only, but a late response of the same portal can still write one
+back; the revoked family makes it worthless. Sessions without `family_id` (from before families)
 are refused: their access tokens get 401, their refresh deletes the row and
 the person signs in again. A staff-view preview token carries the admin's
 family and ends with the admin's session.

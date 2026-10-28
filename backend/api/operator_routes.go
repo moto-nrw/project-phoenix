@@ -201,13 +201,14 @@ func (rs operatorIdentityRoutes) mountPublicAuthRoutes(r chi.Router, limiters au
 	})
 }
 
-// mountRefreshRoute registers the refresh token route (requires valid refresh
-// JWT, no scope check).
+// mountRefreshRoute registers the refresh and logout routes (require a valid
+// refresh JWT, no scope check; the handlers accept only platform scope).
 func (rs operatorIdentityRoutes) mountRefreshRoute(r chi.Router) {
 	r.Group(func(r chi.Router) {
 		r.Use(rs.sessions.Refresh()...)
 		if rs.account != nil {
 			r.Post("/auth/refresh", rs.account.RefreshToken)
+			r.Post("/auth/logout", rs.account.Logout)
 		}
 	})
 }
