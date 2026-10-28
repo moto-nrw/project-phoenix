@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { act, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
 vi.unmock("next-intl");
@@ -117,12 +117,6 @@ describe("ProtectedLayout", () => {
         <div>Geschützter Inhalt</div>
       </ProtectedLayout>,
     );
-
-    // Wait for the real deferred dialog import, including its dependencies,
-    // before the DOM assertion's timeout starts. Cold transforms can exceed it.
-    await act(async () => {
-      await import("~/components/notifications/notification-setup-dialog");
-    });
 
     // Anker: die geführte Einrichtung hat den Installationsschritt für das
     // iPhone übernommen.
