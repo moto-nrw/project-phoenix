@@ -88,11 +88,8 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   // Planung. Der Dienstplan setzt nur Basis voraus und hängt nicht mehr am
   // Betreuungsplan (`timetable.enabled`, Entscheidung in #4812).
   "/betreuungsplan": BASIS,
-  "/timetables": BASIS,
   "/dienstplan": "dienstplan",
-  "/staff/dienstplan": "dienstplan",
   "/vertretung": BASIS,
-  "/vertretungsplan": BASIS,
   "/lists": BASIS,
   "/calendar-periods": BASIS,
   // Lohnabrechnung aus der Zeiterfassung (Lohnbüro-Versand, Personalnummer).
@@ -191,7 +188,7 @@ export const STAFF_TAB_MODULES: Readonly<Record<string, ModuleKey>> = {
 /**
  * Das Modul hinter einer Adresse der Mitarbeiter-Oberfläche, oder `null` für
  * Basis und unbekannte Adressen. Der längste passende Pfad gewinnt, damit
- * `/staff/dienstplan` nicht an `/staff` hängen bleibt.
+ * spezifische Unterseiten ihr eigenes Modul behalten.
  */
 export function moduleOfPath(pathname: string): ModuleKey | null {
   let best: string | null = null;
