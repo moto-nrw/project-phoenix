@@ -23,7 +23,7 @@ const logger = createLogger({ component: "TenantHostCheck" });
  * existing account acts for the school the invitation names, not for the
  * session's; the bare domain's invitation page calls it.
  */
-const MISMATCH_EXEMPT_PATHS = new Set([
+export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
   "/api/auth/switch-tenant",
   "/api/auth/token",
   "/api/auth/logout",

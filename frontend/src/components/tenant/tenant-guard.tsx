@@ -137,6 +137,9 @@ function GuardedTenant({
     null,
   );
   const refusalActive = useRef(false);
+  // The refusal named another account (#5183), not another school: the
+  // check ends on this school, and PersonalStorageGuard leaves the page.
+  const [accountRefused, setAccountRefused] = useState(false);
   const setRefusal = useCallback((state: "checking" | "failed" | null) => {
     refusalActive.current = state !== null;
     setRefusalState(state);
@@ -235,7 +238,7 @@ function GuardedTenant({
 
   useEffect(
     () =>
-      onSessionTenantMismatch(() => {
+      onSessionTenantMismatch((code) => {
         const current = latest.current;
         // A tab still on path mode (<domain>/<school>/...) has no school in
         // its host; only the school's subdomain binds its requests.
@@ -258,6 +261,7 @@ function GuardedTenant({
         ) {
           return;
         }
+        setAccountRefused(code === "identity.session_account_mismatch");
         checkSessionSchool();
       }),
     [redirect, checkSessionSchool],
@@ -530,7 +534,11 @@ function GuardedTenant({
   if (refusal === "checking") {
     return (
       <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">Schule wird gewechselt...</div>
+        <div className="text-sm text-gray-500">
+          {accountRefused
+            ? "Seite wird neu geladen..."
+            : "Schule wird gewechselt..."}
+        </div>
       </div>
     );
   }

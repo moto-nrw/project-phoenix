@@ -4,6 +4,7 @@ import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { ParentPortalAnalyticsSession } from "~/components/analytics/parent-portal-analytics-session";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { SessionAccountBinding } from "~/components/auth/session-account-binding";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { parentPath } from "~/lib/parent-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
@@ -44,6 +45,7 @@ export function ParentProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <SessionAccountBinding />
       <PersonalStorageGuard homeHref={parentsHome} />
       <SWRScopeBoundary />
       <PushSubscriptionSync portal="parent" />

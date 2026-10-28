@@ -12,6 +12,7 @@ import {
   sentrySessionContext,
   type SentryPortal,
 } from "~/lib/sentry-context";
+import { sessionAccountMismatchResponse } from "./session-account-check";
 import type { ServerSession } from "./shared";
 
 export type ResponseRouteHandler<Context = RouteContext> = (
@@ -110,6 +111,14 @@ export function createResponseAwareAuth(
         current.session = serverRequest.auth;
         current.request = authRequest;
         tagSentryRequest(portal, authRequest);
+        // A tab that names another account than the cookie is refused
+        // before any route of any portal runs (#5183).
+        const accountMismatch = sessionAccountMismatchResponse(
+          authRequest,
+          serverRequest.auth,
+          portal,
+        );
+        if (accountMismatch) return accountMismatch;
         return requestSession.run(current, () =>
           handler(serverRequest, authContext as Context),
         );
