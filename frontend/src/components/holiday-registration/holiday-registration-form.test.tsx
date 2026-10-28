@@ -482,8 +482,8 @@ describe("second guardian card", () => {
     expect(lastName).not.toBeRequired();
     const phone = second.getByLabelText("Telefon (freiwillig)");
     type(phone, "0151 2345678");
-    expect(second.getByLabelText("Vorname *")).toBeRequired();
-    expect(second.getByLabelText("Nachname *")).toBeRequired();
+    expect(second.getByLabelText("Vorname")).toBeRequired();
+    expect(second.getByLabelText("Nachname")).toBeRequired();
     type(phone, " ");
     expect(firstName).not.toBeRequired();
     expect(lastName).not.toBeRequired();
