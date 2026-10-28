@@ -217,12 +217,30 @@ async function walkTour(
         },
       )
       .toBe(true);
+    // Eine Station darf von selbst weitergehen, etwa „Eltern eintragen“,
+    // sobald die geladene Liste schon jemanden mit Menü zeigt
+    // (skipWhenVisible). Dann gilt die nächste Station.
+    const here = JSON.stringify(position);
+    let moved = false;
     await expect
-      .poll(() => markHighlightedTarget(page, stop.target), {
-        message: `${label}: Der Rahmen liegt auf keiner Stelle zu ${stop.target}.`,
-        timeout: 10_000,
-      })
+      .poll(
+        async () => {
+          moved = JSON.stringify(await tourPosition(page)) !== here;
+          return moved || (await markHighlightedTarget(page, stop.target));
+        },
+        {
+          message: `${label}: Der Rahmen liegt auf keiner Stelle zu ${stop.target}.`,
+          timeout: 10_000,
+        },
+      )
       .toBe(true);
+    if (moved) {
+      if ((await tourPosition(page)) === null) {
+        annotateStations(visited);
+        return { visited, stoppedAt: null };
+      }
+      continue;
+    }
     await expect(
       page.locator("[data-e2e-tour-target]"),
       `${label}: Die markierte Stelle ist nicht zu sehen.`,
