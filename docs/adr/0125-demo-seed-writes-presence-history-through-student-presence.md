@@ -58,4 +58,5 @@ database (`dev-tools.compose.transaction-runtime`).
   nightly performance) fills the 29 days before the seed day, inside the
   30-day visit retention of the seeded consents.
 - The public demo keeps showing only the seed day until its sidecar has a
-  write path. That needs its own decision.
+  write path. That needs its own decision; [ADR 0127](0127-public-demo-writes-presence-history-through-a-demo-only-operator-route.md)
+  makes it.
