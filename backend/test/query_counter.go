@@ -40,6 +40,7 @@ type countedQuery struct {
 	operation string
 	sql       string
 	deadline  time.Time
+	issuedAt  time.Time
 }
 
 // NewQueryCounter returns an enabled counter that is not attached yet.
@@ -94,7 +95,7 @@ func (c *QueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) c
 	}
 	c.mu.Lock()
 	deadline, _ := ctx.Deadline()
-	c.queries = append(c.queries, countedQuery{operation: event.Operation(), sql: event.Query, deadline: deadline})
+	c.queries = append(c.queries, countedQuery{operation: event.Operation(), sql: event.Query, deadline: deadline, issuedAt: time.Now()})
 	c.mu.Unlock()
 	return ctx
 }
@@ -163,10 +164,12 @@ func (c *QueryCounter) Queries() []string {
 	return c.Matching(func(string) bool { return true })
 }
 
-// StatementDeadline is a recorded statement with the deadline of the context
-// it ran under; Deadline is zero when that context had none.
+// StatementDeadline is a recorded statement with the moment it was issued and
+// the deadline of the context it ran under; Deadline is zero when that
+// context had none.
 type StatementDeadline struct {
 	SQL      string
+	IssuedAt time.Time
 	Deadline time.Time
 }
 
@@ -177,7 +180,7 @@ func (c *QueryCounter) Deadlines() []StatementDeadline {
 	defer c.mu.Unlock()
 	out := make([]StatementDeadline, len(c.queries))
 	for i, q := range c.queries {
-		out[i] = StatementDeadline{SQL: q.sql, Deadline: q.deadline}
+		out[i] = StatementDeadline{SQL: q.sql, IssuedAt: q.issuedAt, Deadline: q.deadline}
 	}
 	return out
 }

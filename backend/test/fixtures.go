@@ -169,9 +169,6 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *ActivityGr
 func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *Room {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Make room name unique by appending timestamp
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
@@ -181,6 +178,9 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *Room {
 		Capacity: IntPtr(30),
 	}
 	room.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(room).
@@ -218,9 +218,6 @@ func CreateTestOpenRoom(tb testing.TB, db *bun.DB, name string) *Room {
 func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *Device {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Make device ID unique by appending timestamp if needed
 	uniqueDeviceID := fmt.Sprintf("%s-%d", deviceID, uniqueFixtureSuffix())
 
@@ -232,6 +229,9 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *Device {
 		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(device).
@@ -255,9 +255,6 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *Device {
 func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *Device {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Use upsert pattern to avoid race conditions
 	device := &Device{
 		DeviceID:   WebManualDeviceID,
@@ -266,6 +263,9 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *Device {
 		Status:     DeviceStatusActive,
 	}
 	device.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(device).
@@ -292,14 +292,14 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *Device {
 func CreateTestPerson(tb testing.TB, db *bun.DB, firstName, lastName string) *Person {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	person := &Person{
 		FirstName: firstName,
 		LastName:  lastName,
 	}
 	person.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(person).
@@ -362,13 +362,13 @@ func insertTestStaff(ctx context.Context, db bun.IDB, staff *Staff) error {
 func CreateTestStaffForPerson(tb testing.TB, db *bun.DB, personID int64) *Staff {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	staff := &Staff{
 		PersonID: personID,
 	}
 	staff.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := insertTestStaff(ctx, db, staff)
 	require.NoError(tb, err, "Failed to create test staff for person")
@@ -409,9 +409,6 @@ func CreateTestStudent(tb testing.TB, db *bun.DB, firstName, lastName, schoolCla
 func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *EducationGroup {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Make name unique by appending timestamp
 	uniqueName := fmt.Sprintf("%s-%d", name, uniqueFixtureSuffix())
 
@@ -419,6 +416,9 @@ func CreateTestEducationGroup(tb testing.TB, db *bun.DB, name string) *Education
 		Name: uniqueName,
 	}
 	group.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(group).
@@ -476,14 +476,14 @@ func ReserveMissingTeacherID(tb testing.TB, db *bun.DB) int64 {
 func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64) *EducationGroupTeacher {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	gt := &EducationGroupTeacher{
 		GroupID:   groupID,
 		TeacherID: teacherID,
 	}
 	gt.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(gt).
@@ -498,14 +498,14 @@ func CreateTestGroupTeacher(tb testing.TB, db *bun.DB, groupID, teacherID int64)
 func CreateTestClassTeacher(tb testing.TB, db *bun.DB, staffID int64, schoolClass string) *EducationClassTeacher {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	ct := &EducationClassTeacher{
 		StaffID:     staffID,
 		SchoolClass: schoolClass,
 	}
 	ct.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(ct).
@@ -542,9 +542,6 @@ type (
 func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *ActiveGroupRow {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	now := fixtureInstant()
 	activeGroup := &ActiveGroupRow{
 		GroupID:        &activityGroupID,
@@ -554,6 +551,9 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 		TimeoutMinutes: 30,
 	}
 	activeGroup.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -569,9 +569,6 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID int64, role string) *GroupSupervisorRow {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	supervisor := &GroupSupervisorRow{
 		StaffID:   staffID,
 		GroupID:   activeGroupID,
@@ -579,6 +576,9 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		StartDate: calendar.TodayDate(),
 	}
 	supervisor.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(supervisor).
@@ -652,15 +652,15 @@ func cleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64)
 func CreateTestPersonWithAccountID(tb testing.TB, db *bun.DB, firstName, lastName string, accountID int64) *Person {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	person := &Person{
 		FirstName: firstName,
 		LastName:  lastName,
 		AccountID: &accountID,
 	}
 	person.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(person).
@@ -1178,9 +1178,6 @@ func OwnTestPermission(tb testing.TB, db *bun.DB, permissionID int64) {
 func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType string) *TokenFixture {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Generate unique token value
 	tokenValue := fmt.Sprintf("test-token-%s-%d", tokenType, uniqueFixtureSuffix())
 
@@ -1201,6 +1198,9 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 		Generation: 0,
 	}
 	token.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	insertTokenFixture(tb, ctx, db, token)
 
 	return token
@@ -1215,9 +1215,6 @@ func CreateTestToken(tb testing.TB, db *bun.DB, accountID int64, tokenType strin
 func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *RFIDCardFixture {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Make tag ID unique - use only alphanumeric chars (no hyphens) to match normalization
 	uniqueTagID := fmt.Sprintf("%s%d", tagID, uniqueFixtureSuffix())
 
@@ -1226,6 +1223,9 @@ func CreateTestRFIDCard(tb testing.TB, db *bun.DB, tagID string) *RFIDCardFixtur
 	}
 	card.ID = uniqueTagID
 	card.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(card).
@@ -1256,9 +1256,6 @@ func LinkRFIDToStudent(tb testing.TB, db *bun.DB, personID int64, tagID string) 
 func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *GuardianProfile {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// Make email unique
 	uniqueEmail := fmt.Sprintf(testEmailFormat, email, uniqueFixtureSuffix())
 
@@ -1270,6 +1267,9 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *Guardia
 		LanguagePreference:     "de",
 	}
 	profile.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(profile).
@@ -1289,9 +1289,6 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *Guardia
 func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate calendar.Date) *EducationGroupSubstitution {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	substitution := &EducationGroupSubstitution{
 		TargetType:        EducationGroupSubstitutionTypeGroupHandover,
 		GroupID:           groupID,
@@ -1305,6 +1302,9 @@ func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regul
 		substitution.TargetType = EducationGroupSubstitutionTypeLegacy
 	}
 	substitution.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(substitution).
@@ -1467,13 +1467,13 @@ func CreateTestInvitationTokenWithOptions(tb testing.TB, db *bun.DB, email strin
 func GetOrCreateTestRole(tb testing.TB, db *bun.DB, name string) *RoleFixture {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	tenantID := fixtureTenantID(tb)
 
 	// This tenant's own role first, the shared system role second.
 	var role RoleFixture
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	err := db.NewSelect().
 		Model(&role).
 		ModelTableExpr(`auth.roles AS "role"`).
@@ -1535,15 +1535,15 @@ func GetTestTokenAuth(tb testing.TB) *sessiontoken.TokenAuth {
 func CreateTestGradeTransition(tb testing.TB, db *bun.DB, academicYear string, createdBy int64) *EducationGradeTransition {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	transition := &EducationGradeTransition{
 		AcademicYear: academicYear,
 		Status:       EducationTransitionStatusDraft,
 		CreatedBy:    createdBy,
 	}
 	transition.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(transition).
@@ -1572,15 +1572,15 @@ func CreateTestGradeTransitionHistoryForTenant(tb testing.TB, db *bun.DB, tenant
 func CreateTestGradeTransitionMapping(tb testing.TB, db *bun.DB, transitionID int64, fromClass string, toClass *string) *EducationGradeTransitionMapping {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	mapping := &EducationGradeTransitionMapping{
 		TransitionID: transitionID,
 		FromClass:    fromClass,
 		ToClass:      toClass,
 	}
 	mapping.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(mapping).
@@ -2318,9 +2318,6 @@ func parseTimeHHMM(tb testing.TB, hhmm string) time.Time {
 func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, arrivalHHMM string) *StudentArrivalSchedule {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	row := &StudentArrivalSchedule{
 		StudentID: studentID,
 		Weekday:   weekday,
@@ -2330,6 +2327,9 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 		row.ExpectedArrival = parseTimeHHMM(tb, arrivalHHMM)
 	}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2343,9 +2343,6 @@ func CreateTestArrivalSchedule(tb testing.TB, db *bun.DB, studentID int64, weekd
 // Pass arrivalHHMM="" to signal absence on that date (ExpectedArrival=NULL).
 func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, arrivalHHMM, reason string) *StudentArrivalException {
 	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
 
 	row := &StudentArrivalException{
 		StudentID:     studentID,
@@ -2361,6 +2358,9 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 	}
 	row.TenantID = fixtureTenantID(tb)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
 	_, err := db.NewInsert().
 		Model(row).
 		ModelTableExpr(`schedule.student_arrival_exceptions`).
@@ -2373,9 +2373,6 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekday int, staffID int64, pickupHHMM string) *StudentPickupSchedule {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	row := &StudentPickupSchedule{
 		StudentID:  studentID,
 		Weekday:    weekday,
@@ -2383,6 +2380,9 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 		CreatedBy:  staffID,
 	}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2397,9 +2397,6 @@ func CreateTestPickupSchedule(tb testing.TB, db *bun.DB, studentID int64, weekda
 func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date CalendarDate, staffID int64, pickupHHMM, reason string) *StudentPickupException {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	row := &StudentPickupException{
 		StudentID:     studentID,
 		ExceptionDate: calendar.Date(date.String()),
@@ -2413,6 +2410,9 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 		row.Reason = &reason
 	}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2549,9 +2549,6 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end CalendarDate) *CalendarPeriod {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	row := &CalendarPeriod{
 		Name:            name,
 		PeriodType:      SchedulePeriodTypeCustom,
@@ -2561,6 +2558,9 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 		IsActive:        false,
 	}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2623,11 +2623,11 @@ func CreateTestWeekCyclePeriodForTenant(tb testing.TB, db *bun.DB, tenantID int6
 func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, reason string) *ClosingDay {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	row := &ClosingDay{StartDate: calendar.Date(start.String()), EndDate: calendar.Date(end.String()), Reason: reason}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2642,11 +2642,11 @@ func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, re
 func CreateTestDateframe(tb testing.TB, db *bun.DB, name string, start, end time.Time) *Dateframe {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	row := &Dateframe{Name: name, StartDate: start, EndDate: end}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2671,9 +2671,6 @@ type StaffShiftOpts struct {
 func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date CalendarDate, opts StaffShiftOpts) *StaffShift {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	startHHMM := opts.StartHHMM
 	if startHHMM == "" {
 		startHHMM = "08:00"
@@ -2694,6 +2691,9 @@ func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date Calenda
 		CreatedBy:   staffID,
 	}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(row).
@@ -2737,9 +2737,6 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		opt = opts[0]
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	row := &InstanceStudent{
 		InstanceID:         instanceID,
 		StudentID:          studentID,
@@ -2750,6 +2747,9 @@ func CreateTestInstanceStudent(tb testing.TB, db *bun.DB, instanceID, studentID 
 		CheckedInAt:        opt.CheckedInAt,
 	}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	// Timetable plans the participant, Student Presence records the
 	// attendance (#2762, #2763). A missing attendance row means expected.
@@ -2771,9 +2771,6 @@ type (
 func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date calendar.Date, status string) *StudentStatusDayRow {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	row := &StudentStatusDayRow{
 		StudentID:  studentID,
 		Date:       date,
@@ -2782,6 +2779,9 @@ func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date
 		Source:     "manual", // absencerecords.StudentStatusSourceManual
 	}
 	row.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	_, err := db.NewInsert().
 		Model(row).
