@@ -1,6 +1,6 @@
 // These tests exercise StaffEvents directly (in-package) because they
 // deliberately bypass the JWT middleware chain: they inject claims via the
-// request context and drive the streaming loop with a context timeout. That
+// request context and drive the streaming loop with context cancellation. That
 // direct-handler invocation cannot run through the production Router(), so
 // they live in the internal sse package and call the private handler.
 package sse
@@ -188,7 +188,7 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 }
 
 // =============================================================================
-// STREAMING PATH TESTS (with context timeout)
+// STREAMING PATH TESTS
 // =============================================================================
 
 func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
@@ -203,12 +203,12 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	router := chi.NewRouter()
 	router.Get("/events", tctx.resource.StaffEvents)
 
-	// Create request with timeout context FIRST, then add claims on top
-	// This ensures the claims are in the context that will timeout
-	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 100*time.Millisecond)
+	// Cancel after the connected event is flushed, not while the database
+	// resolves the staff member and subscription topics.
+	baseCtx, cancel := context.WithCancel(testpkg.Ctx(t))
 	defer cancel()
 
-	// Add claims to the timeout context
+	// Add claims to the cancellable context
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	claimsCtx := testutil.WithAuthenticatedContext(baseCtx, claims, nil)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
@@ -216,13 +216,12 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	req := testutil.NewRequest("GET", "/events", nil)
 	req = req.WithContext(claimsCtx)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := newMockFlusher()
+	rr.onFlush = cancel
+	router.ServeHTTP(rr, req)
 
-	// Valid staff member should reach the streaming path
-	// The response might be partial due to context cancellation, but shouldn't be an error
-	// Status 200 means we started streaming, or the context was cancelled during streaming
-	assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code,
-		"Expected streaming to start (200) or context timeout (500), got %d", rr.Code)
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "event: connected\n")
 }
 
 func TestSSEEvents_ResponseHeaders(t *testing.T) {
