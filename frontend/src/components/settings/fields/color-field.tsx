@@ -2,7 +2,6 @@
 
 import { useId, useState } from "react";
 import { ColorSwatchInput } from "~/components/ui/color-swatch-input";
-import { ColorSwatchRadio } from "~/components/ui/color-swatch-radio";
 import { Radio } from "~/components/ui/radio";
 import { TextField } from "./text-field";
 
@@ -69,30 +68,41 @@ function ColorPalette({
   };
 
   return (
-    <div className="space-y-3">
+    <div className="w-full min-w-0 space-y-3">
       <div
         role="radiogroup"
         aria-label={ariaLabel}
         className="flex flex-wrap items-center gap-3"
       >
         {presets.map((preset) => (
-          <ColorSwatchRadio
+          <label
             key={preset.value}
-            name={name}
-            color={preset.value}
-            label={preset.label}
-            checked={!custom && sameColor(preset.value, value)}
-            onSelect={() => {
-              setCustomFor(null);
-              onChange(preset.value);
-            }}
-            onBlur={onBlur}
-            disabled={disabled}
-          />
+            className={`inline-flex items-center gap-2 py-1 text-sm text-gray-700 ${
+              disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
+            }`}
+          >
+            <Radio
+              name={name}
+              value={preset.value}
+              checked={!custom && sameColor(preset.value, value)}
+              onChange={() => {
+                setCustomFor(null);
+                onChange(preset.value);
+              }}
+              onBlur={onBlur}
+              disabled={disabled}
+            />
+            <span
+              aria-hidden="true"
+              className="h-5 w-5 shrink-0 rounded-full border border-gray-300"
+              style={{ backgroundColor: preset.value }}
+            />
+            {preset.label}
+          </label>
         ))}
         <label
           htmlFor={`${name}-custom`}
-          className={`inline-flex items-center gap-2 text-sm text-gray-700 ${
+          className={`inline-flex items-center gap-2 py-1 text-sm text-gray-700 ${
             disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"
           }`}
         >
