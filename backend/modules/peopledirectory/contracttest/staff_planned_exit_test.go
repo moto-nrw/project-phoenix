@@ -138,9 +138,13 @@ func TestPlannedExit_PlanningIsAudited(t *testing.T) {
 	require.NoError(t, err)
 	ctx := context.WithValue(sc.ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "Leitung"})
 	first, second := "2099-01-29", "2099-02-26"
-	_, err = planner.Plan(ctx, staff.ID, first)
+	firstDay, err := calendar.ParseDate(first)
 	require.NoError(t, err)
-	_, err = planner.Plan(ctx, staff.ID, second)
+	secondDay, err := calendar.ParseDate(second)
+	require.NoError(t, err)
+	_, err = planner.Plan(ctx, staff.ID, firstDay)
+	require.NoError(t, err)
+	_, err = planner.Plan(ctx, staff.ID, secondDay)
 	require.NoError(t, err)
 	require.NoError(t, planner.Withdraw(ctx, staff.ID))
 

@@ -10,6 +10,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Middleware is the chi middleware shape the root hands in.
@@ -233,7 +234,7 @@ type Runtime struct {
 	// (#4809) with the acting username; ExitFailure renders (and observes)
 	// their refusals: invalid day -> 400, day in the past -> 400, unknown
 	// staff or no planned exit -> 404, exit already due -> 409, else 500.
-	PlanExit     func(ctx context.Context, staffID int64, lastWorkingDay, actorUsername string) (string, error)
+	PlanExit     func(ctx context.Context, staffID int64, lastWorkingDay calendar.Date, actorUsername string) (calendar.Date, error)
 	WithdrawExit func(ctx context.Context, staffID int64, actorUsername string) error
 	ExitFailure  func(http.ResponseWriter, *http.Request, error)
 

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrPlannedExitNotFound reports a staff member without a planned exit, or a
@@ -21,7 +23,7 @@ var ErrPlannedExitNotFound = errors.New("staff member has no planned exit")
 type PlannedExit struct {
 	StaffID             int64
 	TenantID            int64
-	LastWorkingDay      string
+	LastWorkingDay      calendar.Date
 	PlannedByAccountID  int64
 	PlannedByStaffID    int64
 	PlannedByName       string
@@ -37,7 +39,7 @@ type PlannedExit struct {
 // moved day starts the reminders and attempts over.
 type PlanExit struct {
 	StaffID            int64
-	LastWorkingDay     string
+	LastWorkingDay     calendar.Date
 	PlannedByAccountID int64
 	PlannedByStaffID   int64
 	PlannedByName      string
@@ -48,7 +50,7 @@ type PlanExit struct {
 // field leaves the stored value unchanged; NextAttemptAt is always written.
 type PlannedExitProgress struct {
 	StaffID             int64
-	LastWorkingDay      string
+	LastWorkingDay      calendar.Date
 	WeekNoticeSentAt    *time.Time
 	DayNoticeSentAt     *time.Time
 	BlockedNoticeSentAt *time.Time
@@ -106,7 +108,7 @@ func (p *PlannedExits) SavePlannedExit(ctx context.Context, plan PlanExit) (Plan
 	case plan.PlannedByAccountID <= 0 || plan.PlannedByStaffID <= 0:
 		return PlannedExit{}, invalid("planner is required")
 	}
-	if _, err := time.Parse(DateLayout, plan.LastWorkingDay); err != nil {
+	if _, err := calendar.ParseDate(plan.LastWorkingDay.String()); err != nil {
 		return PlannedExit{}, invalid("last working day must be a date (YYYY-MM-DD)")
 	}
 	return p.save(ctx, plan)
@@ -124,7 +126,7 @@ func (p *PlannedExits) DeletePlannedExit(ctx context.Context, staffID int64) err
 // RecordPlannedExitProgress stores the scheduler's progress;
 // ErrPlannedExitNotFound when the exit is gone or moved.
 func (p *PlannedExits) RecordPlannedExitProgress(ctx context.Context, progress PlannedExitProgress) error {
-	if progress.StaffID <= 0 || progress.LastWorkingDay == "" {
+	if progress.StaffID <= 0 || progress.LastWorkingDay.IsZero() {
 		return invalid("staff ID and last working day are required")
 	}
 	return p.record(ctx, progress)

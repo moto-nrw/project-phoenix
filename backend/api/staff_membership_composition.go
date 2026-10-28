@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 )
@@ -149,7 +150,7 @@ type StaffMembershipRuntime struct {
 	Offboard    func(context.Context, int64, string) error
 	// PlanExit and WithdrawExit enter, move and withdraw the planned exit
 	// of #4809, with the acting username as Offboard has it.
-	PlanExit     func(ctx context.Context, staffID int64, lastWorkingDay, actorUsername string) (string, error)
+	PlanExit     func(ctx context.Context, staffID int64, lastWorkingDay calendar.Date, actorUsername string) (calendar.Date, error)
 	WithdrawExit func(ctx context.Context, staffID int64, actorUsername string) error
 }
 
@@ -207,7 +208,7 @@ func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education sch
 			}
 			return err
 		},
-		PlanExit: func(ctx context.Context, staffID int64, lastWorkingDay, actorUsername string) (string, error) {
+		PlanExit: func(ctx context.Context, staffID int64, lastWorkingDay calendar.Date, actorUsername string) (calendar.Date, error) {
 			plan, err := planner.Plan(context.WithValue(ctx, staffOffboardingActorNameKey{}, actorUsername), staffID, lastWorkingDay)
 			return plan.LastWorkingDay, err
 		},

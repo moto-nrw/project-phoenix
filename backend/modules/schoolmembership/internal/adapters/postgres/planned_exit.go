@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -43,13 +42,9 @@ func (s *Store) SavePlannedExit(ctx context.Context, plan schoolmembership.PlanE
 	if err != nil {
 		return schoolmembership.Staff{}, domain.OperationStats{}, err
 	}
-	day, err := calendar.ParseDate(plan.LastWorkingDay)
-	if err != nil {
-		return schoolmembership.Staff{}, domain.OperationStats{}, fmt.Errorf("school membership postgres: parse last working day: %w", err)
-	}
 	row := staffRow{}
 	query := db.NewUpdate().Model(&row).ModelTableExpr(`users.staff_school_memberships AS "staff"`).
-		Set(`planned_exit_day = ?`, day).
+		Set(`planned_exit_day = ?`, plan.LastWorkingDay).
 		Set(`planned_exit_by_account_id = ?`, plan.PlannedByAccountID).
 		Set(`planned_exit_by_staff_id = ?`, plan.PlannedByStaffID).
 		Set(`planned_exit_by_name = ?`, plan.PlannedByName).
@@ -134,7 +129,7 @@ func plannedExitOf(row staffRow) *schoolmembership.PlannedExit {
 		return nil
 	}
 	return &schoolmembership.PlannedExit{
-		StaffID: row.ID, TenantID: row.TenantID, LastWorkingDay: row.PlannedExitDay.String(),
+		StaffID: row.ID, TenantID: row.TenantID, LastWorkingDay: *row.PlannedExitDay,
 		PlannedByAccountID: deref(row.PlannedExitByAccountID), PlannedByStaffID: deref(row.PlannedExitByStaffID),
 		PlannedByName: deref(row.PlannedExitByName), PlannedAt: deref(row.PlannedExitAt),
 		WeekNoticeSentAt: row.ExitWeekNoticeSentAt, DayNoticeSentAt: row.ExitDayNoticeSentAt,

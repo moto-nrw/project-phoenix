@@ -257,6 +257,9 @@ type staffFieldAccess struct {
 	// personnel covers employment type, today's absence reason including the
 	// school's own wording, and the NFC tag.
 	personnel bool
+	// plannedExit lets the person who may change an exit see its state without
+	// opening the rest of the personnel file.
+	plannedExit bool
 }
 
 func (rs *Resource) fieldAccess(ctx context.Context) staffFieldAccess {
@@ -271,6 +274,7 @@ func fieldAccessFor(matches func(string, []string) bool, granted []string) staff
 		notes:          has(permissions.StaffManage),
 		qualifications: has(permissions.StaffManage) || has(permissions.StaffStammdaten),
 		personnel:      has(permissions.StaffStammdaten) || has(permissions.TimeTrackingManage),
+		plannedExit:    has(permissions.StaffStammdaten) || has(permissions.TimeTrackingManage) || has(permissions.UsersDelete),
 	}
 }
 
@@ -352,10 +356,12 @@ func redactStaffFields(response *StaffResponse, access staffFieldAccess) {
 		response.AbsenceType = ""
 		response.AbsenceTypeLabel = ""
 		response.EmploymentType = nil
-		response.PlannedExitDate = nil
 		if response.Person != nil {
 			response.Person.TagID = ""
 		}
+	}
+	if !access.plannedExit {
+		response.PlannedExitDate = nil
 	}
 }
 
@@ -388,11 +394,7 @@ func plannedExitDate(staff schoolmembership.Staff) *calendar.Date {
 	if staff.PlannedExit == nil {
 		return nil
 	}
-	date, err := calendar.ParseDate(staff.PlannedExit.LastWorkingDay)
-	if err != nil {
-		return nil
-	}
-	return &date
+	return &staff.PlannedExit.LastWorkingDay
 }
 
 func staffEndedOn(staff schoolmembership.Staff) *calendar.Date {

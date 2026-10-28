@@ -314,7 +314,7 @@ func TestStaffAvatarStaysInsideTheSchool(t *testing.T) {
 }
 
 // A planned exit (#4809) takes the deletion's permission, refuses a day in
-// the past with its own code and shows on the profile for the personnel tier.
+// the past with its own code and shows its state to a caller who may change it.
 func TestPlannedExitRoutesFollowTheDeletionPermission(t *testing.T) {
 	t.Parallel()
 
@@ -323,7 +323,7 @@ func TestPlannedExitRoutesFollowTheDeletionPermission(t *testing.T) {
 	_, leadAccountID := ctx.createStaffWithAccount("Planende", "Leitung")
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(leadAccountID)
-	claims.Permissions = []string{"users:delete", "users:read", "staff:stammdaten"}
+	claims.Permissions = []string{"users:delete", "users:read"}
 	lead := testutil.WithJWTBearer(testutil.MintTestJWT(t, claims))
 	path := fmt.Sprintf("/staff/%d/planned-exit", subjectID)
 	day := time.Now().AddDate(0, 1, 0).Format("2006-01-02")

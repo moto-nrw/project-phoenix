@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // PlannedExitRequest enters or moves the last working day of a staff member
@@ -14,7 +16,7 @@ type PlannedExitRequest struct {
 
 // PlannedExitResponse is the planned exit as stored.
 type PlannedExitResponse struct {
-	LastWorkingDay string `json:"last_working_day"`
+	LastWorkingDay calendar.Date `json:"last_working_day"`
 }
 
 func (rs *Resource) planExit(w http.ResponseWriter, r *http.Request) {
@@ -27,7 +29,12 @@ func (rs *Resource) planExit(w http.ResponseWriter, r *http.Request) {
 		rs.failure(w, r, FailureInvalidRequest, errors.New("last_working_day is required (YYYY-MM-DD)"), "invalid_request")
 		return
 	}
-	day, err := rs.runtime.PlanExit(r.Context(), id, request.LastWorkingDay, rs.runtime.CurrentUsername(r.Context()))
+	day, err := calendar.ParseDate(request.LastWorkingDay)
+	if err != nil {
+		rs.failure(w, r, FailureInvalidRequest, errors.New("last_working_day is required (YYYY-MM-DD)"), "invalid_request")
+		return
+	}
+	day, err = rs.runtime.PlanExit(r.Context(), id, day, rs.runtime.CurrentUsername(r.Context()))
 	if err != nil {
 		rs.runtime.ExitFailure(w, r, err)
 		return

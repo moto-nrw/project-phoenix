@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -27,7 +28,7 @@ type Actor struct {
 	Username  string
 	// PlannedExitDay is the last working day when the scheduler runs a
 	// planned exit in the planner's name (#4809), empty for a request.
-	PlannedExitDay string
+	PlannedExitDay *calendar.Date
 }
 
 type AccessPreview struct {

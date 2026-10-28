@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -330,7 +331,7 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 			h.offboarded, h.offboardedBy = staffID, username
 			return h.offboardErr
 		},
-		PlanExit:     func(_ context.Context, _ int64, day, _ string) (string, error) { return day, nil },
+		PlanExit:     func(_ context.Context, _ int64, day calendar.Date, _ string) (calendar.Date, error) { return day, nil },
 		WithdrawExit: func(context.Context, int64, string) error { return nil },
 		ExitFailure:  func(w http.ResponseWriter, _ *http.Request, _ error) { w.WriteHeader(http.StatusInternalServerError) },
 		Log:          slog.New(slog.DiscardHandler),

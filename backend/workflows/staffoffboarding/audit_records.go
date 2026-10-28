@@ -32,8 +32,8 @@ func NewStaffDeletion(actor Actor, result Result) StaffDeletion {
 		deletedBy = "system"
 	}
 	reason := "staff offboarding"
-	if actor.PlannedExitDay != "" {
-		reason = "planned staff exit after last working day " + actor.PlannedExitDay
+	if actor.PlannedExitDay != nil {
+		reason = "planned staff exit after last working day " + actor.PlannedExitDay.String()
 	}
 	return StaffDeletion{
 		TenantID: actor.TenantID, StaffID: result.StaffID, RecordsDeleted: records,

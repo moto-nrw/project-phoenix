@@ -44,6 +44,16 @@ type testPlanner struct {
 	lastRun staffoffboarding.DueRun
 }
 
+func datePtr(value string) *calendar.Date {
+	date, err := calendar.ParseDate(value)
+	if err != nil {
+		panic(err)
+	}
+	return &date
+}
+
+func plannedExitDate(value string) calendar.Date { return *datePtr(value) }
+
 func (p *testPlanner) RunDue(ctx context.Context) error {
 	db := testpkg.SetupTestDB(p.t)
 	return testpkg.WithinTenantContext(p.t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) (err error) {
@@ -140,28 +150,28 @@ func TestPlannedExitIsPlannedMovedAndWithdrawnWithAudit(t *testing.T) {
 	f, planner := newPlannerFixture(t)
 	ctx := testpkg.Ctx(t)
 
-	_, err := planner.Plan(ctx, f.staffID, "2027-09-30")
+	_, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-09-30"))
 	require.ErrorIs(t, err, staffoffboarding.ErrPlannedExitInPast)
 
-	plan, err := planner.Plan(ctx, f.staffID, "2027-10-31")
+	plan, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-31"))
 	require.NoError(t, err)
-	require.Equal(t, "2027-10-31", plan.LastWorkingDay)
+	require.Equal(t, plannedExitDate("2027-10-31"), plan.LastWorkingDay)
 	staff, err := f.membership.FindStaff(ctx, f.staffID)
 	require.NoError(t, err)
 	require.NotNil(t, staff.PlannedExit, "staff reads carry the planned exit")
-	require.Equal(t, "2027-10-31", staff.PlannedExit.LastWorkingDay)
+	require.Equal(t, plannedExitDate("2027-10-31"), staff.PlannedExit.LastWorkingDay)
 
-	_, err = planner.Plan(ctx, f.staffID, "2027-10-31")
+	_, err = planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-31"))
 	require.NoError(t, err, "re-entering the same day is no change")
-	_, err = planner.Plan(ctx, f.staffID, "2027-11-30")
+	_, err = planner.Plan(ctx, f.staffID, plannedExitDate("2027-11-30"))
 	require.NoError(t, err)
 	require.NoError(t, planner.Withdraw(ctx, f.staffID))
 	require.ErrorIs(t, planner.Withdraw(ctx, f.staffID), schoolmembership.ErrPlannedExitNotFound)
 
 	require.Equal(t, []staffoffboarding.ExitPlanChange{
-		{StaffID: f.staffID, Action: staffoffboarding.ExitPlanned, NewDay: "2027-10-31"},
-		{StaffID: f.staffID, Action: staffoffboarding.ExitMoved, OldDay: "2027-10-31", NewDay: "2027-11-30"},
-		{StaffID: f.staffID, Action: staffoffboarding.ExitWithdrawn, OldDay: "2027-11-30"},
+		{StaffID: f.staffID, Action: staffoffboarding.ExitPlanned, NewDay: datePtr("2027-10-31")},
+		{StaffID: f.staffID, Action: staffoffboarding.ExitMoved, OldDay: datePtr("2027-10-31"), NewDay: datePtr("2027-11-30")},
+		{StaffID: f.staffID, Action: staffoffboarding.ExitWithdrawn, OldDay: datePtr("2027-11-30")},
 	}, f.changes)
 
 	f.today = "2027-12-02"
@@ -174,7 +184,7 @@ func TestPlannedExitRunsAfterItsDayAsThePlanner(t *testing.T) {
 	t.Parallel()
 	f, planner := newPlannerFixture(t)
 	ctx := testpkg.Ctx(t)
-	_, err := planner.Plan(ctx, f.staffID, "2027-10-10")
+	_, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-10"))
 	require.NoError(t, err)
 
 	f.today = "2027-10-03"
@@ -194,12 +204,12 @@ func TestPlannedExitRunsAfterItsDayAsThePlanner(t *testing.T) {
 	require.True(t, f.retired(t))
 	require.Equal(t, 1, f.accessRuns, "the access step of the same offboarding ran")
 	require.Len(t, f.deletion, 1)
-	require.Equal(t, "2027-10-10", f.deletion[0].PlannedExitDay)
+	require.Equal(t, datePtr("2027-10-10"), f.deletion[0].PlannedExitDay)
 	require.Equal(t, "actor", f.deletion[0].Username, "the offboarding acts as the planner")
 	require.Equal(t, "planned staff exit after last working day 2027-10-10", staffoffboarding.NewStaffDeletion(f.deletion[0], staffoffboarding.Result{}).Reason)
 	_, err = f.exits.FindPlannedExitForMutation(ctx, f.staffID)
 	require.ErrorIs(t, err, schoolmembership.ErrStaffNotFound, "the retirement takes the planned exit along")
-	_, err = planner.Plan(ctx, f.staffID, "2027-10-20")
+	_, err = planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-20"))
 	require.ErrorIs(t, err, schoolmembership.ErrStaffNotFound)
 }
 
@@ -207,7 +217,7 @@ func TestPlannedExitInsideTheWeekSkipsTheWeekReminder(t *testing.T) {
 	t.Parallel()
 	f, planner := newPlannerFixture(t)
 	ctx := testpkg.Ctx(t)
-	_, err := planner.Plan(ctx, f.staffID, "2027-10-04")
+	_, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-04"))
 	require.NoError(t, err)
 	require.NoError(t, planner.RunDue(ctx))
 	require.Empty(t, f.notices, "the planner just entered it")
@@ -217,7 +227,7 @@ func TestBlockedPlannedExitClosesAccessAndRetriesHourly(t *testing.T) {
 	t.Parallel()
 	f, planner := newPlannerFixture(t)
 	ctx := testpkg.Ctx(t)
-	_, err := planner.Plan(ctx, f.staffID, "2027-10-01")
+	_, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-01"))
 	require.NoError(t, err)
 
 	f.today, f.blocked = "2027-10-02", true
@@ -233,7 +243,7 @@ func TestBlockedPlannedExitClosesAccessAndRetriesHourly(t *testing.T) {
 	require.NotNil(t, plan.NextAttemptAt)
 	require.True(t, plan.NextAttemptAt.Equal(f.now.Add(time.Hour)))
 
-	_, err = planner.Plan(ctx, f.staffID, "2027-10-20")
+	_, err = planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-20"))
 	require.ErrorIs(t, err, staffoffboarding.ErrPlannedExitStarted, "a due exit can no longer move")
 	require.ErrorIs(t, planner.Withdraw(ctx, f.staffID), staffoffboarding.ErrPlannedExitStarted)
 
@@ -259,7 +269,7 @@ func TestPlannedExitReminderWaitsUntilItIsDelivered(t *testing.T) {
 	t.Parallel()
 	f, planner := newPlannerFixture(t)
 	ctx := testpkg.Ctx(t)
-	_, err := planner.Plan(ctx, f.staffID, "2027-10-01")
+	_, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-01"))
 	require.NoError(t, err)
 	f.notify = false
 	require.NoError(t, planner.RunDue(ctx))
@@ -273,12 +283,12 @@ func TestPlannedExitReminderWaitsUntilItIsDelivered(t *testing.T) {
 func TestPlannedExitStaysInsideItsSchool(t *testing.T) {
 	t.Parallel()
 	f, planner := newPlannerFixture(t)
-	_, err := planner.Plan(testpkg.Ctx(t), f.staffID, "2027-10-05")
+	_, err := planner.Plan(testpkg.Ctx(t), f.staffID, plannedExitDate("2027-10-05"))
 	require.NoError(t, err)
 
 	t.Run("other school", func(t *testing.T) {
 		other := testpkg.OwnCtx(t)
-		_, err := planner.Plan(other, f.staffID, "2027-10-05")
+		_, err := planner.Plan(other, f.staffID, plannedExitDate("2027-10-05"))
 		require.ErrorIs(t, err, schoolmembership.ErrStaffNotFound)
 		require.ErrorIs(t, planner.Withdraw(other, f.staffID), schoolmembership.ErrStaffNotFound)
 		exits, err := f.exits.ListPlannedExits(other)
@@ -293,7 +303,7 @@ func TestFailingPlannedExitClosesAccessAndIsReported(t *testing.T) {
 	t.Parallel()
 	f, planner := newPlannerFixture(t)
 	ctx := testpkg.Ctx(t)
-	_, err := planner.Plan(ctx, f.staffID, "2027-10-01")
+	_, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-01"))
 	require.NoError(t, err)
 	f.failDeletion = true
 

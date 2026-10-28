@@ -55,8 +55,8 @@ const (
 type ExitPlanChange struct {
 	StaffID int64
 	Action  string
-	OldDay  string
-	NewDay  string
+	OldDay  *calendar.Date
+	NewDay  *calendar.Date
 }
 
 // PlannerDependencies are the ports of planning beyond the offboarding
@@ -83,11 +83,7 @@ func NewPlanner(workflow *Workflow, deps PlannerDependencies) (*Planner, error) 
 
 // Plan enters or moves the last working day of a live staff member. Only an
 // authorized school principal may plan, as for the immediate deletion.
-func (p *Planner) Plan(ctx context.Context, staffID int64, lastWorkingDay string) (plan schoolmembership.PlannedExit, err error) {
-	day, err := calendar.ParseDate(lastWorkingDay)
-	if err != nil {
-		return schoolmembership.PlannedExit{}, &schoolmembership.InvalidMembershipError{Reason: "last working day must be a date (YYYY-MM-DD)"}
-	}
+func (p *Planner) Plan(ctx context.Context, staffID int64, day calendar.Date) (plan schoolmembership.PlannedExit, err error) {
 	err = p.workflow.run(ctx, "plan_exit", staffID, func(txCtx context.Context, actor Actor) (Result, error) {
 		today, err := p.today()
 		if err != nil {
@@ -115,17 +111,17 @@ func (p *Planner) plan(ctx context.Context, actor Actor, staffID int64, day, tod
 		return schoolmembership.PlannedExit{}, err
 	}
 	plan, err := p.exits.SavePlannedExit(ctx, schoolmembership.PlanExit{
-		StaffID: staffID, LastWorkingDay: day.String(),
+		StaffID: staffID, LastWorkingDay: day,
 		PlannedByAccountID: actor.AccountID, PlannedByStaffID: actor.StaffID, PlannedByName: actor.Username,
 	})
-	if err != nil || previous == plan.LastWorkingDay {
+	if err != nil || (previous != nil && *previous == plan.LastWorkingDay) {
 		return plan, err
 	}
 	if err := p.settleWeekNotice(ctx, plan, today, day); err != nil {
 		return schoolmembership.PlannedExit{}, err
 	}
-	change := ExitPlanChange{StaffID: staffID, Action: ExitPlanned, OldDay: previous, NewDay: plan.LastWorkingDay}
-	if previous != "" {
+	change := ExitPlanChange{StaffID: staffID, Action: ExitPlanned, OldDay: previous, NewDay: &plan.LastWorkingDay}
+	if previous != nil {
 		change.Action = ExitMoved
 	}
 	return plan, p.deps.AppendAudit(ctx, actor, change)
@@ -142,7 +138,7 @@ func (p *Planner) Withdraw(ctx context.Context, staffID int64) error {
 		if err != nil {
 			return Result{}, err
 		}
-		if previous == "" {
+		if previous == nil {
 			return Result{}, schoolmembership.ErrPlannedExitNotFound
 		}
 		if err := p.exits.DeletePlannedExit(txCtx, staffID); err != nil {
@@ -153,23 +149,19 @@ func (p *Planner) Withdraw(ctx context.Context, staffID int64) error {
 }
 
 // lockOpenPlan locks the staff member's planned exit and returns its day, or
-// "" without one. An exit whose day is over can no longer change.
-func (p *Planner) lockOpenPlan(ctx context.Context, staffID int64, today calendar.Date) (string, error) {
+// nil without one. An exit whose day is over can no longer change.
+func (p *Planner) lockOpenPlan(ctx context.Context, staffID int64, today calendar.Date) (*calendar.Date, error) {
 	existing, err := p.exits.FindPlannedExitForMutation(ctx, staffID)
 	if errors.Is(err, schoolmembership.ErrPlannedExitNotFound) {
-		return "", nil
+		return nil, nil
 	}
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	day, err := calendar.ParseDate(existing.LastWorkingDay)
-	if err != nil {
-		return "", err
+	if existing.LastWorkingDay.Before(today) {
+		return nil, ErrPlannedExitStarted
 	}
-	if day.Before(today) {
-		return "", ErrPlannedExitStarted
-	}
-	return existing.LastWorkingDay, nil
+	return &existing.LastWorkingDay, nil
 }
 
 func (p *Planner) today() (calendar.Date, error) {

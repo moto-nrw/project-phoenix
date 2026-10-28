@@ -23,7 +23,7 @@ type ExitNotice struct {
 	Kind           string
 	TenantID       int64
 	StaffID        int64
-	LastWorkingDay string
+	LastWorkingDay calendar.Date
 	Title          string
 	Body           string
 	DeepLink       string
@@ -95,10 +95,7 @@ func (d *DueExits) RunDue(ctx context.Context) (DueRun, error) {
 // offboarding whose closed sign-in and next attempt are kept; err rolls the
 // planned exit's savepoint back.
 func (d *DueExits) runPlan(ctx context.Context, plan schoolmembership.PlannedExit, today calendar.Date) (exitErr, err error) {
-	day, err := calendar.ParseDate(plan.LastWorkingDay)
-	if err != nil {
-		return nil, err
-	}
+	day := plan.LastWorkingDay
 	switch {
 	case day.After(today):
 		if !inReminderWeek(today, day) {
@@ -145,7 +142,7 @@ func (d *DueExits) runExit(ctx context.Context, listed schoolmembership.PlannedE
 		return nil, err
 	}
 	now := d.deps.Now()
-	if day, err := calendar.ParseDate(plan.LastWorkingDay); err != nil || !day.Before(today) ||
+	if !plan.LastWorkingDay.Before(today) ||
 		(plan.NextAttemptAt != nil && now.Before(*plan.NextAttemptAt)) {
 		return nil, err
 	}
@@ -194,7 +191,7 @@ func (d *DueExits) recordFailedExit(ctx context.Context, plan schoolmembership.P
 func plannerActor(plan schoolmembership.PlannedExit) func(context.Context) (Actor, error) {
 	actor := Actor{
 		TenantID: plan.TenantID, AccountID: plan.PlannedByAccountID, StaffID: plan.PlannedByStaffID,
-		Username: plan.PlannedByName, PlannedExitDay: plan.LastWorkingDay,
+		Username: plan.PlannedByName, PlannedExitDay: &plan.LastWorkingDay,
 	}
 	return func(context.Context) (Actor, error) { return actor, nil }
 }
@@ -206,10 +203,7 @@ func exitNotice(kind string, plan schoolmembership.PlannedExit) ExitNotice {
 		DeepLink:       fmt.Sprintf("/staff/%d", plan.StaffID),
 		IdempotencyKey: fmt.Sprintf("staff-exit-%d-%s-%s", plan.StaffID, plan.LastWorkingDay, kind),
 	}
-	day := plan.LastWorkingDay
-	if parsed, err := calendar.ParseDate(day); err == nil {
-		day = parsed.Format("02.01.2006")
-	}
+	day := plan.LastWorkingDay.Format("02.01.2006")
 	switch kind {
 	case NoticeWeekBefore:
 		notice.Title = "Austritt in einer Woche"
