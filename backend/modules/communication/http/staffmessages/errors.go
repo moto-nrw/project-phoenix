@@ -64,19 +64,19 @@ var staffMessagingErrorRules = []common.ErrorRule{
 	// Group chats (#4776): a role without the right gets 403 with its own
 	// code, so the screen can say who may instead.
 	{Target: communication.ErrStaffMessageGroupCreateForbidden, Render: func(_ error) render.Renderer {
-		return common.ErrorForbiddenMessageWithCode("this role may not start a group chat", common.CodeCommunicationStaffGroupCreateForbidden)
+		return common.ErrorForbiddenMessageWithCode("Lehrkräfte können keinen Gruppenchat anlegen.", common.CodeCommunicationStaffGroupCreateForbidden)
 	}},
 	{Target: communication.ErrStaffMessageGroupManageForbidden, Render: func(_ error) render.Renderer {
-		return common.ErrorForbiddenMessageWithCode("only the creator and the leadership may manage this group", common.CodeCommunicationStaffGroupManageForbidden)
+		return common.ErrorForbiddenMessageWithCode("Sie dürfen diesen Gruppenchat nicht ändern.", common.CodeCommunicationStaffGroupManageForbidden)
 	}},
 	{Target: communication.ErrStaffMessageGroupNameInvalid, Render: func(_ error) render.Renderer {
-		return common.ErrorInvalidRequestMessageWithCode("group name is empty or too long", common.CodeCommunicationStaffGroupNameInvalid)
+		return common.ErrorInvalidRequestMessageWithCode("Der Gruppenchat braucht einen Namen mit höchstens 80 Zeichen.", common.CodeCommunicationStaffGroupNameInvalid)
 	}},
 	{Target: communication.ErrStaffMessageGroupMembersRequired, Render: func(_ error) render.Renderer {
-		return common.ErrorInvalidRequestMessageWithCode("choose at least one new member", common.CodeCommunicationStaffGroupMembersRequired)
+		return common.ErrorInvalidRequestMessageWithCode("Bitte wählen Sie mindestens eine neue Person aus.", common.CodeCommunicationStaffGroupMembersRequired)
 	}},
 	{Target: communication.ErrStaffMessageGroupTooLarge, Render: func(_ error) render.Renderer {
-		return common.ErrorInvalidRequestMessageWithCode("too many members for one group", common.CodeCommunicationStaffGroupTooLarge)
+		return common.ErrorInvalidRequestMessageWithCode("Ein Gruppenchat hat höchstens 100 Mitglieder.", common.CodeCommunicationStaffGroupTooLarge)
 	}},
 	{Target: communication.ErrStaffMessagingNoActor, Render: func(_ error) render.Renderer {
 		return common.ErrorForbiddenMessage("Bitte melden Sie sich erneut an.")

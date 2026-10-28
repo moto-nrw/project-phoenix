@@ -178,6 +178,15 @@ func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*StaffInbox
 	if err != nil {
 		return nil, err
 	}
+	if containsGroupThread(rows) {
+		active, err := s.ReadRepo.IsMessageableStaff(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
+		if !active {
+			rows = directThreads(rows)
+		}
+	}
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		// A group row has no counterpart (#4776).
@@ -206,7 +215,33 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	active, err := s.ReadRepo.IsMessageableStaff(ctx, accountID)
+	if err != nil {
+		return 0, err
+	}
+	if !active {
+		return s.ReadRepo.UnreadDirectCount(ctx, accountID)
+	}
 	return s.ReadRepo.UnreadCount(ctx, accountID)
+}
+
+func directThreads(rows []*StaffInboxThread) []*StaffInboxThread {
+	filtered := make([]*StaffInboxThread, 0, len(rows))
+	for _, row := range rows {
+		if row.Kind != groupKind {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+func containsGroupThread(rows []*StaffInboxThread) bool {
+	for _, row := range rows {
+		if row.Kind == groupKind {
+			return true
+		}
+	}
+	return false
 }
 
 // ListMessageableStaff returns the colleagues the caller may write to.
@@ -387,6 +422,11 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 		newest := detail.Messages[n-1]
 		if err := s.ReadRepo.MarkReadUpTo(ctx, threadID, accountID, newest.CreatedAt, newest.ID); err != nil {
 			return nil, err
+		}
+		if thread.Kind == groupKind {
+			if err := s.refreshGroupReceipts(ctx, threadID, detail); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return detail, nil

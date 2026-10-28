@@ -472,6 +472,15 @@ func readReceipts(messages []*StaffMessage, states []*values.StaffParticipantSta
 	return out
 }
 
+func (s *Service) refreshGroupReceipts(ctx context.Context, threadID int64, detail *ThreadDetail) error {
+	records, err := s.Groups.StaffParticipantStates(ctx, threadID)
+	if err != nil {
+		return err
+	}
+	detail.Receipts = readReceipts(detail.Messages, values.StaffParticipantStatesFromRecords(records))
+	return nil
+}
+
 func cursorAtOrPast(state *values.StaffParticipantState, message *StaffMessage) bool {
 	if state.LastReadAt == nil {
 		return false

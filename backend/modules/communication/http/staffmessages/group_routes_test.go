@@ -156,6 +156,8 @@ func TestStaffGroupChatLifecycle(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	detail := decodeData[staffmessaging.ThreadDetailResponse](t, rec.Body.Bytes())
 	assert.False(t, detail.CanManage, "a Lehrkraft does not manage a group she did not start")
+	require.Len(t, detail.Messages, 1)
+	assert.Equal(t, []string{lena.idString()}, detail.Messages[0].ReadByAccountIDs, "opening the group returns the reader's advanced receipt")
 
 	rec = f.do(t, ben, http.MethodGet, "/threads/"+threadID, "")
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -249,6 +251,10 @@ func TestStaffGroupChatRules(t *testing.T) {
 	require.NoError(t, err)
 	rec = f.do(t, anna, http.MethodGet, "/threads/"+threadID, "")
 	require.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+	assert.Nil(t, f.inboxRow(t, anna, threadID), "a deactivated member must not see the group in the inbox")
+	rec = f.do(t, anna, http.MethodGet, "/unread-count", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Zero(t, decodeData[map[string]int](t, rec.Body.Bytes())["unread_count"], "a deactivated member must not receive group unread badges")
 
 	// Ben keeps writing; the group does not close because one member left.
 	rec = f.do(t, ben, http.MethodPost, "/threads/"+threadID, `{"body":"Weiter geht's"}`)

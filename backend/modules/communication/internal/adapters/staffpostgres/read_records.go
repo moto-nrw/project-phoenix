@@ -19,6 +19,9 @@ func (r *readRepository) MarkStaffReadUpTo(ctx context.Context, id, accountID in
 func (r *readRepository) StaffUnreadCount(ctx context.Context, accountID int64) (int, error) {
 	return r.inbox.UnreadCount(ctx, accountID)
 }
+func (r *readRepository) StaffUnreadDirectCount(ctx context.Context, accountID int64) (int, error) {
+	return r.inbox.UnreadDirectCount(ctx, accountID)
+}
 func (r *readRepository) ListStaffInbox(ctx context.Context, accountID int64, unread bool) ([]*communication.StaffInboxRecord, error) {
 	return r.inbox.ListInbox(ctx, accountID, unread)
 }

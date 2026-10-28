@@ -30,6 +30,7 @@ type StaffMessageRepository interface {
 type StaffMessageReadRepository interface {
 	MarkReadUpTo(context.Context, int64, int64, time.Time, int64) error
 	UnreadCount(context.Context, int64) (int, error)
+	UnreadDirectCount(context.Context, int64) (int, error)
 	ListInbox(context.Context, int64, bool) ([]*StaffInboxThread, error)
 	ListMessageableStaff(context.Context, int64) ([]*MessageableStaff, error)
 	IsMessageableStaff(context.Context, int64) (bool, error)
@@ -107,6 +108,9 @@ func (r staffReadRecords) MarkReadUpTo(ctx context.Context, id, accountID int64,
 }
 func (r staffReadRecords) UnreadCount(ctx context.Context, id int64) (int, error) {
 	return r.source.StaffUnreadCount(ctx, id)
+}
+func (r staffReadRecords) UnreadDirectCount(ctx context.Context, id int64) (int, error) {
+	return r.source.StaffUnreadDirectCount(ctx, id)
 }
 func (r staffReadRecords) ListInbox(ctx context.Context, id int64, onlyUnread bool) ([]*StaffInboxThread, error) {
 	rows, err := r.source.ListStaffInbox(ctx, id, onlyUnread)
