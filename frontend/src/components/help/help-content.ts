@@ -9185,7 +9185,7 @@ function traegerLoginTopic(): HelpTopic {
     audience: "traeger",
     icon: "Building2",
     requirements: [
-      "Das moto-Team hat Ihr Konto dem Träger-Büro zugeordnet.",
+      "Sie gehören zum Träger-Büro. Sie haben eine Einladung angenommen, oder das moto-Team hat Ihr Konto zugeordnet.",
       "Zugriff auf Ihr E-Mail-Postfach. Bei jeder Anmeldung kommt ein Code per E-Mail.",
     ],
     steps: [
@@ -9202,7 +9202,7 @@ function traegerLoginTopic(): HelpTopic {
     notes: ["Legen Sie sich die Adresse als Lesezeichen an."],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
-      "Sie nutzen dasselbe Konto wie in der OGS. Ein zweites Passwort brauchen Sie nicht.",
+      "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
@@ -9368,7 +9368,9 @@ function traegerInvitationTopic(): HelpTopic {
     group: "einstieg",
     audience: "traeger",
     icon: "UserRoundPlus",
-    requirements: ["Jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen."],
+    requirements: [
+      "Das moto-Team oder jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen.",
+    ],
     steps: [
       "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
       "Wählen Sie `Einladung annehmen`.",
@@ -9380,9 +9382,10 @@ function traegerInvitationTopic(): HelpTopic {
       "moto meldet Sie an und öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
     notes: [
       "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
+      "Ein Konto in einer Schule brauchen Sie dafür nicht.",
     ],
     troubleshootingDetails: [
-      "moto sagt, die Einladung sei abgelaufen? Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.",
+      "moto sagt, die Einladung sei abgelaufen? Bitten Sie das Träger-Büro oder das moto-Team um eine neue Einladung.",
       "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Setzen Sie es in der Anmeldung Ihrer Schule über `Passwort vergessen?` zurück.",
     ],
     related: [HELP_TOPICS.traegerLogin],
@@ -9835,7 +9838,8 @@ function traegerAccountsTopic(): HelpTopic {
       "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
     notes: [
       "`Verwaltung` darf alles verwalten, auch Personen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
-      "Eine Person kann mehrere Rollen haben.",
+      "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
+      "Unter `Offene Einladungen` stehen auch Einladungen, die das moto-Team verschickt hat.",
     ],
     differences: [
       "Sie sehen in der Navigation kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
