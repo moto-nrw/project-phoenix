@@ -203,12 +203,14 @@ type HolidayRegistrationDetail struct {
 // HolidayRegistrationExportRow is one booking of the export: one row per
 // child and week. Answers are the family's and the child's answers to the
 // export's Columns, never to a question with health information (#5198).
+// AnswerFields keeps their definitions from the submitted form version.
 type HolidayRegistrationExportRow struct {
 	SecondGuardian *HolidayGuardianInput
 	Registration   HolidayRegistrationSummary
 	Child          HolidayRegistrationChild
 	Booking        HolidayRegistrationBooking
 	Answers        HolidayAnswers
+	AnswerFields   []HolidayFormField
 }
 
 // HolidayRegistrationExport is the export of a period: its rows and one

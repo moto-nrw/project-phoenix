@@ -7,10 +7,12 @@ package api
 
 import (
 	"context"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -507,4 +509,56 @@ func TestHolidayExportKeepsAnswersWhenAQuestionChangesScope(t *testing.T) {
 	assert.Contains(t, csv, "Familienantwort-nachher")
 	assert.Contains(t, csv, "Antwort-Kind-eins", "a later family question keeps earlier per-child answers in the export")
 	assert.Contains(t, csv, "Antwort-Kind-zwei")
+}
+
+func TestHolidayExportKeepsHistoricalAnswerLabels(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Formular Antwortbeschriftung")
+	fields := []map[string]any{
+		{"key": "renamed", "label": "Alte Frage", "type": "select", "options": []map[string]any{{"value": "option_key", "label": "Ursprüngliche Auswahl"}}},
+		{"key": "removed", "label": "Entfernte Auswahl", "type": "select", "applies_to_child": true, "options": []map[string]any{{"value": "removed_key", "label": "Frühere Auswahl"}}},
+		{"key": "changed_type", "label": "Anderer Typ", "type": "select", "applies_to_child": true, "options": []map[string]any{{"value": "typed_key", "label": "Frühere Typauswahl"}}},
+	}
+	register := func(version int, email, removed, changed string) {
+		t.Helper()
+		body := siblingsRegistration(f.offer, email)
+		body["form_version"] = version
+		body["custom_data"] = map[string]any{"renamed": "option_key"}
+		answerChildren(body, map[string]any{"removed": removed, "changed_type": changed}, map[string]any{})
+		rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.period.PublicToken), body)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.period.ID, fields)
+	register(2, "historisch@example.org", "removed_key", "typed_key")
+	fields[0]["label"] = "Neue Frage"
+	fields[0]["options"] = []map[string]any{{"value": "option_key", "label": "Neue Auswahl"}}
+	fields[1]["options"] = []map[string]any{{"value": "replacement_key", "label": "Ersatz-Auswahl"}}
+	fields[2]["type"] = "text"
+	delete(fields[2], "options")
+	saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.period.ID, fields)
+	register(3, "aktuell@example.org", "replacement_key", "Freitext")
+
+	req := httptest.NewRequest(http.MethodGet, f.path("/export?format=csv"), nil)
+	req.Header.Set("Authorization", "Bearer "+f.office.token)
+	rec := httptest.NewRecorder()
+	f.traeger.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	reader := csv.NewReader(strings.NewReader(strings.TrimPrefix(rec.Body.String(), "\ufeff")))
+	reader.Comma = ';'
+	records, err := reader.ReadAll()
+	require.NoError(t, err)
+	require.NotEmpty(t, records)
+	assert.Contains(t, records[0], "Neue Frage", "shared headings still use the newest exported version")
+	assert.NotContains(t, records[0], "Alte Frage")
+	for _, row := range records[1:] {
+		if slices.Contains(row, "historisch@example.org") {
+			assert.Contains(t, row, "Ursprüngliche Auswahl", "renaming an option must not relabel an older answer")
+		} else if slices.Contains(row, "aktuell@example.org") {
+			assert.Contains(t, row, "Neue Auswahl")
+		}
+	}
+	assert.Contains(t, rec.Body.String(), "Frühere Auswahl")
+	assert.Contains(t, rec.Body.String(), "Frühere Typauswahl")
+	assert.Contains(t, rec.Body.String(), "Ersatz-Auswahl")
+	assert.Contains(t, rec.Body.String(), "Freitext")
 }

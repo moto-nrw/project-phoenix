@@ -142,9 +142,23 @@ func (h *HolidayRegistrationReview) exportAnswers(ctx context.Context, organizat
 	}
 	columns := holidayExportColumns(forms)
 	for i := range rows {
-		rows[i].Answers = holidayRowAnswers(columns, answers[rows[i].Registration.ID], rows[i].Child.ID)
+		registration := answers[rows[i].Registration.ID]
+		rows[i].Answers = holidayRowAnswers(columns, registration, rows[i].Child.ID)
+		rows[i].AnswerFields = holidayExportAnswerFields(forms[registration.FormVersion], rows[i].Answers)
 	}
 	return columns, nil
+}
+
+// holidayExportAnswerFields keeps the submitted definitions for the answers
+// already admitted by the export's health filter.
+func holidayExportAnswerFields(form enrollment.HolidayPeriodForm, answers enrollment.HolidayAnswers) []enrollment.HolidayFormField {
+	fields := []enrollment.HolidayFormField{}
+	for _, field := range form.Fields {
+		if _, ok := answers[field.Key]; ok {
+			fields = append(fields, field)
+		}
+	}
+	return fields
 }
 
 // holidayRowAnswers picks the family's and the child's answers to the

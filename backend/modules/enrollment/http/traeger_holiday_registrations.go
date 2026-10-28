@@ -332,7 +332,7 @@ func holidayRegistrationDocument(export capability.HolidayRegistrationExport, fi
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
 			"second_guardian": secondName, "second_guardian_phone": secondPhone,
 		}
-		addHolidayAnswers(values, export.Columns, row.Answers)
+		addHolidayAnswers(values, row.AnswerFields, row.Answers)
 		for id, value := range values {
 			values[id] = lists.SanitizeUserText(value)
 		}
