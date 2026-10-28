@@ -29,7 +29,11 @@ import {
   isSWRSessionPending,
   useSWRSessionRefresh,
   discardScopedEntries,
+  dropPreloads,
+  dropStateKeys,
   isEntityRefusal,
+  isInfiniteKey,
+  matchingStateKeys,
   scopedSWRKey,
   swrScopeEpoch,
   swrScopePrefix,
@@ -260,6 +264,7 @@ export function useTenantMutate() {
  */
 export function useTenantMutateMatching(substrings: readonly string[]) {
   const { prefix } = useSWRScope();
+  const { cache } = useSWRConfig();
   // "|" is a safe joiner: substrings are caller-supplied cache-key fragments
   // (literals like "ogs-students"), which cannot legally contain pipe in any
   // SWR key the codebase produces. The joined string is the actual dep — a
@@ -279,12 +284,24 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
         if (!key.startsWith(scope)) return false;
         return needles.some((needle) => key.includes(needle));
       };
+      // SWR's key filter only reaches entries a mounted hook keyed. The rest
+      // (entries without a reader, `$inf$`/`$sub$` entries, preloads,
+      // mutations in flight) is collected by key (#5006): a preload taken
+      // before the change must not answer the next mount.
+      const matched = matchingStateKeys(cache, matches);
       if (options?.clear) {
-        return swrMutate(matches, undefined, { revalidate: false });
+        const cleared = swrMutate(matches, undefined, { revalidate: false });
+        dropStateKeys(cache, matched);
+        return cleared;
       }
-      return swrMutate(matches);
+      const revalidated = swrMutate(matches);
+      dropPreloads(cache, matched);
+      for (const key of matched) {
+        if (isInfiniteKey(key)) void swrMutate(key);
+      }
+      return revalidated;
     },
-    [prefix, joined],
+    [prefix, joined, cache],
   );
 }
 

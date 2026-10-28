@@ -145,6 +145,11 @@ export function resetSWRScope({ revalidate }: { revalidate: boolean }): void {
 const REFUSAL_STATUSES = new Set([401, 403, 404]);
 const SPECIAL_KEY = /^\$(inf|sub)\$/;
 
+/** Whether `key` is the cache entry of a `useSWRInfinite` hook. */
+export function isInfiniteKey(key: string): boolean {
+  return key.startsWith("$inf$");
+}
+
 /**
  * Whether `error` is the server's refusal of an entity with one of `codes`.
  * Programs branch on the code (ADR 0006), never on a message.
@@ -163,41 +168,79 @@ export function isEntityRefusal(
 }
 
 /**
- * Drops the entries of scope `prefix` whose unscoped key `matches`: their
- * data, the data kept on screen, preloads and requests and mutations in
- * flight. An error an entry carries stays, so the view shows the refusal
- * instead of the data. Nothing is fetched again. Returns how many entries
- * were dropped.
+ * Every key SWR holds state for in `cache`, in all its families: cache
+ * entries including the `$inf$` and `$sub$` ones, preloads without a cache
+ * entry, and requests and mutations in flight. `matches` gets the key
+ * without its `$inf$`/`$sub$` marker. SWR's own key filter (`mutate(fn)`)
+ * sees none of these families except entries a mounted hook keyed (`_k`),
+ * so every drop at a scope or entity boundary collects its keys here.
+ */
+export function matchingStateKeys(
+  cache: Cache,
+  matches: (key: string) => boolean,
+): string[] {
+  const keys = new Set<string>(cache.keys());
+  const state = SWRGlobalState.get(cache);
+  if (state) {
+    const [, MUTATION, FETCH, PRELOAD] = state;
+    for (const family of [MUTATION, FETCH, PRELOAD]) {
+      for (const key of Object.keys(family)) keys.add(key);
+    }
+  }
+  return [...keys].filter((key) => matches(key.replace(SPECIAL_KEY, "")));
+}
+
+/**
+ * Drops all state of `keys` without fetching: their data and the data kept
+ * on screen, preloads, and requests and mutations in flight (their answers
+ * and rollbacks are discarded). An error an entry carries stays, so a view
+ * shows the refusal instead of the data.
+ */
+export function dropStateKeys(cache: Cache, keys: readonly string[]): void {
+  if (keys.length === 0) return;
+  const state = SWRGlobalState.get(cache);
+  epoch += 1;
+  for (const key of keys) {
+    if (state) {
+      const [, MUTATION, FETCH, PRELOAD] = state;
+      delete FETCH[key];
+      delete PRELOAD[key];
+      // Like unload: an older mutation fails its timestamp check on
+      // resolution and writes nothing back, not even its rollback.
+      const ts = getTimestamp();
+      MUTATION[key] = [ts, ts];
+    }
+    if (cache.get(key) === undefined) continue;
+    const [, set] = createCacheHelper(cache, key);
+    // `_c` holds the data an optimistic update replaced; SWR's State type
+    // does not name it.
+    set({ data: undefined, _c: undefined } as Parameters<typeof set>[0]);
+  }
+}
+
+/** Drops the preloads of `keys`, so their next reader fetches. */
+export function dropPreloads(cache: Cache, keys: readonly string[]): void {
+  const state = SWRGlobalState.get(cache);
+  if (!state) return;
+  const [, , , PRELOAD] = state;
+  for (const key of keys) delete PRELOAD[key];
+}
+
+/**
+ * Drops every entry of scope `prefix` whose unscoped key `matches`, in all
+ * families (matchingStateKeys). Nothing is fetched again. Returns how many
+ * keys were dropped.
  */
 export function discardScopedEntries(
   cache: Cache,
   prefix: string,
   matches: (key: string) => boolean,
 ): number {
-  const state = SWRGlobalState.get(cache);
-  if (!state) return 0;
-  const [, MUTATION, FETCH, PRELOAD] = state;
   const scope = `${prefix}:`;
-  const dropped: string[] = [];
-  for (const key of cache.keys()) {
-    const plain = key.replace(SPECIAL_KEY, "");
-    if (plain.startsWith(scope) && matches(plain.slice(scope.length))) {
-      dropped.push(key);
-    }
-  }
-  if (dropped.length === 0) return 0;
-  epoch += 1;
-  for (const key of dropped) {
-    delete FETCH[key];
-    delete PRELOAD[key];
-    // Like unload: an older mutation fails its timestamp check on resolution
-    // and writes nothing back, not even its rollback.
-    const ts = getTimestamp();
-    MUTATION[key] = [ts, ts];
-    const [, set] = createCacheHelper(cache, key);
-    // `_c` holds the data an optimistic update replaced; SWR's State type
-    // does not name it.
-    set({ data: undefined, _c: undefined } as Parameters<typeof set>[0]);
-  }
+  const dropped = matchingStateKeys(
+    cache,
+    (key) => key.startsWith(scope) && matches(key.slice(scope.length)),
+  );
+  dropStateKeys(cache, dropped);
   return dropped.length;
 }

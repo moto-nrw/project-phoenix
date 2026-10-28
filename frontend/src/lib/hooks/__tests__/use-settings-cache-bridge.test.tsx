@@ -10,6 +10,8 @@ import { renderHook } from "@testing-library/react";
 
 const mockMutate = vi.fn();
 const mockUseSession = vi.fn();
+// Stable like SWR's own cache; empty, so only the mutate calls count.
+const mockCache = new Map();
 
 vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
@@ -17,6 +19,7 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("swr", () => ({
   mutate: (...args: unknown[]) => mockMutate(...args),
+  useSWRConfig: () => ({ cache: mockCache }),
 }));
 
 const subscribers: Array<() => void> = [];

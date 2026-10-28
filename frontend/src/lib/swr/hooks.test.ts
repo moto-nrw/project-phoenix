@@ -13,14 +13,18 @@ vi.mock("next-auth/react", () => ({
   useSession: vi.fn(),
 }));
 
-const { mockSwrMutate } = vi.hoisted(() => ({
+const { mockSwrMutate, mockCache } = vi.hoisted(() => ({
   mockSwrMutate: vi.fn(),
+  // Stable like SWR's own cache; empty, since the matcher contract below is
+  // what these tests check.
+  mockCache: new Map(),
 }));
 
 // Mock swr
 vi.mock("swr", () => ({
   default: vi.fn(),
   mutate: mockSwrMutate,
+  useSWRConfig: () => ({ cache: mockCache }),
 }));
 
 const { mockUseTenantSlugSafe } = vi.hoisted(() => ({
