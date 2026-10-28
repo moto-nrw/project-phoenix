@@ -13,9 +13,13 @@ const { sessionTenantMismatchResponse } = await import("./tenant-host-check");
 const { TenantResolveStatusError } =
   await import("~/lib/tenant-resolve.server");
 
-function request(host: string, path = "/api/students") {
+function request(host: string, path = "/api/students", originalHost?: string) {
   return new NextRequest(`http://${host}${path}`, {
-    headers: { host, "x-forwarded-for": "203.0.113.7" },
+    headers: {
+      host,
+      "x-forwarded-for": "203.0.113.7",
+      ...(originalHost && { "x-moto-original-host": originalHost }),
+    },
   });
 }
 
@@ -46,7 +50,6 @@ describe("sessionTenantMismatchResponse", () => {
     );
 
     expect(result).toBeNull();
-    // Anker: the host's school was looked up; the null is the comparison.
     expect(mockResolve).toHaveBeenCalledWith(
       "schule-a",
       expect.objectContaining({ "X-Forwarded-For": "203.0.113.7" }),
@@ -64,6 +67,43 @@ describe("sessionTenantMismatchResponse", () => {
       status: 409,
       code: "identity.session_tenant_mismatch",
     });
+  });
+
+  it("uses the proxy-preserved host when Next.js sees an internal host", async () => {
+    const result = await sessionTenantMismatchResponse(
+      request("next-internal:3000", "/api/students", "schule-a.localhost:3000"),
+      session(2),
+    );
+
+    expect(result?.status).toBe(409);
+    expect(await result?.json()).toMatchObject({
+      status: 409,
+      code: "identity.session_tenant_mismatch",
+    });
+    expect(mockResolve).toHaveBeenCalledWith("schule-a", expect.anything());
+  });
+
+  it("allows the session of the proxy-preserved host", async () => {
+    const result = await sessionTenantMismatchResponse(
+      request("next-internal:3000", "/api/students", "schule-a.localhost:3000"),
+      session(1),
+    );
+
+    expect(result).toBeNull();
+    expect(mockResolve).toHaveBeenCalledWith("schule-a", expect.anything());
+  });
+
+  it("checks a case-insensitive proxy-preserved school host", async () => {
+    const result = await sessionTenantMismatchResponse(
+      request("next-internal:3000", "/api/students", "schule-a.LOCALHOST:3000"),
+      session(2),
+    );
+
+    expect(result?.status).toBe(409);
+    expect(await result?.json()).toMatchObject({
+      code: "identity.session_tenant_mismatch",
+    });
+    expect(mockResolve).toHaveBeenCalledWith("schule-a", expect.anything());
   });
 
   it.each([
