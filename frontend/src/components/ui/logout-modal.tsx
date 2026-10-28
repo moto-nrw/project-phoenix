@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import { Modal } from "./modal";
+import { ConfirmationModal } from "./modal";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -36,32 +36,6 @@ const LogOutIcon = ({ className }: { className?: string }) => (
 export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  return (
-    <Modal
-      isOpen={isOpen}
-      onClose={isLoggingOut ? () => undefined : onClose}
-      title=""
-      footer={undefined}
-    >
-      <LogoutConfirmation
-        isLoggingOut={isLoggingOut}
-        setIsLoggingOut={setIsLoggingOut}
-        onClose={onClose}
-      />
-    </Modal>
-  );
-}
-
-/** Mounted only while the modal is open, like the toast it may raise. */
-function LogoutConfirmation({
-  isLoggingOut,
-  setIsLoggingOut,
-  onClose,
-}: {
-  readonly isLoggingOut: boolean;
-  readonly setIsLoggingOut: (value: boolean) => void;
-  readonly onClose: () => void;
-}) {
   const { logout } = useShellAuth();
   const { show: showLogoutError } = useApiErrorDisplay();
 
@@ -92,24 +66,21 @@ function LogoutConfirmation({
   };
 
   return (
-    <div className="py-4 text-center">
+    <ConfirmationModal
+      isOpen={isOpen}
+      onClose={onClose}
+      onConfirm={() => void handleConfirmLogout()}
+      title="Abmelden"
+      confirmText="Abmelden"
+      loadingText="Abmeldung läuft..."
+      isConfirmLoading={isLoggingOut}
+      isDismissDisabled={isLoggingOut}
+      mobileSheet
+    >
       <LogOutIcon className="mx-auto mb-4 h-12 w-12 text-gray-700" />
-      <h1 className="mt-4 text-3xl font-bold tracking-tight text-gray-800 sm:text-4xl">
-        Abmelden
-      </h1>
-      <p className="mt-4 text-gray-600">
+      <p className="text-center">
         Möchten Sie sich wirklich von Ihrem Konto abmelden?
       </p>
-      <div className="mt-6">
-        <button
-          type="button"
-          onClick={handleConfirmLogout}
-          disabled={isLoggingOut}
-          className="inline-flex items-center rounded-xl bg-gray-900 px-6 py-2.5 text-sm font-semibold text-white shadow-lg transition-all duration-200 hover:scale-105 hover:bg-gray-800 hover:shadow-xl focus:outline-none active:scale-95 disabled:cursor-not-allowed disabled:bg-gray-400 disabled:shadow-none disabled:hover:scale-100"
-        >
-          <span>{isLoggingOut ? "Abmeldung läuft..." : "Abmelden"}</span>
-        </button>
-      </div>
-    </div>
+    </ConfirmationModal>
   );
 }

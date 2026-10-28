@@ -30,27 +30,6 @@ vi.mock("~/contexts/ToastContext", () => ({
   useApiErrorDisplay: () => ({ show: mockShowError }),
 }));
 
-// Mock Modal component
-vi.mock("./modal", () => ({
-  Modal: ({
-    isOpen,
-    onClose,
-    children,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-    children: React.ReactNode;
-  }) =>
-    isOpen ? (
-      <div data-testid="modal">
-        <button type="button" onClick={onClose} data-testid="modal-close">
-          Close
-        </button>
-        {children}
-      </div>
-    ) : null,
-}));
-
 describe("LogoutModal", () => {
   const mockOnClose = vi.fn();
 
@@ -76,7 +55,9 @@ describe("LogoutModal", () => {
   it("renders modal when open", () => {
     render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
 
-    expect(screen.getByTestId("modal")).toBeInTheDocument();
+    expect(
+      screen.getByRole("dialog", { name: "Abmelden" }),
+    ).toBeInTheDocument();
   });
 
   it("displays logout title", () => {
@@ -161,7 +142,8 @@ describe("LogoutModal", () => {
       await vi.advanceTimersByTimeAsync(100);
     });
 
-    const closeButton = screen.getByTestId("modal-close");
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+    const closeButton = screen.getByRole("button", { name: "Modal schließen" });
     fireEvent.click(closeButton);
     expect(mockOnClose).not.toHaveBeenCalled();
   });
