@@ -27,4 +27,5 @@ export {
 export { scopedSWRKey, tenantSWRScope } from "./scope";
 
 // Re-export SWR utilities that consumers might need
-export { mutate, SWRConfig, type Cache } from "swr";
+export { SWRConfig, type Cache } from "swr";
+export { mutate } from "./mutate";

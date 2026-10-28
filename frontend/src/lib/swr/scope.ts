@@ -11,6 +11,10 @@
  *   login, logout, account, school, preview or rights change. SWRScopeBoundary
  *   resets the cache whenever it changes.
  *
+ * Whether data or an answer still counts is decided by the generation lock
+ * (generation.ts); the drops here raise its generations first and then free
+ * the cache.
+ *
  * The browser session has no session ID of its own (#5005); the generation
  * stands in for it. A new sign-in of the same account with the same rights
  * keeps the cache: its entries show exactly what the new session may see.
@@ -24,6 +28,12 @@ import { SWRGlobalState, createCacheHelper, getTimestamp } from "swr/_internal";
 import { ApiError } from "~/lib/api-error";
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { clearListOverlays } from "~/lib/list-overlays";
+import {
+  bumpDataGeneration,
+  bumpRequestGeneration,
+  bumpScopeGeneration,
+  plainSWRKey,
+} from "./generation";
 import { hasSessionAccess } from "~/lib/session-access";
 
 type MaybeSession = Session | null | undefined;
@@ -81,14 +91,13 @@ export function scopedSWRKey(prefix: string, key: string): string {
   return `${prefix}:${key}`;
 }
 
-// Counts the resets and discards of this tab. A hook keeps the data of an
-// earlier key on screen (keepPreviousData) only while the count is the one
-// it had when that data arrived (see useScopedSWR).
-let epoch = 0;
+// The cleanup below frees memory and lets mounted hooks load again; safety
+// comes from the generation lock. Tests switch the cleanup off to prove that.
+let cleanupEnabled = true;
 
-/** How many times this tab dropped cache entries. */
-export function swrScopeEpoch(): number {
-  return epoch;
+/** Only for tests: run the drops without their cleanup. */
+export function _setSWRCleanupForTests(enabled: boolean): void {
+  cleanupEnabled = enabled;
 }
 
 // Cross-tab invalidation must take effect before React commits new keys or
@@ -128,7 +137,8 @@ export function resumeSWRSession(): void {
 }
 
 /**
- * Drops the whole cache of this tab: every entry including the
+ * Ends the scope generation (generation.ts), then drops the whole cache of
+ * this tab: every entry including the
  * `useSWRInfinite` and `useSWRSubscription` keys, preloads, requests and
  * mutations in flight (their answers are discarded), the data
  * `keepPreviousData` holds on screen, and the list overlays (#5124).
@@ -137,13 +147,13 @@ export function resumeSWRSession(): void {
  * only when the session already in place is the one they should load for.
  */
 export function resetSWRScope({ revalidate }: { revalidate: boolean }): void {
-  epoch += 1;
+  bumpScopeGeneration();
+  if (!cleanupEnabled) return;
   clearListOverlays();
   unload({ revalidate });
 }
 
 const REFUSAL_STATUSES = new Set([401, 403, 404]);
-const SPECIAL_KEY = /^\$(inf|sub)\$/;
 
 /**
  * Whether `error` is the server's refusal of an entity with one of `codes`.
@@ -174,7 +184,10 @@ export type SWRInvalidation = "revalidate" | "clear" | "discard";
 
 /**
  * The one way to invalidate part of the cache (#5006; the whole cache goes
- * through resetSWRScope). `matches` gets every key SWR 2.5.1 holds state
+ * through resetSWRScope). It raises the generation of the matching keys
+ * (generation.ts): `revalidate` the request generation of the keys SWR
+ * holds now, `clear` and `discard` the data generation of every key
+ * `matches`, also of keys that appear only later. The rest is cleanup. `matches` gets every key SWR 2.5.1 holds state
  * for, without its `$inf$`/`$sub$` marker, from every place that state
  * lives: cache entries (also without a reader's `_k`), mounted hooks
  * (EVENT_REVALIDATORS), requests in flight and finished requests inside the
@@ -186,7 +199,7 @@ export type SWRInvalidation = "revalidate" | "clear" | "discard";
  * an answer from before. `clear` and `discard` also stamp the mutation
  * clock, which makes requests and mutations in flight, their rollbacks
  * included, write nothing back, and empty the entry without leaving it in a
- * loading state; data kept on screen goes as well (swrScopeEpoch).
+ * loading state.
  */
 export function invalidateSWRKeys(
   cache: Cache,
@@ -201,11 +214,11 @@ export function invalidateSWRKeys(
       for (const key of Object.keys(family)) keys.add(key);
     }
   }
-  const matched = [...keys].filter((key) =>
-    matches(key.replace(SPECIAL_KEY, "")),
-  );
-  if (matched.length === 0) return Promise.resolve([]);
-  if (mode !== "revalidate") epoch += 1;
+  const matched = [...keys].filter((key) => matches(plainSWRKey(key)));
+  // The lock first: it holds also for keys the cleanup cannot see.
+  if (mode === "revalidate") bumpRequestGeneration(matched);
+  else bumpDataGeneration(matches);
+  if (!cleanupEnabled || matched.length === 0) return Promise.resolve([]);
   const revalidations: Promise<unknown>[] = [];
   for (const key of matched) {
     if (state) {

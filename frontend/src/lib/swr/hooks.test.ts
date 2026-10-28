@@ -511,11 +511,12 @@ describe("SWR Hooks", () => {
       void earlier("ogs-students-42", { rows: [] }, { revalidate: false });
       void result.current("ogs-students-42");
 
+      // The write itself goes through the generation lock (#5006).
       expect(mockSwrMutate).toHaveBeenNthCalledWith(
         1,
         "school-a:user-1:ogs-students-42",
         { rows: [] },
-        { revalidate: false },
+        expect.objectContaining({ revalidate: false }),
       );
       expect(mockSwrMutate).toHaveBeenNthCalledWith(
         2,
@@ -534,7 +535,7 @@ describe("SWR Hooks", () => {
       expect(mockSwrMutate).toHaveBeenCalledWith(
         "school-a:user-1:ogs-students-42",
         data,
-        options,
+        expect.objectContaining(options),
       );
     });
   });

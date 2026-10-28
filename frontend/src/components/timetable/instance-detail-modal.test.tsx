@@ -84,7 +84,7 @@ vi.mock("vaul", async () => {
 
 vi.mock("next-auth/react", () => ({
   useSession: vi.fn(() => ({
-    data: { user: { token: "test-token" } },
+    data: { user: { id: "1", token: "test-token" } },
     status: "authenticated",
     update: vi.fn(),
   })),

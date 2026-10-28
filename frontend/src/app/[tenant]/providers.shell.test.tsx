@@ -221,7 +221,9 @@ describe("TenantProviders with a server snapshot", () => {
       ["school-a:1:staff-notices-today:1", shell.staffNoticesToday],
     ] as const) {
       const call = mockSwrMutate.mock.calls.find(([k]) => k === key);
-      expect(call?.[2]).toEqual({ revalidate: false });
+      expect(call?.[2]).toEqual(
+        expect.objectContaining({ revalidate: false }),
+      );
       const write = call?.[1] as (current: unknown) => unknown;
       // An entry a reader already holds stays.
       expect(write(undefined)).toBe(seed);

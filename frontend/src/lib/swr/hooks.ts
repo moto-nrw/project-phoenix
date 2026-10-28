@@ -21,9 +21,28 @@ import useSWR, {
   type SWRConfiguration,
   type SWRResponse,
 } from "swr";
-import { useCallback, useLayoutEffect, useRef } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useSyncExternalStore,
+} from "react";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
+import {
+  currentSWRDataGeneration,
+  dataGenerationOf,
+  isCurrentSWRValue,
+  isDiscardedAnswer,
+  isStillCurrent,
+  lockFetcher,
+  subscribeSWRDataGeneration,
+  lockMutation,
+  requestGenerationOf,
+  stampSWRValue,
+  startOf,
+} from "./generation";
 import {
   authGeneration,
   isSWRSessionPending,
@@ -32,7 +51,6 @@ import {
   invalidateSWRKeys,
   isEntityRefusal,
   scopedSWRKey,
-  swrScopeEpoch,
   swrScopePrefix,
 } from "./scope";
 import type { ErrorCode } from "~/lib/error-codes.generated";
@@ -58,20 +76,83 @@ function useSWRScope(): {
   };
 }
 
-// Wrap the merged configuration, preserving provider- and caller-level
-// pauses. Read the live flag because a timer or mutation can run before
-// React commits the disabled keys after an owner-change event.
-const sessionRefreshMiddleware: Middleware =
-  (useSWRNext) => (key, fetcher, config) =>
-    useSWRNext(key, fetcher, {
+/**
+ * The write side of the generation lock (generation.ts) on the merged
+ * configuration of every wrapper hook:
+ * - the fetcher discards an answer whose generation ended while it ran,
+ *   also when SWR hands over a preload or a deduped request;
+ * - an error retry scheduled before a bump does not run after it;
+ * - a discarded answer is no error: not logged, not retried;
+ * - while another tab's session is being confirmed nothing revalidates.
+ *   The live flag is read because a timer or mutation can run before React
+ *   commits the disabled keys after an owner-change event.
+ */
+type OnError = NonNullable<SWRConfiguration["onError"]>;
+type OnErrorRetry = NonNullable<SWRConfiguration["onErrorRetry"]>;
+
+const generationLockMiddleware: Middleware =
+  (useSWRNext) => (key, fetcher, config) => {
+    const locked =
+      typeof key === "string" && fetcher ? lockFetcher(key, fetcher) : fetcher;
+    const onError: OnError = (error, errorKey, current) => {
+      if (!isDiscardedAnswer(error)) config.onError?.(error, errorKey, current);
+    };
+    const onErrorRetry: OnErrorRetry = (
+      error,
+      errorKey,
+      current,
+      revalidate,
+      options,
+    ) => {
+      if (isDiscardedAnswer(error)) return;
+      const start = startOf(errorKey);
+      config.onErrorRetry?.(
+        error,
+        errorKey,
+        current,
+        (retry) => {
+          if (isStillCurrent(errorKey, start)) return revalidate(retry);
+        },
+        options,
+      );
+    };
+    return useSWRNext(key, locked, {
       ...config,
       isPaused: () => isSWRSessionPending() || config.isPaused?.() === true,
+      onError,
+      onErrorRetry,
     });
+  };
+
+/** A bound mutate of `key` whose writes go through the generation lock. */
+function lockBoundMutate<T>(
+  key: string,
+  mutate: SWRResponse<T>["mutate"],
+): SWRResponse<T>["mutate"] {
+  return ((...args: unknown[]) => {
+    // SWR counts the arguments: `mutate()` revalidates, while an explicit
+    // `undefined` writes it. Pass revalidations through unchanged.
+    if (args[0] === undefined) {
+      return (mutate as (...given: unknown[]) => Promise<T | undefined>)(
+        ...args,
+      );
+    }
+    const [locked, lockedOptions] = lockMutation(key, args[0], args[1]);
+    return mutate(locked as never, lockedOptions as never);
+  }) as SWRResponse<T>["mutate"];
+}
 
 /**
- * useSWR under the session's scope. `keepPreviousData` keeps an earlier
- * key's data on screen only while it belongs to the same auth generation and
- * nothing was dropped since (#5006): a new key after an account switch, a
+ * useSWR under the session's scope and the generation lock (#5006).
+ *
+ * Read side: `data` (cache, `fallbackData`, a seed) is shown only while it
+ * belongs to the key's current data generation; otherwise the hook reports
+ * no data, and loads again once if no error explains the gap. An answer the
+ * lock discarded is no error. A hook whose request was discarded loads
+ * again under the new generation. Without a bump nothing loads again.
+ *
+ * `keepPreviousData` keeps an earlier key's data on screen only while no
+ * generation moved since it arrived: a new key after an account switch, a
  * logout or a discard starts empty. The marker moves once data of the
  * current key arrived.
  */
@@ -81,34 +162,98 @@ function useScopedSWR<T, E>(
   options: SWRConfiguration<T, E> | undefined,
 ): SWRResponse<T, E> {
   const { prefix, generation } = useSWRScope();
-  const epoch = swrScopeEpoch();
-  const shown = useRef({ generation, epoch });
+  const fullKey =
+    key !== null && prefix !== null ? scopedSWRKey(prefix, key) : null;
+  // Renders again whenever values stop counting (scope or data bump).
+  const moved = useSyncExternalStore(
+    subscribeSWRDataGeneration,
+    currentSWRDataGeneration,
+    currentSWRDataGeneration,
+  );
+  const shown = useRef({ generation, moved });
   const configured = options?.keepPreviousData ?? swrConfig.keepPreviousData;
   const keep =
     configured === true &&
     shown.current.generation === generation &&
-    shown.current.epoch === epoch;
+    shown.current.moved === moved;
 
-  const response = useSWR<T, E>(
-    key !== null && prefix !== null ? scopedSWRKey(prefix, key) : null,
-    fetcher,
-    {
-      ...swrConfig,
-      ...options,
-      keepPreviousData: keep,
-      use: [sessionRefreshMiddleware, ...(options?.use ?? [])],
-    },
+  const response = useSWR<T, E>(fullKey, fetcher, {
+    ...swrConfig,
+    ...options,
+    keepPreviousData: keep,
+    use: [generationLockMiddleware, ...(options?.use ?? [])],
+  });
+
+  const raw = response.data;
+  const rawError = response.error;
+  const discarded = isDiscardedAnswer(rawError);
+  // A caller's `fallbackData` counts from the generation this hook first
+  // showed it in; any other value no path of ~/lib/swr produced (a raw
+  // write) is stamped on first sight.
+  const fallbackSeen = useRef<{ value: unknown; generation: number } | null>(
+    null,
   );
+  let visible: boolean;
+  if (fullKey === null) {
+    // Without a session nothing is shown, not even `fallbackData`; a key
+    // the caller left out keeps SWR's own behaviour (the keep guard above).
+    visible = prefix !== null;
+  } else {
+    const current = isCurrentSWRValue(fullKey, raw);
+    if (current !== undefined) {
+      visible = current;
+    } else if (raw === options?.fallbackData) {
+      let seen = fallbackSeen.current;
+      if (seen === null || seen.value !== raw) {
+        seen = { value: raw, generation: dataGenerationOf(fullKey) };
+        fallbackSeen.current = seen;
+      }
+      visible = seen.generation >= dataGenerationOf(fullKey);
+    } else {
+      stampSWRValue(fullKey, raw, dataGenerationOf(fullKey));
+      visible = true;
+    }
+  }
+  const data = visible ? raw : undefined;
+  const error = discarded ? undefined : rawError;
 
-  // Read data only while the marker lags behind: reading it makes SWR
-  // re-render this hook on every data change, which hooks that keep their
-  // marker do not need.
-  const arrived = configured === true && !keep && response.data !== undefined;
+  const arrived = configured === true && !keep && data !== undefined;
   useLayoutEffect(() => {
-    if (arrived) shown.current = { generation, epoch };
-  }, [arrived, generation, epoch]);
+    if (arrived) shown.current = { generation, moved };
+  }, [arrived, generation, moved]);
 
-  return response;
+  // Load again once per generation: after a discarded answer, or when the
+  // shown data belongs to an older generation and no error explains it.
+  const reload =
+    fullKey === null
+      ? null
+      : discarded
+        ? `request:${fullKey}:${requestGenerationOf(fullKey)}`
+        : !visible && rawError === undefined
+          ? `data:${fullKey}:${dataGenerationOf(fullKey)}`
+          : null;
+  const reloaded = useRef<string | null>(null);
+  const revalidate = response.mutate;
+  useEffect(() => {
+    if (reload === null || reloaded.current === reload) return;
+    reloaded.current = reload;
+    void revalidate();
+  }, [reload, revalidate]);
+
+  const mutate = fullKey
+    ? lockBoundMutate(fullKey, response.mutate)
+    : response.mutate;
+  return {
+    data,
+    error,
+    mutate,
+    get isValidating() {
+      return response.isValidating;
+    },
+    get isLoading() {
+      return response.isLoading || (!visible && response.isValidating);
+    },
+  } as SWRResponse<T, E>;
 }
 
 /**
@@ -196,7 +341,9 @@ export function useTenantMutate() {
       if (data === undefined) {
         return swrMutate(cacheKey);
       }
-      return swrMutate(cacheKey, data, options);
+      // A write that settles after the generation moved is not kept.
+      const [locked, lockedOptions] = lockMutation(cacheKey, data, options);
+      return swrMutate(cacheKey, locked, lockedOptions as never);
     },
     [prefix],
   );
