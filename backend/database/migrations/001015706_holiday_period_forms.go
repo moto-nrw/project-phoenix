@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayPeriodFormsVersion = "1.15.697"
+const holidayPeriodFormsVersion = "1.15.706"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayPeriodFormsVersion,
 		Description: "Ferienanmeldung: Formular-Baukasten je Ferienzeitraum mit Versionen und Antworten (#5198)",
 		DependsOn: []string{
-			manualRosterConfirmedVersion, // the last migration before this one
-			holidayRegistrationsVersion,  // the registrations that keep their form version
+			visitRevisionEventsVersion,  // the last migration before this one
+			holidayRegistrationsVersion, // the registrations that keep their form version
 		},
 	})
 	Migrations.MustRegister(holidayPeriodFormsUp, holidayPeriodFormsDown)
