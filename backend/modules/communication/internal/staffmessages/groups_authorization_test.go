@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/realtime/realtimetest"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -97,8 +97,7 @@ func TestGroupMutationAndSendReauthorizeAfterThreadLock(t *testing.T) {
 
 type finalMemberRepository struct {
 	StaffMessageThreadRepository
-	thread       *StaffMessageThread
-	participants []int64
+	thread *StaffMessageThread
 }
 
 func (r *finalMemberRepository) FindByID(context.Context, int64) (*StaffMessageThread, error) {
@@ -114,43 +113,88 @@ func (*finalMemberRepository) LockForMessageAppend(context.Context, int64) error
 }
 
 func (r *finalMemberRepository) ParticipantAccountIDs(context.Context, int64) ([]int64, error) {
-	return r.participants, nil
+	return nil, nil
 }
 
 type finalMemberGroups struct {
-	values.StaffGroupSource
-	repository *finalMemberRepository
-	deleted    bool
+	deleteThread func(context.Context, int64) error
 }
 
-func (g *finalMemberGroups) RemoveStaffParticipant(context.Context, int64, int64) error {
-	g.repository.participants = nil
+func (finalMemberGroups) CreateStaffGroupThread(context.Context, string, int64, []int64) (*communication.StaffThreadRecord, error) {
+	return nil, nil
+}
+
+func (finalMemberGroups) RenameStaffGroupThread(context.Context, int64, string) error { return nil }
+func (finalMemberGroups) AddStaffGroupParticipants(context.Context, int64, []int64) error {
 	return nil
 }
+func (finalMemberGroups) RemoveStaffParticipant(context.Context, int64, int64) error { return nil }
+func (finalMemberGroups) StaffParticipantStates(context.Context, int64) ([]*communication.StaffParticipantRecord, error) {
+	return nil, nil
+}
+func (g finalMemberGroups) DeleteStaffThread(ctx context.Context, threadID int64) error {
+	return g.deleteThread(ctx, threadID)
+}
 
-func (g *finalMemberGroups) DeleteStaffThread(context.Context, int64) error {
-	g.deleted = true
+type afterCommitRuntime func(func())
+
+func (r afterCommitRuntime) RegisterAfterCommit(_ context.Context, callback func()) {
+	r(callback)
+}
+
+type finalMemberBroadcaster struct {
+	staff  func(int64, []int64, realtime.Event) error
+	school func(int64, []int64, realtime.Event) error
+}
+
+func (finalMemberBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
+func (finalMemberBroadcaster) BroadcastToGroups(int64, []string, realtime.Event) error {
 	return nil
 }
-
-type recordingAfterCommitRuntime struct {
-	callbacks []func()
+func (finalMemberBroadcaster) BroadcastToTenant(int64, realtime.Event) error { return nil }
+func (finalMemberBroadcaster) BroadcastToTenantAdmins(int64, realtime.Event) error {
+	return nil
 }
-
-func (r *recordingAfterCommitRuntime) RegisterAfterCommit(_ context.Context, callback func()) {
-	r.callbacks = append(r.callbacks, callback)
+func (b finalMemberBroadcaster) BroadcastToStaffAccounts(tenantID int64, accountIDs []int64, event realtime.Event) error {
+	return b.staff(tenantID, accountIDs, event)
+}
+func (b finalMemberBroadcaster) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event realtime.Event) error {
+	return b.school(tenantID, accountIDs, event)
+}
+func (finalMemberBroadcaster) BroadcastToAll(realtime.Event) error { return nil }
+func (finalMemberBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
+	return nil
+}
+func (finalMemberBroadcaster) BroadcastToGuardian(int64, int64, realtime.Event) error {
+	return nil
 }
 
 func TestLeaveFinalGroupMemberBroadcastsAfterCommit(t *testing.T) {
 	t.Parallel()
 
-	repository := &finalMemberRepository{
-		thread:       &StaffMessageThread{ID: 7, TenantID: 11, Kind: groupKind},
-		participants: []int64{1},
+	repository := &finalMemberRepository{thread: &StaffMessageThread{ID: 7, TenantID: 11, Kind: groupKind}}
+	deleted := false
+	groups := finalMemberGroups{deleteThread: func(context.Context, int64) error {
+		deleted = true
+		return nil
+	}}
+	var afterCommit func()
+	runtime := afterCommitRuntime(func(callback func()) { afterCommit = callback })
+	type broadcastCall struct {
+		tenantID   int64
+		accountIDs []int64
 	}
-	groups := &finalMemberGroups{repository: repository}
-	runtime := &recordingAfterCommitRuntime{}
-	broadcaster := realtimetest.NewRecordingBroadcaster()
+	var staffCalls, schoolCalls []broadcastCall
+	broadcaster := finalMemberBroadcaster{
+		staff: func(tenantID int64, accountIDs []int64, _ realtime.Event) error {
+			staffCalls = append(staffCalls, broadcastCall{tenantID: tenantID, accountIDs: accountIDs})
+			return nil
+		},
+		school: func(tenantID int64, accountIDs []int64, _ realtime.Event) error {
+			schoolCalls = append(schoolCalls, broadcastCall{tenantID: tenantID, accountIDs: accountIDs})
+			return nil
+		},
+	}
 	service := NewService(Config{
 		ThreadRepo:  repository,
 		Groups:      groups,
@@ -159,15 +203,15 @@ func TestLeaveFinalGroupMemberBroadcastsAfterCommit(t *testing.T) {
 	}, runtime, nil)
 
 	require.NoError(t, service.LeaveGroup(t.Context(), 7))
-	assert.True(t, groups.deleted)
-	require.Len(t, runtime.callbacks, 1)
-	assert.Empty(t, broadcaster.Calls(), "the event waits for the transaction commit")
+	assert.True(t, deleted)
+	require.NotNil(t, afterCommit)
+	assert.Empty(t, staffCalls, "the event waits for the transaction commit")
+	assert.Empty(t, schoolCalls, "the event waits for the transaction commit")
 
-	runtime.callbacks[0]()
-	for _, method := range []string{"staff", "school"} {
-		calls := broadcaster.CallsByMethod(method)
+	afterCommit()
+	for _, calls := range [][]broadcastCall{staffCalls, schoolCalls} {
 		require.Len(t, calls, 1)
-		assert.Equal(t, int64(11), calls[0].TenantID)
-		assert.Equal(t, []int64{1}, calls[0].AccountIDs)
+		assert.Equal(t, int64(11), calls[0].tenantID)
+		assert.Equal(t, []int64{1}, calls[0].accountIDs)
 	}
 }
