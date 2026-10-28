@@ -231,6 +231,7 @@ func newStaffResource(
 		CreateStaff: staffCreate(runtime),
 		UpdateStaff: staffUpdate(runtime),
 		Offboard:    runtime.Offboard,
+		PlanExit:    runtime.PlanExit, WithdrawExit: runtime.WithdrawExit, ExitFailure: renderStaffExitFailure,
 
 		Log: logger,
 	}), nil

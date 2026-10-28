@@ -1,4 +1,7 @@
 {
+  "exit_already_due": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "exit_day_in_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "exit_not_planned": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "external_access_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "external_email_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "external_email_invited": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

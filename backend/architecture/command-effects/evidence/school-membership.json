@@ -177,6 +177,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.ClearPlannedExit",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.ClearPlannedExit",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.CountChildQuota",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.CountChildQuota",
@@ -481,6 +489,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.RecordPlannedExitProgress",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.RecordPlannedExitProgress",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.ReinstateStaff",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.ReinstateStaff",
@@ -508,6 +524,14 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.ResumeStudentCare",
       "binding_digest": "e39094888a32388601f94373dd3733c6",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.ResumeStudentCare",
+      "source_owner": "school-membership",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres.Store.SavePlannedExit",
+      "binding_digest": "e39094888a32388601f94373dd3733c6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports.Store.SavePlannedExit",
       "source_owner": "school-membership",
       "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
       "target_owner": "tenant-runtime"

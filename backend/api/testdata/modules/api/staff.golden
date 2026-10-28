@@ -1,6 +1,7 @@
 DELETE /api/staff/{id} -> basis
 DELETE /api/staff/{id}/absences/{absenceId} -> zeiterfassung
 DELETE /api/staff/{id}/documents/{documentId} -> personalakte
+DELETE /api/staff/{id}/planned-exit -> basis
 DELETE /api/staff/{id}/target-overrides/{overrideId} -> zeiterfassung
 DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId} -> zeiterfassung
 DELETE /api/staff/{id}/vacation/opening -> zeiterfassung
@@ -60,6 +61,7 @@ POST /api/staff/{id}/time-tracking/sessions -> zeiterfassung
 POST /api/staff/{id}/vacation/opening -> zeiterfassung
 PUT /api/staff/{id} -> basis
 PUT /api/staff/{id}/payroll-number -> zeiterfassung
+PUT /api/staff/{id}/planned-exit -> basis
 PUT /api/staff/{id}/schedule -> zeiterfassung
 PUT /api/staff/{id}/school-classes -> basis
 PUT /api/staff/{id}/stammdaten/arbeitsvertrag -> personalakte
