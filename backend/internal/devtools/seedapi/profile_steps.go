@@ -14,6 +14,10 @@ const (
 	webManualDeviceName = "Web-Portal (Manuell)"
 )
 
+// seedModuleNotBooked is the refusal of a request to a module the school
+// has not booked.
+const seedModuleNotBooked = "module.not_booked"
+
 type configureProfileStep struct {
 	definition demoProfileDefinition
 }
@@ -210,7 +214,7 @@ func verifyDeviceAdministrationRefusal(rt *Runtime) error {
 	if err == nil {
 		return fmt.Errorf("device administration: expected 403 module.not_booked, got success")
 	}
-	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != "module.not_booked" {
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != seedModuleNotBooked {
 		return fmt.Errorf("device administration: expected 403 module.not_booked, got %w", err)
 	}
 	return nil
