@@ -11,9 +11,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func roomRevision(t *testing.T, db *bun.DB, schoolID, roomID int64) int64 {
+func roomRevision(t *testing.T, db *bun.DB, schoolID, roomID int64) int {
 	t.Helper()
-	var revision int64
+	var revision int
 	require.NoError(t, db.NewRaw(`SELECT COALESCE(sum(changes), 0) FROM active.visit_revision_events WHERE tenant_id = ? AND room_id = ?`,
 		schoolID, roomID).Scan(t.Context(), &revision))
 	return revision
@@ -45,13 +45,13 @@ func TestSchoolErasureRemovesRoomRevisionEvents(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, other)
 	schoolRoom := open(school)
 	otherRoom := open(other)
-	require.Equal(t, int64(3), roomRevision(t, db, school, schoolRoom), "the check-in, the end and the reopening")
+	require.Equal(t, 3, roomRevision(t, db, school, schoolRoom), "the check-in, the end and the reopening")
 
 	result := eraseSchoolAsCLI(t, db, school, beginErasure(t, db, school))
 
 	require.Equal(t, "db_done", result.Status, "preflight, deletion and residual checks pass: %v", result.ErrorCode)
 	assert.Zero(t, countRevisionEvents(t, db, school))
-	assert.Equal(t, int64(3), roomRevision(t, db, other, otherRoom))
+	assert.Equal(t, 3, roomRevision(t, db, other, otherRoom))
 }
 
 // TestRoomVisitRevisionMigrationRoundTrip pins that 1.15.710 runs twice,
