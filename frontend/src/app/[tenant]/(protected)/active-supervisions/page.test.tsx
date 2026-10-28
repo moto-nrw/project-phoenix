@@ -77,9 +77,9 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading">Loading...</div>,
 }));
 
-// Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: vi.fn(
+// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -304,7 +304,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import { useNFCEnabled } from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
 
@@ -327,7 +327,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderWithSearch)
+  .mocked(PageHeaderSearchLayout)
   .getMockImplementation()!;
 
 beforeEach(() => {
@@ -338,7 +338,7 @@ beforeEach(() => {
   localStorage.clear();
   // The sidebar memory belongs to the signed-in account (#5000).
   localStorage.setItem("moto:personal-storage-owner", "1:7");
-  vi.mocked(PageHeaderWithSearch)
+  vi.mocked(PageHeaderSearchLayout)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)
@@ -1264,11 +1264,11 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
     vi.clearAllMocks();
     global.fetch = vi.fn();
 
-    // Override PageHeaderWithSearch to render action buttons and interactive controls
+    // Override PageHeaderSearchLayout to render action buttons and interactive controls
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const actionButton = p.actionButton as React.ReactNode;
@@ -1860,11 +1860,11 @@ describe("EmptyRoomsView without children lists", () => {
       status: "authenticated",
     } as never);
 
-    // Override PageHeaderWithSearch to render onClearAllFilters button
+    // Override PageHeaderSearchLayout to render onClearAllFilters button
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -2228,11 +2228,11 @@ describe("matchesStudentFilters edge cases", () => {
     // The sidebar memory belongs to the signed-in account (#5000).
     localStorage.setItem("moto:personal-storage-owner", "1:7");
 
-    // Override PageHeaderWithSearch to expose search and filter
+    // Override PageHeaderSearchLayout to expose search and filter
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -2931,11 +2931,11 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
     // The sidebar memory belongs to the signed-in account (#5000).
     localStorage.setItem("moto:personal-storage-owner", "1:7");
 
-    // Override PageHeaderWithSearch to expose year filter
+    // Override PageHeaderSearchLayout to expose year filter
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const search = p.search as
@@ -4602,11 +4602,11 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
       value: 500,
     });
 
-    // Override PageHeaderWithSearch to render tabs with onTabChange
+    // Override PageHeaderSearchLayout to render tabs with onTabChange
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const tabs = p.tabs as
@@ -5185,11 +5185,11 @@ describe("ID-based selection coverage: localStorage room restore", () => {
     localStorage.removeItem(memoryKey("sidebar-last-room-name"));
     global.fetch = vi.fn();
 
-    // Override PageHeaderWithSearch to render tabs
+    // Override PageHeaderSearchLayout to render tabs
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const badge = p.badge as { count: number } | undefined;
@@ -5726,11 +5726,11 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
       value: 500,
     });
 
-    // Override PageHeaderWithSearch to render tabs
+    // Override PageHeaderSearchLayout to render tabs
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const tabs = p.tabs as

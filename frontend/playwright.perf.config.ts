@@ -1,6 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
-import { loadAccess, perfPort, tenantBaseUrl } from "./scripts/perf/access";
+import {
+  loadAccess,
+  PERF_ACTION_TIMEOUT,
+  perfPort,
+  tenantBaseUrl,
+} from "./scripts/perf/access";
 import { perfServerEnv } from "./scripts/perf/env.mjs";
 
 // Perf-Baseline gegen einen PRODUKTIONS-Server (pnpm run perf:trace, #2938).
@@ -30,6 +35,7 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
     baseURL: tenantBaseUrl(access),
     headless: true,
+    actionTimeout: PERF_ACTION_TIMEOUT,
   },
   webServer: {
     command: "pnpm run build && pnpm run start",

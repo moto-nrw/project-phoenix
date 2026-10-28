@@ -53,10 +53,13 @@ import {
   formatDateISO,
   formatShortDate,
   getDayData as getArrivalDayData,
-  getWeekDays,
+  getWeekDaysForStart,
+  getWeekStart,
   mergeSchedulesWithTemplate as mergeArrivalSchedulesWithTemplate,
   arrivalScheduleSourceLabel,
 } from "~/lib/arrival-schedule-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { parseISODate } from "~/lib/date-helpers";
 import {
   createStudentPickupException,
   createStudentPickupNote,
@@ -303,7 +306,6 @@ export function CareScheduleManager({
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
   const deleteErrors = useApiFormError();
-  const [weekOffset, setWeekOffset] = useState(0);
   const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
   // The day exception slide-over. null = closed; { date } = opened from a day
   // card for that date.
@@ -318,10 +320,26 @@ export function CareScheduleManager({
   const [deletingStatusDayId, setDeletingStatusDayId] = useState<string | null>(
     null,
   );
+  const todayISO = useBerlinToday();
+  const currentWeekStartISO = useMemo(
+    () => formatDateISO(getWeekStart(0, todayISO)),
+    [todayISO],
+  );
+  const [weekStartISO, setWeekStartISO] = useState(currentWeekStartISO);
+  const previousCurrentWeekStartISO = useRef(currentWeekStartISO);
+
+  useLayoutEffect(() => {
+    const previous = previousCurrentWeekStartISO.current;
+    previousCurrentWeekStartISO.current = currentWeekStartISO;
+    if (previous === currentWeekStartISO) return;
+    setWeekStartISO((selected) =>
+      selected === previous ? currentWeekStartISO : selected,
+    );
+  }, [currentWeekStartISO]);
 
   const weekDays = useMemo(
-    () => getWeekDays(weekOffset, weekendFollowsFriday),
-    [weekOffset, weekendFollowsFriday],
+    () => getWeekDaysForStart(weekStartISO, weekendFollowsFriday, todayISO),
+    [todayISO, weekStartISO, weekendFollowsFriday],
   );
   const weekRange = useMemo(
     () =>
@@ -336,13 +354,25 @@ export function CareScheduleManager({
   const isEditingWeeklyView =
     isEditingWeekly && careDaysSource !== null && !readOnly;
 
-  function showWeek(offset: number): void {
-    setWeekOffset(offset);
-    const visibleDays = getWeekDays(offset, weekendFollowsFriday);
-    const firstDay = visibleDays[0];
-    const lastDay = visibleDays[visibleDays.length - 1];
+  useEffect(() => {
+    const firstDay = weekDays[0];
+    const lastDay = weekDays[weekDays.length - 1];
     if (!firstDay || !lastDay) return;
     onVisibleDateRangeChange?.(formatDateISO(firstDay), formatDateISO(lastDay));
+  }, [onVisibleDateRangeChange, weekDays]);
+
+  const isCurrentWeek = weekStartISO === currentWeekStartISO;
+
+  function showCurrentWeek(): void {
+    setWeekStartISO(currentWeekStartISO);
+  }
+
+  function moveWeek(direction: -1 | 1): void {
+    setWeekStartISO((selected) => {
+      const next = parseISODate(selected);
+      next.setDate(next.getDate() + direction * 7);
+      return formatDateISO(next);
+    });
   }
 
   const statusDayByDate = useMemo(() => {
@@ -377,6 +407,7 @@ export function CareScheduleManager({
           isExcused,
           statusForDate,
           weekendFollowsFriday,
+          todayISO,
         );
         const pickup = getPickupDayData(
           date,
@@ -389,6 +420,7 @@ export function CareScheduleManager({
           pickupData.effectiveSchedules,
           weekendFollowsFriday,
           pickupData.departureExceptions,
+          todayISO,
         );
         return {
           date,
@@ -415,6 +447,7 @@ export function CareScheduleManager({
       isSick,
       isExcused,
       weekendFollowsFriday,
+      todayISO,
     ],
   );
   const selectedMobileDay = useMemo(() => {
@@ -702,6 +735,7 @@ export function CareScheduleManager({
       isExcused,
       statusByDate.get(dateKey) ?? null,
       weekendFollowsFriday,
+      todayISO,
     );
   }, [
     editingDayDate,
@@ -710,6 +744,7 @@ export function CareScheduleManager({
     isExcused,
     statusByDate,
     weekendFollowsFriday,
+    todayISO,
   ]);
 
   const currentEditingPickupDay = useMemo(() => {
@@ -726,6 +761,7 @@ export function CareScheduleManager({
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
       pickupData.departureExceptions,
+      todayISO,
     );
   }, [
     editingDayDate,
@@ -734,6 +770,7 @@ export function CareScheduleManager({
     isExcused,
     statusByDate,
     weekendFollowsFriday,
+    todayISO,
   ]);
 
   /**
@@ -963,8 +1000,8 @@ export function CareScheduleManager({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => showWeek(0)}
-                  disabled={weekOffset === 0}
+                  onClick={showCurrentWeek}
+                  disabled={isCurrentWeek}
                   className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
                 >
                   Heute
@@ -1000,20 +1037,20 @@ export function CareScheduleManager({
             <div>
               <WeekNavButton
                 ariaLabel="Vorherige Woche"
-                onClick={() => showWeek(weekOffset - 1)}
+                onClick={() => moveWeek(-1)}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorherige Woche</span>
               </WeekNavButton>
             </div>
-            {weekOffset === 0 ? (
+            {isCurrentWeek ? (
               <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
                 Aktuelle Woche
               </span>
             ) : (
               <button
                 type="button"
-                onClick={() => showWeek(0)}
+                onClick={showCurrentWeek}
                 className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
               >
                 Zurück zur aktuellen Woche
@@ -1022,7 +1059,7 @@ export function CareScheduleManager({
             <div>
               <WeekNavButton
                 ariaLabel="Nächste Woche"
-                onClick={() => showWeek(weekOffset + 1)}
+                onClick={() => moveWeek(1)}
               >
                 <span className="hidden sm:inline">Nächste Woche</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -1069,8 +1106,8 @@ export function CareScheduleManager({
                 selectedDay={selectedMobileDay}
                 readOnly={readOnly}
                 deletingStatusDayId={deletingStatusDayId}
-                onPreviousWeek={() => showWeek(weekOffset - 1)}
-                onNextWeek={() => showWeek(weekOffset + 1)}
+                onPreviousWeek={() => moveWeek(-1)}
+                onNextWeek={() => moveWeek(1)}
                 onSelectDay={(day) =>
                   setSelectedDateKey(formatDateISO(day.date))
                 }

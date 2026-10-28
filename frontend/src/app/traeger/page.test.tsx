@@ -87,11 +87,15 @@ describe("TraegerSchoolsPage", () => {
     expect(within(table).getByText("Bissendorf")).toBeInTheDocument();
     // A school without a city shows the empty-value glyph.
     expect(within(table).getByText("–")).toBeInTheDocument();
+    // Die Erklärung steht hinter dem Info-Knopf am Titel (#5146).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Schulen" }),
+    );
     expect(
-      screen.getByText(
-        "Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.",
-      ),
-    ).toBeInTheDocument();
+      screen.getByRole("dialog", { name: "Erklärung zu Schulen" }),
+    ).toHaveTextContent(
+      "Alle Schulen Ihres Trägers. Neue Schulen ordnet das moto-Team zu.",
+    );
     // Anker: die Tabelle ist geladen; Zeilen sind reine Anzeige.
     expect(within(table).getByText("OGS Lindenweg")).toBeInTheDocument();
     expect(within(table).queryAllByRole("button", { name: /OGS/ })).toEqual([]);
@@ -152,10 +156,13 @@ describe("TraegerSchoolsPage", () => {
       .mockReturnValue(tab as unknown as Window);
     renderPage();
 
-    expect(
-      await screen.findByText(/„Öffnen“ zeigt die Schule in einem neuen Tab/),
-    ).toBeInTheDocument();
     const table = await screen.findByRole("table");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Schulen" }),
+    );
+    expect(
+      screen.getByRole("dialog", { name: "Erklärung zu Schulen" }),
+    ).toHaveTextContent(/„Öffnen“ zeigt die Schule in einem neuen Tab/);
     fireEvent.click(
       within(table).getByRole("button", { name: "OGS Am Bach öffnen" }),
     );

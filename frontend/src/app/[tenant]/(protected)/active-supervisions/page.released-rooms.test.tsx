@@ -85,9 +85,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: vi.fn(
+// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -336,7 +336,7 @@ vi.mock("~/lib/swr", () => ({
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { useOptionalSupervision } from "~/lib/supervision-context";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import type { TimetableRosterRow } from "~/lib/timetable-operations-types";
 import MeinRaumPage from "./page";
 
@@ -357,7 +357,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderWithSearch)
+  .mocked(PageHeaderSearchLayout)
   .getMockImplementation()!;
 
 // A block running in a released room, as the dashboard ships it (#3281).
@@ -469,7 +469,7 @@ beforeEach(() => {
   vi.mocked(useOptionalSupervision)
     .mockReset()
     .mockReturnValue(defaultSupervisionState);
-  vi.mocked(PageHeaderWithSearch)
+  vi.mocked(PageHeaderSearchLayout)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)
@@ -497,11 +497,11 @@ describe("Action button click handlers", () => {
     vi.clearAllMocks();
     global.fetch = vi.fn();
 
-    // Override PageHeaderWithSearch to render action buttons as clickable elements
+    // Override PageHeaderSearchLayout to render action buttons as clickable elements
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const actionButton = p.actionButton as React.ReactNode;
@@ -827,11 +827,11 @@ describe("open-room tab onTabChange callback", () => {
       value: 500,
     });
 
-    // Override PageHeaderWithSearch to render tabs with onTabChange
+    // Override PageHeaderSearchLayout to render tabs with onTabChange
     const mod =
-      await import("~/components/ui/page-header/PageHeaderWithSearch");
+      await import("~/components/ui/page-header/PageHeaderSearchLayout");
     vi.mocked(
-      mod.PageHeaderWithSearch as React.FC<Record<string, unknown>>,
+      mod.PageHeaderSearchLayout as React.FC<Record<string, unknown>>,
     ).mockImplementation((props: Record<string, unknown>) => {
       const p = props;
       const tabs = p.tabs as
@@ -1796,7 +1796,7 @@ describe("released room with running blocks (#3281)", () => {
     render(<MeinRaumPage />);
 
     await waitFor(() => {
-      const header = vi.mocked(PageHeaderWithSearch).mock.calls.at(-1)?.[0];
+      const header = vi.mocked(PageHeaderSearchLayout).mock.calls.at(-1)?.[0];
       const groupFilter = header?.filters?.find(
         (filter) => filter.id === "group",
       );

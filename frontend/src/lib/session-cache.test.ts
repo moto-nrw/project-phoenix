@@ -415,8 +415,7 @@ describe("sessionFetch", () => {
 
 // #4989: the tenant SessionProvider re-primes the cache with each answer.
 // Losing the sign-in must never leave a signed-in session behind, and a
-// primed session stays valid until the next provider poll or an explicit
-// tenant-mismatch refusal.
+// primed session keeps the cache's 10 s window.
 describe("primeSessionCache when the sign-in ends or changes", () => {
   let originalFetch: typeof fetch;
   const mockFetch = vi.fn();

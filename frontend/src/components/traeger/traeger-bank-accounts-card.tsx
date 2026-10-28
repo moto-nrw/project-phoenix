@@ -168,7 +168,7 @@ export function TraegerBankAccountsCard({
         canEdit ? (
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             size="md"
             onClick={() =>
               setEdit({ kind: "create", first: accounts.length === 0 })

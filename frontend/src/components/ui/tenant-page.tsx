@@ -27,7 +27,7 @@ import type { FormErrorDetail } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { BackLink } from "~/components/ui/back-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -44,7 +44,8 @@ import { cn } from "~/lib/utils";
 /**
  * Das Seitengerüst des Tenant-Portals. JEDE Seite unter
  * `app/[tenant]/(protected)` rendert genau dieses Gerüst als Wurzel
- * (Ausnahmen gibt es nicht.)
+ * (Ausnahmen gibt es nicht.), ebenso jede Seite des Träger-Portals nach der
+ * Anmeldung (`app/traeger`, #5146).
  *
  * Die Reihenfolge der Bausteine ist fest und liegt hier, nicht in der Seite:
  *
@@ -374,7 +375,7 @@ export function TenantPageListSearch({
     // Die Auswahl „Gruppe“ öffnet über den Kartenrand hinaus.
     <SectionCard overflow="visible">
       <div role="search" aria-label={label} className={CONTROL_HEIGHT}>
-        <PageHeaderWithSearch
+        <PageHeaderSearchLayout
           embedded
           title=""
           search={search}
@@ -660,7 +661,7 @@ function TenantPageView({
           >
             {searchSlot}
             {!searchSlot && hasSearchRow && (
-              <PageHeaderWithSearch
+              <PageHeaderSearchLayout
                 // Der Titel steht in der Kopfkarte darüber.
                 embedded
                 title=""
@@ -860,11 +861,18 @@ function TenantPageTabs({
       disabled && "cursor-not-allowed opacity-50",
     );
 
-  const renderInner = (item: TenantPageTab) => (
+  const renderInner = (item: TenantPageTab, active: boolean) => (
     <>
       {item.label}
       {item.badge !== undefined && item.badge > 0 && (
-        <span className="bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums">
+        <span
+          className={cn(
+            "bg-moto-green/10 rounded-full px-1.5 py-0.5 text-xs font-semibold text-gray-900 tabular-nums",
+            // Auf dem Telefon ist der aktive Reiter eine dunkle Pille; dunkle
+            // Schrift auf hellgrünem Hauch verschwand dort (#5146).
+            active && "max-sm:bg-white/20 max-sm:text-white",
+          )}
+        >
           {item.badge}
         </span>
       )}
@@ -905,7 +913,7 @@ function TenantPageTabs({
             onChange(item.value);
           }}
         >
-          {renderInner(item)}
+          {renderInner(item, active)}
         </Link>
       );
     }
@@ -921,7 +929,7 @@ function TenantPageTabs({
         onClick={() => onChange(item.value)}
         className={className}
       >
-        {renderInner(item)}
+        {renderInner(item, active)}
       </button>
     );
   };

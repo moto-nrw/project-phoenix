@@ -215,8 +215,18 @@ describe("TagesplanView", () => {
     expect(help.parentElement).toHaveClass("lg:hidden");
   });
 
-  it("steps onto Saturday when the weekend follows Friday's plan (#3921)", () => {
+  it("steps over a weekend of another week although the weekend follows Friday's plan (#5028)", () => {
+    // Testuhr: Mittwoch 2026-09-09.
     vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    searchParams.current = new URLSearchParams("d=2026-07-17");
+    render(<TagesplanView />);
+    fireEvent.click(screen.getByRole("button", { name: "Nächster Tag" }));
+    expect(replace).toHaveBeenLastCalledWith("/tagesplan?d=2026-07-20");
+  });
+
+  it("steps onto Saturday of today's weekend when the weekend follows Friday's plan (#3921)", () => {
+    vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);
+    setTestClock("2026-07-19T12:00:00+02:00"); // Sonntag
     searchParams.current = new URLSearchParams("d=2026-07-17");
     render(<TagesplanView />);
     fireEvent.click(screen.getByRole("button", { name: "Nächster Tag" }));
