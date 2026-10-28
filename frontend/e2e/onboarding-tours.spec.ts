@@ -311,7 +311,7 @@ async function walkTour(
 /**
  * Ein Link in der Navigation muss zur Seite führen. Im Dev-Server geht ein
  * Seitenwechsel verloren, wenn gleichzeitig Fast Refresh neu baut; dann
- * tippt die Person noch einmal, wie ein Mensch. Führt auch das nicht zur
+ * tippt die Person einmal nach, wie ein Mensch. Führt auch das nicht zur
  * Seite, ist der Link kaputt.
  */
 async function expectNavigation(
@@ -322,14 +322,14 @@ async function expectNavigation(
   const target = new URL(href, page.url()).pathname;
   const link = page.locator(`a[href="${href}"]:visible`).first();
   const arrived = () => new URL(page.url()).pathname === target;
-  for (let attempt = 0; attempt < 2 && !arrived(); attempt++) {
-    try {
-      await page.waitForURL((url) => url.pathname === target, {
-        timeout: 10_000,
-      });
-    } catch {
-      if (await link.isVisible()) await link.click({ timeout: 2_000 });
-    }
+  const waitForArrival = () =>
+    page
+      .waitForURL((url) => url.pathname === target, { timeout: 10_000 })
+      .catch(() => undefined);
+  await waitForArrival();
+  if (!arrived() && (await link.isVisible())) {
+    await link.click({ timeout: 2_000 });
+    await waitForArrival();
   }
   expect(arrived(), `${label}: Der Link führt nicht zu ${target}.`).toBe(true);
 }
