@@ -218,6 +218,26 @@ function parseViewParam(raw: string | null): TimetableView {
   return "week";
 }
 
+/**
+ * Erster Tag eines Zeitraums, für den der Plan genau diesen Zeitraum zeigt
+ * (#5137). Überlappen Zeiträume, gewinnt sonst der ältere; liegt der
+ * Zeitraum ganz in einem anderen, gibt es keinen solchen Tag.
+ */
+function firstDayShowingPeriod(
+  periods: CalendarPeriod[],
+  period: CalendarPeriod,
+): string | null {
+  const day = parseISODate(period.startDate);
+  for (
+    let iso = period.startDate;
+    iso <= period.endDate;
+    day.setDate(day.getDate() + 1), iso = toISODate(day)
+  ) {
+    if (findPeriodForDate(periods, iso)?.id === period.id) return iso;
+  }
+  return null;
+}
+
 /** Segmentschalter-Wert (deutsches Vokabular) aus dem internen Ansichts-Typ. */
 function viewToTab(view: TimetableView): ViewParam {
   if (view === "day") return "tag";
@@ -298,7 +318,8 @@ function TimetablesContent() {
   // Schritte ohne Formular (Raster, Detailpanel, Serienliste) melden ihren
   // Fehler als Toast mit Katalogtext (#2516). Ein offener Bestätigungsdialog
   // zeigt seinen Fehler dagegen selbst, weil er über den Toasts liegt.
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage: showConnectMessage } =
+    useApiErrorDisplay();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
 
@@ -1032,11 +1053,22 @@ function TimetablesContent() {
       );
       const periodID = linked && resolveTemplateCalendarPeriodId(linked);
       const period = calendarPeriods.find((entry) => entry.id === periodID);
-      if (period && period.id !== templatePeriodID) {
-        updateUrlParams({ d: period.startDate });
+      const landing =
+        period && period.id !== templatePeriodID
+          ? firstDayShowingPeriod(calendarPeriods, period)
+          : null;
+      if (landing) {
+        updateUrlParams({ d: landing });
         return;
       }
       updateUrlParams({ verbinden: null });
+      // Kein stummes Ende: der Regeltermin fehlt, oder sein Zeitraum liegt
+      // ganz in einem anderen, den der Plan für jeden dieser Tage zeigt.
+      showConnectMessage(
+        linked && period
+          ? `„${linked.name}“ gehört zum Zeitraum „${period.name}“. moto kann ihn von hier aus leider nicht öffnen.`
+          : "Den Regeltermin gibt es nicht mehr.",
+      );
       return;
     }
     if (!rosterDeviationsSettled) return;
@@ -1072,6 +1104,7 @@ function TimetablesContent() {
     canManageSchedules,
     updateUrlParams,
     toast,
+    showConnectMessage,
   ]);
   const modalCalendarPeriods = useMemo(() => {
     const periodIDs = new Set(assignedPeriods.map((period) => period.id));

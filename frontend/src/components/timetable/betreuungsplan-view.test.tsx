@@ -44,6 +44,7 @@ const {
   mockLoggerError,
   mockListPhases,
   mockShowActionError,
+  mockShowMessage,
   mockAcknowledgeConflict,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
@@ -69,6 +70,7 @@ const {
   mockLoggerError: vi.fn(),
   mockListPhases: vi.fn(),
   mockShowActionError: vi.fn(),
+  mockShowMessage: vi.fn(),
   mockAcknowledgeConflict: vi.fn(),
 }));
 
@@ -139,7 +141,10 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
     warning: mockToastWarning,
     info: mockToastInfo,
   }),
-  useApiErrorDisplay: () => ({ show: mockShowActionError }),
+  useApiErrorDisplay: () => ({
+    show: mockShowActionError,
+    showMessage: mockShowMessage,
+  }),
 }));
 
 async function showActionErrorAsToast(
@@ -1408,6 +1413,72 @@ describe("BetreuungsplanView", () => {
       expect.any(Function),
       expect.objectContaining({ keepPreviousData: false }),
     );
+  });
+
+  // Herbstferien liegen ganz im Schuljahr: der Plan zeigt für jeden ihrer
+  // Tage das ältere Schuljahr, der Link darf dort nicht stumm hängen bleiben.
+  it("reports a linked template whose period lies inside another one", async () => {
+    setUrl("view=serien&verbinden=7");
+    const holidays = {
+      ...laterPeriod,
+      id: "7",
+      name: "Herbstferien",
+      startDate: "2026-10-12",
+      endDate: "2026-10-23",
+    };
+    const holidayTemplate = {
+      ...template,
+      name: "Ferien-Randstunde",
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        calendarPeriodId: holidays.id,
+      })),
+    };
+    setupSWR({
+      periods: [period, holidays],
+      templates: [],
+      allTemplates: [holidayTemplate],
+      rosterDeviations: [deviation],
+    });
+    render(<BetreuungsplanView />);
+
+    await waitFor(() => expect(urlParams().has("verbinden")).toBe(false));
+    expect(mockShowMessage).toHaveBeenCalledWith(
+      "„Ferien-Randstunde“ gehört zum Zeitraum „Herbstferien“. moto kann ihn von hier aus leider nicht öffnen.",
+    );
+    // Anker: die Serienansicht bleibt beim Schuljahr stehen.
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(urlParams().has("d")).toBe(false);
+    expect(
+      screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lands on the first day that shows a partly overlapping period", async () => {
+    setUrl("view=serien&verbinden=7");
+    const overlapping = { ...laterPeriod, startDate: "2026-12-30" };
+    const laterTemplate = {
+      ...template,
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        calendarPeriodId: overlapping.id,
+      })),
+    };
+    setupSWR({
+      periods: [period, overlapping],
+      templates: [],
+      templatesByPeriod: { "timetable-templates-6": [laterTemplate] },
+      allTemplates: [laterTemplate],
+      rosterDeviations: [deviation],
+    });
+    render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeVisible();
+    // 30. und 31.12. zeigt der Plan noch das Schuljahr (Zeitraum 5).
+    expect(urlParams().get("d")).toBe("2027-01-01");
+    expect(mockShowMessage).not.toHaveBeenCalled();
   });
 
   it("opens the Regeltermin for editing when no offering matches", async () => {
