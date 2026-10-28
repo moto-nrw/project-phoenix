@@ -1691,6 +1691,9 @@
     "signatureEyebrow": "Nachweis"
   },
   "holidayRegistration": {
+    "secondGuardianTitle": "Zweite sorgeberechtigte Person",
+    "secondGuardianText": "Freiwillig. Bei Angaben sind Vorname und Nachname nötig.",
+    "emailOptional": "E-Mail-Adresse (freiwillig)",
     "eyebrow": "Ferienbetreuung",
     "loading": "Die Anmeldung wird geladen.",
     "errorObject": "die Ferienanmeldung",
@@ -1773,6 +1776,7 @@
     "doneText": "Wir schicken Ihnen eine Bestätigung an {email}.",
     "doneNext": "Das ist noch keine Zusage. Der Träger prüft die Anmeldung und schreibt Ihnen, ob Ihr Kind einen Platz bekommt.",
     "errors": {
+      "phone": "Bitte geben Sie eine gültige Telefonnummer ein.",
       "required": "Bitte füllen Sie dieses Feld aus.",
       "email": "Bitte geben Sie eine gültige E-Mail-Adresse ein.",
       "school": "Bitte wählen Sie die Schule Ihres Kindes.",

@@ -283,6 +283,8 @@ var holidayRegistrationColumns = []lists.Column{
 	{ID: "guardian", Label: "Elternteil"},
 	{ID: "email", Label: "E-Mail"},
 	{ID: "phone", Label: "Telefon"},
+	{ID: "second_guardian", Label: "Zweites Elternteil"},
+	{ID: "second_guardian_phone", Label: "Telefon zweites Elternteil"},
 	{ID: "duplicate", Label: "Mögliche Doppelanmeldung"},
 }
 
@@ -313,6 +315,7 @@ func holidayRegistrationDocument(period capability.HolidayPeriod, filter capabil
 		if row.Registration.Frozen {
 			frozen = "Ja"
 		}
+		secondName, secondPhone := holidaySecondGuardianContact(row.SecondGuardian)
 		values := map[lists.ColumnID]string{
 			"status": holidayRegistrationStatusLabels[row.Registration.Status], "frozen": frozen,
 			"registration": strconv.FormatInt(row.Registration.ID, 10),
@@ -323,6 +326,7 @@ func holidayRegistrationDocument(period capability.HolidayPeriod, filter capabil
 			"host_school": schoolName(row.Booking.HostSchoolID), "time_model": row.Booking.TimeModelName,
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
+			"second_guardian": secondName, "second_guardian_phone": secondPhone,
 		}
 		for id, value := range values {
 			values[id] = lists.SanitizeUserText(value)
@@ -359,4 +363,12 @@ func holidayRegistrationFilterLabels(period capability.HolidayPeriod, filter cap
 		labels = append(labels, "Zeitmodell: "+filter.TimeModel)
 	}
 	return labels
+}
+
+// holidaySecondGuardianContact keeps an absent optional card empty in both exports.
+func holidaySecondGuardianContact(guardian *capability.HolidayGuardianInput) (string, string) {
+	if guardian == nil {
+		return "", ""
+	}
+	return guardian.FirstName + " " + guardian.LastName, guardian.Phone
 }

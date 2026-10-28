@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -450,4 +456,109 @@ describe("HolidayRegistrationForm", () => {
       screen.queryByText("Ihre Kinder aus dem Elternkonto"),
     ).not.toBeInTheDocument();
   });
+});
+
+describe("second guardian card", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  function card() {
+    const heading = screen.getByRole("heading", {
+      name: "Zweite sorgeberechtigte Person",
+    });
+    return within(heading.closest("section")!);
+  }
+
+  it("requires names only while the optional card contains information", () => {
+    renderForm();
+    const second = card();
+    const firstName = second.getByLabelText("Vorname");
+    const lastName = second.getByLabelText("Nachname");
+    expect(firstName).not.toBeRequired();
+    expect(lastName).not.toBeRequired();
+    const phone = second.getByLabelText("Telefon (freiwillig)");
+    type(phone, "0151 2345678");
+    expect(second.getByLabelText("Vorname *")).toBeRequired();
+    expect(second.getByLabelText("Nachname *")).toBeRequired();
+    type(phone, " ");
+    expect(firstName).not.toBeRequired();
+    expect(lastName).not.toBeRequired();
+  });
+
+  it("allows leaving the card blank", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    await renderFilledForm();
+    expect(screen.getByText("Eva Muster")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    expect(mockSubmit.mock.calls[0]![1].second_guardian).toBeUndefined();
+  });
+
+  it("shows the second guardian in the summary and submits all four fields", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm();
+    fillRegistration();
+    const second = card();
+    type(second.getByLabelText(/^Vorname\b/), "Tom");
+    type(second.getByLabelText(/^Nachname\b/), "Anders");
+    type(
+      second.getByLabelText("E-Mail-Adresse (freiwillig)"),
+      "tom@example.org",
+    );
+    type(second.getByLabelText("Telefon (freiwillig)"), "0151 2345678");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect(card().getByText("Tom Anders")).toBeInTheDocument();
+    expect(card().getByText("tom@example.org")).toBeInTheDocument();
+    expect(card().getByText("0151 2345678")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    expect(mockSubmit.mock.calls[0]![1].second_guardian).toEqual({
+      first_name: "Tom",
+      last_name: "Anders",
+      email: "tom@example.org",
+      phone: "0151 2345678",
+    });
+  });
+
+  it.each([
+    [/^Vorname\b/, "", /^Vorname\b/],
+    [/^Nachname\b/, "", /^Nachname\b/],
+    ["E-Mail-Adresse (freiwillig)", "bad", "E-Mail-Adresse (freiwillig)"],
+    ["Telefon (freiwillig)", "abc", "Telefon (freiwillig)"],
+  ])(
+    "shows errors at the second guardian field %s",
+    async (label, value, invalidLabel) => {
+      renderForm();
+      fillRegistration();
+      const second = card();
+      type(second.getByLabelText(/^Vorname\b/), "Tom");
+      type(second.getByLabelText(/^Nachname\b/), "Anders");
+      type(second.getByLabelText(label), value);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+      );
+      await waitFor(() =>
+        expect(second.getByLabelText(invalidLabel)).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        ),
+      );
+      expect(second.getByLabelText(invalidLabel)).toHaveAttribute(
+        "aria-describedby",
+      );
+    },
+  );
 });
