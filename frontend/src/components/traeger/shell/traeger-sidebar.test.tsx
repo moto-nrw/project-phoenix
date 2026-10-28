@@ -75,6 +75,10 @@ describe("TraegerSidebar", () => {
 
     const section = bottomNav().getByRole("button", { name: "Einstellungen" });
     expect(section).toHaveAttribute("aria-expanded", "false");
+    const body = document.getElementById(
+      section.getAttribute("aria-controls")!,
+    );
+    expect(body).toHaveAttribute("inert");
     expect(bottomNav().getByRole("link", { name: "Hilfe" })).toHaveAttribute(
       "href",
       "/help?role=traeger",
@@ -82,6 +86,7 @@ describe("TraegerSidebar", () => {
 
     fireEvent.click(section);
     expect(section).toHaveAttribute("aria-expanded", "true");
+    expect(body).toHaveProperty("inert", false);
     expect(
       bottomNav().getByRole("link", { name: "Zugriffsprotokoll" }),
     ).toHaveAttribute("href", "/access-log");
@@ -93,6 +98,7 @@ describe("TraegerSidebar", () => {
 
     fireEvent.click(section);
     expect(section).toHaveAttribute("aria-expanded", "false");
+    expect(body).toHaveAttribute("inert");
   });
 
   it("shows only the entries the rights open", () => {

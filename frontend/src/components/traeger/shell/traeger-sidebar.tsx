@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
+import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
+import { PORTAL_SUB_ITEM_CLASSES } from "~/components/dashboard/sidebar-geometry";
+import { NavLink } from "~/components/ui/nav-link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
   PortalSidebar,
   PortalSidebarLink,
-  PortalSidebarSection,
 } from "~/components/ui/portal-sidebar";
 import { traegerPath } from "~/lib/traeger-url";
 import { isTraegerNavActive } from "./traeger-nav-active";
@@ -26,6 +29,17 @@ import {
 export function TraegerSidebar() {
   const pathname = usePathname() ?? "";
   const { data: session } = useSession();
+  const settingsItems = traegerSettingsNavItemsFor(session ?? null);
+  const containsActive = settingsItems.some((item) =>
+    isTraegerNavActive(item.href, pathname),
+  );
+  const [settingsOpen, setSettingsOpen] = useState(containsActive);
+  // Open on entry into settings, but still allow manually collapsing them.
+  const [wasActive, setWasActive] = useState(containsActive);
+  if (containsActive !== wasActive) {
+    setWasActive(containsActive);
+    if (containsActive) setSettingsOpen(true);
+  }
 
   return (
     <PortalSidebar
@@ -40,17 +54,40 @@ export function TraegerSidebar() {
             newTab
             data-traeger-nav-item={TRAEGER_HELP_NAV.key}
           />
-          <PortalSidebarSection
-            label={TRAEGER_SETTINGS_NAV.label}
-            concept={TRAEGER_SETTINGS_NAV.concept}
-            data-portal-nav-section={TRAEGER_SETTINGS_NAV.key}
-            items={traegerSettingsNavItemsFor(session ?? null).map((item) => ({
-              key: item.key,
-              href: traegerPath(item.href),
-              label: item.label,
-              active: isTraegerNavActive(item.href, pathname),
-            }))}
-          />
+          {settingsItems.length > 0 && (
+            <li>
+              <SidebarAccordionSection
+                variant="portal"
+                label={TRAEGER_SETTINGS_NAV.label}
+                concept={TRAEGER_SETTINGS_NAV.concept}
+                data-portal-nav-section={TRAEGER_SETTINGS_NAV.key}
+                isExpanded={settingsOpen}
+                onToggle={() => setSettingsOpen((value) => !value)}
+                isActive={containsActive && !settingsOpen}
+                isIconActive={containsActive}
+                hasChildren
+              >
+                <ul className="space-y-0.5">
+                  {settingsItems.map((item) => {
+                    const active = isTraegerNavActive(item.href, pathname);
+                    return (
+                      <li key={item.key}>
+                        <NavLink
+                          href={traegerPath(item.href)}
+                          data-portal-nav-item={item.key}
+                          data-active={active ? "true" : "false"}
+                          aria-current={active ? "page" : undefined}
+                          className={`${PORTAL_SUB_ITEM_CLASSES} ${active ? "bg-gray-100 font-semibold text-gray-900" : "font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"}`}
+                        >
+                          {item.label}
+                        </NavLink>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </SidebarAccordionSection>
+            </li>
+          )}
         </>
       }
     >
