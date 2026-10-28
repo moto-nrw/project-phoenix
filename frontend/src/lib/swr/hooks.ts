@@ -25,6 +25,7 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useSyncExternalStore,
 } from "react";
@@ -250,9 +251,10 @@ function useScopedSWR<T, E>(
     void revalidate();
   }, [reload, revalidate]);
 
-  const mutate = fullKey
-    ? lockBoundMutate(fullKey, response.mutate)
-    : response.mutate;
+  const mutate = useMemo(
+    () => (fullKey ? lockBoundMutate(fullKey, revalidate) : revalidate),
+    [fullKey, revalidate],
+  );
   return {
     data,
     error,

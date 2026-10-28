@@ -1,6 +1,12 @@
 import { act, render, renderHook, screen } from "@testing-library/react";
 import type { Session } from "next-auth";
-import { cloneElement, isValidElement, type ReactNode } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useState,
+  type ReactNode,
+} from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // The generation lock on the real SWR 2.5.1.
@@ -463,6 +469,36 @@ describe.each([
 });
 
 describe("what the lock leaves alone (#5006)", () => {
+  it("presents a load failure once when the error effect depends on mutate", async () => {
+    const failure = new ApiError("Unavailable", 503);
+    const fetcher = vi.fn(() => Promise.reject(failure));
+    const present = vi.fn();
+    function LoadErrorReader() {
+      const { error, mutate } = useSWRAuth("load-error", fetcher, {
+        shouldRetryOnError: false,
+      });
+      const [presentation, setPresentation] = useState<object | null>(null);
+      useEffect(() => {
+        if (!error) return;
+        present(error);
+        // Bound the broken loop so the regression fails without hanging.
+        if (present.mock.calls.length < 3) setPresentation({ retry: mutate });
+      }, [error, mutate]);
+      return <p>{presentation ? "Fehler angezeigt" : "Lädt"}</p>;
+    }
+
+    render(
+      <Page>
+        <LoadErrorReader />
+      </Page>,
+    );
+    await flush();
+
+    expect(screen.getByText("Fehler angezeigt")).toBeInTheDocument();
+    expect(present).toHaveBeenCalledExactlyOnceWith(failure);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("keeps a key named in `except` and its late answer", async () => {
     const answer = deferred<string>();
     let calls = 0;
