@@ -24,7 +24,8 @@ vi.mock("next-auth/react", () => ({
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "school",
 }));
-vi.mock("~/contexts/ToastContext", () => ({
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: vi.fn() }),
   useApiErrorDisplay: () => ({ show: vi.fn() }),
 }));

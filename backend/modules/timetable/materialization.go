@@ -111,4 +111,22 @@ type MaterializationCapability interface {
 	// materialize. includeDeletions also reports individually deleted
 	// occurrences, which a following-series split resurrects.
 	DetectEditedInWindow(ctx context.Context, templateID int64, from, to calendar.Date, includeDeletions bool) ([]EditedOccurrence, error)
+	// ProjectOccurrences returns, per template, the dates in [from, to] on
+	// which materialization creates an occurrence, with the materializer's own
+	// per-date rule and without writing (#5140). The window may span up to
+	// MaxOccurrenceProjectionDays.
+	ProjectOccurrences(ctx context.Context, templateIDs []int64, from, to calendar.Date) (OccurrenceProjection, error)
+}
+
+// MaxOccurrenceProjectionDays bounds a read-only projection: one school year
+// with room for an overlong planning period.
+const MaxOccurrenceProjectionDays = 400
+
+// OccurrenceProjection is what materialization would create in a window.
+type OccurrenceProjection struct {
+	// Dates are the occurrence dates per template id, ascending.
+	Dates map[int64][]calendar.Date
+	// ClosedDays are the holidays and closing days of the window; no care is
+	// planned there unless a series includes closing days.
+	ClosedDays map[calendar.Date]bool
 }

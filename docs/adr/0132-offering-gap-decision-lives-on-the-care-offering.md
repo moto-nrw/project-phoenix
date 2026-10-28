@@ -14,19 +14,24 @@ may decide „Kein Regeltermin nötig“ so the hint disappears (decision
 ## Decision
 
 1. Detection is a Timetable read. `timetable.DetectOfferingGaps` compares
-   Care Plan's approved bookings (`OfferingWeekdayBookings`) with the
-   period's Regeltermine per offering × child × school day (Monday to
-   Friday), date by date. The check looks at an active planning period only,
-   from today (or the period start) to the period end. A booked date is
-   covered when a Regeltermin the offering feeds runs on that date: its
-   source rule with the Jahrgang or Klassen filter, or the offering's own
-   link. "Runs" means the date lies between the schedule's first and last
-   occurrence in the period, its split bounds and its series end; weeks an
-   A/B pattern or a closing day skips inside that stretch count as covered.
-   Each booking link brings its own validity and weekdays, so a series that
-   only runs in November never covers a booking in December. Children on a
-   hand-kept list or in another offering's Regeltermin stay uncovered; the
-   roster review (ADR 0129) handles hand-kept lists.
+   Care Plan's approved bookings (`OfferingWeekdayBookings`, each link with
+   its validity, bounded by the phase's service days) with the period's
+   Regeltermine per offering × child × school day (Monday to Friday), date
+   by date, in an active planning period from today (or the period start)
+   to the period end. **A day is judged exactly as materialization creates
+   it:** the dates of a Regeltermin come from
+   `MaterializationCapability.ProjectOccurrences`, which runs the
+   materializer's own per-date rule (`candidateSlot`: schedule bounds,
+   series end, period selection including the lowest id among overlapping
+   unpinned periods, the A/B anchor of the selected period, holidays,
+   closing days and exceptions) over the inputs the materializer loads
+   (`loadOccurrenceRules`). The check builds no recurrence of its own. A
+   booked date is covered when a Regeltermin the offering feeds has an
+   occurrence on it: its source rule with the Jahrgang or Klassen filter,
+   or the offering's own link. Holidays and closing days carry no care and
+   are not checked. Children on a hand-kept list or in another offering's
+   Regeltermin stay uncovered; the roster review (ADR 0129) handles
+   hand-kept lists.
 2. The school's decision is stored on the offering row,
    `enrollment.care_offerings.template_gap_acks` (JSONB, planning period id
    → classes, NULL = no decision), as the classes the hint named in that
@@ -53,5 +58,8 @@ may decide „Kein Regeltermin nötig“ so the hint disappears (decision
 
 A copied offering of the next year starts without a decision. An entry for
 a deleted planning period never matches again and stays until the offering
-goes. The hint does not judge closing days or A/B weeks inside a running
-Regeltermin; a booking on such a day counts as covered.
+goes. A weekly booking against a Regeltermin in week A only is open in the
+B weeks: that is what materialization creates. Closing days are not
+checked, also for series that include them. The projection reads one
+window of up to `MaxOccurrenceProjectionDays` (400); materialization itself
+keeps its 56-day write window.

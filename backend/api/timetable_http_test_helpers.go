@@ -73,6 +73,8 @@ type TimetableHTTPTestModule struct {
 	ConflictDetection     timetable.ConflictDetectionCapability
 	AttendanceCorrections timetable.AttendanceCorrections
 	RecurrenceLock        timetable.RecurrenceWriteLock
+	// Materialization is the composed or the replaced materialization.
+	Materialization timetable.MaterializationCapability
 }
 
 // NewTimetableHTTPTestModule composes the Timetable owner for the timetable
@@ -159,7 +161,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		Data:                  data,
 		ConflictDetection:     conflicts,
 		AttendanceCorrections: corrections,
-		RecurrenceLock:        lock,
+		RecurrenceLock:        lock, Materialization: materialization,
 	}, nil
 }
 

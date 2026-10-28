@@ -14,15 +14,18 @@ const (
 	gapGanztag    = int64(502)
 )
 
-// gapScope is a school year from a Monday on; gapRuns cover it whole.
+// gapScope is a school year from a Monday on; gapRuns occur on every
+// listed weekday of it.
 var gapScope = OfferingGapScope{From: calendar.NewDate(2030, 3, 4), Until: calendar.NewDate(2030, 7, 31)}
 
-func gapRuns(weekdays ...int) []OfferingGapRun {
-	runs := make([]OfferingGapRun, 0, len(weekdays))
+func gapRuns(weekdays ...int) map[calendar.Date]bool {
+	occurrences := map[calendar.Date]bool{}
 	for _, weekday := range weekdays {
-		runs = append(runs, OfferingGapRun{Weekday: weekday, From: gapScope.From, Until: gapScope.Until})
+		for date := NextWeekdayOnOrAfter(gapScope.From, weekday); !date.After(gapScope.Until); date = date.AddDays(7) {
+			occurrences[date] = true
+		}
 	}
-	return runs
+	return occurrences
 }
 
 func gapBookings(offeringID int64, name, class string, firstStudent int64, count int, weekdays ...int) []OfferingWeekdayBooking {
@@ -57,8 +60,8 @@ func withAck(bookings []OfferingWeekdayBooking, classes ...string) []OfferingWee
 func TestDetectOfferingGapsSchuleAmBerg(t *testing.T) {
 	t.Parallel()
 	templates := []OfferingGapTemplate{
-		{Runs: gapRuns(1, 2, 3, 4, 5), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}, GradeLevels: []int{1, 2}}},
-		{Runs: gapRuns(1, 2, 3, 4, 5), LinkedOfferingIDs: []int64{gapGanztag}},
+		{Occurrences: gapRuns(1, 2, 3, 4, 5), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}, GradeLevels: []int{1, 2}}},
+		{Occurrences: gapRuns(1, 2, 3, 4, 5), LinkedOfferingIDs: []int64{gapGanztag}},
 	}
 	var bookings []OfferingWeekdayBooking
 	bookings = append(bookings, gapBookings(gapRandstunde, "Randstunde", "1a", 100, 4, 1, 2, 3, 4, 5)...)
@@ -89,30 +92,30 @@ func TestDetectOfferingGapsCoverage(t *testing.T) {
 		uncovered []int
 	}{
 		{name: "source rule without filter", templates: []OfferingGapTemplate{
-			{Runs: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}},
+			{Occurrences: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}},
 		}},
 		{name: "Klassenfilter of the class, any spelling", templates: []OfferingGapTemplate{
-			{Runs: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}, SchoolClasses: []string{" 3B "}}},
+			{Occurrences: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}, SchoolClasses: []string{" 3B "}}},
 		}},
 		{name: "offering link", templates: []OfferingGapTemplate{
-			{Runs: gapRuns(1, 3), LinkedOfferingIDs: []int64{gapRandstunde}},
+			{Occurrences: gapRuns(1, 3), LinkedOfferingIDs: []int64{gapRandstunde}},
 		}},
 		{name: "two Regeltermine share the days", templates: []OfferingGapTemplate{
-			{Runs: gapRuns(1), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}},
-			{Runs: gapRuns(3), LinkedOfferingIDs: []int64{gapRandstunde}},
+			{Occurrences: gapRuns(1), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}},
+			{Occurrences: gapRuns(3), LinkedOfferingIDs: []int64{gapRandstunde}},
 		}},
 		{name: "no Regeltermin", uncovered: []int{1, 3}},
 		{name: "another offering's Regeltermin", templates: []OfferingGapTemplate{
-			{Runs: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapGanztag}}},
+			{Occurrences: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapGanztag}}},
 		}, uncovered: []int{1, 3}},
 		{name: "another class", templates: []OfferingGapTemplate{
-			{Runs: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}, SchoolClasses: []string{"3a"}}},
+			{Occurrences: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}, SchoolClasses: []string{"3a"}}},
 		}, uncovered: []int{1, 3}},
 		{name: "another Jahrgang", templates: []OfferingGapTemplate{
-			{Runs: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}, GradeLevels: []int{1, 2}}},
+			{Occurrences: gapRuns(1, 3), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}, GradeLevels: []int{1, 2}}},
 		}, uncovered: []int{1, 3}},
 		{name: "only Monday covered", templates: []OfferingGapTemplate{
-			{Runs: gapRuns(1), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}},
+			{Occurrences: gapRuns(1), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}},
 		}, uncovered: []int{3}},
 		{name: "ended series without running weekdays", templates: []OfferingGapTemplate{
 			{Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}},
@@ -136,7 +139,7 @@ func TestDetectOfferingGapsCoverage(t *testing.T) {
 // restriction books every day; Saturday and Sunday never count.
 func TestDetectOfferingGapsSchoolDaysOnly(t *testing.T) {
 	t.Parallel()
-	templates := []OfferingGapTemplate{{Runs: gapRuns(1, 2, 3, 4, 5), LinkedOfferingIDs: []int64{gapGanztag}}}
+	templates := []OfferingGapTemplate{{Occurrences: gapRuns(1, 2, 3, 4, 5), LinkedOfferingIDs: []int64{gapGanztag}}}
 	assert.Empty(t, DetectOfferingGaps(gapScope, templates, gapBookings(gapGanztag, "Ganztag", "2a", 10, 3, 1, 2, 3, 4, 5, 6, 7)))
 	assert.Empty(t, DetectOfferingGaps(gapScope, nil, gapBookings(gapGanztag, "Ganztag", "2a", 10, 3, 6, 7)))
 }

@@ -5,12 +5,14 @@ import type { OfferingGap } from "~/lib/offering-gap";
 
 const {
   mockGaps,
+  mockLoadError,
   mockSetAcknowledged,
   mockMutate,
   mockToastSuccess,
   mockShowError,
 } = vi.hoisted(() => ({
   mockGaps: { current: [] as OfferingGap[] },
+  mockLoadError: { current: undefined as unknown },
   mockSetAcknowledged: vi.fn(),
   mockMutate: vi.fn(() => Promise.resolve()),
   mockToastSuccess: vi.fn(),
@@ -23,21 +25,28 @@ vi.mock("~/lib/timetable-api", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (key: string | null) => ({
-    data: key === null ? undefined : mockGaps.current,
-    error: undefined,
+    data: key === null || mockLoadError.current ? undefined : mockGaps.current,
+    error: key === null ? undefined : mockLoadError.current,
   }),
   useTenantMutate: () => mockMutate,
 }));
 
-vi.mock("~/contexts/ToastContext", () => ({
+// Only the toasts are replaced; the load-error path stays real.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useToast: () => ({ success: mockToastSuccess }),
   useApiErrorDisplay: () => ({ show: mockShowError }),
+}));
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
 }));
 
 vi.mock("~/lib/logger", () => ({
   createLogger: () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn() }),
 }));
 
+import { ApiError } from "~/lib/api-error";
 import { OfferingGapHints } from "./offering-gap-hints";
 
 const randstunde: OfferingGap = {
@@ -74,6 +83,7 @@ function renderHints(canManage = true) {
 describe("OfferingGapHints", () => {
   beforeEach(() => {
     mockGaps.current = [randstunde, mittag];
+    mockLoadError.current = undefined;
     mockSetAcknowledged.mockReset();
     mockToastSuccess.mockClear();
     mockShowError.mockClear();
@@ -163,5 +173,18 @@ describe("OfferingGapHints", () => {
     expect(
       screen.queryByText(/Ohne eigenen Regeltermin/),
     ).not.toBeInTheDocument();
+  });
+  it("shows a failed check with a retry instead of an empty list", async () => {
+    mockLoadError.current = new ApiError("boom", 500);
+    renderHints();
+
+    expect(
+      await screen.findByText(/Prüfung der Angebote ohne Regeltermin/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/gebucht, aber/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mockMutate).toHaveBeenCalledWith("offering-gaps-5"),
+    );
   });
 });

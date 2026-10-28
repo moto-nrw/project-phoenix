@@ -86,7 +86,7 @@ func (rs *Resource) offeringGaps(ctx context.Context, periodID int64) ([]timetab
 	if err != nil || len(bookings) == 0 {
 		return []timetable.OfferingGap{}, err
 	}
-	templates, err := rs.offeringGapTemplates(ctx, period, scope)
+	templates, err := rs.offeringGapTemplates(ctx, period, &scope)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +104,14 @@ func (rs *Resource) activePlanningPeriod(ctx context.Context, periodID int64) (s
 }
 
 // offeringGapTemplates reads the period's Regeltermine with the offerings
-// that feed them. Unlike the template list, a failed offering read fails
-// the request: without it every booking would look uncovered.
-func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalendar.CalendarPeriod, scope timetable.OfferingGapScope) ([]timetable.OfferingGapTemplate, error) {
+// that feed them and the dates materialization creates their occurrences
+// on, and fills the scope's closed days from the same projection. Unlike the
+// template list, a failed read fails the request: without it every booking
+// would look uncovered.
+func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalendar.CalendarPeriod, scope *timetable.OfferingGapScope) ([]timetable.OfferingGapTemplate, error) {
+	if rs.MaterializationService == nil {
+		return nil, errors.New("timetable offering gaps: materialization not wired")
+	}
 	ratio := rs.childrenPerStaffRatio(ctx)
 	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &period.ID, ratio, &timetable.TemplateScheduleWindow{From: scope.From, Until: scope.Until})
 	if err != nil || len(rows) == 0 {
@@ -127,26 +132,38 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalen
 	if err != nil {
 		return nil, err
 	}
+	ids := make([]int64, 0, len(templates))
+	for _, template := range templates {
+		ids = append(ids, template.ID)
+	}
+	projection, err := rs.MaterializationService.ProjectOccurrences(ctx, ids, scope.From, scope.Until)
+	if err != nil {
+		return nil, err
+	}
+	scope.ClosedDays = projection.ClosedDays
 	result := make([]timetable.OfferingGapTemplate, 0, len(templates))
 	for _, template := range templates {
 		if template.Type == timetable.GroupTypeDuty {
 			continue
 		}
-		result = append(result, offeringGapTemplate(template, feeds[template.ID], period))
+		result = append(result, offeringGapTemplate(template, feeds[template.ID], projection.Dates[template.ID]))
 	}
 	return result, nil
 }
 
 // offeringGapTemplate splits the feeding offerings into the source rule,
 // which keeps its Jahrgang or Klassen filter, and the offerings' own links,
-// which feed every booked child.
-func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, period schoolcalendar.CalendarPeriod) timetable.OfferingGapTemplate {
+// which feed every booked child. occurrences are the projected dates.
+func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, occurrences []calendar.Date) timetable.OfferingGapTemplate {
 	gapTemplate := timetable.OfferingGapTemplate{
-		Runs:              scheduleRuns(template, period),
+		Occurrences:       make(map[calendar.Date]bool, len(occurrences)),
 		LinkedOfferingIDs: append([]int64(nil), feeds.LinkedOfferingIDs...),
 		Sources: timetable.OfferingSourceFilter{
 			GradeLevels: feeds.GradeLevels, SchoolClasses: feeds.SchoolClasses,
 		},
+	}
+	for _, date := range occurrences {
+		gapTemplate.Occurrences[date] = true
 	}
 	for _, offering := range feeds.Offerings {
 		if slices.Contains(template.SourceCareOfferingIDs, offering.ID) {
@@ -154,50 +171,6 @@ func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRost
 		}
 	}
 	return gapTemplate
-}
-
-// scheduleRuns dates each schedule of the period from its first to its last
-// occurrence, within the period, the split bounds (valid_until exclusive)
-// and the series end, with the A/B pattern deciding which weeks occur. A
-// schedule without an occurrence gives no run.
-func scheduleRuns(template templateResponse, period schoolcalendar.CalendarPeriod) []timetable.OfferingGapRun {
-	periodFirst, periodLast := calendar.Date(period.StartDate), calendar.Date(period.EndDate)
-	if template.EndDate != nil {
-		periodLast = min(periodLast, calendar.Date(*template.EndDate))
-	}
-	cycle := schoolcalendar.WeekCycle{Length: period.WeekCycleLength, Anchor: period.WeekCycleAnchor}
-	runs := make([]timetable.OfferingGapRun, 0, len(template.Schedules))
-	for _, schedule := range template.Schedules {
-		if schedule.CalendarPeriodID != nil && *schedule.CalendarPeriodID != period.ID {
-			continue
-		}
-		first := max(periodFirst, calendar.Date(schedule.ValidFrom))
-		last := periodLast
-		if schedule.ValidUntil != "" {
-			last = min(last, calendar.Date(schedule.ValidUntil).AddDays(-1))
-		}
-		occurs := func(date calendar.Date) bool {
-			return schoolcalendar.WeekPatternApplies(schedule.WeekPattern, date.String(), cycle)
-		}
-		from, ok := firstOccurrence(timetable.NextWeekdayOnOrAfter(first, schedule.Weekday), last, 7, occurs)
-		if !ok {
-			continue
-		}
-		until, _ := firstOccurrence(timetable.PreviousWeekdayOnOrBefore(last, schedule.Weekday), from, -7, occurs)
-		runs = append(runs, timetable.OfferingGapRun{Weekday: schedule.Weekday, From: from, Until: until})
-	}
-	return runs
-}
-
-// firstOccurrence walks from start towards bound in steps of days and
-// returns the first date the pattern lets occur.
-func firstOccurrence(start, bound calendar.Date, days int, occurs func(calendar.Date) bool) (calendar.Date, bool) {
-	for date := start; (days > 0 && !date.After(bound)) || (days < 0 && !date.Before(bound)); date = date.AddDays(days) {
-		if occurs(date) {
-			return date, true
-		}
-	}
-	return calendar.Date(""), false
 }
 
 func offeringGapResponseFrom(gap timetable.OfferingGap) offeringGapResponse {

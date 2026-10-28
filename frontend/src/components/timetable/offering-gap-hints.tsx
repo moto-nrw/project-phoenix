@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
@@ -12,6 +13,7 @@ import {
   describeOfferingGap,
   type OfferingGap,
 } from "~/lib/offering-gap";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 
@@ -26,9 +28,10 @@ function offeringGapsKey(periodId: string): string {
  * (#5140), above the Regeltermine. Planners create a Regeltermin or decide
  * that these children need none; a decided offering moves into the folded
  * list below, from where the hint can come back. Readers without planning
- * rights only see the open hints. The hint is information next to the plan:
- * a failed read shows nothing and is logged. Every reload of the template
- * list reloads the hints too, so a new Regeltermin shows at once.
+ * rights only see the open hints. A failed check shows the load error with a
+ * retry, never an empty list: no hint must not read as "no gaps". Every
+ * reload of the template list reloads the hints too, so a new Regeltermin
+ * shows at once.
  */
 export function OfferingGapHints({
   periodId,
@@ -51,13 +54,11 @@ export function OfferingGapHints({
     { keepPreviousData: false },
   );
 
-  useEffect(() => {
-    if (!error) return;
-    logger.warn("offering_gaps_load_failed", {
-      period_id: periodId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-  }, [error, periodId]);
+  const loadError = useSwrLoadError(
+    error,
+    "die Prüfung der Angebote ohne Regeltermin",
+    () => periodId && tenantMutate(offeringGapsKey(periodId)),
+  );
 
   const seenVersion = useRef(templatesVersion);
   useEffect(() => {
@@ -107,6 +108,7 @@ export function OfferingGapHints({
   const gaps = data ?? [];
   const open = gaps.filter((gap) => !gap.acknowledged);
   const decided = canManage ? gaps.filter((gap) => gap.acknowledged) : [];
+  if (error) return <LoadErrorAlert error={loadError} />;
   if (open.length === 0 && decided.length === 0) return null;
 
   return (

@@ -25,6 +25,8 @@ type testTimetable struct {
 	corrections timetableModule.AttendanceCorrections
 	lock        timetableModule.RecurrenceWriteLock
 	review      timetableModule.TemplateRosterReview
+	// materialization is the composed one unless the suite replaced it.
+	materialization timetableModule.MaterializationCapability
 }
 
 func (t *testTimetable) RosterReview() timetableModule.TemplateRosterReview { return t.review }
@@ -107,6 +109,7 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		lock:                   module.RecurrenceLock,
 		corrections:            module.AttendanceCorrections,
 		review:                 module.RosterReview,
+		materialization:        module.Materialization,
 	}
 }
 
@@ -132,6 +135,7 @@ type TimetableHTTPModule struct {
 	ConflictDetection     timetableModule.ConflictDetectionCapability
 	AttendanceCorrections timetableModule.AttendanceCorrections
 	RecurrenceLock        timetableModule.RecurrenceWriteLock
+	Materialization       timetableModule.MaterializationCapability
 }
 
 // TimetableModule is what the route suites take from the root's timetable

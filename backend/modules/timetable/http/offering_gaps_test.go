@@ -1,6 +1,7 @@
 package timetablehttp
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
@@ -12,81 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// TestScheduleRuns pins how a schedule becomes a dated run (#5140): from its
-// first to its last occurrence inside the period, the split bounds
-// (valid_until exclusive) and the series end, with the A/B pattern deciding
-// which Mondays occur. March 2030 has the Mondays 4 (week A), 11 (B), 18 (A)
-// and 25 (B).
-func TestScheduleRuns(t *testing.T) {
-	t.Parallel()
-	for _, tt := range []struct {
-		name       string
-		periodFrom string
-		periodTo   string
-		validFrom  string
-		validUntil string
-		seriesEnd  string
-		pattern    int
-		from       string
-		until      string
-	}{
-		{name: "whole period", from: "2030-03-04", until: "2030-03-25"},
-		{name: "inclusive series end", seriesEnd: "2030-03-11", from: "2030-03-04", until: "2030-03-11"},
-		{name: "exclusive split end", validUntil: "2030-03-11", from: "2030-03-04", until: "2030-03-04"},
-		{name: "inclusive split start", validFrom: "2030-03-11", validUntil: "2030-03-12", from: "2030-03-11", until: "2030-03-11"},
-		{name: "split start after the series end", validFrom: "2030-03-12", seriesEnd: "2030-03-13"},
-		{name: "period end is inclusive", periodTo: "2030-03-11", from: "2030-03-04", until: "2030-03-11"},
-		{name: "period ends before the next Monday", periodTo: "2030-03-06", from: "2030-03-04", until: "2030-03-04"},
-		{name: "period starts after the last Monday", periodFrom: "2030-03-12", seriesEnd: "2030-03-13"},
-		{name: "week A", pattern: 1, from: "2030-03-04", until: "2030-03-18"},
-		{name: "week B", pattern: 2, from: "2030-03-11", until: "2030-03-25"},
-		{name: "week A ends before its next turn", pattern: 1, validUntil: "2030-03-13", from: "2030-03-04", until: "2030-03-04"},
-		{name: "week B without a turn", pattern: 2, validUntil: "2030-03-11"},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			period := schoolcalendar.CalendarPeriod{
-				ID: 42, StartDate: "2030-03-04", EndDate: "2030-03-31", WeekCycleLength: 2, WeekCycleAnchor: "2030-03-04", IsActive: true,
-			}
-			if tt.periodFrom != "" {
-				period.StartDate = tt.periodFrom
-			}
-			if tt.periodTo != "" {
-				period.EndDate = tt.periodTo
-			}
-			template := templateResponse{Schedules: []templateScheduleResponse{{
-				Weekday: timetableModule.WeekdayMonday, WeekPattern: tt.pattern, ValidFrom: tt.validFrom, ValidUntil: tt.validUntil,
-			}}}
-			if tt.seriesEnd != "" {
-				template.EndDate = &tt.seriesEnd
-			}
-			runs := scheduleRuns(template, period)
-			if tt.from == "" {
-				assert.Empty(t, runs)
-				return
-			}
-			assert.Equal(t, []timetableModule.OfferingGapRun{{
-				Weekday: timetableModule.WeekdayMonday, From: calendar.Date(tt.from), Until: calendar.Date(tt.until),
-			}}, runs)
-		})
-	}
-}
-
-// TestScheduleRunsSkipOtherPeriods: a schedule pinned to another planning
-// period gives no run in this one.
-func TestScheduleRunsSkipOtherPeriods(t *testing.T) {
-	t.Parallel()
-	other := int64(43)
-	period := schoolcalendar.CalendarPeriod{ID: 42, StartDate: "2030-03-04", EndDate: "2030-03-31", IsActive: true}
-	template := templateResponse{Schedules: []templateScheduleResponse{{Weekday: timetableModule.WeekdayMonday, CalendarPeriodID: &other}}}
-	assert.Empty(t, scheduleRuns(template, period))
-}
 
 // offeringGapsSetup drives the offering-gap routes (#5140) over the real
 // template list. The offering side is the stub: its feeds name which
@@ -103,6 +33,13 @@ func buildOfferingGapsModule(t *testing.T) *offeringGapsSetup {
 	sources := &rosterMaintenanceSources{results: map[int64]timetableModule.TemplateRosterMaintenance{}}
 	s := buildRosterReviewModule(t, sources)
 	s.res.OfferingGapDecisions = sources
+	// The gap check compares with what materialization would create, so it
+	// runs against the real materialization over the same database.
+	s.res.MaterializationService = testTimetableWith(s.db, testTimetableOptions{
+		validateCareOfferingSeries: acceptCareOfferingSeries,
+		validateOfferingSource:     func(context.Context, []int64, []int64, *int64) error { return nil },
+		resyncOfferingRoster:       s.fakeResync,
+	}, rosterReviewClock).materialization
 	s.router.Get("/offering-gaps", s.res.listOfferingGaps)
 	s.router.Put("/offering-gaps/{offeringId}/acknowledgement", s.res.setOfferingGapAck)
 	return &offeringGapsSetup{rosterReviewSetup: s, sources: sources, router: s.router}

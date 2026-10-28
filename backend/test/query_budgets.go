@@ -278,10 +278,13 @@ var queryBudgets = map[string]queryBudget{
 	// from 3 to 8 Regeltermine.
 	"api.timetable.templates.roster_deviations": {max: 16},
 	// modules/timetable — GET /api/timetable/offering-gaps (#5140): the
-	// planning period read, the period's template list and the setting read;
-	// the offering feeds and bookings are Care Plan's and stubbed here
-	// (budgeted under services.enrollment.*). Flat from 3 to 8 Regeltermine.
-	"api.timetable.offering_gaps": {max: 8},
+	// planning period read, the period's template list and the setting read,
+	// then the occurrence projection with the materializer's own inputs
+	// (active periods, holidays, closing days, exceptions, timeframes,
+	// templates, schedules); the offering feeds and bookings are Care Plan's
+	// and stubbed here (budgeted under services.enrollment.*). Flat from 3 to
+	// 8 Regeltermine.
+	"api.timetable.offering_gaps": {max: 13},
 	// modules/timetable — GET /api/timetable/offering-sources/suggestion and
 	// /preview (#5104): a Regeltermin still being planned sends its children,
 	// so the suggestion issues no statement of its own: it reads only Care

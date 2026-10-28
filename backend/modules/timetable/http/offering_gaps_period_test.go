@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -93,4 +94,39 @@ func TestOfferingGapsDecisionHoldsForItsPeriod(t *testing.T) {
 	require.Len(t, secondGaps, 1)
 	assert.False(t, secondGaps[0].Acknowledged, "the other period keeps its hint")
 	assert.Empty(t, secondGaps[0].AcknowledgedClasses)
+}
+
+// TestOfferingGapsFollowMaterializationAcrossOverlappingPeriods: two active
+// periods overlap, the one with the lower id has week A from 4 March, the
+// requested one from 11 March. The Regeltermin runs in week A and pins no
+// period, so materialization takes the lower id and creates occurrences on
+// 4 and 18 March, not on 11 March. The check must judge 11 March the same
+// way: open there, covered on 18 March (#5140).
+func TestOfferingGapsFollowMaterializationAcrossOverlappingPeriods(t *testing.T) {
+	t.Parallel()
+	s := buildOfferingGapsModule(t)
+	anchorLow, anchorHigh := rosterReviewMonday, rosterReviewMonday.AddDays(7)
+	low := createTemplateTestPeriodRange(t, s.db, "Gap-AB-Low", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 2, &anchorLow)
+	requested := createTemplateTestPeriodRange(t, s.db, "Gap-AB-High", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 2, &anchorHigh)
+	require.Less(t, low.ID, requested.ID)
+	template := s.createSourcedTemplate(t, "Randstunde Woche A", requested.ID, rosterReviewOfferingID, []int{3})
+	ctx := testpkg.Ctx(t)
+	_, err := s.db.NewUpdate().TableExpr("activities.schedules").Set("week_pattern = 1").Set("calendar_period_id = NULL").
+		Where("activity_group_id = ?", template).Exec(ctx)
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().TableExpr("activities.groups").Set("calendar_period_id = NULL").Where("id = ?", template).Exec(ctx)
+	require.NoError(t, err)
+	s.sources.bookings = withGrade(rosterReviewBookings(rosterReviewOfferingID, "Randstunde", "3a", createClassStudents(t, s.db, "3a", 1), 1), 3)
+	bookOneMonday := func(day calendar.Date) {
+		until := day.AddDays(1)
+		s.sources.bookings[0].Windows = []timetableModule.OfferingBookingWindow{{ValidFrom: &day, ValidUntil: &until, Weekdays: []int{1}}}
+	}
+
+	bookOneMonday(rosterReviewMonday.AddDays(7))
+	gaps := s.listGaps(t, requested.ID)
+	require.Len(t, gaps, 1, "materialization creates no occurrence on 11 March")
+	assert.Equal(t, []int{timetableModule.WeekdayMonday}, gaps[0].Weekdays)
+
+	bookOneMonday(rosterReviewMonday.AddDays(14))
+	assert.Empty(t, s.listGaps(t, requested.ID), "materialization creates the occurrence on 18 March")
 }

@@ -13,7 +13,7 @@ import (
 // below run on Mondays.
 var (
 	datesScope = OfferingGapScope{From: calendar.NewDate(2030, 9, 2), Until: calendar.NewDate(2031, 7, 18)}
-	november   = OfferingGapRun{Weekday: WeekdayMonday, From: calendar.NewDate(2030, 11, 4), Until: calendar.NewDate(2030, 11, 25)}
+	november   = weeklyRun{Weekday: WeekdayMonday, From: calendar.NewDate(2030, 11, 4), Until: calendar.NewDate(2030, 11, 25)}
 )
 
 func datePtr(d calendar.Date) *calendar.Date { return &d }
@@ -24,46 +24,59 @@ func mondayBooking(from, until *calendar.Date) []OfferingWeekdayBooking {
 	return bookings
 }
 
-func randstundeTemplate(runs ...OfferingGapRun) []OfferingGapTemplate {
-	return []OfferingGapTemplate{{Runs: runs, Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}}}
+// weeklyRun stands for a schedule materialized on every weekday from From to
+// Until, both inclusive.
+type weeklyRun struct {
+	Weekday     int
+	From, Until calendar.Date
+}
+
+func randstundeTemplate(runs ...weeklyRun) []OfferingGapTemplate {
+	occurrences := map[calendar.Date]bool{}
+	for _, run := range runs {
+		for date := NextWeekdayOnOrAfter(run.From, run.Weekday); !date.After(run.Until); date = date.AddDays(7) {
+			occurrences[date] = true
+		}
+	}
+	return []OfferingGapTemplate{{Occurrences: occurrences, Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}}}
 }
 
 // TestDetectOfferingGapsNeedsOverlappingDates pins the date check of #5140:
-// a Regeltermin covers a booked date only when one of its runs contains
-// that date, whatever the weekday says.
+// a Regeltermin covers a booked date only when it has an occurrence on that
+// date, whatever the weekday says.
 func TestDetectOfferingGapsNeedsOverlappingDates(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name    string
 		booking []OfferingWeekdayBooking
-		runs    []OfferingGapRun
+		runs    []weeklyRun
 		wantGap bool
 	}{
 		{
 			name:    "November series, December booking",
 			booking: mondayBooking(datePtr(calendar.NewDate(2030, 12, 2)), datePtr(calendar.NewDate(2031, 1, 1))),
-			runs:    []OfferingGapRun{november}, wantGap: true,
+			runs:    []weeklyRun{november}, wantGap: true,
 		},
 		{
 			name:    "November series, booking for the whole year",
 			booking: mondayBooking(nil, nil),
-			runs:    []OfferingGapRun{november}, wantGap: true,
+			runs:    []weeklyRun{november}, wantGap: true,
 		},
 		{
 			name:    "November series, November booking",
 			booking: mondayBooking(datePtr(calendar.NewDate(2030, 11, 4)), datePtr(calendar.NewDate(2030, 12, 1))),
-			runs:    []OfferingGapRun{november},
+			runs:    []weeklyRun{november},
 		},
 		{
 			name:    "two runs meet without a hole",
 			booking: mondayBooking(datePtr(calendar.NewDate(2030, 11, 1)), datePtr(calendar.NewDate(2030, 12, 10))),
-			runs: []OfferingGapRun{november,
+			runs: []weeklyRun{november,
 				{Weekday: WeekdayMonday, From: calendar.NewDate(2030, 12, 2), Until: calendar.NewDate(2031, 7, 14)}},
 		},
 		{
 			name:    "a run on Wednesday covers no Monday",
 			booking: mondayBooking(datePtr(calendar.NewDate(2030, 11, 4)), datePtr(calendar.NewDate(2030, 12, 1))),
-			runs:    []OfferingGapRun{{Weekday: WeekdayWednesday, From: november.From, Until: november.Until}}, wantGap: true,
+			runs:    []weeklyRun{{Weekday: WeekdayWednesday, From: november.From, Until: november.Until}}, wantGap: true,
 		},
 		{
 			name:    "a booking that ended before the scope counts no date",
@@ -76,7 +89,7 @@ func TestDetectOfferingGapsNeedsOverlappingDates(t *testing.T) {
 		{
 			name:    "the exclusive end of a booking is not booked",
 			booking: mondayBooking(datePtr(calendar.NewDate(2030, 11, 4)), datePtr(calendar.NewDate(2030, 12, 2))),
-			runs:    []OfferingGapRun{november},
+			runs:    []weeklyRun{november},
 		},
 	}
 	for _, tc := range cases {
@@ -103,7 +116,7 @@ func TestDetectOfferingGapsPerLinkWindow(t *testing.T) {
 		{ValidUntil: datePtr(calendar.NewDate(2030, 12, 1)), Weekdays: []int{WeekdayMonday}},
 		{ValidFrom: datePtr(calendar.NewDate(2030, 12, 1)), Weekdays: []int{WeekdayWednesday}},
 	}
-	runs := []OfferingGapRun{
+	runs := []weeklyRun{
 		{Weekday: WeekdayMonday, From: datesScope.From, Until: november.Until},
 		{Weekday: WeekdayWednesday, From: calendar.NewDate(2030, 12, 4), Until: datesScope.Until},
 	}
@@ -121,7 +134,4 @@ func TestWeekdayStepping(t *testing.T) {
 	assert.Equal(t, calendar.NewDate(2030, 11, 11), NextWeekdayOnOrAfter(wednesday, WeekdayMonday))
 	assert.Equal(t, wednesday, NextWeekdayOnOrAfter(wednesday, WeekdayWednesday))
 	assert.Equal(t, calendar.NewDate(2030, 11, 10), NextWeekdayOnOrAfter(wednesday, 7), "Sunday is ISO 7")
-	assert.Equal(t, calendar.NewDate(2030, 11, 4), PreviousWeekdayOnOrBefore(wednesday, WeekdayMonday))
-	assert.Equal(t, wednesday, PreviousWeekdayOnOrBefore(wednesday, WeekdayWednesday))
-	assert.Equal(t, calendar.NewDate(2030, 11, 3), PreviousWeekdayOnOrBefore(wednesday, 7))
 }

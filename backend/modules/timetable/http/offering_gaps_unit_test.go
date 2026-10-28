@@ -3,7 +3,6 @@ package timetablehttp
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -11,7 +10,7 @@ import (
 
 func TestOfferingGapTemplateIndependentLinks(t *testing.T) {
 	t.Parallel()
-	const offeringID, periodID = rosterReviewOfferingID, int64(42)
+	const offeringID = rosterReviewOfferingID
 	template := templateResponse{
 		SourceCareOfferingIDs: []int64{offeringID},
 		Schedules:             []templateScheduleResponse{{Weekday: 1}},
@@ -25,14 +24,14 @@ func TestOfferingGapTemplateIndependentLinks(t *testing.T) {
 		SchoolClass: "3a", Weekdays: []int{1},
 	}}
 	today := calendar.NewDate(2026, 10, 26)
-	period := schoolcalendar.CalendarPeriod{ID: periodID, StartDate: today.String(), EndDate: today.AddDays(30).String(), IsActive: true}
+	mondays := []calendar.Date{today, today.AddDays(7), today.AddDays(14), today.AddDays(21), today.AddDays(28)}
 	scope := timetable.OfferingGapScope{From: today, Until: today.AddDays(30)}
 	assert.Len(t, timetable.DetectOfferingGaps(scope, []timetable.OfferingGapTemplate{
-		offeringGapTemplate(template, feeds, period),
+		offeringGapTemplate(template, feeds, mondays),
 	}, bookings), 1, "the source filter alone does not cover 3a")
 
 	feeds.LinkedOfferingIDs = []int64{offeringID}
 	assert.Empty(t, timetable.DetectOfferingGaps(scope, []timetable.OfferingGapTemplate{
-		offeringGapTemplate(template, feeds, period),
+		offeringGapTemplate(template, feeds, mondays),
 	}, bookings), "the independent direct link covers 3a without the source filter")
 }
