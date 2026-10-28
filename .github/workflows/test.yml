@@ -367,13 +367,9 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Check frontend route invariants
-        if: ${{ inputs.changed-scope && matrix.project == 'node' }}
-        working-directory: frontend
-        run: >-
-          pnpm vitest run --disableConsoleIntercept
-          src/lib/app-route-invariants.test.ts
-          src/lib/analytics-routes.test.ts
+      - name: Check filesystem guard inventory
+        if: ${{ matrix.project == 'node' }}
+        run: node scripts/test-frontend-changed.mjs --check-guards
 
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
       # The binary is cached per lockfile, OS libs install every run.
@@ -416,11 +412,12 @@ jobs:
             dom-1|dom-2) test_args+=(--shard "${PROJECT#dom-}/2") ;;
           esac
           if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
-            test_args+=(--changed "origin/$BASE_REF")
+            node ../scripts/test-frontend-changed.mjs "origin/$BASE_REF" --disableConsoleIntercept "${test_args[@]}"
+          else
+            # Full suites already include every guard, with normal sharding.
+            # Native stdout/stderr avoids Vitest's console-RPC teardown race.
+            pnpm vitest run --disableConsoleIntercept "${test_args[@]}"
           fi
-          # Native stdout/stderr avoids Vitest's console-RPC teardown race.
-          # Unhandled application errors still fail the run.
-          pnpm vitest run --disableConsoleIntercept "${test_args[@]}"
 
   # The seeder is the widest end-to-end path in this repo: roughly a hundred
   # real API calls across auth, enrollment, parent portal, time tracking and

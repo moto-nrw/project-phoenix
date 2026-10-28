@@ -46,7 +46,7 @@ jobs:
       # orchestrates every job, test.yml the test suites, lint.yml the lint
       # jobs. Other .github files reach only the script suites below.
       run-backend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
-      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
+      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-fs-inputs == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
       run-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
       run-backend-architecture: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-architecture == 'true' || steps.filter.outputs.workflow-main == 'true' }}
       full-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
@@ -165,6 +165,9 @@ jobs:
             frontend:
               - 'frontend/**'
               - '!frontend/**/*.md'
+            frontend-fs-inputs:
+              - 'backend/modules/settings/internal/defaults/**'
+              - '.github/workflows/e2e.yml'
             backend-test-infra:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
@@ -178,6 +181,7 @@ jobs:
               - 'scripts/go-package-workers.sh'
               - 'scripts/total-memory-gb.sh'
             frontend-test-infra:
+              - 'scripts/test-frontend-changed.mjs'
               - 'frontend/package.json'
               - 'frontend/pnpm-lock.yaml'
               - 'frontend/pnpm-workspace.yaml'
@@ -351,7 +355,7 @@ jobs:
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
         run: |
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs
+          node --test scripts/test-frontend-changed.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
 

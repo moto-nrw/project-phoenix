@@ -46,6 +46,13 @@ case "$1" in
   *) exit 99 ;;
 esac
 EOF
+cat >"$fixture/fake-bin/node" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+[ "$1" = ../scripts/test-frontend-changed.mjs ]
+printf 'node:%s\n' "$*" >>"$TEST_CHANGED_CALL_LOG"
+exit "${PHX_FIXTURE_VITEST_STATUS:-0}"
+EOF
 cat >"$fixture/fake-bin/go" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -122,6 +129,7 @@ chmod +x \
   "$fixture/fake-bin/getconf" \
   "$fixture/fake-bin/uname" \
   "$fixture/fake-bin/pnpm" \
+  "$fixture/fake-bin/node" \
   "$fixture/fake-bin/go"
 
 printf 'package probe\n' >"$fixture/backend/probe/probe.go"
@@ -266,15 +274,23 @@ unset PHX_FIXTURE_TMPDIR
 mkdir -p "$fixture/frontend/src"
 for no_backend in 0 1; do
   export PHX_FIXTURE_NO_BACKEND=$no_backend
-  for selection in changed full; do
-    rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts"
-    if [ "$selection" = full ]; then
-      printf '{}\n' >"$fixture/frontend/package.json"
-      vitest_call='pnpm:vitest run'
-    else
-      printf 'export {};\n' >"$fixture/frontend/src/probe.ts"
-      vitest_call='pnpm:vitest run --changed origin/development'
-    fi
+  for selection in changed full settings e2e; do
+    mkdir -p "$fixture/backend/modules/settings/internal/defaults" "$fixture/.github/workflows"
+    rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts" \
+      "$fixture/backend/modules/settings/internal/defaults/probe.go" "$fixture/.github/workflows/e2e.yml"
+    vitest_call='node:../scripts/test-frontend-changed.mjs origin/development'
+    case "$selection" in
+      full)
+        printf '{}\n' >"$fixture/frontend/package.json"
+        vitest_call='pnpm:vitest run'
+        ;;
+      changed) printf 'export {};\n' >"$fixture/frontend/src/probe.ts" ;;
+      settings)
+        printf 'package defaults\n' >"$fixture/backend/modules/settings/internal/defaults/probe.go"
+        vitest_call='pnpm:vitest run src/components/settings/settings-filter.test.ts'
+        ;;
+      e2e) printf 'name: E2E\n' >"$fixture/.github/workflows/e2e.yml" ;;
+    esac
     for failure in success install vitest; do
       export PHX_FIXTURE_INSTALL_STATUS=0 PHX_FIXTURE_VITEST_STATUS=0
       expected_status=0
