@@ -55829,6 +55829,19 @@
     },
     {
       "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentStore.LockRecordByPersonID",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentStore.LockRecordByPersonID",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.StudentClassWriteGate",
+      "target_owner": "school-membership",
+      "binding_digest": "b85f4a24f9a0063fab903a076ea48e4f",
+      "effect": "lock",
+      "classification": "debt",
+      "adr": "0083",
+      "approval_adr": "0131",
+      "reason": "Same class(shared)-then-student protocol already used by FindRecord(UPDATE), now fused into the initial kiosk lookup without extra statements (#5128). School Membership supplies its existing gate query; People Directory locks only its own student profile in the caller tenant transaction. No class, membership, scope or commit mutation. ADR 0131 records the equivalent lock prefix; this entry grants no additional coordinator protocol."
+    },
+    {
+      "source_owner": "people-directory",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.CaregiverBindingLocker.LockCaregiverCapabilityBindings",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.caregiverBindingLocker.LockCaregiverCapabilityBindings",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Capability.LockGroupAssignments",
@@ -58666,6 +58679,45 @@
       "adr": "0083",
       "approval_adr": "0098",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByPersonIDForUpdate",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRecords.FindByPersonIDForUpdate",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": "",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0131",
+      "reason": "Exact People Directory observer diagnostic for the locked kiosk student lookup (#5128). The existing observe callback only reports operation metrics; its assignment and digest are unchanged. Promoted repository bindings expose the same callable, not additional callers. ADR 0131 records this boundary."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByPersonIDForUpdate",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.OverlappingRosterGroupNames.FindByPersonIDForUpdate",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": "",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0131",
+      "reason": "Exact People Directory observer diagnostic for the locked kiosk student lookup (#5128). The existing observe callback only reports operation metrics; its assignment and digest are unchanged. Promoted repository bindings expose the same callable, not additional callers. ADR 0131 records this boundary."
+    },
+    {
+      "source_owner": "people-directory",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByPersonIDForUpdate",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupStudentRepository.FindByPersonIDForUpdate",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": "",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0131",
+      "reason": "Exact People Directory observer diagnostic for the locked kiosk student lookup (#5128). The existing observe callback only reports operation metrics; its assignment and digest are unchanged. Promoted repository bindings expose the same callable, not additional callers. ADR 0131 records this boundary."
     },
     {
       "source_owner": "people-directory",

@@ -302,7 +302,10 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
+			findByIDFunc: func(_ context.Context, id interface{}) (*ports.ActiveGroup, error) {
+				if id == existingVisit.ActiveGroupID {
+					return &ports.ActiveGroup{ID: existingVisit.ActiveGroupID}, nil
+				}
 				return nil, ErrNotFound
 			},
 		}},
@@ -321,7 +324,10 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 				return existingVisit, nil
 			},
 		}, GroupRepo: &mockGroupRepository{
-			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
+			findByIDFunc: func(_ context.Context, id interface{}) (*ports.ActiveGroup, error) {
+				if id == existingVisit.ActiveGroupID {
+					return &ports.ActiveGroup{ID: existingVisit.ActiveGroupID}, nil
+				}
 				return nil, lookupErr
 			},
 		}},

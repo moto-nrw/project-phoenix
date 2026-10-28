@@ -95,10 +95,11 @@ func (s *Service) resolvePerson(ctx context.Context, device *devicescan.Principa
 	return person, nil
 }
 
-// lookupStudent resolves the student behind a person. A lookup failure is
-// logged and treated as "no student", so the scan continues as a staff scan.
+// lookupStudent locks the student before any sessions, matching check-ins,
+// school checkout batches and staff moves. A lookup failure is logged and
+// treated as "no student", so the scan continues as a staff scan.
 func (s *Service) lookupStudent(ctx context.Context, personID int64) *ports.Student {
-	student, err := s.people.FindStudentByPerson(ctx, personID)
+	student, err := s.people.FindStudentByPerson(ctx, personID, true)
 	if err != nil {
 		s.logger.DebugContext(ctx, "student lookup for person",
 			slog.Int64("person_id", personID),

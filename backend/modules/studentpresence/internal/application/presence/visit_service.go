@@ -3,6 +3,7 @@ package presence
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -236,9 +237,22 @@ func (s *service) prepareVisitTransfer(
 		return false, time.Time{}, nil
 	}
 
-	targetGroup, err := s.lockVisitTransferTarget(ctx, updated.ActiveGroupID)
-	if err != nil {
-		return false, time.Time{}, err
+	// The target guard takes a session lock too. Take source and target in
+	// the same ascending order as ReviseVisit before entering that guard;
+	// otherwise opposite transfers can each hold their destination.
+	groupIDs := []int64{existing.ActiveGroupID, updated.ActiveGroupID}
+	slices.Sort(groupIDs)
+	var targetGroup *ports.ActiveGroup
+	for _, id := range slices.Compact(groupIDs) {
+		if id == updated.ActiveGroupID {
+			var err error
+			targetGroup, err = s.lockVisitTransferTarget(ctx, id)
+			if err != nil {
+				return false, time.Time{}, err
+			}
+		} else if _, err := s.GroupRepo.FindByIDForUpdate(ctx, id); err != nil {
+			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
 	}
 	if err := s.ensureVisitTransferCapacity(ctx, existing, updated, targetGroup, isReopening); err != nil {
 		return false, time.Time{}, err

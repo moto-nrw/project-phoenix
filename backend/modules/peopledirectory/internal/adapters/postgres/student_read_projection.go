@@ -3,6 +3,10 @@ package postgres
 import (
 	"context"
 	"errors"
+	"fmt"
+	"time"
+
+	"github.com/uptrace/bun"
 
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
@@ -267,4 +271,44 @@ func toDomainRosterEntry(row directory.StudentRosterEntry) domain.StudentRosterE
 	record.AllowedDepartureModes = row.Record.AllowedDepartureModes
 	record.PickupDays, record.BusDays = row.Record.PickupDays, row.Record.BusDays
 	return domain.StudentRosterEntry{Record: record, FirstName: row.FirstName, LastName: row.LastName, TagID: row.TagID, AccountID: row.AccountID}
+}
+
+// LockRecordByPersonID keeps the class-writes gate ahead of the row lock,
+// using the owning gate query just like enrollment creation does.
+func (s *StudentStore) LockRecordByPersonID(ctx context.Context, personID int64) (domain.StudentRecord, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return domain.StudentRecord{}, false, domain.OperationStats{}, err
+	}
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
+		return domain.StudentRecord{}, false, domain.OperationStats{}, err
+	}
+	stats := domain.OperationStats{}
+	started := time.Now()
+	var gate *bun.SelectQuery
+	if s.classGateQuery != nil {
+		gate, err = s.classGateQuery(ctx)
+	} else {
+		err = s.classGate(ctx, false)
+		stats.Queries++
+		gate = db.NewSelect().ColumnExpr("TRUE")
+	}
+	if err != nil {
+		return domain.StudentRecord{}, false, stats, err
+	}
+	rows := []directoryRecordRow{}
+	query := withStudentTenant(s.reads.studentRows(db, scope).ColumnExpr(studentRecordColumns).Where(`"student".person_id = ?`, personID), scope).
+		Where("(WITH class_write_gate AS MATERIALIZED (?) SELECT count(*) FROM class_write_gate) = 1", gate).
+		For("UPDATE OF student")
+	stats.Queries++
+	err = query.Scan(ctx, &rows)
+	stats.StatementDuration = time.Since(started)
+	if err != nil {
+		return domain.StudentRecord{}, false, stats, fmt.Errorf("people directory postgres: lock student by person: %w", err)
+	}
+	stats.Rows = int64(len(rows))
+	if len(rows) == 0 {
+		return domain.StudentRecord{}, false, stats, nil
+	}
+	return domain.StudentRecord(rows[0].toDomain()), true, stats, nil
 }

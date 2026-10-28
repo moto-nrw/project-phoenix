@@ -141,3 +141,8 @@ func (r nativeStudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Con
 		return NativeStudentRosterEntry(value)
 	}), out1
 }
+
+// Locked student reads belong to the native StudentRecords boundary.
+func (r nativeStudentRepository) FindByPersonIDForUpdate(context.Context, int64) (*directory.StudentState, error) {
+	return nil, errStudentWritesMoved
+}

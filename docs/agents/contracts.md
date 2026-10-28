@@ -213,12 +213,15 @@ order of its requests. Both fields are additive; an older kiosk ignores them.
   the sessions it changes `FOR UPDATE` in ascending id order before any visit
   row (`session_lock_order.go` in its Postgres adapter); a session end does
   the same. A visit insert names one session, which a check-in locks before
-  it. A scan takes all its sessions up front with `LockVisitSessions`: the
-  session of the child's open visit and every open session of the scanned
+  it. A scan's initial student lookup takes the shared class-writes gate and
+  student row lock in one statement, matching check-ins, school checkout
+  batches and staff moves, then takes all its sessions with `LockVisitSessions`:
+  the session of the child's open visit and every open session of the scanned
   room. Two scans moving children in opposite directions, a care exit and a
   session end, or a checkout and a session end therefore wait for each other
   instead of deadlocking. A session the transaction creates itself needs no
-  earlier lock.
+  earlier lock. `UpdateVisit` takes source and destination session locks in
+  ascending order as part of its target-session guard, not just in the final write.
 
 Deploy the backend first; the kiosk change in PyrePortal follows.
 

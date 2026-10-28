@@ -46,6 +46,22 @@ func (r *StudentRecords) FindByPersonID(ctx context.Context, personID int64) (*p
 	return peopleModule.StudentStateFromRecord(peopleModule.StudentRecord(records[0])), nil
 }
 
+// FindByPersonIDForUpdate requires the caller's transaction so the locked
+// snapshot remains valid through the scan's later session and visit writes.
+func (r *StudentRecords) FindByPersonIDForUpdate(ctx context.Context, personID int64) (*peopleModule.StudentState, error) {
+	if personID <= 0 {
+		return nil, peoplePorts.MissingStudentError("find by person id for update")
+	}
+	if err := r.directory.tx.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	record, err := r.directory.lockRecordByPersonID(ctx, personID)
+	if err != nil {
+		return nil, RetainedStudentReadError("find by person id for update", MapError(err))
+	}
+	return peopleModule.StudentStateFromRecord(peopleModule.StudentRecord(record)), nil
+}
+
 func (r *StudentRecords) FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {
 	ids = peopleModule.PositiveIDs(ids)
 	if len(ids) == 0 {

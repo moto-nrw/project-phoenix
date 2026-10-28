@@ -6,7 +6,7 @@ status: accepted
 
 Decision of 2026-10-28 for
 [#5128](https://github.com/moto-nrw/project-phoenix/issues/5128). It approves
-four new command-effect diagnostics, one pass-through of the wrapper form
+eight new command-effect entries, one pass-through of the wrapper form
 ADR 0075 keeps and one more statement in each kiosk scan's query budget. It
 adds no owner, no policy rule and no runtime exception.
 
@@ -67,3 +67,43 @@ observer for the whole module is a scanner change outside #5128.
 
 After this ADR enters the base it cannot approve another diagnostic. A
 changed observer assignment changes the digest and needs fresh approval.
+
+## Review correction: student before sessions
+
+A kiosk scan must take the student lock before its session locks, matching
+`CreateVisit`, school checkout batches and staff moves. An additional locked
+student lookup would add two statements and exceed the unchanged scan budgets.
+Instead, People Directory's `StudentRecords.FindByPersonIDForUpdate` replaces
+the scan's initial unlocked lookup. Its adapter evaluates School Membership's
+existing shared class-writes gate in a materialized CTE before locking the
+owned student profile, all in one statement. The ordinary read stays unlocked.
+The order is class(shared), student, ascending sessions, visits. The request
+transaction, tenant scope and error propagation do not change.
+
+This is the same gate-before-student prefix that `StudentService.FindRecord`
+already uses for `UPDATE`, not a new cross-owner coordinator protocol. The
+existing `StudentClassWriteGateQuery` binding builds the gate SQL; it writes
+no class or membership. The exact `StudentStore.LockRecordByPersonID` effect
+is recorded as `lock`/`debt`, like the same constructor through enrollment
+creation. This records the inherited boundary and does not approve a wider
+runtime exception. Three observer diagnostics of the new repository method
+(the concrete `StudentRecords` binding and its two promoted root bindings)
+also cite this ADR; they retain the existing People Directory observer digest.
+
+`TestDeviceCheckinLocksStudentBeforeSessions` exercises the production HTTP
+scan against `CreateVisit`, school batch checkout and staff moves with an
+observed PostgreSQL lock wait. The original scan deadlocks in all three
+cases (`40P01`); the locked initial lookup waits before taking any session.
+The scan query-budget tests retain their original limits (39, 27, 45).
+`TestUpdateVisitLocksBothSessionsBeforeTarget` exercises opposite public
+`UpdateVisit` calls and verifies the committed destinations. Source and
+destination session locks now follow ascending ID order in the target guard.
+
+The exact pass-through register records the new root translation
+`api/DeviceScanPeople.GetStudentByPersonIDForUpdate`, which maps the locked
+record to `ScanStudent`, like its existing ID-based counterpart. The retained
+`StudentRecords` boundary validates the person ID and requires the caller's
+transaction before invoking its private observed read and translating the
+result. The existing device-scan binding selects the unlocked or locked read;
+read-only callers keep the unlocked path. No forwarding, composition LOC or
+query budget grows for this correction.

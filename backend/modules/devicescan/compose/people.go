@@ -30,8 +30,8 @@ func (p people) FindPersonByTag(ctx context.Context, tag string) (*ports.Person,
 	return application.FindPersonByTagBinding(ctx, p.PersonDirectory, tag)
 }
 
-func (p people) FindStudentByPerson(ctx context.Context, personID int64) (*ports.Student, error) {
-	return application.FindStudentByPersonBinding(ctx, p.PersonDirectory, sql.ErrNoRows, personID)
+func (p people) FindStudentByPerson(ctx context.Context, personID int64, forUpdate bool) (*ports.Student, error) {
+	return application.FindStudentByPersonBinding(ctx, p.PersonDirectory, sql.ErrNoRows, personID, forUpdate)
 }
 
 func (p people) FindStaffByPerson(ctx context.Context, personID int64) (*ports.StaffMember, error) {

@@ -27,8 +27,12 @@ func FindPersonByTagBinding(ctx context.Context, source devicescan.PersonLookup,
 	}
 	return &ports.Person{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName, HasTag: person.TagID != nil, TagID: person.TagID}, nil
 }
-func FindStudentByPersonBinding(ctx context.Context, source devicescan.StudentLookup, noRows error, personID int64) (*ports.Student, error) {
-	student, err := source.GetStudentByPersonID(ctx, personID)
+func FindStudentByPersonBinding(ctx context.Context, source devicescan.StudentLookup, noRows error, personID int64, forUpdate bool) (*ports.Student, error) {
+	lookup := source.GetStudentByPersonID
+	if forUpdate {
+		lookup = source.GetStudentByPersonIDForUpdate
+	}
+	student, err := lookup(ctx, personID)
 	if err != nil {
 		if errors.Is(err, noRows) {
 			return nil, nil
@@ -44,6 +48,7 @@ func FindStudentByPersonBinding(ctx context.Context, source devicescan.StudentLo
 		EnrolledUntil: student.EnrolledUntil,
 	}, nil
 }
+
 func FindStaffByPersonBinding(ctx context.Context, source devicescan.StaffLookup, noRows error, personID int64) (*ports.StaffMember, error) {
 	staff, err := source.GetStaffByPersonID(ctx, personID)
 	if err != nil {

@@ -50,7 +50,8 @@ type People interface {
 	// FindPersonByTag resolves a tag; an unknown tag is ErrPersonNotFound.
 	FindPersonByTag(ctx context.Context, tag string) (*Person, error)
 	// FindStudentByPerson is nil, nil when the person is no student.
-	FindStudentByPerson(ctx context.Context, personID int64) (*Student, error)
+	// forUpdate takes the student lock before any session.
+	FindStudentByPerson(ctx context.Context, personID int64, forUpdate bool) (*Student, error)
 	// FindStaffByPerson is nil, nil when the person is no staff member.
 	FindStaffByPerson(ctx context.Context, personID int64) (*StaffMember, error)
 }

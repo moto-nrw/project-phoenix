@@ -214,7 +214,7 @@ func (p *fakePeople) FindPersonByTag(_ context.Context, tag string) (*ports.Pers
 	}
 	return person, nil
 }
-func (p *fakePeople) FindStudentByPerson(_ context.Context, personID int64) (*ports.Student, error) {
+func (p *fakePeople) FindStudentByPerson(_ context.Context, personID int64, _ bool) (*ports.Student, error) {
 	if p.studentErr != nil {
 		return nil, p.studentErr
 	}

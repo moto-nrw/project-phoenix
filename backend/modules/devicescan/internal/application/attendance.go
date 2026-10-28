@@ -72,7 +72,7 @@ func (s *Service) findAttendanceStudent(ctx context.Context, device *devicescan.
 	if person == nil || !person.HasTag {
 		return nil, nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned)
 	}
-	student, err := s.people.FindStudentByPerson(ctx, person.ID)
+	student, err := s.people.FindStudentByPerson(ctx, person.ID, false)
 	if err != nil || student == nil || student.Alumnus {
 		return nil, nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}
@@ -116,7 +116,7 @@ func (s *Service) confirmDailyCheckout(ctx context.Context, device *devicescan.P
 		s.recordUnregisteredScan(ctx, device, tag)
 		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagNotFound, devicescan.CodeRFIDTagNotFound)
 	}
-	student, err := s.people.FindStudentByPerson(ctx, person.ID)
+	student, err := s.people.FindStudentByPerson(ctx, person.ID, false)
 	if err != nil || student == nil || student.Alumnus {
 		return nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}
@@ -157,7 +157,7 @@ func (s *Service) toggleAttendance(ctx context.Context, device *devicescan.Princ
 	if person == nil || !person.HasTag {
 		return nil, devicescan.NotFoundWithCode(devicescan.MessageRFIDTagUnassigned, devicescan.CodeRFIDTagUnassigned)
 	}
-	student, err := s.people.FindStudentByPerson(ctx, person.ID)
+	student, err := s.people.FindStudentByPerson(ctx, person.ID, false)
 	if err != nil || student == nil || student.Alumnus {
 		return nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}

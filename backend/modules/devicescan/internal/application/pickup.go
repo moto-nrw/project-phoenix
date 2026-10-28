@@ -84,7 +84,7 @@ func (s *Service) resolvePickupPerson(ctx context.Context, device *devicescan.Pr
 // resolvePickupStudent resolves the student of a pickup query. A staff card
 // is a 400, a card of neither a 404, and a lookup failure a 500.
 func (s *Service) resolvePickupStudent(ctx context.Context, person *ports.Person) (*ports.Student, error) {
-	student, err := s.people.FindStudentByPerson(ctx, person.ID)
+	student, err := s.people.FindStudentByPerson(ctx, person.ID, false)
 	if err != nil {
 		s.logger.ErrorContext(ctx, "failed to lookup student during pickup query",
 			slog.Int64("person_id", person.ID),

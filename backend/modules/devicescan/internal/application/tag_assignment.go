@@ -65,7 +65,7 @@ func (q *tagAssignments) LookupTagAssignment(ctx context.Context, tag string) (d
 }
 
 func (q *tagAssignments) student(ctx context.Context, person *ports.Person, name string) *devicescan.TagAssignment {
-	student, err := q.people.FindStudentByPerson(ctx, person.ID)
+	student, err := q.people.FindStudentByPerson(ctx, person.ID, false)
 	if err != nil || student == nil {
 		if err != nil {
 			q.logger.WarnContext(ctx, "error finding student for person",
