@@ -1,0 +1,4 @@
+DELETE /api/announcement-attachments/{announcementId}/{attachmentId} -> eltern_app
+GET /api/announcement-attachments/{announcementId} -> eltern_app
+GET /api/announcement-attachments/{announcementId}/{attachmentId}/download -> eltern_app
+POST /api/announcement-attachments/{announcementId} -> eltern_app

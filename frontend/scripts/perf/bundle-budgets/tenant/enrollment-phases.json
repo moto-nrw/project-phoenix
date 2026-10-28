@@ -1,0 +1,18 @@
+{
+  "format": "moto-bundle-budget/v1",
+  "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
+  "routes": {
+    "/[tenant]/enrollment-phases": {
+      "referenceBytes": 1119245,
+      "maxBytes": 1141630
+    },
+    "/[tenant]/enrollment-phases/[id]/review": {
+      "referenceBytes": 942136,
+      "maxBytes": 960979
+    },
+    "/[tenant]/enrollment-phases/[id]/rollover": {
+      "referenceBytes": 987842,
+      "maxBytes": 1007599
+    }
+  }
+}

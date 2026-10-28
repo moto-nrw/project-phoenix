@@ -1,0 +1,20 @@
+{
+  "errorObject": "список періодів запису",
+  "back": "Назад до батьківського порталу",
+  "kicker": "Запис на догляд в OGS",
+  "title": "Новий запис",
+  "description": "Виберіть школу та період запису, щоб записати вашу дитину.",
+  "loading": "Періоди запису завантажуються …",
+  "empty": "Зараз немає доступних періодів запису.",
+  "yourSchools": "Ваші школи",
+  "otherSchools": "Інші школи",
+  "kindSchoolYear": "Навчальний рік",
+  "kindHoliday": "Догляд на канікулах",
+  "kindCustom": "Інше",
+  "closesAt": "Запис до {date}",
+  "audienceNewStudents": "Лише для нових дітей",
+  "audienceExistingStudents": "Лише для вже записаних дітей",
+  "audienceLinkedParents": "Лише для пов'язаних батьків",
+  "rangeConnector": "до",
+  "openPhase": "Відкрити запис"
+}

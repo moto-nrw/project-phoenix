@@ -1,0 +1,22 @@
+{
+  "title": "Abononi kalendarin",
+  "description": "Abononi takimet një herë në kalendarin e telefonit tuaj. Takimet e reja, të ndryshuara dhe të anuluara shfaqen më pas automatikisht, pa i shtuar një nga një.",
+  "showLink": "Shfaqni lidhjen e abonimit",
+  "subscribe": "Abononi në kalendar",
+  "linkLabel": "Lidhja e abonimit (për kopjim)",
+  "copy": "Kopjo",
+  "copiedButton": "U kopjua",
+  "copied": "Lidhja u kopjua.",
+  "copyFailed": "Kopjimi nuk është i mundur. Ju lutemi shënoni lidhjen me dorë.",
+  "linkOnce": "Për arsye sigurie e shihni këtë lidhje vetëm tani. Kopjojeni menjëherë në kalendarin tuaj.",
+  "howToTitle": "Si bëhet:",
+  "howToMac": "Mac: Nëse dialogu i abonimit nuk shfaqet, hapni Calendar dhe zgjidhni Calendar, Settings, General, pastaj vendosni Apple Calendar si aplikacionin e parazgjedhur. Ose zgjidhni File, New Calendar Subscription dhe ngjitni lidhjen.",
+  "howToApple": "iPhone/iPad: Cilësimet, Kalendari, Llogaritë, Shto llogari, Tjetër, Shto kalendar me abonim, pastaj ngjisni lidhjen.",
+  "howToAndroid": "Android: Në Google Calendar në kompjuter, Kalendarë të tjerë, Nga URL, pastaj ngjisni lidhjen. Kalendari shfaqet më pas edhe në telefon.",
+  "regenerate": "Krijoni lidhje të re",
+  "regenerated": "U krijua një lidhje e re abonimi. E vjetra nuk vlen më.",
+  "loadObject": "lidhja e abonimit",
+  "rotateObject": "lidhja e abonimit",
+  "alreadyActive": "Lidhja juaj e abonimit është tashmë aktive. Për arsye sigurie nuk shfaqet sërish. Nëse nuk e keni më, krijoni një lidhje të re; e mëparshmja nuk do të vlejë më.",
+  "createNew": "Krijoni lidhje të re abonimi"
+}

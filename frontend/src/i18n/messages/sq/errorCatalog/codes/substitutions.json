@@ -1,0 +1,12 @@
+{
+  "already_assigned": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "forbidden": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+  "internal": "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
+  "invalid_period": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "invalid_target": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "last_supervisor": "Jeni i vetmi mbikëqyrës. Ia dorëzoni mbikëqyrjen dikujt tjetër ose përfundoni aktivitetin.",
+  "not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "not_running": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "self_assignment": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+}

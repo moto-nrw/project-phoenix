@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import de from "~/i18n/messages/de.json";
+import de from "~/i18n/messages/de.generated";
 
 const { captureException } = vi.hoisted(() => ({
   captureException: vi.fn(),

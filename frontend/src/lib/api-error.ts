@@ -2,7 +2,7 @@ import type { ErrorCode } from "~/lib/error-codes.generated";
 
 /**
  * Types a wire code for comparison against registry codes, so a literal that
- * is not in error-registry.json fails the type check. The value itself is not
+ * is not in error-registry/ fails the type check. The value itself is not
  * validated: an unknown code simply never equals a registered one.
  */
 export function wireErrorCode(code: unknown): ErrorCode | undefined {

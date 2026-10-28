@@ -1,0 +1,18 @@
+{
+  "api/school/staff-messages": [
+    "GET school /school/staff-messages/"
+  ],
+  "api/school/staff-messages/recipients": [
+    "GET school /school/staff-messages/recipients"
+  ],
+  "api/school/staff-messages/threads/[threadID]": [
+    "GET school /school/staff-messages/threads/threadID/1",
+    "POST school /school/staff-messages/threads/threadID/1"
+  ],
+  "api/school/staff-messages/threads/open": [
+    "POST school /school/staff-messages/threads/open"
+  ],
+  "api/school/staff-messages/unread-count": [
+    "GET school /school/staff-messages/unread-count"
+  ]
+}

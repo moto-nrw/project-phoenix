@@ -17,7 +17,9 @@ export default defineConfig({
   // Dev-Server kompilieren Routen beim ersten Aufruf; ein Lauf fotografiert
   // mehrere Seiten auf mehreren Geräten.
   timeout: 900_000,
-  workers: 1,
+  // generate.pw.ts also uses this budget for its internal capture pool.
+  // `--workers=1` provides a genuinely serial comparison run.
+  workers: 4,
   retries: 0,
   reporter: "list",
   outputDir: "test-results/product-screenshots",

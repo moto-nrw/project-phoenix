@@ -217,7 +217,7 @@ func (rs *Resource) importStudents(w http.ResponseWriter, r *http.Request) {
 }
 
 // codeImportBatchFailed is the registered code of a batch that stopped after
-// earlier batches were saved (error-registry.json). This package does not
+// earlier batches were saved (error-registry/). This package does not
 // import api/common, so it names the code once here.
 const codeImportBatchFailed = "import.import_batch_failed"
 

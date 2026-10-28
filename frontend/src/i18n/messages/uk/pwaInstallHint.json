@@ -1,0 +1,17 @@
+{
+  "title": "Користуватися moto як застосунком",
+  "samsungDescription": "Не встановлюйте moto через Samsung Internet. Відкрийте moto у Chrome і ввійдіть там.",
+  "samsungStep": "Потім виберіть у меню Chrome",
+  "samsungFallback": "Якщо не вийшло, відкрийте Chrome і перейдіть на {host}.",
+  "oneTapDescription": "Установіть moto прямо з цього екрана. Тоді moto завжди відкриватиметься на весь екран, без панелі браузера.",
+  "iosBefore": "У Safari торкніться",
+  "iosBetween": "а потім",
+  "androidBefore": "Відкрийте меню браузера і торкніться",
+  "androidOr": "або",
+  "share": "Поділитися",
+  "homeScreen": "На Початковий екран",
+  "install": "Установити застосунок",
+  "addToHome": "Додати на головний екран",
+  "openInChrome": "Відкрити у Chrome",
+  "close": "Закрити підказку"
+}

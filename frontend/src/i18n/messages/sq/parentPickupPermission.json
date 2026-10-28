@@ -1,0 +1,48 @@
+{
+  "days": {
+    "label": "Në cilat ditë?",
+    "all": "Çdo ditë",
+    "some": "Vetëm në ditë të caktuara",
+    "pickOne": "Ju lutemi zgjidhni të paktën një ditë."
+  },
+  "weekday": {
+    "1": "Hën",
+    "2": "Mar",
+    "3": "Mër",
+    "4": "Enj",
+    "5": "Pre"
+  },
+  "weekdayLong": {
+    "1": "e hënë",
+    "2": "e martë",
+    "3": "e mërkurë",
+    "4": "e enjte",
+    "5": "e premte"
+  },
+  "signature": {
+    "title": "Leja juaj",
+    "procedure": "Ju nënshkruani me një nënshkrim të thjeshtë elektronik me nënshkrim të vizatuar.",
+    "missing": "Ju lutemi nënshkruani dhe prekni „Konfirmo nënshkrimin“."
+  },
+  "statement": {
+    "permissionAll": "Unë lejoj që {person} ta marrë fëmijën nga OGS çdo ditë.",
+    "permissionSome": "Unë lejoj që {person} ta marrë fëmijën nga OGS në këto ditë: {days}.",
+    "day": "Unë lejoj që {person} ta marrë fëmijën nga OGS më {date}.",
+    "aloneDay": "Unë lejoj që fëmija të shkojë vetëm në shtëpi më {date}.",
+    "aloneWeekly": "Unë lejoj që fëmija të shkojë vetëm në shtëpi në këto ditë: {days}."
+  },
+  "waitsForOgs": "OGS e konfirmon lejen. Deri atëherë ajo nuk vlen.",
+  "pendingBadge": "Në pritje të OGS",
+  "pending": "Në pritje të OGS: {days}",
+  "onlyDays": "Vetëm {days}",
+  "requestSent": "Kërkesa juaj është te OGS. Këtu do të shihni kur të konfirmohet.",
+  "proofPdf": "Dëshmia (PDF)",
+  "errorObjectProof": "Dëshmia",
+  "errorObjectRequest": "Leja për marrjen e fëmijës",
+  "pickupPerson": {
+    "label": "Kush e merr?",
+    "none": "Si zakonisht",
+    "hint": "Vetëm personat që i keni shtuar te kontaktet.",
+    "manageLink": "Shtoni një person të ri te kontaktet"
+  }
+}

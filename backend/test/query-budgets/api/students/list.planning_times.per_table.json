@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.list.planning_times.per_table",
+  "max": 1,
+  "exact": true,
+  "description": "api/students — #2098: each planning-time bulk load runs once per list request."
+}

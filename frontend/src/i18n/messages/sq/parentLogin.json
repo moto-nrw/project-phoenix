@@ -1,0 +1,20 @@
+{
+  "eyebrow": "Portali i prindërve",
+  "title": "Mirë se vini në portalin e prindërve",
+  "subtitle": "Hyni për të parë gjithçka të rëndësishme për përkujdesjen e fëmijës tuaj.",
+  "emailLabel": "Adresa e e-mailit",
+  "passwordLabel": "Fjalëkalimi",
+  "showPassword": "Shfaq fjalëkalimin",
+  "hidePassword": "Fshih fjalëkalimin",
+  "loading": "Po ngarkohet...",
+  "submitting": "Duke hyrë...",
+  "submit": "Hyr",
+  "forgotPassword": "Keni harruar fjalëkalimin?",
+  "fromStaffBanner": "Llogaritë e prindërve hyjnë këtu. Ju lutemi shkruani përsëri fjalëkalimin tuaj.",
+  "staffLoginLink": "Shko te hyrja e shkollës",
+  "errors": {
+    "rateLimited": "Shumë përpjekje hyrjeje. Ju lutemi provoni më vonë.",
+    "notAGuardian": "Kjo llogari i përket personelit të shkollës. Ju lutemi përdorni hyrjen e shkollës."
+  },
+  "errorObject": "hyrja"
+}

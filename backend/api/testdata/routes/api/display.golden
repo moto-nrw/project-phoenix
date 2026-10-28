@@ -1,0 +1,6 @@
+DELETE /api/display/{id}/
+GET /api/display/
+GET /api/display/dashboard
+PATCH /api/display/{id}/
+POST /api/display/
+POST /api/display/{id}/regenerate
