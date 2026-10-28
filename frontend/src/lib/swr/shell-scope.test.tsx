@@ -43,6 +43,7 @@ vi.mock("~/lib/tenant-context", () => ({
 }));
 
 import useSWR from "swr";
+import { useImmutableSWR } from "~/lib/swr";
 import { resetSWRScope, resumeSWRSession } from "~/lib/swr/scope";
 import { TenantProviders } from "~/app/[tenant]/providers";
 
@@ -127,3 +128,46 @@ it.each([null, "1:2"])(
     expect(screen.getByTestId("shell")).toHaveTextContent("0 seeds");
   },
 );
+
+it("loads the server answer, not the seed, after a rights change under the same key", async () => {
+  // SWR 2.5.1 keeps a hook's cacheData in its revalidate closure ([key,
+  // cache]). A seed the seeder wrote into the cache is never consumed, so a
+  // revalidation after the reset answered with the seed (#5006 review).
+  mockUseSession.mockReturnValue({ data: session, status: "authenticated" });
+  const fetcher = vi.fn(() =>
+    Promise.resolve({ ...shell.userContext!, educationalGroupIds: ["neu"] }),
+  );
+  function ContextReader() {
+    const { data } = useImmutableSWR("user-context", fetcher);
+    return <p data-testid="context">{data?.educationalGroupIds.join(",")}</p>;
+  }
+  function RightsPage() {
+    return (
+      <TenantProviders
+        tenantSlug="school-a"
+        tenant={{ tenantId: 1 } as TenantInfo}
+        routingMode="subdomain"
+        session={session}
+        shell={{
+          ...shell,
+          userContext: { ...shell.userContext!, educationalGroupIds: ["alt"] },
+        }}
+      >
+        <ContextReader />
+      </TenantProviders>
+    );
+  }
+  const view = render(<RightsPage />);
+  // Anker: der Seed steht da, ohne Abruf.
+  expect(screen.getByTestId("context")).toHaveTextContent("alt");
+  expect(fetcher).not.toHaveBeenCalled();
+
+  mockUseSession.mockReturnValue({
+    data: { ...session, user: { ...session.user, permissions: ["x"] } },
+    status: "authenticated",
+  });
+  view.rerender(<RightsPage />);
+
+  expect(await screen.findByText("neu")).toBeInTheDocument();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});

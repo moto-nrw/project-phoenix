@@ -90,16 +90,23 @@ export function shellOwnedEntries(shell: ShellBootstrap, tenantSlug: string) {
  * produces. `fallback` lets the first (server and hydration) render show the
  * data; `cacheData` makes SWR consume it as the mount revalidation instead of
  * fetching, after which it is an ordinary cache entry.
+ *
+ * The shell-owned entries stay out of `cacheData`: ShellCacheSeeder writes
+ * them into the cache, so no reader ever consumes them there, and SWR keeps
+ * a hook's `cacheData` in its revalidation for the hook's lifetime. After
+ * the cache reset of a rights change under the same key (#5006), that
+ * revalidation answered with the seed instead of the server.
  */
 export function shellSwrConfig(shell: ShellBootstrap, tenantSlug: string) {
-  const entries: Record<string, unknown> = {
-    ...shellOwnedEntries(shell, tenantSlug),
-  };
+  const consumed: Record<string, unknown> = {};
   // Platform-scoped, so its key carries no tenant prefix.
   if (shell.announcements) {
-    entries[ANNOUNCEMENTS_UNREAD_SWR_KEY] = shell.announcements;
+    consumed[ANNOUNCEMENTS_UNREAD_SWR_KEY] = shell.announcements;
   }
-  return { fallback: entries, cacheData: entries };
+  return {
+    fallback: { ...shellOwnedEntries(shell, tenantSlug), ...consumed },
+    cacheData: consumed,
+  };
 }
 
 /**

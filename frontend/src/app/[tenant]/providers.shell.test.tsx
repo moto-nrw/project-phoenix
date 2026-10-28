@@ -318,7 +318,9 @@ describe("TenantProviders with a server snapshot", () => {
     };
     expect(mockSWRConfig).toHaveBeenCalledWith({
       fallback: entries,
-      cacheData: entries,
+      // The seeder writes the shell-owned entries into the cache; only the
+      // entry a reader consumes on mount travels as cacheData (#5006).
+      cacheData: { "user-announcements-unread": shell.announcements },
     });
     expect(mockProfileProvider).toHaveBeenCalledWith(
       expect.objectContaining({ initialProfile: shell.profile }),
