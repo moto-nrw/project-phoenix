@@ -32,7 +32,16 @@ export interface StaffMessage {
   sender_name: string;
   body: string;
   created_at: string;
+  /**
+   * Group chats only (#4776): who of the members read the message, and how
+   * many members could have (everyone but the sender who had joined by then).
+   */
+  read_by_account_ids?: string[];
+  reader_count?: number;
 }
+
+/** A direct chat between two people, or a named group chat (#4776). */
+export type StaffThreadKind = "direct" | "group";
 
 /**
  * Which side of the school a colleague sits on (#2208). Coarse on purpose:
@@ -50,6 +59,12 @@ export interface StaffInboxThread {
   last_message_body?: string;
   last_message_mine: boolean;
   unread_count: number;
+  /** "group": `group_name` and `member_count` instead of a counterpart. */
+  kind?: StaffThreadKind;
+  group_name?: string;
+  member_count?: number;
+  /** Group chats: who wrote the last message. */
+  last_sender_name?: string;
 }
 
 export interface StaffThreadDetail {
@@ -58,6 +73,16 @@ export interface StaffThreadDetail {
   counterpart_name: string;
   counterpart_role_kind: StaffRoleKind;
   messages: StaffMessage[];
+  kind?: StaffThreadKind;
+  group_name?: string;
+  /** The viewer started the group or leads the school (#4776). */
+  can_manage?: boolean;
+  members?: MessageableStaff[];
+}
+
+/** Whether a thread is a group chat (#4776). */
+export function isGroupThread(thread: { kind?: StaffThreadKind }): boolean {
+  return thread.kind === "group";
 }
 
 export interface MessageableStaff {
@@ -163,16 +188,28 @@ async function postEnvelope<T>(
   url: string,
   payload: unknown,
   fallbackMessage: string,
+  method: "POST" | "PUT" | "DELETE" = "POST",
 ): Promise<ApiResponse<T>> {
   const response = await transportFetch(url, {
-    method: "POST",
+    method,
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: payload === undefined ? undefined : JSON.stringify(payload),
   });
   return unwrap<T>(response, fallbackMessage);
 }
 
-/** The six calls a Team-Chat surface needs, bound to one proxy base path. */
+/** The chat window from a response that must carry one. */
+function requireThread(
+  result: ApiResponse<StaffThreadDetail>,
+  fallback: string,
+): StaffThreadDetail {
+  if (!result.data) {
+    throw missingData(fallback);
+  }
+  return result.data;
+}
+
+/** The calls a Team-Chat surface needs, bound to one proxy base path. */
 export interface StaffMessagesApi {
   /** The caller's conversations, newest activity first. */
   fetchInbox(filters: { onlyUnread?: boolean }): Promise<StaffInboxThread[]>;
@@ -186,6 +223,22 @@ export interface StaffMessagesApi {
   openThread(accountId: string): Promise<StaffThreadDetail>;
   /** Send one message into a conversation. */
   postMessage(threadId: string, body: string): Promise<StaffMessage>;
+  /** Start a group chat (#4776). OGS portal only. */
+  createGroup(name: string, accountIds: string[]): Promise<StaffThreadDetail>;
+  /** Rename a group chat. OGS portal only. */
+  renameGroup(threadId: string, name: string): Promise<StaffThreadDetail>;
+  /** Add members to a group chat. OGS portal only. */
+  addGroupMembers(
+    threadId: string,
+    accountIds: string[],
+  ): Promise<StaffThreadDetail>;
+  /** Remove one member from a group chat. OGS portal only. */
+  removeGroupMember(
+    threadId: string,
+    accountId: string,
+  ): Promise<StaffThreadDetail>;
+  /** Leave a group chat. Both portals. */
+  leaveGroup(threadId: string): Promise<void>;
 }
 
 /**
@@ -257,6 +310,56 @@ export function createStaffMessagesApi(basePath: string): StaffMessagesApi {
         throw missingData(fallback);
       }
       return result.data;
+    },
+
+    async createGroup(name, accountIds) {
+      const fallback = "Die Gruppe konnte nicht angelegt werden";
+      const result = await postEnvelope<StaffThreadDetail>(
+        `${basePath}/groups`,
+        { name, account_ids: accountIds },
+        fallback,
+      );
+      return requireThread(result, fallback);
+    },
+
+    async renameGroup(threadId, name) {
+      const fallback = "Der Name konnte nicht gespeichert werden";
+      const result = await postEnvelope<StaffThreadDetail>(
+        `${basePath}/threads/${encodeURIComponent(threadId)}/name`,
+        { name },
+        fallback,
+        "PUT",
+      );
+      return requireThread(result, fallback);
+    },
+
+    async addGroupMembers(threadId, accountIds) {
+      const fallback = "Die Personen konnten nicht hinzugefügt werden";
+      const result = await postEnvelope<StaffThreadDetail>(
+        `${basePath}/threads/${encodeURIComponent(threadId)}/members`,
+        { account_ids: accountIds },
+        fallback,
+      );
+      return requireThread(result, fallback);
+    },
+
+    async removeGroupMember(threadId, accountId) {
+      const fallback = "Die Person konnte nicht entfernt werden";
+      const result = await postEnvelope<StaffThreadDetail>(
+        `${basePath}/threads/${encodeURIComponent(threadId)}/members/${encodeURIComponent(accountId)}`,
+        undefined,
+        fallback,
+        "DELETE",
+      );
+      return requireThread(result, fallback);
+    },
+
+    async leaveGroup(threadId) {
+      await postEnvelope<null>(
+        `${basePath}/threads/${encodeURIComponent(threadId)}/leave`,
+        {},
+        "Die Gruppe konnte nicht verlassen werden",
+      );
     },
   };
 }

@@ -769,6 +769,36 @@
       "legacy": "communication.staff_notice_outdated"
     },
     {
+      "code": "communication.staff_group_create_forbidden",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "communication.staff_group_create_forbidden"
+    },
+    {
+      "code": "communication.staff_group_manage_forbidden",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "communication.staff_group_manage_forbidden"
+    },
+    {
+      "code": "communication.staff_group_name_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "communication.staff_group_name_invalid"
+    },
+    {
+      "code": "communication.staff_group_members_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "communication.staff_group_members_required"
+    },
+    {
+      "code": "communication.staff_group_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "communication.staff_group_too_large"
+    },
+    {
       "code": "communication.class_letter_class_not_reachable",
       "class": "permission",
       "parameters": [],

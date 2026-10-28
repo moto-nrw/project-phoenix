@@ -204,13 +204,17 @@ func verifyDeviceAdministrationLocked(rt *Runtime) (SeedDevice, error) {
 	return verifyWebManualDeviceProtection(rt, webDevice)
 }
 
+// seedModuleNotBooked is the registered code of a route whose module the
+// school did not book.
+const seedModuleNotBooked = "module.not_booked"
+
 func verifyDeviceAdministrationRefusal(rt *Runtime) error {
 	_, err := listSeedDevices(rt, "terminal")
 	var apiErr *APIError
 	if err == nil {
 		return fmt.Errorf("device administration: expected 403 module.not_booked, got success")
 	}
-	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != "module.not_booked" {
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != seedModuleNotBooked {
 		return fmt.Errorf("device administration: expected 403 module.not_booked, got %w", err)
 	}
 	return nil

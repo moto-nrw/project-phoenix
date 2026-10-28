@@ -223,6 +223,16 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
         "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
+      "communication.staff_group_create_forbidden":
+        "Lehrkräfte können keinen Gruppenchat anlegen. Bitten Sie die OGS darum.",
+      "communication.staff_group_manage_forbidden":
+        "Nur wer den Gruppenchat angelegt hat und die OGS-Leitung können ihn ändern.",
+      "communication.staff_group_name_invalid":
+        "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens 80 Zeichen.",
+      "communication.staff_group_members_required":
+        "Bitte wählen Sie mindestens eine Person aus, die noch nicht in der Gruppe ist.",
+      "communication.staff_group_too_large":
+        "Ein Gruppenchat hat höchstens 100 Mitglieder.",
       "communication.class_letter_class_not_reachable":
         "Diese Klasse ist Ihnen nicht zugeordnet. Bitte wählen Sie eine eigene Klasse.",
       "communication.class_letter_read_only":
@@ -1614,6 +1624,16 @@ export const ERROR_CATALOG = {
       "communication.survey_already_answered":
         "You have already taken part in this survey. Your answer cannot be changed.",
       "communication.survey_not_open": "This survey no longer accepts answers.",
+      "communication.staff_group_create_forbidden":
+        "Teachers cannot start a group chat. Please ask the after-school team.",
+      "communication.staff_group_manage_forbidden":
+        "Only the person who started the group chat and the leadership can change it.",
+      "communication.staff_group_name_invalid":
+        "Please give the group chat a name of at most 80 characters.",
+      "communication.staff_group_members_required":
+        "Please choose at least one person who is not in the group yet.",
+      "communication.staff_group_too_large":
+        "A group chat has at most 100 members.",
       "communication.class_letter_class_not_reachable":
         "This class is not assigned to you. Please choose one of your own classes.",
       "communication.class_letter_read_only":

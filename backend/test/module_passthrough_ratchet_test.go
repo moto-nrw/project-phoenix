@@ -237,7 +237,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0119: the billing run list of modules/parentbilling (+1).
 // Lowered by ADR 0118: the holiday registration retention of modules/enrollment
 // also prunes its deletion log and is no pass-through any more (-1).
-const modulePassthroughOwnerBudgetTotal = 1412
+const modulePassthroughOwnerBudgetTotal = 1410
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -258,7 +258,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
 	// Raised by ADR 0079: the facade observes the reachable-children read.
-	"modules/communication": 58,
+	"modules/communication": 56,
 	"modules/dataimport":    1,
 	"modules/delivery":      5,
 	"modules/devicefleet":   33,

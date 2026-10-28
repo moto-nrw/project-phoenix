@@ -60,14 +60,28 @@ func mapNativeParentThread[T, M any](thread *T, view func(*T) (InboxThread, []*M
 	}
 	return &communication.ParentMessageThread{ThreadID: header.ThreadID, StudentID: header.StudentID, StudentName: header.StudentName, GuardianName: header.GuardianName, RelationshipType: header.RelationshipType, Messages: messages}, nil
 }
-func mapNativeStaffThread[T, M any](thread *T, view func(*T) (StaffInboxThread, []*M), convert func(*M) *StaffMessage) *communication.StaffMessageThread {
-	if thread == nil {
+
+// mapStaffThreadView maps the chat window onto the public contract,
+// including a group's members and each message's read receipt (#4776).
+func mapStaffThreadView(view *StaffThreadView) *communication.StaffMessageThread {
+	if view == nil {
 		return nil
 	}
-	header, rows := view(thread)
-	result := &communication.StaffMessageThread{ThreadID: header.ThreadID, CounterpartAccountID: header.CounterpartAccountID, CounterpartName: header.CounterpartName, CounterpartRoleKind: header.CounterpartRoleKind, Messages: make([]communication.StaffMessage, 0, len(rows))}
-	for _, message := range rows {
-		result.Messages = append(result.Messages, mapStaffMessage(convert(message)))
+	result := &communication.StaffMessageThread{
+		ThreadID: view.Header.ThreadID, CounterpartAccountID: view.Header.CounterpartAccountID,
+		CounterpartName: view.Header.CounterpartName, CounterpartRoleKind: view.Header.CounterpartRoleKind,
+		Kind: view.Kind, GroupName: view.GroupName, CanManage: view.CanManage,
+		Messages: make([]communication.StaffMessage, 0, len(view.Messages)),
+	}
+	for _, member := range view.Members {
+		result.Members = append(result.Members, communication.StaffThreadMember{AccountID: member.AccountID, Name: member.Name, RoleKind: member.RoleKind})
+	}
+	for _, message := range view.Messages {
+		mapped := mapStaffMessage(message)
+		if receipt, ok := view.Receipts[message.ID]; ok {
+			mapped.ReadByAccountIDs, mapped.ReaderCount = receipt.ReadBy, receipt.ReaderCount
+		}
+		result.Messages = append(result.Messages, mapped)
 	}
 	return result
 }
@@ -192,6 +206,7 @@ func (m *staffMessaging[I, T, M, G, R]) ListStaffMessageInbox(ctx context.Contex
 				CounterpartName: row.CounterpartName, CounterpartRoleKind: row.CounterpartRoleKind,
 				LastMessageAt: row.LastMessageAt, LastMessageBody: row.LastMessageBody,
 				LastSenderAccountID: row.LastSenderAccountID, UnreadCount: row.UnreadCount,
+				Kind: row.Kind, GroupName: row.GroupName, MemberCount: row.MemberCount, LastSenderName: row.LastSenderName,
 			})
 		}
 		return result, nil
@@ -219,13 +234,19 @@ func (m *staffMessaging[I, T, M, G, R]) ListMessageableStaff(ctx context.Context
 func (m *staffMessaging[I, T, M, G, R]) OpenStaffMessageThread(ctx context.Context, counterpartAccountID int64) (*communication.StaffMessageThread, error) {
 	return observeMessageResult(ctx, m.observe, "staff_messages.open_thread", func(runCtx context.Context) (*communication.StaffMessageThread, error) {
 		thread, err := m.service.OpenThread(runCtx, counterpartAccountID)
-		return mapNativeStaffThread(thread, m.rows.Thread, m.rows.Message), m.mapError(err)
+		if err != nil || thread == nil {
+			return nil, m.mapError(err)
+		}
+		return mapStaffThreadView(m.rows.Thread(thread)), nil
 	})
 }
 func (m *staffMessaging[I, T, M, G, R]) GetStaffMessageThread(ctx context.Context, threadID int64) (*communication.StaffMessageThread, error) {
 	return observeMessageResult(ctx, m.observe, "staff_messages.get_thread", func(runCtx context.Context) (*communication.StaffMessageThread, error) {
 		thread, err := m.service.GetThread(runCtx, threadID)
-		return mapNativeStaffThread(thread, m.rows.Thread, m.rows.Message), m.mapError(err)
+		if err != nil || thread == nil {
+			return nil, m.mapError(err)
+		}
+		return mapStaffThreadView(m.rows.Thread(thread)), nil
 	})
 }
 func (m *staffMessaging[I, T, M, G, R]) PostStaffMessage(ctx context.Context, threadID int64, body string) (*communication.StaffMessage, error) {
@@ -236,6 +257,42 @@ func (m *staffMessaging[I, T, M, G, R]) PostStaffMessage(ctx context.Context, th
 		}
 		mapped := mapNativeStaffMessage(message, m.rows.Message)
 		return &mapped, m.mapError(err)
+	})
+}
+func (m *staffMessaging[I, T, M, G, R]) CreateStaffMessageGroup(ctx context.Context, name string, memberAccountIDs []int64) (*communication.StaffMessageThread, error) {
+	return observeMessageResult(ctx, m.observe, "staff_messages.create_group", func(runCtx context.Context) (*communication.StaffMessageThread, error) {
+		thread, err := m.service.CreateGroup(runCtx, name, memberAccountIDs)
+		if err != nil || thread == nil {
+			return nil, m.mapError(err)
+		}
+		return mapStaffThreadView(m.rows.Thread(thread)), nil
+	})
+}
+func (m *staffMessaging[I, T, M, G, R]) RenameStaffMessageGroup(ctx context.Context, threadID int64, name string) (*communication.StaffMessageThread, error) {
+	return observeMessageResult(ctx, m.observe, "staff_messages.rename_group", func(runCtx context.Context) (*communication.StaffMessageThread, error) {
+		thread, err := m.service.RenameGroup(runCtx, threadID, name)
+		if err != nil || thread == nil {
+			return nil, m.mapError(err)
+		}
+		return mapStaffThreadView(m.rows.Thread(thread)), nil
+	})
+}
+func (m *staffMessaging[I, T, M, G, R]) AddStaffMessageGroupMembers(ctx context.Context, threadID int64, accountIDs []int64) (*communication.StaffMessageThread, error) {
+	return observeMessageResult(ctx, m.observe, "staff_messages.add_group_members", func(runCtx context.Context) (*communication.StaffMessageThread, error) {
+		thread, err := m.service.AddGroupMembers(runCtx, threadID, accountIDs)
+		if err != nil || thread == nil {
+			return nil, m.mapError(err)
+		}
+		return mapStaffThreadView(m.rows.Thread(thread)), nil
+	})
+}
+func (m *staffMessaging[I, T, M, G, R]) RemoveStaffMessageGroupMember(ctx context.Context, threadID, accountID int64) (*communication.StaffMessageThread, error) {
+	return observeMessageResult(ctx, m.observe, "staff_messages.remove_group_member", func(runCtx context.Context) (*communication.StaffMessageThread, error) {
+		thread, err := m.service.RemoveGroupMember(runCtx, threadID, accountID)
+		if err != nil || thread == nil {
+			return nil, m.mapError(err)
+		}
+		return mapStaffThreadView(m.rows.Thread(thread)), nil
 	})
 }
 func (m *staffMessaging[I, T, M, G, R]) CleanupExpiredStaffMessages(ctx context.Context) (communication.StaffMessageCleanupResult, error) {
@@ -342,6 +399,16 @@ func MapStaffMessagingError(err error, kinds StaffMessageErrors) error {
 		return fmt.Errorf("%w: %w", communication.ErrStaffMessagingNoActor, err)
 	case errors.Is(err, kinds.ErrRetentionUnresolved):
 		return fmt.Errorf("%w: %w", communication.ErrStaffMessageRetentionUnresolved, err)
+	case errors.Is(err, kinds.ErrGroupCreateForbidden):
+		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupCreateForbidden, err)
+	case errors.Is(err, kinds.ErrGroupManageForbidden):
+		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupManageForbidden, err)
+	case errors.Is(err, kinds.ErrGroupNameInvalid):
+		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupNameInvalid, err)
+	case errors.Is(err, kinds.ErrGroupMembersRequired):
+		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupMembersRequired, err)
+	case errors.Is(err, kinds.ErrGroupTooLarge):
+		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupTooLarge, err)
 	default:
 		return err
 	}

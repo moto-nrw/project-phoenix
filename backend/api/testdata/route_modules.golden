@@ -36,6 +36,7 @@ basis
 	DELETE /api/settings/home-layout
 	DELETE /api/settings/login-image
 	DELETE /api/settings/values/{key}
+	DELETE /api/staff-messages/threads/{threadID}/members/{accountID}
 	DELETE /api/staff-notices/{noticeId}
 	DELETE /api/staff/{id}
 	DELETE /api/students/care-withdrawals/{completionId}
@@ -502,8 +503,11 @@ basis
 	POST /api/school-setup/complete
 	POST /api/settings/enrollment/legal-agb-document
 	POST /api/settings/login-image
+	POST /api/staff-messages/groups
 	POST /api/staff-messages/threads/open
 	POST /api/staff-messages/threads/{threadID}
+	POST /api/staff-messages/threads/{threadID}/leave
+	POST /api/staff-messages/threads/{threadID}/members
 	POST /api/staff-notices/
 	POST /api/staff-notices/{noticeId}/acknowledge
 	POST /api/staff/
@@ -722,6 +726,7 @@ basis
 	PUT /api/settings/home-layout
 	PUT /api/settings/home-layout/policies
 	PUT /api/settings/values/{key}
+	PUT /api/staff-messages/threads/{threadID}/name
 	PUT /api/staff-notices/{noticeId}
 	PUT /api/staff-onboarding/dismissal
 	PUT /api/staff-onboarding/steps/{step}
@@ -1159,6 +1164,7 @@ unterricht_vormittag
 	POST /school/parent-letters/{announcementId}/unpublish
 	POST /school/staff-messages/threads/open
 	POST /school/staff-messages/threads/{threadID}
+	POST /school/staff-messages/threads/{threadID}/leave
 	POST /school/staff-notices/{noticeId}/acknowledge
 	POST /school/supervisions/{id}/complete
 	POST /school/supervisions/{id}/start

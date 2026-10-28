@@ -2,6 +2,11 @@
 package common
 
 const (
+	CodeIdentityCatererAddressTaken                   = "identity.caterer_address_taken"
+	CodeIdentityCatererWithoutSchool                  = "identity.caterer_without_school"
+	CodeIdentityCurrentPasswordWrong                  = "identity.current_password_wrong"
+	CodeIdentityDemoAccessExpired                     = "identity.demo_access_expired"
+	CodeIdentityDemoAccessInvalid                     = "identity.demo_access_invalid"
 	CodeIdentityDemoAccessRateLimited                 = "identity.demo_access_rate_limited"
 	CodeIdentityDemoAccessUnknown                     = "identity.demo_access_unknown"
 	CodeIdentityDemoCapacityReached                   = "identity.demo_capacity_reached"
@@ -297,14 +302,14 @@ const (
 	CodeTimetableActivityNotOwner                     = "timetable.activity_not_owner"
 	CodeTimetableActivitySystemProtected              = "timetable.activity_system_protected"
 	CodeTimetableActivityTemplateProtected            = "timetable.activity_template_protected"
-	CodeTimetableAmbiguousTemplateInstanceDelete      = "timetable.ambiguous_template_instance_delete"
-	CodeTimetableAttendanceEntryNotFound              = "timetable.attendance_entry_not_found"
-	CodeTimetableAttendanceFrozen                     = "timetable.attendance_frozen"
-	CodeTimetableAttendanceInvalid                    = "timetable.attendance_invalid"
-	CodeTimetableCalendarPeriodCareOfferingConflict   = "timetable.calendar_period_care_offering_conflict"
 )
 
 var errorCodeClasses1 = map[string]string{
+	"identity.caterer_address_taken":                     "business_rejection",
+	"identity.caterer_without_school":                    "permission",
+	"identity.current_password_wrong":                    "input",
+	"identity.demo_access_expired":                       "business_rejection",
+	"identity.demo_access_invalid":                       "input",
 	"identity.demo_access_rate_limited":                  "unavailable",
 	"identity.demo_access_unknown":                       "input",
 	"identity.demo_capacity_reached":                     "unavailable",
@@ -600,11 +605,6 @@ var errorCodeClasses1 = map[string]string{
 	"timetable.activity_not_owner":                       "permission",
 	"timetable.activity_system_protected":                "permission",
 	"timetable.activity_template_protected":              "business_rejection",
-	"timetable.ambiguous_template_instance_delete":       "business_rejection",
-	"timetable.attendance_entry_not_found":               "business_rejection",
-	"timetable.attendance_frozen":                        "business_rejection",
-	"timetable.attendance_invalid":                       "input",
-	"timetable.calendar_period_care_offering_conflict":   "business_rejection",
 }
 
 func init() {

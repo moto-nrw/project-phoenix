@@ -27,6 +27,11 @@ var (
 	ErrStaffMessageBodyTooLong              = errors.New("staffmessaging: message body is too long")
 	ErrStaffMessagingNoActor                = errors.New("staffmessaging: no authenticated account in context")
 	ErrStaffMessageRetentionUnresolved      = errors.New("staffmessaging: retention window could not be resolved")
+	ErrStaffMessageGroupCreateForbidden     = errors.New("staffmessaging: this role may not start a group chat")
+	ErrStaffMessageGroupManageForbidden     = errors.New("staffmessaging: only the creator and the leadership may manage this group")
+	ErrStaffMessageGroupNameInvalid         = errors.New("staffmessaging: group name must not be empty or too long")
+	ErrStaffMessageGroupMembersRequired     = errors.New("staffmessaging: a group needs at least one other member")
+	ErrStaffMessageGroupTooLarge            = errors.New("staffmessaging: too many members for one group")
 )
 
 // ParentMessage is the Communication view of one parent/OGS chat entry.
@@ -139,6 +144,10 @@ type StaffMessage struct {
 	SenderName      string
 	Body            string
 	CreatedAt       time.Time
+	// Group chats only (#4776): who of the members read the message, and how
+	// many members could have.
+	ReadByAccountIDs []int64
+	ReaderCount      int
 }
 
 type StaffMessageInboxThread struct {
@@ -150,6 +159,11 @@ type StaffMessageInboxThread struct {
 	LastMessageBody      string
 	LastSenderAccountID  *int64
 	UnreadCount          int
+	// Kind is "direct" or "group" (#4776).
+	Kind           string
+	GroupName      string
+	MemberCount    int
+	LastSenderName string
 }
 
 type StaffMessageThread struct {
@@ -158,6 +172,18 @@ type StaffMessageThread struct {
 	CounterpartName      string
 	CounterpartRoleKind  string
 	Messages             []StaffMessage
+	// Group chats (#4776).
+	Kind      string
+	GroupName string
+	CanManage bool
+	Members   []StaffThreadMember
+}
+
+// StaffThreadMember is one person in a group chat.
+type StaffThreadMember struct {
+	AccountID int64
+	Name      string
+	RoleKind  string
 }
 
 type MessageableStaff struct {
@@ -207,6 +233,12 @@ type StaffMessagingCommand interface {
 	OpenStaffMessageThread(context.Context, int64) (*StaffMessageThread, error)
 	GetStaffMessageThread(context.Context, int64) (*StaffMessageThread, error)
 	PostStaffMessage(context.Context, int64, string) (*StaffMessage, error)
+	// Group chats (#4776).
+	CreateStaffMessageGroup(ctx context.Context, name string, memberAccountIDs []int64) (*StaffMessageThread, error)
+	RenameStaffMessageGroup(ctx context.Context, threadID int64, name string) (*StaffMessageThread, error)
+	AddStaffMessageGroupMembers(ctx context.Context, threadID int64, accountIDs []int64) (*StaffMessageThread, error)
+	// Removing oneself is leaving the group; the result is then nil.
+	RemoveStaffMessageGroupMember(ctx context.Context, threadID, accountID int64) (*StaffMessageThread, error)
 }
 
 type StaffMessagingCapability interface {

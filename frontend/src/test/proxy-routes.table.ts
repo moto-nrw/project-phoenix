@@ -558,6 +558,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school/class-day/morning-attendance/[schoolClass]/[date]": [
     "PUT school /school/class-day/morning-attendance/schoolClass%2F1/date%2F1",
   ],
+  "api/school/class-day/shared-notes/[schoolClass]/students/[studentId]": [
+    "GET school /school/class-day/shared-notes/schoolClass%2F1/students/studentId%2F1",
+  ],
   "api/school/class-day/school-day": [
     "GET school /school/class-day/school-day",
   ],
@@ -609,6 +612,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET school /school/staff-messages/threads/threadID/1",
     "POST school /school/staff-messages/threads/threadID/1",
   ],
+  "api/school/staff-messages/threads/[threadID]/leave": [
+    "POST school /school/staff-messages/threads/threadID/1/leave",
+  ],
   "api/school/staff-messages/threads/open": [
     "POST school /school/staff-messages/threads/open",
   ],
@@ -653,6 +659,19 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "PUT tenant /api/settings/home-layout/policies",
   ],
   "api/settings/payroll-status": ["GET tenant /api/settings/payroll-status"],
+  "api/staff-messages/groups": ["POST tenant /api/staff-messages/groups"],
+  "api/staff-messages/threads/[threadID]/leave": [
+    "POST tenant /api/staff-messages/threads/threadID%2F1/leave",
+  ],
+  "api/staff-messages/threads/[threadID]/members": [
+    "POST tenant /api/staff-messages/threads/threadID%2F1/members",
+  ],
+  "api/staff-messages/threads/[threadID]/members/[accountID]": [
+    "DELETE tenant /api/staff-messages/threads/threadID%2F1/members/accountID%2F1",
+  ],
+  "api/staff-messages/threads/[threadID]/name": [
+    "PUT tenant /api/staff-messages/threads/threadID%2F1/name",
+  ],
   "api/staff-onboarding": ["GET tenant /api/staff-onboarding"],
   "api/staff-onboarding/dismissal": [
     "PUT tenant /api/staff-onboarding/dismissal",

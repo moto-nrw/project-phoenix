@@ -63,6 +63,17 @@ type ThreadDetail struct {
 	// CounterpartRoleKind: one of the existing coarse colleague-role values.
 	CounterpartRoleKind string
 	Messages            []*StaffMessage
+
+	// Group chat (#4776). Kind is "direct" or "group"; the rest is set for a
+	// group only.
+	Kind      string
+	GroupName string
+	// CanManage: the viewer may rename the group and add or remove members.
+	CanManage bool
+	Members   []deliveryPorts.MessageableStaff
+	// Receipts holds, per message id, who of the members read it and how many
+	// could have (members other than the sender who had joined by then).
+	Receipts map[int64]deliveryPorts.StaffReadReceipt
 }
 
 // PersonLookup resolves the person behind a sender's account for display.
@@ -88,7 +99,9 @@ type Service struct {
 
 // Config is the dependency-injection bundle.
 type Config struct {
-	ThreadRepo  StaffMessageThreadRepository
+	ThreadRepo StaffMessageThreadRepository
+	// Groups is the group-chat facet of the thread store (#4776).
+	Groups      deliveryPorts.StaffGroupSource
 	MessageRepo StaffMessageRepository
 	ReadRepo    StaffMessageReadRepository
 	Persons     PersonLookup
@@ -166,14 +179,19 @@ func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*StaffInbox
 	}
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.CounterpartAccountID)
+		// A group row has no counterpart (#4776).
+		if row.CounterpartAccountID != 0 {
+			ids = append(ids, row.CounterpartAccountID)
+		}
 	}
 	kinds, err := s.ReadRepo.StaffRoleKinds(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		row.CounterpartRoleKind = kinds[row.CounterpartAccountID]
+		if row.CounterpartAccountID != 0 {
+			row.CounterpartRoleKind = kinds[row.CounterpartAccountID]
+		}
 	}
 	return rows, nil
 }
@@ -270,9 +288,14 @@ func (s *Service) OpenThread(ctx context.Context, counterpartAccountID int64) (*
 }
 
 // requireReachableCounterparts verifies every participant except the caller is
-// still a messageable colleague.
-func (s *Service) requireReachableCounterparts(ctx context.Context, threadID, callerAccountID int64) error {
-	participants, err := s.ThreadRepo.ParticipantAccountIDs(ctx, threadID)
+// still a messageable colleague. A group (#4776) has no single counterpart: it
+// stays writable while one member leaves the school, and only reachable
+// members receive the push.
+func (s *Service) requireReachableCounterparts(ctx context.Context, thread *StaffMessageThread, callerAccountID int64) error {
+	if thread.Kind == groupKind {
+		return nil
+	}
+	participants, err := s.ThreadRepo.ParticipantAccountIDs(ctx, thread.ID)
 	if err != nil {
 		return err
 	}
@@ -314,6 +337,11 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 	}
 	thread, err := s.authorizeThread(ctx, threadID, accountID)
 	if err != nil {
+		return nil, err
+	}
+	// A group closes for a deactivated member at once (#4776); the direct
+	// chat keeps its history readable after leaving the school.
+	if err := s.requireActiveGroupMember(ctx, thread, accountID); err != nil {
 		return nil, err
 	}
 
@@ -371,7 +399,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// that nobody will ever answer - and worse: because reads stay open, that
 	// person's still-valid token would keep DELIVERING them. Leaving history
 	// readable was meant for the past, not for ongoing traffic.
-	if err := s.requireReachableCounterparts(ctx, threadID, accountID); err != nil {
+	if err := s.requireReachableCounterparts(ctx, thread, accountID); err != nil {
 		return nil, err
 	}
 
@@ -425,6 +453,9 @@ func (s *Service) resolveSenderName(ctx context.Context, accountID int64) string
 
 // buildDetail assembles the chat window payload for one viewer.
 func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, viewerAccountID int64) (*ThreadDetail, error) {
+	if thread.Kind == groupKind {
+		return s.buildGroupDetail(ctx, thread, viewerAccountID)
+	}
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID)
 	if err != nil {
 		return nil, err
@@ -434,7 +465,7 @@ func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, v
 		return nil, err
 	}
 
-	detail := &ThreadDetail{ThreadID: thread.ID, Messages: messages}
+	detail := &ThreadDetail{ThreadID: thread.ID, Kind: directKind, Messages: messages}
 	for _, id := range participants {
 		if id != viewerAccountID {
 			detail.CounterpartAccountID = id

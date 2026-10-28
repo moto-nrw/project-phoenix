@@ -126,6 +126,11 @@ const (
 	CodeCommunicationParentNewsDisabled                  = "communication.parent_news_disabled"
 	CodeCommunicationPollNotOpen                         = "communication.poll_not_open"
 	CodeCommunicationStaffCounterpartUnavailable         = "communication.staff_counterpart_unavailable"
+	CodeCommunicationStaffGroupCreateForbidden           = "communication.staff_group_create_forbidden"
+	CodeCommunicationStaffGroupManageForbidden           = "communication.staff_group_manage_forbidden"
+	CodeCommunicationStaffGroupMembersRequired           = "communication.staff_group_members_required"
+	CodeCommunicationStaffGroupNameInvalid               = "communication.staff_group_name_invalid"
+	CodeCommunicationStaffGroupTooLarge                  = "communication.staff_group_too_large"
 	CodeCommunicationStaffMessagingDisabled              = "communication.staff_messaging_disabled"
 	CodeCommunicationStaffNoticeOutdated                 = "communication.staff_notice_outdated"
 	CodeCommunicationSurveyAlreadyAnswered               = "communication.survey_already_answered"
@@ -297,11 +302,6 @@ const (
 	CodeIdentityAccountInactive                          = "identity.account_inactive"
 	CodeIdentityAccountNotFound                          = "identity.account_not_found"
 	CodeIdentityAccountNotInSchool                       = "identity.account_not_in_school"
-	CodeIdentityCatererAddressTaken                      = "identity.caterer_address_taken"
-	CodeIdentityCatererWithoutSchool                     = "identity.caterer_without_school"
-	CodeIdentityCurrentPasswordWrong                     = "identity.current_password_wrong"
-	CodeIdentityDemoAccessExpired                        = "identity.demo_access_expired"
-	CodeIdentityDemoAccessInvalid                        = "identity.demo_access_invalid"
 )
 
 var errorCodeClasses0 = map[string]string{
@@ -429,6 +429,11 @@ var errorCodeClasses0 = map[string]string{
 	"communication.parent_news_disabled":                   "permission",
 	"communication.poll_not_open":                          "business_rejection",
 	"communication.staff_counterpart_unavailable":          "unavailable",
+	"communication.staff_group_create_forbidden":           "permission",
+	"communication.staff_group_manage_forbidden":           "permission",
+	"communication.staff_group_members_required":           "input",
+	"communication.staff_group_name_invalid":               "input",
+	"communication.staff_group_too_large":                  "input",
 	"communication.staff_messaging_disabled":               "permission",
 	"communication.staff_notice_outdated":                  "business_rejection",
 	"communication.survey_already_answered":                "business_rejection",
@@ -600,11 +605,6 @@ var errorCodeClasses0 = map[string]string{
 	"identity.account_inactive":                            "permission",
 	"identity.account_not_found":                           "business_rejection",
 	"identity.account_not_in_school":                       "business_rejection",
-	"identity.caterer_address_taken":                       "business_rejection",
-	"identity.caterer_without_school":                      "permission",
-	"identity.current_password_wrong":                      "input",
-	"identity.demo_access_expired":                         "business_rejection",
-	"identity.demo_access_invalid":                         "input",
 }
 
 func init() {

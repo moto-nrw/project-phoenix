@@ -47,8 +47,102 @@ func (seedStaffMessagingStep) Run(_ context.Context, rt *Runtime) error {
 	if threads == 0 {
 		return fmt.Errorf("staff messages require the demo staff accounts")
 	}
-	fmt.Printf("  %d staff conversations with %d messages created, %d left unread\n", threads, sent, unread)
+	groups, err := chat.seedGroups()
+	if err != nil {
+		return err
+	}
+	fmt.Printf("  %d staff conversations with %d messages created, %d left unread, %d group chats\n", threads, sent, unread, groups)
 	return nil
+}
+
+// staffChatGroup is one group chat (#4776): creator starts it with the
+// members, then the messages follow as (sender, body) in order. Every sender
+// reads the group before writing, so the read receipts show a mix: the last
+// message stays unread for the members who did not write after it.
+type staffChatGroup struct {
+	name     string
+	creator  int
+	members  []int
+	messages []staffChatGroupMessage
+}
+
+type staffChatGroupMessage struct {
+	sender int
+	body   string
+}
+
+// staffChatGroups are the demo group chats. Katarzyna Schmidt (index 1),
+// the admin of the product screenshots, starts the first one.
+var staffChatGroups = []staffChatGroup{
+	{name: "Frühbetreuung", creator: 1, members: []int{0, 2, 3}, messages: []staffChatGroupMessage{
+		{sender: 1, body: "Ab Montag öffnen wir die Frühbetreuung schon um 7:15 Uhr. Wer kann den Dienst übernehmen?"},
+		{sender: 0, body: "Montag und Mittwoch kann ich."},
+		{sender: 3, body: "Dienstag und Donnerstag übernehme ich."},
+		{sender: 1, body: "Danke euch! Den Freitag mache ich selbst."},
+	}},
+	{name: "Laternenfest", creator: 4, members: []int{1, 5, 6}, messages: []staffChatGroupMessage{
+		{sender: 4, body: "Für das Laternenfest brauchen wir noch zwei Leute für den Aufbau ab 15 Uhr."},
+		{sender: 5, body: "Ich bin dabei."},
+	}},
+}
+
+// seedGroups creates the group chats whose members exist in this seed.
+func (c staffChat) seedGroups() (int, error) {
+	created := 0
+	for _, group := range staffChatGroups {
+		ok, err := c.seedGroup(group)
+		if err != nil {
+			return created, err
+		}
+		if ok {
+			created++
+		}
+	}
+	return created, nil
+}
+
+func (c staffChat) seedGroup(group staffChatGroup) (bool, error) {
+	people := append([]int{group.creator}, group.members...)
+	for _, index := range people {
+		if _, ok := staffCredentialsByIndex(c.rt.FixedSeeder, index); !ok {
+			return false, nil
+		}
+	}
+	creator, err := c.auth(group.creator)
+	if err != nil {
+		return false, err
+	}
+	c.rt.Client.BindAuth(creator)
+	memberIDs := make([]string, 0, len(group.members))
+	for _, index := range group.members {
+		cred, _ := staffCredentialsByIndex(c.rt.FixedSeeder, index)
+		id, err := staffAccountID(c.rt, cred)
+		if err != nil {
+			return false, err
+		}
+		memberIDs = append(memberIDs, fmt.Sprintf("%d", id))
+	}
+	raw, err := c.rt.Client.PostWithAuth(creator, "/api/staff-messages/groups", map[string]any{"name": group.name, "account_ids": memberIDs})
+	if err != nil {
+		return false, fmt.Errorf("create staff group chat %q: %w", group.name, err)
+	}
+	threadID, err := threadIDFromResponse(raw)
+	if err != nil {
+		return false, fmt.Errorf("decode POST /api/staff-messages/groups response: %w", err)
+	}
+	for _, message := range group.messages {
+		sender, err := c.auth(message.sender)
+		if err != nil {
+			return false, err
+		}
+		if _, err := c.rt.Client.GetWithAuth(sender, "/api/staff-messages/threads/"+threadID); err != nil {
+			return false, fmt.Errorf("read staff group chat %s: %w", threadID, err)
+		}
+		if _, err := c.rt.Client.PostWithAuth(sender, "/api/staff-messages/threads/"+threadID, map[string]any{"body": message.body}); err != nil {
+			return false, fmt.Errorf("send to staff group chat %s: %w", threadID, err)
+		}
+	}
+	return true, nil
 }
 
 // staffChatConversation is one direct conversation between two staff

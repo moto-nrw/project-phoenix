@@ -12,6 +12,49 @@ type MessageableStaff communication.AddressableStaffRecord
 type StaffThreadSource interface {
 	communication.StaffThreadRecords
 }
+
+// StaffGroupSource is the group-chat facet of the thread store (#4776).
+type StaffGroupSource interface {
+	communication.StaffGroupRecords
+}
+
+// StaffConversationSource is the thread store with both facets.
+type StaffConversationSource interface {
+	StaffThreadSource
+	StaffGroupSource
+}
+
+// StaffParticipantState is one member with the start of their visible
+// history and their read cursor.
+type StaffParticipantState communication.StaffParticipantRecord
+
+func StaffParticipantStatesFromRecords(values []*communication.StaffParticipantRecord) []*StaffParticipantState {
+	out := make([]*StaffParticipantState, 0, len(values))
+	for _, value := range values {
+		out = append(out, (*StaffParticipantState)(value))
+	}
+	return out
+}
+
+// StaffThreadView is the chat window as the workflow builds it, before the
+// facade maps it onto the public contract: the header, the members of a
+// group and each group message's read receipt.
+type StaffThreadView struct {
+	Header    StaffInboxThread
+	Kind      string
+	GroupName string
+	CanManage bool
+	Members   []MessageableStaff
+	Messages  []*StaffMessage
+	Receipts  map[int64]StaffReadReceipt
+}
+
+// StaffReadReceipt is who of the members read one group message, and how
+// many could have.
+type StaffReadReceipt struct {
+	ReadBy      []int64
+	ReaderCount int
+}
 type StaffMessageSource interface {
 	communication.StaffMessageRecords
 }

@@ -1610,7 +1610,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": recipients})
 			return
 		}
-		if r.URL.Path == "/api/staff-messages/threads/open" {
+		if r.URL.Path == "/api/staff-messages/threads/open" || r.URL.Path == "/api/staff-messages/groups" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"thread_id": fmt.Sprintf("%d", idCounter)},
 			})
