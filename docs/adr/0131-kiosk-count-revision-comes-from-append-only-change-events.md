@@ -52,7 +52,11 @@ count and the revision come from one statement and so from one snapshot.
   deleted sessions, whose ids never return. A reopened session continues
   above its compacted sum. A concurrent writer's events stay outside the
   compaction's snapshot and keep their own row.
-- **Tenant boundary.** The table carries `tenant_id` with RLS. The school
+- **Tenant boundary.** The table carries `tenant_id` with RLS. The trigger
+  function runs as its owner with a fixed `search_path` and takes tenant and
+  session only from the visit rows its statement changed: a child's deletion
+  cascades to visits a hosting school (Ferienbetreuung) owns, and the
+  deleting school's RLS context would refuse that school's events. The school
   erasure deletes it after `active.visits` (a static copy of the 1.15.681
   erasure functions with the table added); the tenant export leaves it out
   as internal counters.

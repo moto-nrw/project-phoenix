@@ -37,6 +37,12 @@ func init() {
 //     that visit closes and moves do not take today. tenant_id references
 //     the school like every tenant table; visit inserts already take that
 //     key-share lock.
+//   - The trigger function runs as its owner (SECURITY DEFINER, fixed
+//     search_path): a child's deletion cascades to the visits of a hosting
+//     school (Ferienbetreuung), whose events the deleting school's RLS
+//     context would refuse. The function takes tenant and session only from
+//     the visit rows the statement changed, so every event carries its
+//     visit's school; nobody may call it directly.
 //   - The request role may insert, read and delete, never update: events
 //     are not rewritten. The nightly close compacts the events of ended
 //     sessions into one row with their sum (changes), which keeps every
@@ -59,7 +65,7 @@ GRANT ALL ON active.visit_revision_events TO phoenix_admin;
 GRANT USAGE ON SEQUENCE active.visit_revision_events_id_seq TO phoenix_admin;
 
 CREATE OR REPLACE FUNCTION active.record_visit_revision() RETURNS trigger
-LANGUAGE plpgsql AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
 	IF TG_OP = 'INSERT' THEN
 		INSERT INTO active.visit_revision_events (tenant_id, active_group_id)
@@ -82,6 +88,7 @@ BEGIN
 	RETURN NULL;
 END;
 $$;
+REVOKE ALL ON FUNCTION active.record_visit_revision() FROM PUBLIC;
 
 DROP TRIGGER IF EXISTS record_visit_revision_insert ON active.visits;
 CREATE TRIGGER record_visit_revision_insert AFTER INSERT ON active.visits
