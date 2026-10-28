@@ -7988,6 +7988,8 @@ function parentHolidayRegistrationTopic(): HelpTopic {
     question: "Wie melde ich mein Kind für die Ferien an?",
     summary:
       "Der Träger gibt Ihnen einen Link. Dort melden Sie bis zu drei Kinder an.",
+    image: "/help/screens/ferienanmeldung-zweite-person.webp",
+    imageAlt: "Die freiwillige Karte für die zweite sorgeberechtigte Person.",
     group: "anmeldung",
     audience: "parent",
     icon: "SunHorizon",
@@ -7999,6 +8001,7 @@ function parentHolidayRegistrationTopic(): HelpTopic {
       "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt.",
       "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
       "Tragen Sie `Ihre Angaben` und die `Notfallkontakte` ein.",
+      "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
       "Tragen Sie unter `Wer darf die Kinder abholen?` alle Personen außer Ihnen ein.",
       "Setzen Sie die Haken unter `Einverständnis`.",
       "Wählen Sie `Weiter zur Zusammenfassung`.",
@@ -9538,6 +9541,9 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     question: "Wie bestätige, storniere und buche ich Ferienanmeldungen um?",
     summary:
       "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, stornieren und buchen Sie um.",
+    image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
+    imageAlt:
+      "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "ListChecks",
@@ -9596,6 +9602,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
       "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin.",
+      "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
       "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
       "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
     ],
@@ -9817,6 +9824,7 @@ function traegerHolidayRegistrationTopic(): HelpTopic {
       "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
     notes: [
       "Eltern brauchen kein Elternkonto.",
+      "Eltern können eine `Zweite sorgeberechtigte Person` angeben. Die Bestätigung geht nur an die anmeldende Person.",
       "Ein Kind ohne Schule Ihres Trägers melden Eltern als Feriengast an. Es wird dadurch kein Schulkind einer OGS.",
       "Eltern bekommen eine Bestätigung per E-Mail. Sie ist noch keine Zusage.",
       "Gesundheitsangaben stehen nur in der Anmeldung. Die Bestätigung nennt sie nicht.",

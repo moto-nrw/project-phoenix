@@ -19,18 +19,22 @@ import (
 
 // holidayReviewRegistrationRow is one registration as the review reads it.
 type holidayReviewRegistrationRow struct {
-	ID                 int64      `bun:"id"`
-	Status             string     `bun:"status"`
-	FreezeOverride     *string    `bun:"freeze_override"`
-	SubmittedAt        time.Time  `bun:"submitted_at"`
-	GuardianFirstName  string     `bun:"guardian_first_name"`
-	GuardianLastName   string     `bun:"guardian_last_name"`
-	GuardianEmail      string     `bun:"guardian_email"`
-	GuardianPhone      string     `bun:"guardian_phone"`
-	PrivacyConsentAt   time.Time  `bun:"privacy_consent_at"`
-	HealthConsentAt    *time.Time `bun:"health_consent_at"`
-	BindingConfirmedAt *time.Time `bun:"binding_confirmed_at"`
-	BenefitsDeclared   bool       `bun:"benefits_declared"`
+	ID                      int64      `bun:"id"`
+	Status                  string     `bun:"status"`
+	FreezeOverride          *string    `bun:"freeze_override"`
+	SubmittedAt             time.Time  `bun:"submitted_at"`
+	GuardianFirstName       string     `bun:"guardian_first_name"`
+	GuardianLastName        string     `bun:"guardian_last_name"`
+	GuardianEmail           string     `bun:"guardian_email"`
+	GuardianPhone           string     `bun:"guardian_phone"`
+	SecondGuardianFirstName string     `bun:"second_guardian_first_name"`
+	SecondGuardianLastName  string     `bun:"second_guardian_last_name"`
+	SecondGuardianEmail     string     `bun:"second_guardian_email"`
+	SecondGuardianPhone     string     `bun:"second_guardian_phone"`
+	PrivacyConsentAt        time.Time  `bun:"privacy_consent_at"`
+	HealthConsentAt         *time.Time `bun:"health_consent_at"`
+	BindingConfirmedAt      *time.Time `bun:"binding_confirmed_at"`
+	BenefitsDeclared        bool       `bun:"benefits_declared"`
 }
 
 // holidayReviewChildRow is one child as the review reads it. The health
@@ -59,7 +63,8 @@ type holidayReviewBookingRow struct {
 const (
 	reviewRegistrationsQuery = `SELECT id, status, freeze_override, submitted_at,
 			guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
-			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared
+			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared,
+			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)
 		ORDER BY submitted_at, id`
@@ -164,6 +169,12 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			},
 			Health:           health[row.ID],
 			PrivacyConsentAt: row.PrivacyConsentAt, HealthConsentAt: row.HealthConsentAt, BindingConfirmedAt: row.BindingConfirmedAt,
+		}
+		if row.SecondGuardianFirstName != "" {
+			details[i].SecondGuardian = &enrollment.HolidayGuardianInput{
+				FirstName: row.SecondGuardianFirstName, LastName: row.SecondGuardianLastName,
+				Email: row.SecondGuardianEmail, Phone: row.SecondGuardianPhone,
+			}
 		}
 	}
 	return details

@@ -41,3 +41,16 @@ func (w *Worker) RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, 
 }
 
 func (w *Worker) Backlog(ctx context.Context) (int, error) { return w.engine.Backlog(ctx) }
+
+// EmailWakeups reports committed e-mail enqueues until ctx ends, so the
+// outbox can run at once instead of at its next poll. A wake-up may be
+// lost; the poll stays the fallback. Nil means polling only.
+func (w *Worker) EmailWakeups(ctx context.Context) <-chan struct{} {
+	engine, ok := w.engine.(interface {
+		EmailWakeups(context.Context) <-chan struct{}
+	})
+	if !ok {
+		return nil
+	}
+	return engine.EmailWakeups(ctx)
+}

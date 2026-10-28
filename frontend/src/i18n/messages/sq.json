@@ -1689,6 +1689,9 @@
     "signatureEyebrow": "Dëshmi"
   },
   "holidayRegistration": {
+    "secondGuardianTitle": "Kujdestari i dytë ligjor",
+    "secondGuardianText": "Opsionale. Nëse jepni të dhëna, emri dhe mbiemri janë të detyrueshëm.",
+    "emailOptional": "Adresa e emailit (opsionale)",
     "eyebrow": "Kujdesi gjatë pushimeve",
     "loading": "Regjistrimi po ngarkohet.",
     "errorObject": "regjistrimin për pushimet",
@@ -1771,6 +1774,7 @@
     "doneText": "Do të dërgojmë një konfirmim në {email}.",
     "doneNext": "Kjo nuk është ende një vend i konfirmuar. Organizatori e kontrollon regjistrimin dhe ju shkruan nëse fëmija merr vend.",
     "errors": {
+      "phone": "Ju lutemi shkruani një numër telefoni të vlefshëm.",
       "required": "Ju lutemi plotësoni këtë fushë.",
       "email": "Ju lutemi shkruani një adresë të vlefshme e-maili.",
       "school": "Ju lutemi zgjidhni shkollën e fëmijës.",
