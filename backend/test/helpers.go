@@ -146,12 +146,12 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 	if dsn, ok := isolatedTestDSN(t); ok {
 		db, err := openTestPool(dsn)
 		require.NoError(t, err, "Failed to open private isolated test database pool")
-		return privateTestPool(t, db)
+		return AdoptPrivatePool(t, db)
 	}
 
 	db, err := transactionruntime.OpenPool()
 	require.NoError(t, err, "Failed to open private test database pool")
-	return privateTestPool(t, db)
+	return AdoptPrivatePool(t, db)
 }
 
 // SetupServeTestDB returns a private pool connected as the least-privilege
@@ -164,15 +164,17 @@ func SetupServeTestDB(t *testing.T) *bun.DB {
 	if dsn, ok := isolatedTestDSN(t); ok {
 		db, err := openTestPool(authRoleDSN(dsn))
 		require.NoError(t, err, "Failed to open private phoenix_auth isolated test database pool")
-		return privateTestPool(t, db)
+		return AdoptPrivatePool(t, db)
 	}
 	db, err := transactionruntime.OpenServePool()
 	require.NoError(t, err, "Failed to open private phoenix_auth test database pool")
-	return privateTestPool(t, db)
+	return AdoptPrivatePool(t, db)
 }
 
-// privateTestPool lets query counters attach to a pool one test opened.
-func privateTestPool(tb testing.TB, db *bun.DB) *bun.DB {
+// AdoptPrivatePool lets query counters and lock-wait evidence attach to a pool
+// one test opened, e.g. through a production root. Call it before any other
+// goroutine uses db: it writes bun's unsynchronized hook list (#5220).
+func AdoptPrivatePool(tb testing.TB, db *bun.DB) *bun.DB {
 	attachTestQueryHooks(db)
 	tb.Cleanup(func() { detachTestQueryHooks(db) })
 	return db
