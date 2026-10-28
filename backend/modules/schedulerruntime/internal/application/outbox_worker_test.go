@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
@@ -124,3 +125,47 @@ func TestRunOutboxOncePropagatesJobCorrelationToFailure(t *testing.T) {
 }
 
 func noExpiredTransfers(context.Context, int) (int, error) { return 0, nil }
+
+// signallingOutboxRunner reports the instant of every run and wakes the
+// scheduler through wakeups.
+type signallingOutboxRunner struct {
+	runs    chan time.Time
+	wakeups chan struct{}
+}
+
+func (w *signallingOutboxRunner) EmailWakeups(context.Context) <-chan struct{} { return w.wakeups }
+
+func (w *signallingOutboxRunner) RunOnce(context.Context, int, int) (int, error) {
+	w.runs <- time.Now()
+	return 0, nil
+}
+
+func (w *signallingOutboxRunner) Backlog(context.Context) (int, error) { return 0, nil }
+
+func TestOutboxPollingRunsOnWakeupWithoutWaitingForTheInterval(t *testing.T) {
+	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		runs := make(chan time.Time, 4)
+		wakeups := make(chan struct{}, 1)
+		scheduler := newScheduler(ports.WorkerDependencies{
+			Logger: slog.New(slog.DiscardHandler), TenantRuntime: unitTenantRuntime(),
+			OutboxWorker: &signallingOutboxRunner{runs: runs, wakeups: wakeups}, SettleExpiredTransfers: noExpiredTransfers,
+		})
+		stopped := make(chan struct{})
+		go func() {
+			defer close(stopped)
+			scheduler.runOutboxWorkerTaskPolling(&ScheduledTask{Name: "email-outbox"})
+		}()
+		startup := <-runs
+
+		wakeups <- struct{}{}
+		woken := <-runs
+
+		assert.Zero(t, woken.Sub(startup), "a wake-up runs the outbox at once, not after the poll interval")
+		close(wakeups)
+		synctest.Wait()
+		assert.Empty(t, runs, "closed wake-ups must not trigger runs")
+		close(scheduler.done)
+		<-stopped
+	})
+}
