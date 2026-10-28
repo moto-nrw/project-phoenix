@@ -39,6 +39,7 @@ import type {
   BackendSchoolPWAUsage,
   SchoolPWAUsage,
   AssignTraegerMemberRequest,
+  InviteTraegerMemberRequest,
   BackendTraegerMember,
   TraegerMember,
   RecordTraegerErasureOrderRequest,
@@ -177,6 +178,20 @@ class OperatorProvisioningService {
       { method: "POST", body: data },
     );
     return mapTraegerMember(result);
+  }
+
+  /**
+   * Sends the Träger-Büro's invitation mail (#5144). The Träger-Büro sees
+   * it among its open invitations.
+   */
+  async inviteTraegerMember(
+    orgId: string,
+    data: InviteTraegerMemberRequest,
+  ): Promise<void> {
+    await operatorFetch<unknown>(
+      `/api/operator/provisioning/organizations/${encodeURIComponent(orgId)}/traeger-members/invitations`,
+      { method: "POST", body: data },
+    );
   }
 
   async getTraegerErasureOrder(

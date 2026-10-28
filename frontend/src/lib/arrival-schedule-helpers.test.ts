@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 import type { ArrivalSchedule } from "./student-arrival-api";
 import {
   arrivalScheduleSourceLabel,
@@ -64,6 +65,26 @@ describe("arrival schedule getDayData", () => {
     expect(result.effectiveTime).toBe("08:00");
   });
 
+  it("uses the supplied Berlin date for today's status", () => {
+    const friday = { ...schedules[0]!, weekday: 5 };
+    const saturday = new Date("2026-05-30T12:00:00+02:00");
+
+    const result = getDayData(
+      saturday,
+      [friday],
+      [],
+      [],
+      true,
+      false,
+      null,
+      true,
+      "2026-05-30",
+    );
+
+    expect(result.isToday).toBe(true);
+    expect(result.showSick).toBe(true);
+  });
+
   it("labels class and own arrival times without a duplicate class prefix", () => {
     expect(stripClassPrefix("Klasse 3b")).toBe("3b");
     expect(
@@ -78,10 +99,25 @@ describe("arrival schedule getDayData", () => {
 });
 
 describe("arrival schedule getWeekDays", () => {
-  it("includes Saturday and Sunday when the weekend follows Friday", () => {
+  it("includes Saturday and Sunday in today's weekend week when the weekend follows Friday", () => {
+    // Sunday in Berlin, but already Monday in a browser east of Berlin.
+    setTestClock("2026-09-13T21:30:00Z");
+    vi.stubEnv("TZ", "Asia/Almaty");
+    try {
+      const days = getWeekDays(0, true);
+
+      expect(days).toHaveLength(7);
+      expect(days.map((day) => day.getDay())).toEqual([1, 2, 3, 4, 5, 6, 0]);
+      expect(getWeekDays(1, true)).toHaveLength(5);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("keeps Mo–Fr on a weekday although the weekend follows Friday", () => {
+    // Test clock: Wednesday 2026-09-09.
     const days = getWeekDays(0, true);
 
-    expect(days).toHaveLength(7);
-    expect(days.map((day) => day.getDay())).toEqual([1, 2, 3, 4, 5, 6, 0]);
+    expect(days.map((day) => day.getDay())).toEqual([1, 2, 3, 4, 5]);
   });
 });

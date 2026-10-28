@@ -90,7 +90,7 @@ func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
 	}
 
 	if len(parents) > 0 {
-		actions, err := step.seedParentPortalActions(rt, parentAuths, parents)
+		actions, err := step.seedParentPortalActions(rt, parentAuths, parents, todaySeedDate())
 		if err != nil {
 			return err
 		}
@@ -1066,7 +1066,7 @@ func (s parentEnrollmentSeedStep) decideEnrollmentChild(rt *Runtime, auth AuthRe
 	return nil
 }
 
-func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAuths map[string]AuthRef, parents []ParentCredentials) ([]SeedParentPortalAction, error) {
+func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAuths map[string]AuthRef, parents []ParentCredentials, today seedDate) ([]SeedParentPortalAction, error) {
 	first := parents[0]
 	if len(first.StudentIDs) == 0 {
 		return nil, nil
@@ -1088,16 +1088,16 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 		body       map[string]any
 	}{
 		{sick, "sick-note", "sick-note", map[string]any{
-			"dates":  []string{seedWeekdayOnOrAfter(todaySeedDate()).String()},
+			"dates":  []string{seedWeekdayOnOrAfter(today).String()},
 			"reason": "Fieber seit heute Morgen. Wir bleiben zur Sicherheit zu Hause und gehen zum Kinderarzt.",
 		}},
 		{excused, "excused-note", "sick-note", map[string]any{
-			"dates":  []string{seedWeekdayOnOrAfter(todaySeedDate().AddDays(4)).String()},
+			"dates":  []string{seedWeekdayOnOrAfter(today.AddDays(4)).String()},
 			"status": "excused",
 			"reason": "Familienfeier bei den Großeltern.",
 		}},
 		{first, "care-exception", "care-exception", map[string]any{
-			"date":        seedSchoolDayAfter(todaySeedDate(), 3).String(),
+			"date":        seedSchoolDayAfter(today, 3).String(),
 			"pickup_time": "14:30",
 			"reason":      "Das Training fällt aus, ich hole früher ab.",
 		}},

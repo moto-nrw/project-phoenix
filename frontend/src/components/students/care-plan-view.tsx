@@ -31,11 +31,13 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { resolveDayDeviation } from "~/lib/care-plan-helpers";
 import {
-  berlinTodayISO,
+  careWeekDayCount,
   formatDate,
+  isCareWeekendDay,
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   fetchStudentCarePlanDay,
   fetchStudentCarePlanWeek,
@@ -76,31 +78,46 @@ const WEEKDAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] as const;
 
 /**
  * Step one care day forward/back: skips Sa/So unless the school runs the
- * weekend on Friday's plan (operations.weekend_follows_friday, #3921).
+ * weekend on Friday's plan (operations.weekend_follows_friday, #3921) and it
+ * is today's weekend (#5028, `isCareWeekendDay`).
  */
-function stepWeekday(iso: string, dir: 1 | -1, weekendOpen: boolean): string {
+function stepWeekday(
+  iso: string,
+  dir: 1 | -1,
+  weekendOpen: boolean,
+  todayISO: string,
+): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() + dir);
-  if (!weekendOpen) {
-    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + dir);
+  while (
+    (d.getDay() === 0 || d.getDay() === 6) &&
+    !isCareWeekendDay(toISODate(d), weekendOpen, todayISO)
+  ) {
+    d.setDate(d.getDate() + dir);
   }
   return toISODate(d);
 }
 
+function berlinWeekStartISO(todayISO: string): string {
+  const monday = parseISODate(todayISO);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+  return toISODate(monday);
+}
+
 /**
- * The care days of the week `weekOffset` weeks from the current Berlin week.
- * Anchored on the school (Berlin) calendar day, not the browser's local
- * `new Date()`, so the range sent to the DATE-based /week endpoint is correct
- * in any timezone.
+ * The care days of the week identified by its Monday. The displayed week is
+ * kept separate from today's Berlin week, so navigation does not shift when
+ * Berlin crosses Monday midnight. Sa/So follow `careWeekDayCount` (#5028).
  */
-function berlinWeekDays(weekOffset: number, weekendOpen: boolean): Date[] {
-  const anchor = parseISODate(berlinTodayISO());
-  const dow = anchor.getDay();
-  const daysToMonday = dow === 0 ? 6 : dow - 1;
-  const monday = new Date(anchor);
-  monday.setDate(anchor.getDate() - daysToMonday + weekOffset * 7);
+function berlinWeekDays(
+  weekStartISO: string,
+  weekendOpen: boolean,
+  todayISO: string,
+): Date[] {
+  const monday = parseISODate(weekStartISO);
   const days: Date[] = [];
-  for (let i = 0; i < (weekendOpen ? 7 : 5); i++) {
+  const dayCount = careWeekDayCount(toISODate(monday), weekendOpen, todayISO);
+  for (let i = 0; i < dayCount; i++) {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
     days.push(d);
@@ -108,8 +125,11 @@ function berlinWeekDays(weekOffset: number, weekendOpen: boolean): Date[] {
   return days;
 }
 
-function mobileDayIndexForToday(weekendOpen: boolean): number {
-  const weekday = parseISODate(berlinTodayISO()).getDay(); // 0=Sun … 6=Sat
+function mobileDayIndexForToday(
+  weekendOpen: boolean,
+  todayISO: string,
+): number {
+  const weekday = parseISODate(todayISO).getDay(); // 0=Sun … 6=Sat
   if (weekendOpen) return (weekday + 6) % 7;
   return weekday >= 1 && weekday <= 5 ? weekday - 1 : 0;
 }
@@ -150,23 +170,46 @@ export function CarePlanView({
   onVisibleDateRangeChange,
   active = true,
 }: CarePlanViewProps) {
-  const today = berlinTodayISO();
+  const today = useBerlinToday();
   const weekendOpen = useWeekendFollowsFriday();
   const [viewMode, setViewMode] = useState<ViewMode>("day");
-  const [selectedDate, setSelectedDate] = useState<string>(() =>
-    berlinTodayISO(),
-  );
-  const [weekOffset, setWeekOffset] = useState(0);
+  const [selectedDate, setSelectedDate] = useState<string>(today);
+  const currentWeekStartISO = useMemo(() => berlinWeekStartISO(today), [today]);
+  const [weekStartISO, setWeekStartISO] = useState(currentWeekStartISO);
   const [mobileDayIndex, setMobileDayIndex] = useState(() =>
-    mobileDayIndexForToday(weekendOpen),
+    mobileDayIndexForToday(weekendOpen, today),
   );
+  const previousTodayRef = useRef(today);
+  const previousCurrentWeekStartRef = useRef(currentWeekStartISO);
+
+  // Keep an open day view on today, but leave a deliberately selected past or
+  // future day alone when Berlin crosses midnight.
+  useEffect(() => {
+    const previousToday = previousTodayRef.current;
+    previousTodayRef.current = today;
+    setSelectedDate((selected) =>
+      selected === previousToday ? today : selected,
+    );
+  }, [today]);
+
+  // A page that remains open over Monday follows the new current week only
+  // when it was already showing the old current week. Any navigated week
+  // retains its absolute Monday.
+  useLayoutEffect(() => {
+    const previous = previousCurrentWeekStartRef.current;
+    previousCurrentWeekStartRef.current = currentWeekStartISO;
+    if (previous === currentWeekStartISO) return;
+    setWeekStartISO((selected) =>
+      selected === previous ? currentWeekStartISO : selected,
+    );
+  }, [currentWeekStartISO]);
 
   // The tenant arrives after the first render. On a weekend, the initial
   // closed-weekend state points at Monday; select today's newly available day
-  // once the school's Friday-plan setting is known.
+  // once the school's Friday-plan setting is known or Berlin reaches Saturday.
   useEffect(() => {
-    setMobileDayIndex(mobileDayIndexForToday(weekendOpen));
-  }, [weekendOpen]);
+    setMobileDayIndex(mobileDayIndexForToday(weekendOpen, today));
+  }, [today, weekendOpen]);
 
   // --- Day mode fetch (only when the tab is active and in day mode) ---
   const dayKey =
@@ -184,8 +227,8 @@ export function CarePlanView({
 
   // --- Week mode fetch (only active in week mode) ---
   const weekDates = useMemo(
-    () => berlinWeekDays(weekOffset, weekendOpen),
-    [weekOffset, weekendOpen],
+    () => berlinWeekDays(weekStartISO, weekendOpen, today),
+    [today, weekStartISO, weekendOpen],
   );
   const weekFrom = toISODate(weekDates[0]!);
   const weekTo = toISODate(weekDates[weekDates.length - 1]!);
@@ -214,6 +257,16 @@ export function CarePlanView({
       isExcused,
       isToday: dateISO === today,
     });
+
+  const isCurrentWeek = weekStartISO === currentWeekStartISO;
+
+  function moveWeek(direction: -1 | 1): void {
+    setWeekStartISO((selected) => {
+      const next = parseISODate(selected);
+      next.setDate(next.getDate() + direction * 7);
+      return toISODate(next);
+    });
+  }
 
   // Tell the parent which dates are visible so it can widen its status-day
   // fetch to cover them (navigating past the initial window would otherwise
@@ -285,7 +338,7 @@ export function CarePlanView({
               <NavButton
                 ariaLabel="Vorheriger Tag"
                 onClick={() =>
-                  setSelectedDate((d) => stepWeekday(d, -1, weekendOpen))
+                  setSelectedDate((d) => stepWeekday(d, -1, weekendOpen, today))
                 }
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -307,7 +360,7 @@ export function CarePlanView({
               <NavButton
                 ariaLabel="Nächster Tag"
                 onClick={() =>
-                  setSelectedDate((d) => stepWeekday(d, 1, weekendOpen))
+                  setSelectedDate((d) => stepWeekday(d, 1, weekendOpen, today))
                 }
               >
                 <span className="hidden sm:inline">Nächster Tag</span>
@@ -318,15 +371,15 @@ export function CarePlanView({
             <>
               <NavButton
                 ariaLabel="Vorherige Woche"
-                onClick={() => setWeekOffset((w) => w - 1)}
+                onClick={() => moveWeek(-1)}
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorherige Woche</span>
               </NavButton>
-              {weekOffset !== 0 ? (
+              {!isCurrentWeek ? (
                 <button
                   type="button"
-                  onClick={() => setWeekOffset(0)}
+                  onClick={() => setWeekStartISO(currentWeekStartISO)}
                   className="inline-flex h-9 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900"
                 >
                   Diese Woche
@@ -336,10 +389,7 @@ export function CarePlanView({
                   Diese Woche
                 </span>
               )}
-              <NavButton
-                ariaLabel="Nächste Woche"
-                onClick={() => setWeekOffset((w) => w + 1)}
-              >
+              <NavButton ariaLabel="Nächste Woche" onClick={() => moveWeek(1)}>
                 <span className="hidden sm:inline">Nächste Woche</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </NavButton>
@@ -399,7 +449,10 @@ function WeekBody({
   onSelectMobileDay,
   deviationFor,
 }: WeekBodyProps) {
-  const selectedDate = weekDates[mobileDayIndex] ?? weekDates[0]!;
+  // Today's Saturday or Sunday is selected on a weekend; a Mo–Fr week
+  // without it falls back to Monday (#5028).
+  const selectedIndex = mobileDayIndex < weekDates.length ? mobileDayIndex : 0;
+  const selectedDate = weekDates[selectedIndex]!;
   const selectedISO = toISODate(selectedDate);
   const selectedDay = daysByDate.get(selectedISO) ?? null;
 
@@ -441,7 +494,7 @@ function WeekBody({
       <div className="xl:hidden">
         <div className="mb-3 flex gap-2 overflow-x-auto">
           {weekDates.map((date, i) => {
-            const isSelected = i === mobileDayIndex;
+            const isSelected = i === selectedIndex;
             return (
               <button
                 key={toISODate(date)}
