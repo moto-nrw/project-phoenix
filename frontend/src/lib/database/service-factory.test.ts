@@ -423,6 +423,22 @@ describe("createCrudService", () => {
   });
 
   describe("update", () => {
+    it("passes the loaded record to a custom update without fetching it again", async () => {
+      const current = { id: "1", name: "Original" };
+      const update = vi.fn().mockResolvedValue({ ...current, name: "Updated" });
+      const service = createCrudService({
+        ...mockConfig,
+        service: { update },
+      });
+
+      expect(await service.update("1", { name: "Updated" }, current)).toEqual({
+        id: "1",
+        name: "Updated",
+      });
+      expect(update).toHaveBeenCalledWith("1", { name: "Updated" }, current);
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
     it("updates existing entity", async () => {
       const mockResponse = {
         data: { id: "1", name: "Updated" },
