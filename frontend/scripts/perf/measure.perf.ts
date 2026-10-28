@@ -2,7 +2,14 @@ import { expect, test, type Browser, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { gotoTolerant, loadAccess, login, tenantBaseUrl } from "./access";
+import {
+  dismissNotificationHint,
+  gotoTolerant,
+  loadAccess,
+  login,
+  PERF_ACTION_TIMEOUT,
+  tenantBaseUrl,
+} from "./access";
 import { metricsBearerToken } from "./env.mjs";
 import {
   installVitalsObserver,
@@ -124,6 +131,9 @@ async function measureOnce(
     storageState,
     serviceWorkers: "block",
   });
+  context.setDefaultTimeout(PERF_ACTION_TIMEOUT);
+  // Das bestehende Gesamtbudget begrenzt Navigationen, nicht das Aktionslimit.
+  context.setDefaultNavigationTimeout(0);
   const page = await context.newPage();
   // Schul-Hardware ist deutlich schwächer als ein Entwickler-Mac; ohne
   // Drosselung liefert der Long-Task-Beobachter hier schlicht Nullen.
@@ -162,6 +172,7 @@ test.beforeAll(() => {
 
 test("login and metrics baseline", async ({ page }) => {
   await login(page, access);
+  await dismissNotificationHint(page, base);
   await page.context().storageState({
     path: join(OUT_DIR, "storage-state.json"),
   });

@@ -3,7 +3,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
-import { gotoTolerant, loadAccess, login, tenantBaseUrl } from "./access";
+import {
+  dismissNotificationHint,
+  gotoTolerant,
+  loadAccess,
+  login,
+  PERF_ACTION_TIMEOUT,
+  tenantBaseUrl,
+} from "./access";
 import { RequestRecorder } from "./recorder";
 import { PERF_TARGETS } from "./targets";
 
@@ -75,6 +82,9 @@ for (const target of PERF_TARGETS) {
     test.setTimeout(240_000);
     // bypassCSP: proxy.ts setzt eine CSP; das Init-Script läuft im Hauptkontext.
     const context = await browser.newContext({ bypassCSP: true });
+    context.setDefaultTimeout(PERF_ACTION_TIMEOUT);
+    // Kaltes Kompilieren im Dev-Server ist keine Locator-Aktion.
+    context.setDefaultNavigationTimeout(0);
     const page = await context.newPage();
     await page.addInitScript({ path: REACT_SCAN_BUNDLE });
     await page.addInitScript(() => {
@@ -116,6 +126,7 @@ for (const target of PERF_TARGETS) {
       page.evaluate(() => (window as ScanWindow).__perfRenders!.dump());
     try {
       await login(page, access);
+      await dismissNotificationHint(page, base);
       await page.evaluate(() => (window as ScanWindow).__perfRenders!.reset());
       recorder.start();
       const mountStart = performance.now();
