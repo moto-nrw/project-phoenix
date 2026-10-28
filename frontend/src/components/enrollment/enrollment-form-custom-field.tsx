@@ -141,12 +141,18 @@ export function CustomFieldInput({
   if (field.type === "select") {
     return (
       <div>
-        <FieldLabel required={field.required} invalid={Boolean(error)}>
+        <FieldLabel
+          htmlFor={controlId}
+          id={`${controlId}-label`}
+          required={field.required}
+          invalid={Boolean(error)}
+        >
           {field.label}
         </FieldLabel>
         <HelpText text={field.help_text} />
         <CustomSelect
-          ariaLabel={field.label}
+          ariaLabelledBy={`${controlId}-label`}
+          id={controlId}
           value={valueStr}
           onChange={onChange}
           name={inputName}

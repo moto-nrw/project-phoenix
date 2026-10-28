@@ -52,10 +52,15 @@ export function contactListValueMissing(value: unknown): boolean {
       contact.first_name.trim() !== "" &&
       typeof contact.last_name === "string" &&
       contact.last_name.trim() !== "";
-    const hasEmail = (contact.email ?? "").trim() !== "";
+    const hasEmail =
+      typeof contact.email === "string" && contact.email.trim() !== "";
     const hasPhone =
       Array.isArray(contact.phone_numbers) &&
-      contact.phone_numbers.some((phone) => phone.phone_number.trim() !== "");
+      contact.phone_numbers.some((phone) => {
+        if (!phone || typeof phone !== "object") return false;
+        const phoneNumber = (phone as Partial<PhoneEntry>).phone_number;
+        return typeof phoneNumber === "string" && phoneNumber.trim() !== "";
+      });
     return !hasName || (!hasEmail && !hasPhone);
   });
 }

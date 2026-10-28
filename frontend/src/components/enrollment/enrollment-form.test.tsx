@@ -149,6 +149,7 @@ vi.mock("next-intl", async () => {
 
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { contactListValueMissing } from "./enrollment-form-contact-inputs";
 import { EnrollmentForm, submitFieldName } from "./enrollment-form";
 import type {
   PublicFormSchema,
@@ -1204,6 +1205,55 @@ describe("EnrollmentForm", () => {
     expect(
       screen.getByText("Pro Tag die Uhrzeit eintragen."),
     ).toBeInTheDocument();
+  });
+
+  it("links a custom select label to its combobox", async () => {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "arrival",
+        label: "Ankunftsweg",
+        type: "select",
+        required: false,
+        applies_to_child: false,
+        sort_order: 1,
+        options: [{ value: "bus", label: "Mit dem Bus" }],
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+
+    renderForm();
+    await waitForLoaded();
+
+    const label = screen.getByText("Ankunftsweg").closest("label");
+    expect(label).toHaveAttribute("for", "enrollment-custom_arrival");
+    expect(label).toHaveAttribute("id", "enrollment-custom_arrival-label");
+
+    const select = screen.getByRole("combobox", { name: "Ankunftsweg" });
+    expect(select).toHaveAttribute("id", "enrollment-custom_arrival");
+    expect(select).toHaveAttribute(
+      "aria-labelledby",
+      "enrollment-custom_arrival-label",
+    );
+
+    fireEvent.click(label!);
+    expect(
+      await screen.findByRole("option", { name: "Mit dem Bus" }),
+    ).toBeInTheDocument();
+  });
+
+  it("treats malformed contact phone and email values as missing", () => {
+    const malformedContacts = [
+      {
+        first_name: "Mara",
+        last_name: "Muster",
+        email: 42,
+        phone_numbers: [null, {}, { phone_number: 7 }],
+      },
+    ];
+
+    expect(() => contactListValueMissing(malformedContacts)).not.toThrow();
+    expect(contactListValueMissing(malformedContacts)).toBe(true);
   });
 
   it("shows the compulsory attendance notice near care offerings", async () => {
