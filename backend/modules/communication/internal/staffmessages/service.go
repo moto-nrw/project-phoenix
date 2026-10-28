@@ -268,6 +268,22 @@ func (s *Service) lockThread(ctx context.Context, threadID int64) error {
 	return nil
 }
 
+// lockAndReauthorizeThread closes the gap between an initial authorization and
+// a thread-row lock: a group member may have been removed while waiting.
+func (s *Service) lockAndReauthorizeThread(ctx context.Context, threadID, accountID int64) (*StaffMessageThread, error) {
+	if err := s.lockThread(ctx, threadID); err != nil {
+		return nil, err
+	}
+	thread, err := s.authorizeThread(ctx, threadID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireActiveGroupMember(ctx, thread, accountID); err != nil {
+		return nil, err
+	}
+	return thread, nil
+}
+
 // OpenThread returns the conversation with the given colleague, creating it
 // when it does not exist yet. This is the "write to someone" entry point; the
 // thread carries no message until the first send.
@@ -400,7 +416,6 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	if err := s.requireActiveMember(ctx, accountID); err != nil {
 		return nil, err
 	}
-
 	thread, err := s.authorizeThread(ctx, threadID, accountID)
 	if err != nil {
 		return nil, err
@@ -415,16 +430,8 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	if err := s.requireReachableCounterparts(ctx, thread, accountID); err != nil {
 		return nil, err
 	}
-	if err := s.lockThread(ctx, threadID); err != nil {
-		return nil, err
-	}
-	// Membership can change while this request waits on the thread lock. Check
-	// it again while holding that lock before appending to a group.
-	thread, err = s.authorizeThread(ctx, threadID, accountID)
+	thread, err = s.lockAndReauthorizeThread(ctx, threadID, accountID)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.requireActiveGroupMember(ctx, thread, accountID); err != nil {
 		return nil, err
 	}
 
