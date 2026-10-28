@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"time"
 )
 
@@ -27,7 +26,7 @@ func (seedPlannedStaffExitStep) Run(_ context.Context, rt *Runtime) error {
 		path := fmt.Sprintf("/api/staff/%d/planned-exit", staffIDs[i])
 		_, err := rt.Client.PutWithAuth(rt.TenantAuth, path, map[string]any{"last_working_day": day.String()})
 		var apiErr *APIError
-		if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+		if errors.As(err, &apiErr) && apiErr.StatusCode == 404 {
 			continue
 		}
 		if err != nil {

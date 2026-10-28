@@ -26,6 +26,10 @@ type operatorSeedDevice struct {
 	Status     string  `json:"status"`
 }
 
+// seedModuleNotBooked is the registered code a request to a module the school
+// did not book answers with.
+const seedModuleNotBooked = "module.not_booked"
+
 func (configureProfileStep) Name() string { return "Configuring demo school profile" }
 
 func (s configureProfileStep) Run(_ context.Context, rt *Runtime) error {
@@ -210,7 +214,7 @@ func verifyDeviceAdministrationRefusal(rt *Runtime) error {
 	if err == nil {
 		return fmt.Errorf("device administration: expected 403 module.not_booked, got success")
 	}
-	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != "module.not_booked" {
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != seedModuleNotBooked {
 		return fmt.Errorf("device administration: expected 403 module.not_booked, got %w", err)
 	}
 	return nil
