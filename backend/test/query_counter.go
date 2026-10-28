@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/uptrace/bun"
 )
@@ -38,6 +39,7 @@ var queryCounterScopeID atomic.Uint64
 type countedQuery struct {
 	operation string
 	sql       string
+	deadline  time.Time
 }
 
 // NewQueryCounter returns an enabled counter that is not attached yet.
@@ -91,7 +93,8 @@ func (c *QueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) c
 		return ctx
 	}
 	c.mu.Lock()
-	c.queries = append(c.queries, countedQuery{operation: event.Operation(), sql: event.Query})
+	deadline, _ := ctx.Deadline()
+	c.queries = append(c.queries, countedQuery{operation: event.Operation(), sql: event.Query, deadline: deadline})
 	c.mu.Unlock()
 	return ctx
 }
@@ -158,6 +161,25 @@ func (c *QueryCounter) Total() int {
 // Queries returns every recorded statement in issue order.
 func (c *QueryCounter) Queries() []string {
 	return c.Matching(func(string) bool { return true })
+}
+
+// StatementDeadline is a recorded statement with the deadline of the context
+// it ran under; Deadline is zero when that context had none.
+type StatementDeadline struct {
+	SQL      string
+	Deadline time.Time
+}
+
+// Deadlines returns every recorded statement with its context deadline, in
+// issue order.
+func (c *QueryCounter) Deadlines() []StatementDeadline {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]StatementDeadline, len(c.queries))
+	for i, q := range c.queries {
+		out[i] = StatementDeadline{SQL: q.sql, Deadline: q.deadline}
+	}
+	return out
 }
 
 // Operation returns the statements of one bun operation ("SELECT", "INSERT", ...).
