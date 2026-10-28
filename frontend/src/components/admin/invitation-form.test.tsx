@@ -558,7 +558,7 @@ describe("InvitationForm", () => {
   });
 
   describe("Scroll to error and field highlighting", () => {
-    it("scrolls the form error into view", async () => {
+    it("scrolls the refused field into view", async () => {
       const scrollIntoViewMock = vi.fn();
       Element.prototype.scrollIntoView = scrollIntoViewMock;
       mockCreateInvitation.mockRejectedValue(
@@ -578,8 +578,13 @@ describe("InvitationForm", () => {
       await waitFor(() => {
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "nearest",
+          block: "center",
         });
+        // FormErrorAlert brings the marked field into view, not itself.
+        expect(scrollIntoViewMock.mock.contexts[0]).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        );
       });
     });
 

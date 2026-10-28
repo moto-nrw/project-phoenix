@@ -1696,6 +1696,7 @@
     "errorObject": "zgłoszenie na ferie",
     "window": "Zgłoszenia od {opens} do {closes}",
     "binding": "Zgłoszenie jest wiążące.",
+    "requiredHint": "Pola oznaczone * są obowiązkowe.",
     "notesTitle": "Wskazówki od organizatora",
     "closedTitle": "Zgłoszenia nie są otwarte",
     "closedText": "Możesz zgłosić dziecko od {opens} do {closes}.",

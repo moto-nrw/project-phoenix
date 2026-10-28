@@ -38,6 +38,7 @@ import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
+import { ColorField } from "./fields/color-field";
 import { TextareaField } from "./fields/textarea-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
@@ -1912,6 +1913,17 @@ function renderField(
         <TextField
           ariaLabel={setting.label}
           value={toStr(localValue)}
+          onChange={onLocalChange}
+          onBlur={onBlur}
+          disabled={disabled}
+        />
+      );
+    case "color":
+      return (
+        <ColorField
+          ariaLabel={setting.label}
+          value={toStr(localValue)}
+          fallback={toStr(setting.default)}
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
