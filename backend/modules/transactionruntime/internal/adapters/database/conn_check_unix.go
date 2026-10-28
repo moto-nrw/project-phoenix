@@ -19,13 +19,14 @@ func socketIdle(conn net.Conn) bool {
 		return false
 	}
 	idle := false
-	err = raw.Read(func(fd uintptr) bool {
+	// Control, not Read: Read fails on the expired deadline pgdriver leaves
+	// from the last query and would discard healthy connections.
+	err = raw.Control(func(fd uintptr) {
 		var buf [1]byte
 		// Pending data or EOF (n >= 0) ends the session; only "nothing to
 		// read yet" keeps it.
 		_, _, recvErr := syscall.Recvfrom(int(fd), buf[:], syscall.MSG_PEEK|syscall.MSG_DONTWAIT)
 		idle = errors.Is(recvErr, syscall.EAGAIN) || errors.Is(recvErr, syscall.EINTR)
-		return true
 	})
 	return err == nil && idle
 }

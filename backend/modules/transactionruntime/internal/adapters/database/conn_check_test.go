@@ -52,6 +52,16 @@ func TestConnAliveLeavesPendingBytesUnread(t *testing.T) {
 	assert.Equal(t, "E", string(buf), "the check peeks and does not consume")
 }
 
+// pgdriver leaves the last query's read deadline on the socket; once it has
+// passed, an idle connection must still count as alive.
+func TestConnAliveIgnoresExpiredReadDeadline(t *testing.T) {
+	t.Parallel()
+	client, _ := tcpPair(t)
+	require.NoError(t, client.SetReadDeadline(time.Now().Add(-time.Second)))
+
+	assert.True(t, connAlive(client))
+}
+
 func TestNewConnectorDiscardsClosedPoolConnections(t *testing.T) {
 	t.Parallel()
 	connector, err := newConnector("postgres://postgres:secret-value@localhost:5432/postgres?sslmode=disable")
