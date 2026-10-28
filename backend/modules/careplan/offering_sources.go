@@ -120,4 +120,7 @@ type OfferingWeekdayBooking struct {
 	// tell care blocks, Mensa lists and courses apart.
 	CountsAsCare  bool
 	IncludesLunch bool
+	// TemplateGapAckClasses are the classes the school decided need no
+	// Regeltermin of this offering (#5140); empty without a decision.
+	TemplateGapAckClasses []string
 }

@@ -97597,10 +97597,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings",
       "target_owner": "care-plan",
-      "binding_digest": "0744319fd2e6feaf024cc040570658b4",
+      "binding_digest": "012bbe5dfebe5156c1c5c8b9986c0287",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only reviewed target (#5103): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect."
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision onto each booking): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect."
     },
     {
       "source_owner": "timetable-activities",
@@ -97608,10 +97608,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.OfferingWeekdayBookings",
       "target_owner": "care-plan",
-      "binding_digest": "f4a367e5c26dcca8565b374dbde86c5b",
+      "binding_digest": "045088c865f9ed802989d6d5b39e111c",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only reviewed target (#5103): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect."
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision onto each booking): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect."
     },
     {
       "source_owner": "timetable-activities",
@@ -97619,10 +97619,10 @@
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings",
       "target_owner": "care-plan",
-      "binding_digest": "0841eea34d0e6e4b352ad429e004ff76",
+      "binding_digest": "fbeaafd7a5284f486126fe443633e205",
       "effect": "query",
       "classification": "query",
-      "reason": "Read-only reviewed target (#5103): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect."
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision onto each booking): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect."
     },
     {
       "source_owner": "timetable-activities",
@@ -97667,6 +97667,18 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.OfferingSourceEditor.TemplateRosterMaintenanceFeeds; modules/careplan/booking_materialization.go:89. May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingTemplateGapDecision.DecideOfferingTemplateGap",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DecideOfferingTemplateGap",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DecideOfferingTemplateGap",
+      "target_owner": "care-plan",
+      "binding_digest": "b71199aa181f01efff005d76a8f21e9e",
+      "effect": "mutation",
+      "classification": "leaf",
+      "adr": "0067",
+      "reason": "Guarded target record command (#5140): Care Plan alone writes enrollment.care_offerings.template_gap_ack_classes of one offering in the route's tenant transaction; Timetable only computes the classes and writes nothing. Preserve ambient scope, target validation and not-found propagation. Target modules/careplan.CareOfferingCapability.DecideOfferingTemplateGap; modules/careplan/offering_template_gaps.go:31. "
     },
     {
       "source_owner": "timetable-activities",

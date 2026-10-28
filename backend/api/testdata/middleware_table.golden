@@ -151,6 +151,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /api/students/{id}/care-withdrawals
 	GET /api/students/{id}/note-subjects
 	GET /api/timetable/holidays
+	GET /api/timetable/offering-gaps
 	GET /api/timetable/offering-sources/preview
 	GET /api/timetable/offering-sources/suggestion
 	GET /api/timetable/templates/roster-deviations
@@ -161,6 +162,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 	PUT /api/meal-plan/participation/{studentId}/days/{date}
 	PUT /api/meal-plan/participation/{studentId}/schedule
+	PUT /api/timetable/offering-gaps/{offeringId}/acknowledgement
 	PUT /api/timetable/operations/instances/{id}/students/{student_id}/homework-feedback
 	PUT /api/timetable/templates/{id}/manual-roster
 

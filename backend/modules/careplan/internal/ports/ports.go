@@ -54,6 +54,7 @@ type Store interface {
 	UpdateCareOffering(context.Context, int64, careplan.CareOfferingFields) (careplan.CareOffering, domain.OperationStats, error)
 	DeleteCareOffering(context.Context, int64) (domain.OperationStats, error)
 	ReplaceAutoAddTriggers(context.Context, int64, []int64) (domain.OperationStats, error)
+	SetCareOfferingTemplateGapAck(context.Context, int64, []string) (domain.OperationStats, error)
 
 	FindOfferingChange(context.Context, int64, bool) (careplan.OfferingChangeRequest, bool, domain.OperationStats, error)
 	ListOfferingChanges(context.Context, careplan.OfferingChangeFilter) ([]careplan.OfferingChangeRequest, domain.OperationStats, error)

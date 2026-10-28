@@ -36,6 +36,19 @@ type stubOfferingSources struct {
 	options  []timetable.OfferingSourceOption
 	bookings []timetable.OfferingWeekdayBooking
 	err      error
+	// decisions records the template-gap decisions (#5140) by offering.
+	decisions map[int64][]string
+}
+
+func (s *stubOfferingSources) DecideOfferingTemplateGap(_ context.Context, offeringID int64, schoolClasses []string) error {
+	if s.err != nil {
+		return s.err
+	}
+	if s.decisions == nil {
+		s.decisions = make(map[int64][]string)
+	}
+	s.decisions[offeringID] = schoolClasses
+	return nil
 }
 
 func (s *stubOfferingSources) ListOfferingSourceOptions(
@@ -92,7 +105,15 @@ func (s *stubOfferingSources) OfferingWeekdayBookings(
 	_ *int64,
 	_ calendar.Date,
 ) ([]timetable.OfferingWeekdayBooking, error) {
-	return s.bookings, s.err
+	if s.decisions == nil {
+		return s.bookings, s.err
+	}
+	// The recorded decisions travel with each booking, as Care Plan's do.
+	bookings := slices.Clone(s.bookings)
+	for i := range bookings {
+		bookings[i].TemplateGapAckClasses = s.decisions[bookings[i].OfferingID]
+	}
+	return bookings, s.err
 }
 
 type listSetup struct {

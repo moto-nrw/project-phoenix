@@ -5738,6 +5738,9 @@ function leadRosterDeviationTopic(): HelpTopic {
       "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
       "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
       "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot.",
+      "Haben Kinder ein Angebot gebucht, aber kein Regeltermin übernimmt sie? Dann steht über den Regelterminen ein gelber Hinweis. Er nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen` oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
+      "Brauchen diese Kinder bewusst keinen eigenen Regeltermin? Wählen Sie `Kein Regeltermin nötig`. Der Hinweis kommt wieder, sobald Kinder einer anderen Klasse betroffen sind.",
+      "Diesen Hinweis holen Sie zurück: Klappen Sie `Ohne eigenen Regeltermin` auf und wählen Sie `Hinweis wieder zeigen`.",
     ],
     differences: [
       "Hat der Regeltermin mehrere Abschnitte, etwa nach einer Änderung `Ab jetzt dauerhaft`? `Mit Angebot verbinden` stellt alle Termine ab dem nächsten Termin um. Das Bearbeiten ändert nur einen Abschnitt; die Vorschau nennt dann die Tage, die gleich bleiben.",

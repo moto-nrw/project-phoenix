@@ -1033,6 +1033,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "POST tenant /api/timetable/instances/re-plan-week",
   ],
   "api/timetable/materialize": ["POST tenant /api/timetable/materialize"],
+  "api/timetable/offering-gaps": ["GET tenant /api/timetable/offering-gaps"],
+  "api/timetable/offering-gaps/[id]/acknowledgement": [
+    "PUT tenant /api/timetable/offering-gaps/id%2F1/acknowledgement",
+  ],
   "api/timetable/offering-sources": [
     "GET tenant /api/timetable/offering-sources",
   ],

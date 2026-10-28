@@ -91,6 +91,9 @@ func collectOfferingWeekdayBookings(
 			Weekdays:      weekdays,
 			CountsAsCare:  offering.CountsAsCare,
 			IncludesLunch: offering.IncludesLunch,
+			// The offering's decision travels with each booking like its
+			// catalog flags, so the gap check needs no read of its own.
+			TemplateGapAckClasses: offering.TemplateGapAckClasses,
 		})
 	}
 	return result

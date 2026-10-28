@@ -78,6 +78,7 @@ import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-d
 import { TemplateList } from "~/components/timetable/template-list";
 import { ConnectOfferingModal } from "~/components/timetable/connect-offering-modal";
 import { useRosterDeviations } from "~/components/timetable/use-roster-deviations";
+import { OfferingGapHints } from "~/components/timetable/offering-gap-hints";
 import type { RosterDeviation } from "~/lib/roster-deviation";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
@@ -2414,6 +2415,15 @@ function TimetablesContent() {
           staffNames={blockStaffNames}
           showDayHeader
           emptyState={weekEmptyState}
+        />
+      )}
+
+      {view === "series" && (
+        <OfferingGapHints
+          periodId={templatePeriodID}
+          canManage={canManageSchedules}
+          onCreateSeries={openSeriesCreate}
+          templatesVersion={templateData}
         />
       )}
 

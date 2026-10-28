@@ -109,6 +109,7 @@ type CareOfferingCatalogCapability interface {
 	CareOfferingCatalog
 	CareOfferingGuards
 	CareOfferingRollover
+	CareOfferingTemplateGapDecision
 }
 
 // CalendarPeriodReplacement is the proposed state of a School Calendar
