@@ -15,7 +15,7 @@ function lintSource(source: string, relativePath = "probe.tsx") {
 
   return spawnSync(
     resolve("node_modules/.bin/oxlint"),
-    ["--threads", "1", "-c", resolve(".oxlintrc.json"), sourcePath],
+    ["-c", resolve(".oxlintrc.json"), sourcePath],
     { encoding: "utf8" },
   );
 }

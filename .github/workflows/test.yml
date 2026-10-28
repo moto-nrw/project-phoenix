@@ -415,7 +415,6 @@ jobs:
             node ../scripts/test-frontend-changed.mjs "origin/$BASE_REF" --disableConsoleIntercept "${test_args[@]}"
           else
             # Full suites already include every guard, with normal sharding.
-            # Native stdout/stderr avoids Vitest's console-RPC teardown race.
             pnpm vitest run --disableConsoleIntercept "${test_args[@]}"
           fi
 
