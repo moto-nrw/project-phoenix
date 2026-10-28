@@ -240,6 +240,11 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 	case path == "/api/iot/" && r.Method == "POST":
 		data = map[string]any{"id": m.nextID, "api_key": "synthetic-device-key"}
 	case path == "/api/iot/":
+		if !m.bookings {
+			w.WriteHeader(seedHTTPStatusForbidden)
+			_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+			return true
+		}
 		data = []map[string]any{}
 		if m.bookings && r.URL.Query().Get("device_type") == "terminal" {
 			data = []map[string]any{{"id": 42, "device_id": "BUCHUNGEN-NFC-001", "device_type": "terminal"}}

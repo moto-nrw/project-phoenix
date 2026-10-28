@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestVerifyManualDevices_ExpectsModuleBookingRefusal(t *testing.T) {
+func TestVerifyDeviceAdministrationLocked_ExpectsModuleBookingRefusal(t *testing.T) {
 	t.Parallel()
 
 	requests := 0
@@ -24,7 +24,7 @@ func TestVerifyManualDevices_ExpectsModuleBookingRefusal(t *testing.T) {
 	})
 	defer srv.Close()
 
-	device, err := verifyManualDevices(&Runtime{Client: newTestClient(srv.URL, false)})
+	device, err := verifyDeviceAdministrationLocked(&Runtime{Client: newTestClient(srv.URL, false)})
 	require.NoError(t, err)
 	assert.Equal(t, SeedDevice{DeviceID: webManualDeviceID, DeviceType: "virtual", Name: "Web-Portal (Manuell)", Protected: true}, device)
 	assert.Equal(t, 1, requests)

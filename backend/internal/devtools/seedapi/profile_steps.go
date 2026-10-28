@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 )
@@ -169,6 +170,21 @@ func verifyProfileDevices(rt *Runtime, minimumPhysical int) (SeedDevice, error) 
 		}
 	}
 	return SeedDevice{}, fmt.Errorf("protected virtual web device %s missing", webManualDeviceID)
+}
+
+func verifyDeviceAdministrationLocked(rt *Runtime) (SeedDevice, error) {
+	// Schools without NFC attendance cannot administer devices. The web device
+	// is provisioned with the school and remains the attendance attribution,
+	// but it deliberately is not visible through the locked device route.
+	_, err := listSeedDevices(rt, "terminal")
+	var apiErr *APIError
+	if err == nil {
+		return SeedDevice{}, fmt.Errorf("device administration: expected 403 module.not_booked, got success")
+	}
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != "module.not_booked" {
+		return SeedDevice{}, fmt.Errorf("device administration: expected 403 module.not_booked, got %w", err)
+	}
+	return SeedDevice{DeviceID: webManualDeviceID, DeviceType: "virtual", Name: "Web-Portal (Manuell)", Protected: true}, nil
 }
 
 func listSeedDevices(rt *Runtime, deviceType string) ([]SeedDevice, error) {
