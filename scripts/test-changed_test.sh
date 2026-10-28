@@ -17,7 +17,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture"/{backend/probe,fake-bin,scripts,frontend}
+mkdir -p "$fixture"/{backend/probe,fake-bin,scripts,frontend/scripts}
 for script in test-backend.sh test-changed.sh test-frontend-changed.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh; do
   cp "$repo_root/scripts/$script" "$fixture/scripts/$script"
 done
@@ -133,6 +133,7 @@ chmod +x \
   "$fixture/fake-bin/pnpm" \
   "$fixture/fake-bin/go"
 
+printf '// opaque subprocess consumer\n' >"$fixture/frontend/scripts/opaque.test.ts"
 printf 'package probe\n' >"$fixture/backend/probe/probe.go"
 git -C "$fixture" init -q
 git -C "$fixture" config user.email test-changed@example.invalid
@@ -217,13 +218,14 @@ guards=(
   src/lib/permission-labels.test.ts
   src/lib/modules.test.ts
   src/lib/role-labels.test.ts
-  scripts/oxlint-plugin-bauart.test.ts
-  scripts/product-screenshots/shot-list.test.ts
-  scripts/product-screenshots/pipeline.test.ts
-  scripts/product-screenshots/publish.test.ts
+  src/proxy.test.ts
+  src/sentry.config.test.ts
+  src/test/phosphor-imports-plugin.test.ts
+  src/test/proxy-routes.table.test.ts
+  scripts/opaque.test.ts
 )
-# Validate against real source files, not only the mirrored fixture list.
-node "$repo_root/scripts/test-frontend-changed.mjs" --check-guards
+# CI validates the real inventory and AST regressions in the frontend node job
+# after installing its parser dependency. These fixtures verify dispatch only.
 guard_call="pnpm:exec vitest run ${guards[*]} src/listed.test.ts"
 changed_call='pnpm:exec vitest list --filesOnly --json --changed origin/development'
 
@@ -404,7 +406,10 @@ for input in backend/auth/authorize/permissions/catalog.json \
   backend/modules/settings/records/modules.go \
   backend/modules/identityaccess/mails.go \
   backend/modules/dataimport/internal/application/importservice/staff_import_config.go \
-  scripts/dev-native.sh; do
+  scripts/dev-native.sh \
+  frontend/scripts/runtime-input.md \
+  frontend/scripts/swr-import-baseline.json \
+  frontend/.oxlintrc.json; do
   mkdir -p "$fixture/$(dirname "$input")"
   printf 'probe\n' >"$fixture/$input"
   for change in create modify rename delete; do

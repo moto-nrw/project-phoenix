@@ -369,7 +369,9 @@ jobs:
 
       - name: Check filesystem guard inventory
         if: ${{ matrix.project == 'node' }}
-        run: node scripts/test-frontend-changed.mjs --check-guards
+        run: |
+          node scripts/test-frontend-changed.mjs --check-guards
+          node --test scripts/test-frontend-changed.test.mjs
 
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
       # The binary is cached per lockfile, OS libs install every run.
