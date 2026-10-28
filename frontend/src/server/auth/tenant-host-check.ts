@@ -1,6 +1,9 @@
 import "server-only";
 import type { NextRequest } from "next/server";
-import { clientIdentityHeaders } from "~/lib/client-headers.server";
+import {
+  clientIdentityHeaders,
+  getOriginalRequestHost,
+} from "~/lib/client-headers.server";
 import { problemResponse } from "~/lib/api-response-error.server";
 import { createLogger } from "~/lib/logger";
 import { tenantSlugFromHost } from "~/lib/tenant-host";
@@ -46,9 +49,7 @@ export async function sessionTenantMismatchResponse(
   if (typeof sessionTenantId !== "number") return null;
   if (MISMATCH_EXEMPT_PATHS.has(request.nextUrl.pathname)) return null;
 
-  const subdomain = tenantSlugFromHost(
-    request.headers.get("host") ?? request.nextUrl.host,
-  );
+  const subdomain = tenantSlugFromHost(getOriginalRequestHost(request));
   if (!subdomain) return null;
 
   let hostTenantId: number;
