@@ -19,6 +19,7 @@ import {
   type RequestSummary,
   type Vitals,
 } from "./recorder";
+import { withPerfCleanup } from "./cleanup";
 import { PERF_TARGETS, type PerfTarget } from "./targets";
 
 // Prod-Server-Messung (#2938): pro Screen ein kalter und ein warmer Aufruf
@@ -146,10 +147,13 @@ async function measureOnce(
     snapshots: true,
     sources: false,
   });
-  try {
-    const cold = await navigate(page, recorder, target);
-    const interaction = await interact(page, recorder, target);
-    const warm = await navigate(page, recorder, target);
+  return withPerfCleanup(async () => {
+    const cold = await test.step("cold navigation", () =>
+      navigate(page, recorder, target));
+    const interaction = await test.step("interaction", () =>
+      interact(page, recorder, target));
+    const warm = await test.step("warm navigation", () =>
+      navigate(page, recorder, target));
     return {
       target: target.name,
       path: target.path,
@@ -158,12 +162,13 @@ async function measureOnce(
       warm,
       interaction,
     };
-  } finally {
-    await context.tracing.stop({
-      path: join(OUT_DIR, "traces", `${target.name}-${repeat}.zip`),
-    });
-    await context.close();
-  }
+  }, [
+    () =>
+      context.tracing.stop({
+        path: join(OUT_DIR, "traces", `${target.name}-${repeat}.zip`),
+      }),
+    () => context.close(),
+  ]);
 }
 
 test.beforeAll(() => {
