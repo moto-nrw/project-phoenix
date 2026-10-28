@@ -173,3 +173,11 @@ test("CLI generation and freshness checks work through a symlinked checkout", (t
   assert.notEqual(stale.status, 0);
   assert.match(stale.stderr, /generated error codes are stale/);
 });
+
+test("a legacy alias cannot shadow another canonical identity across domains", () => {
+  const entry = (code, legacy) => ({ code, legacy, class: "server", parameters: [] });
+  assert.throws(() => validateRegistry({ codes: [
+    entry("alpha.first", "old_alpha"), entry("beta.second", "alpha.first"),
+  ] }), /legacy code shadows another canonical code/);
+  assert.doesNotThrow(() => validateRegistry({ codes: [entry("alpha.first", "alpha.first")] }));
+});

@@ -35,6 +35,11 @@ export function validateRegistry(registry) {
     if (symbols.has(symbol)) throw new Error(`duplicate Go symbol: ${symbol}`);
     symbols.add(symbol);
   }
+  for (const entry of registry.codes) {
+    if (entry.legacy !== entry.code && codes.has(entry.legacy)) {
+      throw new Error(`legacy code shadows another canonical code: ${entry.legacy}`);
+    }
+  }
   return [...registry.codes].sort((a, b) => a.code.localeCompare(b.code, "en"));
 }
 

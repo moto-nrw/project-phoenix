@@ -81,3 +81,22 @@ func compareResourceGoldens(t *testing.T, directory, got, hint string, middlewar
 		}
 	}
 }
+
+// The command-line update flag is process-global. Keep this test sequential;
+// parallel contract tests start only after sequential top-level tests return.
+func TestResourceGoldenUpdateAddsAndRetiresFragments(t *testing.T) {
+	previous := *updateGoldens
+	*updateGoldens = true
+	defer func() { *updateGoldens = previous }()
+	root := t.TempDir()
+	directory := filepath.Join(root, "testdata", "routes")
+	retired := filepath.Join(directory, "api", "retired.golden")
+	require.NoError(t, os.MkdirAll(filepath.Dir(retired), 0750))
+	require.NoError(t, os.WriteFile(retired, []byte("GET /api/retired/\n"), 0600))
+	compareResourceGoldens(t, directory, "GET /api/students/\nPOST /school/calendar/\n", "intentional resource change", false)
+	_, err := os.Stat(retired)
+	require.ErrorIs(t, err, os.ErrNotExist)
+	routes, err := readRouteCatalog(os.DirFS(root))
+	require.NoError(t, err)
+	require.Equal(t, []Route{{"GET", "/api/students/"}, {"POST", "/school/calendar/"}}, routes)
+}

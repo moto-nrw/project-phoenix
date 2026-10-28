@@ -71,13 +71,15 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 	require.NoError(t, walkErr)
 	sort.Strings(routes)
 	sort.Strings(middlewareRoutes)
-	catalog, err := RouteCatalog()
-	require.NoError(t, err)
-	var embedded []string
-	for _, route := range catalog {
-		embedded = append(embedded, route.Method+" "+route.Pattern)
+	if !*updateGoldens {
+		catalog, err := RouteCatalog()
+		require.NoError(t, err)
+		var embedded []string
+		for _, route := range catalog {
+			embedded = append(embedded, route.Method+" "+route.Pattern)
+		}
+		require.Equal(t, routes, embedded, "embedded route catalog must match the complete production router")
 	}
-	require.Equal(t, routes, embedded, "embedded route catalog must match the complete production router")
 
 	// The root mounts the only session verifier. An Authenticator without a
 	// verifier before it rejects every token, and the shared test executors
