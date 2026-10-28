@@ -157,11 +157,21 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	if err != nil {
 		return result, stats, err
 	}
+	started := time.Now()
+	defer func() { stats.StatementDuration = time.Since(started) }()
+	result, stats, err = endOpenGroupSessions(ctx, db, tenantID, groupIDs, at, endDate)
+	// Successful empty batches still maintain revisions for sessions ended
+	// manually or deleted since the last nightly run.
+	if err == nil {
+		err = compactVisitRevisions(ctx, db, tenantID, &stats)
+	}
+	return result, stats, err
+}
+
+func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, at time.Time, endDate ports.Date) (result studentpresence.EndedGroupSessions, stats ports.Stats, err error) {
 	if len(groupIDs) == 0 {
 		return result, stats, nil
 	}
-	started := time.Now()
-	defer func() { stats.StatementDuration = time.Since(started) }()
 
 	open := []int64{}
 	stats.Queries++
@@ -204,9 +214,6 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	}
 	if result.SupervisorsEnded, err = supervisors.RowsAffected(); err != nil {
 		return result, stats, fmt.Errorf("end group sessions: end supervisors: %w", err)
-	}
-	if err := compactVisitRevisions(ctx, db, tenantID, &stats); err != nil {
-		return result, stats, err
 	}
 	result.EndedActiveGroupIDs = open
 	stats.Rows = result.VisitsClosed + result.SessionsEnded + result.SupervisorsEnded

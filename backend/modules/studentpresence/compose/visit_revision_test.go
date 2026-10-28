@@ -413,6 +413,40 @@ func TestNightlyCloseCompactsEventsWithoutChangingRevisions(t *testing.T) {
 		"a reopened session continues above its compacted revision")
 }
 
+func TestNightlyCloseCompactsEventsWithNoOpenGroups(t *testing.T) {
+	t.Parallel()
+	for _, suppliedIDs := range []bool{false, true} {
+		name := "empty IDs"
+		if suppliedIDs {
+			name = "already ended IDs"
+		}
+		t.Run(name, func(t *testing.T) {
+			db := testpkg.SetupTestDB(t)
+			ctx := testpkg.OwnCtx(t)
+			module := newRevisionModule(t, db)
+			group := newSession(t, db, "Manual close")
+			visit := openVisit(t, ctx, module, db, group.ID, "Manual")
+			_, err := module.CloseVisits(ctx, []int64{visit.ID}, time.Now())
+			require.NoError(t, err)
+			_, err = db.NewRaw("UPDATE active.groups SET end_time = NOW() WHERE id = ?", group.ID).Exec(ctx)
+			require.NoError(t, err)
+			before := readSnapshot(t, ctx, module, group.ID)
+			require.Equal(t, 2, countEventRows(t, db, group.ID))
+			var ids []int64
+			if suppliedIDs {
+				ids = []int64{group.ID}
+			}
+			require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+				result, err := module.EndGroupSessions(txCtx, ids, time.Now())
+				assert.Zero(t, result.SessionsEnded)
+				return err
+			}))
+			assert.Equal(t, 1, countEventRows(t, db, group.ID))
+			assert.Equal(t, before, readSnapshot(t, ctx, module, group.ID))
+		})
+	}
+}
+
 // The tests below replay the deadlocks both review rounds reproduced
 // against the lock-based design. They interleave the writers the way the
 // production paths do; with the event table no writer locks a session it

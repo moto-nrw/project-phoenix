@@ -61,6 +61,8 @@ type GroupSessionCommand interface {
 	// time, as the nightly job always did. Groups already ended are skipped,
 	// not rejected. A fourth statement compacts the visit revision events of
 	// ended sessions into one row each, keeping every revision (#5128).
+	// This tenant-wide maintenance also runs for an empty list or when all
+	// supplied groups have already ended; deleted sessions' events are removed.
 	EndGroupSessions(context.Context, []int64, time.Time) (EndedGroupSessions, error)
 	// EndGroup releases a live group for a takeover: it stamps the group's
 	// end time and nothing else, so the caller can move the still-open
