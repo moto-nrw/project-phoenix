@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { TenantGuard } from "~/components/tenant/tenant-guard";
 import { PathModeRedirect } from "~/components/tenant/path-mode-redirect";
+import { normalizeHostname } from "~/lib/tenant-host";
 import { TenantProviders } from "./providers";
 import { loadShellBootstrap } from "~/lib/shell-bootstrap.server";
 import type { ShellBootstrap } from "~/lib/shell-seed";
@@ -167,7 +168,10 @@ function isTenantSubdomainHost(currentHost: string | null, subdomain: string) {
 }
 
 function isBareTenantHost(currentHost: string | null): currentHost is string {
-  return (currentHost?.split(":")[0] ?? "") === env.TENANT_DOMAIN;
+  return (
+    !!currentHost &&
+    normalizeHostname(currentHost) === normalizeHostname(env.TENANT_DOMAIN)
+  );
 }
 
 /**

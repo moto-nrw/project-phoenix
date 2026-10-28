@@ -13,6 +13,11 @@
  */
 import { RESERVED_SLUGS } from "~/lib/reserved-slugs";
 
+/** A host name as DNS compares it: no port, lowercase, no trailing dot. */
+export function normalizeHostname(host: string): string {
+  return (host.split(":")[0] ?? "").toLowerCase().replace(/\.$/, "");
+}
+
 export function tenantSlugFromHost(host: string | null): string | null {
   const tenantDomain = process.env.TENANT_DOMAIN;
   if (!tenantDomain) {
@@ -21,8 +26,8 @@ export function tenantSlugFromHost(host: string | null): string | null {
     );
   }
   if (!host) return null;
-  const normalizedTenantDomain = tenantDomain.toLowerCase().replace(/\.$/, "");
-  const hostname = (host.split(":")[0] ?? "").toLowerCase().replace(/\.$/, "");
+  const normalizedTenantDomain = normalizeHostname(tenantDomain);
+  const hostname = normalizeHostname(host);
 
   if (hostname === normalizedTenantDomain) return null;
   if (!hostname.endsWith(`.${normalizedTenantDomain}`)) return null;
@@ -45,5 +50,5 @@ export function isBareTenantDomainHost(host: string | null): boolean {
       "TENANT_DOMAIN is not set — refusing to classify the host without it",
     );
   }
-  return (host?.split(":")[0] ?? "") === tenantDomain;
+  return !!host && normalizeHostname(host) === normalizeHostname(tenantDomain);
 }

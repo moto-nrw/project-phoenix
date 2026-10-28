@@ -209,6 +209,19 @@ describe("TenantLayout", () => {
       },
     );
 
+    it("sends a mixed-case bare host with a trailing dot as well", async () => {
+      requestTo("LOCALHOST.:3000", "/school-a/display");
+
+      const result = await TenantLayout({
+        children: null,
+        params: Promise.resolve({ tenant: "school-a" }),
+      });
+
+      expect(result).toMatchObject({
+        props: { href: "https://school-a.localhost:3000/display" },
+      });
+    });
+
     it.each(["school-a.localhost:3000", "frontend-preview.example.org"])(
       "keeps %s, which is no bare tenant domain",
       async (host) => {
