@@ -133,7 +133,7 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 		}
 	}
 	compareResourceGoldens(t, filepath.Join("testdata", "modules"), table.String(),
-		"the module of a route changed — if intentional, regenerate with -update-goldens and justify the assignment in the PR description", false)
+		"the module of a route changed — if intentional, regenerate with -update-goldens and justify the assignment in the PR description", false, *updateGoldens)
 }
 
 func isDeviceModuleGate(name string) bool {

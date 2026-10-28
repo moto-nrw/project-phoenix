@@ -117,8 +117,8 @@ No merge queue, blind union merge, automatic snapshot approval or budget growth.
   preview write guard, module gates, scope matrices and error envelopes.
 - Every original router/middleware/module contract independently round-tripped:
   1,279 routes per table, ordered middleware and module/reason text unchanged.
-- Full frontend check passes; 451 proxy tests, 46 screenshot tests and 20 bundle
-  policy/observation tests pass. Generator suite: 14 tests pass.
+- Full frontend check passes; 451 proxy tests, 16 focused screenshot pipeline tests and 20 bundle
+  policy/observation tests pass. Generator suite: 15 tests pass.
 - Knip and dependency-cruiser pass. Full formatter reports three pre-existing,
   untouched test files only: personal-calendar.test.tsx, staff-list.test.tsx,
   school-holidays-api.test.ts. Changed generated output formatting is fixed.
@@ -144,3 +144,30 @@ No merge queue, blind union merge, automatic snapshot approval or budget growth.
   plus canonical repair. Focused tests pass.
 - Task-owned throwaway database startup uses existing Docker bridge and tmpfs,
   never a persistent volume. Record its container ID before using or cleanup.
+
+
+### GitHub and Quorum
+
+- Phoenix PR: https://github.com/moto-nrw/project-phoenix/pull/5243.
+- Consumer PR: https://github.com/moto-nrw/PyrePortal/pull/490. Four Quorum
+  reviewers found no issues before and after the direct-filesystem-operation
+  correction. CodeQL initially caught stat-then-read classification; removed
+  stat/exists probes, preserved strict fallback behavior, ten contracts pass.
+- Main workflow initially refused the reusable lint call because its artifact
+  reader requested actions:read absent from callers. Main/nightly caller jobs
+  now permit read access; only frontend-build receives it in the callee. A
+  parsed-YAML integration contract checks both callers and minimum job scope.
+- Phoenix Quorum found two critical issues and two suggestions. Fixed all:
+  caller permissions; dependency-injected golden update mode with a parallel
+  regression test; normal Go dependency selection for artifact sources; local
+  signing disabled in disposable Git measurement fixtures.
+- The explicit route update and hermetic/size/length/complexity gates pass.
+  Selector tests prove artifact production changes select both architecture
+  consumers, while test-only edits select only the artifact package.
+- Benchmark pair uses identical Git tree 981157bef973f6e3ca119403be47a92117f36d3d,
+  version 0.0.0-pr.5243, 55 shots. Parallel run 40726110031 and serial run
+  40727378949 both photograph the same source, not merely a similar revision.
+- Cancelled the already-failed broad local test run; its lifecycle sweep dropped
+  three task-owned clones. No test driver remains. Docker startup was cancelled;
+  the eventually-created, never-started tmpfs-only container was verified by its
+  task label and removed. No persistent volumes or other sessions were touched.

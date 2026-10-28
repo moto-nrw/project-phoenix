@@ -422,6 +422,7 @@ jobs:
   lint:
     permissions:
       contents: read
+      actions: read
     needs: detect-changes
     uses: ./.github/workflows/lint.yml
     with:

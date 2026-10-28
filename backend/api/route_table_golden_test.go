@@ -98,9 +98,9 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 	}
 
 	compareResourceGoldens(t, filepath.Join("testdata", "routes"), strings.Join(routes, "\n")+"\n",
-		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description", false)
+		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description", false, *updateGoldens)
 	compareResourceGoldens(t, filepath.Join("testdata", "middleware"), strings.Join(middlewareRoutes, "\n")+"\n",
-		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact", true)
+		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact", true, *updateGoldens)
 
 	// Der Frontend-Client ruft Sammlungen ohne Schrägstrich am Ende auf
 	// (/api/staff-notices), das Backend registriert den Subrouter mit "/".
@@ -264,7 +264,12 @@ func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *goldenRuntime) {
 
 func compareGolden(t *testing.T, path, got, hint string) {
 	t.Helper()
-	if *updateGoldens {
+	compareGoldenWithUpdate(t, path, got, hint, *updateGoldens)
+}
+
+func compareGoldenWithUpdate(t *testing.T, path, got, hint string, update bool) {
+	t.Helper()
+	if update {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 		require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
 		t.Logf("golden rewritten: %s", path)
@@ -281,10 +286,10 @@ func compareGolden(t *testing.T, path, got, hint string) {
 // golden file that stores each distinct chain once, with its routes indented
 // below it. An added or moved route is one short line in the file's diff, and
 // a changed chain is one header line.
-func compareMiddlewareGolden(t *testing.T, path, got, hint string) {
+func compareMiddlewareGolden(t *testing.T, path, got, hint string, update bool) {
 	t.Helper()
 	wantBytes, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
-	if *updateGoldens {
+	if update {
 		if err == nil {
 			got = preserveEquivalentMiddlewareNames(expandMiddlewareTable(t, string(wantBytes)), got, stableMiddlewareTable)
 		} else {

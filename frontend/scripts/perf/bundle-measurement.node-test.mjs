@@ -57,6 +57,7 @@ test("different real commits with identical frontend trees reuse one key", () =>
         stdio: ["ignore", "pipe", "pipe"],
       }).trim();
     git("init");
+    git("config", "commit.gpgsign", "false");
     git("config", "user.name", "Bundle fixture");
     git("config", "user.email", "bundle@example.org");
     mkdirSync(join(directory, "frontend"));

@@ -13,11 +13,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,internal/passthrough,modules/delivery/localeconsumer,modules/delivery/internal/adapters/localization,modules/documentrendering/exportconsumer,modules/documentrendering/internal/application/listrenderer/assets,templates/email,test}
+mkdir -p "$fixture/backend"/{architecture/artifacts,core,consumer,consumerwithouttests,corex,internal/architecture,internal/passthrough,modules/delivery/localeconsumer,modules/delivery/internal/adapters/localization,modules/documentrendering/exportconsumer,modules/documentrendering/internal/application/listrenderer/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
 printf '{}\n' >"$fixture/backend/architecture/policy.json"
-printf 'package architecture\n' >"$fixture/backend/internal/architecture/architecture.go"
-printf 'package passthrough\n' >"$fixture/backend/internal/passthrough/passthrough.go"
+printf 'package architecture\n\nimport a \"example.test/project/architecture/artifacts\"\nvar Value = a.Value\n' >"$fixture/backend/internal/architecture/architecture.go"
+printf 'package passthrough\n\nimport a \"example.test/project/architecture/artifacts\"\nvar Value = a.Value\n' >"$fixture/backend/internal/passthrough/passthrough.go"
+printf 'package artifacts\nconst Value = 1\n' >"$fixture/backend/architecture/artifacts/artifacts.go"
+printf 'package artifacts\n' >"$fixture/backend/architecture/artifacts/artifacts_test.go"
 printf 'package core\n\nconst Value = 1\n' >"$fixture/backend/core/core.go"
 cat >"$fixture/backend/core/core_test.go" <<'EOF'
 package core
@@ -248,6 +250,14 @@ done
 printf '{"changed":true}\n' >"$fixture/backend/architecture/policy.json"
 assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
 git -C "$fixture" restore backend/architecture/policy.json
+
+printf '\n// changed\n' >>"$fixture/backend/architecture/artifacts/artifacts.go"
+assert_output $'example.test/project/architecture/artifacts\nexample.test/project/internal/architecture\nexample.test/project/internal/passthrough\nexample.test/project/test'
+git -C "$fixture" restore backend/architecture/artifacts/artifacts.go
+printf '\n// changed\n' >>"$fixture/backend/architecture/artifacts/artifacts_test.go"
+assert_output $'example.test/project/architecture/artifacts\nexample.test/project/test'
+git -C "$fixture" restore backend/architecture/artifacts/artifacts_test.go
+
 
 # Reviewed inventory fragments are inputs to independent architecture and debt
 # tests, even when no Go source changes. The selector must emit separate rows.

@@ -55,13 +55,13 @@ func goldenResourceFiles(t *testing.T, directory string) map[string]string {
 	return files
 }
 
-func compareResourceGoldens(t *testing.T, directory, got, hint string, middleware bool) {
+func compareResourceGoldens(t *testing.T, directory, got, hint string, middleware, update bool) {
 	t.Helper()
 	parts := partitionRouteLines(t, got)
 	existing := goldenResourceFiles(t, directory)
 	for key, filename := range existing {
 		if _, present := parts[key]; !present {
-			if *updateGoldens {
+			if update {
 				require.NoError(t, os.Remove(filename))
 			} else {
 				t.Errorf("stale resource golden %s: %s", filename, hint)
@@ -70,30 +70,26 @@ func compareResourceGoldens(t *testing.T, directory, got, hint string, middlewar
 	}
 	for key, lines := range parts {
 		filename := filepath.Join(directory, filepath.FromSlash(key)+".golden")
-		if *updateGoldens {
+		if update {
 			require.NoError(t, os.MkdirAll(filepath.Dir(filename), 0750))
 		}
 		table := strings.Join(lines, "\n") + "\n"
 		if middleware {
-			compareMiddlewareGolden(t, filename, table, hint)
+			compareMiddlewareGolden(t, filename, table, hint, update)
 		} else {
-			compareGolden(t, filename, table, hint)
+			compareGoldenWithUpdate(t, filename, table, hint, update)
 		}
 	}
 }
 
-// The command-line update flag is process-global. Keep this test sequential;
-// parallel contract tests start only after sequential top-level tests return.
 func TestResourceGoldenUpdateAddsAndRetiresFragments(t *testing.T) {
-	previous := *updateGoldens
-	*updateGoldens = true
-	defer func() { *updateGoldens = previous }()
+	t.Parallel()
 	root := t.TempDir()
 	directory := filepath.Join(root, "testdata", "routes")
 	retired := filepath.Join(directory, "api", "retired.golden")
 	require.NoError(t, os.MkdirAll(filepath.Dir(retired), 0750))
 	require.NoError(t, os.WriteFile(retired, []byte("GET /api/retired/\n"), 0600))
-	compareResourceGoldens(t, directory, "GET /api/students/\nPOST /school/calendar/\n", "intentional resource change", false)
+	compareResourceGoldens(t, directory, "GET /api/students/\nPOST /school/calendar/\n", "intentional resource change", false, true)
 	_, err := os.Stat(retired)
 	require.ErrorIs(t, err, os.ErrNotExist)
 	routes, err := readRouteCatalog(os.DirFS(root))
