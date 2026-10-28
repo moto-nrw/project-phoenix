@@ -11,6 +11,30 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
+func TestOfferingGapsFutureSplit(t *testing.T) {
+	t.Parallel()
+	s := buildOfferingGapsModule(t)
+	period := createTemplateTestPeriodRange(t, s.db, "Gap-Future-Split", rosterReviewMonday, rosterReviewMonday.AddDays(60), 1, nil)
+	split := rosterReviewMonday.AddDays(14)
+	s.sources.bookings = withGrade(rosterReviewBookings(rosterReviewOfferingID, "Randstunde", "3a", createClassStudents(t, s.db, "3a", 1), 1), 3)
+	predecessor := s.createSourcedTemplate(t, "Randstunde vorher", period.ID, rosterReviewOfferingID, []int{3})
+	successor := s.createSourcedTemplate(t, "Randstunde danach", period.ID, rosterReviewOfferingID, []int{3})
+	_, err := s.db.NewUpdate().TableExpr("activities.schedules").Set("valid_until = ?", split).
+		Where("activity_group_id = ?", predecessor).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	_, err = s.db.NewUpdate().TableExpr("activities.schedules").Set("valid_from = ?", split).
+		Where("activity_group_id = ?", successor).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	assert.Empty(t, s.listGaps(t, period.ID), "predecessor and successor together cover the booking")
+	s.sources.bookings[0].Windows = []timetableModule.OfferingBookingWindow{{ValidUntil: &split, Weekdays: []int{1}}}
+	assert.Empty(t, s.listGaps(t, period.ID), "the bounded predecessor covers bookings before the future split")
+
+	delete(s.sources.results, successor)
+	s.sources.bookings[0].Windows = []timetableModule.OfferingBookingWindow{{ValidFrom: &split, Weekdays: []int{1}}}
+	require.Len(t, s.listGaps(t, period.ID), 1, "the predecessor does not cover bookings on or after its exclusive end")
+}
+
 // TestOfferingGapsSeriesEndingBeforeTheBooking: a Regeltermin whose series
 // ends after three weeks does not cover the Mondays the booking keeps after
 // that. Coverage is a matter of dates, not only of the weekday (#5140).

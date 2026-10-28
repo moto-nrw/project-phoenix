@@ -86,7 +86,7 @@ func (rs *Resource) offeringGaps(ctx context.Context, periodID int64) ([]timetab
 	if err != nil || len(bookings) == 0 {
 		return []timetable.OfferingGap{}, err
 	}
-	templates, err := rs.offeringGapTemplates(ctx, period)
+	templates, err := rs.offeringGapTemplates(ctx, period, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -106,9 +106,9 @@ func (rs *Resource) activePlanningPeriod(ctx context.Context, periodID int64) (s
 // offeringGapTemplates reads the period's Regeltermine with the offerings
 // that feed them. Unlike the template list, a failed offering read fails
 // the request: without it every booking would look uncovered.
-func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalendar.CalendarPeriod) ([]timetable.OfferingGapTemplate, error) {
+func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalendar.CalendarPeriod, scope timetable.OfferingGapScope) ([]timetable.OfferingGapTemplate, error) {
 	ratio := rs.childrenPerStaffRatio(ctx)
-	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &period.ID, ratio)
+	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &period.ID, ratio, &timetable.TemplateScheduleWindow{From: scope.From, Until: scope.Until})
 	if err != nil || len(rows) == 0 {
 		return []timetable.OfferingGapTemplate{}, err
 	}
