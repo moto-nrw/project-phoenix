@@ -158,6 +158,9 @@ function proxyPostHog(request: NextRequest): NextResponse {
 
 const ORIGINAL_HOST_HEADER = "X-Moto-Original-Host";
 const ORIGINAL_PROTO_HEADER = "X-Moto-Original-Proto";
+// Path and query the browser asked for; the tenant layout needs them to send
+// path mode to the school's subdomain (#5130).
+const ORIGINAL_PATH_HEADER = "X-Moto-Original-Path";
 
 function originalHost(request: NextRequest): string {
   return (
@@ -183,6 +186,10 @@ function preserveOriginalRequestTarget(
   const host = originalHost(request);
   if (host) headers.set(ORIGINAL_HOST_HEADER, host);
   headers.set(ORIGINAL_PROTO_HEADER, originalProtocol(request));
+  headers.set(
+    ORIGINAL_PATH_HEADER,
+    `${request.nextUrl.pathname}${request.nextUrl.search}`,
+  );
   // A fresh Vorgangskennung per request, never the client's value: the BFF
   // tags its Sentry events with it and forwards it to the backend.
   headers.set(REQUEST_ID_HEADER, crypto.randomUUID());
@@ -641,7 +648,7 @@ function handleTraegerSubdomain(request: NextRequest): NextResponse {
 
 /** Paths the caterer host serves (without /caterer prefix); the overview
  * itself lives at the root ("/" → /caterer). */
-const CATERER_PATHS = ["/login", "/reset-password", "/einladung"];
+const CATERER_PATHS = ["/login", "/reset-password", "/einladung", "/konto"];
 
 /** The caterer portal's BFF routes. Only the caterer host serves them; every
  * other host answers 404, so a caterer route never runs beside another

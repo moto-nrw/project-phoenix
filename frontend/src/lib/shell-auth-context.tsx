@@ -407,8 +407,8 @@ export function CatererShellProvider({
       },
       mode: "caterer" as const,
       homeUrl: catererPath("/caterer"),
-      // Kein eigenes Profil: das Konto ändert man über „Passwort vergessen“.
-      profileUrl: null,
+      // Die Konto-Seite mit „Passwort ändern“ (#4496).
+      profileUrl: catererPath("/caterer/konto"),
     };
   }, [session, sessionStatus]);
 

@@ -2017,6 +2017,8 @@ function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
       // #5102: von Hand gepflegte Regeltermine nach einer Angebotsanfrage.
       "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
+      // #5137: Klassen-Regeltermine holen das Kind wieder herein.
+      "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Nur so fehlt das Kind dauerhaft.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
       // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
       // Freigabe haengen koennte.
@@ -4645,6 +4647,7 @@ function mealCatererTopic(): HelpTopic {
       "Der Caterer sieht nur Zahlen: je Tag und, wenn Sie so bestellen, je Klasse. Namen sieht er nur, wenn Sie unter `Einstellungen` → `Datenschutz` `Namen der Kinder für den Caterer` einschalten.",
       "Der Caterer kann eine Bestellung nur bestätigen. Dann steht bei Ihnen `Vom Caterer bestätigt`.",
       "Beliefert der Caterer schon andere Schulen, bestätigt er mit seinem Passwort. Ihre Schule kommt dann zu seinen Schulen dazu.",
+      "Sein Passwort ändert der Caterer selbst. Er öffnet oben rechts sein Menü und wählt `Konto`. Hat er es vergessen, wählt er bei der Anmeldung `Passwort vergessen?`.",
       "Die Belieferung beenden Sie auf der Karte `Caterer` über das Menü mit den drei Punkten: `Belieferung beenden`. moto fragt vorher nach. Danach sieht der Caterer Ihre Schule nicht mehr, und Sie können einen neuen Caterer einladen.",
       "Die Lieferliste bekommen Sie bei `Bestellung` über das Menü mit den drei Punkten. Wählen Sie unter `Lieferliste der Woche` `PDF`, `Excel` oder `CSV`. Die Woche wählen Sie oben unter dem Titel. Es ist dieselbe Liste, die Ihr Caterer sieht, ohne Namen.",
     ],
@@ -4993,6 +4996,8 @@ function enrollmentReviewTopic(): HelpTopic {
       "Angebote eines bestätigten Kindes ändern Sie unter `Nachbearbeitung` mit `Bearbeiten`. Danach steht dort `Auswirkung auf den Betreuungsplan`.",
       "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
       "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
+      // #5137
+      "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Ein Entfernen würde dort nicht halten.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
       "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
@@ -5711,8 +5716,9 @@ function leadCarePlanTopic(): HelpTopic {
     result: "Ihr Team sieht den Plan unter `Heute` und unter `Mein Kalender`.",
     notes: [
       "Ein Regeltermin wiederholt sich. Die Ansicht `Serien` zeigt alle Regeltermine.",
-      // #5102: Hand-Kinderlisten folgen keiner Abmeldung.
-      "Wählen Sie die Kinder eines Regeltermins von Hand oder über Klasse, Jahrgang oder Gruppe aus, folgt er keiner Abmeldung. Nach einer Abmeldung nennt moto diese Regeltermine. Dort wählen Sie `Dort auch entfernen`.",
+      // #5102: Hand-Kinderlisten folgen keiner Abmeldung; #5137: Klassen-
+      // Regeltermine führen zu „Mit Angebot verbinden“.
+      "Wählen Sie die Kinder eines Regeltermins von Hand oder über Klasse, Jahrgang oder Gruppe aus, folgt er keiner Abmeldung. Nach einer Abmeldung nennt moto diese Regeltermine. Bei einer Liste von Hand wählen Sie dort `Dort auch entfernen`, bei Klasse, Jahrgang oder Gruppe `Mit Angebot verbinden`.",
       "Aufgaben ohne Kinder, etwa Busaufsicht oder Essensausgabe, legen Sie mit dem `Typ` `Dienst` an. Ein Dienst hat keine Kinderliste und wird nicht gestartet. Der Raum ist freiwillig.",
       // #4573, ADR 0091: Externe in Regelterminen, auch allein und zuständig.
       "Externe Personen wählen Sie im Schritt `Personal und Kinder` unter `Personal` wie alle anderen, auch mit `Kein Zugang`. Fehlt jemand, wählen Sie darunter `Externe Person eintragen`.",
@@ -5785,6 +5791,8 @@ function leadRosterDeviationTopic(): HelpTopic {
       "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
       "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
       "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot.",
+      // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
+      "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Findet moto kein passendes Angebot, öffnet sich der Regeltermin zum Bearbeiten. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
     ],
     differences: [
       "Hat der Regeltermin mehrere Abschnitte, etwa nach einer Änderung `Ab jetzt dauerhaft`? `Mit Angebot verbinden` stellt alle Termine ab dem nächsten Termin um. Das Bearbeiten ändert nur einen Abschnitt; die Vorschau nennt dann die Tage, die gleich bleiben.",
@@ -6832,6 +6840,8 @@ function modulesTopic(): HelpTopic {
       "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
       "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
       "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
+      "Ohne `NFC-Anwesenheit` lässt sich kein Tablet mit der Geräte-PIN anmelden. Das Tablet zeigt dann einen Hinweis.",
+      "Ohne `Zeiterfassung` kann Ihr Team am Tablet nicht stempeln. Anwesenheit mit Armband geht weiter.",
     ],
     differences: [
       "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
@@ -9428,6 +9438,7 @@ function traegerSchoolSwitchTopic(): HelpTopic {
       "moto öffnet die Schule in einem neuen Tab. Dort arbeiten Sie mit der Rolle Verwaltung der Schule.",
     notes: [
       "Sie können mehrere Schulen in mehreren Tabs offen haben.",
+      "Haben Sie in einem anderen Tab die Schule gewechselt? Dann stellt moto diesen Tab beim nächsten Klick wieder auf seine Schule um. Dieser Klick wird nicht ausgeführt. Wiederholen Sie ihn danach.",
       "Eine neue Schule Ihres Trägers können Sie sofort öffnen. Niemand muss Sie dafür freischalten.",
       "Jedes Öffnen steht im Protokoll der Schule.",
     ],

@@ -389,6 +389,22 @@ describe("proxy", () => {
     );
   });
 
+  // #5130: the tenant layout sends path mode to the school's subdomain and
+  // needs the address the browser asked for.
+  it("passes the requested path and query on, not a client-forged one", () => {
+    const req = new NextRequest(
+      "http://localhost:3000/school-a/anmeldung/phase-1?late_invite=x",
+    );
+    req.headers.set("host", "localhost:3000");
+    req.headers.set("x-moto-original-path", "/evil");
+
+    const res = proxy(req);
+
+    expect(getForwardedRequestHeader(res, "x-moto-original-path")).toBe(
+      "/school-a/anmeldung/phase-1?late_invite=x",
+    );
+  });
+
   it("gives every API request a fresh Vorgangskennung instead of the client's", () => {
     const makeApiRequest = () => {
       const req = new NextRequest("http://school.localhost:3000/api/students");
@@ -807,6 +823,12 @@ describe("proxy", () => {
           target,
         );
       }
+    });
+
+    it("rewrites the account page (#4496)", () => {
+      expect(caterer("/konto").headers.get("x-middleware-rewrite")).toContain(
+        "/caterer/konto",
+      );
     });
 
     it("serves only the caterer API on its host", () => {

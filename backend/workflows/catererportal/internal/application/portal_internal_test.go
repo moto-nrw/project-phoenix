@@ -67,6 +67,10 @@ func (f *fakeCaterers) LoginCatererWithAudit(context.Context, string, string, st
 	return "access", "refresh", f.err
 }
 
+func (f *fakeCaterers) ChangeCatererPassword(context.Context, int64, string, string, string, string) error {
+	return f.err
+}
+
 type fakeOrders struct {
 	steps       *steps
 	since       time.Time
