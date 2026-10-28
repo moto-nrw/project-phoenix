@@ -36,6 +36,9 @@ type divergingPeriodCase struct {
 	monday    periodKey
 	wednesday periodKey
 	want      periodKey
+	// multiSource sources the template from both of the child's offerings,
+	// so approval and corrections plan it through the resync fan-out.
+	multiSource bool
 }
 
 // The materializer and the instance reconciler only reach occurrences from
@@ -94,6 +97,9 @@ func setupDivergingPeriodFixture(t *testing.T, email string, c divergingPeriodCa
 	group := createCareOfferingTemplateGroup(t, env.db, "MittagessenZeitraum")
 	group.TargetGroupType = timetable.TargetGroupTypeOffering
 	group.SourceCareOfferingIDs = []int64{source.ID}
+	if c.multiSource {
+		group.SourceCareOfferingIDs = append(group.SourceCareOfferingIDs, other.ID)
+	}
 	group.CalendarPeriodID = periods[c.template]
 	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(testpkg.Ctx(t), group))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayMonday, periods[c.monday])
@@ -169,6 +175,15 @@ func (f divergingPeriodFixture) resyncTenant(t *testing.T) {
 	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(testpkg.Ctx(t), offeringResyncToday))
 }
 
+// resyncOffering runs the offering-scoped resync behind phase and offering
+// edits.
+func (f divergingPeriodFixture) resyncOffering(t *testing.T) {
+	t.Helper()
+	scoped, ok := f.env.bookings.(enrollmentTest.SourcedTemplateResyncer)
+	require.True(t, ok, "decision service must implement the offering-scoped resync")
+	require.NoError(t, scoped.ResyncTemplatesSourcedFromOffering(testpkg.Ctx(t), f.source.ID, offeringResyncToday))
+}
+
 // resyncTemplateSave mirrors the template save's resync, which hands over
 // the template's stored period.
 func (f divergingPeriodFixture) resyncTemplateSave(t *testing.T, effectiveFrom calendar.Date) {
@@ -237,16 +252,50 @@ func runDivergingPeriodCycle(t *testing.T, email string, c divergingPeriodCase) 
 
 	switchDate := phaseStart.AddDays(60)
 	f.correct(t, "Ferienbetreuung", &switchDate)
+	if c.multiSource {
+		// A dated correction dropping one source of a multi-source template
+		// caps the row at the switch date and re-seeds it, with or without
+		// any period (also on development). Here only the period matters:
+		// every segment carries the materialization period.
+		f.requireRowsCarryPeriod(t, "dated correction")
+		f.resyncTenant(t)
+		f.requireRowsCarryPeriod(t, "tenant-wide resync after dated correction")
+		f.requirePlannedOn(t, "tenant-wide resync after dated correction", monday.AddDays(21))
+		return
+	}
 	requireUnchanged(t, "dated correction", corrected, f.requireSingleRow(t, "dated correction"))
 
 	f.resyncTenant(t)
 	requireUnchanged(t, "tenant-wide resync after dated correction", corrected, f.requireSingleRow(t, "tenant-wide resync after dated correction"))
+	f.resyncOffering(t)
+	requireUnchanged(t, "offering-scoped resync", corrected, f.requireSingleRow(t, "offering-scoped resync"))
 	f.requirePlannedOn(t, "tenant-wide resync after dated correction", monday.AddDays(21))
+}
+
+// requireRowsCarryPeriod checks that every row of the template carries the
+// period its instances materialize under.
+func (f divergingPeriodFixture) requireRowsCarryPeriod(t *testing.T, step string) {
+	t.Helper()
+	rows := loadTemplateEnrollments(t, f.env, f.template.ID)
+	require.NotEmpty(t, rows, "%s", step)
+	for _, row := range rows {
+		assert.Equal(t, f.studentID, row.StudentID, "%s", step)
+		if f.wantPeriodID == nil {
+			assert.Nil(t, row.CalendarPeriodID, "%s", step)
+		} else if assert.NotNil(t, row.CalendarPeriodID, "%s", step) {
+			assert.Equal(t, *f.wantPeriodID, *row.CalendarPeriodID, "%s", step)
+		}
+	}
 }
 
 func TestSourcedRowPeriod_SchedulePeriodWinsOverDivergingTemplatePeriod(t *testing.T) {
 	t.Parallel()
 	runDivergingPeriodCycle(t, "zeitraum-abweichend@example.com", divergingPeriodCase{template: "P", monday: "Q", wednesday: "Q", want: "Q"})
+}
+
+func TestSourcedRowPeriod_MultiSourceTemplateUsesSchedulePeriod(t *testing.T) {
+	t.Parallel()
+	runDivergingPeriodCycle(t, "zeitraum-mehrquellen@example.com", divergingPeriodCase{template: "P", monday: "Q", wednesday: "Q", want: "Q", multiSource: true})
 }
 
 func TestSourcedRowPeriod_SchedulePeriodAppliesToTemplateWithoutPeriod(t *testing.T) {
@@ -366,4 +415,58 @@ func TestSourcedRowPeriod_RewriteLeavesPastInstancesAndAttendance(t *testing.T) 
 	require.NotNil(t, rows[0].CheckedInAt)
 	assert.True(t, checkedIn.Equal(*rows[0].CheckedInAt), "the recorded check-in stays untouched")
 	assert.Empty(t, loadSourcedInstanceStudents(t, f.env, pastMissed.ID), "a past instance the child was missing from is not backfilled")
+}
+
+// A split ("Dieser und alle folgenden") that drops the period carries the
+// child's sourced row onto a successor whose schedules pin none. The
+// materializer then picks the period by date, so the successor's row must
+// carry none either — not the period the predecessor's schedules shared — and
+// the next resync must leave it alone.
+func TestSourcedRowPeriod_SplitWithoutPeriodPlansSuccessorWithoutPeriod(t *testing.T) {
+	t.Parallel()
+	f := setupDivergingPeriodFixture(t, "zeitraum-teilung@example.com", divergingPeriodCase{template: "", monday: "Q", wednesday: "Q", want: "Q"})
+	ctx := testpkg.Ctx(t)
+	f.requireSingleRow(t, "approval")
+	resyncer := offeringResyncer(t, f.env)
+	templates, err := api.NewTimetableHTTP(testpkg.NewDatabase(t, f.env.db),
+		api.WithOfferingRosterResync(resyncer.ResyncTemplateOfferingRoster),
+		api.WithOfferingSourceValidator(f.env.offeringCatalog.ValidateTemplateOfferingSource))
+	require.NoError(t, err)
+	require.NotNil(t, f.template.PlannedRoomID)
+	monday := firstFutureMondayOnOrAfter(calendar.Date(f.env.sourcePhase.ServiceStartDate))
+
+	var split *timetable.SplitTemplateResult
+	err = testpkg.WithTenantTx(t, ctx, f.env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		var splitErr error
+		split, splitErr = templates.Templates.SplitTemplate(txCtx, timetable.SplitTemplateCommand{
+			TemplateID:      f.template.ID,
+			EffectiveDate:   monday,
+			Name:            f.template.Name,
+			Type:            timetable.GroupTypeCare,
+			Weekdays:        []int{timetable.WeekdayMonday, timetable.WeekdayWednesday},
+			StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+			EndTime:         time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+			RoomID:          *f.template.PlannedRoomID,
+			CategoryID:      f.template.CategoryID,
+			TargetGroupType: timetable.TargetGroupTypeOffering,
+			GradeLevelMax:   testpkg.MaxSchoolGradeLevel,
+		})
+		return splitErr
+	})
+	require.NoError(t, err)
+	successor, err := timetableCompose.NativeGroupRecords(testTimetableRepositories(f.env.db).Timetable).FindByID(ctx, split.NewTemplateID)
+	require.NoError(t, err)
+	require.Nil(t, successor.CalendarPeriodID, "sanity: the successor pins no period")
+	require.Equal(t, []int64{f.source.ID}, successor.SourceCareOfferingIDs, "sanity: the successor keeps the source")
+
+	s := f
+	s.template, s.wantPeriodID = successor, nil
+	settled := s.requireSingleRow(t, "split")
+	s.requirePlannedOn(t, "split", monday)
+	s.requirePlannedOn(t, "split", monday.AddDays(7))
+	s.resyncTenant(t)
+	requireUnchanged(t, "tenant-wide resync after split", settled, s.requireSingleRow(t, "tenant-wide resync after split"))
+	s.resyncTenant(t)
+	requireUnchanged(t, "repeated tenant-wide resync after split", settled, s.requireSingleRow(t, "repeated tenant-wide resync after split"))
+	s.requirePlannedOn(t, "tenant-wide resync after split", monday.AddDays(14))
 }
