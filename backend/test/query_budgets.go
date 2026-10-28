@@ -410,6 +410,10 @@ var queryBudgets = map[string]queryBudget{
 	// modules/communication — inbox reads remain fixed as thread count grows.
 	"modules.communication.parent_messages.list_inbox": {max: 1, exact: true},
 	"modules.communication.staff_messages.list_inbox":  {max: 2, exact: true},
+	// A group inbox must additionally verify the caller through the same full
+	// colleague relation as group access. The six-row scenario proves that this
+	// fixed verification does not add a statement for each group or direct chat.
+	"modules.communication.staff_messages.list_inbox.group": {max: 7, exact: true},
 	// The children with a reachable guardian (#4362): the portal links of the
 	// whole school, then one batched membership check for their accounts.
 	"modules.communication.parent_messages.list_reachable_students": {max: 2, exact: true},
