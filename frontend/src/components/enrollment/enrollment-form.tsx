@@ -12,6 +12,7 @@ import { Check, Lock, Plus } from "lucide-react";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
 import { Button } from "~/components/ui/button";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Input } from "~/components/ui/input";
@@ -1743,11 +1744,7 @@ export function EnrollmentForm({
               />
               <Input
                 id="enrollment-guardian_phone"
-                label={tr(
-                  schema?.core_requirements?.guardian_phone
-                    ? "fields.phoneRequired"
-                    : "fields.phone",
-                )}
+                label={tr("fields.phone")}
                 name="guardian_phone"
                 type="tel"
                 autoComplete="tel"
@@ -2364,6 +2361,11 @@ export function EnrollmentForm({
                           aria-invalid={
                             childOfferingErrors[i] ? true : undefined
                           }
+                          aria-describedby={
+                            childOfferingErrors[i]
+                              ? `children-${i}-offerings-error`
+                              : undefined
+                          }
                           className={`mt-2 space-y-2 ${
                             childOfferingErrors[i]
                               ? "border-moto-red bg-moto-red/5 rounded-md border p-2"
@@ -2511,13 +2513,16 @@ export function EnrollmentForm({
                             ),
                           )}
                         </div>
-                        {childOfferingErrors[i] && (
-                          <p className="text-moto-red mt-1 text-xs">
-                            {careOfferingSelectionMode === "exactly_one"
-                              ? tr("care.chooseExactlyOne")
-                              : tr("care.chooseAtLeastOne")}
-                          </p>
-                        )}
+                        <FieldErrorHint
+                          id={`children-${i}-offerings-error`}
+                          message={
+                            childOfferingErrors[i]
+                              ? careOfferingSelectionMode === "exactly_one"
+                                ? tr("care.chooseExactlyOne")
+                                : tr("care.chooseAtLeastOne")
+                              : null
+                          }
+                        />
                       </div>
                     )}
                     {blockedOfferings.length > 0 && (
@@ -3332,6 +3337,7 @@ function GradeLevelSelect({
       </FieldLabel>
       <CustomSelect
         ariaLabelledBy={`${id}-label`}
+        ariaDescribedBy={error ? `${id}-error` : undefined}
         id={id}
         value={value}
         required
@@ -3345,7 +3351,7 @@ function GradeLevelSelect({
           })),
         ]}
       />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+      <FieldErrorHint id={`${id}-error`} message={error} />
     </div>
   );
 }
@@ -3445,10 +3451,11 @@ function SchoolClassSelect({
         required={required}
         invalid={Boolean(error)}
       >
-        {tr(required ? "fields.schoolClassRequired" : "fields.schoolClass")}
+        {tr("fields.schoolClass")}
       </FieldLabel>
       <CustomSelect
         ariaLabelledBy={`${id}-label`}
+        ariaDescribedBy={error ? `${id}-error` : undefined}
         id={id}
         value={value}
         required={required}
@@ -3461,7 +3468,7 @@ function SchoolClassSelect({
           ...classes.map((c) => ({ value: c, label: c })),
         ]}
       />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+      <FieldErrorHint id={`${id}-error`} message={error} />
     </div>
   );
 }

@@ -70,7 +70,7 @@ import { FormSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { Input } from "~/components/ui/input";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
-import { FieldLabel } from "~/components/ui/field-label";
+import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
@@ -4359,11 +4359,11 @@ function FormPreview({
     isSaved,
   });
   const enabledLegalBlocks = legalBlocks.filter((block) => block.enabled);
-  const guardianFields = [
-    "Vorname *",
-    "Nachname *",
-    "E-Mail *",
-    coreRequirements.guardian_phone ? "Telefonnummer *" : "Telefonnummer",
+  const guardianFields: PreviewFieldLabel[] = [
+    { label: "Vorname", required: true },
+    { label: "Nachname", required: true },
+    { label: "E-Mail", required: true },
+    { label: "Telefonnummer", required: coreRequirements.guardian_phone },
   ];
 
   return (
@@ -4461,15 +4461,18 @@ function FormPreview({
           <PreviewSection
             title="Kind"
             fields={[
-              "Vorname *",
-              "Nachname *",
-              "Geburtsdatum *",
-              "Klassenstufe *",
+              { label: "Vorname", required: true },
+              { label: "Nachname", required: true },
+              { label: "Geburtsdatum", required: true },
+              { label: "Klassenstufe", required: true },
             ]}
           />
           <PreviewSection
             title="Betreuungsangebot"
-            fields={["Gewünschtes Angebot", "Betreuungstage"]}
+            fields={[
+              { label: "Gewünschtes Angebot" },
+              { label: "Betreuungstage" },
+            ]}
           />
 
           <section>
@@ -4577,21 +4580,28 @@ function FormPreview({
   );
 }
 
+/** A base field in the preview; the star comes from the kit (#5217). */
+interface PreviewFieldLabel {
+  readonly label: string;
+  readonly required?: boolean;
+}
+
 function PreviewSection({
   title,
   fields,
-}: Readonly<{ title: string; fields: string[] }>) {
+}: Readonly<{ title: string; fields: readonly PreviewFieldLabel[] }>) {
   return (
     <section>
       <h4 className="text-sm font-semibold text-gray-900">{title}</h4>
       <div className="mt-3 grid gap-2">
         {fields.map((field) => (
           <div
-            key={field}
+            key={field.label}
             className="rounded-lg border border-gray-200 bg-white px-3 py-2"
           >
             <span className="block text-sm font-medium text-gray-500">
-              {field}
+              {field.label}
+              {field.required && <RequiredMark />}
             </span>
             <span className="mt-1 block h-2 w-2/3 rounded-full bg-gray-100" />
           </div>

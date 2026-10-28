@@ -1247,12 +1247,10 @@
       "lastNamePlain": "Прізвище",
       "email": "Ел. пошта",
       "phone": "Телефон",
-      "phoneRequired": "Телефон",
       "emailPlain": "Ел. пошта",
       "dateOfBirth": "Дата народження",
       "gradeLevel": "Рік навчання",
       "schoolClass": "Клас",
-      "schoolClassRequired": "Клас",
       "schoolClassOpen": "Клас ще не відомий",
       "choose": "Виберіть",
       "grade": "{grade}-й клас"

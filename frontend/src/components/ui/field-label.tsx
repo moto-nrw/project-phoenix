@@ -35,6 +35,13 @@ export function isRequiredField(props: {
   );
 }
 
+/** Whether a field is marked as failed through `aria-invalid`. */
+export function isInvalidAria(
+  value: boolean | "true" | "false" | "grammar" | "spelling" | undefined,
+): boolean {
+  return value === true || value === "true";
+}
+
 /**
  * The visible label of one form field, for a control that has no `label`
  * prop of its own (`CustomSelect`, `DatePicker`, a picker of its own). Point

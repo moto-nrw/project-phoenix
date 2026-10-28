@@ -1245,12 +1245,10 @@
       "lastNamePlain": "Фамилия",
       "email": "E-mail",
       "phone": "Телефон",
-      "phoneRequired": "Телефон",
       "emailPlain": "E-mail",
       "dateOfBirth": "Дата рождения",
       "gradeLevel": "Класс",
       "schoolClass": "Конкретный класс",
-      "schoolClassRequired": "Конкретный класс",
       "schoolClassOpen": "Класс пока не назначен",
       "choose": "Пожалуйста, выберите",
       "grade": "{grade}. класс"

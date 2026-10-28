@@ -1247,12 +1247,10 @@
       "lastNamePlain": "Soyad",
       "email": "E-posta",
       "phone": "Telefon numarası",
-      "phoneRequired": "Telefon numarası",
       "emailPlain": "E-posta",
       "dateOfBirth": "Doğum tarihi",
       "gradeLevel": "Sınıf düzeyi",
       "schoolClass": "Sınıf",
-      "schoolClassRequired": "Sınıf",
       "schoolClassOpen": "Sınıf henüz belli değil",
       "choose": "Lütfen seçin",
       "grade": "{grade}. sınıf"

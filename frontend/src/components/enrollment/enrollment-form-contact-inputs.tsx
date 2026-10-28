@@ -4,6 +4,7 @@
 
 import { Plus, Trash2 } from "lucide-react";
 
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -67,6 +68,7 @@ export function PhoneListInput({
   error,
   tr,
 }: CustomFieldInputProps) {
+  const errorId = `enrollment-${inputName}-error`;
   const phones = asPhoneArray(value);
   const phoneTypeLabels = asStringMap(tr.raw("phoneTypes"));
   const update = (next: PhoneEntry[]) => onChange(next);
@@ -80,6 +82,7 @@ export function PhoneListInput({
     <fieldset
       className={`rounded-2xl border bg-gray-50/70 p-4 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
+      aria-describedby={error ? errorId : undefined}
     >
       <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
@@ -179,7 +182,7 @@ export function PhoneListInput({
         <Plus className="h-4 w-4" aria-hidden="true" />
         {tr("structured.addPhone")}
       </Button>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
+      <FieldErrorHint id={errorId} message={error} />
     </fieldset>
   );
 }
@@ -212,6 +215,7 @@ export function ContactListInput({
   error,
   tr,
 }: CustomFieldInputProps) {
+  const errorId = `enrollment-${inputName}-error`;
   const contacts = asContactArray(value);
   const update = (next: ContactEntryValue[]) => onChange(next);
   const setRow = (idx: number, patch: Partial<ContactEntryValue>) =>
@@ -226,6 +230,7 @@ export function ContactListInput({
     <fieldset
       className={`rounded-2xl border p-4 shadow-sm ${error ? "border-moto-red" : "moto-content-surface"}`}
       aria-invalid={error ? "true" : undefined}
+      aria-describedby={error ? errorId : undefined}
     >
       <legend className="px-1 text-sm font-semibold text-gray-900">
         {field.label}
@@ -340,7 +345,7 @@ export function ContactListInput({
         <Plus className="h-4 w-4" aria-hidden="true" />
         {tr("structured.addContact")}
       </Button>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
+      <FieldErrorHint id={errorId} message={error} />
     </fieldset>
   );
 }

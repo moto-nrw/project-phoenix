@@ -3,6 +3,7 @@
 
 import { AttachmentList } from "~/components/enrollment/attachment-list";
 import { FileUploadInput } from "~/components/enrollment/enrollment-file-upload";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
@@ -75,12 +76,16 @@ export function CustomFieldInput({
 }: CustomFieldInputProps) {
   const datePicker = useLocalizedDatePicker();
   const controlId = `enrollment-${inputName}`;
+  const errorId = `${controlId}-error`;
   const valueStr = typeof value === "string" ? value : "";
 
   if (field.type === "boolean") {
     const selectedValue = value === true ? "yes" : value === false ? "no" : "";
     return (
-      <fieldset aria-invalid={error ? "true" : undefined}>
+      <fieldset
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? errorId : undefined}
+      >
         <legend className="mb-2 block text-sm font-medium text-gray-700">
           {field.label}
           {field.required && <RequiredMark />}
@@ -106,7 +111,7 @@ export function CustomFieldInput({
             </ChoiceTile>
           ))}
         </div>
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+        <FieldErrorHint id={errorId} message={error} />
       </fieldset>
     );
   }
@@ -147,6 +152,7 @@ export function CustomFieldInput({
           name={inputName}
           required={field.required}
           invalid={Boolean(error)}
+          ariaDescribedBy={error ? errorId : undefined}
           options={[
             { value: "", label: tr("fields.choose") },
             ...(field.options ?? []).map((option) => ({
@@ -155,7 +161,7 @@ export function CustomFieldInput({
             })),
           ]}
         />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+        <FieldErrorHint id={errorId} message={error} />
       </div>
     );
   }
@@ -271,13 +277,14 @@ export function CustomFieldInput({
           value={valueStr}
           onChange={onChange}
           invalid={Boolean(error)}
+          ariaDescribedBy={error ? errorId : undefined}
           calendarLayout="popover"
           // A school-defined date field can be anything from a birthday to a
           // future appointment, so the year dropdown stays available and no
           // bound is imposed.
           monthYearNavigation
         />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+        <FieldErrorHint id={errorId} message={error} />
       </div>
     );
   }

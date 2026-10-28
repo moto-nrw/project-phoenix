@@ -5,6 +5,7 @@
 
 import { useEffect, useId, useState } from "react";
 
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -49,6 +50,7 @@ export function WeekdayScheduleInput({
   relevantDays,
   careConstrained,
 }: CustomFieldInputProps) {
+  const errorId = `enrollment-${inputName}-error`;
   const sched = asScheduleObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdays"));
   // Only offer the weekdays the child is actually in care on (derived from the
@@ -63,6 +65,7 @@ export function WeekdayScheduleInput({
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
+      aria-describedby={error ? errorId : undefined}
     >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
@@ -153,24 +156,27 @@ export function WeekdayScheduleInput({
           </div>
         </>
       )}
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
+      <FieldErrorHint id={errorId} message={error} />
     </fieldset>
   );
 }
 
 export function WeekdayBooleanInput({
   field,
+  inputName,
   value,
   onChange,
   error,
   tr,
 }: CustomFieldInputProps) {
+  const errorId = `enrollment-${inputName}-error`;
   const days = asWeekdayBooleanObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
   return (
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
+      aria-describedby={error ? errorId : undefined}
     >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
@@ -204,18 +210,20 @@ export function WeekdayBooleanInput({
           );
         })}
       </div>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
+      <FieldErrorHint id={errorId} message={error} />
     </fieldset>
   );
 }
 
 export function WeekdayModeInput({
   field,
+  inputName,
   value,
   onChange,
   error,
   tr,
 }: CustomFieldInputProps) {
+  const errorId = `enrollment-${inputName}-error`;
   const modes = asWeekdayModeObject(value);
   const weekdayLabels = asStringMap(tr.raw("weekdaysShort"));
   const departureModeLabels = asStringMap(tr.raw("structured.departureModes"));
@@ -227,6 +235,7 @@ export function WeekdayModeInput({
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
+      aria-describedby={error ? errorId : undefined}
     >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
@@ -268,13 +277,14 @@ export function WeekdayModeInput({
           );
         })}
       </div>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
+      <FieldErrorHint id={errorId} message={error} />
     </fieldset>
   );
 }
 
 export function WeekdayMultiModeInput({
   field,
+  inputName,
   value,
   onChange,
   error,
@@ -286,6 +296,7 @@ export function WeekdayMultiModeInput({
   companionNoteName,
   singleMode,
 }: CustomFieldInputProps) {
+  const errorId = `enrollment-${inputName}-error`;
   const daysToRender = relevantDays ?? WEEKDAYS;
   const modeOptions = departureMultiModeOptionsForField(field);
   const modes = asWeekdayMultiModeObject(value, daysToRender, modeOptions);
@@ -434,6 +445,7 @@ export function WeekdayMultiModeInput({
     <fieldset
       className={`rounded-lg border p-3 ${error ? "border-moto-red" : "border-gray-200"}`}
       aria-invalid={error ? "true" : undefined}
+      aria-describedby={error ? errorId : undefined}
     >
       <legend className="px-1 text-xs font-medium text-gray-700">
         {field.label}
@@ -592,7 +604,7 @@ export function WeekdayMultiModeInput({
           </div>
         )}
       </div>
-      {error && <p className="text-moto-red mt-2 text-xs">{error}</p>}
+      <FieldErrorHint id={errorId} message={error} />
       <ConfirmationModal
         isOpen={confirmUniformOpen}
         onClose={() => setConfirmUniformOpen(false)}

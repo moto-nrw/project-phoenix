@@ -1,6 +1,6 @@
 "use client";
 
-import { FieldLabel, isRequiredField } from "./field-label";
+import { FieldLabel, isInvalidAria, isRequiredField } from "./field-label";
 
 interface TextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   readonly label?: string;
@@ -36,9 +36,7 @@ export function Textarea({
         <FieldLabel
           htmlFor={inputId}
           required={isRequiredField(props)}
-          invalid={
-            Boolean(error) || ariaInvalid === true || ariaInvalid === "true"
-          }
+          invalid={Boolean(error) || isInvalidAria(ariaInvalid)}
         >
           {label}
         </FieldLabel>

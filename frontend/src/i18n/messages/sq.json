@@ -1245,12 +1245,10 @@
       "lastNamePlain": "Mbiemri",
       "email": "E-mail",
       "phone": "Telefoni",
-      "phoneRequired": "Telefoni",
       "emailPlain": "E-mail",
       "dateOfBirth": "Data e lindjes",
       "gradeLevel": "Klasa",
       "schoolClass": "Klasa konkrete",
-      "schoolClassRequired": "Klasa konkrete",
       "schoolClassOpen": "Klasa ende e pacaktuar",
       "choose": "Ju lutemi zgjidhni",
       "grade": "Klasa {grade}"

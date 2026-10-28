@@ -1247,12 +1247,10 @@
       "lastNamePlain": "Nachname",
       "email": "E-Mail",
       "phone": "Telefon",
-      "phoneRequired": "Telefon",
       "emailPlain": "E-Mail",
       "dateOfBirth": "Geburtsdatum",
       "gradeLevel": "Klassenstufe",
       "schoolClass": "Klasse",
-      "schoolClassRequired": "Klasse",
       "schoolClassOpen": "Klasse offen",
       "choose": "Bitte wählen",
       "grade": "{grade}. Klasse"
