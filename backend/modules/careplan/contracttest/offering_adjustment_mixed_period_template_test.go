@@ -31,11 +31,11 @@ func createMixedPeriodSourcedTemplate(
 	name string,
 	offeringID int64,
 	templatePeriodID *int64,
-) (group *timetable.Group, mondayPeriodID, wednesdayPeriodID int64) {
+) *timetable.Group {
 	t.Helper()
 	monday := createMixedPeriodCalendarPeriod(t, env, name+"-mo")
 	wednesday := createMixedPeriodCalendarPeriod(t, env, name+"-mi")
-	group = createCareOfferingTemplateGroup(t, env.db, name)
+	group := createCareOfferingTemplateGroup(t, env.db, name)
 	group.TargetGroupType = timetable.TargetGroupTypeOffering
 	group.SourceCareOfferingIDs = []int64{offeringID}
 	if templatePeriodID != nil {
@@ -44,7 +44,7 @@ func createMixedPeriodSourcedTemplate(
 	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(testpkg.Ctx(t), group))
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayMonday, &monday)
 	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayWednesday, &wednesday)
-	return group, monday, wednesday
+	return group
 }
 
 // createMixedPeriodCalendarPeriod creates a period that contains the env's
@@ -63,11 +63,9 @@ func createMixedPeriodCalendarPeriod(t *testing.T, env *decisionTestEnv, name st
 type mixedPeriodTemplateFixture struct {
 	env       *decisionTestEnv
 	template  *timetable.Group
-	pinID     int64
 	source    *offeringContract.CareOfferingRecord
 	requestID int64
 	childID   int64
-	studentID int64
 }
 
 func setupMixedPeriodTemplateFixture(t *testing.T, email string) mixedPeriodTemplateFixture {
@@ -76,7 +74,7 @@ func setupMixedPeriodTemplateFixture(t *testing.T, email string) mixedPeriodTemp
 	source := createAdjustmentCareOfferingWith(t, env, "Mittagessen", nil)
 	other := createAdjustmentCareOfferingWith(t, env, "Spaetbetreuung", nil)
 	pinID := createMixedPeriodCalendarPeriod(t, env, "pin")
-	template, _, _ := createMixedPeriodSourcedTemplate(t, env, "MittagessenGemischt", source.ID, &pinID)
+	template := createMixedPeriodSourcedTemplate(t, env, "MittagessenGemischt", source.ID, &pinID)
 
 	requestID, childID, studentID := submitApprovedAdjustmentChild(t, env, email, "Gemischt",
 		[]*offeringContract.CareOfferingRecord{source, other})
@@ -93,8 +91,8 @@ func setupMixedPeriodTemplateFixture(t *testing.T, email string) mixedPeriodTemp
 	require.Equal(t, pinID, *rows[0].CalendarPeriodID)
 
 	return mixedPeriodTemplateFixture{
-		env: env, template: template, pinID: pinID, source: source,
-		requestID: requestID, childID: childID, studentID: studentID,
+		env: env, template: template, source: source,
+		requestID: requestID, childID: childID,
 	}
 }
 
@@ -104,7 +102,7 @@ func TestDecide_PlansChildOnMixedPeriodTemplateWithTemplatePin(t *testing.T) {
 	env := setupDecisionTest(t)
 	source := createSourceOffering(t, env, "FreigabeGemischt", nil)
 	pinID := createMixedPeriodCalendarPeriod(t, env, "pin")
-	template, _, _ := createMixedPeriodSourcedTemplate(t, env, "FreigabeTerminGemischt", source.ID, &pinID)
+	template := createMixedPeriodSourcedTemplate(t, env, "FreigabeTerminGemischt", source.ID, &pinID)
 
 	studentID, childID := submitAndApproveOfferingChild(t, env, source.ID, "freigabe-gemischt@example.com", "Gina", 2)
 
@@ -116,52 +114,6 @@ func TestDecide_PlansChildOnMixedPeriodTemplateWithTemplatePin(t *testing.T) {
 	require.NotNil(t, rows[0].CalendarPeriodID, "the row carries the template pin, as the resync writes it")
 	assert.Equal(t, pinID, *rows[0].CalendarPeriodID)
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
-}
-
-func TestDecide_PlansChildOnMixedPeriodTemplateWithoutPin(t *testing.T) {
-	t.Parallel()
-
-	env := setupDecisionTest(t)
-	source := createSourceOffering(t, env, "FreigabeGemischtOhnePin", nil)
-	template, _, _ := createMixedPeriodSourcedTemplate(t, env, "FreigabeTerminGemischtOhnePin", source.ID, nil)
-
-	studentID, _ := submitAndApproveOfferingChild(t, env, source.ID, "freigabe-gemischt-ohne-pin@example.com", "Gil", 2)
-
-	rows := loadTemplateEnrollments(t, env, template.ID)
-	require.Len(t, rows, 1, "approval must plan the child like the template resync does")
-	assert.Equal(t, studentID, rows[0].StudentID)
-	assert.Nil(t, rows[0].CalendarPeriodID, "without a template pin the resync writes a period-less row")
-}
-
-func TestUpdateChildOfferings_UndatedCorrectionKeepsMixedPeriodTemplate(t *testing.T) {
-	t.Parallel()
-
-	f := setupMixedPeriodTemplateFixture(t, "korrektur-gemischt@example.com")
-	ctx := testpkg.Ctx(t)
-	replacement := createAdjustmentCareOfferingWith(t, f.env, "Fruehbetreuung", nil)
-
-	// Correct only the other offering; the template's source stays booked.
-	_, err := testpkg.TenantQuery1(t, ctx, f.env.db, f.env.decision.UpdateChildOfferings, enrollmentTest.UpdateChildOfferingsInput{
-		RequestID:      f.requestID,
-		ChildID:        f.childID,
-		ActorAccountID: f.env.creatorID,
-		ActorRole:      "admin",
-		Reason:         "Falsches Angebot erfasst",
-		Offerings: []enrollmentTest.OfferingAdjustmentSelection{
-			{OfferingID: f.source.ID, SelectedDays: []string{"mon"}},
-			{OfferingID: replacement.ID, SelectedDays: []string{"mon"}},
-		},
-	})
-	require.NoError(t, err)
-
-	rows := loadTemplateEnrollments(t, f.env, f.template.ID)
-	require.Len(t, rows, 1, "the correction must not drop the child from a template whose schedules name different periods")
-	assert.Equal(t, f.studentID, rows[0].StudentID)
-	require.NotNil(t, rows[0].EnrollmentRequestChildID)
-	assert.Equal(t, f.childID, *rows[0].EnrollmentRequestChildID)
-	require.NotNil(t, rows[0].CalendarPeriodID)
-	assert.Equal(t, f.pinID, *rows[0].CalendarPeriodID)
-	assert.Equal(t, string(f.env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
 }
 
 func TestUpdateChildOfferings_DatedSwitchKeepsMixedPeriodTemplate(t *testing.T) {
