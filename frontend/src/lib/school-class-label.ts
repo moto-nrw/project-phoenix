@@ -12,25 +12,28 @@
 
 // „Klasse 1a“, „klasse 1a“, „Klasse1a“: der Name trägt das Wort schon vorn.
 // „Klassenfahrt“ zählt nicht, dort folgt ein Buchstabe.
-const LEADING_PREFIX = /^klasse(?=$|[\s\d])\s*/i;
+const LEADING_PREFIX = /^klasse(?=[\s\p{Nd}])\s*/iu;
+const STANDALONE_PREFIX = /^klasse$/i;
 // „1. Klasse“: eine Klassenstufe, die das Wort hinten trägt.
 const TRAILING_WORD = /\sklasse$/i;
 
 /**
  * „1b“, „Klasse 1b“, „klasse 1b“ und „ 1b “ → „Klasse 1b“;
- * „1. Klasse“ bleibt, wie es ist. Ein leerer Name ergibt "".
+ * „1. Klasse“ und „Klasse“ bleiben, wie sie sind. Ein leerer Name ergibt "".
  */
 export function schoolClassLabel(klass: string): string {
   const trimmed = klass.trim();
   if (trimmed === "") return "";
   if (TRAILING_WORD.test(trimmed)) return trimmed;
+  if (STANDALONE_PREFIX.test(trimmed)) return "Klasse";
   const name = schoolClassName(trimmed);
   return name === "" ? "Klasse" : `Klasse ${name}`;
 }
 
 /**
- * Der Name ohne vorangestelltes „Klasse“: „Klasse 1b“ → „1b“. Für Texte,
- * die das Wort selbst tragen (Übersetzungen, Mehrzahl „Klassen 1a, 1b“).
+ * Der Name ohne vorangestelltes „Klasse“, sofern noch ein Name folgt:
+ * „Klasse 1b“ → „1b“. Für Texte, die das Wort selbst tragen
+ * (Übersetzungen, Mehrzahl „Klassen 1a, 1b“).
  */
 export function schoolClassName(klass: string): string {
   return klass.trim().replace(LEADING_PREFIX, "");

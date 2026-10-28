@@ -34,6 +34,7 @@ describe("schoolClassLabel", () => {
 
   it("erkennt das Wort auch ohne Leerzeichen oder am Ende", () => {
     expect(schoolClassLabel("Klasse1b")).toBe("Klasse 1b");
+    expect(schoolClassLabel("Klasse٢a")).toBe("Klasse ٢a");
     expect(schoolClassLabel(" kLaSsE 3a ")).toBe("Klasse 3a");
     expect(schoolClassLabel("Klasse")).toBe("Klasse");
     expect(schoolClassLabel("1. Klasse")).toBe("1. Klasse");
@@ -53,6 +54,8 @@ describe("schoolClassName", () => {
     ["klasse 1b", "1b"],
     [" 1b ", "1b"],
     ["Klasse 3b", "3b"],
+    ["Klasse", "Klasse"],
+    ["Klasse٢a", "٢a"],
     ["1. Klasse", "1. Klasse"],
     ["Klassenfahrt", "Klassenfahrt"],
   ])("macht aus %j den Namen %j", (stored, name) => {
@@ -64,12 +67,14 @@ describe("schoolClassesLabel", () => {
   it("beschriftet eine Klasse wie schoolClassLabel", () => {
     expect(schoolClassesLabel(["Klasse 1b"])).toBe("Klasse 1b");
     expect(schoolClassesLabel([" 1b "])).toBe("Klasse 1b");
+    expect(schoolClassesLabel(["Klasse"])).toBe("Klasse");
   });
 
   it("setzt bei mehreren Klassen die Mehrzahl einmal davor", () => {
     expect(schoolClassesLabel(["1a", "Klasse 1b", "klasse 2c"])).toBe(
       "Klassen 1a, 1b, 2c",
     );
+    expect(schoolClassesLabel(["Klasse", "1a"])).toBe("Klassen Klasse, 1a");
   });
 
   it("erhält einen Klassennamen, der nur aus dem Wort Klasse besteht", () => {

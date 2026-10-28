@@ -16,6 +16,7 @@ func TestSchoolClassLabel(t *testing.T) {
 		{" 1b ", "Klasse 1b"},
 		{" kLaSsE 3a ", "Klasse 3a"},
 		{"Klasse1b", "Klasse 1b"},
+		{"Klasse٢a", "Klasse ٢a"},
 		{"Klasse  1b", "Klasse 1b"},
 		{"1. Klasse", "1. Klasse"},
 		{"5 b/c", "Klasse 5 b/c"},
