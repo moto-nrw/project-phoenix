@@ -122,15 +122,15 @@ func CheckLogo(data []byte, maxBytes, maxDimension int) (LogoImage, bool) {
 	if err != nil {
 		return LogoImage{}, false
 	}
-	// PNG encoding removes Adam7 interlacing; NRGBA also reduces 16-bit
-	// channels to the 8-bit samples supported by document renderers.
-	// JPEG stays byte-for-byte intact to avoid lossy recompression.
-	if contentType == "image/png" {
+	// The full PNG decode above guarantees the IHDR offsets: bit depth at
+	// byte 24, interlace method at byte 28. Keep compatible originals intact.
+	// If normalization grows past the storage limit, retain the valid original;
+	// the renderer also normalizes legacy and oversized-normalization logos.
+	if contentType == "image/png" && (data[24] > 8 || data[28] != 0) {
 		var normalized bytes.Buffer
-		if err := png.Encode(&normalized, image8Bit(decoded)); err != nil || normalized.Len() > maxBytes {
-			return LogoImage{}, false
+		if err := png.Encode(&normalized, image8Bit(decoded)); err == nil && normalized.Len() <= maxBytes {
+			data = normalized.Bytes()
 		}
-		data = normalized.Bytes()
 	}
 	return LogoImage{Data: data, ContentType: contentType, Width: config.Width, Height: config.Height}, true
 }

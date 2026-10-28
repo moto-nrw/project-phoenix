@@ -133,7 +133,11 @@ func TestRenderLetterWritesAPDFWithLogo(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for name, logo := range map[string][]byte{"png": pngLogo.Bytes(), "jpeg": jpegLogo.Bytes(), "interlaced": interlaced, "16-bit": png16Logo.Bytes()} {
+	smallInterlaced, err := os.ReadFile("../../../../../testdata/interlaced-small-logo.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, logo := range map[string][]byte{"png": pngLogo.Bytes(), "jpeg": jpegLogo.Bytes(), "interlaced": interlaced, "small interlaced fallback": smallInterlaced, "16-bit": png16Logo.Bytes()} {
 		letter := sampleLetter()
 		letter.Logo = logo
 		_, trace := traceLetter(t, letter)

@@ -9,24 +9,30 @@ import (
 	"github.com/signintech/gopdf"
 )
 
-// pdfImage normalizes PNGs before gopdf's deferred image parsing: its
-// ImageHolderByBytes accepts Adam7 data, but drawing that holder fails.
-// NRGBA reduces 16-bit channels to PDF-compatible 8-bit samples.
-// Re-encoding preserves 8-bit pixels and alpha, including for previously stored
-// logos (#5236). JPEGs retain their original bytes without lossy recompression.
+// pdfImage only normalizes PNG variants that gopdf cannot draw. Compatible
+// PNGs (including the moto graphic) and JPEGs retain their original bytes;
+// do not decode and re-encode them for every letter of a billing run.
 func pdfImage(data []byte) (gopdf.ImageHolder, error) {
-	decoded, format, err := image.Decode(bytes.NewReader(data))
+	if !pngNeedsNormalization(data) {
+		return gopdf.ImageHolderByBytes(data)
+	}
+	decoded, err := png.Decode(bytes.NewReader(data))
 	if err != nil {
 		return nil, fmt.Errorf("decode image: %w", err)
 	}
-	if format == "png" {
-		var normalized bytes.Buffer
-		if err := png.Encode(&normalized, image8Bit(decoded)); err != nil {
-			return nil, fmt.Errorf("normalize image: %w", err)
-		}
-		data = normalized.Bytes()
+	var normalized bytes.Buffer
+	if err := png.Encode(&normalized, image8Bit(decoded)); err != nil {
+		return nil, fmt.Errorf("normalize image: %w", err)
 	}
-	return gopdf.ImageHolderByBytes(data)
+	return gopdf.ImageHolderByBytes(normalized.Bytes())
+}
+
+// The first PNG chunk is the 13-byte IHDR. Its bit depth and interlace
+// method are at byte offsets 24 and 28. gopdf refuses 16-bit and Adam7 PNGs.
+// Callers keep their existing image validation; gopdf parses at draw time.
+func pngNeedsNormalization(data []byte) bool {
+	const header = "\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"
+	return len(data) >= 33 && bytes.HasPrefix(data, []byte(header)) && (data[24] > 8 || data[28] != 0)
 }
 
 // image8Bit only converts PNG types whose 16-bit samples gopdf cannot read.
