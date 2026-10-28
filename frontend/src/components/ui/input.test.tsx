@@ -109,3 +109,20 @@ describe("Input", () => {
     expect(input).toHaveAttribute("name", "endTime");
   });
 });
+
+describe("Input required mark (#5217)", () => {
+  it("marks a required field with a star that stays out of its name", () => {
+    render(<Input label="Vorname" name="first_name" required />);
+
+    const input = screen.getByRole("textbox", { name: "Vorname" });
+    expect(input).toBeRequired();
+    expect(screen.getByText("*")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("shows no star on an optional field", () => {
+    render(<Input label="Vorname" name="first_name" />);
+
+    expect(screen.getByRole("textbox", { name: "Vorname" })).not.toBeRequired();
+    expect(screen.queryByText("*")).not.toBeInTheDocument();
+  });
+});

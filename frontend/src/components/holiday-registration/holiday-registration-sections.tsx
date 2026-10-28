@@ -12,6 +12,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
@@ -33,12 +34,6 @@ import {
 
 /** Hint of a refused field, translated, or undefined. */
 export type FieldError = (name: string) => string | undefined;
-
-/**
- * The label of a field the parent must fill in. Like the enrollment form, a
- * star marks it; optional fields say "(freiwillig)" instead.
- */
-export const requiredLabel = (label: string) => `${label} *`;
 
 export function useWeekLabels() {
   const t = useTranslations("holidayRegistration");
@@ -115,7 +110,7 @@ export function ChildCard({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             name={`${prefix}.first_name`}
-            label={requiredLabel(t("firstName"))}
+            label={t("firstName")}
             required
             autoComplete="off"
             maxLength={100}
@@ -125,7 +120,7 @@ export function ChildCard({
           />
           <Input
             name={`${prefix}.last_name`}
-            label={requiredLabel(t("lastName"))}
+            label={t("lastName")}
             required
             autoComplete="off"
             maxLength={100}
@@ -135,9 +130,7 @@ export function ChildCard({
           />
         </div>
         <div>
-          <span className="block text-sm font-medium text-gray-700">
-            {requiredLabel(t("birthDate"))}
-          </span>
+          <FieldLabel required>{t("birthDate")}</FieldLabel>
           <DateOfBirthPicker
             value={child.birthDate}
             onChange={(birthDate) => set({ birthDate })}
@@ -148,12 +141,9 @@ export function ChildCard({
           />
         </div>
         <div className="space-y-2">
-          <span
-            id={`${prefix}-school-label`}
-            className="block text-sm font-medium text-gray-700"
-          >
-            {requiredLabel(t("school"))}
-          </span>
+          <FieldLabel id={`${prefix}-school-label`} required>
+            {t("school")}
+          </FieldLabel>
           <CustomSelect
             name={`${prefix}.home_school_id`}
             ariaLabelledBy={`${prefix}-school-label`}
@@ -192,7 +182,8 @@ export function ChildCard({
 
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-gray-900">
-            {requiredLabel(t("weeksTitle"))}
+            {t("weeksTitle")}
+            <RequiredMark />
           </legend>
           <p className="text-sm text-gray-600">{t("weeksText")}</p>
           {offer.weeks.map((week) => (
@@ -309,7 +300,7 @@ export function ContactList({
             </legend>
             <Input
               name={`${kind}.${index}.name`}
-              label={requiredLabel(t("name"))}
+              label={t("name")}
               required
               maxLength={120}
               value={contact.name}
@@ -321,7 +312,7 @@ export function ContactList({
             <Input
               name={`${kind}.${index}.phone`}
               type="tel"
-              label={emergency ? requiredLabel(t("phone")) : t("phoneOptional")}
+              label={emergency ? t("phone") : t("phoneOptional")}
               required={emergency}
               maxLength={40}
               value={contact.phone}

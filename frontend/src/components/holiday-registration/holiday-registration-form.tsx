@@ -9,8 +9,7 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -38,7 +37,6 @@ import {
   ChildCard,
   ContactList,
   KnownChildPicker,
-  requiredLabel,
 } from "./holiday-registration-sections";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
 
@@ -231,7 +229,7 @@ export function HolidayRegistrationForm({
           <Input
             name="guardian.first_name"
             required
-            label={requiredLabel(t("firstName"))}
+            label={t("firstName")}
             autoComplete="given-name"
             maxLength={100}
             value={draft.guardian.firstName}
@@ -241,7 +239,7 @@ export function HolidayRegistrationForm({
           <Input
             name="guardian.last_name"
             required
-            label={requiredLabel(t("lastName"))}
+            label={t("lastName")}
             autoComplete="family-name"
             maxLength={100}
             value={draft.guardian.lastName}
@@ -252,7 +250,7 @@ export function HolidayRegistrationForm({
             name="guardian.email"
             required
             type="email"
-            label={requiredLabel(t("email"))}
+            label={t("email")}
             autoComplete="email"
             maxLength={254}
             value={draft.guardian.email}
@@ -263,7 +261,7 @@ export function HolidayRegistrationForm({
             name="guardian.phone"
             required
             type="tel"
-            label={requiredLabel(t("phone"))}
+            label={t("phone")}
             autoComplete="tel"
             maxLength={40}
             value={draft.guardian.phone}
@@ -293,8 +291,9 @@ export function HolidayRegistrationForm({
       <SectionCard title={t("consentTitle")}>
         <div className="space-y-3">
           <ConsentCheckbox
+            required
             name="privacy_consent"
-            label={requiredLabel(t("privacyConsent"))}
+            label={t("privacyConsent")}
             checked={draft.privacyConsent}
             error={fieldError("privacy_consent")}
             onChange={(privacyConsent) =>
@@ -303,8 +302,9 @@ export function HolidayRegistrationForm({
           />
           {hasHealthInfo(draft) ? (
             <ConsentCheckbox
+              required
               name="health_consent"
-              label={requiredLabel(t("healthConsent"))}
+              label={t("healthConsent")}
               checked={draft.healthConsent}
               error={fieldError("health_consent")}
               onChange={(healthConsent) =>
@@ -314,8 +314,9 @@ export function HolidayRegistrationForm({
           ) : null}
           {offer.binding ? (
             <ConsentCheckbox
+              required
               name="binding_confirmed"
-              label={requiredLabel(t("bindingConfirmed"))}
+              label={t("bindingConfirmed")}
               checked={draft.bindingConfirmed}
               error={fieldError("binding_confirmed")}
               onChange={(bindingConfirmed) =>
@@ -330,37 +331,5 @@ export function HolidayRegistrationForm({
         {t("toSummary")}
       </Button>
     </form>
-  );
-}
-
-function ConsentCheckbox({
-  name,
-  label,
-  checked,
-  error,
-  onChange,
-}: Readonly<{
-  name: string;
-  label: string;
-  checked: boolean;
-  error: string | undefined;
-  onChange: (checked: boolean) => void;
-}>) {
-  return (
-    <div>
-      <label htmlFor={name} className="flex items-start gap-3">
-        <Checkbox
-          id={name}
-          name={name}
-          checked={checked}
-          required
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${name}-error` : undefined}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        <span className="text-sm text-gray-900">{label}</span>
-      </label>
-      <FieldErrorHint id={`${name}-error`} message={error} />
-    </div>
   );
 }
