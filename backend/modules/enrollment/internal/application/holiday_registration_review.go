@@ -153,11 +153,14 @@ func holidayRowAnswers(columns []enrollment.HolidayFormField, registration enrol
 	child := holidayChildCustomData(registration, childID)
 	out := enrollment.HolidayAnswers{}
 	for _, column := range columns {
-		scope := registration.CustomData
-		if column.AppliesToCh {
-			scope = child
+		// Answers were checked against the registration's kept version and
+		// belong to exactly one scope. A newer version may move the question
+		// between family and child without changing those stored answers.
+		value, ok := registration.CustomData[column.Key]
+		if !ok {
+			value, ok = child[column.Key]
 		}
-		if value, ok := scope[column.Key]; ok {
+		if ok {
 			out[column.Key] = value
 		}
 	}

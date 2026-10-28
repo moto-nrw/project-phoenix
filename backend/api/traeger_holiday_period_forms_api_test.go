@@ -462,3 +462,49 @@ func TestConcurrentFormSavesWriteOneVersionEach(t *testing.T) {
 	assert.ElementsMatch(t, []int{2, 3, 4, 5}, got, "each save gets a version of its own")
 	assert.Equal(t, []int{1, 2, 3, 4, 5}, formVersions(t, f, period.ID))
 }
+
+func TestHolidayExportKeepsAnswersWhenAQuestionChangesScope(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Formular Geltungsbereich")
+	register := func(email string, version int, family string, children ...map[string]any) {
+		t.Helper()
+		body := siblingsRegistration(f.offer, email)
+		body["form_version"] = version
+		body["custom_data"] = map[string]any{"hinweis": family}
+		if len(children) > 0 {
+			answerChildren(body, children...)
+		}
+		rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.period.PublicToken), body)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	}
+	question := func(child bool) []map[string]any {
+		return []map[string]any{{"key": "hinweis", "label": "Hinweis", "type": "text", "applies_to_child": child}}
+	}
+	export := func() string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, f.path("/export?format=csv"), nil)
+		req.Header.Set("Authorization", "Bearer "+f.office.token)
+		rec := httptest.NewRecorder()
+		f.traeger.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return rec.Body.String()
+	}
+
+	saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.period.ID, question(false))
+	register("familie-vorher@example.org", 2, "Familienantwort-vorher")
+	saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.period.ID, question(true))
+	register("kinder@example.org", 3, "",
+		map[string]any{"hinweis": "Antwort-Kind-eins"}, map[string]any{"hinweis": "Antwort-Kind-zwei"})
+	csv := export()
+	assert.Contains(t, csv, "Familienantwort-vorher", "a later per-child question keeps earlier family answers in the export")
+	assert.Contains(t, csv, "Antwort-Kind-eins")
+	assert.Contains(t, csv, "Antwort-Kind-zwei")
+
+	saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.period.ID, question(false))
+	register("familie-nachher@example.org", 4, "Familienantwort-nachher")
+	csv = export()
+	assert.Contains(t, csv, "Familienantwort-vorher")
+	assert.Contains(t, csv, "Familienantwort-nachher")
+	assert.Contains(t, csv, "Antwort-Kind-eins", "a later family question keeps earlier per-child answers in the export")
+	assert.Contains(t, csv, "Antwort-Kind-zwei")
+}
