@@ -142,9 +142,23 @@ function GuardedTenant({
     setRefusalState(state);
   }, []);
   const refusalRun = useRef(0);
-  const latest = useRef({ session, tenantSlug, routingMode, tenant, update });
+  const latest = useRef({
+    session,
+    tenantSlug,
+    routingMode,
+    tenant,
+    update,
+    redirect,
+  });
   useEffect(() => {
-    latest.current = { session, tenantSlug, routingMode, tenant, update };
+    latest.current = {
+      session,
+      tenantSlug,
+      routingMode,
+      tenant,
+      update,
+      redirect,
+    };
   });
   useEffect(
     () => () => {
@@ -162,21 +176,44 @@ function GuardedTenant({
       // update() asks the session route itself and returns its answer; it
       // returns nothing while another lookup of the provider runs.
       let answer: Awaited<ReturnType<typeof update>> | null | undefined;
+      let timedOut = false;
       while (run === refusalRun.current && Date.now() < deadline) {
         const remaining = deadline - Date.now();
-        answer = await Promise.race([
+        const result = await Promise.race([
           latest.current.update().catch(() => null),
-          new Promise<null>((resolve) =>
-            setTimeout(() => resolve(null), remaining),
+          new Promise<"timeout">((resolve) =>
+            setTimeout(() => resolve("timeout"), remaining),
           ),
         ]);
+        if (result === "timeout") {
+          timedOut = true;
+          break;
+        }
+        answer = result;
         if (answer !== undefined) break;
         await new Promise((resolve) => setTimeout(resolve, REFUSAL_RETRY_MS));
       }
       if (run !== refusalRun.current) return;
+      if (!timedOut && answer === null) {
+        // update() answers null for a failed lookup and for a session that
+        // ended meanwhile (logout in another tab). Only the second has a way
+        // forward: this school's login, without the old page in between.
+        const signedOut = await fetch("/api/auth/session", {
+          cache: "no-store",
+        })
+          .then(
+            async (response) => response.ok && (await response.json()) === null,
+          )
+          .catch(() => false);
+        if (run !== refusalRun.current) return;
+        if (signedOut) {
+          latest.current.redirect("/?error=SessionExpired");
+          return;
+        }
+      }
       if (!answer) {
         logger.warn("tenant_session_refusal_check_failed", {
-          timed_out: answer === undefined || Date.now() >= deadline,
+          timed_out: timedOut || answer === undefined,
         });
         setRefusal("failed");
         return;

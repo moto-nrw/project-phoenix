@@ -942,11 +942,21 @@ describe("TenantGuard", () => {
       );
     }
 
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
     const CHECK_FAILED =
       "moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es gleich noch einmal.";
 
     beforeEach(() => {
       providerUpdate.mockReset();
+      // After a null lookup the guard asks the session route once; it fails
+      // here unless a test answers it.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(null, { status: 503 })),
+      );
       mockUseTenant.mockReturnValue({
         tenantSlug: "school-a",
         tenant: tenantA,
@@ -1066,6 +1076,29 @@ describe("TenantGuard", () => {
       await act(async () => settleLookup(1));
 
       expect(screen.getByText("Protected Content")).toBeInTheDocument();
+    });
+
+    // quorum on #5175: a session that ended meanwhile (logout in another
+    // tab) also answers null; retrying could never succeed.
+    it("sends the tab to the login when the session ended meanwhile", async () => {
+      const sessionRoute = vi.fn(async () => Response.json(null));
+      vi.stubGlobal("fetch", sessionRoute);
+      render(<Tab />);
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+      act(() => reportSessionTenantMismatch());
+
+      await act(async () => settleLookup(null));
+
+      await waitFor(() =>
+        expect(window.location.assign).toHaveBeenCalledWith(
+          "/?error=SessionExpired",
+        ),
+      );
+      expect(sessionRoute).toHaveBeenCalledWith("/api/auth/session", {
+        cache: "no-store",
+      });
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
 
     it("starts one check for repeated refusals and never shows the old page", async () => {
