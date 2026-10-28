@@ -35,7 +35,9 @@ export function prepareHolidayFieldsForSave(
       required: Boolean(field.required),
       help_text: field.help_text?.trim() ?? "",
       ...(field.type === "select" ? { options: field.options ?? [] } : {}),
-      ...(field.health ? { health: true } : {}),
+      // Always sent, false included: the marker tells health questions from
+      // the others, also for later readers such as #5202.
+      health: Boolean(field.health),
     };
   });
 }

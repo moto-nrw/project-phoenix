@@ -24,9 +24,13 @@ import (
 // Health answers need the consent to health information and appear only in
 // the detail of a registration, never in a list, an export, the hosting
 // school's participants or a mail (ADR 0110 point 7, ADR 0114 point 7).
+// Health is the one marker for that: every stored version and every answer
+// on the wire carries it, false included, so a later reader such as the
+// hosting school's copy without health information (#5202) can tell the two
+// kinds of question apart by the field alone, never by its key or label.
 type HolidayFormField struct {
 	FormField
-	Health bool `json:"health,omitempty"`
+	Health bool `json:"health"`
 }
 
 // HolidayAnswers are the answers to the questions of a form by field key.

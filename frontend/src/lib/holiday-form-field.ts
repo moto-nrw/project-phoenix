@@ -10,6 +10,7 @@ import type { FormField, FormFieldType } from "./enrollment-form-schema-api";
  * registration.
  */
 export interface HolidayFormField extends FormField {
+  /** Always present in answers of the backend, false included. */
   health?: boolean;
 }
 

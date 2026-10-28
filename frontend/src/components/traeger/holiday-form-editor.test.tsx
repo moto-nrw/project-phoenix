@@ -158,6 +158,7 @@ describe("HolidayFormEditor (#5198)", () => {
         help_text: "",
         sort_order: 0,
         applies_to_child: true,
+        health: false,
       },
       {
         key: "forderbedarf",
