@@ -2323,7 +2323,19 @@
     "emptyThreadDescription": "Напишіть перше повідомлення в OGS.",
     "errorObjectConversation": "листування",
     "errorObjectMessage": "повідомлення",
-    "errorObjectList": "список листувань"
+    "errorObjectList": "список листувань",
+    "ogsLeadership": "Керівництво OGS {school}",
+    "audienceLabel": "Кому ви пишете?",
+    "audienceTeam": "Уся команда OGS",
+    "audienceTeamUnread": "Уся команда OGS ({count} нових)",
+    "audienceLeadership": "Лише керівництво",
+    "audienceLeadershipUnread": "Лише керівництво ({count} нових)",
+    "readersTeam": "Читати можуть: ви та всі працівники OGS.",
+    "readersLeadership": "Читати можуть: ви та керівництво: {names}",
+    "readersLeadershipUnnamed": "Читати можуть: ви та керівництво OGS.",
+    "composerPlaceholderLeadership": "Написати повідомлення керівництву",
+    "emptyLeadershipDescription": "Напишіть перше повідомлення керівництву. Інші працівники його не бачать.",
+    "leadershipUnstaffed": "Зараз ніхто з керівництва цього не читає. Будь ласка, напишіть усій команді OGS."
   },
   "parentGroupThreads": {
     "sectionTitle": "Групові повідомлення від OGS",

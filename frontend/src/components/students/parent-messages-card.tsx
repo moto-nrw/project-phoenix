@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import useSWR from "swr";
 import { Button } from "~/components/ui/button";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -143,6 +145,13 @@ export function ParentMessagesCard({
                       <span className="truncate text-xs text-gray-500">
                         {relationshipLabel(thread.relationship_type)}
                       </span>
+                      {thread.audience === "leadership" && (
+                        <StatusBadge
+                          tone="blue"
+                          label={LEADERSHIP_AUDIENCE_LABEL}
+                          compact
+                        />
+                      )}
                       <UnreadBadge count={thread.unread_count} />
                     </span>
                     {thread.last_message_body && (

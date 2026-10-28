@@ -347,3 +347,51 @@ export function parentThreadPreviewI18nDescriptor(
   }
   return null;
 }
+
+/**
+ * Which conversation of a guardian about a child (#5200): with the whole
+ * team, or the one only the leadership reads. A missing value is the team.
+ */
+export type MessageAudience = "team" | "leadership";
+
+/** Short staff label of a leadership conversation (inbox, child profile). */
+export const LEADERSHIP_AUDIENCE_LABEL = "Nur Leitung";
+
+/** `?audience=leadership` for the leadership conversation, "" for the team. */
+export function audienceQuery(audience: MessageAudience = "team"): string {
+  return audience === "leadership" ? "?audience=leadership" : "";
+}
+
+/**
+ * „Lesen können: …“ of a parent conversation (#5200), as a key of the
+ * `parentMessages` namespace. Built only from the readers the backend
+ * reports: the parent is „Sie“, the school side everyone at the OGS or the
+ * named leadership.
+ */
+export function parentReadersI18nDescriptor(readers: {
+  readonly school: {
+    readonly kind: "all_staff" | "leadership";
+    readonly names: readonly string[];
+  };
+}):
+  | { key: "readersTeam" | "readersLeadershipUnnamed"; values?: undefined }
+  | { key: "readersLeadership"; values: { names: string } } {
+  if (readers.school.kind !== "leadership") return { key: "readersTeam" };
+  return readers.school.names.length > 0
+    ? {
+        key: "readersLeadership",
+        values: { names: readers.school.names.join(", ") },
+      }
+    : { key: "readersLeadershipUnnamed" };
+}
+
+/**
+ * Parents-portal path of a child's conversation (#5200); the team one needs
+ * no parameter, the leadership one carries `?audience=leadership`.
+ */
+export function childConversationPath(
+  studentId: string,
+  audience: MessageAudience = "team",
+): string {
+  return `/parents/messages/${encodeURIComponent(studentId)}${audienceQuery(audience)}`;
+}

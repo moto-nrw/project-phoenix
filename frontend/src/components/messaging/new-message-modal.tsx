@@ -9,6 +9,7 @@ import {
   useStudentChoices,
 } from "~/components/students/student-choice-list";
 import { Button } from "~/components/ui/button";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   SlideOver,
   SlideOverBody,
@@ -27,10 +28,12 @@ import {
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import {
   type Guardian,
+  type ThreadAudience,
   type ThreadDetail,
   fetchGuardians,
   fetchReachableStudentIds,
   openThread,
+  readersLabel,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import { createLogger } from "~/lib/logger";
@@ -140,6 +143,9 @@ export function NewMessageModal({
       : null,
   );
 
+  // Leadership members may begin a conversation the leadership only reads
+  // (#5200). The backend says per child whether that is possible.
+  const [audience, setAudience] = useState<ThreadAudience>("team");
   const [guardians, setGuardians] = useState<Guardian[]>([]);
   const [guardiansLoading, setGuardiansLoading] = useState(false);
   // A failed guardian lookup (403/500/network) is an operational error, not the
@@ -160,6 +166,7 @@ export function NewMessageModal({
     if (!student) {
       setGuardians([]);
       setGuardiansFailed(false);
+      setAudience("team");
       clearGuardiansError();
       return;
     }
@@ -167,7 +174,11 @@ export function NewMessageModal({
     setGuardiansLoading(true);
     setGuardiansFailed(false);
     clearGuardiansError();
-    fetchGuardians(student.id)
+    // The team list is the default request; only the leadership one names it.
+    (audience === "leadership"
+      ? fetchGuardians(student.id, audience)
+      : fetchGuardians(student.id)
+    )
       .then((list) => {
         if (active) setGuardians(list);
       })
@@ -191,7 +202,13 @@ export function NewMessageModal({
     return () => {
       active = false;
     };
-  }, [student, guardiansReloadKey, showGuardiansError, clearGuardiansError]);
+  }, [
+    student,
+    audience,
+    guardiansReloadKey,
+    showGuardiansError,
+    clearGuardiansError,
+  ]);
 
   const handlePickStudent = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -211,6 +228,7 @@ export function NewMessageModal({
       const thread = await openThread({
         studentId: student.id,
         guardianAccountId: guardian.account_id,
+        audience,
       });
       onOpened(thread);
       onClose();
@@ -231,6 +249,10 @@ export function NewMessageModal({
   useLayoutEffect(() => {
     latestPickRef.current = (guardian) => void handlePickGuardian(guardian);
   });
+
+  const leadershipChoice = guardians.some(
+    (g) => g.leadership_available === true,
+  );
 
   // The catalog text loads on demand; until it is there the failed list
   // keeps its loading line, never "no guardians".
@@ -319,6 +341,25 @@ export function NewMessageModal({
                   <p className="text-xs text-gray-500">{student.detail}</p>
                 ) : null}
               </div>
+              {leadershipChoice || audience === "leadership" ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium text-gray-700">
+                    Wer liest auf Ihrer Seite mit?
+                  </p>
+                  <SegmentedControl<ThreadAudience>
+                    ariaLabel="Wer liest auf Ihrer Seite mit?"
+                    value={audience}
+                    onChange={(next) => {
+                      openError.clear();
+                      setAudience(next);
+                    }}
+                    items={[
+                      { value: "team", label: "Ganzes Team" },
+                      { value: "leadership", label: "Nur die Leitung" },
+                    ]}
+                  />
+                </div>
+              ) : null}
               <p className="text-sm font-medium text-gray-700">Eltern wählen</p>
               <FormErrorAlert message={openError.error} />
               {guardiansLoading || guardiansErrorPending ? (
@@ -348,6 +389,11 @@ export function NewMessageModal({
                         <span className="block text-xs text-gray-500">
                           {relationshipLabel(g.relationship_type)}
                         </span>
+                        {g.readers ? (
+                          <span className="mt-0.5 block text-xs text-gray-500">
+                            {readersLabel(g.readers)}
+                          </span>
+                        ) : null}
                       </span>
                       <span className="ml-2 flex flex-shrink-0 items-center gap-2">
                         {g.is_primary && (

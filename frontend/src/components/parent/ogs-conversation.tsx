@@ -9,6 +9,7 @@ import {
 } from "react";
 import { XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
+import { ApiError } from "~/lib/api-error";
 import { BackLink } from "~/components/ui/back-link";
 import NavigationLink from "~/components/ui/navigation-link";
 import { parentPath } from "~/lib/parent-url";
@@ -20,12 +21,15 @@ import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Skeleton } from "~/components/ui/skeleton";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import {
+  type MessageAudience,
   parentEventI18nDescriptor,
+  parentReadersI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
 } from "~/lib/messaging-status";
@@ -33,10 +37,12 @@ import {
   type ChildFeatures,
   type ChildToday,
   type ParentMessage,
+  type ThreadSummary,
   type ThreadView,
   UNKNOWN_CHILD_TODAY,
   getChildConversation,
   getChildToday,
+  listChildThreads,
   postChildMessage,
 } from "~/lib/parent-api";
 import {
@@ -78,14 +84,23 @@ export function OgsConversation({
   studentId,
   showBack = false,
   showChild = false,
+  initialAudience = "team",
 }: {
   readonly studentId: string;
   readonly showBack?: boolean;
   readonly showChild?: boolean;
+  /** The conversation shown first; a link to the leadership one sets it. */
+  readonly initialAudience?: MessageAudience;
 }) {
   const t = useTranslations("parentOgsMessaging");
   const tm = useTranslations("parentMessages");
   const locale = useLocale();
+  // A child has a team conversation and, once begun, one with the leadership
+  // only (#5200). The switch shows one of them and is where the next message
+  // goes.
+  const [audience, setAudience] = useState<MessageAudience>(initialAudience);
+  // Both conversations of the child, for the switch and its unread counts.
+  const [summaries, setSummaries] = useState<readonly ThreadSummary[]>([]);
   const [thread, setThread] = useState<ThreadView | null>(null);
   const [loading, setLoading] = useState(true);
   // A failed load shows in the thread with retry (#2518). Only shown while
@@ -154,8 +169,21 @@ export function OgsConversation({
   // mark-read call is needed.
   const refresh = useCallback(async () => {
     const seq = ++applySeqRef.current;
+    void listChildThreads(studentId)
+      .then((rows) => {
+        if (mountedRef.current && seq === applySeqRef.current) {
+          setSummaries(rows);
+        }
+      })
+      .catch((err: unknown) => {
+        // Deliberately silent: the list only feeds the unread counts on the
+        // switch. The conversation itself loads and fails on its own path.
+        logger.warn("ogs_child_threads_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
     try {
-      const view = await getChildConversation(studentId);
+      const view = await getChildConversation(studentId, audience);
       if (applyThread(seq, view)) clearLoadError();
     } catch (err) {
       logger.warn("ogs_conversation_load_failed", {
@@ -168,7 +196,7 @@ export function OgsConversation({
         });
       }
     }
-  }, [studentId, applyThread, clearLoadError, showLoadError, tm]);
+  }, [studentId, audience, applyThread, clearLoadError, showLoadError, tm]);
   // The retry runs the latest refresh, not the one of the failed attempt.
   const refreshRef = useRef(refresh);
   useLayoutEffect(() => {
@@ -217,6 +245,32 @@ export function OgsConversation({
 
   const messages = thread?.messages ?? [];
   const counterpart = thread?.counterpart_name ?? "OGS";
+  const leadershipThread = summaries.find(
+    (summary) => summary.audience === "leadership",
+  );
+  const teamThread = summaries.find((summary) => summary.audience === "team");
+  // The choice exists while the school offers it, and stays for a parent who
+  // already writes with the leadership after the school switched it off.
+  const showAudienceChoice =
+    thread?.leadership_option?.available === true ||
+    leadershipThread !== undefined ||
+    audience === "leadership";
+  const leadershipView = audience === "leadership";
+  // A leadership conversation nobody of the leadership reads any more
+  // (#5200): the history stays, writing goes to the team.
+  const leadershipUnstaffed =
+    leadershipView &&
+    Boolean(thread?.thread_id) &&
+    thread?.leadership_option?.available !== true &&
+    thread?.readers?.school.names.length === 0;
+  const readersDescriptor = thread?.readers
+    ? parentReadersI18nDescriptor(thread.readers)
+    : null;
+  const readersLine = leadershipUnstaffed
+    ? tm("leadershipUnstaffed")
+    : readersDescriptor
+      ? tm(readersDescriptor.key, readersDescriptor.values)
+      : null;
 
   // Keep the conversation scrolled to the newest message.
   useEffect(() => {
@@ -230,7 +284,7 @@ export function OgsConversation({
     setSending(true);
     clearSendError();
     try {
-      const view = await postChildMessage(studentId, body);
+      const view = await postChildMessage(studentId, body, undefined, audience);
       // Claim the token AFTER the POST resolves so this authoritative result wins.
       // A successful send means the thread is loadable, so clear any stale
       // load error left by an earlier failed background refresh.
@@ -247,6 +301,14 @@ export function OgsConversation({
         object: tm("errorObjectMessage"),
         retry: () => void sendRef.current(),
       });
+      // The leadership is gone since the chat loaded: reload it, so the
+      // composer gives way to the hint about the team conversation.
+      if (
+        err instanceof ApiError &&
+        err.code === "communication.leadership_messages_unavailable"
+      ) {
+        void refreshRef.current();
+      }
     } finally {
       setSending(false);
     }
@@ -254,6 +316,7 @@ export function OgsConversation({
     draft,
     sending,
     studentId,
+    audience,
     applyThread,
     clearLoadError,
     clearSendError,
@@ -287,7 +350,9 @@ export function OgsConversation({
               <div className="min-w-0">
                 <h1 className="text-base leading-tight font-semibold tracking-tight break-words text-gray-900 sm:text-lg">
                   {thread?.school_name
-                    ? tm("ogsTeam", { school: thread.school_name })
+                    ? tm(leadershipView ? "ogsLeadership" : "ogsTeam", {
+                        school: thread.school_name,
+                      })
                     : counterpart}
                 </h1>
               </div>
@@ -306,6 +371,43 @@ export function OgsConversation({
               ) : null}
             </div>
           )}
+          {showAudienceChoice ? (
+            <SegmentedControl<MessageAudience>
+              className="mt-3"
+              ariaLabel={tm("audienceLabel")}
+              value={audience}
+              onChange={(next) => {
+                if (next === audience) return;
+                setThread(null);
+                setDraft("");
+                clearSendError();
+                setAudience(next);
+              }}
+              items={[
+                {
+                  value: "team",
+                  label: audienceLabel(tm, "team", teamThread, audience),
+                },
+                {
+                  value: "leadership",
+                  label: audienceLabel(
+                    tm,
+                    "leadership",
+                    leadershipThread,
+                    audience,
+                  ),
+                },
+              ]}
+            />
+          ) : null}
+          {readersLine && !loading ? (
+            <p
+              className="mt-2 text-sm text-gray-600"
+              data-testid="conversation-readers"
+            >
+              {readersLine}
+            </p>
+          ) : null}
         </div>
 
         <div
@@ -407,7 +509,7 @@ export function OgsConversation({
           ) : loadError ? (
             <LoadErrorAlert error={loadError} />
           ) : (
-            <EmptyThread />
+            <EmptyThread leadership={leadershipView} />
           )}
         </div>
 
@@ -433,18 +535,33 @@ export function OgsConversation({
               fallback on first paint before flipping to the composer. */}
           {care.loading ? (
             <ConversationComposerSkeleton />
+          ) : leadershipUnstaffed ? (
+            <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
+              {tm("leadershipUnstaffed")}
+            </p>
           ) : care.features.notes_enabled ? (
-            <MessageComposer
-              value={draft}
-              onChange={setDraft}
-              onSend={() => void handleSend()}
-              sending={sending}
-              placeholder={tm("composerPlaceholder")}
-              tone="parent"
-              sendLabel={tm("send")}
-              sendingLabel={tm("sending")}
-              fieldLabel={tm("composerLabel")}
-            />
+            <>
+              {/* Wer mitliest, steht auch direkt am Schreibfeld: dort fällt
+                  die Entscheidung, was man schreibt (#5200). */}
+              {readersLine ? (
+                <p className="mb-2 text-xs text-gray-500">{readersLine}</p>
+              ) : null}
+              <MessageComposer
+                value={draft}
+                onChange={setDraft}
+                onSend={() => void handleSend()}
+                sending={sending}
+                placeholder={tm(
+                  leadershipView
+                    ? "composerPlaceholderLeadership"
+                    : "composerPlaceholder",
+                )}
+                tone="parent"
+                sendLabel={tm("send")}
+                sendingLabel={tm("sending")}
+                fieldLabel={tm("composerLabel")}
+              />
+            </>
           ) : (
             <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
               {tm("writingDisabled")}
@@ -656,7 +773,22 @@ function GroupThreadReference({
   );
 }
 
-function EmptyThread() {
+type ParentMessagesT = ReturnType<typeof useTranslations<"parentMessages">>;
+
+// The label of one side of the switch, with the unread count of the
+// conversation not on screen.
+function audienceLabel(
+  tm: ParentMessagesT,
+  value: MessageAudience,
+  summary: ThreadSummary | undefined,
+  current: MessageAudience,
+): string {
+  const unread = value === current ? 0 : (summary?.unread ?? 0);
+  const key = value === "team" ? "audienceTeam" : "audienceLeadership";
+  return unread > 0 ? tm(`${key}Unread`, { count: unread }) : tm(key);
+}
+
+function EmptyThread({ leadership }: Readonly<{ leadership: boolean }>) {
   const tm = useTranslations("parentMessages");
   return (
     <div className="flex h-full flex-col items-center justify-center py-10 text-center">
@@ -664,7 +796,9 @@ function EmptyThread() {
         {tm("emptyThreadTitle")}
       </h2>
       <p className="mt-1 text-sm leading-6 text-gray-600">
-        {tm("emptyThreadDescription")}
+        {tm(
+          leadership ? "emptyLeadershipDescription" : "emptyThreadDescription",
+        )}
       </p>
     </div>
   );

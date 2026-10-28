@@ -261,3 +261,90 @@ describe("NewMessageModal", () => {
     expect(screen.queryByText("Kein Eltern-Zugang")).not.toBeInTheDocument();
   });
 });
+
+// #5200: wer mitliest, steht vor dem Öffnen da; die Leitung kann eine
+// Unterhaltung nur für die Leitung beginnen.
+describe("NewMessageModal readers and audience", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("names the readers and offers no choice to staff outside the leadership", async () => {
+    mockFetchGuardians.mockResolvedValue([
+      {
+        ...anna,
+        readers: {
+          guardian: {
+            account_id: "7",
+            name: "Anna Muster",
+            relationship_type: "parent",
+          },
+          school: { kind: "all_staff", names: [] },
+        },
+        leadership_available: false,
+      },
+    ]);
+    renderPreset();
+
+    expect(
+      await screen.findByText(
+        "Lesen können: Anna Muster (Elternteil) und alle Mitarbeitenden.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Nur die Leitung" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets the leadership open a conversation only the leadership reads", async () => {
+    const leadershipReaders = {
+      guardian: {
+        account_id: "7",
+        name: "Anna Muster",
+        relationship_type: "parent",
+      },
+      school: { kind: "leadership", names: ["Swantje M."] },
+    };
+    mockFetchGuardians.mockImplementation((_id: string, audience?: string) =>
+      Promise.resolve([
+        {
+          ...anna,
+          readers:
+            audience === "leadership"
+              ? leadershipReaders
+              : {
+                  ...leadershipReaders,
+                  school: { kind: "all_staff", names: [] },
+                },
+          leadership_available: true,
+        },
+      ]),
+    );
+    mockOpenThread.mockResolvedValue({
+      thread_id: "t9",
+      student_id: "42",
+      student_name: "Max Muster",
+      guardian_name: "Anna Muster",
+      messages: [],
+    });
+    const { onOpened } = renderPreset();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Nur die Leitung" }),
+    );
+    expect(
+      await screen.findByText(
+        "Lesen können: Anna Muster (Elternteil) und die Leitung: Swantje M.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockFetchGuardians).toHaveBeenLastCalledWith("42", "leadership");
+
+    fireEvent.click(screen.getByText("Anna Muster"));
+    await waitFor(() => expect(onOpened).toHaveBeenCalled());
+    expect(mockOpenThread).toHaveBeenCalledWith({
+      studentId: "42",
+      guardianAccountId: "7",
+      audience: "leadership",
+    });
+  });
+});

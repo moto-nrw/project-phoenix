@@ -9,6 +9,8 @@
 import { describe, it, expect } from "vitest";
 import type { ChatMessage } from "./messaging-status";
 import {
+  childConversationPath,
+  parentReadersI18nDescriptor,
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
@@ -456,5 +458,44 @@ describe("parentThreadPreviewI18nDescriptor", () => {
       parentThreadPreviewI18nDescriptor({ last_message_kind: "message" }),
     ).toBeNull();
     expect(parentThreadPreviewI18nDescriptor({})).toBeNull();
+  });
+});
+
+describe("parentReadersI18nDescriptor (#5200)", () => {
+  it("names all staff for the team conversation", () => {
+    expect(
+      parentReadersI18nDescriptor({ school: { kind: "all_staff", names: [] } }),
+    ).toEqual({ key: "readersTeam" });
+  });
+
+  it("names the leadership persons the backend reports", () => {
+    expect(
+      parentReadersI18nDescriptor({
+        school: { kind: "leadership", names: ["Swantje M.", "Tom K."] },
+      }),
+    ).toEqual({
+      key: "readersLeadership",
+      values: { names: "Swantje M., Tom K." },
+    });
+  });
+
+  it("still says leadership when no names came along", () => {
+    expect(
+      parentReadersI18nDescriptor({
+        school: { kind: "leadership", names: [] },
+      }),
+    ).toEqual({ key: "readersLeadershipUnnamed" });
+  });
+});
+
+describe("childConversationPath (#5200)", () => {
+  it("opens the team conversation without a parameter", () => {
+    expect(childConversationPath("42")).toBe("/parents/messages/42");
+  });
+
+  it("marks the leadership conversation", () => {
+    expect(childConversationPath("42", "leadership")).toBe(
+      "/parents/messages/42?audience=leadership",
+    );
   });
 });

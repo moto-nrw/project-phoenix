@@ -23,7 +23,12 @@ import {
   normalizeMealAllergens,
   type MealAllergen,
 } from "~/lib/meal-allergens";
-import type { ChatMessage, RequestDiffEntry } from "~/lib/messaging-status";
+import {
+  type ChatMessage,
+  type MessageAudience,
+  type RequestDiffEntry,
+  audienceQuery,
+} from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import { type SignatureValue, signatureRequestBody } from "~/lib/signature";
 import type {
@@ -1029,6 +1034,25 @@ export interface ThreadSummary {
   readonly last_message_payload?: Record<string, unknown>;
   readonly last_message_read_by_staff: boolean;
   readonly unread: number;
+  /** Absent means the team conversation. */
+  readonly audience?: MessageAudience;
+  readonly readers?: ParentReaders;
+}
+
+export type { MessageAudience };
+
+/**
+ * Who can read a conversation (#5200), as the backend reports it. `guardian`
+ * is the signed-in parent (absent on list rows); other guardians of the child
+ * do not read along. `school.names` carries the leadership's short names
+ * („Swantje M.“) on an opened leadership conversation.
+ */
+export interface ParentReaders {
+  readonly guardian?: { readonly name: string };
+  readonly school: {
+    readonly kind: "all_staff" | "leadership";
+    readonly names: readonly string[];
+  };
 }
 
 // One parent-news feed entry (#1669). read/acknowledged are THIS guardian's
@@ -1171,6 +1195,16 @@ export interface ThreadView {
   readonly student_name: string;
   readonly school_name: string;
   readonly counterpart_name: string; // "OGS [Schulname]"
+  readonly audience?: MessageAudience;
+  readonly readers?: ParentReaders;
+  /**
+   * Whether the parent may start a conversation with the leadership only:
+   * false while the school has it switched off or has no leadership.
+   */
+  readonly leadership_option?: {
+    readonly available: boolean;
+    readonly names: readonly string[];
+  };
   readonly messages: ParentMessage[];
 }
 
@@ -1467,9 +1501,22 @@ export function declarationProofPath(
  */
 export async function getChildConversation(
   studentId: string,
+  audience: MessageAudience = "team",
 ): Promise<ThreadView> {
   return getJson<ThreadView>(
-    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}${audienceQuery(audience)}`,
+  );
+}
+
+/**
+ * The guardian's conversations about one child (team and, if begun,
+ * leadership), without marking them read.
+ */
+export async function listChildThreads(
+  studentId: string,
+): Promise<ThreadSummary[]> {
+  return getJson<ThreadSummary[]>(
+    `/api/parent/me/messages/children/${encodeURIComponent(studentId)}/threads`,
   );
 }
 
@@ -1481,10 +1528,17 @@ export async function postChildMessage(
   studentId: string,
   body: string,
   groupThreadId?: string,
+  audience: MessageAudience = "team",
 ): Promise<ThreadView> {
+  // An answer to a group thread always goes to the team conversation.
   return postJson<ThreadView>(
     `/api/parent/me/messages/children/${encodeURIComponent(studentId)}`,
-    groupThreadId ? { body, group_thread_id: groupThreadId } : { body },
+    // JSON drops undefined keys: a team message sends only its body.
+    {
+      body,
+      group_thread_id: groupThreadId,
+      audience: groupThreadId || audience === "team" ? undefined : audience,
+    },
   );
 }
 
@@ -1511,6 +1565,8 @@ export interface GroupThreadSummary {
   readonly last_message_body: string;
   readonly unread: number;
   readonly children: readonly GroupThreadChild[];
+  /** Who reads the guardian's answer: always the whole OGS team. */
+  readonly readers?: ParentReaders;
 }
 
 /** One OGS message of a group thread; the sender is always the OGS. */

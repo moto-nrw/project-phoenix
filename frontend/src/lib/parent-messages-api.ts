@@ -14,7 +14,11 @@ import {
   apiErrorFromText,
   transportFetch,
 } from "~/lib/api-error";
-import type { ChatMessage } from "~/lib/messaging-status";
+import {
+  type ChatMessage,
+  type MessageAudience,
+  audienceQuery,
+} from "~/lib/messaging-status";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
 // The wire message shape is shared with the parent client; see ChatMessage.
@@ -24,6 +28,23 @@ export type Message = ChatMessage & {
   readonly group_thread_title?: string;
 };
 
+/**
+ * Which conversation of a guardian about a child (#5200). Staff without the
+ * leadership permission never receive a leadership one.
+ */
+export type ThreadAudience = MessageAudience;
+
+/**
+ * Who reads a conversation (#5200), as the backend reports it: the ONE
+ * guardian it belongs to (other guardians of the child do not read along)
+ * and the school side, everyone or the leadership. `school.names` (short
+ * names such as „Swantje M.“) is empty on inbox rows.
+ */
+export interface ThreadReaders {
+  guardian: { account_id: string; name: string; relationship_type?: string };
+  school: { kind: "all_staff" | "leadership"; names: string[] };
+}
+
 export interface InboxThread {
   thread_id: string;
   student_id: string;
@@ -32,6 +53,8 @@ export interface InboxThread {
   group_name?: string;
   guardian_name: string;
   relationship_type?: "parent" | "guardian" | "relative" | "other";
+  audience?: ThreadAudience;
+  readers?: ThreadReaders;
   last_message_at?: string;
   last_sender_kind?: "guardian" | "staff";
   last_message_body?: string;
@@ -44,6 +67,8 @@ export interface ThreadDetail {
   student_name: string;
   guardian_name: string;
   relationship_type?: string;
+  audience?: ThreadAudience;
+  readers?: ThreadReaders;
   messages: Message[];
 }
 
@@ -52,6 +77,10 @@ export interface Guardian {
   name: string;
   relationship_type?: string;
   is_primary: boolean;
+  /** Who would read the conversation with this guardian in the asked audience. */
+  readers?: ThreadReaders;
+  /** True only for a leadership member while a new leadership conversation may begin. */
+  leadership_available?: boolean;
 }
 
 interface ApiResponse<T> {
@@ -120,6 +149,26 @@ async function postEnvelope<T>(
 export function relationshipLabel(rel?: string): string {
   if (!rel) return "Bezugsperson";
   return getRelationshipTypeLabel(rel);
+}
+
+/**
+ * „Lesen können: Maria Muster (Mutter) und alle Mitarbeitenden.“ from the
+ * backend's readers (#5200). Names the one guardian, so nobody assumes the
+ * other parent reads along.
+ */
+export function readersLabel(readers: ThreadReaders): string {
+  const { guardian, school } = readers;
+  const parent = guardian.name
+    ? `${guardian.name} (${relationshipLabel(guardian.relationship_type)})`
+    : relationshipLabel(guardian.relationship_type);
+  // Short names end with a period („Swantje M.“), so a name list ends the
+  // sentence itself.
+  if (school.kind === "leadership" && school.names.length > 0) {
+    return `Lesen können: ${parent} und die Leitung: ${school.names.join(", ")}`;
+  }
+  const side =
+    school.kind === "leadership" ? "nur die Leitung" : "alle Mitarbeitenden";
+  return `Lesen können: ${parent} und ${side}.`;
 }
 
 export async function fetchInboxWithFilters(filters: {
@@ -302,6 +351,8 @@ export async function saveMessageCountScope(
 export async function openThread(input: {
   studentId: string;
   guardianAccountId: string;
+  /** Leadership members may open the conversation with the leadership only. */
+  audience?: ThreadAudience;
 }): Promise<ThreadDetail> {
   const fallback = "Unterhaltung konnte nicht geöffnet werden";
   const result = await postEnvelope<ThreadDetail>(
@@ -309,6 +360,7 @@ export async function openThread(input: {
     {
       student_id: input.studentId,
       guardian_account_id: input.guardianAccountId,
+      ...(input.audience === "leadership" ? { audience: input.audience } : {}),
     },
     fallback,
   );
@@ -337,9 +389,12 @@ export async function fetchReachableStudentIds(): Promise<ReadonlySet<string>> {
  * Fetch the guardians of a child who have a parents-portal account and can
  * receive a new message thread.
  */
-export async function fetchGuardians(studentId: string): Promise<Guardian[]> {
+export async function fetchGuardians(
+  studentId: string,
+  audience: ThreadAudience = "team",
+): Promise<Guardian[]> {
   const result = await getEnvelope<Guardian[]>(
-    `/api/messages/students/${studentId}/guardians`,
+    `/api/messages/students/${studentId}/guardians${audienceQuery(audience)}`,
     "Bezugspersonen konnten nicht geladen werden",
   );
   return result.data ?? [];

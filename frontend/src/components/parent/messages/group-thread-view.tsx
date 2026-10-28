@@ -32,6 +32,10 @@ import {
   postChildMessage,
 } from "~/lib/parent-api";
 import { createLogger } from "~/lib/logger";
+import {
+  childConversationPath,
+  parentReadersI18nDescriptor,
+} from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
 
 const logger = createLogger({ component: "ParentGroupThreadView" });
@@ -198,10 +202,16 @@ export function ParentGroupThreadView({
   const counterpart = thread.school_name
     ? tm("ogsTeam", { school: thread.school_name })
     : thread.counterpart_name;
+  const readersDescriptor = thread.readers
+    ? parentReadersI18nDescriptor(thread.readers)
+    : null;
+  const readersLine = readersDescriptor
+    ? tm(readersDescriptor.key, readersDescriptor.values)
+    : null;
   const chatChild = sentFor ?? selected ?? thread.children[0]?.student_id;
   const chatLink = chatChild ? (
     <NavigationLink
-      href={parentPath(`/parents/messages/${chatChild}`)}
+      href={parentPath(childConversationPath(chatChild))}
       className="text-moto-blue text-sm font-semibold underline-offset-2 hover:underline"
     >
       {t("toChat")}
@@ -237,7 +247,13 @@ export function ParentGroupThreadView({
         </div>
       </SectionCard>
 
-      <SectionCard title={t("replyTitle")} description={t("privacyNote")}>
+      {/* Danach steht, wer auf OGS-Seite die Antwort liest (#5200). */}
+      <SectionCard
+        title={t("replyTitle")}
+        description={
+          readersLine ? `${t("privacyNote")} ${readersLine}` : t("privacyNote")
+        }
+      >
         {thread.closed ? (
           <div className="space-y-2">
             <p className="text-sm leading-6 text-gray-600">{t("closedNote")}</p>

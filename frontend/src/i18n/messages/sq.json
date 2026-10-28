@@ -2323,7 +2323,19 @@
     "emptyThreadDescription": "Shkruani mesazhin e parë për OGS-në.",
     "errorObjectConversation": "biseda",
     "errorObjectMessage": "mesazhi",
-    "errorObjectList": "lista e bisedave"
+    "errorObjectList": "lista e bisedave",
+    "ogsLeadership": "Drejtuesit e OGS-së {school}",
+    "audienceLabel": "Kujt i shkruani?",
+    "audienceTeam": "Gjithë ekipi i OGS",
+    "audienceTeamUnread": "Gjithë ekipi i OGS ({count} të reja)",
+    "audienceLeadership": "Vetëm drejtuesit",
+    "audienceLeadershipUnread": "Vetëm drejtuesit ({count} të reja)",
+    "readersTeam": "Mund të lexojnë: ju dhe të gjithë punonjësit e OGS.",
+    "readersLeadership": "Mund të lexojnë: ju dhe drejtuesit: {names}",
+    "readersLeadershipUnnamed": "Mund të lexojnë: ju dhe drejtuesit e OGS.",
+    "composerPlaceholderLeadership": "Shkruani një mesazh për drejtuesit",
+    "emptyLeadershipDescription": "Shkruani mesazhin e parë për drejtuesit. Punonjësit e tjerë nuk e shohin.",
+    "leadershipUnstaffed": "Tani askush nga drejtuesit nuk e lexon. Ju lutemi shkruajini gjithë ekipit të OGS."
   },
   "parentGroupThreads": {
     "sectionTitle": "Mesazhe grupi nga OGS",
