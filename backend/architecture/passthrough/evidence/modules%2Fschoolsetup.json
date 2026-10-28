@@ -1,0 +1,25 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) Router() chi.Router {\n\tr := chi.NewRouter()\n\tr.Use(render.SetContentType(render.ContentTypeJSON))\n\trs.runtime.Protected(r, func(r chi.Router, withTx Middleware) {\n\t\tr.Use(rs.runtime.RequireWrite)\n\t\tr.With(withTx).Get(\"/\", rs.status)\n\t\tr.With(withTx).Put(\"/steps/{step}\", rs.skipStep)\n\t\tr.With(withTx).Post(\"/complete\", rs.complete)\n\t\tr.With(withTx).Put(\"/dismissal\", rs.dismiss)\n\t})\n\treturn r\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolsetup/http/Resource.Router",
+      "owner": "modules/schoolsetup"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *StaffResource) Router() chi.Router {\n\tr := chi.NewRouter()\n\tr.Use(render.SetContentType(render.ContentTypeJSON))\n\trs.runtime.Protected(r, func(r chi.Router, withTx Middleware) {\n\t\tr.With(withTx).Get(\"/\", rs.status)\n\t\tr.With(withTx).Put(\"/steps/{step}\", rs.setStepState)\n\t\tr.With(withTx).Put(\"/dismissal\", rs.dismiss)\n\t})\n\treturn r\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolsetup/http/StaffResource.Router",
+      "owner": "modules/schoolsetup"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p progress[Flags]) Facts(ctx context.Context, tenantID int64) (schoolsetup.Facts, error) {\n\trow, err := p.source.Progress(ctx, tenantID)\n\tif err != nil {\n\t\treturn schoolsetup.Facts{}, err\n\t}\n\tstaff, room, group, student, guardian := row.ProgressFlags()\n\treturn schoolsetup.Facts{StaffInvited: staff, RoomCreated: room, GroupCreated: group, StudentEnrolled: student, GuardianInvited: guardian}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolsetup/internal/application/progress[Flags].Facts",
+      "owner": "modules/schoolsetup"
+    }
+  ]
+}

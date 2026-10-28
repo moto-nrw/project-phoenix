@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
@@ -19,7 +18,7 @@ var problemTextMembers = []string{"type", "title", "detail", "code"}
 // departs from the one shared error envelope (RFC 9457): `status` is the
 // HTTP status number, the text travels in `detail` (never `error` or
 // `message`), type, title, detail and code are non-empty strings, and the
-// code is registered in error-registry.json. With requireInstance,
+// code is registered in error-registry/. With requireInstance,
 // `instance` must name the request. `errors` and `details` are optional;
 // further members are RFC 9457 extensions. An empty result means the body
 // has the shared form.
@@ -35,7 +34,7 @@ func ProblemEnvelopeViolations(raw []byte, status int, requireInstance bool) []s
 		}
 	}
 	if code := envelopeString(body, "code"); code != "" && !IsRegisteredCode(code) {
-		violations = append(violations, fmt.Sprintf("code %q is not in error-registry.json", code))
+		violations = append(violations, fmt.Sprintf("code %q is not in error-registry/", code))
 	}
 	if _, ok := body["instance"]; !ok {
 		violations = append(violations, "instance is missing")
@@ -81,34 +80,26 @@ func envelopeRaw(body map[string]json.RawMessage, member string) string {
 var registeredCodes = sync.OnceValue(func() map[string]bool {
 	_, file, _, ok := runtime.Caller(0)
 	if !ok {
-		panic("routetest: locate error-registry.json")
+		panic("routetest: locate error-registry/")
 	}
-	encoded, err := os.ReadFile(filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "error-registry.json"))
+	entries, err := ReadErrorRegistry(filepath.Join(filepath.Dir(file), "..", "..", "..", "..", "error-registry"))
 	if err != nil {
-		panic("routetest: read error-registry.json: " + err.Error())
+		panic("routetest: read error registry: " + err.Error())
 	}
-	var registry struct {
-		Codes []struct {
-			Code string `json:"code"`
-		} `json:"codes"`
-	}
-	if err := json.Unmarshal(encoded, &registry); err != nil {
-		panic("routetest: decode error-registry.json: " + err.Error())
-	}
-	codes := make(map[string]bool, len(registry.Codes))
-	for _, entry := range registry.Codes {
+	codes := make(map[string]bool, len(entries))
+	for _, entry := range entries {
 		codes[entry.Code] = true
 	}
 	return codes
 })
 
-// IsRegisteredCode reports whether code is in error-registry.json. Test
+// IsRegisteredCode reports whether code is in error-registry/. Test
 // support may not import api/common, so it reads the registry itself.
 func IsRegisteredCode(code string) bool {
 	return registeredCodes()[code]
 }
 
-// Registered class codes (error-registry.json). Test support may not import
+// Registered class codes (error-registry/). Test support may not import
 // api/common, so it names them once here.
 const (
 	codeGeneralInput             = "general.input"

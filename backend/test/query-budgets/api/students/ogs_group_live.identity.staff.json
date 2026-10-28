@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.ogs_group_live.identity.staff",
+  "max": 1,
+  "exact": true,
+  "description": "api/students — #2099: identity chain resolved once per request."
+}

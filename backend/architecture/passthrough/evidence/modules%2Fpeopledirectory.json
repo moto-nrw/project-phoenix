@@ -1,0 +1,2188 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (u *PhotoUnlinker) UnlinkStored(storedURL string) {\n\tif err := u.RemoveStored(context.Background(), storedURL); err != nil \u0026\u0026 u.logger != nil {\n\t\tu.logger.Warn(\"could not resolve student photo path for cleanup\", slog.String(\"stored_url\", storedURL), slog.String(\"error\", err.Error()))\n\t}\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/PhotoUnlinker.UnlinkStored",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *StudentAuditError) Error() string {\n\treturn e.Err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/peopledirectory/StudentAuditError.Error",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (n StudentNote) Edited() bool {\n\treturn n.UpdatedAt.After(n.CreatedAt)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/StudentNote.Edited",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *GuardianRelationshipRepository) Delete(ctx context.Context, id any) error {\n\tambientDB4, databaseErr4 := r.runtime.DB(ctx)\n\tif databaseErr4 != nil {\n\t\treturn databaseErr4\n\t}\n\tquery := ambientDB4.NewDelete().TableExpr(`users.student_guardian_relationships AS \"relationship\"`).Where(`\"relationship\".id = ?`, id)\n\tquery = withTenantFilter(ctx, r.runtime, query, \"relationship\")\n\tif _, err := query.Exec(ctx); err != nil {\n\t\treturn \u0026ports.DatabaseError{Op: \"delete\", Err: err}\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/GuardianRelationshipRepository.Delete",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *guardianProfileRepository) LinkAccount(ctx context.Context, profileID int64, accountID int64) error {\n\tif profileID \u003c= 0 || accountID \u003c= 0 {\n\t\treturn users.ErrGuardianAccountConflict\n\t}\n\treturn r.runtime.WithSavepoint(ctx, func(linkCtx context.Context) error {\n\t\treturn r.linkAccount(linkCtx, profileID, accountID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/guardianProfileRepository.LinkAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeFamilyProtectionRecords) Create(ctx context.Context, value *directory.GuardianFamilyProtectionRecord) error {\n\tvar row *models.FamilyProtectionEvent\n\tif value != nil {\n\t\trow = \u0026models.FamilyProtectionEvent{StudentID: value.StudentID, Enabled: value.Enabled, Reason: value.Reason, ActorAccountID: value.ActorAccountID}\n\t\trow.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt\n\t}\n\terr := r.FamilyProtectionEventRepository.Create(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *nativeFamilyProtectionEvent(row)\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeFamilyProtectionRecords.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPaymentRepository) Create(ctx context.Context, value *directory.GuardianPayment) error {\n\trow := guardianPaymentRow(value)\n\terr := r.raw.Create(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *nativeGuardianPayment(row)\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPaymentRepository.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPaymentRepository) FindByGuardianProfileID(ctx context.Context, id int64) (*directory.GuardianPayment, error) {\n\trow, err := r.raw.FindByGuardianProfileID(ctx, id)\n\treturn nativeGuardianPayment(row), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPaymentRepository.FindByGuardianProfileID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPaymentRepository) ListByGuardianProfileIDs(ctx context.Context, ids []int64) (map[int64]*directory.GuardianPayment, error) {\n\trows, err := r.raw.ListByGuardianProfileIDs(ctx, ids)\n\treturn mapRecordValues(rows, nativeGuardianPayment), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPaymentRepository.ListByGuardianProfileIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPaymentRepository) Update(ctx context.Context, value *directory.GuardianPayment) error {\n\trow := guardianPaymentRow(value)\n\terr := r.raw.Update(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *nativeGuardianPayment(row)\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPaymentRepository.Update",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPhoneNumberRepository) Create(ctx context.Context, phone *directory.GuardianProfilePhoneSnapshot) error {\n\trawPhone := GuardianPhoneRow(phone)\n\tout0 := r.rawGuardianPhoneNumberRepository.Create(ctx, rawPhone)\n\tif phone != nil \u0026\u0026 rawPhone != nil {\n\t\t*phone = *NativeGuardianPhone(rawPhone)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPhoneNumberRepository.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r nativeGuardianPhoneNumberRepository) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {\n\trow := guardianPhoneFixtureRow(value)\n\terr := r.rawGuardianPhoneNumberRepository.Create(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *guardianPhoneFixtureValue(row)\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPhoneNumberRepository.CreateGuardianPhoneFixture",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*directory.GuardianProfilePhoneSnapshot, error) {\n\tout0, out1 := r.rawGuardianPhoneNumberRepository.FindByGuardianID(ctx, guardianProfileID)\n\treturn mapRecordSlice(out0, func(value *models.GuardianPhoneNumber) *directory.GuardianProfilePhoneSnapshot {\n\t\treturn NativeGuardianPhone(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPhoneNumberRepository.FindByGuardianID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPhoneNumberRepository) FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*directory.GuardianProfilePhoneSnapshot, error) {\n\tout0, out1 := r.rawGuardianPhoneNumberRepository.FindByGuardianIDs(ctx, guardianProfileIDs)\n\treturn mapRecordValues(out0, func(value []*models.GuardianPhoneNumber) []*directory.GuardianProfilePhoneSnapshot {\n\t\treturn mapRecordSlice(value, func(value *models.GuardianPhoneNumber) *directory.GuardianProfilePhoneSnapshot {\n\t\t\treturn NativeGuardianPhone(value)\n\t\t})\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPhoneNumberRepository.FindByGuardianIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) (*directory.GuardianProfilePhoneSnapshot, error) {\n\tout0, out1 := r.rawGuardianPhoneNumberRepository.FindByID(ctx, id)\n\treturn NativeGuardianPhone(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPhoneNumberRepository.FindByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianPhoneNumberRepository) Update(ctx context.Context, phone *directory.GuardianProfilePhoneSnapshot) error {\n\trawPhone := GuardianPhoneRow(phone)\n\tout0 := r.rawGuardianPhoneNumberRepository.Update(ctx, rawPhone)\n\tif phone != nil \u0026\u0026 rawPhone != nil {\n\t\t*phone = *NativeGuardianPhone(rawPhone)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianPhoneNumberRepository.Update",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) Create(ctx context.Context, profile *directory.GuardianProfileSnapshot) error {\n\trawProfile := GuardianProfileRow(profile)\n\tout0 := r.rawGuardianProfileRepository.Create(ctx, rawProfile)\n\tif profile != nil \u0026\u0026 rawProfile != nil {\n\t\t*profile = *NativeGuardianProfile(rawProfile)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindActivePortalProfilesByIDs(ctx, ids)\n\treturn mapRecordValues(out0, func(value *models.GuardianProfile) *directory.GuardianProfileSnapshot {\n\t\treturn NativeGuardianProfile(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindActivePortalProfilesByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindByAccountID(ctx, accountID)\n\treturn NativeGuardianProfile(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindByAccountID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindByEmail(ctx context.Context, email string) (*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindByEmail(ctx, email)\n\treturn NativeGuardianProfile(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindByEmail",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindByEmails(ctx context.Context, emails []string) ([]*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindByEmails(ctx, emails)\n\treturn mapRecordSlice(out0, func(value *models.GuardianProfile) *directory.GuardianProfileSnapshot {\n\t\treturn NativeGuardianProfile(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindByEmails",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindByID(ctx context.Context, id int64) (*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindByID(ctx, id)\n\treturn NativeGuardianProfile(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindByIDs(ctx, ids)\n\treturn mapRecordValues(out0, func(value *models.GuardianProfile) *directory.GuardianProfileSnapshot {\n\t\treturn NativeGuardianProfile(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindInvitable(ctx context.Context) ([]*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindInvitable(ctx)\n\treturn mapRecordSlice(out0, func(value *models.GuardianProfile) *directory.GuardianProfileSnapshot {\n\t\treturn NativeGuardianProfile(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindInvitable",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindLoginReadyPortalProfilesByIDs(ctx, ids)\n\treturn mapRecordValues(out0, func(value *models.GuardianProfile) *directory.GuardianProfileSnapshot {\n\t\treturn NativeGuardianProfile(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindLoginReadyPortalProfilesByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.FindWithoutAccount(ctx)\n\treturn mapRecordSlice(out0, func(value *models.GuardianProfile) *directory.GuardianProfileSnapshot {\n\t\treturn NativeGuardianProfile(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.FindWithoutAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) ListWithOptions(ctx context.Context, options *ports.QueryOptions) ([]*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.ListWithOptions(ctx, options)\n\treturn mapRecordSlice(out0, func(value *models.GuardianProfile) *directory.GuardianProfileSnapshot {\n\t\treturn NativeGuardianProfile(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.ListWithOptions",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) LoadProfileWithChildren(ctx context.Context, accountID int64) (*directory.GuardianProfileWithChildren, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.LoadProfileWithChildren(ctx, accountID)\n\treturn NativeGuardianProfileWithChildren(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.LoadProfileWithChildren",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) SearchByText(ctx context.Context, searchText string, limit int) ([]*directory.GuardianProfileSnapshot, error) {\n\tout0, out1 := r.rawGuardianProfileRepository.SearchByText(ctx, searchText, limit)\n\treturn mapRecordSlice(out0, func(value *models.GuardianProfile) *directory.GuardianProfileSnapshot {\n\t\treturn NativeGuardianProfile(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.SearchByText",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeGuardianProfileRepository) Update(ctx context.Context, profile *directory.GuardianProfileSnapshot) error {\n\trawProfile := GuardianProfileRow(profile)\n\tout0 := r.rawGuardianProfileRepository.Update(ctx, rawProfile)\n\tif profile != nil \u0026\u0026 rawProfile != nil {\n\t\t*profile = *NativeGuardianProfile(rawProfile)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeGuardianProfileRepository.Update",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) Create(ctx context.Context, entity *directory.DirectoryPersonSnapshot) error {\n\trawEntity := DirectoryPersonRow(entity)\n\tout0 := r.rawPersonRepository.Create(ctx, rawEntity)\n\tif entity != nil \u0026\u0026 rawEntity != nil {\n\t\t*entity = *NativeDirectoryPerson(rawEntity)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) FindByAccountID(ctx context.Context, accountID int64) (*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.FindByAccountID(ctx, accountID)\n\treturn NativeDirectoryPerson(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.FindByAccountID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.FindByAccountIDs(ctx, accountIDs)\n\treturn mapRecordValues(out0, func(value *models.Person) *directory.DirectoryPersonSnapshot {\n\t\treturn NativeDirectoryPerson(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.FindByAccountIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) FindByID(ctx context.Context, id any) (*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.FindByID(ctx, id)\n\treturn NativeDirectoryPerson(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.FindByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) FindByIDForUpdate(ctx context.Context, id int64) (*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.FindByIDForUpdate(ctx, id)\n\treturn NativeDirectoryPerson(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.FindByIDForUpdate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.FindByIDs(ctx, ids)\n\treturn mapRecordValues(out0, func(value *models.Person) *directory.DirectoryPersonSnapshot {\n\t\treturn NativeDirectoryPerson(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.FindByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) FindByTagID(ctx context.Context, tagID string) (*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.FindByTagID(ctx, tagID)\n\treturn NativeDirectoryPerson(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.FindByTagID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) FindWithAccount(ctx context.Context, id int64) (*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.FindWithAccount(ctx, id)\n\treturn NativeDirectoryPerson(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.FindWithAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) List(ctx context.Context, filters map[string]any) ([]*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.List(ctx, filters)\n\treturn mapRecordSlice(out0, func(value *models.Person) *directory.DirectoryPersonSnapshot {\n\t\treturn NativeDirectoryPerson(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.List",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) ListWithOptions(ctx context.Context, options *ports.QueryOptions) ([]*directory.DirectoryPersonSnapshot, error) {\n\tout0, out1 := r.rawPersonRepository.ListWithOptions(ctx, options)\n\treturn mapRecordSlice(out0, func(value *models.Person) *directory.DirectoryPersonSnapshot {\n\t\treturn NativeDirectoryPerson(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.ListWithOptions",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativePersonRepository) Update(ctx context.Context, entity *directory.DirectoryPersonSnapshot) error {\n\trawEntity := DirectoryPersonRow(entity)\n\tout0 := r.rawPersonRepository.Update(ctx, rawEntity)\n\tif entity != nil \u0026\u0026 rawEntity != nil {\n\t\t*entity = *NativeDirectoryPerson(rawEntity)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativePersonRepository.Update",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) Create(ctx context.Context, relationship *directory.GuardianRelationshipSnapshot) error {\n\trawRelationship, decodeErr := GuardianRelationshipRow(relationship)\n\tif decodeErr != nil {\n\t\treturn decodeErr\n\t}\n\tout0 := r.rawStudentGuardianRepository.Create(ctx, rawRelationship)\n\tif relationship != nil \u0026\u0026 rawRelationship != nil {\n\t\t*relationship = *NativeGuardianRelationshipValue(rawRelationship)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*directory.GuardianRelationshipSnapshot, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.FindByGuardianProfileID(ctx, guardianProfileID)\n\treturn mapRecordSlice(out0, func(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {\n\t\treturn NativeGuardianRelationshipValue(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByGuardianProfileID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) FindByID(ctx context.Context, id any) (*directory.GuardianRelationshipSnapshot, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.FindByID(ctx, id)\n\treturn NativeGuardianRelationshipValue(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) FindByStudentAndGuardianForUpdate(ctx context.Context, studentID int64, guardianProfileID int64) (*directory.GuardianRelationshipSnapshot, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)\n\treturn NativeGuardianRelationshipValue(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByStudentAndGuardianForUpdate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) FindByStudentID(ctx context.Context, studentID int64) ([]*directory.GuardianRelationshipSnapshot, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.FindByStudentID(ctx, studentID)\n\treturn mapRecordSlice(out0, func(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {\n\t\treturn NativeGuardianRelationshipValue(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByStudentID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*directory.GuardianRelationshipSnapshot, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.FindByStudentIDs(ctx, studentIDs)\n\treturn mapRecordSlice(out0, func(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {\n\t\treturn NativeGuardianRelationshipValue(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.FindByStudentIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) LinkIfNotExists(ctx context.Context, rel *directory.GuardianRelationshipSnapshot) (bool, error) {\n\trawRel, decodeErr := GuardianRelationshipRow(rel)\n\tif decodeErr != nil {\n\t\treturn false, decodeErr\n\t}\n\tout0, out1 := r.rawStudentGuardianRepository.LinkIfNotExists(ctx, rawRel)\n\tif rel != nil \u0026\u0026 rawRel != nil {\n\t\t*rel = *NativeGuardianRelationshipValue(rawRel)\n\t}\n\treturn out0, out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.LinkIfNotExists",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) List(ctx context.Context, filters map[string]any) ([]*directory.GuardianRelationshipSnapshot, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.List(ctx, filters)\n\treturn mapRecordSlice(out0, func(value *models.StudentGuardian) *directory.GuardianRelationshipSnapshot {\n\t\treturn NativeGuardianRelationshipValue(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.List",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]directory.GuardianEmergencyContactRow, error) {\n\tout0, out1 := r.rawStudentGuardianRepository.ListEmergencyContactRows(ctx, studentIDs)\n\treturn mapRecordSlice(out0, func(value models.GuardianEmergencyContactRow) directory.GuardianEmergencyContactRow {\n\t\treturn *NativeGuardianEmergencyContactRow(\u0026value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.ListEmergencyContactRows",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) Update(ctx context.Context, relationship *directory.GuardianRelationshipSnapshot) error {\n\trawRelationship, decodeErr := GuardianRelationshipRow(relationship)\n\tif decodeErr != nil {\n\t\treturn decodeErr\n\t}\n\tout0 := r.rawStudentGuardianRepository.Update(ctx, rawRelationship)\n\tif relationship != nil \u0026\u0026 rawRelationship != nil {\n\t\t*relationship = *NativeGuardianRelationshipValue(rawRelationship)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.Update",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentGuardianRepository) UpdateColumns(ctx context.Context, relationship *directory.GuardianRelationshipSnapshot, columns ...string) (int64, error) {\n\trawRelationship, decodeErr := GuardianRelationshipRow(relationship)\n\tif decodeErr != nil {\n\t\treturn 0, decodeErr\n\t}\n\tout0, out1 := r.rawStudentGuardianRepository.UpdateColumns(ctx, rawRelationship, columns...)\n\tif relationship != nil \u0026\u0026 rawRelationship != nil {\n\t\t*relationship = *NativeGuardianRelationshipValue(rawRelationship)\n\t}\n\treturn out0, out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentGuardianRepository.UpdateColumns",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) Create(ctx context.Context, entity *directory.StudentState) error {\n\trawEntity := StudentStateRow(entity)\n\tout0 := r.rawStudentRepository.Create(ctx, rawEntity)\n\tif entity != nil \u0026\u0026 rawEntity != nil {\n\t\t*entity = *NativeStudentState(rawEntity)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindActiveDueForDeactivation(ctx context.Context, asOf calendar.Date) ([]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindActiveDueForDeactivation(ctx, asOf)\n\treturn mapRecordSlice(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindActiveDueForDeactivation",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindAllWithGroups(ctx context.Context) ([]*directory.StudentRosterEntry, error) {\n\tout0, out1 := r.rawStudentRepository.FindAllWithGroups(ctx)\n\treturn mapRecordSlice(out0, func(value *models.StudentWithGroupInfo) *directory.StudentRosterEntry {\n\t\treturn NativeStudentRosterEntry(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindAllWithGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindByGroupID(ctx, groupID)\n\treturn mapRecordSlice(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByGroupID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindByGroupIDs(ctx, groupIDs)\n\treturn mapRecordSlice(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByGroupIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByID(ctx context.Context, id any) (*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindByID(ctx, id)\n\treturn NativeStudentState(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindByIDForUpdate(ctx, id)\n\treturn NativeStudentState(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByIDForUpdate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindByIDs(ctx, ids)\n\treturn mapRecordValues(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindByIDsForUpdate(ctx, ids)\n\treturn mapRecordValues(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByIDsForUpdate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByPersonID(ctx context.Context, personID int64) (*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindByPersonID(ctx, personID)\n\treturn NativeStudentState(out0), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByPersonID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByTeacherIDWithGroups(ctx context.Context, teacherID int64) ([]*directory.StudentRosterEntry, error) {\n\tout0, out1 := r.rawStudentRepository.FindByTeacherIDWithGroups(ctx, teacherID)\n\treturn mapRecordSlice(out0, func(value *models.StudentWithGroupInfo) *directory.StudentRosterEntry {\n\t\treturn NativeStudentRosterEntry(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByTeacherIDWithGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindByTeacherStaffIDsWithGroups(ctx context.Context, staffIDs []int64) ([]*directory.StudentRosterEntry, error) {\n\tout0, out1 := r.rawStudentRepository.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)\n\treturn mapRecordSlice(out0, func(value *models.StudentWithGroupInfo) *directory.StudentRosterEntry {\n\t\treturn NativeStudentRosterEntry(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindByTeacherStaffIDsWithGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindOverlappingWithGroups(ctx context.Context, from calendar.Date, to calendar.Date, today calendar.Date) ([]*directory.StudentRosterEntry, error) {\n\tout0, out1 := r.rawStudentRepository.FindOverlappingWithGroups(ctx, from, to, today)\n\treturn mapRecordSlice(out0, func(value *models.StudentWithGroupInfo) *directory.StudentRosterEntry {\n\t\treturn NativeStudentRosterEntry(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindOverlappingWithGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindOverlappingWithGroupsOnDate(ctx context.Context, date string, now time.Time) ([]*directory.StudentRosterEntry, error) {\n\tout0, out1 := r.rawStudentRepository.FindOverlappingWithGroupsOnDate(ctx, date, now)\n\treturn mapRecordSlice(out0, func(value *models.StudentWithGroupInfo) *directory.StudentRosterEntry {\n\t\treturn NativeStudentRosterEntry(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindOverlappingWithGroupsOnDate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindPendingDueForActivation(ctx context.Context, asOf calendar.Date) ([]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindPendingDueForActivation(ctx, asOf)\n\treturn mapRecordSlice(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindPendingDueForActivation",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.FindReadScopeByIDs(ctx, ids)\n\treturn mapRecordValues(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.FindReadScopeByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) List(ctx context.Context, filters map[string]any) ([]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.List(ctx, filters)\n\treturn mapRecordSlice(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.List",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.ListByGroupIDsIncludingAlumni(ctx, groupIDs)\n\treturn mapRecordSlice(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.ListByGroupIDsIncludingAlumni",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) ListClassRoster(ctx context.Context, schoolClass string) ([]*directory.StudentState, error) {\n\tout0, out1 := r.rawStudentRepository.ListClassRoster(ctx, schoolClass)\n\treturn mapRecordSlice(out0, func(value *models.Student) *directory.StudentState {\n\t\treturn NativeStudentState(value)\n\t}), out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.ListClassRoster",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) TransitionStatus(ctx context.Context, studentID int64, expected string, next string) (bool, error) {\n\trawExpected := models.StudentStatus(expected)\n\trawNext := models.StudentStatus(next)\n\tout0, out1 := r.rawStudentRepository.TransitionStatus(ctx, studentID, rawExpected, rawNext)\n\treturn out0, out1\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.TransitionStatus",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) Update(ctx context.Context, entity *directory.StudentState) error {\n\trawEntity := StudentStateRow(entity)\n\tout0 := r.rawStudentRepository.Update(ctx, rawEntity)\n\tif entity != nil \u0026\u0026 rawEntity != nil {\n\t\t*entity = *NativeStudentState(rawEntity)\n\t}\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.Update",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r nativeStudentRepository) UpdateStatus(ctx context.Context, studentID int64, newStatus string) error {\n\trawNewStatus := models.StudentStatus(newStatus)\n\tout0 := r.rawStudentRepository.UpdateStatus(ctx, studentID, rawNewStatus)\n\treturn out0\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/peoplepostgres/nativeStudentRepository.UpdateStatus",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) CountByGroups(ctx context.Context, groupIDs []int64) (map[int64]int, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.CountByGroups(ctx, groupIDs)\n\treturn records, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.CountByGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) CountDirectory(ctx context.Context, filter domain.StudentDirectoryFilter) (int, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.CountDirectory(ctx, directoryFilter(filter))\n\treturn records, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.CountDirectory",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) FindRecord(ctx context.Context, studentID int64, lock string) (domain.StudentRecord, bool, domain.OperationStats, error) {\n\trow, found, stats, err := s.reads.FindRecord(ctx, studentID, lock)\n\treturn domain.StudentRecord(row), found, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.FindRecord",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListAllIDs(ctx context.Context) ([]int64, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListAllIDs(ctx)\n\treturn records, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListAllIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListByClasses(ctx context.Context, classes []string) ([]directory.Student, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListByClasses(ctx, classes)\n\tresult := make([]directory.Student, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, directory.Student(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListByClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListByIDs(ctx context.Context, ids []int64) ([]directory.Student, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListByIDs(ctx, ids)\n\tresult := make([]directory.Student, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, directory.Student(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListByPersonIDs(ctx context.Context, personIDs []int64) ([]directory.Student, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListByPersonIDs(ctx, personIDs)\n\tresult := make([]directory.Student, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, directory.Student(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListByPersonIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListByStatusFlag(ctx context.Context, status string) ([]directory.Student, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListByStatusFlag(ctx, status)\n\tresult := make([]directory.Student, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, directory.Student(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListByStatusFlag",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListCareEnds(ctx context.Context, ids []int64) (map[int64]string, domain.OperationStats, error) {\n\tbounds, stats, err := s.reads.ListCareEnds(ctx, ids)\n\treturn bounds, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListCareEnds",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListClasses(ctx context.Context) ([]string, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListClasses(ctx)\n\treturn records, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListDepartureModes(ctx context.Context, ids []int64) (map[int64]map[string][]string, domain.OperationStats, error) {\n\trows, stats, err := s.reads.ListDepartureModes(ctx, ids)\n\treturn rows, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListDepartureModes",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListDirectory(ctx context.Context, filter domain.StudentDirectoryFilter) ([]domain.StudentRecord, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListDirectory(ctx, directoryFilter(filter))\n\tresult := make([]domain.StudentRecord, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, domain.StudentRecord(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListDirectory",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListDirectoryIDs(ctx context.Context) ([]int64, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListDirectoryIDs(ctx)\n\treturn records, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListDirectoryIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListEnrolled(ctx context.Context) ([]directory.Student, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListEnrolled(ctx)\n\tresult := make([]directory.Student, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, directory.Student(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListEnrolled",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListEnrolledIDsByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName, birthday string) ([]int64, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListEnrolledIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)\n\treturn records, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListEnrolledIDsByNameAndBirthday",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListNamesByIDs(ctx context.Context, ids []int64) ([]directory.StudentName, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListNamesByIDs(ctx, ids)\n\tresult := make([]directory.StudentName, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, directory.StudentName(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListNamesByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRecords(ctx context.Context, scope string) ([]domain.StudentRecord, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRecords(ctx, scope)\n\tresult := make([]domain.StudentRecord, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, domain.StudentRecord(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRecords",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRecordsByClasses(ctx context.Context, classes []string, scope string) ([]domain.StudentRecord, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRecordsByClasses(ctx, classes, scope)\n\tresult := make([]domain.StudentRecord, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, domain.StudentRecord(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRecordsByClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRecordsByGroups(ctx context.Context, groupIDs []int64, scope string) ([]domain.StudentRecord, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRecordsByGroups(ctx, groupIDs, scope)\n\tresult := make([]domain.StudentRecord, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, domain.StudentRecord(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRecordsByGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRecordsByIDs(ctx context.Context, ids []int64) ([]domain.StudentRecord, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRecordsByIDs(ctx, ids)\n\tresult := make([]domain.StudentRecord, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, domain.StudentRecord(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRecordsByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRecordsByPersonIDs(ctx context.Context, personIDs []int64) ([]domain.StudentRecord, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRecordsByPersonIDs(ctx, personIDs)\n\tresult := make([]domain.StudentRecord, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, domain.StudentRecord(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRecordsByPersonIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRecordsDueForStatus(ctx context.Context, status string, boundColumn string, asOf string) ([]domain.StudentRecord, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRecordsDueForStatus(ctx, status, boundColumn, asOf)\n\tresult := make([]domain.StudentRecord, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, domain.StudentRecord(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRecordsDueForStatus",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRoster(ctx context.Context, today string) ([]domain.StudentRosterEntry, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRoster(ctx, today)\n\tresult := make([]domain.StudentRosterEntry, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, toDomainRosterEntry(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRoster",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRosterByGroups(ctx context.Context, groupIDs []int64, today string) ([]domain.StudentRosterEntry, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRosterByGroups(ctx, groupIDs, today)\n\tresult := make([]domain.StudentRosterEntry, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, toDomainRosterEntry(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRosterByGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ListRosterOverlapping(ctx context.Context, from, to, today string) ([]domain.StudentRosterEntry, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.ListRosterOverlapping(ctx, from, to, today)\n\tresult := make([]domain.StudentRosterEntry, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, toDomainRosterEntry(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListRosterOverlapping",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) LockRecordsByIDs(ctx context.Context, ids []int64) ([]domain.StudentRecord, domain.OperationStats, error) {\n\trecords, stats, err := s.reads.LockRecordsByIDs(ctx, ids)\n\tresult := make([]domain.StudentRecord, 0, len(records))\n\tfor _, row := range records {\n\t\tresult = append(result, domain.StudentRecord(row))\n\t}\n\treturn result, domain.OperationStats(stats), projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.LockRecordsByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentStore) ReadEnrollment(ctx context.Context, id int64, lock string) (peopledirectory.EnrollmentRecord, domain.OperationStats, error) {\n\tvar stats domain.OperationStats\n\tif lock != \"\" {\n\t\tgateStats, err := s.LockEnrollmentClassWrites(ctx)\n\t\tstats.Add(gateStats)\n\t\tif err != nil {\n\t\t\treturn peopledirectory.EnrollmentRecord{}, stats, err\n\t\t}\n\t}\n\trow, queryStats, err := s.reads.ReadEnrollment(ctx, id, lock)\n\tstats.Add(domain.OperationStats(queryStats))\n\treturn peopledirectory.EnrollmentRecord(row), stats, projectionError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ReadEnrollment",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p AttendanceRouteStaff) GetCurrentStaff(ctx context.Context) (int64, int64, bool, error) {\n\tstaffID, found, err := p.source.CurrentStaffID(ctx)\n\tif err != nil || !found {\n\t\treturn 0, 0, false, err\n\t}\n\treturn staffID, tenant.FromContext(ctx), true, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/AttendanceRouteStaff.GetCurrentStaff",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (u AuditedStudentUpdates) WidenAccompaniedDaysByID(ctx context.Context, studentID int64, days []string, actorAccountID int64) (found bool, err error) {\n\tcompanion, err := u.locks.FindByIDForUpdate(ctx, studentID)\n\tif err != nil {\n\t\tif peoplePorts.IsRepositoryNoRows(err) {\n\t\t\treturn false, nil\n\t\t}\n\t\treturn false, err\n\t}\n\tif companion == nil {\n\t\treturn false, nil\n\t}\n\treturn true, u.WidenAccompaniedDays(ctx, companion, days, actorAccountID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/AuditedStudentUpdates.WidenAccompaniedDaysByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v CaregiverCapabilityViews) DisableCaregiverCapability(ctx context.Context, accountID int64) (json.RawMessage, error) {\n\treturn caregiverView(v.service.DisableCaregiverCapability(ctx, accountID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/CaregiverCapabilityViews.DisableCaregiverCapability",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v CaregiverCapabilityViews) EnableCaregiverCapability(ctx context.Context, accountID int64, firstName, lastName, position string) (json.RawMessage, error) {\n\treturn caregiverView(v.service.EnableCaregiverCapability(ctx, accountID, peopleValues.EnableCaregiverCapabilityInput{FirstName: firstName, LastName: lastName, Position: position}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/CaregiverCapabilityViews.EnableCaregiverCapability",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (v CaregiverCapabilityViews) GetCaregiverCapability(ctx context.Context, accountID int64) (json.RawMessage, error) {\n\treturn caregiverView(v.service.GetCaregiverCapability(ctx, accountID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/CaregiverCapabilityViews.GetCaregiverCapability",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p GroupRoutePeople) FindPerson(ctx context.Context, personID int64) (peopleModule.Person, error) {\n\tperson, err := p.persons.Get(ctx, personID)\n\tif err != nil {\n\t\treturn peopleModule.Person{}, err\n\t}\n\tif person == nil {\n\t\treturn peopleModule.Person{}, fmt.Errorf(\"person %d: %w\", personID, peopleModule.ErrPersonNotFound)\n\t}\n\treturn studentRoutePerson(person), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GroupRoutePeople.FindPerson",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p GroupRoutePeople) GroupStudents(ctx context.Context, groupID int64) ([]peopleModule.StudentRecord, error) {\n\tstudents, err := p.persons.StudentRows().FindByGroupID(ctx, groupID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]peopleModule.StudentRecord, 0, len(students))\n\tfor _, student := range students {\n\t\tif student != nil {\n\t\t\tresult = append(result, studentRouteRecord(student))\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GroupRoutePeople.GroupStudents",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p GroupRoutePeople) ListPersonsByID(ctx context.Context, personIDs []int64) (map[int64]peopleModule.Person, error) {\n\tpersons, err := p.persons.GetByIDs(ctx, personIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]peopleModule.Person, len(persons))\n\tfor id, person := range persons {\n\t\tif person != nil {\n\t\t\tresult[id] = studentRoutePerson(person)\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GroupRoutePeople.ListPersonsByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) AddGuardianPhone(ctx context.Context, guardianID int64, input peopledirectory.GuardianPhoneInput) (peopledirectory.GuardianPhone, error) {\n\tvar phone *peopledirectory.GuardianProfilePhoneSnapshot\n\terr := p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\tvar txErr error\n\t\tphone, txErr = p.guardians.AddPhoneNumber(txCtx, guardianID, peoplePorts.PhoneNumberCreateRequest{PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary})\n\t\treturn txErr\n\t})\n\tif err != nil {\n\t\treturn peopledirectory.GuardianPhone{}, mapGuardianError(err)\n\t}\n\treturn toDirectoryPhone(phone), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.AddGuardianPhone",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []peopledirectory.NewStudentGuardian) error {\n\treturn mapGuardianError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.AddGuardiansToStudent(txCtx, studentID, toNewStudentGuardians(guardians))\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.AddGuardiansToStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) CreateGuardian(ctx context.Context, input peopledirectory.GuardianInput) (peopledirectory.Guardian, error) {\n\tvar profile *peopledirectory.GuardianProfileSnapshot\n\terr := p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\tvar txErr error\n\t\tprofile, txErr = p.guardians.CreateGuardian(txCtx, toGuardianCreateRequest(input))\n\t\treturn txErr\n\t})\n\tif err != nil {\n\t\treturn peopledirectory.Guardian{}, mapGuardianError(err)\n\t}\n\treturn toDirectoryGuardian(profile), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.CreateGuardian",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) DeleteGuardianPhone(ctx context.Context, phoneID int64) error {\n\treturn mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.DeletePhoneNumber(txCtx, phoneID)\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.DeleteGuardianPhone",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) EvaluateGuardianDelete(ctx context.Context, id int64, force, isAdmin bool) (bool, error) {\n\thasLinks, err := p.guardians.EvaluateGuardianDelete(ctx, id, force, isAdmin)\n\treturn hasLinks, mapGuardianError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.EvaluateGuardianDelete",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) FindGuardian(ctx context.Context, id int64) (peopledirectory.Guardian, error) {\n\tprofile, err := p.guardians.GetGuardianByID(ctx, id)\n\tif err != nil {\n\t\treturn peopledirectory.Guardian{}, mapGuardianError(err)\n\t}\n\treturn toDirectoryGuardian(profile), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.FindGuardian",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) FindGuardianByEmail(ctx context.Context, email string) (peopledirectory.Guardian, error) {\n\tprofile, err := p.guardians.GuardianProfiles().FindByEmail(ctx, email)\n\tif err != nil {\n\t\treturn peopledirectory.Guardian{}, mapGuardianError(err)\n\t}\n\treturn toDirectoryGuardian(profile), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.FindGuardianByEmail",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) FindGuardianLink(ctx context.Context, linkID int64) (peopledirectory.GuardianLink, error) {\n\tlink, err := p.guardians.GetStudentGuardianRelationship(ctx, linkID)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianLink{}, mapGuardianLinkError(err)\n\t}\n\treturn toDirectoryLink(link, p.permissionGranted), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.FindGuardianLink",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) FindGuardianPhone(ctx context.Context, phoneID int64) (peopledirectory.GuardianPhone, error) {\n\tphone, err := p.guardians.GuardianPhoneNumbers().FindByID(ctx, phoneID)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianPhone{}, mapGuardianPhoneError(err)\n\t}\n\treturn toDirectoryPhone(phone), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.FindGuardianPhone",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) GuardianDeleteImpact(ctx context.Context, id int64) (peopledirectory.GuardianDeleteImpact, error) {\n\timpact, err := p.guardians.GetGuardianDeleteImpact(ctx, id)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianDeleteImpact{}, mapGuardianError(err)\n\t}\n\treturn peopledirectory.GuardianDeleteImpact{LinkIDs: impact.LinkIDs, StudentNames: impact.StudentNames}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.GuardianDeleteImpact",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) GuardianPaymentMasked(ctx context.Context, guardianID int64, actor peopledirectory.GuardianPaymentActor) (peopledirectory.GuardianPayment, error) {\n\tmasked, err := p.guardians.GetGuardianPaymentMasked(ctx, guardianID, actor.AccountID, actor.Role)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianPayment{}, mapGuardianPaymentError(err)\n\t}\n\treturn peopledirectory.GuardianPayment{GuardianProfileID: masked.GuardianProfileID, IBAN: masked.IBANMasked, AccountHolder: masked.AccountHolder}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.GuardianPaymentMasked",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) ListGuardianPhones(ctx context.Context, guardianID int64) ([]peopledirectory.GuardianPhone, error) {\n\tphones, err := p.guardians.GuardianPhoneNumbers().FindByGuardianID(ctx, guardianID)\n\tif err != nil {\n\t\treturn nil, mapGuardianError(err)\n\t}\n\treturn toDirectoryPhones(phones), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.ListGuardianPhones",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) ListGuardianStudents(ctx context.Context, guardianID int64) ([]peopledirectory.StudentWithLink, error) {\n\trows, err := p.guardians.GetGuardianStudents(ctx, guardianID)\n\tif err != nil {\n\t\treturn nil, mapGuardianError(err)\n\t}\n\tresult := make([]peopledirectory.StudentWithLink, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, peopledirectory.StudentWithLink{Student: ToDirectoryStudent(row.Student), Link: toDirectoryLink(row.Relationship, p.permissionGranted)})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.ListGuardianStudents",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) ListGuardians(ctx context.Context, page, pageSize int) ([]peopledirectory.Guardian, error) {\n\tprofiles, err := p.guardians.ListGuardians(ctx, peoplePorts.NewQueryOptions().WithPagination(page, pageSize))\n\tif err != nil {\n\t\treturn nil, mapGuardianError(err)\n\t}\n\treturn toDirectoryGuardians(profiles), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.ListGuardians",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) ListGuardiansWithoutAccount(ctx context.Context) ([]peopledirectory.Guardian, error) {\n\tprofiles, err := p.guardians.GuardianProfiles().FindWithoutAccount(ctx)\n\tif err != nil {\n\t\treturn nil, mapGuardianError(err)\n\t}\n\treturn toDirectoryGuardians(profiles), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.ListGuardiansWithoutAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) ListInvitableGuardians(ctx context.Context) ([]peopledirectory.Guardian, error) {\n\tprofiles, err := p.guardians.GuardianProfiles().FindInvitable(ctx)\n\tif err != nil {\n\t\treturn nil, mapGuardianError(err)\n\t}\n\treturn toDirectoryGuardians(profiles), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.ListInvitableGuardians",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) ListPaymentExportRows(ctx context.Context, actor peopledirectory.GuardianPaymentActor, format string) ([]peopledirectory.GuardianPaymentRow, error) {\n\trows, err := p.guardians.ListPaymentExportRows(ctx, actor.AccountID, actor.Role, format)\n\tif err != nil {\n\t\treturn nil, mapGuardianPaymentError(err)\n\t}\n\treturn toDirectoryPaymentRows(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.ListPaymentExportRows",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) ListPaymentOverview(ctx context.Context, actor peopledirectory.GuardianPaymentActor) ([]peopledirectory.GuardianPaymentRow, error) {\n\trows, err := p.guardians.ListPaymentOverview(ctx, actor.AccountID, actor.Role)\n\tif err != nil {\n\t\treturn nil, mapGuardianPaymentError(err)\n\t}\n\treturn toDirectoryPaymentRows(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.ListPaymentOverview",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) RemoveGuardianFromStudent(ctx context.Context, input peopledirectory.RemoveGuardian) error {\n\treturn mapGuardianError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.RemoveGuardianFromStudent(txCtx, input.StudentID, input.GuardianProfileID, input.ActorAccountID, input.MayClearPayer)\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.RemoveGuardianFromStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) RevealGuardianPayment(ctx context.Context, guardianID int64, actor peopledirectory.GuardianPaymentActor) (peopledirectory.GuardianPayment, error) {\n\tplain, err := p.guardians.RevealGuardianPayment(ctx, guardianID, actor.AccountID, actor.Role)\n\tif err != nil {\n\t\treturn peopledirectory.GuardianPayment{}, mapGuardianPaymentError(err)\n\t}\n\treturn peopledirectory.GuardianPayment{GuardianProfileID: plain.GuardianProfileID, IBAN: plain.IBAN, AccountHolder: plain.AccountHolder}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.RevealGuardianPayment",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) SearchGuardians(ctx context.Context, text string, limit int) ([]peopledirectory.GuardianMatch, error) {\n\tmatches, err := p.guardians.SearchGuardiansForPicker(ctx, text, limit)\n\tif err != nil {\n\t\treturn nil, mapGuardianError(err)\n\t}\n\tresult := make([]peopledirectory.GuardianMatch, 0, len(matches))\n\tfor _, match := range matches {\n\t\tresult = append(result, peopledirectory.GuardianMatch{Guardian: toDirectoryGuardian(match.Profile), LinkedChildrenCount: len(match.Children)})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.SearchGuardians",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) SetPrimaryGuardianPhone(ctx context.Context, phoneID int64) error {\n\treturn mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.SetPrimaryPhone(txCtx, phoneID)\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.SetPrimaryGuardianPhone",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) SetStudentPayer(ctx context.Context, input peopledirectory.StudentPayer) error {\n\treturn mapGuardianPaymentError(p.guardians.SetStudentPayer(ctx, input.StudentID, input.GuardianProfileID, input.ActorAccountID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.SetStudentPayer",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) UpdateGuardian(ctx context.Context, id int64, input peopledirectory.GuardianInput) error {\n\treturn mapGuardianError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.UpdateGuardian(txCtx, id, toGuardianCreateRequest(input))\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.UpdateGuardian",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) UpdateGuardianLink(ctx context.Context, linkID int64, input peopledirectory.GuardianLinkUpdate) error {\n\treturn mapGuardianLinkError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.UpdateStudentGuardianRelationship(txCtx, linkID, peoplePorts.StudentGuardianUpdateRequest{RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole, IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup, PickupNotes: input.PickupNotes, EmergencyPriority: input.EmergencyPriority})\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.UpdateGuardianLink",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) UpdateGuardianPayment(ctx context.Context, guardianID int64, input peopledirectory.GuardianPaymentInput) error {\n\treturn mapGuardianPaymentError(p.guardians.UpdateGuardianPayment(ctx, guardianID, peoplePorts.GuardianPaymentInput{IBAN: input.IBAN, AccountHolder: input.AccountHolder}, input.ActorAccountID, input.Note))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.UpdateGuardianPayment",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) UpdateGuardianPhone(ctx context.Context, phoneID int64, input peopledirectory.GuardianPhoneUpdate) error {\n\treturn mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {\n\t\treturn p.guardians.UpdatePhoneNumber(txCtx, phoneID, peoplePorts.PhoneNumberUpdateRequest{PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary, Priority: input.Priority})\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.UpdateGuardianPhone",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *GuardianDirectory) ValidateNewGuardians(ctx context.Context, guardians []peopledirectory.NewStudentGuardian) error {\n\treturn mapGuardianError(p.guardians.ValidateNewGuardians(ctx, toNewStudentGuardians(guardians)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianDirectory.ValidateNewGuardians",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *GuardianService) CountLinks(ctx context.Context, guardianIDs []int64) (result map[int64]int, err error) {\n\terr = observeRun(ctx, s.observe, \"count_guardian_links\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.CountLinks(txCtx, guardianIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianService.CountLinks",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *GuardianService) ListByAccounts(ctx context.Context, accountIDs []int64) (result []domain.Guardian, err error) {\n\terr = observeRun(ctx, s.observe, \"list_guardians_by_account\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByAccounts(txCtx, accountIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianService.ListByAccounts",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *GuardianService) ListByIDs(ctx context.Context, ids []int64) (result []domain.Guardian, err error) {\n\terr = observeRun(ctx, s.observe, \"list_guardians_by_id\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByIDs(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianService.ListByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *GuardianService) ListLinksByAccount(ctx context.Context, accountIDs []int64) (result []peopledirectory.GuardianLink, err error) {\n\terr = observeRun(ctx, s.observe, \"list_guardian_links_by_account\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListLinksByAccounts(txCtx, accountIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/GuardianService.ListLinksByAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *PersonRows) DeletePerson(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn \u0026peopleModule.InvalidPersonError{Reason: \"person ID is required\"}\n\t}\n\treturn translatePersonWriteError(MapError(d.directory.DeletePerson(ctx, id)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/PersonRows.DeletePerson",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedGuardianService) DeleteGuardian(ctx context.Context, id, changedByAccountID int64) error {\n\treturn s.transactions.RunInTx(ctx, func(txCtx context.Context) error {\n\t\treturn s.deleteGuardian(txCtx, id, changedByAccountID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedGuardianService.DeleteGuardian",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedGuardianService) DeleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {\n\treturn s.transactions.RunInTx(ctx, func(txCtx context.Context) error {\n\t\treturn s.deleteGuardianWithLinks(txCtx, id, expectedLinkIDs, changedByAccountID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedGuardianService.DeleteGuardianWithLinks",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedGuardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*peopleValues.GuardianRelationshipSnapshot, error) {\n\trelationship, err := s.StudentGuardianRepo.FindByID(ctx, relationshipID)\n\tif err != nil {\n\t\treturn nil, guardianLookupFailure(peopleValues.ErrGuardianLinkNotFound, fmt.Errorf(\"relationship not found: %w\", err))\n\t}\n\treturn relationship, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedGuardianService.GetStudentGuardianRelationship",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedGuardianService) GetStudentGuardians(ctx context.Context, studentID int64) ([]*peoplePorts.GuardianWithRelationship, error) {\n\tvar result []*peoplePorts.GuardianWithRelationship\n\terr := s.transactions.RunInTx(ctx, func(txCtx context.Context) error {\n\t\tvar err error\n\t\tresult, err = s.getStudentGuardians(txCtx, studentID)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedGuardianService.GetStudentGuardians",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedGuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {\n\treturn s.transactions.RunInTx(ctx, func(txCtx context.Context) error {\n\t\treturn s.removeGuardianFromStudent(txCtx, studentID, guardianProfileID, changedByAccountID, mayClearPayer)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedGuardianService.RemoveGuardianFromStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*peopleValues.ActiveCaregiver, error) {\n\tcaregiver, err := s.deps.TeacherRepo.FindActiveCaregiverByAccountID(ctx, accountID)\n\tif err != nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: \"find active caregiver by account ID\", Err: err}\n\t}\n\treturn caregiver, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.FindActiveCaregiverByAccountID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) FindByAccountID(ctx context.Context, accountID int64) (*peopleValues.DirectoryPersonSnapshot, error) {\n\tperson, err := s.deps.PersonRepo.FindByAccountID(ctx, accountID)\n\tif err != nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: \"find person by account ID\", Err: err}\n\t}\n\tif person == nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: \"find person by account ID\", Err: userscontract.ErrPersonNotFound}\n\t}\n\treturn person, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.FindByAccountID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) FindByTagID(ctx context.Context, tagID string) (*peopleValues.DirectoryPersonSnapshot, error) {\n\tperson, err := s.deps.PersonRepo.FindByTagID(ctx, tagID)\n\tif err != nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: \"find person by tag ID\", Err: err}\n\t}\n\tif person == nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: \"find person by tag ID\", Err: userscontract.ErrPersonNotFound}\n\t}\n\treturn person, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.FindByTagID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) GetByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error) {\n\tif len(ids) == 0 {\n\t\treturn make(map[int64]*peopleValues.DirectoryPersonSnapshot), nil\n\t}\n\tpersons, err := s.deps.PersonRepo.FindByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: \"get persons by IDs\", Err: err}\n\t}\n\treturn persons, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.GetByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error) {\n\tif len(groupIDs) == 0 {\n\t\treturn []*peopleValues.StudentState{}, nil\n\t}\n\treturn s.deps.StudentRepo.ListByGroupIDsIncludingAlumni(ctx, groupIDs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.GetParticipationCandidatesByGroupIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) GetStudentByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error) {\n\tif s.deps.StudentDirectory == nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: opLockStudent, Err: errStudentDirectoryUnwired}\n\t}\n\tstudent, err := s.deps.StudentDirectory.LockStudent(ctx, id)\n\treturn student, translateMissingStudent(opLockStudent, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.GetStudentByIDForUpdate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) GetStudentsWithGroupsByTeacherStaffIDs(ctx context.Context, staffIDs []int64) ([]peopleValues.StudentRosterEntry, error) {\n\tif len(staffIDs) == 0 {\n\t\treturn []peopleValues.StudentRosterEntry{}, nil\n\t}\n\trows, err := s.deps.StudentRepo.FindByTeacherStaffIDsWithGroups(ctx, staffIDs)\n\tif err != nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: opGetStudentsWithGroupsByTeacher, Err: err}\n\t}\n\tresults := make([]peopleValues.StudentRosterEntry, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresults = append(results, peopleValues.StudentRosterEntry{Record: row.Record, GroupName: row.GroupName})\n\t}\n\treturn results, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.GetStudentsWithGroupsByTeacherStaffIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) LinkStudentToRFIDCard(ctx context.Context, studentID int64, tagID string) error {\n\tstudent, err := s.deps.StudentRepo.FindByIDForUpdate(ctx, studentID)\n\tif err != nil {\n\t\tif errors.Is(err, transactionruntime.ErrNoRows) {\n\t\t\treturn \u0026userscontract.UsersError{Op: opLinkToRFIDCard, Err: userscontract.ErrStudentNotFound}\n\t\t}\n\t\treturn \u0026userscontract.UsersError{Op: opLinkToRFIDCard, Err: err}\n\t}\n\tif student.Status == peopleValues.StudentStatusAlumnus {\n\t\treturn \u0026userscontract.UsersError{Op: opLinkToRFIDCard, Err: userscontract.ErrStudentGraduated}\n\t}\n\treturn s.LinkToRFIDCard(ctx, student.PersonID, tagID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.LinkStudentToRFIDCard",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) ListActiveCaregivers(ctx context.Context) ([]*peopleValues.ActiveCaregiver, error) {\n\tcaregivers, err := s.deps.TeacherRepo.ListActiveCaregivers(ctx)\n\tif err != nil {\n\t\treturn nil, \u0026userscontract.UsersError{Op: \"list active caregivers\", Err: err}\n\t}\n\treturn caregivers, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.ListActiveCaregivers",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) UnlinkFromAccount(ctx context.Context, personID int64) error {\n\tif err := s.deps.PersonRepo.UnlinkFromAccount(ctx, personID); err != nil {\n\t\treturn \u0026userscontract.UsersError{Op: \"unlink from account\", Err: err}\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.UnlinkFromAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RetainedPersonDirectory) UnlinkFromRFIDCard(ctx context.Context, personID int64) error {\n\tif err := s.deps.PersonRepo.UnlinkFromRFIDCard(ctx, personID); err != nil {\n\t\treturn \u0026userscontract.UsersError{Op: \"unlink from RFID card\", Err: err}\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RetainedPersonDirectory.UnlinkFromRFIDCard",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p RoomSnapshotPeople) PersonsByIDs(ctx context.Context, ids []int64) (map[int64]peopledirectory.Person, error) {\n\tpersons, err := p.source.GetByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]peopledirectory.Person, len(persons))\n\tfor id, person := range persons {\n\t\tif person != nil {\n\t\t\tresult[id] = peopledirectory.Person{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName}\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RoomSnapshotPeople.PersonsByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p RoomSnapshotPeople) StudentsByIDs(ctx context.Context, ids []int64) (map[int64]peopledirectory.Student, error) {\n\tstudents, err := p.source.StudentRows().FindByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]peopledirectory.Student, len(students))\n\tfor id, student := range students {\n\t\tif student != nil {\n\t\t\tresult[id] = ToDirectoryStudent(student)\n\t\t}\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/RoomSnapshotPeople.StudentsByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) AddGuardianPhoneRecord(ctx context.Context, guardianID int64, phone peopledirectory.GuardianPhoneRecord) (int64, error) {\n\tif guardianID \u003c= 0 {\n\t\treturn 0, invalidGuardian(\"guardian ID is required\")\n\t}\n\tid, err := s.guardianRows.AddPhone(ctx, guardianID, domain.GuardianPhoneRecord(phone))\n\treturn id, mapGuardianPortalError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.AddGuardianPhoneRecord",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) AnonymizeIfUnchanged(ctx context.Context, personID int64, updatedAt time.Time) (anonymized bool, err error) {\n\terr = s.runWrite(ctx, \"anonymize_deleted_student_person\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar writeStats domain.OperationStats\n\t\tanonymized, writeStats, err = s.store.AnonymizeIfUnchanged(txCtx, personID, updatedAt)\n\t\tstats.Add(writeStats)\n\t\treturn err\n\t})\n\treturn anonymized, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.AnonymizeIfUnchanged",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ApplyEnrollmentProfile(ctx context.Context, id int64, input peopledirectory.EnrollmentProfilePatch) error {\n\tif id \u003c= 0 {\n\t\treturn \u0026peopledirectory.InvalidStudentError{Reason: \"student ID is required\"}\n\t}\n\tif err := normalizeEnrollmentDeparture(\u0026input); err != nil {\n\t\treturn err\n\t}\n\treturn MapError(s.students.ApplyEnrollmentProfile(ctx, id, domain.EnrollmentProfilePatch(input)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ApplyEnrollmentProfile",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ClearStudentPhoto(ctx context.Context, studentID int64) (string, error) {\n\tif studentID \u003c= 0 {\n\t\treturn \"\", invalidStudent(\"student ID is required\")\n\t}\n\tclearedURL, err := s.studentPhotos.ClearPhoto(ctx, studentID)\n\treturn clearedURL, mapPhotoError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ClearStudentPhoto",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CommitStudentPhoto(ctx context.Context, studentID int64, storedURL string, consentAck bool) error {\n\tif studentID \u003c= 0 {\n\t\treturn invalidStudent(\"student ID is required\")\n\t}\n\tif storedURL == \"\" {\n\t\treturn invalidStudent(\"a stored photo URL is required\")\n\t}\n\treturn mapPhotoError(s.studentPhotos.CommitPhoto(ctx, studentID, storedURL, consentAck))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CommitStudentPhoto",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountByTenant(ctx context.Context) (result map[int64]int, err error) {\n\terr = observeRun(ctx, s.observe, \"count_persons_by_tenant\", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.CountByTenant(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CountByTenant",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountGuardianLinks(ctx context.Context, guardianIDs []int64) (map[int64]int, error) {\n\tguardianIDs = peopledirectory.PositiveIDs(guardianIDs)\n\tif len(guardianIDs) == 0 {\n\t\treturn map[int64]int{}, nil\n\t}\n\tvalues, err := s.guardianRows.CountLinks(ctx, guardianIDs)\n\tif values == nil {\n\t\tvalues = map[int64]int{}\n\t}\n\treturn values, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CountGuardianLinks",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountStudentDirectory(ctx context.Context, filter peopledirectory.StudentDirectoryFilter) (int, error) {\n\tfilter, err := peopledirectory.NormalizeStudentDirectoryFilter(filter)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\tfilter.Page, filter.PageSize = 0, 0\n\ttotal, err := s.students.CountDirectory(ctx, toDomainStudentDirectoryFilter(filter))\n\treturn total, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CountStudentDirectory",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountStudentGuardianLinks(ctx context.Context, studentID int64) (int, error) {\n\tif studentID \u003c= 0 {\n\t\treturn 0, invalidStudent(\"student ID is required\")\n\t}\n\tcount, err := s.students.CountGuardianLinks(ctx, studentID)\n\treturn count, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CountStudentGuardianLinks",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountStudentsByGroup(ctx context.Context, groupIDs []int64) (map[int64]int, error) {\n\tgroupIDs = peopledirectory.PositiveIDs(groupIDs)\n\tif len(groupIDs) == 0 {\n\t\treturn map[int64]int{}, nil\n\t}\n\tcounts, err := s.students.CountByGroups(ctx, groupIDs)\n\treturn counts, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CountStudentsByGroup",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) Create(ctx context.Context, input peopledirectory.CreatePerson) (result peopledirectory.Person, err error) {\n\terr = s.runWrite(ctx, \"create_person\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar createStats domain.OperationStats\n\t\tresult, createStats, err = s.store.Create(txCtx, input)\n\t\tstats.Add(createStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateGuardianContact(ctx context.Context, record peopledirectory.GuardianContactRecord) (int64, error) {\n\tid, err := s.guardianRows.CreateContact(ctx, toDomainGuardianContact(record))\n\treturn id, mapGuardianPortalError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CreateGuardianContact",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateStudent(ctx context.Context, write peopledirectory.StudentWrite) (peopledirectory.StudentRecord, error) {\n\tif write.Record.PersonID \u003c= 0 {\n\t\treturn peopledirectory.StudentRecord{}, invalidStudent(\"person ID is required\")\n\t}\n\trecord, err := s.students.CreateStudent(ctx, toApplicationStudentWrite(write))\n\treturn peopledirectory.StudentRecord(record), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CreateStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CurrentFamilyProtection(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {\n\tfor _, id := range studentIDs {\n\t\tif id \u003c= 0 {\n\t\t\treturn nil, \u0026peopledirectory.InvalidStudentError{Reason: \"family protection requires positive student IDs\"}\n\t\t}\n\t}\n\tif len(studentIDs) == 0 {\n\t\treturn map[int64]bool{}, nil\n\t}\n\treturn s.students.CurrentFamilyProtection(ctx, peopledirectory.PositiveIDs(studentIDs))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.CurrentFamilyProtection",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteExpiredChildlessGuardians(ctx context.Context, retentionDays int, openInvitations peopledirectory.OpenGuardianInvitations) (int, error) {\n\tif retentionDays \u003c= 0 {\n\t\treturn 0, fmt.Errorf(\"%w, got %d\", peopledirectory.ErrGuardianRetentionWindow, retentionDays)\n\t}\n\tcutoff := calendar.TodayDate().AddDays(-retentionDays).BerlinMidnight()\n\treturn s.guardianLifecycle.DeleteChildlessGuardiansBefore(ctx, cutoff, openInvitations)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.DeleteExpiredChildlessGuardians",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteGuardianPhoneRecord(ctx context.Context, phoneID int64) error {\n\tif phoneID \u003c= 0 {\n\t\treturn invalidGuardian(\"phone ID is required\")\n\t}\n\treturn mapGuardianPortalError(s.guardianRows.DeletePhone(ctx, phoneID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.DeleteGuardianPhoneRecord",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeletePerson(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalid(\"person ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"delete_person\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif err := s.requireLocked(txCtx, id, stats); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tdeleteStats, err := s.store.SoftDelete(txCtx, id)\n\t\tstats.Add(deleteStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.DeletePerson",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteStudent(ctx context.Context, studentID int64) (int64, error) {\n\tif studentID \u003c= 0 {\n\t\treturn 0, invalidStudent(\"student ID is required\")\n\t}\n\trows, err := s.students.Delete(ctx, studentID)\n\treturn rows, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.DeleteStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteStudentRecord(ctx context.Context, studentID int64) error {\n\tif studentID \u003c= 0 {\n\t\treturn invalidStudent(\"student ID is required\")\n\t}\n\treturn MapError(s.students.DeleteStudent(ctx, studentID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.DeleteStudentRecord",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindByAccount(ctx context.Context, accountID int64) (peopledirectory.Person, error) {\n\treturn s.findOne(ctx, \"find_person_by_account\", func(txCtx context.Context) (peopledirectory.Person, bool, domain.OperationStats, error) {\n\t\treturn s.store.FindByAccount(txCtx, accountID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.FindByAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindByTag(ctx context.Context, tagID string) (peopledirectory.Person, error) {\n\treturn s.findOne(ctx, \"find_person_by_tag\", func(txCtx context.Context) (peopledirectory.Person, bool, domain.OperationStats, error) {\n\t\treturn s.store.FindByTag(txCtx, tagID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.FindByTag",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindStudentPhoto(ctx context.Context, studentID int64, filename string) (string, error) {\n\tif studentID \u003c= 0 {\n\t\treturn \"\", invalidStudent(\"student ID is required\")\n\t}\n\tstoredURL, err := s.studentPhotos.FindPhoto(ctx, studentID, filename)\n\treturn storedURL, mapPhotoError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.FindStudentPhoto",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindStudentRecord(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {\n\tif studentID \u003c= 0 {\n\t\treturn peopledirectory.StudentRecord{}, invalidStudent(\"student ID is required\")\n\t}\n\trecord, err := s.students.FindRecord(ctx, studentID, \"\")\n\treturn peopledirectory.StudentRecord(record), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.FindStudentRecord",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindStudentRecordForMutation(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {\n\tif studentID \u003c= 0 {\n\t\treturn peopledirectory.StudentRecord{}, invalidStudent(\"student ID is required\")\n\t}\n\trecord, err := s.students.FindRecord(ctx, studentID, \"UPDATE\")\n\treturn peopledirectory.StudentRecord(record), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.FindStudentRecordForMutation",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindStudentRecordForMutationNoWait(ctx context.Context, studentID int64) (peopledirectory.StudentRecord, error) {\n\tif studentID \u003c= 0 {\n\t\treturn peopledirectory.StudentRecord{}, invalidStudent(\"student ID is required\")\n\t}\n\trecord, err := s.students.FindRecord(ctx, studentID, \"UPDATE NOWAIT\")\n\treturn peopledirectory.StudentRecord(record), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.FindStudentRecordForMutationNoWait",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LinkGuardianContact(ctx context.Context, link peopledirectory.GuardianContactLink) (int64, bool, error) {\n\tif link.StudentID \u003c= 0 || link.GuardianProfileID \u003c= 0 {\n\t\treturn 0, false, invalidGuardian(\"student ID and guardian ID are required\")\n\t}\n\tlinkID, err := s.guardianRows.LinkContact(ctx, domain.GuardianLinkRecord(link))\n\treturn linkID, linkID \u003e 0, mapGuardianPortalError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.LinkGuardianContact",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []peopledirectory.Person, err error) {\n\terr = observeRun(ctx, s.observe, \"list_persons_across_tenants_by_id\", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByIDs(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListAcrossTenantsByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListAllStudentIDs(ctx context.Context) ([]int64, error) {\n\tids, err := s.students.ListAllIDs(ctx)\n\treturn ids, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListAllStudentIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListEnrolledStudentIDsByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName, birthday string) ([]int64, error) {\n\tif err := peopledirectory.ValidateStudentMatch(tenantID, firstName, lastName, birthday); err != nil {\n\t\treturn nil, err\n\t}\n\tids, err := s.students.ListEnrolledIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday)\n\treturn ids, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListEnrolledStudentIDsByNameAndBirthday",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListEnrolledStudents(ctx context.Context) ([]peopledirectory.Student, error) {\n\tvalues, err := s.students.ListEnrolled(ctx)\n\treturn nonNilStudents(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListEnrolledStudents",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListGuardianLinksByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.GuardianLink, error) {\n\taccountIDs = peopledirectory.PositiveIDs(accountIDs)\n\tif len(accountIDs) == 0 {\n\t\treturn []peopledirectory.GuardianLink{}, nil\n\t}\n\tvalues, err := s.guardianRows.ListLinksByAccount(ctx, accountIDs)\n\treturn nonNilGuardianLinks(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListGuardianLinksByAccounts",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListGuardiansByAccount(ctx context.Context, accountIDs []int64) ([]peopledirectory.Guardian, error) {\n\taccountIDs = peopledirectory.PositiveIDs(accountIDs)\n\tif len(accountIDs) == 0 {\n\t\treturn []peopledirectory.Guardian{}, nil\n\t}\n\tvalues, err := s.guardianRows.ListByAccounts(ctx, accountIDs)\n\treturn toPublicGuardians(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListGuardiansByAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListGuardiansByID(ctx context.Context, ids []int64) ([]peopledirectory.Guardian, error) {\n\tids = peopledirectory.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn []peopledirectory.Guardian{}, nil\n\t}\n\tvalues, err := s.guardianRows.ListByIDs(ctx, ids)\n\treturn toPublicGuardians(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListGuardiansByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPersonsByAccount(ctx context.Context, accountIDs []int64) (result []peopledirectory.Person, err error) {\n\taccountIDs = peopledirectory.PositiveIDs(accountIDs)\n\tif len(accountIDs) == 0 {\n\t\treturn []peopledirectory.Person{}, nil\n\t}\n\terr = s.runRead(ctx, \"list_persons_by_account\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByAccounts(txCtx, accountIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn nonNilPersons(result), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListPersonsByAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPersonsByID(ctx context.Context, ids []int64) (result []peopledirectory.Person, err error) {\n\tids = peopledirectory.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn []peopledirectory.Person{}, nil\n\t}\n\terr = s.runRead(ctx, \"list_persons_by_id\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByIDs(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn nonNilPersons(result), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListPersonsByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListPersonsByTenantIDs(ctx context.Context, tenantIDs []int64) (result []peopledirectory.Person, err error) {\n\ttenantIDs = peopledirectory.PositiveIDs(tenantIDs)\n\tif len(tenantIDs) == 0 {\n\t\treturn []peopledirectory.Person{}, nil\n\t}\n\terr = s.runRead(ctx, \"list_persons_by_tenant\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByTenantIDs(txCtx, tenantIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn nonNilPersons(result), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListPersonsByTenantIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListSchoolClasses(ctx context.Context) ([]string, error) {\n\tvalues, err := s.students.ListClasses(ctx)\n\treturn values, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListSchoolClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentCareEnds(ctx context.Context, ids []int64) (map[int64]string, error) {\n\tids = peopledirectory.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn map[int64]string{}, nil\n\t}\n\tbounds, err := s.students.ListStudentCareEnds(ctx, ids)\n\treturn bounds, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentCareEnds",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentChangeHistory(ctx context.Context, studentID int64) ([]peopledirectory.StudentFieldEdit, error) {\n\tif studentID \u003c= 0 {\n\t\treturn nil, invalidStudent(\"student ID is required\")\n\t}\n\tvalues, err := s.studentAudit.ListChangeHistory(ctx, studentID)\n\tif err != nil {\n\t\treturn nil, MapError(err)\n\t}\n\treturn toPublicStudentFieldEdits(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentChangeHistory",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentDepartureModes(ctx context.Context, ids []int64) (map[int64]map[string][]string, error) {\n\tids = peopledirectory.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn map[int64]map[string][]string{}, nil\n\t}\n\treturn s.students.ListDepartureModes(ctx, ids)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentDepartureModes",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentDirectoryIDs(ctx context.Context) ([]int64, error) {\n\tids, err := s.students.ListDirectoryIDs(ctx)\n\treturn ids, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentDirectoryIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentNamesByID(ctx context.Context, ids []int64) ([]peopledirectory.StudentName, error) {\n\tids = peopledirectory.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn []peopledirectory.StudentName{}, nil\n\t}\n\tvalues, err := s.students.ListNamesByIDs(ctx, ids)\n\tresult := append([]peopledirectory.StudentName{}, values...)\n\treturn result, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentNamesByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentRecords(ctx context.Context, scope peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {\n\tvalues, err := s.students.ListRecords(ctx, string(scope))\n\treturn toPublicStudentRecords(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentRecords",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentRecordsByClass(ctx context.Context, classes []string, scope peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {\n\tclasses = peopledirectory.SchoolClasses(classes)\n\tif len(classes) == 0 {\n\t\treturn []peopledirectory.StudentRecord{}, nil\n\t}\n\tvalues, err := s.students.ListRecordsByClasses(ctx, classes, string(scope))\n\treturn toPublicStudentRecords(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentRecordsByClass",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentRecordsByGroup(ctx context.Context, groupIDs []int64, scope peopledirectory.StudentScope) ([]peopledirectory.StudentRecord, error) {\n\tgroupIDs = peopledirectory.PositiveIDs(groupIDs)\n\tif len(groupIDs) == 0 {\n\t\treturn []peopledirectory.StudentRecord{}, nil\n\t}\n\tvalues, err := s.students.ListRecordsByGroups(ctx, groupIDs, string(scope))\n\treturn toPublicStudentRecords(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentRecordsByGroup",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentRecordsByPerson(ctx context.Context, personIDs []int64) ([]peopledirectory.StudentRecord, error) {\n\tpersonIDs = peopledirectory.PositiveIDs(personIDs)\n\tif len(personIDs) == 0 {\n\t\treturn []peopledirectory.StudentRecord{}, nil\n\t}\n\tvalues, err := s.students.ListRecordsByPersonIDs(ctx, personIDs)\n\treturn toPublicStudentRecords(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentRecordsByPerson",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentRoster(ctx context.Context, today string) ([]peopledirectory.StudentRosterEntry, error) {\n\tif err := peopledirectory.ValidateRosterDay(today); err != nil {\n\t\treturn nil, err\n\t}\n\tvalues, err := s.students.ListRoster(ctx, today)\n\treturn toPublicRoster(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentRoster",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentRosterByGroup(ctx context.Context, groupIDs []int64, today string) ([]peopledirectory.StudentRosterEntry, error) {\n\tgroupIDs = peopledirectory.PositiveIDs(groupIDs)\n\tif len(groupIDs) == 0 {\n\t\treturn []peopledirectory.StudentRosterEntry{}, nil\n\t}\n\tif err := peopledirectory.ValidateRosterDay(today); err != nil {\n\t\treturn nil, err\n\t}\n\tvalues, err := s.students.ListRosterByGroups(ctx, groupIDs, today)\n\treturn toPublicRoster(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentRosterByGroup",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentRosterOverlapping(ctx context.Context, from, to, today string) ([]peopledirectory.StudentRosterEntry, error) {\n\tfor _, day := range []string{from, to, today} {\n\t\tif err := peopledirectory.ValidateRosterDay(day); err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t}\n\tvalues, err := s.students.ListRosterOverlapping(ctx, from, to, today)\n\treturn toPublicRoster(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentRosterOverlapping",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentsAcrossTenantsByID(ctx context.Context, ids []int64) ([]peopledirectory.Student, error) {\n\tids = peopledirectory.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn []peopledirectory.Student{}, nil\n\t}\n\tvalues, err := s.students.ListAcrossTenantsByIDs(ctx, ids)\n\treturn nonNilStudents(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentsAcrossTenantsByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentsByClasses(ctx context.Context, classes []string) ([]peopledirectory.Student, error) {\n\tclasses = peopledirectory.SchoolClasses(classes)\n\tif len(classes) == 0 {\n\t\treturn []peopledirectory.Student{}, nil\n\t}\n\tvalues, err := s.students.ListByClasses(ctx, classes)\n\treturn nonNilStudents(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentsByClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentsByID(ctx context.Context, ids []int64) ([]peopledirectory.Student, error) {\n\tids = peopledirectory.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn []peopledirectory.Student{}, nil\n\t}\n\tvalues, err := s.students.ListByIDs(ctx, ids)\n\treturn nonNilStudents(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentsByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentsByPersonID(ctx context.Context, personIDs []int64) ([]peopledirectory.Student, error) {\n\tpersonIDs = peopledirectory.PositiveIDs(personIDs)\n\tif len(personIDs) == 0 {\n\t\treturn []peopledirectory.Student{}, nil\n\t}\n\tvalues, err := s.students.ListByPersonIDs(ctx, personIDs)\n\treturn nonNilStudents(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentsByPersonID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentsWithStatusFlag(ctx context.Context, status string) ([]peopledirectory.Student, error) {\n\tif status != \"sick\" \u0026\u0026 status != \"excused\" {\n\t\treturn nil, invalidStudent(\"student status flag is invalid\")\n\t}\n\tvalues, err := s.students.ListByStatusFlag(ctx, status)\n\treturn nonNilStudents(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ListStudentsWithStatusFlag",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockEnrollmentClassWrites(ctx context.Context) error {\n\treturn MapError(s.students.LockEnrollmentClassWrites(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.LockEnrollmentClassWrites",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockStudent(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalidStudent(\"student ID is required\")\n\t}\n\treturn MapError(s.students.Lock(ctx, id))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.LockStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockStudentPhotoFeature(ctx context.Context) error {\n\treturn mapPhotoError(s.studentPhotos.LockFeature(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.LockStudentPhotoFeature",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) LockStudentRecordsByID(ctx context.Context, ids []int64) ([]peopledirectory.StudentRecord, error) {\n\tids = peopledirectory.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn []peopledirectory.StudentRecord{}, nil\n\t}\n\tvalues, err := s.students.LockRecordsByIDs(ctx, ids)\n\treturn toPublicStudentRecords(values), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.LockStudentRecordsByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) PatchGuardianLinkPickup(ctx context.Context, patch peopledirectory.GuardianLinkPickupPatch) (int64, error) {\n\tif patch.LinkID \u003c= 0 {\n\t\treturn 0, invalidGuardian(\"relationship ID is required\")\n\t}\n\tif patch.CanPickup == nil \u0026\u0026 patch.IsEmergencyContact == nil \u0026\u0026 !patch.SetPickupNotes {\n\t\treturn 0, invalidGuardian(\"no pickup column supplied\")\n\t}\n\taffected, err := s.guardianRows.PatchLinkPickup(ctx, domain.GuardianLinkPickupPatch(patch))\n\treturn affected, mapGuardianPortalError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.PatchGuardianLinkPickup",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) PurgeStudentPhotos(ctx context.Context) ([]string, error) {\n\turls, err := s.studentPhotos.PurgePhotos(ctx)\n\treturn urls, mapPhotoError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.PurgeStudentPhotos",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReadEnrollmentStudent(ctx context.Context, id int64, lock string) (peopledirectory.EnrollmentRecord, error) {\n\tif id \u003c= 0 || (lock != \"\" \u0026\u0026 lock != \"update\" \u0026\u0026 lock != \"nowait\") {\n\t\treturn peopledirectory.EnrollmentRecord{}, \u0026peopledirectory.InvalidStudentError{Reason: \"invalid enrollment student read\"}\n\t}\n\tvalue, err := s.students.ReadEnrollment(ctx, id, lock)\n\treturn value, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ReadEnrollmentStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordStudentChanges(ctx context.Context, before, after peopledirectory.StudentAuditSnapshot, editedBy int64, editedByName string) error {\n\tif after.StudentID \u003c= 0 {\n\t\treturn invalidStudent(\"student ID is required\")\n\t}\n\treturn MapError(s.studentAudit.RecordChanges(ctx, domain.StudentAuditSnapshot(before), domain.StudentAuditSnapshot(after), editedBy, editedByName))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.RecordStudentChanges",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordStudentPickupPlan(ctx context.Context, studentID int64, before, after, result, reason string, editedBy int64, editedByName string) error {\n\tif studentID \u003c= 0 {\n\t\treturn invalidStudent(\"student ID is required\")\n\t}\n\treturn MapError(s.studentAudit.RecordPickupPlan(ctx, studentID, before, after, result, reason, editedBy, editedByName))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.RecordStudentPickupPlan",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RenewEnrollmentStudent(ctx context.Context, id int64, input peopledirectory.EnrollmentStudent) error {\n\tif input.InitialProfile != nil {\n\t\treturn \u0026peopledirectory.InvalidStudentError{Reason: \"initial profile is only valid for creation\"}\n\t}\n\tif id \u003c= 0 {\n\t\treturn \u0026peopledirectory.InvalidStudentError{Reason: \"student ID is required\"}\n\t}\n\tif err := normalizeEnrollmentStudent(\u0026input); err != nil {\n\t\treturn err\n\t}\n\treturn MapError(s.students.RenewEnrollment(ctx, id, enrollmentInput(input)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.RenewEnrollmentStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ReplaceGuardianPhones(ctx context.Context, guardianID int64, phones []peopledirectory.GuardianPhoneRecord) error {\n\tif guardianID \u003c= 0 {\n\t\treturn invalidGuardian(\"guardian ID is required\")\n\t}\n\trecords := make([]domain.GuardianPhoneRecord, 0, len(phones))\n\tfor _, phone := range phones {\n\t\trecords = append(records, domain.GuardianPhoneRecord(phone))\n\t}\n\treturn mapGuardianPortalError(s.guardianRows.ReplacePhones(ctx, guardianID, records))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ReplaceGuardianPhones",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error {\n\treturn mapPhotoError(s.studentPhotos.ScheduleUnlink(ctx, storedURL))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.ScheduleStudentPhotoUnlink",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SetFamilyProtection(ctx context.Context, input peopledirectory.SetFamilyProtection) (bool, error) {\n\tinput.Reason = strings.TrimSpace(input.Reason)\n\tif input.StudentID \u003c= 0 || input.ActorAccountID \u003c= 0 || input.Reason == \"\" || len([]rune(input.Reason)) \u003e peopledirectory.MaxFamilyProtectionReasonRunes {\n\t\treturn false, peopledirectory.ErrFamilyProtectionInvalid\n\t}\n\tenabled, err := s.students.SetFamilyProtection(ctx, domain.FamilyProtectionChange{StudentID: input.StudentID, Enabled: input.Enabled, Reason: input.Reason, ActorAccountID: input.ActorAccountID})\n\treturn enabled, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.SetFamilyProtection",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SetGuardianPhoneNumber(ctx context.Context, phoneID int64, number string) error {\n\tif phoneID \u003c= 0 {\n\t\treturn invalidGuardian(\"phone ID is required\")\n\t}\n\treturn mapGuardianPortalError(s.guardianRows.SetPhoneNumber(ctx, phoneID, number))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.SetGuardianPhoneNumber",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SetGuardianPortalLocale(ctx context.Context, accountID int64, locale string) (int64, error) {\n\tif accountID \u003c= 0 {\n\t\treturn 0, invalidGuardian(\"account ID is required\")\n\t}\n\tupdated, err := s.guardianRows.SetPortalLocale(ctx, accountID, locale)\n\treturn updated, mapGuardianPortalError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.SetGuardianPortalLocale",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SetStudentPhotoConsent(ctx context.Context, state peopledirectory.StudentPhotoState) error {\n\tif state.StudentID \u003c= 0 {\n\t\treturn invalidStudent(\"student ID is required\")\n\t}\n\tif (state.PhotoConsentGivenAt == nil) != (state.PhotoConsentGivenBy == nil) {\n\t\treturn invalidStudent(\"photo consent time and actor must be set together\")\n\t}\n\treturn mapGuardianPortalError(s.studentPhotos.SetPortalConsent(ctx, domain.StudentPhoto{StudentID: state.StudentID, PhotoPath: state.PhotoPath, PhotoConsentGivenAt: state.PhotoConsentGivenAt, PhotoConsentGivenBy: state.PhotoConsentGivenBy}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.SetStudentPhotoConsent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) StudentsWithPortalGuardian(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {\n\tstudentIDs = peopledirectory.PositiveIDs(studentIDs)\n\tif len(studentIDs) == 0 {\n\t\treturn map[int64]bool{}, nil\n\t}\n\tvalues, err := s.guardianRows.StudentsWithPortalGuardian(ctx, studentIDs)\n\tif values == nil {\n\t\tvalues = map[int64]bool{}\n\t}\n\treturn values, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.StudentsWithPortalGuardian",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UnlinkAccount(ctx context.Context, personID int64) error {\n\tif personID \u003c= 0 {\n\t\treturn invalid(\"person ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"unlink_account\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif err := s.requireLocked(txCtx, personID, stats); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tsetStats, err := s.store.SetAccount(txCtx, personID, nil)\n\t\tstats.Add(setStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.UnlinkAccount",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UnlinkTag(ctx context.Context, personID int64) error {\n\tif personID \u003c= 0 {\n\t\treturn invalid(\"person ID is required\")\n\t}\n\treturn s.runWrite(ctx, \"unlink_tag\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif err := s.requireLocked(txCtx, personID, stats); err != nil {\n\t\t\treturn err\n\t\t}\n\t\tsetStats, err := s.store.SetTag(txCtx, personID, nil)\n\t\tstats.Add(setStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.UnlinkTag",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdateGuardianContact(ctx context.Context, guardianID int64, record peopledirectory.GuardianContactRecord) error {\n\tif guardianID \u003c= 0 {\n\t\treturn invalidGuardian(\"guardian ID is required\")\n\t}\n\treturn mapGuardianPortalError(s.guardianRows.UpdateContact(ctx, guardianID, toDomainGuardianContact(record)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.UpdateGuardianContact",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdateStudent(ctx context.Context, write peopledirectory.StudentWrite) (peopledirectory.StudentRecord, error) {\n\tif write.Record.ID \u003c= 0 {\n\t\treturn peopledirectory.StudentRecord{}, invalidStudent(\"student ID is required\")\n\t}\n\trecord, err := s.students.UpdateStudent(ctx, toApplicationStudentWrite(write))\n\treturn peopledirectory.StudentRecord(record), MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.UpdateStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) VerifyStudentStrandingBatch(ctx context.Context) error {\n\treturn MapError(s.students.VerifyStrandingBatch(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/Service.VerifyStudentStrandingBatch",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentAuditService) ListChangeHistory(ctx context.Context, studentID int64) (result []domain.StudentFieldEdit, err error) {\n\terr = s.run(ctx, \"list_student_change_history\", func() error {\n\t\tif s.log == nil {\n\t\t\treturn ports.ErrStudentAuditUnavailable\n\t\t}\n\t\tresult, err = s.log.ListByStudent(ctx, studentID)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentAuditService.ListChangeHistory",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *StudentDirectoryRows) CountStudents(ctx context.Context, filter peopleModule.StudentDirectoryFilter) (int, error) {\n\tfilter, err := peopleModule.NormalizeStudentDirectoryFilter(filter)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\tfilter.Page, filter.PageSize = 0, 0\n\ttotal, err := d.directory.CountDirectory(ctx, toDomainStudentDirectoryFilter(filter))\n\treturn total, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentDirectoryRows.CountStudents",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *StudentDirectoryRows) ListStudentIDs(ctx context.Context) ([]int64, error) {\n\tids, err := d.directory.ListDirectoryIDs(ctx)\n\treturn ids, MapError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentDirectoryRows.ListStudentIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *StudentDirectoryRows) LockClassWritesShared(ctx context.Context) error {\n\treturn MapError(d.directory.LockEnrollmentClassWrites(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentDirectoryRows.LockClassWritesShared",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *StudentDirectoryRows) LockPhotoFeature(ctx context.Context) error {\n\treturn mapPhotoError(d.photos.LockFeature(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentDirectoryRows.LockPhotoFeature",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *StudentDirectoryRows) LockStudent(ctx context.Context, id int64) (*peopleModule.StudentState, error) {\n\tif id \u003c= 0 {\n\t\treturn nil, peopleModule.ErrStudentRowMissing\n\t}\n\trecord, err := d.directory.FindRecord(ctx, id, \"UPDATE\")\n\tif err != nil {\n\t\treturn nil, translateStudentDirectoryError(MapError(err))\n\t}\n\treturn peopleModule.StudentStateFromRecord(peopleModule.StudentRecord(record)), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentDirectoryRows.LockStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) CountByGroupIDs(ctx context.Context, groupIDs []int64) (map[int64]int, error) {\n\tgroupIDs = peopleModule.PositiveIDs(groupIDs)\n\tif len(groupIDs) == 0 {\n\t\treturn map[int64]int{}, nil\n\t}\n\tcounts, err := r.directory.CountByGroups(ctx, groupIDs)\n\tif err != nil {\n\t\treturn nil, RetainedStudentReadError(\"count by group ids\", MapError(err))\n\t}\n\treturn counts, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.CountByGroupIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) CountEnrolled(ctx context.Context) (int, error) {\n\tids, err := r.directory.ListDirectoryIDs(ctx)\n\tif err != nil {\n\t\treturn 0, RetainedStudentReadError(\"count enrolled students\", MapError(err))\n\t}\n\treturn len(ids), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.CountEnrolled",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *StudentRecords) Create(ctx context.Context, student *peopleModule.StudentState) error {\n\tif student == nil {\n\t\treturn errors.New(\"student cannot be nil\")\n\t}\n\tif student.PersonID \u003c= 0 {\n\t\treturn RetainedStudentWriteError(\u0026peopleModule.InvalidStudentError{Reason: \"person ID is required\"})\n\t}\n\trecord, err := w.directory.CreateStudent(ctx, toApplicationStudentWrite(StudentWriteFromModel(student)))\n\tif err != nil {\n\t\treturn RetainedStudentWriteError(MapError(err))\n\t}\n\tApplyStudentRecord(student, peopleModule.StudentRecord(record))\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.Create",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *StudentRecords) Delete(ctx context.Context, id any) error {\n\tstudentID, ok := studentIDOf(id)\n\tif !ok {\n\t\treturn fmt.Errorf(\"delete student: unsupported id type %T\", id)\n\t}\n\tif studentID \u003c= 0 {\n\t\treturn RetainedStudentWriteError(\u0026peopleModule.InvalidStudentError{Reason: \"student ID is required\"})\n\t}\n\treturn RetainedStudentWriteError(MapError(w.directory.DeleteStudent(ctx, studentID)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.Delete",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) ExistsEnrolledByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday owner0.Date) (bool, error) {\n\tif err := peopleModule.ValidateStudentMatch(tenantID, firstName, lastName, birthday.String()); err != nil {\n\t\treturn false, RetainedStudentReadError(\"exists enrolled by name and birthday\", err)\n\t}\n\tids, err := r.directory.ListEnrolledIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday.String())\n\tif err != nil {\n\t\treturn false, RetainedStudentReadError(\"exists enrolled by name and birthday\", MapError(err))\n\t}\n\treturn len(ids) \u003e 0, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.ExistsEnrolledByNameAndBirthday",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindActiveDueForDeactivation(ctx context.Context, asOf owner0.Date) ([]*peopleModule.StudentState, error) {\n\tif _, err := owner0.ParseDate(asOf.String()); err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find active due for deactivation\", \u0026peopleModule.InvalidStudentError{Reason: \"the day must be a calendar date in YYYY-MM-DD format\"})\n\t}\n\treturn r.listRecords(ctx, \"find active due for deactivation\", func() ([]domain.StudentRecord, error) {\n\t\treturn r.directory.ListRecordsDueForStatus(ctx, string(peopleModule.StudentStatusActive), peopleModule.StudentBoundCareEnd, asOf.String())\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindActiveDueForDeactivation",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindAllWithGroups(ctx context.Context) ([]*peopleModule.StudentRosterEntry, error) {\n\treturn r.roster(ctx, \"find all with groups\", func() ([]domain.StudentRosterEntry, error) {\n\t\treturn r.directory.ListRoster(ctx, owner0.TodayDate().String())\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindAllWithGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindByGroupID(ctx context.Context, groupID int64) ([]*peopleModule.StudentState, error) {\n\tif groupID \u003c= 0 {\n\t\treturn nil, nil\n\t}\n\treturn r.listRecords(ctx, \"find by group id\", func() ([]domain.StudentRecord, error) {\n\t\treturn r.directory.ListRecordsByGroups(ctx, []int64{groupID}, string(peopleModule.StudentScopeEnrolled))\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindByGroupID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleModule.StudentState, error) {\n\tgroupIDs = peopleModule.PositiveIDs(groupIDs)\n\tif len(groupIDs) == 0 {\n\t\treturn nil, nil\n\t}\n\treturn r.listRecords(ctx, \"find by group ids\", func() ([]domain.StudentRecord, error) {\n\t\treturn r.directory.ListRecordsByGroups(ctx, groupIDs, string(peopleModule.StudentScopeEnrolled))\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindByGroupIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindByID(ctx context.Context, id any) (*peopleModule.StudentState, error) {\n\tstudentID, ok := studentIDOf(id)\n\tif !ok || studentID \u003c= 0 {\n\t\treturn nil, peoplePorts.MissingStudentError(\"find by id\")\n\t}\n\trecord, err := r.directory.FindRecord(ctx, studentID, \"\")\n\tif err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find by id\", MapError(err))\n\t}\n\treturn peopleModule.StudentStateFromRecord(peopleModule.StudentRecord(record)), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindByID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindByIDForUpdate(ctx context.Context, id int64) (*peopleModule.StudentState, error) {\n\tif id \u003c= 0 {\n\t\treturn nil, peoplePorts.MissingStudentError(\"find by id for update\")\n\t}\n\trecord, err := r.directory.FindRecord(ctx, id, \"UPDATE\")\n\tif err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find by id for update\", MapError(err))\n\t}\n\treturn peopleModule.StudentStateFromRecord(peopleModule.StudentRecord(record)), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindByIDForUpdate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {\n\tids = peopleModule.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn map[int64]*peopleModule.StudentState{}, nil\n\t}\n\trecords, err := r.directory.ListRecordsByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find by ids\", MapError(err))\n\t}\n\treturn studentRecordsByID(records), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*peopleModule.StudentState, error) {\n\tids = peopleModule.PositiveIDs(ids)\n\tif len(ids) == 0 {\n\t\treturn map[int64]*peopleModule.StudentState{}, nil\n\t}\n\trecords, err := r.directory.LockRecordsByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find by ids for update\", MapError(err))\n\t}\n\treturn studentRecordsByID(records), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindByIDsForUpdate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindByPersonID(ctx context.Context, personID int64) (*peopleModule.StudentState, error) {\n\tif personID \u003c= 0 {\n\t\treturn nil, peoplePorts.MissingStudentError(\"find by person id\")\n\t}\n\trecords, err := r.directory.ListRecordsByPersonIDs(ctx, []int64{personID})\n\tif err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find by person id\", MapError(err))\n\t}\n\tif len(records) == 0 {\n\t\treturn nil, peoplePorts.MissingStudentError(\"find by person id\")\n\t}\n\treturn peopleModule.StudentStateFromRecord(peopleModule.StudentRecord(records[0])), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindByPersonID",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday owner0.Date) (*int64, error) {\n\tif err := peopleModule.ValidateStudentMatch(tenantID, firstName, lastName, birthday.String()); err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find enrolled student id by name and birthday\", err)\n\t}\n\tids, err := r.directory.ListEnrolledIDsByNameAndBirthday(ctx, tenantID, firstName, lastName, birthday.String())\n\tif err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find enrolled student id by name and birthday\", MapError(err))\n\t}\n\tif len(ids) != 1 {\n\t\treturn nil, nil\n\t}\n\treturn \u0026ids[0], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindEnrolledStudentIDByNameAndBirthday",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindOverlappingWithGroups(ctx context.Context, from, to, today owner0.Date) ([]*peopleModule.StudentRosterEntry, error) {\n\tfor _, day := range []owner0.Date{from, to, today} {\n\t\tif err := peopleModule.ValidateRosterDay(day.String()); err != nil {\n\t\t\treturn nil, RetainedStudentReadError(\"find overlapping with groups\", err)\n\t\t}\n\t}\n\treturn r.roster(ctx, \"find overlapping with groups\", func() ([]domain.StudentRosterEntry, error) {\n\t\treturn r.directory.ListRosterOverlapping(ctx, from.String(), to.String(), today.String())\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindOverlappingWithGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) FindPendingDueForActivation(ctx context.Context, asOf owner0.Date) ([]*peopleModule.StudentState, error) {\n\tif _, err := owner0.ParseDate(asOf.String()); err != nil {\n\t\treturn nil, RetainedStudentReadError(\"find pending due for activation\", \u0026peopleModule.InvalidStudentError{Reason: \"the day must be a calendar date in YYYY-MM-DD format\"})\n\t}\n\treturn r.listRecords(ctx, \"find pending due for activation\", func() ([]domain.StudentRecord, error) {\n\t\treturn r.directory.ListRecordsDueForStatus(ctx, string(peopleModule.StudentStatusPending), peopleModule.StudentBoundCareStart, asOf.String())\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.FindPendingDueForActivation",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) ListByGroupIDsIncludingAlumni(ctx context.Context, groupIDs []int64) ([]*peopleModule.StudentState, error) {\n\tgroupIDs = peopleModule.PositiveIDs(groupIDs)\n\tif len(groupIDs) == 0 {\n\t\treturn nil, nil\n\t}\n\treturn r.listRecords(ctx, \"list by group ids including alumni\", func() ([]domain.StudentRecord, error) {\n\t\treturn r.directory.ListRecordsByGroups(ctx, groupIDs, string(peopleModule.StudentScopeAll))\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.ListByGroupIDsIncludingAlumni",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *StudentRecords) ListSchoolClasses(ctx context.Context) ([]string, error) {\n\tclasses, err := r.directory.ListClasses(ctx)\n\tif err != nil {\n\t\treturn nil, RetainedStudentReadError(\"list school classes\", MapError(err))\n\t}\n\treturn classes, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.ListSchoolClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *StudentRecords) TransitionStatus(ctx context.Context, studentID int64, expected, next string) (bool, error) {\n\tmoved, err := w.membership.TransitionStatus(ctx, studentID, string(expected), string(next))\n\treturn moved, RetainedStudentWriteError(MapError(err))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.TransitionStatus",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *StudentRecords) Update(ctx context.Context, student *peopleModule.StudentState) error {\n\tif student == nil {\n\t\treturn errors.New(\"student cannot be nil\")\n\t}\n\tif student.ID \u003c= 0 {\n\t\treturn RetainedStudentWriteError(\u0026peopleModule.InvalidStudentError{Reason: \"student ID is required\"})\n\t}\n\trecord, err := w.directory.UpdateStudent(ctx, toApplicationStudentWrite(StudentWriteFromModel(student)))\n\tif err != nil {\n\t\treturn RetainedStudentWriteError(MapError(err))\n\t}\n\tApplyStudentRecord(student, peopleModule.StudentRecord(record))\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.Update",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *StudentRecords) UpdateStatus(ctx context.Context, studentID int64, status string) error {\n\tchanged, err := w.membership.SetStatus(ctx, studentID, string(status))\n\tif err == nil \u0026\u0026 !changed {\n\t\terr = peopleModule.ErrStudentNotFound\n\t}\n\treturn RetainedStudentWriteError(MapError(err))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.UpdateStatus",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w *StudentRecords) VerifyCompanionStrandingBatch(ctx context.Context) error {\n\treturn RetainedStudentWriteError(MapError(w.directory.VerifyStrandingBatch(ctx)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRecords.VerifyCompanionStrandingBatch",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p StudentRoutePersons) AssignStudentTag(ctx context.Context, studentID int64, tagID string) error {\n\terr := p.persons.LinkStudentToRFIDCard(ctx, studentID, tagID)\n\tif errors.Is(err, userscontract.ErrStudentGraduated) || errors.Is(err, userscontract.ErrStudentNotFound) {\n\t\treturn errors.Join(peopleModule.ErrStudentNotFound, err)\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRoutePersons.AssignStudentTag",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p StudentRoutePersons) CreatePerson(ctx context.Context, input peopleModule.CreatePerson) (peopleModule.Person, error) {\n\tperson := \u0026peopleModule.DirectoryPersonSnapshot{FirstName: input.FirstName, LastName: input.LastName, Birthday: peopleModule.OptionalCalendarDate(input.Birthday), TagID: input.TagID, AccountID: input.AccountID}\n\tif err := p.persons.Create(ctx, person); err != nil {\n\t\treturn peopleModule.Person{}, err\n\t}\n\treturn studentRoutePerson(person), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRoutePersons.CreatePerson",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p StudentRoutePersons) ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error) {\n\tstudents, err := p.persons.GetEligibleStudentsByGroupIDsOnDate(ctx, groupIDs, date, today)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecords := make([]peopleModule.StudentRecord, 0, len(students))\n\tfor _, student := range students {\n\t\tif student != nil {\n\t\t\trecords = append(records, studentRouteRecord(student))\n\t\t}\n\t}\n\treturn records, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRoutePersons.ListStudentsForDay",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p StudentRoutePersons) StaffIDForPerson(ctx context.Context, personID int64) (int64, bool, error) {\n\tstaff, err := p.persons.StaffRows().FindByPersonID(ctx, personID)\n\tif err != nil {\n\t\tvar notFound interface{ RepositoryNotFound() }\n\t\tif errors.As(err, \u0026notFound) {\n\t\t\treturn 0, false, nil\n\t\t}\n\t\treturn 0, false, err\n\t}\n\tif staff == nil {\n\t\treturn 0, false, nil\n\t}\n\treturn staff.ID, true, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRoutePersons.StaffIDForPerson",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p StudentRoutePersons) UpdatePerson(ctx context.Context, input peopleModule.UpdatePerson) (peopleModule.Person, error) {\n\tperson := \u0026peopleModule.DirectoryPersonSnapshot{FirstName: input.FirstName, LastName: input.LastName, Birthday: peopleModule.OptionalCalendarDate(input.Birthday), TagID: input.TagID, AccountID: input.AccountID}\n\tperson.ID = input.ID\n\tif err := p.persons.Update(ctx, person); err != nil {\n\t\treturn peopleModule.Person{}, err\n\t}\n\treturn studentRoutePerson(person), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentRoutePersons.UpdatePerson",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) CountByGroups(ctx context.Context, groupIDs []int64) (counts map[int64]int, err error) {\n\terr = s.run(ctx, \"count_students_by_group\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tcounts, queryStats, err = s.store.CountByGroups(txCtx, groupIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn counts, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.CountByGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) CountDirectory(ctx context.Context, filter domain.StudentDirectoryFilter) (total int, err error) {\n\terr = s.run(ctx, \"count_student_directory\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\ttotal, queryStats, err = s.store.CountDirectory(txCtx, filter)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn total, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.CountDirectory",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) CountGuardianLinks(ctx context.Context, studentID int64) (count int, err error) {\n\terr = s.run(ctx, \"count_student_guardian_links\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tcount, queryStats, err = s.store.CountGuardianLinks(txCtx, studentID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn count, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.CountGuardianLinks",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) CurrentFamilyProtection(ctx context.Context, ids []int64) (result map[int64]bool, err error) {\n\terr = s.run(ctx, \"current_family_protection\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.CurrentFamilyProtection(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.CurrentFamilyProtection",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) Delete(ctx context.Context, id int64) (rows int64, err error) {\n\terr = s.run(ctx, \"delete_student\", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar writeStats domain.OperationStats\n\t\trows, writeStats, err = s.store.Delete(txCtx, id)\n\t\tstats.Add(writeStats)\n\t\treturn err\n\t})\n\treturn rows, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.Delete",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) (result []peopledirectory.Student, err error) {\n\terr = s.run(ctx, \"list_students_across_tenants_by_id\", s.tx.RunAdminRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByIDs(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListAcrossTenantsByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListAllIDs(ctx context.Context) (ids []int64, err error) {\n\terr = s.run(ctx, \"list_all_student_ids\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tids, queryStats, err = s.store.ListAllIDs(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn ids, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListAllIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListByClasses(ctx context.Context, classes []string) (result []peopledirectory.Student, err error) {\n\terr = s.run(ctx, \"list_students_by_class\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByClasses(txCtx, classes)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListByClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListByIDs(ctx context.Context, ids []int64) (result []peopledirectory.Student, err error) {\n\terr = s.run(ctx, \"list_students_by_id\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByIDs(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListByPersonIDs(ctx context.Context, personIDs []int64) (result []peopledirectory.Student, err error) {\n\terr = s.run(ctx, \"list_students_by_person\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByPersonIDs(txCtx, personIDs)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListByPersonIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListByStatusFlag(ctx context.Context, status string) (result []peopledirectory.Student, err error) {\n\terr = s.run(ctx, \"list_students_with_status_flag\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListByStatusFlag(txCtx, status)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListByStatusFlag",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListClasses(ctx context.Context) (result []string, err error) {\n\terr = s.run(ctx, \"list_school_classes\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListClasses(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListDepartureModes(ctx context.Context, ids []int64) (result map[int64]map[string][]string, err error) {\n\terr = s.run(ctx, \"list_student_departure_modes\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListDepartureModes(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListDepartureModes",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListDirectory(ctx context.Context, filter domain.StudentDirectoryFilter) (result []domain.StudentRecord, err error) {\n\terr = s.run(ctx, \"list_student_directory\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListDirectory(txCtx, filter)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListDirectory",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListDirectoryIDs(ctx context.Context) (result []int64, err error) {\n\terr = s.run(ctx, \"list_student_directory_ids\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListDirectoryIDs(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListDirectoryIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListEnrolled(ctx context.Context) (result []peopledirectory.Student, err error) {\n\terr = s.run(ctx, \"list_enrolled_students\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListEnrolled(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListEnrolled",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListNamesByIDs(ctx context.Context, ids []int64) (result []peopledirectory.StudentName, err error) {\n\terr = s.run(ctx, \"list_student_names_by_id\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListNamesByIDs(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListNamesByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRecords(ctx context.Context, scope string) ([]domain.StudentRecord, error) {\n\treturn s.readRecords(ctx, \"list_student_records\", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {\n\t\treturn s.store.ListRecords(txCtx, scope)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRecords",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRecordsByClasses(ctx context.Context, classes []string, scope string) ([]domain.StudentRecord, error) {\n\treturn s.readRecords(ctx, \"list_student_records_by_class\", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {\n\t\treturn s.store.ListRecordsByClasses(txCtx, classes, scope)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRecordsByClasses",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRecordsByGroups(ctx context.Context, groupIDs []int64, scope string) ([]domain.StudentRecord, error) {\n\treturn s.readRecords(ctx, \"list_student_records_by_group\", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {\n\t\treturn s.store.ListRecordsByGroups(txCtx, groupIDs, scope)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRecordsByGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRecordsByIDs(ctx context.Context, ids []int64) (result []domain.StudentRecord, err error) {\n\terr = s.run(ctx, \"list_student_records_by_id\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.ListRecordsByIDs(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRecordsByIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRecordsByPersonIDs(ctx context.Context, personIDs []int64) ([]domain.StudentRecord, error) {\n\treturn s.readRecords(ctx, \"list_student_records_by_person\", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {\n\t\treturn s.store.ListRecordsByPersonIDs(txCtx, personIDs)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRecordsByPersonIDs",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]domain.StudentRecord, error) {\n\treturn s.readRecords(ctx, \"list_student_records_due_for_status\", func(txCtx context.Context) ([]domain.StudentRecord, domain.OperationStats, error) {\n\t\treturn s.store.ListRecordsDueForStatus(txCtx, status, bound, asOf)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRecordsDueForStatus",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRoster(ctx context.Context, today string) ([]domain.StudentRosterEntry, error) {\n\treturn s.readRoster(ctx, \"list_student_roster\", func(txCtx context.Context) ([]domain.StudentRosterEntry, domain.OperationStats, error) {\n\t\treturn s.store.ListRoster(txCtx, today)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRoster",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRosterByGroups(ctx context.Context, groupIDs []int64, today string) ([]domain.StudentRosterEntry, error) {\n\treturn s.readRoster(ctx, \"list_student_roster_by_group\", func(txCtx context.Context) ([]domain.StudentRosterEntry, domain.OperationStats, error) {\n\t\treturn s.store.ListRosterByGroups(txCtx, groupIDs, today)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRosterByGroups",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListRosterOverlapping(ctx context.Context, from, to, today string) ([]domain.StudentRosterEntry, error) {\n\treturn s.readRoster(ctx, \"list_student_roster_overlapping\", func(txCtx context.Context) ([]domain.StudentRosterEntry, domain.OperationStats, error) {\n\t\treturn s.store.ListRosterOverlapping(txCtx, from, to, today)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListRosterOverlapping",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *StudentService) ListStudentCareEnds(ctx context.Context, ids []int64) (bounds map[int64]string, err error) {\n\tif len(ids) == 0 {\n\t\treturn map[int64]string{}, nil\n\t}\n\terr = s.run(ctx, \"list_student_care_ends\", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tbounds, queryStats, err = s.store.ListCareEnds(txCtx, ids)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn bounds, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/StudentService.ListStudentCareEnds",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b birthdayView) GetOptOut(ctx context.Context, accountID int64) (bool, error) {\n\toptOut, err := b.service.GetOptOut(ctx, accountID)\n\treturn optOut, mapBirthdayError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/birthdayView.GetOptOut",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b birthdayView) ListStaffBirthdays(ctx context.Context, months map[time.Month]bool) ([]peopledirectory.StaffBirthday, error) {\n\tvalues, err := b.service.ListStaffBirthdays(ctx, months)\n\tif err != nil {\n\t\treturn nil, mapBirthdayError(err)\n\t}\n\trows := make([]peopledirectory.StaffBirthday, 0, len(values))\n\tfor _, v := range values {\n\t\trows = append(rows, peopledirectory.StaffBirthday{Name: v.FullName(), Birthday: v.Birthday})\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/birthdayView.ListStaffBirthdays",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b birthdayView) OwnStaffBirthday(ctx context.Context, accountID int64) (peopledirectory.StaffBirthdayPreference, error) {\n\tstaff, err := b.service.resolveOwnStaff(ctx, accountID)\n\treturn peopledirectory.StaffBirthdayPreference{StaffID: staff.ID, OptOut: staff.OptOut}, mapBirthdayError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/birthdayView.OwnStaffBirthday",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a studentCompanions) DeleteEdges(ctx context.Context, edgeIDs []int64) error {\n\tif err := a.seam.DeleteCompanionEdges(ctx, edgeIDs); err != nil {\n\t\treturn err\n\t}\n\tif len(edgeIDs) \u003e 0 {\n\t\tpeopledirectory.RecordCompanionChange(ctx)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/studentCompanions.DeleteEdges",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a studentCompanions) ListForStudent(ctx context.Context, studentID int64) ([]domain.CompanionEdge, error) {\n\tedges, err := a.seam.ListCompanionEdgesForStudent(ctx, studentID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.CompanionEdge, 0, len(edges))\n\tfor _, edge := range edges {\n\t\tresult = append(result, domain.CompanionEdge(edge))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/studentCompanions.ListForStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a studentFieldAuditLog) Append(ctx context.Context, edits []domain.StudentFieldEdit) error {\n\treturn a.log.Append(ctx, toPublicStudentFieldEdits(edits))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/studentFieldAuditLog.Append",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a studentFieldAuditLog) ListByStudent(ctx context.Context, studentID int64) ([]domain.StudentFieldEdit, error) {\n\tvalues, err := a.log.ListByStudent(ctx, studentID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.StudentFieldEdit, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, domain.StudentFieldEdit(value))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/studentFieldAuditLog.ListByStudent",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s studentOwners) Enroll(ctx context.Context, record domain.StudentRecord) (int64, error) {\n\tif s.owners == nil {\n\t\treturn 0, errors.New(\"people directory: student owners are not bound\")\n\t}\n\treturn s.owners.Enroll(ctx, peopledirectory.StudentRecord(record))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/studentOwners.Enroll",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s studentOwners) LockClassWrites(ctx context.Context, exclusive bool) error {\n\tif s.owners == nil {\n\t\treturn errors.New(\"people directory: student owners are not bound\")\n\t}\n\treturn s.owners.LockClassWrites(ctx, exclusive)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/peopledirectory/internal/application/studentOwners.LockClassWrites",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s studentOwners) Renew(ctx context.Context, record domain.StudentRecord) (int64, error) {\n\tif s.owners == nil {\n\t\treturn 0, errors.New(\"people directory: student owners are not bound\")\n\t}\n\treturn s.owners.Renew(ctx, peopledirectory.StudentRecord(record))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/studentOwners.Renew",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s studentOwners) SaveCare(ctx context.Context, membershipID int64, record domain.StudentRecord, plan domain.DeparturePlan, note *string, touched bool) error {\n\tif s.owners == nil {\n\t\treturn errors.New(\"people directory: student owners are not bound\")\n\t}\n\treturn s.owners.SaveCare(ctx, membershipID, peopledirectory.StudentRecord(record), peopledirectory.StudentPlan{AllowedDepartureModes: plan.AllowedDepartureModes, DepartureDays: plan.DepartureDays, BusDays: plan.BusDays, PickupDays: plan.PickupDays}, note, touched)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/application/studentOwners.SaveCare",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ClearSchoolDayHint) Validate() error {\n\tif c.AuthorAccountID \u003c= 0 || c.Date.IsZero() {\n\t\treturn ErrStudentNoteInvalid\n\t}\n\tif (c.SchoolClass == \"\") == (c.StudentID \u003c= 0) {\n\t\treturn ErrStudentNoteInvalid\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/domain/ClearSchoolDayHint.Validate",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (n StudentNote) Edited() bool {\n\treturn n.UpdatedAt.After(n.CreatedAt)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/domain/StudentNote.Edited",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *ValidationError) Error() string {\n\tif e == nil || e.Err == nil {\n\t\treturn \"\"\n\t}\n\treturn e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/internal/domain/userscontract/ValidationError.Error",
+      "owner": "modules/peopledirectory"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *DatabaseError) Error() string {\n\tif e.Err == nil {\n\t\treturn \"database error during \" + e.Op\n\t}\n\treturn \"database error during \" + e.Op + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/peopledirectory/ports/DatabaseError.Error",
+      "owner": "modules/peopledirectory"
+    }
+  ]
+}

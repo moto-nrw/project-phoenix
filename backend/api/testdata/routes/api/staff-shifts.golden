@@ -1,0 +1,12 @@
+DELETE /api/staff-shifts/series/{id}
+DELETE /api/staff-shifts/{id}
+GET /api/staff-shifts/
+GET /api/staff-shifts/overview
+GET /api/staff-shifts/series/{id}
+POST /api/staff-shifts/
+POST /api/staff-shifts/export
+POST /api/staff-shifts/series
+PUT /api/staff-shifts/series/{id}/split
+PUT /api/staff-shifts/{id}
+PUT /api/staff-shifts/{id}/cancellation
+PUT /api/staff-shifts/{id}/move

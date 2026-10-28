@@ -1,0 +1,8 @@
+{
+  "external_access_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "external_email_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "external_email_invited": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "external_email_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "external_has_account": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "not_external": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+}

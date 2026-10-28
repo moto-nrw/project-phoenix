@@ -16,7 +16,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { useTenant } from "~/lib/tenant-context";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
 import {
   fetchMyEnrollmentProfile,

@@ -71,6 +71,13 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 	require.NoError(t, walkErr)
 	sort.Strings(routes)
 	sort.Strings(middlewareRoutes)
+	catalog, err := RouteCatalog()
+	require.NoError(t, err)
+	var embedded []string
+	for _, route := range catalog {
+		embedded = append(embedded, route.Method+" "+route.Pattern)
+	}
+	require.Equal(t, routes, embedded, "embedded route catalog must match the complete production router")
 
 	// The root mounts the only session verifier. An Authenticator without a
 	// verifier before it rejects every token, and the shared test executors
@@ -88,10 +95,10 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 		require.Truef(t, verifier >= 0 && verifier < authenticator, "authenticated route without a preceding session verifier: %s", chain)
 	}
 
-	compareGolden(t, filepath.Join("testdata", "route_table.golden"), strings.Join(routes, "\n")+"\n",
-		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
-	compareMiddlewareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
-		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact")
+	compareResourceGoldens(t, filepath.Join("testdata", "routes"), strings.Join(routes, "\n")+"\n",
+		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description", false)
+	compareResourceGoldens(t, filepath.Join("testdata", "middleware"), strings.Join(middlewareRoutes, "\n")+"\n",
+		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact", true)
 
 	// Der Frontend-Client ruft Sammlungen ohne Schrägstrich am Ende auf
 	// (/api/staff-notices), das Backend registriert den Subrouter mit "/".

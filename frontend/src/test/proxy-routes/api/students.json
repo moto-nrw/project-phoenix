@@ -1,0 +1,133 @@
+{
+  "api/students/[id]/arrival-exceptions": [
+    "POST tenant /api/students/id%2F1/arrival-exceptions"
+  ],
+  "api/students/[id]/arrival-exceptions/[exceptionId]": [
+    "DELETE tenant /api/students/id%2F1/arrival-exceptions/exceptionId%2F1",
+    "PUT tenant /api/students/id%2F1/arrival-exceptions/exceptionId%2F1"
+  ],
+  "api/students/[id]/arrival-notes": [
+    "POST tenant /api/students/id%2F1/arrival-notes"
+  ],
+  "api/students/[id]/arrival-notes/[noteId]": [
+    "DELETE tenant /api/students/id%2F1/arrival-notes/noteId%2F1",
+    "PUT tenant /api/students/id%2F1/arrival-notes/noteId%2F1"
+  ],
+  "api/students/[id]/arrival-schedules": [
+    "GET tenant /api/students/id%2F1/arrival-schedules",
+    "PUT tenant /api/students/id%2F1/arrival-schedules"
+  ],
+  "api/students/[id]/care-end/resume": [
+    "POST tenant /api/students/id%2F1/care-end/resume"
+  ],
+  "api/students/[id]/care-withdrawals": [
+    "GET tenant /api/students/id%2F1/care-withdrawals"
+  ],
+  "api/students/[id]/companions": [
+    "GET tenant /api/students/id%2F1/companions"
+  ],
+  "api/students/[id]/departure-exceptions/[date]": [
+    "DELETE tenant /api/students/id%2F1/departure-exceptions/date%2F1",
+    "PUT tenant /api/students/id%2F1/departure-exceptions/date%2F1"
+  ],
+  "api/students/[id]/documents/[documentId]": [
+    "DELETE tenant /api/students/id%2F1/documents/documentId%2F1"
+  ],
+  "api/students/[id]/note-subjects": [
+    "GET tenant /api/students/id%2F1/note-subjects"
+  ],
+  "api/students/[id]/notes": [
+    "GET tenant /api/students/id%2F1/notes",
+    "POST tenant /api/students/id%2F1/notes"
+  ],
+  "api/students/[id]/notes/[noteId]": [
+    "DELETE tenant /api/students/id%2F1/notes/noteId%2F1",
+    "PUT tenant /api/students/id%2F1/notes/noteId%2F1"
+  ],
+  "api/students/[id]/pickup-exceptions": [
+    "POST tenant /api/students/id%2F1/pickup-exceptions"
+  ],
+  "api/students/[id]/pickup-exceptions/[exceptionId]": [
+    "DELETE tenant /api/students/id%2F1/pickup-exceptions/exceptionId%2F1",
+    "PUT tenant /api/students/id%2F1/pickup-exceptions/exceptionId%2F1"
+  ],
+  "api/students/[id]/pickup-notes": [
+    "POST tenant /api/students/id%2F1/pickup-notes",
+    "PUT tenant /api/students/id%2F1/pickup-notes"
+  ],
+  "api/students/[id]/pickup-notes/[noteId]": [
+    "DELETE tenant /api/students/id%2F1/pickup-notes/noteId%2F1",
+    "PUT tenant /api/students/id%2F1/pickup-notes/noteId%2F1"
+  ],
+  "api/students/[id]/pickup-schedules": [
+    "GET tenant /api/students/id%2F1/pickup-schedules",
+    "PUT tenant /api/students/id%2F1/pickup-schedules"
+  ],
+  "api/students/[id]/pickup-schedules/apply": [
+    "POST tenant /api/students/id%2F1/pickup-schedules/apply"
+  ],
+  "api/students/[id]/pickup-schedules/preview": [
+    "POST tenant /api/students/id%2F1/pickup-schedules/preview"
+  ],
+  "api/students/[id]/pickup-schedules/reset-offering": [
+    "POST tenant /api/students/id%2F1/pickup-schedules/reset-offering"
+  ],
+  "api/students/arrival-schedules/bulk": [
+    "POST tenant /api/students/arrival-schedules/bulk"
+  ],
+  "api/students/arrival-schedules/status": [
+    "POST tenant /api/students/arrival-schedules/status"
+  ],
+  "api/students/arrival-settings": [
+    "GET tenant /api/students/arrival-settings"
+  ],
+  "api/students/arrival-times/bulk": [
+    "POST tenant /api/students/arrival-times/bulk"
+  ],
+  "api/students/care-end": [
+    "POST tenant /api/students/care-end"
+  ],
+  "api/students/care-end/cancel": [
+    "POST tenant /api/students/care-end/cancel"
+  ],
+  "api/students/care-end/preview": [
+    "POST tenant /api/students/care-end/preview"
+  ],
+  "api/students/care-withdrawals": [
+    "GET tenant /api/students/care-withdrawals"
+  ],
+  "api/students/care-withdrawals/[completionId]/care-end": [
+    "POST tenant /api/students/care-withdrawals/completionId%2F1/care-end"
+  ],
+  "api/students/care-withdrawals/[completionId]/care-end/preview": [
+    "POST tenant /api/students/care-withdrawals/completionId%2F1/care-end/preview"
+  ],
+  "api/students/care-withdrawals/[completionId]/deletion-impact": [
+    "GET tenant /api/students/care-withdrawals/completionId%2F1/deletion-impact"
+  ],
+  "api/students/change-requests/conflicts/resolve": [
+    "POST tenant /api/students/change-requests/conflicts/resolve"
+  ],
+  "api/students/class-arrival-exceptions/[schoolClass]": [
+    "GET tenant /api/students/class-arrival-exceptions/schoolClass%2F1"
+  ],
+  "api/students/class-arrival-exceptions/[schoolClass]/[date]": [
+    "DELETE tenant /api/students/class-arrival-exceptions/schoolClass%2F1/date%2F1",
+    "PUT tenant /api/students/class-arrival-exceptions/schoolClass%2F1/date%2F1"
+  ],
+  "api/students/class-arrival-times/[schoolClass]": [
+    "GET tenant /api/students/class-arrival-times/schoolClass%2F1"
+  ],
+  "api/students/ended-care": [
+    "GET tenant /api/students/ended-care"
+  ],
+  "api/students/pickup-schedules/bulk": [
+    "POST tenant /api/students/pickup-schedules/bulk"
+  ],
+  "api/students/pickup-times/bulk": [
+    "POST tenant /api/students/pickup-times/bulk"
+  ],
+  "api/students/status-days/bulk": [
+    "POST tenant /api/students/status-days/bulk"
+  ]
+}

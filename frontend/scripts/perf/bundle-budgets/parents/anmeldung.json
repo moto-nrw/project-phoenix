@@ -1,0 +1,26 @@
+{
+  "format": "moto-bundle-budget/v1",
+  "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
+  "routes": {
+    "/parents/anmeldung": {
+      "referenceBytes": 784544,
+      "maxBytes": 800235
+    },
+    "/parents/anmeldung/[tenantSlug]/[phaseId]": {
+      "referenceBytes": 979448,
+      "maxBytes": 999037
+    },
+    "/parents/anmeldung/status/[token]": {
+      "referenceBytes": 803608,
+      "maxBytes": 819680
+    },
+    "/parents/anmeldung/status/[token]/adjust": {
+      "referenceBytes": 982316,
+      "maxBytes": 1001962
+    },
+    "/parents/anmeldung/status/[token]/edit": {
+      "referenceBytes": 982316,
+      "maxBytes": 1001962
+    }
+  }
+}

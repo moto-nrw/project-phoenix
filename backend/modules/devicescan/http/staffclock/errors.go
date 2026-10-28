@@ -10,7 +10,7 @@ import (
 
 // The codes below are a cross-repo contract: PyrePortal maps them to German
 // UI text (docs/agents/contracts.md, Ecosystem and IoT). They are registered
-// in error-registry.json; this package may not import api/common, so it
+// in error-registry/; this package may not import api/common, so it
 // names them once here.
 const (
 	codeInvalidRequest         = "iot.invalid_staff_clock_request"

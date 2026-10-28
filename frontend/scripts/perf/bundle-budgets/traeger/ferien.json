@@ -1,0 +1,26 @@
+{
+  "format": "moto-bundle-budget/v1",
+  "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
+  "routes": {
+    "/traeger/ferien": {
+      "referenceBytes": 817394,
+      "maxBytes": 833742
+    },
+    "/traeger/ferien/[id]": {
+      "referenceBytes": 864552,
+      "maxBytes": 881843
+    },
+    "/traeger/ferien/[id]/anmeldungen": {
+      "referenceBytes": 824756,
+      "maxBytes": 841251
+    },
+    "/traeger/ferien/[id]/anmeldungen/[registrationId]": {
+      "referenceBytes": 822254,
+      "maxBytes": 838699
+    },
+    "/traeger/ferien/neu": {
+      "referenceBytes": 861112,
+      "maxBytes": 878334
+    }
+  }
+}

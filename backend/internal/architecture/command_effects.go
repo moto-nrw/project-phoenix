@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+
 	"golang.org/x/tools/go/packages"
 )
 
@@ -31,11 +33,11 @@ type commandEffectManifest struct {
 }
 
 func loadCommandEffects(project string) (*commandEffectManifest, error) {
-	blob, err := os.ReadFile(filepath.Join(project, commandEffectInventory))
+	stored, err := artifacts.ReadInventory(filepath.Join(project, commandEffectInventory), artifacts.CommandEffects, false)
 	if err != nil {
-		return nil, fmt.Errorf("load command effects: %w", err)
+		return nil, fmt.Errorf("load command effects: %w; run scripts/backend-architecture.sh effects and review the result", err)
 	}
-	return decodeCommandEffects(blob)
+	return decodeCommandEffects(stored.Document)
 }
 
 func decodeCommandEffects(blob []byte) (*commandEffectManifest, error) {
@@ -80,20 +82,22 @@ func analyzeCommandEffects(project string, policy *Policy, loaded []*packages.Pa
 }
 
 func loadCanonicalCommandEffects(project string) (*commandEffectManifest, error) {
-	blob, err := os.ReadFile(filepath.Join(project, commandEffectInventory))
+	stored, err := artifacts.ReadInventory(filepath.Join(project, commandEffectInventory), artifacts.CommandEffects, true)
 	if err != nil {
-		return nil, fmt.Errorf("load command effects: %w", err)
+		return nil, fmt.Errorf("load command effects: %w; run scripts/backend-architecture.sh effects and review the result", err)
 	}
-	manifest, err := decodeCommandEffects(blob)
-	if err != nil {
-		return nil, err
-	}
-	canonical, err := marshalCommandEffects(manifest)
+	manifest, err := decodeCommandEffects(stored.Document)
 	if err != nil {
 		return nil, err
 	}
-	if !bytes.Equal(blob, canonical) {
-		return nil, fmt.Errorf("command effects must be canonical JSON; run scripts/backend-architecture.sh effects and review the result")
+	if !stored.Fragmented {
+		canonical, err := marshalCommandEffects(manifest)
+		if err != nil {
+			return nil, err
+		}
+		if !bytes.Equal(stored.Document, canonical) {
+			return nil, fmt.Errorf("command effects must be canonical JSON; run scripts/backend-architecture.sh effects and review the result")
+		}
 	}
 	return manifest, nil
 }
@@ -180,7 +184,7 @@ func GenerateCommandEffects(project string, policy *Policy) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(project, commandEffectInventory), blob, 0644)
+	return artifacts.WriteInventory(filepath.Join(project, commandEffectInventory), artifacts.CommandEffects, blob)
 }
 
 func marshalCommandEffects(manifest *commandEffectManifest) ([]byte, error) {

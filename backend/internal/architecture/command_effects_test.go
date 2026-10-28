@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 // The public loader/check boundary must see runtime edges hidden by root glue.
@@ -486,7 +488,9 @@ func TestCommandEffectsCheckRejectsNoncanonicalRegister(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filename, string(blob))
+	if err := artifacts.WriteInventory(filename, artifacts.CommandEffects, blob); err != nil {
+		t.Fatal(err)
+	}
 	_, err = LoadGraph(project, policy)
 	if err == nil || !strings.Contains(err.Error(), "scripts/backend-architecture.sh effects") {
 		t.Fatalf("noncanonical register passed or omitted generator command: %v", err)
@@ -516,7 +520,7 @@ func TestCommandEffectsRejectConflictingEffectsForOneTargetMethod(t *testing.T) 
 		SchemaVersion int              `json:"schema_version"`
 		Entries       []map[string]any `json:"entries"`
 	}
-	if err := json.Unmarshal([]byte(readFile(t, filename)), &document); err != nil {
+	if err := json.Unmarshal([]byte(readMaterializedEffects(t, filename)), &document); err != nil {
 		t.Fatal(err)
 	}
 	if len(document.Entries) != 2 {
@@ -534,7 +538,9 @@ func TestCommandEffectsRejectConflictingEffectsForOneTargetMethod(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
-	writeFile(t, filename, string(blob))
+	if err := artifacts.WriteInventory(filename, artifacts.CommandEffects, blob); err != nil {
+		t.Fatal(err)
+	}
 	if err := GenerateCommandEffects(project, policy); err != nil {
 		t.Fatal(err)
 	}
@@ -574,7 +580,7 @@ func Fail() error { return Failure{} }
 			t.Fatalf("external error interface pulled unrelated implementers into port: %+v", v)
 		}
 	}
-	if !strings.Contains(readFile(t, filepath.Join(project, commandEffectInventory)), "Ledger.Record") {
+	if !strings.Contains(readMaterializedEffects(t, filepath.Join(project, commandEffectInventory)), "Ledger.Record") {
 		t.Fatal("real command disappeared with error noise")
 	}
 }
@@ -806,7 +812,7 @@ func Run(writer Writer) { writer.Record() }
 			Port        string `json:"port"`
 		} `json:"entries"`
 	}
-	if err := json.Unmarshal([]byte(readFile(t, filepath.Join(project, commandEffectInventory))), &document); err != nil {
+	if err := json.Unmarshal([]byte(readMaterializedEffects(t, filepath.Join(project, commandEffectInventory))), &document); err != nil {
 		t.Fatal(err)
 	}
 	sources := map[string]bool{}
@@ -910,7 +916,7 @@ func TestCommandEffectsCanonicalFormRequiresExplicitCurrentSourceOwner(t *testin
 	if err := GenerateCommandEffects(project, policy); err != nil {
 		t.Fatal(err)
 	}
-	filename := filepath.Join(project, commandEffectInventory)
+	filename := filepath.Join(project, "architecture", "command-effects", "reviews", "enrollment.json")
 	original := readFile(t, filename)
 	omitted := strings.Replace(original, "      \"source_owner\": \"enrollment\",\n", "", 1)
 	if omitted == original {
@@ -918,7 +924,7 @@ func TestCommandEffectsCanonicalFormRequiresExplicitCurrentSourceOwner(t *testin
 	}
 	writeFile(t, filename, omitted)
 	_, err := LoadGraph(project, policy)
-	if err == nil || !strings.Contains(err.Error(), "canonical JSON") {
+	if err == nil || !strings.Contains(err.Error(), "source_owner") {
 		t.Fatalf("omitted generator source_owner was accepted: %v", err)
 	}
 }

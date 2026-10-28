@@ -1,0 +1,5 @@
+{
+  "no_school_portal_role": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "setup_completed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "setup_incomplete": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+}

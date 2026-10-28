@@ -38,6 +38,11 @@ on:
         description: "Release-Version, etwa 1.4.0 (leer: neuestes Release)"
         required: false
         type: string
+      capture_workers:
+        description: "Aufnahme-Parallelität (1 für seriellen Vergleich)"
+        type: choice
+        options: ["4", "2", "1"]
+        default: "4"
   workflow_call:
     inputs:
       version:
@@ -363,7 +368,8 @@ jobs:
         env:
           SHOT_OUT: ${{ runner.temp }}/product-screenshots
           SHOT_VERSION: ${{ steps.version.outputs.version }}
-        run: pnpm run generate:screenshots
+          CAPTURE_WORKERS: ${{ inputs.capture_workers || '4' }}
+        run: pnpm run generate:screenshots --workers="$CAPTURE_WORKERS"
 
       # Vor jedem Upload: Artefakt-Dienst und TLS erwarten die echte Zeit.
       - name: Restore the runner clock

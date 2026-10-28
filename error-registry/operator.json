@@ -1,0 +1,10 @@
+{
+  "codes": [
+    {
+      "code": "operator.audit_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "operator.audit_unavailable"
+    }
+  ]
+}

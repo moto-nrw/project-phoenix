@@ -1,0 +1,9 @@
+DELETE /api/notifications/preferences/
+DELETE /api/notifications/push/subscriptions
+GET /api/notifications/email-subscriptions/{type}
+GET /api/notifications/preferences/
+GET /api/notifications/push/public-key
+POST /api/notifications/push/subscriptions
+POST /api/notifications/test
+PUT /api/notifications/email-subscriptions/{type}
+PUT /api/notifications/preferences/{type}

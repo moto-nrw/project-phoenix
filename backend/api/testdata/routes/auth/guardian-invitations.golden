@@ -1,0 +1,3 @@
+GET /auth/guardian-invitations/{token}
+POST /auth/guardian-invitations/{id}/resend
+POST /auth/guardian-invitations/{token}/accept

@@ -1,0 +1,33 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions# > api/common.TenantTxMiddleware
+	GET /api/time-tracking/absence-allowances
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions# > api/common.TenantTxMiddleware
+	DELETE /api/time-tracking/absences/{id}
+	GET /api/time-tracking/absences
+	GET /api/time-tracking/assignments
+	GET /api/time-tracking/breaks/{sessionId}
+	GET /api/time-tracking/closing-days
+	GET /api/time-tracking/config
+	GET /api/time-tracking/current
+	GET /api/time-tracking/export
+	GET /api/time-tracking/history
+	GET /api/time-tracking/holidays
+	GET /api/time-tracking/month-summary
+	GET /api/time-tracking/presence-map
+	GET /api/time-tracking/schedule-targets
+	GET /api/time-tracking/shifts
+	GET /api/time-tracking/vacation/quota
+	GET /api/time-tracking/{id}/edits
+	POST /api/time-tracking/absences
+	POST /api/time-tracking/absences/{id}/cancel
+	POST /api/time-tracking/absences/{id}/resubmit
+	POST /api/time-tracking/break/end
+	POST /api/time-tracking/break/start
+	POST /api/time-tracking/check-in
+	POST /api/time-tracking/check-out
+	POST /api/time-tracking/vacation/request
+	PUT /api/time-tracking/absences/{id}
+	PUT /api/time-tracking/{id}

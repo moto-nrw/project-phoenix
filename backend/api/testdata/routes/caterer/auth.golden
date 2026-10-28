@@ -1,0 +1,3 @@
+POST /caterer/auth/login
+POST /caterer/auth/password-reset
+POST /caterer/auth/password-reset/confirm

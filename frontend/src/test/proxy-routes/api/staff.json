@@ -1,0 +1,119 @@
+{
+  "api/staff/[id]/absences/rebook": [
+    "POST tenant /api/staff/id%2F1/absences/rebook"
+  ],
+  "api/staff/[id]/documents/[documentId]": [
+    "DELETE tenant /api/staff/id%2F1/documents/documentId%2F1"
+  ],
+  "api/staff/[id]/payroll-number": [
+    "GET tenant /api/staff/id%2F1/payroll-number",
+    "PUT tenant /api/staff/id%2F1/payroll-number"
+  ],
+  "api/staff/[id]/schedule": [
+    "GET tenant /api/staff/id%2F1/schedule",
+    "PUT tenant /api/staff/id%2F1/schedule"
+  ],
+  "api/staff/[id]/school-classes": [
+    "GET tenant /api/staff/id%2F1/school-classes",
+    "PUT tenant /api/staff/id%2F1/school-classes"
+  ],
+  "api/staff/[id]/stammdaten": [
+    "GET tenant /api/staff/id%2F1/stammdaten"
+  ],
+  "api/staff/[id]/stammdaten/[section]": [
+    "PUT tenant /api/staff/id%2F1/stammdaten/section%2F1"
+  ],
+  "api/staff/[id]/stammdaten/bank-steuer": [
+    "GET tenant /api/staff/id%2F1/stammdaten/bank-steuer",
+    "PUT tenant /api/staff/id%2F1/stammdaten/bank-steuer"
+  ],
+  "api/staff/[id]/stammdaten/bank-steuer/reveal": [
+    "POST tenant /api/staff/id%2F1/stammdaten/bank-steuer/reveal"
+  ],
+  "api/staff/[id]/time-tracking/comp-time-preview": [
+    "GET tenant /api/staff/id%2F1/time-tracking/comp-time-preview"
+  ],
+  "api/staff/[id]/time-tracking/month-summary": [
+    "GET tenant /api/staff/id%2F1/time-tracking/month-summary"
+  ],
+  "api/staff/[id]/time-tracking/schedule-targets": [
+    "GET tenant /api/staff/id%2F1/time-tracking/schedule-targets"
+  ],
+  "api/staff/[id]/time-tracking/sessions": [
+    "POST tenant /api/staff/id%2F1/time-tracking/sessions"
+  ],
+  "api/staff/[id]/time-tracking/sessions/[sessionId]": [
+    "PUT tenant /api/staff/id%2F1/time-tracking/sessions/sessionId%2F1"
+  ],
+  "api/staff/[id]/time-tracking/sessions/[sessionId]/edits": [
+    "GET tenant /api/staff/id%2F1/time-tracking/sessions/sessionId%2F1/edits"
+  ],
+  "api/staff/absence-types": [
+    "GET tenant /api/absence-types",
+    "POST tenant /api/absence-types"
+  ],
+  "api/staff/absence-types/[absenceTypeId]": [
+    "PUT tenant /api/absence-types/absenceTypeId%2F1"
+  ],
+  "api/staff/absence-types/[absenceTypeId]/allowances/[staffId]/preview": [
+    "GET tenant /api/absence-types/absenceTypeId%2F1/allowances/staffId%2F1/preview"
+  ],
+  "api/staff/dashboard-summary": [
+    "GET tenant /api/staff/dashboard-summary"
+  ],
+  "api/staff/documents-profile/[id]": [
+    "GET tenant /api/staff/documents-profile/id%2F1"
+  ],
+  "api/staff/financial-profile/[id]": [
+    "GET tenant /api/staff/financial-profile/id%2F1"
+  ],
+  "api/staff/shift-types": [
+    "GET tenant /api/shift-types",
+    "POST tenant /api/shift-types"
+  ],
+  "api/staff/shift-types/[shiftTypeId]": [
+    "DELETE tenant /api/shift-types/shiftTypeId%2F1",
+    "PUT tenant /api/shift-types/shiftTypeId%2F1"
+  ],
+  "api/staff/shift-types/defaults": [
+    "POST tenant /api/shift-types/defaults"
+  ],
+  "api/staff/shifts": [
+    "GET tenant /api/staff-shifts",
+    "POST tenant /api/staff-shifts"
+  ],
+  "api/staff/shifts/[shiftId]": [
+    "DELETE tenant /api/staff-shifts/shiftId%2F1",
+    "PUT tenant /api/staff-shifts/shiftId%2F1"
+  ],
+  "api/staff/shifts/[shiftId]/cancellation": [
+    "PUT tenant /api/staff-shifts/shiftId%2F1/cancellation"
+  ],
+  "api/staff/shifts/[shiftId]/move": [
+    "PUT tenant /api/staff-shifts/shiftId%2F1/move"
+  ],
+  "api/staff/shifts/overview": [
+    "GET tenant /api/staff-shifts/overview"
+  ],
+  "api/staff/shifts/series": [
+    "POST tenant /api/staff-shifts/series"
+  ],
+  "api/staff/shifts/series/[seriesId]/split": [
+    "PUT tenant /api/staff-shifts/series/seriesId%2F1/split"
+  ],
+  "api/staff/time-tracking/audit-log": [
+    "GET tenant /api/staff/time-tracking/audit-log"
+  ],
+  "api/staff/time-tracking/export/datev-report": [
+    "GET tenant /api/staff/time-tracking/export/datev-report"
+  ],
+  "api/staff/time-tracking/export/sftp": [
+    "POST tenant /api/staff/time-tracking/export/sftp"
+  ],
+  "api/staff/time-tracking/export/sftp-status": [
+    "GET tenant /api/staff/time-tracking/export/sftp-status"
+  ],
+  "api/staff/time-tracking/overview": [
+    "GET tenant /api/staff/time-tracking/overview"
+  ]
+}

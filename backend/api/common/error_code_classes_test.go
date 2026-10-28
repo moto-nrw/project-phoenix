@@ -5,11 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,16 +17,9 @@ import (
 // only the declarations: losing any shard must change an observable response.
 func TestEveryRegisteredErrorCodeKeepsItsProblemClass(t *testing.T) {
 	t.Parallel()
-	data, err := os.ReadFile(filepath.Join(backendRoot(t), "..", "error-registry.json"))
+	entries, err := routetest.ReadErrorRegistry(filepath.Join(backendRoot(t), "..", "error-registry"))
 	require.NoError(t, err)
-	var registry struct {
-		Codes []struct {
-			Code  string `json:"code"`
-			Class string `json:"class"`
-		} `json:"codes"`
-	}
-	require.NoError(t, json.Unmarshal(data, &registry))
-	require.NotEmpty(t, registry.Codes)
+	require.NotEmpty(t, entries)
 	anchors := map[string]string{
 		"input":              "anleitung-eingabe-pruefen",
 		"permission":         "anleitung-zugriff-pruefen",
@@ -34,7 +27,7 @@ func TestEveryRegisteredErrorCodeKeepsItsProblemClass(t *testing.T) {
 		"unavailable":        "anleitung-gerade-nicht-erreichbar",
 		"server":             "anleitung-unerwarteter-fehler",
 	}
-	for _, entry := range registry.Codes {
+	for _, entry := range entries {
 		// Use a status whose fallback is NOT the registered class, so a missing
 		// class mapping cannot accidentally pass through status-based repair.
 		recorder := httptest.NewRecorder()

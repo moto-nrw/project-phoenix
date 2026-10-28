@@ -1,0 +1,25 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (e *DatabaseError) Error() string {\n\tif e.Err == nil {\n\t\treturn \"database error during \" + e.Op\n\t}\n\treturn \"database error during \" + e.Op + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/transactionruntime/internal/adapters/postgres/DatabaseError.Error",
+      "owner": "modules/transactionruntime"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *CommitOutcomeUnknownError) Error() string {\n\treturn \"unit of work: commit outcome unknown: \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/transactionruntime/protocol/CommitOutcomeUnknownError.Error",
+      "owner": "modules/transactionruntime"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *TransactionStartError) Error() string {\n\treturn \"unit of work: start transaction: \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/transactionruntime/protocol/TransactionStartError.Error",
+      "owner": "modules/transactionruntime"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "scenario": "services.schedule.bulk_cancel_dry_run",
+  "max": 6,
+  "exact": true,
+  "description": "modules/timetable/compose — POST /instances/bulk-cancel\ndry run (#3594): tenant transaction (BEGIN, SET LOCAL ROLE, set_config,\nCOMMIT) + one instance range read + one series read for the closing-day\nflag. Flat from 2 to 5 occurrences. The execution reuses Cancel and\nDeleteCancelled per occurrence by design and is not budgeted here."
+}

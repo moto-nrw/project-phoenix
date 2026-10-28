@@ -13,10 +13,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,modules/delivery/localeconsumer,modules/delivery/internal/adapters/localization,modules/documentrendering/exportconsumer,modules/documentrendering/internal/application/listrenderer/assets,templates/email,test}
+mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,internal/passthrough,modules/delivery/localeconsumer,modules/delivery/internal/adapters/localization,modules/documentrendering/exportconsumer,modules/documentrendering/internal/application/listrenderer/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
 printf '{}\n' >"$fixture/backend/architecture/policy.json"
 printf 'package architecture\n' >"$fixture/backend/internal/architecture/architecture.go"
+printf 'package passthrough\n' >"$fixture/backend/internal/passthrough/passthrough.go"
 printf 'package core\n\nconst Value = 1\n' >"$fixture/backend/core/core.go"
 cat >"$fixture/backend/core/core_test.go" <<'EOF'
 package core
@@ -247,6 +248,20 @@ done
 printf '{"changed":true}\n' >"$fixture/backend/architecture/policy.json"
 assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
 git -C "$fixture" restore backend/architecture/policy.json
+
+# Reviewed inventory fragments are inputs to independent architecture and debt
+# tests, even when no Go source changes. The selector must emit separate rows.
+for artifact in command-effects passthrough; do
+  mkdir -p "$fixture/backend/architecture/$artifact/reviews"
+  printf '{}\n' >"$fixture/backend/architecture/$artifact/reviews/owner.json"
+  assert_output $'example.test/project/internal/architecture\nexample.test/project/internal/passthrough\nexample.test/project/test'
+  rm -r "$fixture/backend/architecture/$artifact"
+done
+mkdir -p "$fixture/backend/test/query-budgets/api/students"
+printf '{}\n' >"$fixture/backend/test/query-budgets/api/students/list.json"
+assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
+rm -r "$fixture/backend/test/query-budgets"
+
 
 printf '\n// changed\n' >>"$fixture/backend/go.mod"
 assert_output './...'

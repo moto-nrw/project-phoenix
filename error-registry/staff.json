@@ -1,0 +1,40 @@
+{
+  "codes": [
+    {
+      "code": "staff.external_access_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_access_invalid"
+    },
+    {
+      "code": "staff.external_email_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_email_invalid"
+    },
+    {
+      "code": "staff.external_email_invited",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_email_invited"
+    },
+    {
+      "code": "staff.external_email_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.external_email_required"
+    },
+    {
+      "code": "staff.external_has_account",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.external_has_account"
+    },
+    {
+      "code": "staff.not_external",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.not_external"
+    }
+  ]
+}

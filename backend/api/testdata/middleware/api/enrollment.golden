@@ -1,0 +1,94 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.#
+	POST /api/enrollment/{tenantSlug}/uploads
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions#
+	GET /api/enrollment/admin/requests/{id}/uploads/{uploadId}
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.#
+	GET /api/enrollment/captcha-config/{tenantSlug}
+	GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId}
+	GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId}
+	GET /api/enrollment/legal/{tenantSlug}
+	GET /api/enrollment/legal/{tenantSlug}/{phaseId}
+	GET /api/enrollment/phases/public/{tenantSlug}
+	GET /api/enrollment/requests/{statusToken}
+	GET /api/enrollment/requests/{statusToken}/change-requests
+	GET /api/enrollment/requests/{statusToken}/edit-bootstrap
+	GET /api/enrollment/schema/public/{tenantSlug}/{phaseId}
+	PATCH /api/enrollment/requests/{statusToken}
+	POST /api/enrollment/requests/{statusToken}/change-requests
+	POST /api/enrollment/requests/{statusToken}/change-requests/{changeRequestId}/messages
+	POST /api/enrollment/requests/{statusToken}/confirm-renewal
+	POST /api/enrollment/requests/{statusToken}/withdraw
+	POST /api/enrollment/{tenantSlug}/submit
+	PUT /api/enrollment/requests/{statusToken}
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware
+	GET /api/enrollment/me/profile
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions#
+	DELETE /api/enrollment/admin/requests/{id}/
+	DELETE /api/enrollment/admin/requests/{id}/children/{childId}
+	DELETE /api/enrollment/admin/requests/{id}/read
+	DELETE /api/enrollment/care-offerings/{id}/
+	DELETE /api/enrollment/schema/{id}
+	GET /api/enrollment/admin/change-requests/
+	GET /api/enrollment/admin/change-requests/list
+	GET /api/enrollment/admin/change-requests/pending-count
+	GET /api/enrollment/admin/change-requests/{id}/
+	GET /api/enrollment/admin/reports/care-usage
+	GET /api/enrollment/admin/requests/
+	GET /api/enrollment/admin/requests/unread-count
+	GET /api/enrollment/admin/requests/{id}/
+	GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact
+	GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments
+	GET /api/enrollment/admin/requests/{id}/delete-impact
+	GET /api/enrollment/admin/students/{studentId}/requests/
+	GET /api/enrollment/care-offerings/
+	GET /api/enrollment/care-offerings/booking-stats
+	GET /api/enrollment/care-offerings/{id}/
+	GET /api/enrollment/schema/
+	GET /api/enrollment/schema/preview
+	GET /api/enrollment/schema/versions
+	GET /api/enrollment/schema/{id}
+	PATCH /api/enrollment/schema/{id}
+	POST /api/enrollment/admin/change-requests/{id}/approve
+	POST /api/enrollment/admin/change-requests/{id}/question
+	POST /api/enrollment/admin/change-requests/{id}/reject
+	POST /api/enrollment/admin/reports/care-usage/export
+	POST /api/enrollment/admin/reports/class-roster/export
+	POST /api/enrollment/admin/request-children/{id}/rollover-review
+	POST /api/enrollment/admin/requests/mark-all-read
+	POST /api/enrollment/admin/requests/{id}/children/{childId}/decide
+	POST /api/enrollment/admin/requests/{id}/restore
+	POST /api/enrollment/admin/students/{studentId}/requests/export
+	POST /api/enrollment/care-offerings/
+	POST /api/enrollment/care-offerings/{id}/clone
+	POST /api/enrollment/schema/
+	PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
+	PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
+	PUT /api/enrollment/admin/requests/{id}/read
+	PUT /api/enrollment/care-offerings/{id}/
+	PUT /api/enrollment/schema/{id}
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions.#
+	DELETE /api/enrollment/legal-documents/{filename}
+	DELETE /api/enrollment/phases/{id}/
+	GET /api/enrollment/phases/
+	GET /api/enrollment/phases/expiry-warnings
+	GET /api/enrollment/phases/{id}/
+	GET /api/enrollment/phases/{id}/delete-impact
+	GET /api/enrollment/phases/{id}/manual-bootstrap
+	GET /api/enrollment/phases/{id}/responses
+	GET /api/enrollment/phases/{id}/review
+	GET /api/enrollment/phases/{id}/rollover-preview
+	POST /api/enrollment/legal-documents
+	POST /api/enrollment/phases/
+	POST /api/enrollment/phases/{id}/export
+	POST /api/enrollment/phases/{id}/late-invites
+	POST /api/enrollment/phases/{id}/manual-approved-enrollments
+	POST /api/enrollment/phases/{id}/rollover
+	PUT /api/enrollment/phases/{id}/

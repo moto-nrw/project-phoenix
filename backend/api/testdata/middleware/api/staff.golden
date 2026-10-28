@@ -1,0 +1,79 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware
+	POST /api/staff/externals/{id}/invitation
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.#
+	GET /api/staff/{id}/documents/{documentId}/download
+	POST /api/staff/{id}/documents
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.requirePermissions.# > api/common.TenantTxMiddleware
+	DELETE /api/staff/{id}
+	DELETE /api/staff/{id}/absences/{absenceId}
+	DELETE /api/staff/{id}/documents/{documentId}
+	DELETE /api/staff/{id}/target-overrides/{overrideId}
+	DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
+	DELETE /api/staff/{id}/vacation/opening
+	GET /api/staff/
+	GET /api/staff/absences/pending
+	GET /api/staff/absences/requests
+	GET /api/staff/available
+	GET /api/staff/by-role
+	GET /api/staff/dashboard-summary
+	GET /api/staff/documents-directory
+	GET /api/staff/documents-profile/{id}
+	GET /api/staff/financial-profile/{id}
+	GET /api/staff/time-tracking/audit-log
+	GET /api/staff/time-tracking/export
+	GET /api/staff/time-tracking/export/datev-report
+	GET /api/staff/time-tracking/export/sftp-status
+	GET /api/staff/time-tracking/month-close
+	GET /api/staff/time-tracking/overview
+	GET /api/staff/{id}
+	GET /api/staff/{id}/absences
+	GET /api/staff/{id}/avatar
+	GET /api/staff/{id}/documents
+	GET /api/staff/{id}/groups
+	GET /api/staff/{id}/payroll-number
+	GET /api/staff/{id}/schedule
+	GET /api/staff/{id}/school-classes
+	GET /api/staff/{id}/stammdaten
+	GET /api/staff/{id}/stammdaten/bank-steuer
+	GET /api/staff/{id}/target-overrides
+	GET /api/staff/{id}/time-tracking/adjustments
+	GET /api/staff/{id}/time-tracking/comp-time-preview
+	GET /api/staff/{id}/time-tracking/export
+	GET /api/staff/{id}/time-tracking/history
+	GET /api/staff/{id}/time-tracking/month-summary
+	GET /api/staff/{id}/time-tracking/schedule-targets
+	GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
+	GET /api/staff/{id}/vacation/quota
+	POST /api/staff/
+	POST /api/staff/absences/{absenceId}/approve
+	POST /api/staff/absences/{absenceId}/deny
+	POST /api/staff/absences/{absenceId}/question
+	POST /api/staff/externals
+	POST /api/staff/time-tracking/export/sftp
+	POST /api/staff/time-tracking/month-close
+	POST /api/staff/{id}/absences
+	POST /api/staff/{id}/absences/rebook
+	POST /api/staff/{id}/stammdaten/bank-steuer/reveal
+	POST /api/staff/{id}/target-overrides
+	POST /api/staff/{id}/time-tracking/adjustments
+	POST /api/staff/{id}/time-tracking/month-close/reopen
+	POST /api/staff/{id}/time-tracking/opening
+	POST /api/staff/{id}/time-tracking/reset
+	POST /api/staff/{id}/time-tracking/sessions
+	POST /api/staff/{id}/vacation/opening
+	PUT /api/staff/{id}
+	PUT /api/staff/{id}/payroll-number
+	PUT /api/staff/{id}/schedule
+	PUT /api/staff/{id}/school-classes
+	PUT /api/staff/{id}/stammdaten/arbeitsvertrag
+	PUT /api/staff/{id}/stammdaten/bank-steuer
+	PUT /api/staff/{id}/stammdaten/kontakt
+	PUT /api/staff/{id}/stammdaten/person
+	PUT /api/staff/{id}/stammdaten/qualifikationen
+	PUT /api/staff/{id}/time-tracking/sessions/{sessionId}
+	PUT /api/staff/{id}/vacation/quota

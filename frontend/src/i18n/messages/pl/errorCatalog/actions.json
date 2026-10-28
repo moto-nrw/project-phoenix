@@ -1,0 +1,7 @@
+{
+  "retry": "Spróbuj ponownie",
+  "copyRequestId": "Kopiuj numer zgłoszenia",
+  "requestId": "Numer zgłoszenia: {requestId}",
+  "crash": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
+  "fieldCheck": "Sprawdź to pole."
+}
