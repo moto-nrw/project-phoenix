@@ -3917,6 +3917,10 @@
       "write_owner": "care-plan"
     },
     {
+      "name": "active.visit_revision_events",
+      "write_owner": "student-presence"
+    },
+    {
       "name": "active.visits",
       "write_owner": "student-presence"
     },

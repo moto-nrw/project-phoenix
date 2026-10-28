@@ -46,7 +46,7 @@ function setting(key: string, label: string, value: string): ResolvedSetting {
     key,
     label,
     description: "",
-    type: key === "branding.primary_color" ? "text" : "textarea",
+    type: key === "branding.primary_color" ? "color" : "textarea",
     default: "",
     value,
     is_default: value === "",

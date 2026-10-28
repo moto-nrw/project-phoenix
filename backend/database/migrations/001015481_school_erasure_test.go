@@ -115,6 +115,9 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
   WHERE NOT tr.tgisinternal AND (tr.tgtype::int & 8) <> 0 ORDER BY 1`).Scan(t.Context(), &triggers))
 	assert.Equal(t, []string{
 		"active.student_status_days:schedule.record_meal_sickness_status",
+		// #5128: records change events in active.visit_revision_events, which
+		// the plan deletes after active.visits ("after" edge).
+		"active.visits:active.record_visit_revision",
 		"enrollment.request_uploads:enrollment.queue_request_upload_cleanup",
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",

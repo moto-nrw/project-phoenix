@@ -16,6 +16,9 @@ const (
 	FieldDate     FieldType = "date"
 	FieldText     FieldType = "text"
 	FieldTextarea FieldType = "textarea"
+	// FieldColor stores a colour code as text; the frontend shows a colour
+	// picker. A Pattern in Validation restricts the format.
+	FieldColor    FieldType = "color"
 	FieldPassword FieldType = "password"
 	FieldSelect   FieldType = "select"
 	// FieldMultiSelect stores a JSON array of option values; an empty array
@@ -26,7 +29,7 @@ const (
 // validFieldTypes contains all known field types for validation.
 var validFieldTypes = map[FieldType]bool{
 	FieldBoolean: true, FieldNumber: true, FieldTime: true, FieldDate: true,
-	FieldText: true, FieldTextarea: true, FieldPassword: true, FieldSelect: true, FieldMultiSelect: true,
+	FieldText: true, FieldTextarea: true, FieldColor: true, FieldPassword: true, FieldSelect: true, FieldMultiSelect: true,
 }
 
 // AccessPolicy classifies which audience can read and write a setting.

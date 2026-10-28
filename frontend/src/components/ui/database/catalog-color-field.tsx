@@ -2,12 +2,12 @@
 
 import { useId } from "react";
 import { Button } from "@/components/ui/button";
+import { ColorSwatchInput } from "@/components/ui/color-swatch-input";
 import { LOCATION_COLORS } from "@/lib/location-helper";
 
 /**
  * Custom field component for picking a room's badge color in the Database
- * Rooms edit form. Wraps the native `<input type="color">` (works on touch
- * devices, no extra dependency) plus a clear button so admins can reset to
+ * Rooms edit form. Wraps the shared `ColorSwatchInput` plus a clear button so admins can reset to
  * the system default blue.
  *
  * Backend rules the field surfaces by example, not by enforcement:
@@ -55,24 +55,12 @@ export function CatalogColorField(props: {
         {required && "*"}
       </label>
       <div className="flex items-center gap-3">
-        {/* Round preview that hosts the native color picker on click. The
-            native input itself is invisible but full-size on top, so the
-            click target stays accessible and the OS picker still opens. */}
-        <label
-          htmlFor={inputId}
-          className="relative inline-block h-9 w-9 shrink-0 cursor-pointer rounded-full border border-gray-300 shadow-sm ring-1 ring-gray-200/50 transition hover:ring-gray-300"
-          style={{ backgroundColor: displayHex }}
-          aria-label={`${label} auswählen`}
-        >
-          <input
-            id={inputId}
-            type="color"
-            value={displayHex}
-            onChange={(e) => onChange(e.target.value.toUpperCase())}
-            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-            aria-label={label}
-          />
-        </label>
+        <ColorSwatchInput
+          id={inputId}
+          value={displayHex}
+          onChange={onChange}
+          label={label}
+        />
         <span className="font-mono text-sm text-gray-700">
           {stringValue ?? "Standard"}
         </span>
