@@ -1,3 +1,4 @@
+import { releaseFakeTimers } from "~/test/clock";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   getExistingSubscription,
@@ -335,6 +336,24 @@ describe("push-api", () => {
 
     await expect(unsubscribePushSilently("parent")).resolves.toBeUndefined();
     expect(unsubscribeBrowser).toHaveBeenCalledOnce();
+  });
+
+  it("lets a logout go on when push cleanup hangs (#5126)", async () => {
+    vi.useFakeTimers();
+    try {
+      getSubscription.mockResolvedValue(subscription);
+      fetchMock.mockReturnValue(new Promise(() => undefined));
+      let done = false;
+      void unsubscribePushSilently("tenant").then(() => {
+        done = true;
+      });
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(done).toBe(true);
+    } finally {
+      releaseFakeTimers();
+    }
   });
 
   it("reports server cleanup failures after removing the browser subscription", async () => {

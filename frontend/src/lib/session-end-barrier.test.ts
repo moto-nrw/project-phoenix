@@ -380,9 +380,10 @@ describe("session end barrier", () => {
     const lateSignOut = window.fetch("/api/auth/signout", { method: "POST" });
     cancelFirst();
     const holding = barrier.holdRequestsUntilSessionEnds();
-    // The first generation's sign-out answers while the second one ends.
+    // The first generation's sign-out answers while the second one ends. Its
+    // cancel aborted it, so it rejects; either way it must not touch the second.
     answers.get("/api/auth/signout")?.();
-    await lateSignOut;
+    await lateSignOut.catch(() => undefined);
     const cancelSecond = await holding;
     await flush();
 
@@ -447,6 +448,153 @@ describe("session end barrier", () => {
     await flush();
     cancel();
     expect(openings()).toBe(1);
+  });
+
+  // Every way out of a session end aborts what still hangs and frees the one
+  // logout of the tab, so a new logout can start (#5126).
+  describe("every exit with a hanging request frees the logout", () => {
+    async function flightModule() {
+      return import("./session-end-flight");
+    }
+
+    /** A logout like the real ones: hold, sign out, then (left) refetch. */
+    async function hangingLogout(
+      barrier: Awaited<ReturnType<typeof loadBarrier>>,
+      stage: "sign-out" | "after-deletion",
+    ) {
+      const { endSessionOnce } = await flightModule();
+      let cancelled = false;
+      const logout = endSessionOnce(async () => {
+        const cancel = await barrier.holdRequestsUntilSessionEnds();
+        try {
+          const signOut = window.fetch("/api/auth/signout", { method: "POST" });
+          if (stage === "after-deletion") {
+            answers.get("/api/auth/signout")?.();
+            await signOut;
+            // signOut({ redirect: false }) refetches the session; it hangs.
+            await window.fetch("/api/auth/session");
+          } else {
+            await signOut;
+          }
+        } catch (error) {
+          cancelled = true;
+          cancel();
+          throw error;
+        }
+      });
+      logout.catch(() => undefined);
+      await flush();
+      await flush();
+      return { logout, wasCancelled: () => cancelled };
+    }
+
+    async function expectNewLogoutStarts() {
+      const { endSessionOnce } = await flightModule();
+      const next = vi.fn(() => Promise.resolve());
+      await endSessionOnce(next);
+      expect(next).toHaveBeenCalledOnce();
+    }
+
+    it("on a failed logout", async () => {
+      const barrier = await loadBarrier();
+      const { endSessionOnce } = await flightModule();
+      let csrf!: Promise<Response>;
+      const failure = new Error("sign-out failed");
+      const logout = endSessionOnce(async () => {
+        const cancel = await barrier.holdRequestsUntilSessionEnds();
+        // The sign-out's csrf lookup hangs while the logout fails.
+        csrf = window.fetch("/api/auth/csrf");
+        csrf.catch(() => undefined);
+        cancel();
+        throw failure;
+      });
+      await expect(logout).rejects.toBe(failure);
+      await expect(csrf).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
+      expect(barrier.isSessionEnding()).toBe(false);
+      await expectNewLogoutStarts();
+    });
+
+    it("on the deadline", async () => {
+      vi.useFakeTimers();
+      const barrier = await loadBarrier();
+      const { logout, wasCancelled } = await hangingLogout(barrier, "sign-out");
+      await vi.advanceTimersByTimeAsync(10_000);
+      await expect(logout).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
+      expect(wasCancelled()).toBe(true);
+      expect(barrier.isSessionEnding()).toBe(false);
+      await expectNewLogoutStarts();
+    });
+
+    it("on a bfcache restore", async () => {
+      const barrier = await loadBarrier();
+      const { logout } = await hangingLogout(barrier, "sign-out");
+      const pageshow = new Event("pageshow");
+      Object.defineProperty(pageshow, "persisted", { value: true });
+      window.dispatchEvent(pageshow);
+      await expect(logout).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
+      expect(barrier.isSessionEnding()).toBe(false);
+      await expectNewLogoutStarts();
+    });
+
+    it("on an aborted navigation", async () => {
+      const navigation = new EventTarget();
+      Object.defineProperty(window, "navigation", {
+        configurable: true,
+        value: navigation,
+      });
+      const barrier = await loadBarrier();
+      const { logout } = await hangingLogout(barrier, "after-deletion");
+      navigation.dispatchEvent(new Event("navigateerror"));
+      await expect(logout).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
+      expect(barrier.isSessionEnding()).toBe(false);
+      await expectNewLogoutStarts();
+    });
+
+    it("when no page change follows", async () => {
+      vi.useFakeTimers();
+      const barrier = await loadBarrier();
+      const { logout } = await hangingLogout(barrier, "after-deletion");
+      await vi.advanceTimersByTimeAsync(10_000);
+      await expect(logout).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
+      await expectNewLogoutStarts();
+    });
+
+    it("on a new sign-in", async () => {
+      const barrier = await loadBarrier();
+      const { logout } = await hangingLogout(barrier, "after-deletion");
+      void window.fetch("/api/auth/callback/credentials", { method: "POST" });
+      answers.get("/api/auth/callback/credentials")?.();
+      await expect(logout).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
+      expect(barrier.isSessionEnding()).toBe(false);
+      await expectNewLogoutStarts();
+    });
+
+    it("frees the slot even if the logout itself never settles", async () => {
+      const barrier = await loadBarrier();
+      const { endSessionOnce } = await flightModule();
+      // A logout stuck in its own code, after the barrier ended.
+      void endSessionOnce(async () => {
+        await barrier.holdRequestsUntilSessionEnds();
+        await new Promise(() => undefined);
+      });
+      await flush();
+      const pageshow = new Event("pageshow");
+      Object.defineProperty(pageshow, "persisted", { value: true });
+      window.dispatchEvent(pageshow);
+      await expectNewLogoutStarts();
+    });
   });
 
   it("stops waiting for an unanswered request after five seconds", async () => {

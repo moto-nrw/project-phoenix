@@ -246,6 +246,8 @@ export async function unsubscribePush(portal: PushPortal): Promise<void> {
   }
 }
 
+const PUSH_CLEANUP_TIMEOUT_MS = 5000;
+
 /**
  * Best-effort unsubscribe for logout flows: never throws, so a push cleanup
  * failure can never block logging out.
@@ -253,10 +255,20 @@ export async function unsubscribePush(portal: PushPortal): Promise<void> {
 export async function unsubscribePushSilently(
   portal: PushPortal,
 ): Promise<void> {
+  // A logout waits at most five seconds: a hanging push cleanup must not keep
+  // the one logout of the tab running forever (#5126).
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await unsubscribePush(portal);
+    await Promise.race([
+      unsubscribePush(portal),
+      new Promise<void>((resolve) => {
+        timer = setTimeout(resolve, PUSH_CLEANUP_TIMEOUT_MS);
+      }),
+    ]);
   } catch {
     // A server row left behind after browser cleanup is pruned on 404/410.
+  } finally {
+    clearTimeout(timer);
   }
 }
 

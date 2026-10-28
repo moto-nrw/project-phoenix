@@ -34,11 +34,16 @@
  *    the barrier still guards every transition by its generation.
  *  - `cancel`, timers, sign-out answers and navigation watchers act only on
  *    the generation that created them; a stale one is a no-op.
- *  - The barrier opens exactly once per generation (`open`), which rejects
- *    the held requests, reports discarded writes and lets SSE reconnect.
+ *  - Every way out of `ending` or `left` (failure, deadline, aborted
+ *    navigation, bfcache restore, new sign-in) goes through `open`, exactly
+ *    once per generation. It aborts the generation's requests still in flight
+ *    (a hanging sign-out ends here), clears its timers, rejects the held
+ *    requests, reports discarded writes, lets SSE reconnect and frees the
+ *    single-flight slot, so the next logout can start.
  */
 
 import { unavailableApiError } from "~/lib/api-error";
+import { releaseSessionEnd } from "~/lib/session-end-flight";
 
 /** Dispatched on window; see `SessionEndDetail`. */
 export const SESSION_END_EVENT = "phoenix:session-end";
@@ -110,11 +115,24 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
   ).toUpperCase();
 }
 
-/** Opens the barrier, once, if `ending` is still the current generation. */
-function open(ending: number): void {
+/**
+ * The one way out of a session end: opens the barrier, once, if `ending` is
+ * still the current generation. `releaseFlight` is false only when a new hold
+ * of the running logout closes a stale generation first.
+ */
+function open(
+  ending: number,
+  reason: unknown = unavailableApiError(
+    new DOMException("The logout ended before it finished", "AbortError"),
+  ),
+  releaseFlight = true,
+): void {
   if (ending !== generation || phase === "open") return;
   phase = "open";
   clearTimeout(signOutTimer);
+  // A request of this generation still in flight, such as a hanging sign-out,
+  // must not keep the logout (and with it the single-flight slot) waiting.
+  endController?.abort(reason);
   endController = null;
   stopNavigationWatch?.();
   stopNavigationWatch = null;
@@ -134,6 +152,7 @@ function open(ending: number): void {
     discardedWrites: queue.filter((request) => request.write).length,
   };
   window.dispatchEvent(new CustomEvent(SESSION_END_EVENT, { detail }));
+  if (releaseFlight) releaseSessionEnd();
 }
 
 /** After the cookie deletion the tab should leave; if it stays, open. */
@@ -186,10 +205,13 @@ function expireSignOut(ending: number): void {
   const reason = unavailableApiError(
     new DOMException("The logout did not finish in time", "TimeoutError"),
   );
-  endController?.abort(reason);
-  if (phase !== "holding") return;
+  if (phase !== "holding") {
+    // Left already: only the requests after the deletion still hang.
+    endController?.abort(reason);
+    return;
+  }
   expired = { generation: ending, reason };
-  open(ending);
+  open(ending, reason);
 }
 
 /** Wraps window.fetch once; requests started before it are not awaited. */
@@ -290,8 +312,9 @@ export function installSessionEndBarrier(): void {
  */
 export async function holdRequestsUntilSessionEnds(): Promise<() => void> {
   installSessionEndBarrier();
-  // A previous generation still ending is opened first, exactly once.
-  open(generation);
+  // A previous generation still ending is opened first, exactly once. It
+  // belongs to an earlier logout; the running one keeps its slot.
+  open(generation, undefined, false);
   generation += 1;
   const ending = generation;
   expired = null;

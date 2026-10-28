@@ -286,21 +286,26 @@ test("a hanging menu logout closes the modal and offers a usable retry", async (
   await expect(page.locator('input[type="email"]')).toBeVisible();
 });
 
-// #5126: one logout per tab. A double click on „Wiederholen“ while the
-// sign-out hangs starts one logout and leads to one message.
-test("a double click on Wiederholen runs one logout and shows one failure", async ({
+// #5126: one logout per tab. After a hanging menu logout, a double click on
+// „Wiederholen“ starts one logout (one revocation) and leads to one message.
+test("a double click on Wiederholen after a menu logout runs one logout", async ({
   page,
   context,
   request,
 }) => {
   await login(page, context);
-  let signOuts = 0;
-  await page.route("**/api/auth/signout", () => {
-    signOuts++;
-  });
-  await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
-  await page.getByText("School B", { exact: true }).click();
-  await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
+  await page.route("**/api/auth/signout", () => undefined);
+  await page
+    .locator('button[aria-haspopup="dialog"]')
+    .filter({ hasText: "Test Fixture" })
+    .first()
+    .click();
+  await page.getByRole("button", { name: "Abmelden" }).first().click();
+  await page
+    .getByRole("dialog")
+    .filter({ hasText: "abmelden?" })
+    .getByRole("button", { name: "Abmelden" })
+    .click();
   const failure = page
     .getByRole("alert")
     .filter({ hasText: "Abmeldung ist gerade nicht erreichbar" });
@@ -309,18 +314,16 @@ test("a double click on Wiederholen runs one logout and shows one failure", asyn
     await request.get(`${fixture}/__fixture/switch-state`)
   ).json();
 
-  const signOutsBefore = signOuts;
   await failure.getByRole("button", { name: "Wiederholen" }).dblclick();
-  // The retry closes the toast; its logout fails at the deadline again, and
-  // both clicks wait for that one logout, so one message follows.
+  // The retry closes the toast; its one logout fails at the deadline again.
   await expect(failure).toHaveCount(0);
   await expect(failure).toHaveCount(1, { timeout: 20_000 });
   const after = await (
     await request.get(`${fixture}/__fixture/switch-state`)
   ).json();
   expect(after.logoutRequests - before.logoutRequests).toBe(1);
-  expect(signOuts - signOutsBefore).toBe(1);
   await expect(failure).toHaveCount(1);
+  expect(page.url()).toBe(`${source}/home`);
 });
 
 test("a failed Auth.js cookie deletion stops at the target guard and permits explicit recovery", async ({

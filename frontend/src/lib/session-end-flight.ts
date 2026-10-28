@@ -25,6 +25,15 @@ export function endSessionOnce(run: () => Promise<void>): Promise<void> {
   return logout;
 }
 
+/**
+ * Frees the slot when the barrier ends a session end without the page
+ * leaving. The running logout's requests were aborted, so it settles on its
+ * own; a later settle does not clear a newer logout's slot.
+ */
+export function releaseSessionEnd(): void {
+  running = null;
+}
+
 /** True for the first caller of a failure: that caller shows it, no one else. */
 export function claimSessionEndFailure(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return true;
