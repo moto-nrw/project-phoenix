@@ -12,7 +12,7 @@ import {
   BillingCorrectionModal,
   type BillingCorrectionTarget,
 } from "~/components/traeger/billing-correction-modal";
-import { BillingDocumentsCard } from "~/components/traeger/billing-documents-card";
+import { BillingRunOverviewCard } from "~/components/traeger/billing-run-overview-card";
 import { BillingLettersCard } from "~/components/traeger/billing-letters-card";
 import { BillingMailCard } from "~/components/traeger/billing-mail-card";
 import {
@@ -236,7 +236,7 @@ export default function TraegerBillingRunPage() {
           {run.status === "released" && run.letters ? (
             <BillingMailCard runId={run.id} />
           ) : null}
-          <BillingDocumentsCard
+          <BillingRunOverviewCard
             run={run}
             onCorrect={
               preview

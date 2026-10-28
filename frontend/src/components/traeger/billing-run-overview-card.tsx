@@ -1,13 +1,12 @@
 "use client";
 
-// Die Rechnungen eines Abrechnungslaufs (#4668, #5146): EINE Tabelle, je
-// Familie eine Zeile. Vor der Freigabe Entwürfe ohne Nummer, die sich je Kind
-// korrigieren lassen; danach die ausgestellten Rechnungen mit der Übersicht
-// für die Kämmerei (#4672) als Download. Die Aufschlüsselung je Kind steht im
-// Seitenpanel, Korrektur und Schreiben im Menü der Zeile.
+// Die Rechnungen eines Abrechnungslaufs (#4668, #4672, #5146): EINE Tabelle,
+// je Familie eine Zeile. Vor der Freigabe Entwürfe ohne Nummer, die sich je
+// Kind korrigieren lassen; nach der Freigabe die Übersicht für die Kämmerei
+// mit allen Positionen und Summen als PDF, Excel oder CSV. Die Aufschlüsselung
+// steht im Seitenpanel, Korrektur und Schreiben im Menü der Zeile.
 
 import { useState } from "react";
-import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -17,17 +16,7 @@ import {
 } from "~/components/ui/export-menu";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
-import {
-  SlideOver,
-  SlideOverBody,
-  SlideOverCloseButton,
-  SlideOverContent,
-  SlideOverDescription,
-  SlideOverHeader,
-  SlideOverTitle,
-} from "~/components/ui/slide-over";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
-import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -37,11 +26,13 @@ import {
   type BillingRunExportFormat,
   downloadBillingRunOverview,
 } from "~/lib/traeger-billing-api";
-import { billingPositionLabel } from "./billing-format";
+import {
+  BillingDocumentBreakdown,
+  recipientName,
+} from "./billing-document-card";
 import { formatEuro } from "./contribution-format";
-import { formatDateRange } from "./holiday-period-format";
 
-const logger = createLogger({ component: "BillingDocumentsCard" });
+const logger = createLogger({ component: "BillingRunOverviewCard" });
 
 const FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
   "pdf",
@@ -49,91 +40,7 @@ const FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
   "csv",
 ]);
 
-function recipientName(document: BillingDocument): string {
-  return `${document.recipientFirstName} ${document.recipientLastName}`;
-}
-
-function issuedText(document: BillingDocument): string {
-  return document.number
-    ? `Rechnung ${document.number}${document.issuedOn ? ` vom ${formatDate(document.issuedOn)}` : ""}`
-    : "Entwurf ohne Nummer";
-}
-
-function CorrectionHistory({ child }: Readonly<{ child: BillingChild }>) {
-  if (child.corrections.length === 0) return null;
-  return (
-    <div className="space-y-1">
-      <p className="text-sm font-medium text-gray-700">
-        Korrekturen für {child.firstName}
-      </p>
-      <ul className="space-y-1 text-sm text-gray-700">
-        {child.corrections.map((correction) => (
-          <li key={correction.id}>
-            {formatBerlinDate(correction.createdAt)}:{" "}
-            <span className="tabular-nums">
-              {formatEuro(correction.totalBeforeCents)} →{" "}
-              {formatEuro(correction.totalAfterCents)}
-            </span>
-            . {correction.reason}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-/** Die Aufschlüsselung einer Rechnung: Positionen je Kind und Korrekturen. */
-function BillingDocumentBreakdown({
-  document,
-  onClose,
-}: Readonly<{ document: BillingDocument | null; onClose: () => void }>) {
-  return (
-    <SlideOver
-      open={document !== null}
-      onOpenChange={(open) => {
-        if (!open) onClose();
-      }}
-    >
-      {document ? (
-        <SlideOverContent>
-          <SlideOverHeader className="flex-row items-start justify-between gap-3">
-            <div className="min-w-0 space-y-1">
-              <SlideOverTitle>
-                Rechnung an {recipientName(document)}
-              </SlideOverTitle>
-              <SlideOverDescription>
-                {issuedText(document)} · {document.recipientEmail} · Betreuung{" "}
-                {formatDateRange(document.serviceFrom, document.serviceUntil)}
-              </SlideOverDescription>
-            </div>
-            <SlideOverCloseButton />
-          </SlideOverHeader>
-          <SlideOverBody className="space-y-4">
-            <ContributionBreakdown
-              items={document.children.map((child) => ({
-                key: child.childId,
-                name: `${child.firstName} ${child.lastName}`,
-                lines: child.positions.map((position) => ({
-                  label: billingPositionLabel(position),
-                  amount: formatEuro(position.amountCents),
-                })),
-                total: formatEuro(child.totalCents),
-              }))}
-              childTotalLabel="Summe"
-              totalLabel="Rechnungsbetrag"
-              total={formatEuro(document.totalCents)}
-            />
-            {document.children.map((child) => (
-              <CorrectionHistory key={child.childId} child={child} />
-            ))}
-          </SlideOverBody>
-        </SlideOverContent>
-      ) : null}
-    </SlideOver>
-  );
-}
-
-export function BillingDocumentsCard({
+export function BillingRunOverviewCard({
   run,
   onCorrect,
   onDownloadLetter,
