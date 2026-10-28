@@ -179,6 +179,12 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": token, "refresh_token": "refresh"})
 		return true
+	case strings.HasPrefix(path, "/operator/schools/") && strings.HasSuffix(path, "/devices"):
+		data = []map[string]any{{
+			"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": webManualDeviceName, "status": "active",
+		}}
+	case path == "/operator/devices/9000/transfer-status":
+		data = map[string]any{"is_protected": true}
 	case strings.Contains(path, "/settings/values/"):
 		m.settings[parts[len(parts)-1]] = body["value"]
 	case strings.HasSuffix(path, "/settings/schema"):
@@ -240,6 +246,11 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 	case path == "/api/iot/" && r.Method == "POST":
 		data = map[string]any{"id": m.nextID, "api_key": "synthetic-device-key"}
 	case path == "/api/iot/":
+		if !m.bookings {
+			w.WriteHeader(seedHTTPStatusForbidden)
+			_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+			return true
+		}
 		data = []map[string]any{}
 		if m.bookings && r.URL.Query().Get("device_type") == "terminal" {
 			data = []map[string]any{{"id": 42, "device_id": "BUCHUNGEN-NFC-001", "device_type": "terminal"}}

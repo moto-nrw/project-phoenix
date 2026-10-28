@@ -107,6 +107,21 @@ Other kiosk programming errors and 5xx faults keep their class code. `device is 
 no code: no backend path returns it, and a second start answers the session
 conflict instead.
 
+### Booked modules (#4896)
+
+Every kiosk route belongs to the module NFC-Anwesenheit; the staff clock
+(`/api/iot/staff-clock`, `.../state`) also needs Zeiterfassung. A device of a
+school without the module gets `403 / module.not_booked` after
+authentication, with `details.module` (`nfc_anwesenheit` or
+`zeiterfassung`) and `details.module_label`. The lock runs in
+`gateDeviceAuthentication` (`backend/api/module_booking_gate.go`) behind each
+device authenticator. It covers `/api/iot/*` and the armband assignment
+`/api/students/{id}/rfid`. The device administration of the team portal
+under `/api/iot` passes `TenantScopeMiddleware` with the same code.
+PyrePortal shows the module's text from `details.module`. The tests are
+`TestDeviceLock*` (`backend/api/module_booking_gate_internal_test.go`) and
+`TestFullProductionRouterGolden/contracts/module_booking_gate`.
+
 ### Error reports relay
 
 `POST /api/iot/error-reports` is PyrePortal's Sentry tunnel (#3645, SDK option
