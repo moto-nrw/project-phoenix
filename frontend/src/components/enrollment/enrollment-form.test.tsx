@@ -1262,9 +1262,7 @@ describe("EnrollmentForm", () => {
         name: "Mehr anzeigen",
       }),
     ).not.toBeInTheDocument();
-    expect(
-      within(emailContactNotice!).getByText("Notice"),
-    ).toBeInTheDocument();
+    expect(within(emailContactNotice!).getByText("Notice")).toBeInTheDocument();
   });
 
   // #3377: texts the school wrote itself follow the chosen language, per
@@ -1524,7 +1522,7 @@ describe("EnrollmentForm", () => {
       "enrollment-children_0_custom_appointment",
       "enrollment-children_1_custom_appointment",
     ]);
-    expect(new Set(dateIDs)).toHaveSize(dateIDs.length);
+    expect([...new Set(dateIDs)]).toHaveLength(dateIDs.length);
 
     const addContact = screen.getAllByRole("button", {
       name: "Kontakt hinzufügen",
@@ -1549,7 +1547,7 @@ describe("EnrollmentForm", () => {
       "children_0_custom_contacts_0_phones-0-type",
       "children_0_custom_contacts_1_phones-0-type",
     ]);
-    expect(new Set(phoneTypeIDs)).toHaveSize(phoneTypeIDs.length);
+    expect([...new Set(phoneTypeIDs)]).toHaveLength(phoneTypeIDs.length);
   });
 
   it("hides the legal section and submits empty consent flags when no blocks are configured", async () => {

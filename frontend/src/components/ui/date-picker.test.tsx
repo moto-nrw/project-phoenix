@@ -986,7 +986,7 @@ describe("ISODatePicker name", () => {
     expect(hidden?.nextElementSibling?.querySelector("button")?.id).toBe(
       "closing-day-start",
     );
-    expect(screen.getByRole("button")).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "15.01.2024" })).toHaveAttribute(
       "aria-invalid",
       "true",
     );
