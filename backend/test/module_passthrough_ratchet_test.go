@@ -237,7 +237,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0119: the billing run list of modules/parentbilling (+1).
 // Lowered by ADR 0118: the holiday registration retention of modules/enrollment
 // also prunes its deletion log and is no pass-through any more (-1).
-const modulePassthroughOwnerBudgetTotal = 1411
+// Raised by ADR 0131: the kiosk count revision read of modules/studentpresence (+1).
+const modulePassthroughOwnerBudgetTotal = 1412
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -288,10 +289,11 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolsetup":      1,
 	"modules/schoolstructure":  43,
 	"modules/settings":         17,
-	"modules/studentpresence":  120,
-	"modules/timetable":        204,
-	"modules/workforce":        139,
-	"workflows/openroommove":   1,
+	// Raised by ADR 0131: the kiosk count revision read (+1).
+	"modules/studentpresence": 121,
+	"modules/timetable":       204,
+	"modules/workforce":       139,
+	"workflows/openroommove":  1,
 	// Raised by ADR 0078: the week change of the meal plan adapter.
 	"workflows/parentportal": 18,
 }
