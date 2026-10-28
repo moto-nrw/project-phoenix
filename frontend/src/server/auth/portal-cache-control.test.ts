@@ -54,10 +54,15 @@ type Route = (
   context: { params: Promise<Record<string, string>> },
 ) => Promise<Response>;
 
+// On the subdomain of the session's own school (7), so the tenant wrapper's
+// school check (#5130) lets the request through to the cache policy.
 function call(route: Route, params: Record<string, string> = {}) {
-  return route(new NextRequest("http://localhost:3000/api/example"), {
-    params: Promise.resolve(params),
-  });
+  return route(
+    new NextRequest("http://schule-a.localhost:3000/api/example", {
+      headers: { host: "schule-a.localhost:3000" },
+    }),
+    { params: Promise.resolve(params) },
+  );
 }
 
 function backendJson(status: number, body: unknown): Response {
@@ -135,8 +140,7 @@ const routes: Array<[string, () => Promise<Route>]> = [
 beforeEach(() => {
   mockFetch.mockReset();
   // The tenant wrapper compares the session's school with the host's
-  // (#5130); env.js requires TENANT_DOMAIN. A bare localhost host has no
-  // school subdomain, so the check lets these requests pass.
+  // (#5130); env.js requires TENANT_DOMAIN.
   vi.stubEnv("TENANT_DOMAIN", "localhost");
 });
 
@@ -197,6 +201,19 @@ describe("tenant routes on a school subdomain (#5130)", () => {
         code: "identity.session_tenant_mismatch",
       });
       expect(response.headers.get("Cache-Control")).toBe(PRIVATE_NO_STORE);
+      expect(mockFetch).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(tenantRoutes)(
+    "%s: refuses a school's session on the bare domain (path mode)",
+    async (_portal, load) => {
+      const response = await callOnHost(await load(), "localhost:3000");
+
+      expect(response.status).toBe(409);
+      expect(await response.json()).toMatchObject({
+        code: "identity.session_tenant_mismatch",
+      });
       expect(mockFetch).not.toHaveBeenCalled();
     },
   );
