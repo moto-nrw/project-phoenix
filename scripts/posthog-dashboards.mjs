@@ -287,7 +287,7 @@ export const FEATURES = Object.freeze([
   },
   {
     name: 'Kalender und Speiseplan',
-    pages: { ogs: ['/calendar', '/calendar-periods', '/meal-plan'], parents: ['/calendar', '/meal-plan'], school: ['/kalender'] },
+    pages: { ogs: ['/calendar', '/calendar-periods', '/meal-plan'], parents: ['/calendar', '/meal-plan'], school: ['/kalender', '/elternsprechtag'] },
   },
   {
     name: 'Personal und Dienstplan',
