@@ -908,15 +908,32 @@ describe("TenantGuard", () => {
       user: { tenantId, token: "access-token" },
     });
 
-    /** Provider stand-in: `answer` delivers the cookie's session. */
+    /**
+     * Provider stand-in. `answer` delivers a provider session the guard did
+     * not ask for (a lookup that left earlier); `settleLookup` answers the
+     * guard's own session lookup (update()) with the cookie's school, or
+     * with null for a failed lookup.
+     */
     let answer: (tenantId: number) => void = () => undefined;
+    let settleLookup: (tenantId: number | null) => void = () => undefined;
+    const providerUpdate = vi.fn();
     function Tab() {
       const [data, setData] = useState(sessionOf(1));
       answer = (tenantId) => setData(sessionOf(tenantId));
+      providerUpdate.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            settleLookup = (tenantId) => {
+              const next = tenantId === null ? null : sessionOf(tenantId);
+              if (next) setData(next);
+              resolve(next);
+            };
+          }),
+      );
       mockUseSession.mockReturnValue({
         data,
         status: "authenticated",
-        update: vi.fn(),
+        update: providerUpdate,
       });
       return (
         <TenantGuard>
@@ -925,7 +942,11 @@ describe("TenantGuard", () => {
       );
     }
 
+    const CHECK_FAILED =
+      "moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es noch einmal. Wenn das nicht hilft, melden Sie sich neu an.";
+
     beforeEach(() => {
+      providerUpdate.mockReset();
       mockUseTenant.mockReturnValue({
         tenantSlug: "school-a",
         tenant: tenantA,
@@ -944,13 +965,23 @@ describe("TenantGuard", () => {
 
       expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      expect(providerUpdate).toHaveBeenCalledTimes(1);
     });
 
-    it("switches back once the provider reports the other school", async () => {
+    it("shows the page again once its own lookup names this school", async () => {
       render(<Tab />);
       act(() => reportSessionTenantMismatch());
 
-      act(() => answer(2));
+      await act(async () => settleLookup(1));
+
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+    });
+
+    it("switches back when its own lookup names the other school", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      await act(async () => settleLookup(2));
 
       await waitFor(() =>
         expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
@@ -963,6 +994,7 @@ describe("TenantGuard", () => {
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
 
+    // Review of #5175: a late answer, not the check, used to decide.
     it("keeps the page hidden when a late answer still names this school", () => {
       render(<Tab />);
       act(() => reportSessionTenantMismatch());
@@ -974,15 +1006,104 @@ describe("TenantGuard", () => {
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
 
-    it("shows the page again when the provider does not answer", () => {
+    it("switches back when a late answer names another school", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      // A lookup that left before the refusal answers with school 2.
+      act(() => answer(2));
+
+      await waitFor(() =>
+        expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+          "school-a",
+          mockSignIn,
+          mockMutate,
+        ),
+      );
+      // Anker: der Umschaltzustand steht da.
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    // Review of #5175: after 10 s the old page came back and every further
+    // refusal hid it again.
+    it("offers a way out instead of the old page when the check times out", async () => {
       vi.useFakeTimers();
       render(<Tab />);
       act(() => reportSessionTenantMismatch());
-      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
 
-      act(() => vi.advanceTimersByTime(10_000));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(9_999);
+      });
+      // Anker: bis zur Frist bleibt die Seite gesperrt.
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(screen.getByText(CHECK_FAILED)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Erneut versuchen" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Neu anmelden" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    it("offers a way out when the lookup fails and checks again on request", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      await act(async () => settleLookup(null));
+      expect(screen.getByText(CHECK_FAILED)).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      expect(providerUpdate).toHaveBeenCalledTimes(2);
+      await act(async () => settleLookup(1));
 
       expect(screen.getByText("Protected Content")).toBeInTheDocument();
+    });
+
+    it("signs out on request when the check failed", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+      await act(async () => settleLookup(null));
+
+      fireEvent.click(screen.getByRole("button", { name: "Neu anmelden" }));
+
+      expect(mockSignOut).toHaveBeenCalledWith({ callbackUrl: "/" });
+    });
+
+    it("starts one check for repeated refusals and never shows the old page", async () => {
+      render(<Tab />);
+      act(() => {
+        reportSessionTenantMismatch();
+        reportSessionTenantMismatch();
+        reportSessionTenantMismatch();
+      });
+      expect(providerUpdate).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+
+      await act(async () => settleLookup(null));
+      act(() => reportSessionTenantMismatch());
+
+      // Anker: der Ausweg steht da, nicht die alte Seite.
+      expect(screen.getByText(CHECK_FAILED)).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      expect(providerUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it("asks again while another session lookup of the provider still runs", async () => {
+      render(<Tab />);
+      // The first update() returns nothing: another lookup still runs.
+      providerUpdate.mockImplementationOnce(async () => undefined);
+      act(() => reportSessionTenantMismatch());
+
+      await waitFor(() => expect(providerUpdate).toHaveBeenCalledTimes(2));
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
     });
 
     it("hides the page after a refused fetch of a client that never reads the body", async () => {

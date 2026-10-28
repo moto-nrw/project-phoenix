@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
@@ -52,8 +52,10 @@ function subdomainUrl(subdomain: string, pathSlug: string | null): string {
   return `${protocol}//${subdomain}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${port ? `:${port}` : ""}${path}${search}${hash}`;
 }
 
-/** How long the page stays hidden when the provider does not answer. */
-const REFUSAL_HOLD_MS = 10_000;
+/** How long the check of the session's school may take after a refusal. */
+const REFUSAL_CHECK_MS = 10_000;
+/** Pause before asking again while another session lookup still runs. */
+const REFUSAL_RETRY_MS = 500;
 
 // Installed when the guard's module loads: its children fetch before any
 // effect of the guard runs (#5130).
@@ -127,13 +129,63 @@ function GuardedTenant({
   // The session the provider held when a tenant route refused a request
   // (#5130); null while nothing was refused. The session cache wakes the
   // provider; until it answers, nothing of this tab stays on screen.
-  const [refusedSession, setRefusedSession] = useState<{
-    session: typeof session;
-  } | null>(null);
-  const latest = useRef({ session, tenantSlug, routingMode, tenant });
+  // After a tenant route refused a request (#5130) the page stays hidden
+  // until a session lookup that started after the refusal names the school.
+  // "checking": that lookup runs; "failed": it brought no valid answer in
+  // time, so the person decides how to go on. Never the old page meanwhile.
+  const [refusal, setRefusalState] = useState<"checking" | "failed" | null>(
+    null,
+  );
+  const refusalActive = useRef(false);
+  const setRefusal = useCallback((state: "checking" | "failed" | null) => {
+    refusalActive.current = state !== null;
+    setRefusalState(state);
+  }, []);
+  const refusalRun = useRef(0);
+  const latest = useRef({ session, tenantSlug, routingMode, tenant, update });
   useEffect(() => {
-    latest.current = { session, tenantSlug, routingMode, tenant };
+    latest.current = { session, tenantSlug, routingMode, tenant, update };
   });
+  useEffect(
+    () => () => {
+      // A check still running must not touch an unmounted guard.
+      refusalRun.current += 1;
+    },
+    [],
+  );
+
+  const checkSessionSchool = useCallback(() => {
+    const run = ++refusalRun.current;
+    setRefusal("checking");
+    const deadline = Date.now() + REFUSAL_CHECK_MS;
+    void (async () => {
+      // update() asks the session route itself and returns its answer; it
+      // returns nothing while another lookup of the provider runs.
+      let answer: Awaited<ReturnType<typeof update>> | null | undefined;
+      while (run === refusalRun.current && Date.now() < deadline) {
+        const remaining = deadline - Date.now();
+        answer = await Promise.race([
+          latest.current.update().catch(() => null),
+          new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), remaining),
+          ),
+        ]);
+        if (answer !== undefined) break;
+        await new Promise((resolve) => setTimeout(resolve, REFUSAL_RETRY_MS));
+      }
+      if (run !== refusalRun.current) return;
+      if (!answer) {
+        logger.warn("tenant_session_refusal_check_failed", {
+          timed_out: answer === undefined || Date.now() >= deadline,
+        });
+        setRefusal("failed");
+        return;
+      }
+      // This tab's school: the cookie fits the page again. Another school:
+      // the provider holds it now, and the mismatch handling below switches.
+      setRefusal(null);
+    })();
+  }, [setRefusal]);
 
   useEffect(
     () =>
@@ -145,29 +197,24 @@ function GuardedTenant({
           redirect(subdomainUrl(current.tenant.subdomain, current.tenantSlug));
           return;
         }
-        setRefusedSession({ session: current.session });
+        // A running switch settles the school itself; a running check or
+        // its failure stays as it is, so further refusals do not flicker.
+        if (switchInFlight.current || refusalActive.current) return;
+        checkSessionSchool();
       }),
-    [redirect],
+    [redirect, checkSessionSchool],
   );
 
-  const refusedTenantMismatch =
-    refusedSession !== null &&
-    session !== refusedSession.session &&
-    session?.user?.tenantId !== tenant?.tenantId;
+  // Any answer naming another school, also one that left before the
+  // refusal, hands over to the mismatch handling below. An answer with this
+  // tab's school counts only as the check's own result.
+  const providerNamesOtherSchool =
+    hasSessionAccess(session) && session?.user?.tenantId !== tenant?.tenantId;
   useEffect(() => {
-    if (!refusedSession) return;
-    // The provider reports the other school: the mismatch handling below
-    // takes over. An answer with this tab's school (one that left before
-    // the refusal) keeps the page hidden.
-    if (refusedTenantMismatch) {
-      setRefusedSession(null);
-      return;
-    }
-    // Without a fitting answer the page comes back; its next refused
-    // request hides it again.
-    const timer = setTimeout(() => setRefusedSession(null), REFUSAL_HOLD_MS);
-    return () => clearTimeout(timer);
-  }, [refusedSession, refusedTenantMismatch]);
+    if (refusal === null || !providerNamesOtherSchool) return;
+    refusalRun.current += 1;
+    setRefusal(null);
+  }, [refusal, providerNamesOtherSchool, setRefusal]);
 
   const sessionTenantId = session?.user?.tenantId;
   const sessionScope = session?.user?.scope;
@@ -406,7 +453,37 @@ function GuardedTenant({
     clearSwitchError,
   ]);
 
-  if (refusedSession) {
+  if (refusal === "failed") {
+    return (
+      <div className="mx-auto flex min-h-[200px] max-w-3xl items-center p-4">
+        <div className="w-full space-y-3">
+          <LoadErrorAlert error="moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es noch einmal. Wenn das nicht hilft, melden Sie sich neu an." />
+          <span className="flex flex-wrap gap-2">
+            <Button type="button" size="md" onClick={checkSessionSchool}>
+              Erneut versuchen
+            </Button>
+            <Button
+              type="button"
+              size="md"
+              variant="outline"
+              onClick={() => {
+                void signOut({ callbackUrl: "/" }).catch((err: unknown) => {
+                  logger.warn("tenant_refusal_relogin_signout_failed", {
+                    error: err instanceof Error ? err.message : String(err),
+                  });
+                  void showActionError(err, { object: "die Abmeldung" });
+                });
+              }}
+            >
+              Neu anmelden
+            </Button>
+          </span>
+        </div>
+      </div>
+    );
+  }
+
+  if (refusal === "checking") {
     return (
       <div className="flex min-h-[200px] items-center justify-center">
         <div className="text-sm text-gray-500">Schule wird gewechselt...</div>
