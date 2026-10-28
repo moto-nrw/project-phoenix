@@ -654,6 +654,7 @@ basis
 	POST /operator/organizations/{id}/restore
 	POST /operator/organizations/{id}/sample-children
 	POST /operator/organizations/{id}/traeger-members
+	POST /operator/organizations/{id}/traeger-members/invitations
 	POST /operator/profile/email-change
 	POST /operator/profile/password
 	POST /operator/schools/

@@ -117,10 +117,12 @@ import { substitutionService } from "~/lib/substitution-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
 import {
   berlinTodayISO,
+  careWeekDayCount,
   formatDate,
   isValidISODate,
   parseISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   findPeriodForDate,
   mapPeriodsForDates,
@@ -299,6 +301,7 @@ function TimetablesContent() {
   const { show: showActionError } = useApiErrorDisplay();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
+  const todayISO = useBerlinToday();
 
   // Sichtbares Datum, Ansicht und geöffneter Block werden bei jedem Render aus
   // den Search-Params abgeleitet (keine Offset-Arithmetik, kein weekOffset-State
@@ -306,7 +309,7 @@ function TimetablesContent() {
   // `view` auf die Woche.
   const rawDay = params.d;
   const requestedDayISO =
-    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
+    rawDay !== null && isValidISODate(rawDay) ? rawDay : todayISO;
   // Leseansicht (#2283, #2621): Nicht-Planende sehen Tag und Woche — ein
   // ?view=monat/serien-Deeplink fällt still auf die Woche zurück.
   const requestedView = parseViewParam(params.view);
@@ -317,7 +320,7 @@ function TimetablesContent() {
   // anchors to Monday.
   const dayISO =
     view === "week" || view === "day"
-      ? careDayISO(requestedDayISO, weekendOpen)
+      ? careDayISO(requestedDayISO, weekendOpen, todayISO)
       : requestedDayISO;
   const selectedInstanceId = params.block;
   // Gruppen- und Personenfilter (#4766). Ungültige Werte fallen still weg;
@@ -341,9 +344,8 @@ function TimetablesContent() {
   const planFilterActive = isPlanFilterActive(planFilter);
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
-  const todayISO = useMemo(() => berlinTodayISO(), []);
   const todayTargetISO = useMemo(
-    () => careDayISO(todayISO, weekendOpen),
+    () => careDayISO(todayISO, weekendOpen, todayISO),
     [todayISO, weekendOpen],
   );
 
@@ -432,11 +434,11 @@ function TimetablesContent() {
     (direction: 1 | -1) => {
       const target =
         direction === 1
-          ? nextCareDayISO(dayISO, weekendOpen)
-          : previousCareDayISO(dayISO, weekendOpen);
+          ? nextCareDayISO(dayISO, weekendOpen, todayISO)
+          : previousCareDayISO(dayISO, weekendOpen, todayISO);
       updateUrlParams({ d: target, block: null });
     },
-    [dayISO, updateUrlParams, weekendOpen],
+    [dayISO, todayISO, updateUrlParams, weekendOpen],
   );
   const goToToday = useCallback(
     () =>
@@ -472,11 +474,11 @@ function TimetablesContent() {
     (dateISO: string) => {
       updateUrlParams({
         view: null,
-        d: careDayISO(dateISO, weekendOpen),
+        d: careDayISO(dateISO, weekendOpen, todayISO),
         block: null,
       });
     },
-    [updateUrlParams, weekendOpen],
+    [todayISO, updateUrlParams, weekendOpen],
   );
 
   // Beim Schließen darf `block` nicht der letzte Plan-Parameter sein: die
@@ -519,11 +521,16 @@ function TimetablesContent() {
   const monthDays = useMemo(() => getMonthDays(visibleDate), [visibleDate]);
   // Der Betreuungsplan folgt derselben Betriebswoche wie Dienstplan und
   // Vertretung: geplant und angezeigt wird nur Mo–Fr, außer die Schule
-  // betreut das Wochenende nach dem Freitagsplan (#3921). Die Monatsansicht
+  // betreut das Wochenende nach dem Freitagsplan (#3921) und die Woche
+  // enthält den heutigen Samstag oder Sonntag (#5028). Die Monatsansicht
   // bleibt ein vollständiger Kalender, daher behält sie ihr eigenes Fenster.
   const weekDays = useMemo(
-    () => getWeekdays(weekRange.from).slice(0, weekendOpen ? 7 : 5),
-    [weekRange.from, weekendOpen],
+    () =>
+      getWeekdays(weekRange.from).slice(
+        0,
+        careWeekDayCount(fromISO, weekendOpen, todayISO),
+      ),
+    [weekRange.from, fromISO, todayISO, weekendOpen],
   );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
   const workweekToISO = weekDayISOs[weekDayISOs.length - 1]!;
@@ -896,7 +903,7 @@ function TimetablesContent() {
       assignment.period !== null &&
       (view !== "month" ||
         assignment.date.slice(0, 7) === dayISO.slice(0, 7)) &&
-      careDayISO(assignment.date, weekendOpen) === assignment.date,
+      careDayISO(assignment.date, weekendOpen, todayISO) === assignment.date,
   )?.date;
   const planningDisabledDateISOs = useMemo(
     () =>
@@ -2053,7 +2060,7 @@ function TimetablesContent() {
         }}
         defaultDate={
           quickPrefill
-            ? careDayISO(quickPrefill.date, weekendOpen)
+            ? careDayISO(quickPrefill.date, weekendOpen, todayISO)
             : (firstCoveredDateISO ?? dayISO)
         }
         closingDayRanges={closingDayRanges}

@@ -107,9 +107,10 @@ import {
   type StudentStatusKind,
 } from "~/lib/student-status-days-api";
 import {
-  berlinTodayISO,
   formatDate as formatCalendarDate,
+  parseISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 import {
   fetchStudentCareWithdrawal,
@@ -427,6 +428,7 @@ function StudentDetailPageContent() {
   const dialogErrors = useApiFormError();
   const { data: session, status: sessionStatus } = useSession();
   const weekendFollowsFriday = useWeekendFollowsFriday();
+  const berlinToday = useBerlinToday();
 
   // Switch tabs by updating the `?tab=` query param in place (preserves the
   // `from` referrer). We echo the current `usePathname` back verbatim and only
@@ -762,20 +764,19 @@ function StudentDetailPageContent() {
       (s) =>
         s.status === "sick" &&
         !s.cleared_at &&
-        s.date === berlinTodayISO() &&
+        s.date === berlinToday &&
         s.note,
     );
     return row?.note ?? undefined;
-  }, [student?.sick, statusDays]);
+  }, [berlinToday, student?.sick, statusDays]);
   // Who entered today's status. A parent's Abmeldung looks the same as a
   // staff entry everywhere else, so the lift dialog names it (#3854).
   const todayStatusSource = useCallback(
     (status: StudentStatusKind) =>
       statusDays.find(
-        (s) =>
-          s.status === status && !s.cleared_at && s.date === berlinTodayISO(),
+        (s) => s.status === status && !s.cleared_at && s.date === berlinToday,
       )?.source,
-    [statusDays],
+    [berlinToday, statusDays],
   );
   const sickFromParents = todayStatusSource("sick") === "parent";
   const excusedFromParents = todayStatusSource("excused") === "parent";
@@ -797,7 +798,7 @@ function StudentDetailPageContent() {
     if (!hasFullAccess || !pickupData) return {};
 
     const dayData = getDayData(
-      new Date(),
+      parseISODate(berlinToday),
       pickupData.schedules,
       pickupData.exceptions,
       student?.sick ?? false,
@@ -806,6 +807,8 @@ function StudentDetailPageContent() {
       null,
       pickupData.effectiveSchedules,
       weekendFollowsFriday,
+      [],
+      berlinToday,
     );
 
     if (dayData.effectiveTime) {
@@ -822,13 +825,14 @@ function StudentDetailPageContent() {
     student?.sick,
     student?.excused,
     weekendFollowsFriday,
+    berlinToday,
   ]);
 
   const todayArrival = useMemo<TodayArrival>(() => {
     if (!hasFullAccess || !arrivalData) return {};
 
     const dayData = getArrivalDayData(
-      new Date(),
+      parseISODate(berlinToday),
       arrivalData.schedules,
       arrivalData.exceptions,
       arrivalData.notes,
@@ -836,6 +840,7 @@ function StudentDetailPageContent() {
       student?.excused ?? false,
       null,
       weekendFollowsFriday,
+      berlinToday,
     );
 
     if (dayData.isAbsent) {
@@ -860,6 +865,7 @@ function StudentDetailPageContent() {
     student?.excused,
     student?.sick,
     weekendFollowsFriday,
+    berlinToday,
   ]);
 
   // Clamp the URL tab to the set the current access level actually exposes, so a

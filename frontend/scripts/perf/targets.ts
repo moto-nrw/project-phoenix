@@ -180,9 +180,8 @@ export const PERF_TARGETS: readonly PerfTarget[] = [
   {
     name: "students-search",
     path: "/students/search",
-    // Die Kinderkarten sind Buttons „Vorname Nachname - Tippen für mehr Infos“.
-    ready: (page) =>
-      page.getByRole("button", { name: /Tippen für mehr Infos/ }).first(),
+    // Derselbe Bereitschaftsvertrag wie bei Seitenwechsel und Rückweg.
+    ready: childCardReady,
     interaction: {
       label: "4 Zeichen in die Namenssuche tippen",
       run: async (page) => {

@@ -7,7 +7,13 @@
  * /api/timetable/instances endpoint.
  */
 
-import { formatDate, parseISODate, toISODate } from "./date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  isCareWeekendDay,
+  parseISODate,
+  toISODate,
+} from "./date-helpers";
 import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
 import {
   shouldMaterializeWeekPattern,
@@ -361,25 +367,42 @@ export function previousWorkdayISO(iso: string): string {
 /**
  * Der Betreuungstag zu `iso`: am Wochenende der folgende Montag, außer die
  * Schule betreut samstags und sonntags nach dem Freitagsplan
- * (operations.weekend_follows_friday, #3921). Dann ist jeder Tag einer.
+ * (operations.weekend_follows_friday, #3921) und es ist das heutige
+ * Wochenende (#5028, `isCareWeekendDay`).
  */
-export function careDayISO(iso: string, weekendOpen: boolean): string {
-  return weekendOpen ? iso : nextWorkdayISO(iso);
+export function careDayISO(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): string {
+  return isCareWeekendDay(iso, weekendOpen, todayISO)
+    ? iso
+    : nextWorkdayISO(iso);
 }
 
 /** Der nächste Betreuungstag nach `iso` (siehe `careDayISO`). */
-export function nextCareDayISO(iso: string, weekendOpen: boolean): string {
+export function nextCareDayISO(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() + 1);
-  return careDayISO(toISODate(d), weekendOpen);
+  return careDayISO(toISODate(d), weekendOpen, todayISO);
 }
 
 /** Der Betreuungstag vor `iso` (siehe `careDayISO`). */
-export function previousCareDayISO(iso: string, weekendOpen: boolean): string {
-  if (!weekendOpen) return previousWorkdayISO(iso);
+export function previousCareDayISO(
+  iso: string,
+  weekendOpen: boolean,
+  todayISO = berlinTodayISO(),
+): string {
   const d = parseISODate(iso);
   d.setDate(d.getDate() - 1);
-  return toISODate(d);
+  const previousISO = toISODate(d);
+  return isCareWeekendDay(previousISO, weekendOpen, todayISO)
+    ? previousISO
+    : previousWorkdayISO(iso);
 }
 
 /**

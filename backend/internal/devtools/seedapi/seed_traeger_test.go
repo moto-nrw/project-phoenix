@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 
 	var mu sync.Mutex
 	requests := map[string]seedTraegerRequest{}
-	var invitations, assignments []map[string]any
+	var invitations, assignments, operatorInvitations []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		assert.Equal(t, http.MethodPost, r.Method)
 		raw, err := io.ReadAll(r.Body)
@@ -41,6 +42,9 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 		}
 		if r.URL.Path == "/operator/organizations/12/traeger-members" {
 			assignments = append(assignments, body)
+		}
+		if r.URL.Path == "/operator/organizations/12/traeger-members/invitations" {
+			operatorInvitations = append(operatorInvitations, body)
 		}
 		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
@@ -68,9 +72,13 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	assign := requests["/operator/organizations/12/traeger-members"]
 	assert.Equal(t, "Bearer operator-token", assign.authorization)
 	assert.Equal(t, []map[string]any{
-		{"email": "admin@example.test", "role": "administration"},
-		{"email": "admin@example.test", "role": "billing"},
-	}, assignments, "the admin holds the Verwaltung and the Abrechnung")
+		{"email": "admin@example.test", "roles": []any{"administration", "billing"}},
+	}, assignments, "the admin holds the Verwaltung and the Abrechnung, granted in one assignment")
+	operatorInvite := requests["/operator/organizations/12/traeger-members/invitations"]
+	assert.Equal(t, "Bearer operator-token", operatorInvite.authorization, "the moto team invites with the operator session")
+	assert.Equal(t, []map[string]any{
+		{"email": "petra.hoffmann@ganztag-nord.example", "roles": []any{"administration", "billing"}},
+	}, operatorInvitations, "the operator invites a person without a moto account, with two roles at once")
 	login := requests["/traeger/auth/login"]
 	assert.Empty(t, login.authorization, "the Träger sign-in carries no session")
 	assert.Equal(t, map[string]any{"email": "admin@example.test", "password": "Geheim1234%", "organization_id": float64(12)}, login.body)
@@ -438,7 +446,7 @@ func TestSeedTraegerStepsShareOneTraegerSession(t *testing.T) {
 		default:
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
 		}
-		if r.URL.Path != "/operator/organizations/12/traeger-members" {
+		if !strings.HasPrefix(r.URL.Path, "/operator/organizations/12/traeger-members") {
 			traegerAuthorizations = append(traegerAuthorizations, r.Header.Get("Authorization"))
 		}
 	})

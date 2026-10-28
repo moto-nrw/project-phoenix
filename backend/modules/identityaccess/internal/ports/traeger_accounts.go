@@ -15,8 +15,9 @@ type TraegerAccountStore interface {
 	// InsertTraegerInvitation stores the hash of invitation.Token and returns
 	// the invitation with the raw token.
 	InsertTraegerInvitation(ctx context.Context, invitation domain.TraegerInvitation) (domain.TraegerInvitation, domain.OperationStats, error)
-	// RevokeOpenTraegerInvitationsForEmail spends every open invitation of the
-	// address at the Träger.
+	// RevokeOpenTraegerInvitationsForEmail takes the address lock of the
+	// Träger until the caller's transaction ends, then spends every open
+	// invitation of the address there.
 	RevokeOpenTraegerInvitationsForEmail(ctx context.Context, organizationID int64, email string, at time.Time) (domain.OperationStats, error)
 	// RevokeTraegerInvitation spends one open invitation of the Träger and
 	// returns it; found is false for an unknown, foreign or spent one.

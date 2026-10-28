@@ -641,7 +641,7 @@ function editStudentTopic(): HelpTopic {
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
       // Feld an einem Betreuungstag (care-weekly-plan-editor.tsx).
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
-      "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
     related: [
       HELP_TOPICS.studentSearch,
@@ -1341,7 +1341,8 @@ function carePlanTopic(presenceMode: HelpPresenceMode): HelpTopic {
       // #4768: Raumfilter.
       "Nur einen Raum sehen? Wählen Sie oben bei `Alle Räume` einen Raum.",
       "Die Adresse der Seite behält Ihre Auswahl. So können Sie den gefilterten Plan teilen.",
-      "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+      // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
     troubleshootingDetails: [
       "Der Tab `Betreuungsplan` fehlt? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",
@@ -3533,7 +3534,7 @@ function careTimesTopic(): HelpTopic {
       "Tippen Sie nur Ziffern, zum Beispiel 1600 für 16:00 Uhr.",
       "Steht unter einem leeren Feld zum Beispiel `16:00 Uhr eintragen`? Ein Klick trägt die übliche Zeit Ihrer Schule ein.",
       "Die üblichen Zeiten stehen unter `Einstellungen` bei `Betreuungszeiten`. Jede Schule pflegt ihre eigenen Zeiten.",
-      "Betreut Ihre OGS am Wochenende? Dann gelten Samstag und Sonntag nach dem Freitagsplan.",
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
       // #5102: Angebotswechsel aus dem Wochenplan.
       "Wechselt das Kind mit dem Wochenplan das Angebot, zeigt moto danach `Auswirkung auf den Betreuungsplan`. Dort sehen Sie, welche Regeltermine angepasst sind und wo das Kind weiter eingeplant ist.",
     ],
@@ -5681,7 +5682,8 @@ function leadCarePlanTopic(): HelpTopic {
       // #4768: Raumfilter.
       "Einen Raum für eine neue AG suchen? Wählen Sie oben bei `Alle Räume` den Raum. Dann sehen Sie, wann er belegt ist.",
       "Ist ein Filter gewählt, druckt `Drucken oder exportieren` nur die gefilterten Termine.",
-      "Betreut Ihre OGS am Wochenende? Dann zeigt die Wochenansicht auch Samstag und Sonntag. Dort gilt der Freitagsplan.",
+      // #5028: Sa/So nur in der Woche des heutigen Wochenendes.
+      "Betreut Ihre OGS am Wochenende? Dann gilt dort der Freitagsplan. Am Wochenende zeigt die Wochenansicht dieser Woche auch Samstag und Sonntag.",
     ],
     differences: [
       "Steht oben `Nur ansehen`? Dann dürfen Sie den Plan lesen, aber nicht ändern.",
@@ -9186,7 +9188,7 @@ function traegerLoginTopic(): HelpTopic {
     audience: "traeger",
     icon: "Building2",
     requirements: [
-      "Das moto-Team hat Ihr Konto dem Träger-Büro zugeordnet.",
+      "Sie gehören zum Träger-Büro. Sie haben eine Einladung angenommen, oder das moto-Team hat Ihr Konto zugeordnet.",
       "Zugriff auf Ihr E-Mail-Postfach. Bei jeder Anmeldung kommt ein Code per E-Mail.",
     ],
     steps: [
@@ -9203,7 +9205,7 @@ function traegerLoginTopic(): HelpTopic {
     notes: ["Legen Sie sich die Adresse als Lesezeichen an."],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
-      "Sie nutzen dasselbe Konto wie in der OGS. Ein zweites Passwort brauchen Sie nicht.",
+      "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
@@ -9369,7 +9371,9 @@ function traegerInvitationTopic(): HelpTopic {
     group: "einstieg",
     audience: "traeger",
     icon: "UserRoundPlus",
-    requirements: ["Jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen."],
+    requirements: [
+      "Das moto-Team oder jemand aus dem Träger-Büro hat Sie per E-Mail eingeladen.",
+    ],
     steps: [
       "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
       "Wählen Sie `Einladung annehmen`.",
@@ -9381,9 +9385,10 @@ function traegerInvitationTopic(): HelpTopic {
       "moto meldet Sie an und öffnet die Seite `Schulen`. Was Sie sehen, hängt von Ihrer Rolle ab.",
     notes: [
       "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
+      "Ein Konto in einer Schule brauchen Sie dafür nicht.",
     ],
     troubleshootingDetails: [
-      "moto sagt, die Einladung sei abgelaufen? Bitten Sie die Person, die Sie eingeladen hat, um eine neue Einladung.",
+      "moto sagt, die Einladung sei abgelaufen? Bitten Sie das Träger-Büro oder das moto-Team um eine neue Einladung.",
       "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Setzen Sie es in der Anmeldung Ihrer Schule über `Passwort vergessen?` zurück.",
     ],
     related: [HELP_TOPICS.traegerLogin],
@@ -9836,7 +9841,8 @@ function traegerAccountsTopic(): HelpTopic {
       "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
     notes: [
       "`Verwaltung` darf alles verwalten, auch Personen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
-      "Eine Person kann mehrere Rollen haben.",
+      "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
+      "Unter `Offene Einladungen` stehen auch Einladungen, die das moto-Team verschickt hat.",
     ],
     differences: [
       "Sie sehen in der Navigation kein `Personen`? Dann haben Sie nicht die Rolle `Verwaltung`.",
