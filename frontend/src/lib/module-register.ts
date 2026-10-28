@@ -10,14 +10,11 @@
  *
  * Die Zuordnung folgt der Routen-Zuordnung des Backends
  * (`backend/api/module_routes.go`, #4893) und dem Modulkatalog
- * (`docs/reference/modulschalter.md`). Zwei Abweichungen sind gewollt:
- *
- * - Aktivitäten (`/activities`, `/database/activities`) gehören hier zu
- *   NFC-Anwesenheit, im Backend zur Basis. Die Seiten waren schon vor den
- *   Modulen nur mit NFC zu sehen; eine Schule ohne NFC behält damit genau
- *   die Navigation, die sie kannte.
- * - Geräte (`/database/devices`) sperrt das Backend erst mit #4896. Die
- *   Seite war ebenso nur mit NFC zu sehen und bleibt es.
+ * (`docs/reference/modulschalter.md`). Eine Abweichung ist gewollt:
+ * Aktivitäten (`/activities`, `/database/activities`) gehören hier zu
+ * NFC-Anwesenheit, im Backend zur Basis. Die Seiten waren schon vor den
+ * Modulen nur mit NFC zu sehen; eine Schule ohne NFC behält damit genau die
+ * Navigation, die sie kannte.
  *
  * Schul-Einstellungen wie `operations.meal_plan_enabled` oder
  * `timetable.enabled` bleiben Feinsteuerung in den Verbrauchern: eine Seite

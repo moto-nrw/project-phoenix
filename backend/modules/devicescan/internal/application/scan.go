@@ -320,8 +320,7 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 	}
 
 	s.applyCheckoutFlags(ctx, result, student, checkout.Visit)
-	result.ActiveStudents, err = s.resolveActiveStudentCount(ctx, checkin, command.RoomID, device.ID)
-	if err != nil {
+	if err := s.applyActiveStudentCount(ctx, result, checkin, command.RoomID, device.ID); err != nil {
 		return nil, err
 	}
 	s.applyPickupTime(ctx, result, student.ID, now)
@@ -338,6 +337,17 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 		slog.String("room", result.RoomName),
 	)
 	return result, nil
+}
+
+// applyActiveStudentCount sets the kiosk counter with its session and
+// revision (#5128) and refreshes the device session's heartbeat.
+func (s *Service) applyActiveStudentCount(ctx context.Context, result *devicescan.ScanResult, checkin *checkinResult, roomID *int64, deviceID int64) error {
+	counter, err := s.resolveActiveStudentCount(ctx, checkin, roomID, deviceID)
+	if err != nil {
+		return err
+	}
+	result.ActiveStudents, result.ActiveStudentsSessionID, result.ActiveStudentsRevision = counter.count, counter.sessionID, counter.revision
+	return nil
 }
 
 // buildScanResult names the transition from what happened.

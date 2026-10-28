@@ -184,7 +184,7 @@ func mountStudentRoutes(
 			AuthenticatedDevice:    deviceauth.DeviceID,
 			ChildQuota:             childQuotaStudentsReader{usages: membership},
 			ClassListEntries:       classListEntryStudentsReader{entries: membership},
-			DeviceAuthenticator:    deviceAuth.Device(),
+			DeviceAuthenticator:    gateDeviceAuthentication(deviceAuth.Device()),
 			FamilyProtection:       persons,
 			Logger:                 logger.With("handler", "students"),
 			PeopleDirectory:        persons,

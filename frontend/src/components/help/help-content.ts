@@ -6817,6 +6817,8 @@ function modulesTopic(): HelpTopic {
       "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
       "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
       "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
+      "Ohne `NFC-Anwesenheit` lässt sich kein Tablet mit der Geräte-PIN anmelden. Das Tablet zeigt dann einen Hinweis.",
+      "Ohne `Zeiterfassung` kann Ihr Team am Tablet nicht stempeln. Anwesenheit mit Armband geht weiter.",
     ],
     differences: [
       "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
@@ -9351,7 +9353,7 @@ function traegerBriefkopfTopic(): HelpTopic {
         title: "Absender, Farbe und Fußzeile eintragen",
         steps: [
           "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein, jede Angabe in eine eigene Zeile.",
-          "Tragen Sie bei `Farbe für Briefe und Rechnungen` den Farbcode Ihres Trägers ein: eine Raute und sechs Zeichen, so wie er im Logo-Entwurf steht.",
+          "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf den farbigen Kreis und wählen Sie eine Farbe. Oder tragen Sie den Farbcode Ihres Trägers in das Feld daneben ein: eine Raute und sechs Zeichen, so wie er im Logo-Entwurf steht.",
           "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein.",
           "moto speichert jedes Feld von selbst.",
         ],
