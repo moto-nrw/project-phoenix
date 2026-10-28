@@ -58,6 +58,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useUserContext } from "~/lib/hooks/use-user-context";
+import { schoolClassesLabel } from "~/lib/school-class-label";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
   LOCATION_STATUSES,
@@ -2501,7 +2502,7 @@ function SearchPageContent() {
     if (selectedSchoolClasses.length > 0) {
       filters.push({
         id: "schoolClass",
-        label: `Klasse ${selectedSchoolClasses.join(", ")}`,
+        label: schoolClassesLabel(selectedSchoolClasses),
         onRemove: () => updateSelectedSchoolClasses([]),
       });
     }

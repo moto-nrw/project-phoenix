@@ -153,6 +153,20 @@ describe("StepPersonalKinder — Klassenfilter (#2482)", () => {
     expect(toggleSourceSchoolClass).toHaveBeenCalledWith("1a");
   });
 
+  // #5101: Sonnenhof speichert „Klasse 1b“; die Checkbox hieß „Klasse Klasse 1b (6)“.
+  it("does not double the class word for classes stored as „Klasse 1b“", () => {
+    renderStep({
+      form: sourcedForm({ sourceFilterMode: "klasse" }),
+      sourceClassOptions: ["Klasse 1b"],
+      sourceClassCounts: { "klasse 1b": 6 },
+    });
+
+    expect(
+      screen.getByRole("checkbox", { name: "Klasse 1b (6)" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Klasse Klasse/)).not.toBeInTheDocument();
+  });
+
   it("hides the grade checkboxes while the Klasse mode is active", () => {
     renderStep({
       form: sourcedForm({ sourceFilterMode: "klasse" }),

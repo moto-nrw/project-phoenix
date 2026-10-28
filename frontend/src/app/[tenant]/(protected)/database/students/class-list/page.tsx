@@ -48,6 +48,7 @@ import {
 } from "~/lib/class-list-entries-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
+import { schoolClassName } from "~/lib/school-class-label";
 import type { Student } from "~/lib/student-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -173,10 +174,7 @@ function rowClass(row: RosterRow): string {
 // Sort key that keeps "Klasse 1a" ≡ "1a" together and orders grades
 // numerically (1a before 10a) — the same equivalence the exports use.
 function classSortKey(schoolClass: string): string {
-  const normalized = schoolClass
-    .trim()
-    .toLowerCase()
-    .replace(/^klasse\s+/, "");
+  const normalized = schoolClassName(schoolClass).toLowerCase();
   return normalized.replace(/^\d+/, (digits) => digits.padStart(3, "0"));
 }
 

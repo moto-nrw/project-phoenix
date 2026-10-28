@@ -4,6 +4,7 @@ import {
   parseISODate,
   toISODate as formatDateISO,
 } from "./date-helpers";
+import { schoolClassLabel } from "./school-class-label";
 import type {
   ArrivalException,
   ArrivalNote,
@@ -29,16 +30,12 @@ export function formatArrivalTime(time: string): string {
   return time;
 }
 
-export function stripClassPrefix(schoolClass: string): string {
-  return schoolClass.replace(/^klasse\s+/i, "");
-}
-
 export function arrivalScheduleSourceLabel(
   schedule: Pick<ArrivalSchedule, "source" | "source_class"> | null | undefined,
 ): string | null {
   if (schedule?.source === "class_schedule") {
     return schedule.source_class
-      ? `aus Klasse ${stripClassPrefix(schedule.source_class)}`
+      ? `aus ${schoolClassLabel(schedule.source_class)}`
       : "Klassenzeit";
   }
   if (schedule?.source === "staff") return "eigene Zeit";
