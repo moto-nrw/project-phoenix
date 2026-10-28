@@ -108,9 +108,23 @@ func (c staffChat) seedGroup(group staffChatGroup) (bool, error) {
 			return false, nil
 		}
 	}
-	creator, err := c.auth(group.creator)
+	threadID, err := c.createGroup(group)
 	if err != nil {
 		return false, err
+	}
+	for _, message := range group.messages {
+		if err := c.sendToGroup(threadID, message); err != nil {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// createGroup starts the group chat as its creator.
+func (c staffChat) createGroup(group staffChatGroup) (string, error) {
+	creator, err := c.auth(group.creator)
+	if err != nil {
+		return "", err
 	}
 	c.rt.Client.BindAuth(creator)
 	memberIDs := make([]string, 0, len(group.members))
@@ -118,31 +132,34 @@ func (c staffChat) seedGroup(group staffChatGroup) (bool, error) {
 		cred, _ := staffCredentialsByIndex(c.rt.FixedSeeder, index)
 		id, err := staffAccountID(c.rt, cred)
 		if err != nil {
-			return false, err
+			return "", err
 		}
 		memberIDs = append(memberIDs, fmt.Sprintf("%d", id))
 	}
 	raw, err := c.rt.Client.PostWithAuth(creator, "/api/staff-messages/groups", map[string]any{"name": group.name, "account_ids": memberIDs})
 	if err != nil {
-		return false, fmt.Errorf("create staff group chat %q: %w", group.name, err)
+		return "", fmt.Errorf("create staff group chat %q: %w", group.name, err)
 	}
 	threadID, err := threadIDFromResponse(raw)
 	if err != nil {
-		return false, fmt.Errorf("decode POST /api/staff-messages/groups response: %w", err)
+		return "", fmt.Errorf("decode POST /api/staff-messages/groups response: %w", err)
 	}
-	for _, message := range group.messages {
-		sender, err := c.auth(message.sender)
-		if err != nil {
-			return false, err
-		}
-		if _, err := c.rt.Client.GetWithAuth(sender, "/api/staff-messages/threads/"+threadID); err != nil {
-			return false, fmt.Errorf("read staff group chat %s: %w", threadID, err)
-		}
-		if _, err := c.rt.Client.PostWithAuth(sender, "/api/staff-messages/threads/"+threadID, map[string]any{"body": message.body}); err != nil {
-			return false, fmt.Errorf("send to staff group chat %s: %w", threadID, err)
-		}
+	return threadID, nil
+}
+
+// sendToGroup reads the group as the sender, then writes.
+func (c staffChat) sendToGroup(threadID string, message staffChatGroupMessage) error {
+	sender, err := c.auth(message.sender)
+	if err != nil {
+		return err
 	}
-	return true, nil
+	if _, err := c.rt.Client.GetWithAuth(sender, "/api/staff-messages/threads/"+threadID); err != nil {
+		return fmt.Errorf("read staff group chat %s: %w", threadID, err)
+	}
+	if _, err := c.rt.Client.PostWithAuth(sender, "/api/staff-messages/threads/"+threadID, map[string]any{"body": message.body}); err != nil {
+		return fmt.Errorf("send to staff group chat %s: %w", threadID, err)
+	}
+	return nil
 }
 
 // staffChatConversation is one direct conversation between two staff
