@@ -59,6 +59,7 @@ func TestVisitRevisionEventsMigrationRoundTrip(t *testing.T) {
 		require.NoError(t, db.NewRaw(`SELECT to_regclass('active.visit_revision_events') IS NOT NULL`).Scan(ctx, &found))
 		return found
 	}
+	require.NoError(t, roomVisitRevisionDown(ctx, db), "1.15.710 extends the table and goes first")
 	require.NoError(t, visitRevisionEventsUp(ctx, db), "the migration is idempotent")
 	require.NoError(t, visitRevisionEventsDown(ctx, db))
 	assert.False(t, exists())

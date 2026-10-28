@@ -222,32 +222,42 @@ func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, group
 
 func compactVisitRevisions(ctx context.Context, db bun.IDB, tenantID int64, stats *ports.Stats) error {
 	stats.Queries++
-	if _, err := db.NewRaw(compactVisitRevisionEvents, tenantID, tenantID, tenantID, tenantID).Exec(ctx); err != nil {
+	if _, err := db.NewRaw(compactVisitRevisionEvents, tenantID, tenantID, tenantID).Exec(ctx); err != nil {
 		return fmt.Errorf("end group sessions: compact visit revision events: %w", err)
 	}
 	return nil
 }
 
-// compactVisitRevisionEvents keeps the change events of ended sessions small
-// (#5128): it replaces all events of such a session with one row carrying
-// their sum, so the session's revision does not change, and it drops the
-// events of deleted sessions, whose ids never return. A concurrent writer's
-// events are not in this statement's snapshot and stay as they are. The
-// DELETE returns only rows this statement deleted, so a second compaction
-// running at the same time cannot count a row twice.
-const compactVisitRevisionEvents = `WITH compacted AS (
-		DELETE FROM active.visit_revision_events AS e
-		WHERE e.tenant_id = ? AND e.active_group_id IN (
-			SELECT x.active_group_id FROM active.visit_revision_events AS x
-			LEFT JOIN active.groups AS g ON g.tenant_id = x.tenant_id AND g.id = x.active_group_id
-			WHERE x.tenant_id = ? AND (g.id IS NULL OR g.end_time IS NOT NULL)
-			GROUP BY x.active_group_id, g.id HAVING g.id IS NULL OR count(*) > 1)
-		RETURNING e.active_group_id, e.changes
+// compactVisitRevisionEvents keeps the change events small (#5128, #5205)
+// without changing a session or room revision. It replaces the events of
+// each ended session and room by one row carrying their sum, and the room
+// events (no session) of each room by one row. The events of a deleted
+// session, whose id never returns, keep only their room: they become room
+// events, so the room revision stays, and those without a room go. A
+// concurrent writer's events are not in this statement's snapshot and stay
+// as they are. The DELETE returns only rows this statement deleted, so a
+// second compaction running at the same time cannot count a row twice.
+const compactVisitRevisionEvents = `WITH candidates AS (
+		SELECT e.id, e.room_id, g.id AS kept_group,
+			COALESCE(g.id, 0) AS group_key, COALESCE(e.room_id, 0) AS room_key,
+			e.active_group_id IS NOT NULL AND g.id IS NULL AS deleted_session
+		FROM active.visit_revision_events AS e
+		LEFT JOIN active.groups AS g ON g.tenant_id = e.tenant_id AND g.id = e.active_group_id
+		WHERE e.tenant_id = ? AND (e.active_group_id IS NULL OR g.id IS NULL OR g.end_time IS NOT NULL)
+	), targets AS (
+		SELECT c.id, c.kept_group, c.room_id FROM candidates AS c
+		JOIN (SELECT group_key, room_key FROM candidates GROUP BY group_key, room_key
+			HAVING count(*) > 1 OR bool_or(deleted_session)) AS k
+			ON k.group_key = c.group_key AND k.room_key = c.room_key
+	), compacted AS (
+		DELETE FROM active.visit_revision_events AS e USING targets AS t
+		WHERE e.tenant_id = ? AND e.id = t.id
+		RETURNING t.kept_group, t.room_id, e.changes
 	)
-	INSERT INTO active.visit_revision_events (tenant_id, active_group_id, changes)
-	SELECT ?, c.active_group_id, sum(c.changes) FROM compacted AS c
-	WHERE EXISTS (SELECT 1 FROM active.groups AS g WHERE g.tenant_id = ? AND g.id = c.active_group_id)
-	GROUP BY c.active_group_id`
+	INSERT INTO active.visit_revision_events (tenant_id, active_group_id, room_id, changes)
+	SELECT ?, c.kept_group, c.room_id, sum(c.changes) FROM compacted AS c
+	WHERE c.kept_group IS NOT NULL OR c.room_id IS NOT NULL
+	GROUP BY c.kept_group, c.room_id`
 
 // EndGroup stamps the end time of one still-open group and touches nothing
 // else. The lifecycle lock distinguishes a missing group from an ended one so

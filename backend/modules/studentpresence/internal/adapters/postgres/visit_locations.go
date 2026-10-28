@@ -95,6 +95,33 @@ func (s *Store) CountOpenVisitsInRoom(ctx context.Context, id int64) (int, ports
 	return int(count), ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
+// CountOpenVisitsInRoomWithRevision reads the open visit count of a room's
+// running sessions and the room's visit revision (#5205) in one statement,
+// so both come from one snapshot. The revision is the sum of the change
+// events stamped with the room (active.visit_revision_events.room_id) that
+// the snapshot sees: visit changes of its sessions and the start, end,
+// reopening, deletion and room change of a session.
+func (s *Store) CountOpenVisitsInRoomWithRevision(ctx context.Context, id int64) (int, int64, ports.Stats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, 0, ports.Stats{}, err
+	}
+	var row struct {
+		OpenVisits    int   `bun:"open_visits"`
+		VisitRevision int64 `bun:"visit_revision"`
+	}
+	started := time.Now()
+	err = db.NewRaw(`SELECT
+		(SELECT COALESCE(sum(e.changes), 0) FROM active.visit_revision_events AS e
+			WHERE e.tenant_id = ? AND e.room_id = ?) AS visit_revision,
+		(SELECT count(*) FROM active.visits AS v
+			JOIN active.groups AS g ON g.id = v.active_group_id AND g.tenant_id = v.tenant_id
+			WHERE v.tenant_id = ? AND g.room_id = ? AND g.end_time IS NULL AND v.exit_time IS NULL) AS open_visits`,
+		tenantID, id, tenantID, id).Scan(ctx, &row)
+	stats := ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}
+	return row.OpenVisits, row.VisitRevision, stats, err
+}
+
 func (s *Store) ListOpenVisitRooms(ctx context.Context, roomID int64) ([]studentpresence.OpenVisitRoom, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

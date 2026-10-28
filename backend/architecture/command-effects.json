@@ -75981,6 +75981,19 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0133",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Kiosk room count revision read of #5205 through the module's observer, approved by ADR 0133; a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoom",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoom",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
@@ -77655,6 +77668,19 @@
       "adr": "0083",
       "approval_adr": "0098",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR."
+    },
+    {
+      "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": "",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "effect": "unresolved",
+      "classification": "unresolved",
+      "adr": "0083",
+      "approval_adr": "0133",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Kiosk room count revision read of #5205 through the module's observer, approved by ADR 0133; a changed value or closure needs a fresh approval ADR."
     },
     {
       "source_owner": "student-presence",
@@ -84816,6 +84842,17 @@
     },
     {
       "source_owner": "student-presence",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.CountOpenVisitsInRoomWithRevision",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.CountOpenVisitsInRoomWithRevision",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.CountOpenVisitsInRoomWithRevision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098)."
+    },
+    {
+      "source_owner": "student-presence",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.CountOpenVisitsInRoom",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.CountOpenVisitsInRoom",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
@@ -88794,6 +88831,39 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountOpenVisitsInGroup; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence",
+      "binding_digest": "b50b2f93b2fb1d57b36f5c3665b5fd85",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence",
+      "binding_digest": "62652cb55e9027bd33a655a0c9761022",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence",
+      "binding_digest": "62652cb55e9027bd33a655a0c9761022",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "timetable-activities",
@@ -92940,6 +93010,28 @@
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountOpenVisitsInGroup; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence",
+      "binding_digest": "55c62db202f47d4d6f266fec19f776a8",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision; modules/studentpresence/internal/application/visit_locations.go:51. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
+    },
+    {
+      "source_owner": "timetable-activities",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence",
+      "binding_digest": "62652cb55e9027bd33a655a0c9761022",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here."
     },
     {
       "source_owner": "timetable-activities",

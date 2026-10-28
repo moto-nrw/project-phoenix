@@ -508,12 +508,16 @@ func TestDeviceCheckin_ActiveStudentsCarriesSessionRevision(t *testing.T) {
 	require.NoError(t, k.db.NewRaw("SELECT COALESCE(sum(changes), 0) FROM active.visit_revision_events WHERE active_group_id = ?", group.ID).Scan(testpkg.Ctx(t), &stored))
 	assert.Equal(t, float64(2), data["active_students_revision"], "the fixture visit and the scan each raised the revision")
 	assert.EqualValues(t, stored, data["active_students_revision"], "the answer carries the committed revision")
+	assert.NotContains(t, data, "active_students_room_id", "a session count names no room scope")
+	assert.NotContains(t, data, "active_students_room_revision")
 }
 
-// TestDeviceCheckin_RoomWideCountHasNoRevision pins the room fallback: no
-// single revision orders several sessions of a room, so the count comes
-// without one and the kiosk keeps its older rule for it.
-func TestDeviceCheckin_RoomWideCountHasNoRevision(t *testing.T) {
+// TestDeviceCheckin_RoomWideCountCarriesRoomRevision pins the room scope of
+// #5205: a device without its own session in the scanned room gets the
+// room-wide count with the room and the room's committed revision, and
+// never a session field, so a kiosk cannot compare it with a session
+// revision.
+func TestDeviceCheckin_RoomWideCountCarriesRoomRevision(t *testing.T) {
 	t.Parallel()
 	k := setupCheckinRoute(t)
 	staff, _, _ := k.staff(t, "Room", "Wide")
@@ -527,6 +531,11 @@ func TestDeviceCheckin_RoomWideCountHasNoRevision(t *testing.T) {
 	assert.Equal(t, float64(1), data["active_students"])
 	assert.NotContains(t, data, "active_students_revision")
 	assert.NotContains(t, data, "active_students_session_id")
+	assert.Equal(t, float64(roomID), data["active_students_room_id"])
+	var stored int64
+	require.NoError(t, k.db.NewRaw("SELECT COALESCE(sum(changes), 0) FROM active.visit_revision_events WHERE room_id = ?", roomID).Scan(testpkg.Ctx(t), &stored))
+	assert.Equal(t, float64(1), data["active_students_room_revision"], "the scan's check-in is the room's first change")
+	assert.EqualValues(t, stored, data["active_students_room_revision"], "the answer carries the committed room revision")
 }
 
 // backdateLastActivity moves a session's heartbeat an hour into the past, so
