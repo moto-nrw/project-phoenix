@@ -17,7 +17,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       {
         title: "Logo hochladen",
         steps: [
-          "Wählen Sie in der Navigation `Briefkopf`.",
+          "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Briefkopf`.",
           "Wählen Sie bei `Logo` den Knopf `Logo hochladen`.",
           "Wählen Sie ein Bild im Format PNG oder JPG, bis 1 MB.",
         ],
@@ -58,6 +58,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       "Jedes Ansehen und jede Änderung von Ansprechpartner und Bankverbindungen steht im Protokoll des Trägers.",
     ],
     differences: [
+      "Auf dem Handy steht `Briefkopf` in der Leiste unten oder unter `Mehr`.",
       "Sie können die Angaben nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
     ],
     troubleshootingDetails: [

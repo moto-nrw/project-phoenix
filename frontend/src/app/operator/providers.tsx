@@ -3,6 +3,7 @@
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { operatorPath } from "~/lib/operator-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 
@@ -34,6 +35,7 @@ export function OperatorProviders({
       refetchOnWindowFocus={false}
     >
       <PersonalStorageGuard homeHref={operatorHome} />
+      <SWRScopeBoundary />
       <SentrySessionContext portal="operator" />
       {children}
     </SessionProvider>
