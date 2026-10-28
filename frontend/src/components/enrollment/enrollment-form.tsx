@@ -3203,7 +3203,7 @@ function OfferingCard({
             <span
               className={`flex h-5 w-5 items-center justify-center rounded-md ${
                 autoIncluded
-                  ? "bg-moto-green text-gray-950"
+                  ? "bg-moto-green-fill text-white"
                   : "bg-gray-400 text-gray-900"
               }`}
             >
@@ -3215,7 +3215,7 @@ function OfferingCard({
             </span>
           ) : (
             checked && (
-              <span className="bg-moto-green flex h-5 w-5 items-center justify-center rounded-md text-gray-950">
+              <span className="bg-moto-green-fill flex h-5 w-5 items-center justify-center rounded-md text-white">
                 <Check className="h-3.5 w-3.5" />
               </span>
             )
@@ -3716,7 +3716,7 @@ function Consent({
             className="absolute inset-0 cursor-pointer opacity-0"
           />
           {checked && (
-            <span className="bg-moto-green flex h-5 w-5 items-center justify-center rounded-md text-gray-950">
+            <span className="bg-moto-green-fill flex h-5 w-5 items-center justify-center rounded-md text-white">
               <Check className="h-3.5 w-3.5" />
             </span>
           )}
@@ -5490,7 +5490,7 @@ function StructuredToggle({
           type === "radio" ? "rounded-full" : "rounded-md"
         } ${
           checked
-            ? "border-moto-green bg-moto-green text-gray-950"
+            ? "border-moto-green-fill bg-moto-green-fill text-white"
             : "border-gray-300 bg-white"
         }`}
         aria-hidden="true"

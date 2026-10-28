@@ -51,7 +51,11 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/origin-chip";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import {
+  GROUP_ROOM_SHADES,
+  LOCATION_COLORS,
+  MOTO_COLOR_PALETTE,
+} from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
@@ -299,7 +303,8 @@ function StatusBadge({ status }: StatusBadgeProps) {
       bg: MOTO_COLOR_PALETTE.neutral.soft,
       text: "text-gray-700",
     },
-    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_CLASS },
+    // Füllton statt GROUP_ROOM: Weiß auf #83CD2D erreicht nur 1,96:1 (#5141).
+    active: { bg: GROUP_ROOM_SHADES.fill, text: STATUS_BADGE_ON_CLASS },
     // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
     // aber die hellere Schrift: erledigt, nicht offen.
     completed: {

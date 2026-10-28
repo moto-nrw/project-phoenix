@@ -204,7 +204,7 @@ export function PasswordChangeModal({
     <Modal isOpen={isOpen} onClose={handleClose} title="Passwort ändern">
       {success ? (
         <div className="py-8 text-center">
-          <div className="bg-moto-green mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
+          <div className="bg-moto-green-fill mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full">
             <CheckIcon className="h-8 w-8 text-white" />
           </div>
           <h3 className="mb-2 text-lg font-semibold text-gray-900">
