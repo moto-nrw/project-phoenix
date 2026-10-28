@@ -93,6 +93,19 @@ describe("sessionTenantMismatchResponse", () => {
     expect(mockResolve).toHaveBeenCalledWith("schule-a", expect.anything());
   });
 
+  it("checks a case-insensitive proxy-preserved school host", async () => {
+    const result = await sessionTenantMismatchResponse(
+      request("next-internal:3000", "/api/students", "schule-a.LOCALHOST:3000"),
+      session(2),
+    );
+
+    expect(result?.status).toBe(409);
+    expect(await result?.json()).toMatchObject({
+      code: "identity.session_tenant_mismatch",
+    });
+    expect(mockResolve).toHaveBeenCalledWith("schule-a", expect.anything());
+  });
+
   it.each([
     "/api/auth/switch-tenant",
     "/api/auth/token",
