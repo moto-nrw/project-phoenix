@@ -12,7 +12,7 @@
 
 // „Klasse 1a“, „klasse 1a“, „Klasse1a“: der Name trägt das Wort schon vorn.
 // „Klassenfahrt“ zählt nicht, dort folgt ein Buchstabe.
-const LEADING_PREFIX = /^klasse(?=[\s\p{Nd}])\s*/iu;
+const LEADING_PREFIX = /^klasse(?=[^\p{L}])\s*/iu;
 const STANDALONE_PREFIX = /^klasse$/i;
 // „1. Klasse“: eine Klassenstufe, die das Wort hinten trägt.
 const TRAILING_WORD = /\sklasse$/i;

@@ -9,7 +9,7 @@ import (
 // SchoolClassLabel names a school class for display: "1b" → "Klasse 1b".
 // Class names are free text; some schools store "1b", others "Klasse 1b"
 // or "klasse 1b", and none of them may read "Klasse Klasse 1b" (#5101).
-// A leading "Klasse" (any case, followed by a space, a digit or nothing)
+// A leading "Klasse" (any case, followed by a non-letter or nothing)
 // is normalized to "Klasse "; a grade-only name that ends with the word
 // ("1. Klasse") stays as written. An empty name labels nothing.
 //
@@ -33,8 +33,8 @@ func SchoolClassLabel(schoolClass string) string {
 	return "Klasse " + name
 }
 
-// cutClassPrefix strips a leading "Klasse" that is followed by a space, a
-// digit or the end of the name. "Klassenfahrt" keeps its prefix.
+// cutClassPrefix strips a leading "Klasse" that is followed by a non-letter
+// or the end of the name. "Klassenfahrt" keeps its prefix.
 func cutClassPrefix(name string) (string, bool) {
 	const prefix = "klasse"
 	if len(name) < len(prefix) || !strings.EqualFold(name[:len(prefix)], prefix) {
@@ -43,7 +43,7 @@ func cutClassPrefix(name string) (string, bool) {
 	rest := name[len(prefix):]
 	if rest != "" {
 		next, _ := utf8.DecodeRuneInString(rest)
-		if !unicode.IsSpace(next) && !unicode.IsDigit(next) {
+		if unicode.IsLetter(next) {
 			return name, false
 		}
 	}
