@@ -33,7 +33,16 @@ const impact: RosterImpact = {
     },
   ],
   notAdjusted: [
-    { templateId: "9", name: "RDST 1b", weekdays: [5], viaTarget: true },
+    { templateId: "9", name: "RDST 1b", weekdays: [5], viaTarget: false },
+  ],
+};
+
+// Klassen-Regeltermin: Entfernen hält nicht, der Weg ist „Mit Angebot verbinden“.
+const classImpact: RosterImpact = {
+  effectiveFrom: "2027-05-31",
+  adjusted: [],
+  notAdjusted: [
+    { templateId: "11", name: "Klasse 2a", weekdays: [3], viaTarget: true },
   ],
 };
 
@@ -92,11 +101,7 @@ describe("CarePlanImpact", () => {
       screen.getByRole("button", { name: "Dort auch entfernen" }),
     );
     const dialog = await screen.findByRole("dialog");
-    expect(
-      within(dialog).getByText(
-        /Bei einer neuen Planung kommt das Kind wieder dazu/,
-      ),
-    ).toBeInTheDocument();
+    expect(within(dialog).getByText(/RDST 1b/)).toBeInTheDocument();
     expect(mocks.removeStudentTemplateDays).not.toHaveBeenCalled();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Entfernen" }));
@@ -125,11 +130,51 @@ describe("CarePlanImpact", () => {
 
     expect(
       screen.getByText(
-        "Entfernen kann nur, wer den Betreuungsplan bearbeiten darf.",
+        "Ändern kann nur, wer den Betreuungsplan bearbeiten darf.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Dort auch entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("leads a class Regeltermin to „Mit Angebot verbinden“ instead of removing", () => {
+    renderImpact(classImpact);
+
+    expect(
+      screen.getByText(
+        "Plant alle Kinder der Zielgruppe. Ein Entfernen hält hier nicht.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Mit Angebot verbinden" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "/betreuungsplan?view=serien&d=2027-05-31&verbinden=11",
+      ),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Dort auch entfernen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers the connection without a child id, but not without plan rights", () => {
+    const { unmount } = renderImpact(classImpact, undefined);
+    expect(
+      screen.getByRole("link", { name: "Mit Angebot verbinden" }),
+    ).toBeInTheDocument();
+    unmount();
+
+    grantPlanEditing(false);
+    renderImpact(classImpact, undefined);
+    expect(
+      screen.getByText(
+        "Ändern kann nur, wer den Betreuungsplan bearbeiten darf.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: "Mit Angebot verbinden" }),
     ).not.toBeInTheDocument();
   });
 
