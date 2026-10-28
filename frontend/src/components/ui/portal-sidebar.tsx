@@ -1,4 +1,8 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { CaretDownIcon } from "@phosphor-icons/react";
+import { useId, useState, type ReactNode } from "react";
+import { Button } from "~/components/ui/button";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
@@ -23,11 +27,17 @@ const ICON =
 export function PortalSidebar({
   children,
   secondary,
+  secondaryLabel = "Hilfe",
 }: {
   /** Die Einträge der Hauptnavigation (`PortalSidebarLink`). */
   readonly children: ReactNode;
-  /** Die Einträge unter der Trennlinie, heute die Hilfe. */
+  /**
+   * Die Einträge unter der Trennlinie: die Hilfe, im Träger-Portal auch der
+   * Abschnitt „Einstellungen" (`PortalSidebarSection`).
+   */
   readonly secondary: ReactNode;
+  /** Der Name des unteren Blocks für Vorleseprogramme. */
+  readonly secondaryLabel?: string;
 }) {
   return (
     <aside className="hidden min-h-screen w-64 shrink-0 border-r border-gray-200/70 bg-white/95 lg:block">
@@ -40,7 +50,7 @@ export function PortalSidebar({
         </nav>
 
         <nav
-          aria-label="Hilfe"
+          aria-label={secondaryLabel}
           className="border-t border-gray-200 p-3 lg:p-4 xl:p-3"
         >
           <ul>{secondary}</ul>
@@ -91,6 +101,116 @@ export function PortalSidebarLink({
           {badge}
         </span>
       </NavLink>
+    </li>
+  );
+}
+
+/**
+ * Unterpunkte stehen unter dem Namen der Kopfzeile, nicht unter ihrem Icon:
+ * Zeilenabstand + Icon + Abstand zum Namen, je Breite wie in `ROW` und `ICON`
+ * (12 + 20 + 12, ab 1024 px 16 + 22 + 14, ab 1280 px wieder 12 + 20 + 12).
+ */
+const SUB_ROW =
+  "flex items-center rounded-lg py-1.5 pr-3 pl-11 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:pl-13 xl:pl-11";
+const SUB_ROW_ACTIVE = "bg-gray-100 font-semibold text-gray-900";
+const SUB_ROW_IDLE =
+  "font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700";
+
+export interface PortalSidebarSectionItem {
+  readonly key: string;
+  readonly href: string;
+  readonly label: string;
+  readonly active: boolean;
+}
+
+/**
+ * Ein einklappbarer Abschnitt der `PortalSidebar` (#5242), gebaut wie der
+ * Bereich „Einstellungen" unten in der Seitenleiste des Schul-Portals
+ * (`dashboard/sidebar-accordion-section.tsx`): eine Kopfzeile mit Chevron,
+ * darunter die Unterpunkte. Kopfzeile und Unterpunkte nehmen das Raster von
+ * `PortalSidebarLink`, damit der Abschnitt neben der Hilfe auf jeder Breite
+ * gleich hoch steht.
+ *
+ * Liegt die offene Seite im Abschnitt, klappt er auf, auch beim Wechsel aus
+ * einem anderen Bereich dorthin. Zuklappen bleibt möglich; dann trägt die
+ * Kopfzeile die Markierung, sonst stünde man auf einer Seite des Abschnitts
+ * vor einer Leiste ohne Markierung.
+ */
+export function PortalSidebarSection({
+  label,
+  concept,
+  items,
+  "data-portal-nav-section": dataSection,
+}: {
+  readonly label: string;
+  readonly concept: MotoConceptKey;
+  /** Die Unterpunkte, die die Person sehen darf; leer heißt: kein Abschnitt. */
+  readonly items: readonly PortalSidebarSectionItem[];
+  readonly "data-portal-nav-section"?: string;
+}) {
+  const containsActive = items.some((item) => item.active);
+  const [open, setOpen] = useState(containsActive);
+  // Beim Wechsel auf eine Seite des Abschnitts aufklappen, ohne Effekt:
+  // React rendert sofort neu, bevor etwas auf dem Bildschirm steht.
+  const [wasActive, setWasActive] = useState(containsActive);
+  if (containsActive !== wasActive) {
+    setWasActive(containsActive);
+    if (containsActive) setOpen(true);
+  }
+  const bodyId = useId();
+
+  if (items.length === 0) return null;
+
+  const headActive = containsActive && !open;
+
+  return (
+    <li>
+      <Button
+        type="button"
+        variant="ghost"
+        size="md"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        data-portal-nav-section={dataSection}
+        data-active={headActive ? "true" : "false"}
+        className={`${ROW} ${headActive ? ROW_ACTIVE : ROW_IDLE} w-full justify-start text-left`}
+      >
+        <MotoNavIcon
+          concept={concept}
+          active={containsActive}
+          className={`${ICON} ${containsActive ? "" : "text-gray-400"}`}
+        />
+        <span className="flex-1">{label}</span>
+        <CaretDownIcon
+          aria-hidden="true"
+          className={`ml-2 size-4 shrink-0 text-gray-400 motion-safe:transition-transform motion-safe:duration-200 ${open ? "rotate-180" : ""}`}
+        />
+      </Button>
+
+      {/* Höhenwechsel über CSS-Grid; inert hält den Fokus aus dem
+          zugeklappten Abschnitt heraus. */}
+      <div
+        className={`grid motion-safe:transition-[grid-template-rows] motion-safe:duration-200 motion-safe:ease-in-out ${open ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+      >
+        <div id={bodyId} className="overflow-hidden" inert={!open}>
+          <ul className="space-y-0.5 py-0.5">
+            {items.map((item) => (
+              <li key={item.key}>
+                <NavLink
+                  href={item.href}
+                  data-portal-nav-item={item.key}
+                  data-active={item.active ? "true" : "false"}
+                  aria-current={item.active ? "page" : undefined}
+                  className={`${SUB_ROW} ${item.active ? SUB_ROW_ACTIVE : SUB_ROW_IDLE}`}
+                >
+                  {item.label}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
     </li>
   );
 }
