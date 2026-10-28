@@ -198,3 +198,33 @@ describe("OgsConversation without a leadership left", () => {
     ).toBeInTheDocument();
   });
 });
+
+// #5200: ohne Angebot lässt sich keine Leitungs-Unterhaltung beginnen, auch
+// nicht über einen direkten Link.
+describe("OgsConversation leadership not offered", () => {
+  it("shows the hint instead of a composer that could only fail", async () => {
+    mockGetConversation.mockResolvedValue({
+      ...leadershipView,
+      thread_id: "",
+      readers: {
+        guardian: { name: "Sabine Schneider" },
+        school: { kind: "leadership", names: [] },
+      },
+      leadership_option: { available: false, names: [] },
+    });
+
+    render(<OgsConversation studentId="42" initialAudience="leadership" />);
+
+    expect(
+      (
+        await screen.findAllByText(
+          "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Ganzes OGS-Team" }),
+    ).toBeInTheDocument();
+  });
+});

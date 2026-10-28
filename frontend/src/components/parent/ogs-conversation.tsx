@@ -256,18 +256,23 @@ export function OgsConversation({
     leadershipThread !== undefined ||
     audience === "leadership";
   const leadershipView = audience === "leadership";
-  // A leadership conversation nobody of the leadership reads any more
-  // (#5200): the history stays, writing goes to the team.
-  const leadershipUnstaffed =
+  // The leadership cannot be written to (#5200): the school does not offer
+  // it and either no leadership conversation exists yet, or nobody of the
+  // leadership reads the existing one any more. Its history stays readable;
+  // writing goes to the team.
+  const leadershipClosed =
     leadershipView &&
-    Boolean(thread?.thread_id) &&
-    thread?.leadership_option?.available !== true &&
-    thread?.readers?.school.names.length === 0;
+    thread !== null &&
+    thread.leadership_option?.available !== true &&
+    (!thread.thread_id || thread.readers?.school.names.length === 0);
+  const leadershipClosedText = thread?.thread_id
+    ? tm("leadershipUnstaffed")
+    : tm("leadershipUnavailable");
   const readersDescriptor = thread?.readers
     ? parentReadersI18nDescriptor(thread.readers)
     : null;
-  const readersLine = leadershipUnstaffed
-    ? tm("leadershipUnstaffed")
+  const readersLine = leadershipClosed
+    ? leadershipClosedText
     : readersDescriptor
       ? tm(readersDescriptor.key, readersDescriptor.values)
       : null;
@@ -509,7 +514,18 @@ export function OgsConversation({
           ) : loadError ? (
             <LoadErrorAlert error={loadError} />
           ) : (
-            <EmptyThread leadership={leadershipView} />
+            <EmptyThread
+              // A closed leadership conversation invites no first message.
+              description={
+                leadershipClosed
+                  ? null
+                  : tm(
+                      leadershipView
+                        ? "emptyLeadershipDescription"
+                        : "emptyThreadDescription",
+                    )
+              }
+            />
           )}
         </div>
 
@@ -535,9 +551,9 @@ export function OgsConversation({
               fallback on first paint before flipping to the composer. */}
           {care.loading ? (
             <ConversationComposerSkeleton />
-          ) : leadershipUnstaffed ? (
+          ) : leadershipClosed ? (
             <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
-              {tm("leadershipUnstaffed")}
+              {leadershipClosedText}
             </p>
           ) : care.features.notes_enabled ? (
             <>
@@ -788,18 +804,18 @@ function audienceLabel(
   return unread > 0 ? tm(`${key}Unread`, { count: unread }) : tm(key);
 }
 
-function EmptyThread({ leadership }: Readonly<{ leadership: boolean }>) {
+function EmptyThread({
+  description,
+}: Readonly<{ description: string | null }>) {
   const tm = useTranslations("parentMessages");
   return (
     <div className="flex h-full flex-col items-center justify-center py-10 text-center">
       <h2 className="text-sm font-semibold text-gray-900">
         {tm("emptyThreadTitle")}
       </h2>
-      <p className="mt-1 text-sm leading-6 text-gray-600">
-        {tm(
-          leadership ? "emptyLeadershipDescription" : "emptyThreadDescription",
-        )}
-      </p>
+      {description ? (
+        <p className="mt-1 text-sm leading-6 text-gray-600">{description}</p>
+      ) : null}
     </div>
   );
 }
