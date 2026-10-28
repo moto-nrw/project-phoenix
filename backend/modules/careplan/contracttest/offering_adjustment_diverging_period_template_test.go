@@ -38,6 +38,36 @@ type divergingPeriodCase struct {
 	want      periodKey
 }
 
+// The materializer and the instance reconciler only reach occurrences from
+// the real today on, so these tests stretch the phase from 2026-09-01 to
+// 2099-07-31: every Monday they materialize lies inside the phase and its
+// periods until 2099, while the fixed past dates stay inside it too.
+var longPhaseEnd = calendar.NewDate(2099, 7, 31)
+
+// setupLongPhaseDecisionTest is setupDecisionTest with the phase stretched
+// to longPhaseEnd.
+func setupLongPhaseDecisionTest(t *testing.T) *decisionTestEnv {
+	t.Helper()
+	env := setupDecisionTest(t)
+	env.sourcePhase.ServiceEndDate = enrollmentTest.Date(longPhaseEnd)
+	updateSourcePhase(t, env)
+	return env
+}
+
+// createLongPhasePeriod creates a period that contains the stretched phase.
+func createLongPhasePeriod(t *testing.T, env *decisionTestEnv, name string) int64 {
+	t.Helper()
+	return createDivergingCalendarPeriod(t, env, name, calendar.NewDate(2026, 8, 1), longPhaseEnd.AddDays(31))
+}
+
+func createDivergingCalendarPeriod(t *testing.T, env *decisionTestEnv, name string, start, end calendar.Date) int64 {
+	t.Helper()
+	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) },
+		testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t),
+		uniqueSchemaName(name+"-"+t.Name()), start, end)
+	return period.ID
+}
+
 // divergingPeriodFixture is one approved child holding the template's source
 // offering (Monday) plus another offering.
 type divergingPeriodFixture struct {
@@ -53,12 +83,12 @@ type divergingPeriodFixture struct {
 
 func setupDivergingPeriodFixture(t *testing.T, email string, c divergingPeriodCase) divergingPeriodFixture {
 	t.Helper()
-	env := setupDecisionTest(t)
+	env := setupLongPhaseDecisionTest(t)
 	source := createAdjustmentCareOfferingWith(t, env, "Mittagessen", nil)
 	other := createAdjustmentCareOfferingWith(t, env, "Spaetbetreuung", nil)
 	periods := map[periodKey]*int64{"": nil}
 	for _, key := range []periodKey{"P", "Q", "Q2"} {
-		id := createMixedPeriodCalendarPeriod(t, env, "zeitraum-"+string(key))
+		id := createLongPhasePeriod(t, env, "zeitraum-"+string(key))
 		periods[key] = &id
 	}
 	group := createCareOfferingTemplateGroup(t, env.db, "MittagessenZeitraum")
@@ -245,19 +275,17 @@ func TestSourcedRowPeriod_MatchingTemplateAndSchedulePeriodStays(t *testing.T) {
 // carries the schedule period its instances materialize under.
 func TestSourcedRowPeriod_ConnectingSourceWithNarrowerSchedulePeriodSucceeds(t *testing.T) {
 	t.Parallel()
-	env := setupDecisionTest(t)
+	env := setupLongPhaseDecisionTest(t)
 	ctx := testpkg.Ctx(t)
 	source := createSourceOffering(t, env, "MittagessenTeil", nil)
 	studentID, childID := submitAndApproveOfferingChild(t, env, source.ID, "zeitraum-teil@example.com", "Teil", 2)
-	templatePeriodID := createMixedPeriodCalendarPeriod(t, env, "termin")
-	// The enrollment phase runs 2026-09-01 to 2027-07-31.
-	narrow := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) },
-		testpkg.NewDatabase(t, env.db), ctx, testpkg.Tenant(t),
-		uniqueSchemaName("zeitplan-teil-"+t.Name()), calendar.NewDate(2026, 10, 1), calendar.NewDate(2027, 3, 31))
+	templatePeriodID := createLongPhasePeriod(t, env, "termin")
+	// The schedule period leaves out the phase's first month.
+	narrowID := createDivergingCalendarPeriod(t, env, "zeitplan-teil", calendar.NewDate(2026, 10, 1), longPhaseEnd.AddDays(-30))
 	group := createCareOfferingTemplateGroup(t, env.db, "MittagessenTeil")
 	group.CalendarPeriodID = &templatePeriodID
 	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, group))
-	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayMonday, &narrow.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayMonday, &narrowID)
 
 	resyncer := offeringResyncer(t, env)
 	templates, err := api.NewTimetableHTTP(testpkg.NewDatabase(t, env.db),
@@ -278,7 +306,7 @@ func TestSourcedRowPeriod_ConnectingSourceWithNarrowerSchedulePeriodSucceeds(t *
 
 	f := divergingPeriodFixture{
 		env: env, template: group, source: source, childID: childID, studentID: studentID,
-		wantPeriodID: &narrow.ID, timetable: module,
+		wantPeriodID: &narrowID, timetable: module,
 	}
 	f.requireSingleRow(t, "connect source")
 	f.requirePlannedOn(t, "connect source", monday)
