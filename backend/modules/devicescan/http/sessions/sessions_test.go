@@ -801,3 +801,46 @@ func backdateLastActivity(t *testing.T, db *testpkg.DB, activeGroupID int64) tim
 	require.NoError(t, err)
 	return testpkg.ActiveGroupLastActivity(t, db, activeGroupID)
 }
+
+// TestGetCurrentSession_CountCarriesItsRevision pins the poll side of #5128:
+// active_students comes with the session's visit revision from the same
+// snapshot, and every change of the count raises it.
+func TestGetCurrentSession_CountCarriesItsRevision(t *testing.T) {
+	t.Parallel()
+	ctx := setupSessionsRoute(t)
+	testDevice := testpkg.CreateTestDevice(t, ctx.db, "sessions-test-device-revision")
+	activity := testpkg.CreateTestActivityGroup(t, ctx.db, "Revision Session Activity")
+	room := testpkg.CreateTestRoom(t, ctx.db, "Revision Session Room")
+	group := testpkg.CreateTestActiveGroup(t, ctx.db, activity.ID, room.ID)
+	testpkg.LinkDeviceToActiveGroup(t, ctx.db, group.ID, testDevice.ID)
+	router := testutil.NewTenantRouter(ctx.db)
+	router.Mount("/", ctx.resource.Router())
+	current := func() map[string]interface{} {
+		t.Helper()
+		response := testutil.ExecuteRequest(router, testutil.NewAuthenticatedRequest(t, "GET", "/current", nil, testutil.WithDeviceContext(testDevice)))
+		testutil.AssertSuccessResponse(t, response, 200)
+		return testutil.ParseJSONResponse(t, response.Body.Bytes())["data"].(map[string]interface{})
+	}
+
+	empty := current()
+	assert.Equal(t, float64(group.ID), empty["active_group_id"])
+	assert.Equal(t, float64(0), empty["active_students"])
+	assert.Equal(t, float64(0), empty["active_students_revision"])
+
+	first := testpkg.CreateTestStudent(t, ctx.db, "First", "Revision", "3a")
+	second := testpkg.CreateTestStudent(t, ctx.db, "Second", "Revision", "3a")
+	testpkg.CreateTestVisit(t, ctx.db, first.ID, group.ID, time.Now(), nil)
+	leaving := testpkg.CreateTestVisit(t, ctx.db, second.ID, group.ID, time.Now(), nil)
+	two := current()
+	assert.Equal(t, float64(2), two["active_students"])
+	assert.Equal(t, float64(2), two["active_students_revision"])
+	again := current()
+	assert.Equal(t, []any{two["active_students"], two["active_students_revision"]}, []any{again["active_students"], again["active_students_revision"]},
+		"an unchanged count answers the same revision")
+
+	_, err := ctx.db.NewRaw("UPDATE active.visits SET exit_time = NOW() WHERE id = ?", leaving.ID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	one := current()
+	assert.Equal(t, float64(1), one["active_students"])
+	assert.Equal(t, float64(3), one["active_students_revision"], "a checkout raises the revision")
+}

@@ -112,9 +112,8 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	// whether today's bulk steps succeed or are skipped.
 	defer s.cleanupOrphanedSupervisors(ctx, result)
 
-	if len(activeIDs) == 0 {
-		return result, nil
-	}
+	// Run the owner's nightly maintenance even when every session was
+	// already closed manually; revision events still need compaction.
 	slices.Sort(activeIDs)
 	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		lockedIDs, err := s.lockActiveSessionIDs(txCtx, activeIDs)
@@ -164,10 +163,6 @@ func (s *service) lockActiveSessionIDs(ctx context.Context, ids []int64) ([]int6
 }
 
 func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64, result *DailySessionCleanupResult) error {
-	if len(activeIDs) == 0 {
-		return nil
-	}
-
 	// The Student Presence owner closes visits, sessions, and supervisions of
 	// every still-open group in one command (#2697); a failure inside rolls
 	// the whole batch back with the surrounding transaction, so no session
