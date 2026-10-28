@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { Modal } from "./modal";
@@ -36,7 +35,6 @@ const LogOutIcon = ({ className }: { className?: string }) => (
 export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
   const { logout } = useShellAuth();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const { show: showLogoutError } = useApiErrorDisplay();
 
   const handleConfirmLogout = async () => {
     setIsLoggingOut(true);
@@ -53,8 +51,7 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
         // sessionStorage unavailable
       }
       setIsLoggingOut(false);
-      // Still signed in: say so instead of only re-enabling the button.
-      void showLogoutError(error, { object: "die Abmeldung" });
+      // The shell reports the failure; keep the modal usable for a retry.
     }
   };
 

@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useMemo } from "react";
 import { signOut, useSession } from "next-auth/react";
+import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useProfile } from "~/lib/profile-context";
 import { operatorAbsoluteUrl, operatorPath } from "~/lib/operator-url";
 import { parentAbsoluteUrl, parentPath } from "~/lib/parent-url";
@@ -96,6 +97,7 @@ export function TeacherShellProvider({
 }) {
   const { data: session, status: sessionStatus, update } = useSession();
   const { profile } = useProfile();
+  const { show: showLogoutError } = useApiErrorDisplay();
   // Das Logo folgt derselben Portalentscheidung wie der Login-Redirect. Der
   // relative Schulpfad ist auch beim serverseitigen Rendern sicher; der Proxy
   // leitet ihn auf den Schul-Host weiter.
@@ -184,6 +186,8 @@ export function TeacherShellProvider({
           await signOut({ redirect: false });
         } catch (err: unknown) {
           cancelSessionEnd();
+          // Still signed in: report the failure before the modal allows a retry.
+          void showLogoutError(err, { object: "die Abmeldung" });
           throw err;
         }
         window.location.href = "/";
@@ -200,7 +204,7 @@ export function TeacherShellProvider({
       canStartStaffPreview:
         !session?.user?.isPreview && hasPermission(session, "admin:*"),
     };
-  }, [session, sessionStatus, profile, homeUrl, update]);
+  }, [session, sessionStatus, profile, homeUrl, update, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>

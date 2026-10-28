@@ -4,12 +4,14 @@ import type { ReactNode } from "react";
 
 // Use vi.hoisted for mock values referenced in vi.mock
 const {
+  mockShowLogoutError,
   mockUseSession,
   mockSignOut,
   mockClearSessionCache,
   mockEndStaffPreview,
   mockSchoolPortalLoginUrl,
 } = vi.hoisted(() => ({
+  mockShowLogoutError: vi.fn(),
   mockUseSession: vi.fn(),
   mockSignOut: vi.fn(),
   mockClearSessionCache: vi.fn(),
@@ -38,6 +40,10 @@ interface MockSessionReturn {
 vi.mock("next-auth/react", () => ({
   useSession: (): MockSessionReturn => mockUseSession() as MockSessionReturn,
   signOut: mockSignOut,
+}));
+
+vi.mock("~/contexts/ToastContext", () => ({
+  useApiErrorDisplay: () => ({ show: mockShowLogoutError }),
 }));
 
 vi.mock("~/lib/profile-context", () => ({
@@ -500,6 +506,32 @@ describe("TeacherShellProvider", () => {
 
     expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
     vi.unstubAllGlobals();
+  });
+
+  it("reports a failed sign-out and releases the barrier for a retry (#5126)", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null)));
+    const cancelSessionEnd = vi.fn();
+    vi.mocked(holdRequestsUntilSessionEnds).mockResolvedValueOnce(
+      cancelSessionEnd,
+    );
+    const failure = new Error("Sign out failed");
+    mockSignOut.mockRejectedValueOnce(failure);
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    try {
+      const { result } = renderHook(() => useShellAuth(), { wrapper });
+      await expect(result.current.logout()).rejects.toBe(failure);
+
+      expect(cancelSessionEnd).toHaveBeenCalledOnce();
+      expect(mockShowLogoutError).toHaveBeenCalledWith(failure, {
+        object: "die Abmeldung",
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("provides empty roles array when not specified", () => {
