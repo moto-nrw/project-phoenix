@@ -101,7 +101,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
             onClick={() => void handleCopy()}
             className={`shrink-0 rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
               copyState === "copied"
-                ? "bg-moto-green text-gray-950"
+                ? "bg-moto-green-fill text-white"
                 : "bg-gray-900 text-white hover:bg-gray-800"
             }`}
           >

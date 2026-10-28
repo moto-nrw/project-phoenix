@@ -35,7 +35,7 @@ var (
 	errResetRateLimited  = errors.New("too many password reset requests")
 	errResetLinkUnusable = errors.New("invalid or expired reset token")
 	errResetTooWeak      = errors.New("password does not meet the requirements")
-	errResetMismatch     = errors.New("passwords do not match")
+	errPasswordMismatch  = errors.New("passwords do not match")
 )
 
 type resetRequest struct {
@@ -82,7 +82,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if request.NewPassword != request.ConfirmPassword {
-		common.RenderError(w, r, common.ErrorInvalidOnField(errResetMismatch, common.CodeIdentityPasswordMismatch, "confirm_password"))
+		common.RenderError(w, r, common.ErrorInvalidOnField(errPasswordMismatch, common.CodeIdentityPasswordMismatch, "confirm_password"))
 		return
 	}
 	if !rs.runtime.Resets.complete() {

@@ -997,6 +997,7 @@ POST /auth/session/validate
 POST /auth/staff-preview
 POST /auth/staff-preview/end
 POST /auth/switch-tenant
+POST /caterer/account/password
 POST /caterer/auth/login
 POST /caterer/auth/password-reset
 POST /caterer/auth/password-reset/confirm

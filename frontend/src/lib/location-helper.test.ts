@@ -75,6 +75,7 @@ describe("MOTO_COLOR_PALETTE", () => {
         hover: "#74B825",
         active: "#6DB118",
         strong: "#3F6F12",
+        fill: "#4A7F14",
       },
       blue: {
         soft: "#EDF3FC",

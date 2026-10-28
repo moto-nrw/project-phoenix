@@ -192,7 +192,7 @@ export function AdminSessionEditModal({
         type="button"
         onClick={handleSubmit}
         disabled={isSaving || !notesValid || !timesValid || !breakValid}
-        className="bg-moto-green hover:bg-moto-green-hover rounded-md px-4 py-2 text-sm font-medium text-gray-950 transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+        className="bg-moto-green-fill hover:bg-moto-green-fill-hover rounded-md px-4 py-2 text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving
           ? "Speichern…"

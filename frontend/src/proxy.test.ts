@@ -809,6 +809,12 @@ describe("proxy", () => {
       }
     });
 
+    it("rewrites the account page (#4496)", () => {
+      expect(caterer("/konto").headers.get("x-middleware-rewrite")).toContain(
+        "/caterer/konto",
+      );
+    });
+
     it("serves only the caterer API on its host", () => {
       expect(caterer("/api/caterer/schools").status).toBe(200);
       for (const path of [
