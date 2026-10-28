@@ -353,14 +353,14 @@ export function SchoolShellProvider({
         } catch {
           // sessionStorage unavailable (e.g. private browsing quota)
         }
-        // School sessions revoke through the shared scope-preserving
-        // /auth/logout (tenant-style), proxied with the school session's
-        // refresh token (#5194).
-        await revokeSessionFamily("/api/school/auth/logout");
         // Dieses Gerät abmelden, bevor die Session weg ist (#2208): sonst
         // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
         // Gerät fände ein Abo ohne Zuordnung vor.
         await unsubscribePushSilently("school");
+        // School sessions revoke through the shared scope-preserving
+        // /auth/logout (tenant-style), proxied with the school session's
+        // refresh token (#5194).
+        await revokeSessionFamily("/api/school/auth/logout");
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).
         clearPersonalStorage();
