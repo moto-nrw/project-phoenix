@@ -632,12 +632,12 @@ function LegSection({
           <span className="mb-1 block text-xs font-medium text-gray-500">
             Uhrzeit
           </span>
-          <input
+          <Input
             id={timeId}
+            controlSize="compact"
             type="time"
             value={time}
             onChange={(event) => onTimeChange(event.target.value)}
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
           />
         </label>
       ) : null}
@@ -650,13 +650,13 @@ function LegSection({
           <span className="mb-1 block text-xs font-medium text-gray-500">
             Grund
           </span>
-          <input
+          <Input
             id={reasonId}
+            controlSize="compact"
             type="text"
             value={reason}
             onChange={(event) => onReasonChange(event.target.value)}
             maxLength={255}
-            className="h-11 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none sm:h-10"
             placeholder="Optional"
           />
         </label>

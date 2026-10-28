@@ -263,7 +263,7 @@ func composeProcess(config ServeConfig, db transactionruntime.Database, tracker 
 	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
 	documentPermissions := carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback}
 	if config.Process == ServeWorkerOnly {
-		worker, err := owners.ComposeWorker(db, env, hub, tracer, tracker, newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal, deviceauth.WithAttendanceStaff, documentPermissions, workerAnalytics, analyticsSchoolNames)
+		worker, err := owners.ComposeWorker(db, env, hub, tracer, tracker, newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal, deviceauth.WithAttendanceStaff, documentPermissions, workerAnalytics, analyticsSchoolNames, PlannedStaffExitsJob(db, hub, env.Logger))
 		return nil, worker, capacity, err
 	}
 	handler, worker, err := composeServeRoot(db, env, hub, config, tracker, metrics, tracer, metricsToken, config.Process != ServeAPIOnly, documentPermissions)

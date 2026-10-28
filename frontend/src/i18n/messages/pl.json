@@ -1241,18 +1241,16 @@
       "offeringsOnlyDescription": "Proszę wybrać dla każdego dziecka oferty opieki i dni tygodnia na nowy okres."
     },
     "fields": {
-      "firstName": "Imię *",
+      "firstName": "Imię",
       "firstNamePlain": "Imię",
-      "lastName": "Nazwisko *",
+      "lastName": "Nazwisko",
       "lastNamePlain": "Nazwisko",
-      "email": "E-mail *",
+      "email": "E-mail",
       "phone": "Numer telefonu",
-      "phoneRequired": "Numer telefonu *",
       "emailPlain": "E-mail",
-      "dateOfBirth": "Data urodzenia *",
-      "gradeLevel": "Poziom klasy *",
+      "dateOfBirth": "Data urodzenia",
+      "gradeLevel": "Poziom klasy",
       "schoolClass": "Klasa",
-      "schoolClassRequired": "Klasa *",
       "schoolClassOpen": "Klasa jeszcze nieznana",
       "choose": "Proszę wybrać",
       "grade": "Klasa {grade}"
@@ -1300,6 +1298,7 @@
       "submitting": "Wysyłanie…",
       "previewSubmit": "Podgląd, nie wysyłać",
       "showMore": "Pokaż więcej",
+      "notice": "Informacja",
       "details": "Szczegóły",
       "detailsAria": "Pokaż szczegóły: {title}"
     },
@@ -3294,6 +3293,9 @@
         "disabled": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą."
       },
       "staff": {
+        "exit_already_due": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "exit_day_in_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+        "exit_not_planned": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "external_access_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "external_email_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "external_email_invited": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",

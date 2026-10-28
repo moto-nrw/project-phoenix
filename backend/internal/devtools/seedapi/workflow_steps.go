@@ -243,6 +243,9 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		// Nach dem letzten Schritt, der Beschäftigte anlegt: Die Abrechnung
 		// zählt alle, auch Besuch, Admin und Externe (#5032).
 		seedPayrollNumbersStep{},
+		// Nach der Abrechnung: Der geplante Austritt ändert keine Zahl dort
+		// (#4809).
+		seedPlannedStaffExitStep{},
 		verifyProfileStep{definition: seeder.definition},
 	)
 	if seeder.options.OnlyProfile == "" {

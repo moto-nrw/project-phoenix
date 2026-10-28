@@ -38,6 +38,7 @@ basis
 	DELETE /api/settings/values/{key}
 	DELETE /api/staff-notices/{noticeId}
 	DELETE /api/staff/{id}
+	DELETE /api/staff/{id}/planned-exit
 	DELETE /api/students/care-withdrawals/{completionId}
 	DELETE /api/students/class-arrival-exceptions/{schoolClass}/{date}
 	DELETE /api/students/{id}
@@ -727,6 +728,7 @@ basis
 	PUT /api/staff-onboarding/dismissal
 	PUT /api/staff-onboarding/steps/{step}
 	PUT /api/staff/{id}
+	PUT /api/staff/{id}/planned-exit
 	PUT /api/staff/{id}/school-classes
 	PUT /api/students/class-arrival-exceptions/{schoolClass}/{date}
 	PUT /api/students/{id}

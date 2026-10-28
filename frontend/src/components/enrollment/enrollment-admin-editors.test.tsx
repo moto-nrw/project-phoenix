@@ -2385,6 +2385,26 @@ describe("PhasesEditor", () => {
     expect(mocks.createPhase).not.toHaveBeenCalled();
   });
 
+  it("marks the phase name as required through the kit field (#5217)", async () => {
+    mocks.listPhases.mockResolvedValue([]);
+    mocks.listSchemas.mockResolvedValue([schema()]);
+
+    render(<PhasesEditor />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Anmeldephase" }),
+    );
+    const nameInput = await screen.findByLabelText("Name");
+    expect(nameInput).toHaveAttribute("name", "name");
+    expect(nameInput).toHaveAttribute("aria-required", "true");
+    // The star sits next to the label, not in its text, and is hidden
+    // from screen readers.
+    const label = document.querySelector('label[for="phase-name"]');
+    expect(label).toHaveTextContent(/^Name$/);
+    expect(label?.nextElementSibling).toHaveAttribute("aria-hidden", "true");
+    expect(label?.nextElementSibling).toHaveTextContent("*");
+  });
+
   it("shows a German validation error when the phase name is blank", async () => {
     mocks.listPhases.mockResolvedValue([]);
     mocks.listSchemas.mockResolvedValue([schema()]);

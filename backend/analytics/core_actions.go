@@ -310,6 +310,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/staff/{id}/documents"}:                                                         notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/documents/{documentId}"}:                                          notCaptured,
 	{http.MethodPut, "/api/staff/{id}/payroll-number"}:                                                     notCaptured,
+	{http.MethodPut, "/api/staff/{id}/planned-exit"}:                                                       notCaptured,
+	{http.MethodDelete, "/api/staff/{id}/planned-exit"}:                                                    notCaptured,
 	{http.MethodPut, "/api/staff/{id}/schedule"}:                                                           notCaptured,
 	{http.MethodPut, "/api/staff/{id}/school-classes"}:                                                     notCaptured,
 	{http.MethodPut, "/api/staff/{id}/stammdaten/arbeitsvertrag"}:                                          notCaptured,

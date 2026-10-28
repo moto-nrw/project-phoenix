@@ -13,6 +13,8 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import {
   createOperatorInvitation,
@@ -157,61 +159,38 @@ function InviteForm({ onCreated }: { readonly onCreated: () => void }) {
       >
         <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label
-              htmlFor="invite-email"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              E-Mail-Adresse *
-            </label>
-            <input
-              id="invite-email"
-              name="email"
-              type="email"
-              aria-invalid={formErrors.fieldError("email") ? true : undefined}
-              aria-describedby={
-                formErrors.fieldError("email")
-                  ? "invite-email-error"
-                  : undefined
-              }
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="operator@example.com"
-              className="focus:ring-moto-purple w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            />
-            {formErrors.fieldError("email") ? (
-              <p id="invite-email-error" className="text-moto-red mt-1 text-xs">
-                {formErrors.fieldError("email")}
-              </p>
-            ) : null}
-          </div>
-          <div>
-            <label
-              htmlFor="invite-display-name"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Anzeigename (optional)
-            </label>
-            <input
-              id="invite-display-name"
-              name="display_name"
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder="Max Mustermann"
-              className="focus:ring-moto-purple w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            />
-          </div>
+          <Input
+            id="invite-email"
+            name="email"
+            type="email"
+            label="E-Mail-Adresse"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="operator@example.com"
+            error={formErrors.fieldError("email")}
+            controlSize="compact"
+          />
+          <Input
+            id="invite-display-name"
+            name="display_name"
+            type="text"
+            label="Anzeigename (optional)"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Max Mustermann"
+            controlSize="compact"
+          />
         </div>
 
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          size="md"
           disabled={isSubmitting || !email.trim()}
-          className="rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
         >
           {isSubmitting ? "Wird gesendet..." : "Einladung senden"}
-        </button>
+        </Button>
       </form>
     </div>
   );

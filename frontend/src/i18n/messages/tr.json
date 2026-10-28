@@ -1241,18 +1241,16 @@
       "offeringsOnlyDescription": "Her çocuk için yeni döneme ait bakım tekliflerini ve haftanın günlerini seçin."
     },
     "fields": {
-      "firstName": "Ad *",
+      "firstName": "Ad",
       "firstNamePlain": "Ad",
-      "lastName": "Soyad *",
+      "lastName": "Soyad",
       "lastNamePlain": "Soyad",
-      "email": "E-posta *",
+      "email": "E-posta",
       "phone": "Telefon numarası",
-      "phoneRequired": "Telefon numarası *",
       "emailPlain": "E-posta",
-      "dateOfBirth": "Doğum tarihi *",
-      "gradeLevel": "Sınıf düzeyi *",
+      "dateOfBirth": "Doğum tarihi",
+      "gradeLevel": "Sınıf düzeyi",
       "schoolClass": "Sınıf",
-      "schoolClassRequired": "Sınıf *",
       "schoolClassOpen": "Sınıf henüz belli değil",
       "choose": "Lütfen seçin",
       "grade": "{grade}. sınıf"
@@ -1300,6 +1298,7 @@
       "submitting": "Gönderiliyor…",
       "previewSubmit": "Ön izleme, gönderilmez",
       "showMore": "Daha fazla göster",
+      "notice": "Bilgi",
       "details": "Ayrıntılar",
       "detailsAria": "{title} ayrıntılarını göster"
     },
@@ -3294,6 +3293,9 @@
         "disabled": "{object} için erişim izniniz yok. Okulla iletişime geçin."
       },
       "staff": {
+        "exit_already_due": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "exit_day_in_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+        "exit_not_planned": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "external_access_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "external_email_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "external_email_invited": "{object} değiştirilemedi. Güncel durumu kontrol edin.",

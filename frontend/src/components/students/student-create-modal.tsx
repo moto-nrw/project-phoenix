@@ -12,13 +12,14 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Alert } from "~/components/ui/alert";
 import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { ButtonLink } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "@/lib/api";
@@ -586,12 +587,14 @@ export function StudentCreateModal({
                   <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 md:p-4">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
                       <div>
-                        <label
+                        <FieldLabel
                           htmlFor="list-entry-first-name"
-                          className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
+                          required
+                          invalid={Boolean(errors.fieldError("first_name"))}
+                          className="mb-1 text-xs md:text-sm"
                         >
-                          Vorname <span className="text-moto-red">*</span>
-                        </label>
+                          Vorname
+                        </FieldLabel>
                         <Input
                           id="list-entry-first-name"
                           name="first_name"
@@ -604,12 +607,14 @@ export function StudentCreateModal({
                         />
                       </div>
                       <div>
-                        <label
+                        <FieldLabel
                           htmlFor="list-entry-last-name"
-                          className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
+                          required
+                          invalid={Boolean(errors.fieldError("last_name"))}
+                          className="mb-1 text-xs md:text-sm"
                         >
-                          Nachname <span className="text-moto-red">*</span>
-                        </label>
+                          Nachname
+                        </FieldLabel>
                         <Input
                           id="list-entry-last-name"
                           name="last_name"
@@ -622,12 +627,14 @@ export function StudentCreateModal({
                         />
                       </div>
                       <div>
-                        <label
+                        <FieldLabel
                           htmlFor="list-entry-school-class"
-                          className="mb-1 block text-xs font-medium text-gray-700 md:text-sm"
+                          required
+                          invalid={Boolean(errors.fieldError("school_class"))}
+                          className="mb-1 text-xs md:text-sm"
                         >
-                          Klasse <span className="text-moto-red">*</span>
-                        </label>
+                          Klasse
+                        </FieldLabel>
                         <Input
                           id="list-entry-school-class"
                           name="school_class"
@@ -863,20 +870,24 @@ export function StudentCreateModal({
 
             {/* Action Buttons */}
             <SlideOverFooter className="flex-row gap-2 md:gap-3">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="md"
                 onClick={onClose}
                 disabled={saveLoading}
-                className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+                className="flex-1"
               >
                 Abbrechen
-              </button>
+              </Button>
               {mode === "list-entry" || studentFormAvailable ? (
-                <button
+                <Button
                   type="submit"
+                  variant="primary"
+                  size="md"
                   data-setup-tour="student-submit"
                   disabled={saveLoading}
-                  className="flex-1 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 md:px-4 md:text-sm md:hover:scale-105"
+                  className="flex-1"
                 >
                   {saveLoading ? (
                     <span className="flex items-center justify-center gap-2">
@@ -904,7 +915,7 @@ export function StudentCreateModal({
                   ) : (
                     "Erstellen"
                   )}
-                </button>
+                </Button>
               ) : null}
             </SlideOverFooter>
           </form>
