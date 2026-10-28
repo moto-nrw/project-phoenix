@@ -25,10 +25,12 @@ pnpm generate:error-catalog
 pnpm run check
 ```
 
-`<locale>.generated.ts` contains only static JSON imports and object composition.
-It retains nested TypeScript inference. Server request configuration loads the
-selected locale lazily; German-only clients still pass only their existing
+`<locale>.generated.ts` is a compact serialized runtime object. Type-only JSON
+imports retain the exact inferred source types without emitting a runtime module
+per fragment. `loaders.generated.ts` contains literal lazy imports for every
+supported locale, so both the bundler and production reachability checks see the
+real edges. Server request configuration loads the selected locale lazily; German-only clients still pass only their existing
 namespace subsets. Do not import the Node-only source reader into runtime code
-or replace these static imports with runtime filesystem access/client globbing.
+or replace these derivatives with runtime filesystem access/client globbing.
 Generated message facades and the runtime error catalog must pass freshness
 checks, but remain derivatives, not a second source of translation text.

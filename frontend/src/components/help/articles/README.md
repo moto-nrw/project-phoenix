@@ -14,7 +14,11 @@ For a new article:
    `../help-content.ts`, after its prerequisites.
 4. Run the help behavior suites and `pnpm run check`.
 
-`help-articles.generated.ts` is only the discovered export index. It does not
+`help-articles.generated.ts` is a deterministic runtime derivative of the
+discovered factories. It inlines their exact implementations, avoiding one shipped
+module wrapper per article. Named type-only factory imports preserve actual
+export reachability and public factory types; runtime code never imports the authored
+article modules separately. Regenerate after any article change. It does not
 choose product order. The public `help-content.ts` facade still owns role lists,
 filtering, groups and order; its public API and existing article IDs remain
 stable. Do not alphabetize product lists while regenerating the index.

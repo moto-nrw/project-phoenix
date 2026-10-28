@@ -303,6 +303,7 @@ jobs:
               - 'scripts/generate-error-codes*'
               - 'backend/api/common/error_codes*.generated.go'
               - 'frontend/src/lib/error-codes.generated.ts'
+              - 'frontend/src/lib/error-codes/*.generated.ts'
               - '.github/workflows/lint.yml'
 
       # A large refactor must not squeeze almost the whole suite through the

@@ -131,7 +131,7 @@ test("global leaf parity still catches missing and extra keys across split names
   );
 });
 
-test("new fragments are automatically indexed and stale static facades cannot pass", () =>
+test("new fragments are automatically indexed and stale compact derivatives cannot pass", () =>
   fixture(async (directory) => {
     writeSource(directory, "de/labels.json", { title: "Titel" });
     await synchronizeMessageFacades({ directory, locales: ["de"] });
@@ -158,12 +158,44 @@ test("new fragments are automatically indexed and stale static facades cannot pa
       );
     assert.match(after, /newNamespace/);
     assert.doesNotMatch(after, /node:fs|import\.meta\.glob|Record<string/);
+    const emitted = ts.transpileModule(after, {
+      compilerOptions: { module: ts.ModuleKind.CommonJS },
+    }).outputText;
+    assert.doesNotMatch(emitted, /require\(|import\s/);
+    const emittedModule = { exports: {} };
+    new Function("module", "exports", emitted)(
+      emittedModule,
+      emittedModule.exports,
+    );
+    assert.deepEqual(
+      emittedModule.exports.default,
+      composeMessages(readMessageSources(join(directory, "de"))),
+    );
+    const loaders = readFileSync(
+      join(directory, "loaders.generated.ts"),
+      "utf8",
+    );
+    assert.match(loaders, /de: \(\) => import\("\.\/de\.generated"\)/);
+    writeFileSync(
+      join(directory, "loaders.generated.ts"),
+      "// stale lazy imports",
+    );
+    await assert.rejects(
+      () =>
+        synchronizeMessageFacades({ directory, locales: ["de"], check: true }),
+      /stale/,
+    );
   }));
 
 test("generated static facades retain exact nested TypeScript inference", () =>
   fixture(async (directory) => {
     writeSource(directory, "de/parentChild.json", {
       consents: { title: "Einverständnisse" },
+      empty: [],
+      choices: ["Ja", "Nein"],
+      enabled: true,
+      count: 1,
+      unavailable: null,
     });
     writeSource(directory, "de/errorCatalog/codes/care.json", {
       child_required: "Kind wählen",
@@ -173,13 +205,19 @@ test("generated static facades retain exact nested TypeScript inference", () =>
     writeFileSync(
       contract,
       `import messages from './de.generated';
+import parentChild from './de/parentChild.json';
+import care from './de/errorCatalog/codes/care.json';
+type Equal<A,B> = (<T>() => T extends A ? 1 : 2) extends (<T>() => T extends B ? 1 : 2) ? true : false;
+type Assert<T extends true> = T;
+type Exact = Assert<Equal<typeof messages, {parentChild: typeof parentChild; errorCatalog: {codes: {care: typeof care}}}>>;
+const exact: Exact = true;
 const title: string = messages.parentChild.consents.title;
 const error: string = messages.errorCatalog.codes.care.child_required;
 // @ts-expect-error unknown nested keys must stay compile errors
 messages.parentChild.consents.unknown;
 // @ts-expect-error unknown domains must stay compile errors
 messages.errorCatalog.codes.unknown;
-export { title, error };
+export { exact, title, error };
 `,
     );
     const program = ts.createProgram([contract], {
@@ -201,4 +239,21 @@ export { title, error };
       ),
       [],
     );
+  }));
+
+test("every supported locale has a literal lazy edge, never an eager catalog import", () =>
+  fixture(async (directory) => {
+    for (const locale of ["de", "en"])
+      writeSource(directory, `${locale}/labels.json`, { title: locale });
+    await synchronizeMessageFacades({ directory, locales: ["de", "en"] });
+    const loaders = readFileSync(
+      join(directory, "loaders.generated.ts"),
+      "utf8",
+    );
+    const emitted = ts.transpileModule(loaders, {
+      compilerOptions: { module: ts.ModuleKind.ESNext },
+    }).outputText;
+    assert.match(emitted, /de: \(\) => import\("\.\/de\.generated"\)/);
+    assert.match(emitted, /en: \(\) => import\("\.\/en\.generated"\)/);
+    assert.doesNotMatch(emitted, /^import /m);
   }));

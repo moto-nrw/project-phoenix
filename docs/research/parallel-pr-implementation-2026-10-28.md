@@ -171,3 +171,38 @@ No merge queue, blind union merge, automatic snapshot approval or budget growth.
   three task-owned clones. No test driver remains. Docker startup was cancelled;
   the eventually-created, never-started tmpfs-only container was verified by its
   task label and removed. No persistent volumes or other sessions were touched.
+
+
+### Production topology and final CI repair round
+
+The first full Linux candidate measurement exposed module-boundary overhead:
+roughly +24.3 kB per route and +66 kB for help, despite equal application data.
+Approved budgets were not raised. Authored language/article fragments remain;
+deterministic compact runtime derivatives avoid 83 locale imports per language
+and 169 article runtime wrappers. Literal lazy locale edges preserve independent
+language loading. Named erased factory/type contracts preserve real full and
+production Knip reachability. Seven locale values/types and all help combinations
+remain equal; 15 source contracts cover freshness, omission and import semantics.
+An independent review found empty/inline-type value imports could disappear;
+the generator now rejects those forms before accepting stale output.
+
+Additional actual CI failures were repaired without lowering checks:
+
+- The package-script exit-status fixture now mocks and checks the help-index and
+  source-contract stages, including pnpm, rather than depending on host pnpm.
+- Real ImportSnapshot behavior tests prove reviewed-state preservation, stale
+  source rejection and forged-scope rejection; the CLI-only operation is now
+  covered by backend tests and all three deadcode passes remain enabled.
+- The generated TypeScript domain-shard directory triggers the independent
+  registry freshness check, including shard-only PRs.
+- Full and production Knip, source guards, selector tests and deadcode pass.
+
+The initial PR-triggered parallel capture was cancelled by the next repair push,
+not treated as a measurement. Its replacement is an immutable manual run
+40728578363, pinned by task-owned tag
+`bench-parallel-pr-21456a7-20261028T1742`; serial run 40727378949 remains the
+matching partner. Remove that tag after the one-time comparison. Both use the
+same code tree/version. Final CI, image-output comparison, measured timings and
+artifact-reuse proof are recorded in PR #5243's live verification section after
+completion, rather than causing another CI run solely to update this historical
+implementation log.

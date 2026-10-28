@@ -325,6 +325,7 @@ fi
 
 assert_workflow_filter backend-tests 'backend/**/testdata/**' present
 assert_workflow_filter backend-tests 'backend/architecture/policy.json' present
+assert_workflow_filter error-codes 'frontend/src/lib/error-codes/*.generated.ts' present
 assert_workflow_filter backend-production 'backend/**/testdata/**' absent
 assert_workflow_filter backend-lint 'scripts/backend-affected-packages.sh' present
 assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' present
