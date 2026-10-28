@@ -117,10 +117,6 @@ export function PlannedExitModal({
       error={formErrors.error}
     >
       <div className="space-y-4 text-sm text-gray-700">
-        <p>
-          {staffName} arbeitet bis zum Ende dieses Tages normal. Danach endet
-          der Zugang zu moto, und die Person verschwindet aus allen Listen.
-        </p>
         <ISODatePicker
           label="Letzter Arbeitstag"
           value={day}
@@ -128,6 +124,11 @@ export function PlannedExitModal({
           min={today}
           placeholder="Datum auswählen"
         />
+        <p>
+          {staffName} arbeitet bis zum Ende des letzten Arbeitstags normal.
+          Danach endet der Zugang zu moto, und die Person verschwindet aus allen
+          Listen.
+        </p>
         {suggestion && !plannedDay ? (
           <p className="text-gray-600">
             Vorgeschlagen ist das Vertragsende aus den Stammdaten:{" "}
