@@ -265,6 +265,39 @@ describe.each([
       return view;
     }
 
+    it("shows, logs and retries no late error", async () => {
+      const answer = deferred<string>();
+      let calls = 0;
+      const fetcher = () => {
+        calls += 1;
+        return calls === 1 ? answer.promise : Promise.resolve("neu");
+      };
+      const onError = vi.fn();
+      const onErrorRetry = vi.fn();
+      const ui = (
+        <Page>
+          <Reader
+            name="student-7-late-error"
+            fetcher={fetcher}
+            options={{ onError, onErrorRetry }}
+          />
+        </Page>
+      );
+      await run(ui, () => {
+        // Anker: der Abruf läuft.
+        expect(calls).toBe(1);
+      });
+
+      answer.reject(
+        new ApiError("Forbidden", 403, { code: "general.permission" }),
+      );
+      await flush();
+
+      expect(responses["student-7-late-error"]!.error).toBeUndefined();
+      expect(onError).not.toHaveBeenCalled();
+      expect(onErrorRetry).not.toHaveBeenCalled();
+    });
+
     it("shows and writes no late answer", async () => {
       const answer = deferred<string>();
       let calls = 0;

@@ -198,9 +198,9 @@ export function isStillCurrent(key: string, start: SWRStart): boolean {
 const preloadStarts = new WeakMap<object, SWRStart>();
 
 /**
- * Wraps a fetcher of `key` in the generation lock: an answer that started
- * in an older generation is replaced by DiscardedAnswer, a current one is
- * stamped. `fetcher` may return a preload of `key` (SWR hands it over in
+ * Wraps a fetcher of `key` in the generation lock: an answer or failure
+ * that started in an older generation is replaced by DiscardedAnswer, a
+ * current answer is stamped. `fetcher` may return a preload of `key` (SWR hands it over in
  * place of a request); that preload is judged by its own start.
  */
 export function lockFetcher<A extends unknown[], T>(
@@ -216,7 +216,15 @@ export function lockFetcher<A extends unknown[], T>(
     let start = startOf(key);
     const pending = fetcher(...args);
     if (isObject(pending)) start = preloadStarts.get(pending) ?? start;
-    const value = await pending;
+    let value: T;
+    try {
+      value = await pending;
+    } catch (error) {
+      // A failure of an ended generation is no result either: not shown,
+      // not logged, not retried.
+      if (!isStillCurrent(key, start)) throw new DiscardedAnswer();
+      throw error;
+    }
     if (!isStillCurrent(key, start)) throw new DiscardedAnswer();
     stampSWRValue(key, value, start.data);
     return value;
