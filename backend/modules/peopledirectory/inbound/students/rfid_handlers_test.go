@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -42,7 +41,7 @@ func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
 	t.Run("success_assigns_rfid_tag", func(t *testing.T) {
 		// RFID tag must be hexadecimal format (at least 8 chars)
 		body := map[string]interface{}{
-			"rfid_tag": fmt.Sprintf("%016X", time.Now().UnixNano()),
+			"rfid_tag": fmt.Sprintf("%016X", testpkg.UniqueSuffix()),
 		}
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/rfid", student.ID), body)
 
@@ -172,7 +171,7 @@ func TestUnassignRFIDTag_WithAssignedTag(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Unassign", "RUS1")
 
 	// First assign an RFID tag
-	tagID := fmt.Sprintf("%016X", time.Now().UnixNano())
+	tagID := fmt.Sprintf("%016X", testpkg.UniqueSuffix())
 	assignBody := map[string]interface{}{
 		"rfid_tag": tagID,
 	}
@@ -240,7 +239,7 @@ func TestRFIDTagRoutes_GraduatedStudent(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "RFID", "Graduated", "RG1")
 
 	// Assign while the child is still enrolled, then graduate them.
-	tagID := fmt.Sprintf("%016X", time.Now().UnixNano())
+	tagID := fmt.Sprintf("%016X", testpkg.UniqueSuffix())
 	assignReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/rfid", student.ID),
 		map[string]interface{}{"rfid_tag": tagID})
 	require.Equal(t, http.StatusOK, deviceExec(t, tc, assignReq, device.APIKey).Code)
@@ -254,7 +253,7 @@ func TestRFIDTagRoutes_GraduatedStudent(t *testing.T) {
 
 	t.Run("rejects_assigning_a_new_tag", func(t *testing.T) {
 		req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/rfid", student.ID),
-			map[string]interface{}{"rfid_tag": fmt.Sprintf("%016X", time.Now().UnixNano())})
+			map[string]interface{}{"rfid_tag": fmt.Sprintf("%016X", testpkg.UniqueSuffix())})
 
 		rr := deviceExec(t, tc, req, device.APIKey)
 
