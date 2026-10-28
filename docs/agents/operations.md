@@ -37,6 +37,40 @@ through `devbox run` when the current process has not loaded the project environ
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
 
+### Check exit status and captured output
+
+Run checks directly in Devbox. If output needs a log, enable `pipefail` in
+the **calling shell**, not just inside the checked script. Otherwise
+`pnpm --dir frontend run check 2>&1 | tee check.log` returns `tee`'s status,
+which can be 0 after a failed check. The same applies to `tail` and to
+`scripts/test-changed.sh`, even though that script enables `pipefail` internally.
+
+```bash
+# check-status-log: exercised by scripts/check-exit-status.test.mjs
+devbox run -- bash -c '
+  set -euo pipefail
+  pnpm --dir frontend run check 2>&1 | tee check.log
+  scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development 2>&1 | tee test-changed.log
+'
+```
+
+For a shortened report, redirect to a file, save `$?` immediately, then read
+the file and return the saved status. A subsequent `tail`, `echo` or cleanup
+command must not become the reported check status.
+
+Put status-capturing wrappers in a script file and pass its path to Devbox.
+In local Devbox 0.18.3, `devbox run -- bash -c 'false; exit $?'` returned 0,
+while `devbox run -- bash -c 'false'` returned 1: the inline `$?` was expanded
+before the inner command ran. The logging example above uses no shell-variable
+forwarding. This observation does not establish the original reported caller.
+
+Read the result summary as well as the status. A type/lint diagnostic or a
+failed test must return nonzero. Warnings and expected error logs from passing
+behavior tests are not test failures; do not infer failure by searching for
+the word `error`. Report unexpected warnings or logs separately, including
+the emitting test or tool. An Exit-0 report needs the complete caller command
+(shell, pipes, redirects and wrappers), status and relevant output.
+
 ### Native dev loop
 
 `scripts/dev-native.sh` (or `devbox run dev <command>`) runs the backend

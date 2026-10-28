@@ -46,7 +46,7 @@ func (r decisionFixtureRoot) RestoreWithdrawn(ctx context.Context, requestID int
 	})
 	return value0, err
 }
-func (r decisionFixtureRoot) UpdateChildOfferings(ctx context.Context, input enrollmentAPI.UpdateChildOfferingsInput) (value0 *enrollmentAPI.RequestChild, err error) {
+func (r decisionFixtureRoot) UpdateChildOfferings(ctx context.Context, input enrollmentAPI.UpdateChildOfferingsInput) (value0 *enrollmentAPI.ChildOfferingsUpdate, err error) {
 	err = tenant.NewTransactionRunner().RunInTx(ctx, func(txCtx context.Context) error {
 		value0, err = r.DecisionService.UpdateChildOfferings(txCtx, input)
 		return err

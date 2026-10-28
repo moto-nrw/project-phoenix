@@ -12,14 +12,21 @@ export interface SeedAccess {
 interface SeedProfile {
   school?: { tenant_slug?: string };
   credentials?: {
+    /** Der schuleigene Admin, nur in dieser Schule (nicht `demo1`). */
+    school_admin?: { email?: string; password?: string };
     accounts?: Partial<
-      Record<SeedRole, Array<{ email?: string; password?: string }>>
+      Record<SeedAccountRole, Array<{ email?: string; password?: string }>>
     >;
   };
 }
 
-/** Kontoart im Seed-Profil; ohne Angabe die Schul-Leitung (`admin`). */
-export type SeedRole = "admin" | "betreuer";
+type SeedAccountRole = "admin" | "betreuer";
+
+/**
+ * Kontoart im Seed-Profil; ohne Angabe die Schul-Leitung (`admin`).
+ * `school_admin` ist der Admin, den es nur in dieser Schule gibt.
+ */
+export type SeedRole = SeedAccountRole | "school_admin";
 
 interface SeedState {
   version?: string;
@@ -77,7 +84,10 @@ export function readSeedAccess(
     );
   }
   const role = options.role ?? "admin";
-  const account = profile.credentials?.accounts?.[role]?.[0];
+  const account =
+    role === "school_admin"
+      ? profile.credentials?.school_admin
+      : profile.credentials?.accounts?.[role]?.[0];
   const slug = profile.school?.tenant_slug;
   if (!slug || !account?.email || !account.password) {
     throw new Error(

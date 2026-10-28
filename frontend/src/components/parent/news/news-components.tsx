@@ -61,6 +61,7 @@ import {
   ParentSurveySection,
 } from "~/components/parent/news/survey-section";
 import { useSurveyClosesAtLabel } from "~/components/surveys/survey-questionnaire";
+import { schoolClassName } from "~/lib/school-class-label";
 
 const logger = createLogger({ component: "ParentNews" });
 
@@ -773,7 +774,7 @@ function senderLabel(
     name: item.sender_name,
     // The text names the class itself: "3a", even where the school
     // stores "Klasse 3a".
-    schoolClass: item.sender_school_class.replace(/^klasse\s+/i, ""),
+    schoolClass: schoolClassName(item.sender_school_class),
     school: item.school_name,
   });
 }

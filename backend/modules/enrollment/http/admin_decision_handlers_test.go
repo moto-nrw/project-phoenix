@@ -113,9 +113,12 @@ func (m *mockDecisionService) RestoreWithdrawn(_ context.Context, requestID, res
 	return m.restoreResult, m.restoreErr
 }
 
-func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, input UpdateChildOfferingsInput) (*RequestChild, error) {
+func (m *mockDecisionService) UpdateChildOfferings(_ context.Context, input UpdateChildOfferingsInput) (*ChildOfferingsUpdate, error) {
 	m.updateChildOffInput = input
-	return m.updateChildOffResult, m.updateChildOffErr
+	if m.updateChildOffResult == nil {
+		return nil, m.updateChildOffErr
+	}
+	return &ChildOfferingsUpdate{Child: m.updateChildOffResult}, m.updateChildOffErr
 }
 
 func (m *mockDecisionService) ListChildOfferings(_ context.Context, _ int64) (map[int64]ChildOfferingSet, error) {

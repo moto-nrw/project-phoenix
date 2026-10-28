@@ -76,6 +76,9 @@ import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
 import { TemplateList } from "~/components/timetable/template-list";
+import { ConnectOfferingModal } from "~/components/timetable/connect-offering-modal";
+import { useRosterDeviations } from "~/components/timetable/use-roster-deviations";
+import type { RosterDeviation } from "~/lib/roster-deviation";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
@@ -113,10 +116,12 @@ import { substitutionService } from "~/lib/substitution-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
 import {
   berlinTodayISO,
+  careWeekDayCount,
   formatDate,
   isValidISODate,
   parseISODate,
 } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   findPeriodForDate,
   mapPeriodsForDates,
@@ -138,6 +143,7 @@ import {
   careDayISO,
   nextCareDayISO,
   previousCareDayISO,
+  findOccurrenceSeriesTemplate,
   resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableView,
@@ -184,6 +190,8 @@ const ALLOWED_URL_PARAMS = [
   "group",
   "staff",
   "room",
+  // „Zu prüfen“ in der Serienansicht (#5103).
+  "pruefen",
 ] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
@@ -292,6 +300,7 @@ function TimetablesContent() {
   const { show: showActionError } = useApiErrorDisplay();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
+  const todayISO = useBerlinToday();
 
   // Sichtbares Datum, Ansicht und geöffneter Block werden bei jedem Render aus
   // den Search-Params abgeleitet (keine Offset-Arithmetik, kein weekOffset-State
@@ -299,7 +308,7 @@ function TimetablesContent() {
   // `view` auf die Woche.
   const rawDay = params.d;
   const requestedDayISO =
-    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO();
+    rawDay !== null && isValidISODate(rawDay) ? rawDay : todayISO;
   // Leseansicht (#2283, #2621): Nicht-Planende sehen Tag und Woche — ein
   // ?view=monat/serien-Deeplink fällt still auf die Woche zurück.
   const requestedView = parseViewParam(params.view);
@@ -310,7 +319,7 @@ function TimetablesContent() {
   // anchors to Monday.
   const dayISO =
     view === "week" || view === "day"
-      ? careDayISO(requestedDayISO, weekendOpen)
+      ? careDayISO(requestedDayISO, weekendOpen, todayISO)
       : requestedDayISO;
   const selectedInstanceId = params.block;
   // Gruppen- und Personenfilter (#4766). Ungültige Werte fallen still weg;
@@ -334,9 +343,8 @@ function TimetablesContent() {
   const planFilterActive = isPlanFilterActive(planFilter);
 
   const visibleDate = useMemo(() => parseISODate(dayISO), [dayISO]);
-  const todayISO = useMemo(() => berlinTodayISO(), []);
   const todayTargetISO = useMemo(
-    () => careDayISO(todayISO, weekendOpen),
+    () => careDayISO(todayISO, weekendOpen, todayISO),
     [todayISO, weekendOpen],
   );
 
@@ -369,6 +377,12 @@ function TimetablesContent() {
   const [archivingTemplate, setArchivingTemplate] =
     useState<TimetableTemplate | null>(null);
   const [archiveLoading, setArchiveLoading] = useState(false);
+  // „Mit Angebot verbinden“ (#5103): der Regeltermin und seine Abweichung.
+  const [connecting, setConnecting] = useState<{
+    template: TimetableTemplate;
+    deviation: RosterDeviation;
+  } | null>(null);
+  const [manualRosterBusy, setManualRosterBusy] = useState(false);
   const [convertingInstance, setConvertingInstance] =
     useState<EnrichedInstance | null>(null);
   // Anlegen eines Kalenderzeitraums; bearbeitet wird auf /calendar-periods.
@@ -419,11 +433,11 @@ function TimetablesContent() {
     (direction: 1 | -1) => {
       const target =
         direction === 1
-          ? nextCareDayISO(dayISO, weekendOpen)
-          : previousCareDayISO(dayISO, weekendOpen);
+          ? nextCareDayISO(dayISO, weekendOpen, todayISO)
+          : previousCareDayISO(dayISO, weekendOpen, todayISO);
       updateUrlParams({ d: target, block: null });
     },
-    [dayISO, updateUrlParams, weekendOpen],
+    [dayISO, todayISO, updateUrlParams, weekendOpen],
   );
   const goToToday = useCallback(
     () =>
@@ -459,11 +473,11 @@ function TimetablesContent() {
     (dateISO: string) => {
       updateUrlParams({
         view: null,
-        d: careDayISO(dateISO, weekendOpen),
+        d: careDayISO(dateISO, weekendOpen, todayISO),
         block: null,
       });
     },
-    [updateUrlParams, weekendOpen],
+    [todayISO, updateUrlParams, weekendOpen],
   );
 
   // Beim Schließen darf `block` nicht der letzte Plan-Parameter sein: die
@@ -506,11 +520,16 @@ function TimetablesContent() {
   const monthDays = useMemo(() => getMonthDays(visibleDate), [visibleDate]);
   // Der Betreuungsplan folgt derselben Betriebswoche wie Dienstplan und
   // Vertretung: geplant und angezeigt wird nur Mo–Fr, außer die Schule
-  // betreut das Wochenende nach dem Freitagsplan (#3921). Die Monatsansicht
+  // betreut das Wochenende nach dem Freitagsplan (#3921) und die Woche
+  // enthält den heutigen Samstag oder Sonntag (#5028). Die Monatsansicht
   // bleibt ein vollständiger Kalender, daher behält sie ihr eigenes Fenster.
   const weekDays = useMemo(
-    () => getWeekdays(weekRange.from).slice(0, weekendOpen ? 7 : 5),
-    [weekRange.from, weekendOpen],
+    () =>
+      getWeekdays(weekRange.from).slice(
+        0,
+        careWeekDayCount(fromISO, weekendOpen, todayISO),
+      ),
+    [weekRange.from, fromISO, todayISO, weekendOpen],
   );
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
   const workweekToISO = weekDayISOs[weekDayISOs.length - 1]!;
@@ -883,7 +902,7 @@ function TimetablesContent() {
       assignment.period !== null &&
       (view !== "month" ||
         assignment.date.slice(0, 7) === dayISO.slice(0, 7)) &&
-      careDayISO(assignment.date, weekendOpen) === assignment.date,
+      careDayISO(assignment.date, weekendOpen, todayISO) === assignment.date,
   )?.date;
   const planningDisabledDateISOs = useMemo(
     () =>
@@ -945,6 +964,13 @@ function TimetablesContent() {
     () => templateData?.templates ?? [],
     [templateData?.templates],
   );
+  // Abweichungen von den Anmeldungen (#5103): Hinweis an Karte und Termin.
+  const rosterDeviations = useRosterDeviations(
+    templatePeriodID,
+    status === "authenticated",
+    templateData,
+  );
+  const reviewOnly = params.pruefen === "1";
   const modalCalendarPeriods = useMemo(() => {
     const periodIDs = new Set(assignedPeriods.map((period) => period.id));
     if (templatePeriodID) periodIDs.add(templatePeriodID);
@@ -1152,6 +1178,15 @@ function TimetablesContent() {
     () =>
       visibleInstances.find((inst) => inst.id === selectedInstanceId) ?? null,
     [visibleInstances, selectedInstanceId],
+  );
+  // Der Regeltermin des geöffneten Termins, aus der Serienliste desselben
+  // Zeitraums (#3140, #5103).
+  const selectedSeriesTemplate = useMemo(
+    () =>
+      selectedInstance
+        ? findOccurrenceSeriesTemplate(templates, selectedInstance)
+        : undefined,
+    [selectedInstance, templates],
   );
   // Die Woche kommt ohne Kinderzeilen (#4996). Für den geöffneten Termin lädt
   // die Ansicht seinen Tag vollständig nach; der Schlüssel beginnt wie der der
@@ -1437,6 +1472,48 @@ function TimetablesContent() {
       updateUrlParams,
     ],
   );
+
+  // „Bleibt von Hand gepflegt“ und „Hinweis wieder zeigen“ (#5103). Kein
+  // Dialog ist offen, deshalb kommt ein Fehler als Toast mit Katalogtext.
+  const handleManualRoster = useCallback(
+    async (template: TimetableTemplate, confirmed: boolean) => {
+      setManualRosterBusy(true);
+      try {
+        await timetableService.setManualRosterConfirmed(template.id, confirmed);
+        toast.success(
+          confirmed
+            ? `„${template.name}“ bleibt von Hand gepflegt.`
+            : `Der Hinweis zu „${template.name}“ wird wieder gezeigt.`,
+        );
+        if (templatePeriodID) {
+          await tenantMutate(`timetable-templates-${templatePeriodID}`);
+        }
+      } catch (err) {
+        logger.error("manual_roster_confirmation_failed", {
+          template_id: template.id,
+          confirmed,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showActionError(err, {
+          object: confirmed
+            ? "das Ausblenden des Hinweises"
+            : "das Einblenden des Hinweises",
+        });
+      } finally {
+        setManualRosterBusy(false);
+      }
+    },
+    [showActionError, templatePeriodID, tenantMutate, toast],
+  );
+
+  // Nach „Mit Angebot verbinden“ (#5103) ändern sich Kinderlisten im Plan.
+  const handleOfferingConnected = useCallback(async () => {
+    if (templatePeriodID) {
+      await tenantMutate(`timetable-templates-${templatePeriodID}`);
+    }
+    await tenantMutate(swrKey);
+    await tenantMutate(gapsSWRKey);
+  }, [gapsSWRKey, swrKey, templatePeriodID, tenantMutate]);
 
   // Aufrufer ist der Löschdialog im Termin-Formular; er zeigt den Fehler
   // selbst, weil er über den Toasts liegt.
@@ -1865,14 +1942,26 @@ function TimetablesContent() {
         onLifecycleAction={handleLifecycle}
         canManage={canManageSchedules}
         fetchParticipantNames={!canReadTenantRosters}
-        seriesRosterMaintenance={
-          selectedInstance?.activityGroupId
-            ? templates.find(
-                (template) =>
-                  template.id === selectedInstance.activityGroupId &&
-                  resolveTemplateCalendarPeriodId(template) ===
-                    selectedInstance.calendarPeriodId,
-              )?.rosterMaintenance
+        seriesRosterMaintenance={selectedSeriesTemplate?.rosterMaintenance}
+        seriesRosterDeviation={
+          selectedSeriesTemplate
+            ? rosterDeviations.get(selectedSeriesTemplate.id)
+            : undefined
+        }
+        seriesManualRosterConfirmed={
+          selectedSeriesTemplate?.manualRosterConfirmed === true
+        }
+        rosterDecisionBusy={manualRosterBusy}
+        onConnectOffering={
+          canManageSchedules && selectedSeriesTemplate
+            ? (deviation) =>
+                setConnecting({ template: selectedSeriesTemplate, deviation })
+            : undefined
+        }
+        onSetManualRoster={
+          canManageSchedules && selectedSeriesTemplate
+            ? (confirmed) =>
+                void handleManualRoster(selectedSeriesTemplate, confirmed)
             : undefined
         }
         seriesPeriodId={
@@ -1922,7 +2011,12 @@ function TimetablesContent() {
           canManageSchedules ? handleAttendancePatch : undefined
         }
         editDeferred={false}
-        suspended={eventModalOpen || poolInstance !== null || periodModalOpen}
+        suspended={
+          eventModalOpen ||
+          poolInstance !== null ||
+          periodModalOpen ||
+          connecting !== null
+        }
         onOpenPool={setPoolInstance}
         canManageStaffPool={canManageSchedules}
       />
@@ -1937,6 +2031,16 @@ function TimetablesContent() {
           void tenantMutate(gapsSWRKey);
         }}
       />
+
+      {connecting && (
+        <ConnectOfferingModal
+          isOpen
+          templateName={connecting.template.name}
+          deviation={connecting.deviation}
+          onClose={() => setConnecting(null)}
+          onConnected={handleOfferingConnected}
+        />
+      )}
 
       <TimetableEventModal
         canCheckShiftCoverage={canCheckShiftCoverage}
@@ -1955,7 +2059,7 @@ function TimetablesContent() {
         }}
         defaultDate={
           quickPrefill
-            ? careDayISO(quickPrefill.date, weekendOpen)
+            ? careDayISO(quickPrefill.date, weekendOpen, todayISO)
             : (firstCoveredDateISO ?? dayISO)
         }
         closingDayRanges={closingDayRanges}
@@ -2334,6 +2438,15 @@ function TimetablesContent() {
           }}
           onApply={(template) => void handleApplyTemplate(template)}
           onArchive={openArchiveConfirm}
+          deviations={rosterDeviations}
+          onConnect={(template, deviation) =>
+            setConnecting({ template, deviation })
+          }
+          onKeepManual={(template) => void handleManualRoster(template, true)}
+          reviewOnly={reviewOnly}
+          onReviewOnlyChange={(next) =>
+            updateUrlParams({ pruefen: next ? "1" : null })
+          }
         />
       )}
     </TenantPage>

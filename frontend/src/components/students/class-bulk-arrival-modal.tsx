@@ -26,7 +26,7 @@ import {
 } from "~/lib/student-arrival-api";
 import { SchoolPeriodSelect } from "./school-period-select";
 import { formatDate } from "~/lib/date-helpers";
-import { stripClassPrefix } from "~/lib/arrival-schedule-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
 import { cn } from "~/lib/utils";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
 
@@ -224,9 +224,7 @@ export function FilteredBulkArrivalModal({
 
   const targetTitle =
     filter.type === "school_class"
-      ? // Schools name their classes either "3b" or "Klasse 3b"; without the
-        // strip the title reads "für Klasse Klasse 3b".
-        `Klasse ${stripClassPrefix(filterLabel)}`
+      ? schoolClassLabel(filterLabel)
       : filter.type === "group"
         ? `Gruppe ${filterLabel}`
         : filterLabel;

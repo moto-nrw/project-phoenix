@@ -260,6 +260,9 @@ function GuardedTenant({
 
         // Refetch session to trigger re-render with new tenant
         await update();
+        // While the cookie held the other school, the BFF refused this tab's
+        // requests (#5130). Mounted views load again under this school.
+        await mutate(() => true);
 
         logger.info("tenant_auto_switched", {
           from_tenant_id: sessionTenantId,

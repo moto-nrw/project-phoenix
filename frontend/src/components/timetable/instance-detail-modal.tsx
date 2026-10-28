@@ -51,7 +51,11 @@ import {
   type GuardianNoticeDraft,
 } from "./guardian-notice-fields";
 import { OriginChip } from "~/components/ui/origin-chip";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import {
+  GROUP_ROOM_SHADES,
+  LOCATION_COLORS,
+  MOTO_COLOR_PALETTE,
+} from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
@@ -73,12 +77,14 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import type { InstanceParticipantNames } from "~/lib/timetable-api";
+import type { RosterDeviation } from "~/lib/roster-deviation";
 import type {
   GuardianNoticeInput,
   GuardianNoticeReach,
   TemplateRosterMaintenance,
 } from "~/lib/timetable-types";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
+import { SeriesRosterReview } from "./series-roster-review";
 import {
   instanceRoomLabel,
   getActivityTypeBadge,
@@ -205,6 +211,16 @@ interface InstanceDetailModalProps {
   seriesRosterMaintenance?: TemplateRosterMaintenance;
   /** Planungszeitraum, in dem der Termin liegt; nötig für das Nachladen. */
   seriesPeriodId?: string;
+  /** Abweichung der Kinderliste von den Anmeldungen (#5103). */
+  seriesRosterDeviation?: RosterDeviation;
+  /** Die Serie wird bewusst von Hand gepflegt (#5103). */
+  seriesManualRosterConfirmed?: boolean;
+  /** Eine Entscheidung zur Kinderliste wird gespeichert. */
+  rosterDecisionBusy?: boolean;
+  /** „Mit Angebot verbinden“; fehlt ohne Planungsrecht. */
+  onConnectOffering?: (deviation: RosterDeviation) => void;
+  /** „Bleibt von Hand gepflegt“ setzen oder zurücknehmen. */
+  onSetManualRoster?: (confirmed: boolean) => void;
   /**
    * Der Aufrufer lädt die Kinderzeilen des Termins noch nach (#4996): die
    * Wochenliste kommt ohne sie. Bis dahin steht statt der Liste ein
@@ -287,7 +303,8 @@ function StatusBadge({ status }: StatusBadgeProps) {
       bg: MOTO_COLOR_PALETTE.neutral.soft,
       text: "text-gray-700",
     },
-    active: { bg: LOCATION_COLORS.GROUP_ROOM, text: STATUS_BADGE_ON_CLASS },
+    // Füllton statt GROUP_ROOM: Weiß auf #83CD2D erreicht nur 1,96:1 (#5141).
+    active: { bg: GROUP_ROOM_SHADES.fill, text: STATUS_BADGE_ON_CLASS },
     // Abgeschlossen steht auf derselben neutralen Fläche wie "Geplant", trägt
     // aber die hellere Schrift: erledigt, nicht offen.
     completed: {
@@ -614,6 +631,11 @@ export function InstanceDetailModal({
   canManage = true,
   fetchParticipantNames = false,
   seriesRosterMaintenance,
+  seriesRosterDeviation,
+  seriesManualRosterConfirmed = false,
+  rosterDecisionBusy = false,
+  onConnectOffering,
+  onSetManualRoster,
   seriesPeriodId,
   studentsPending = false,
   studentsLoadError = null,
@@ -1063,14 +1085,24 @@ export function InstanceDetailModal({
                 <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
                   <OriginChip label={regelterminOriginLabel(instance)} />
                   {/* Ein Dienst (#3822) hat keine Kinder, also keine Teilnehmerpflege. */}
-                  {instance.activityType !== "duty" && (
-                    <SeriesRosterMaintenance
-                      templateId={instance.activityGroupId}
-                      periodId={seriesPeriodId}
-                      known={seriesRosterMaintenance}
-                    />
-                  )}
+                  {instance.activityType !== "duty" &&
+                    !seriesRosterDeviation && (
+                      <SeriesRosterMaintenance
+                        templateId={instance.activityGroupId}
+                        periodId={seriesPeriodId}
+                        known={seriesRosterMaintenance}
+                      />
+                    )}
                 </div>
+              )}
+              {instance.activityGroupId && instance.activityType !== "duty" && (
+                <SeriesRosterReview
+                  deviation={seriesRosterDeviation}
+                  manualRosterConfirmed={seriesManualRosterConfirmed}
+                  busy={rosterDecisionBusy}
+                  onConnect={onConnectOffering}
+                  onSetManualRoster={onSetManualRoster}
+                />
               )}
             </div>
             {instance.conflictWarnings.length > 0 && (

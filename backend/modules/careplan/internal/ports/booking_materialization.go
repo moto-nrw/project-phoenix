@@ -215,3 +215,10 @@ type PickupScheduleStaff interface {
 type PickupScheduleGuardians interface {
 	BroadcastChildUpdateToGuardians(tenantID, studentID int64)
 }
+
+// BookingManualPlans reads the Regeltermine that keep planning a student on
+// weekdays from a date on other than through a booking-created roster row
+// (#5102). Runs in the caller's tenant transaction.
+type BookingManualPlans interface {
+	ManualStudentPlan(ctx context.Context, studentID int64, from calendar.Date, weekdays []int) ([]careplan.ManualRosterTemplate, error)
+}

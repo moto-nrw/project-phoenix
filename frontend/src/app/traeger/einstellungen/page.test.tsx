@@ -91,15 +91,21 @@ describe("TraegerSettingsPage", () => {
     expect(
       await screen.findByText("Vom Träger festgelegt · geändert am 01.09.2026"),
     ).toBeInTheDocument();
+    // Die Erklärung steht hinter dem Info-Knopf am Titel (#5146).
+    fireEvent.click(
+      screen.getByRole("button", { name: "Erklärung zu Einstellungen" }),
+    );
     expect(
-      screen.getByText(
-        "Hier legen Sie Werte für alle Schulen Ihres Trägers fest. Wo es erlaubt ist, kann eine Schule einen eigenen Wert eintragen.",
-      ),
-    ).toBeInTheDocument();
-    // Tab and category carry the names of the school settings page.
-    expect(
-      screen.getByRole("heading", { name: "Betrieb" }),
-    ).toBeInTheDocument();
+      screen.getByRole("dialog", { name: "Erklärung zu Einstellungen" }),
+    ).toHaveTextContent(
+      "Hier legen Sie Werte für alle Schulen Ihres Trägers fest. Wo es erlaubt ist, kann eine Schule einen eigenen Wert eintragen.",
+    );
+    // Tab and category carry the names of the school settings page; the
+    // tab is a page tab of the scaffold (#5146).
+    expect(screen.getByRole("tab", { name: "Betrieb" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(
       screen.getByRole("heading", { name: "Elternportal" }),
     ).toBeInTheDocument();

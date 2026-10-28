@@ -966,6 +966,13 @@ function SidebarContent({
         ? "/database/personal"
         : "/staff";
     }
+    // „Unterwegs“ öffnet sich auch aus „Alle Kinder“ (#5026).
+    if (
+      pathname === "/rooms/unterwegs" &&
+      from?.startsWith("/students/search")
+    ) {
+      return "/students/search";
+    }
     if (pathname.startsWith("/rooms/")) {
       return from?.startsWith("/database/rooms") ? "/database/rooms" : "/rooms";
     }

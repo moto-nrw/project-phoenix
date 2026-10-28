@@ -39,8 +39,9 @@ type ClassDayDependencies struct {
 	StudentArrivals studentArrivals
 	// HintScope opens the day-hint seam (#4795).
 	HintScope DayHintWriteScope
-	// DayHintDependencies are the day-hint seam (#4795).
-	DayHintDependencies
+	// StudentNoteDependencies are the note seams: the day hints (#4795)
+	// and the notes the OGS released for the school (#4797).
+	StudentNoteDependencies
 	// MorningAttendanceDependencies are the morning attendance seam (#4790).
 	MorningAttendanceDependencies
 	// HomeworkDependencies are the homework seam (#4796).
@@ -63,6 +64,7 @@ type classDayService struct {
 	morningAttendance
 	homework
 	classHandover
+	sharedNotes
 	absenceReports
 }
 
@@ -96,6 +98,7 @@ func NewClassDay(deps ClassDayDependencies) classday.ClassDay {
 		morningAttendance: morning,
 		homework:          newHomework(deps),
 		classHandover:     newClassHandover(deps),
+		sharedNotes:       newSharedNotes(deps),
 		absenceReports:    absence,
 	}
 }
@@ -132,7 +135,16 @@ func (s *classDayService) DayReport(ctx context.Context, schoolClass string, dat
 	if err != nil {
 		return nil, err
 	}
-	return s.classDay(ctx, schoolClass, day, actor)
+	report, err := s.classDay(ctx, schoolClass, day, actor)
+	if err != nil || report == nil {
+		return report, err
+	}
+	// The shared notes of the OGS go to the Lehrkraft of the class only
+	// (#4797); class_day:all_classes does not open them.
+	if report.CanReadSharedNotes, err = s.MayReadSharedNotes(ctx, schoolClass); err != nil {
+		return nil, err
+	}
+	return report, nil
 }
 
 // invalidFilterError refuses a report request before anything is read. Its

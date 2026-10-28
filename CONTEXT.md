@@ -495,6 +495,18 @@ Eine Kindnotiz korrigiert nur, wer sie geschrieben hat. Entfernen darf sie
 die Leitung der bezogenen Gruppe, bei einer Notiz ohne Bezug die Leitung der
 Gruppe des Kindes. Eltern sehen Kindnotizen nicht.
 
+Die **Freigabe für die Schule** ist ein Merkmal einer einzelnen Kindnotiz,
+standardmäßig aus (#4797). Ist sie gesetzt, liest die **Lehrkraft der
+Klasse** des Kindes die Notiz in moto schule als **Beobachtung der OGS**:
+nur wer der Klasse in den Klassenzuweisungen zugeordnet ist, nicht die
+Schulverwaltung, auch nicht mit dem Zugriff auf alle Klassen. Die Freigabe
+setzt und nimmt nur die OGS zurück, über die Notiz selbst; die Lehrkraft
+liest nur und kann weder ändern noch kommentieren. Jeder Abruf wird mit
+Person, Zeitpunkt und Kind protokolliert. Die Freigabe ergänzt die
+Reichweite, ersetzt sie nicht: im OGS-Team gilt weiter die Reichweite.
+Tageshinweise der Lehrkraft und übernommene Betreuernotizen lassen sich nicht
+freigeben.
+
 Gesundheitsinformationen sind keine Kindnotiz und bleiben ein eigenes Feld.
 
 ## Regelmäßiger Wochenplan

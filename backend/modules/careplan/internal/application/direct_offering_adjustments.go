@@ -177,14 +177,14 @@ func (s *OfferingChanges) directOfferingDiff(
 // ApplyDirectOfferingAdjustment revalidates and then books the replacement
 // through the dated offering adjustment, preserving its booking, capacity,
 // cascade and append-only audit behaviour.
-func (s *OfferingChanges) ApplyDirectOfferingAdjustment(ctx context.Context, input careplan.DirectOfferingAdjustmentInput) error {
+func (s *OfferingChanges) ApplyDirectOfferingAdjustment(ctx context.Context, input careplan.DirectOfferingAdjustmentInput) (careplan.RosterImpact, error) {
 	today := s.todayDate()
 	preview, err := s.previewDirectOfferingAdjustment(ctx, input, true, today)
 	if err != nil {
-		return err
+		return careplan.RosterImpact{}, err
 	}
 	if input.Selections == nil {
-		return fmt.Errorf("%w: selections are required", careplan.ErrOfferingChangeInvalid)
+		return careplan.RosterImpact{}, fmt.Errorf("%w: selections are required", careplan.ErrOfferingChangeInvalid)
 	}
 	reason := pickupOfferingAdjustmentReason
 	if trimmed := strings.TrimSpace(input.Reason); trimmed != "" {
@@ -194,13 +194,16 @@ func (s *OfferingChanges) ApplyDirectOfferingAdjustment(ctx context.Context, inp
 	if effectiveFrom.IsZero() {
 		effectiveFrom = today
 	}
-	_, err = s.deps.Bookings.AdjustOfferings(ctx, careplan.OfferingAdjustment{
+	applied, err := s.deps.Bookings.AdjustOfferings(ctx, careplan.OfferingAdjustment{
 		RequestID: preview.RequestID, ChildID: preview.RequestChildID, Offerings: adjustmentChoicesOf(input.Selections),
 		ExcludedAutoAddTargetIDs: offeringIDSet(input.ExcludedAutoOfferingIDs), Reason: reason,
 		ActorAccountID: input.ActorAccountID, ActorRole: input.ActorRole, EffectiveFrom: &effectiveFrom,
 		CompleteWithdrawalConfirmed: input.CompleteWithdrawalConfirmed, Source: careplan.OfferingAdjustmentSourceDirect,
 	})
-	return err
+	if err != nil {
+		return careplan.RosterImpact{}, err
+	}
+	return applied.RosterImpact, nil
 }
 
 // materializedPickupTimes projects the latest pickup time per care day the

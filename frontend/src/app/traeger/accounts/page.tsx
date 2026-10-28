@@ -15,9 +15,9 @@ import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   useApiFormError,
   useApiLoadError,
@@ -213,17 +213,38 @@ export default function TraegerAccountsPage() {
     },
   ];
 
+  const memberCount = buero.members.length;
+  const invitationCount = buero.invitations.length;
+
   return (
-    <div className="w-full space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-            Personen
-          </h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Wer im Träger-Büro arbeitet und welche Rolle die Person hat.
-          </p>
-        </div>
+    <TenantPage
+      title="Personen"
+      info="Wer im Träger-Büro arbeitet und welche Rolle die Person hat."
+      stats={
+        memberCount > 0 ? (
+          <TenantPageStats
+            items={[
+              {
+                value: memberCount,
+                label: memberCount === 1 ? "Person" : "Personen",
+              },
+              ...(invitationCount > 0
+                ? [
+                    {
+                      value: invitationCount,
+                      label:
+                        invitationCount === 1
+                          ? "offene Einladung"
+                          : "offene Einladungen",
+                    },
+                  ]
+                : []),
+            ]}
+          />
+        ) : null
+      }
+      statsLoading={loading}
+      actions={
         <Button
           type="button"
           variant="primary"
@@ -233,98 +254,100 @@ export default function TraegerAccountsPage() {
           <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
           Person einladen
         </Button>
-      </div>
-
-      {bueroLoad.error ? (
-        <LoadErrorAlert error={bueroLoad.error} />
-      ) : (
+      }
+      error={bueroLoad.error}
+      overlays={
         <>
+          <InviteTraegerAccountModal
+            isOpen={inviting}
+            onClose={() => setInviting(false)}
+            onInvited={load}
+          />
+          <ChangeTraegerRolesModal
+            member={editing}
+            onClose={() => setEditing(null)}
+            onChanged={load}
+          />
+          <ConfirmDeleteModal
+            isOpen={pending !== null}
+            onClose={closeConfirm}
+            onConfirm={() => void confirm()}
+            title={
+              pending?.kind === "revoke"
+                ? "Einladung zurücknehmen?"
+                : "Person entfernen?"
+            }
+            description={
+              pending?.kind === "revoke" ? (
+                <>
+                  Der Link an{" "}
+                  <span className="font-medium wrap-anywhere">
+                    {pending.invitation.email}
+                  </span>{" "}
+                  funktioniert danach nicht mehr.
+                </>
+              ) : (
+                <>
+                  <span className="font-medium wrap-anywhere">
+                    {pending?.kind === "remove" ? pending.member.email : ""}
+                  </span>{" "}
+                  kann sich danach nicht mehr im Träger-Portal anmelden. Das
+                  moto-Konto der Person bleibt bestehen.
+                </>
+              )
+            }
+            confirmLabel={
+              pending?.kind === "revoke" ? "Zurücknehmen" : "Entfernen"
+            }
+            loadingLabel={
+              pending?.kind === "revoke"
+                ? "Wird zurückgenommen …"
+                : "Wird entfernt …"
+            }
+            gate={{
+              mode: "twoStep",
+              firstStepLabel:
+                pending?.kind === "revoke"
+                  ? "Ja, zurücknehmen"
+                  : "Ja, entfernen",
+            }}
+            loading={confirming}
+            error={confirmErrors.error}
+          />
+        </>
+      }
+    >
+      <DataTable
+        columns={memberColumns}
+        rows={[...buero.members]}
+        getRowKey={(member) => member.accountId}
+        rowHasInteractiveControls
+        isLoading={loading}
+        loadingRowCount={3}
+        defaultSortKey="email"
+        stackedOnMobile
+        emptyState={
+          <EmptyState
+            icon={<Users className="h-12 w-12" aria-hidden="true" />}
+            title="Noch keine Personen im Träger-Büro."
+          />
+        }
+      />
+      {buero.invitations.length > 0 ? (
+        <SectionCard
+          title="Offene Einladungen"
+          description="Diese Personen haben eine E-Mail bekommen, die Einladung aber noch nicht angenommen."
+        >
           <DataTable
-            columns={memberColumns}
-            rows={[...buero.members]}
-            getRowKey={(member) => member.accountId}
+            columns={invitationColumns}
+            rows={[...buero.invitations]}
+            getRowKey={(invitation) => invitation.id}
             rowHasInteractiveControls
-            isLoading={loading}
-            loadingRowCount={3}
             defaultSortKey="email"
             stackedOnMobile
-            emptyState={
-              <EmptyState
-                icon={<Users className="h-12 w-12" aria-hidden="true" />}
-                title="Noch keine Personen im Träger-Büro."
-              />
-            }
           />
-          {buero.invitations.length > 0 ? (
-            <SectionCard
-              title="Offene Einladungen"
-              description="Diese Personen haben eine E-Mail bekommen, die Einladung aber noch nicht angenommen."
-            >
-              <DataTable
-                columns={invitationColumns}
-                rows={[...buero.invitations]}
-                getRowKey={(invitation) => invitation.id}
-                rowHasInteractiveControls
-                defaultSortKey="email"
-                stackedOnMobile
-              />
-            </SectionCard>
-          ) : null}
-        </>
-      )}
-
-      <InviteTraegerAccountModal
-        isOpen={inviting}
-        onClose={() => setInviting(false)}
-        onInvited={load}
-      />
-      <ChangeTraegerRolesModal
-        member={editing}
-        onClose={() => setEditing(null)}
-        onChanged={load}
-      />
-      <ConfirmDeleteModal
-        isOpen={pending !== null}
-        onClose={closeConfirm}
-        onConfirm={() => void confirm()}
-        title={
-          pending?.kind === "revoke"
-            ? "Einladung zurücknehmen?"
-            : "Person entfernen?"
-        }
-        description={
-          pending?.kind === "revoke" ? (
-            <>
-              Der Link an{" "}
-              <span className="font-medium wrap-anywhere">
-                {pending.invitation.email}
-              </span>{" "}
-              funktioniert danach nicht mehr.
-            </>
-          ) : (
-            <>
-              <span className="font-medium wrap-anywhere">
-                {pending?.kind === "remove" ? pending.member.email : ""}
-              </span>{" "}
-              kann sich danach nicht mehr im Träger-Portal anmelden. Das
-              moto-Konto der Person bleibt bestehen.
-            </>
-          )
-        }
-        confirmLabel={pending?.kind === "revoke" ? "Zurücknehmen" : "Entfernen"}
-        loadingLabel={
-          pending?.kind === "revoke"
-            ? "Wird zurückgenommen …"
-            : "Wird entfernt …"
-        }
-        gate={{
-          mode: "twoStep",
-          firstStepLabel:
-            pending?.kind === "revoke" ? "Ja, zurücknehmen" : "Ja, entfernen",
-        }}
-        loading={confirming}
-        error={confirmErrors.error}
-      />
-    </div>
+        </SectionCard>
+      ) : null}
+    </TenantPage>
   );
 }

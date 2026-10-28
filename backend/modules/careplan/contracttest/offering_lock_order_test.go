@@ -134,7 +134,7 @@ func TestOfferingWritesAndCareExitDoNotDeadlock(t *testing.T) {
 					}
 					return svc.DecideConflictRequest(writeCtx, careplan.OfferingConflictDecision{RequestID: request.ID, Reason: "Resolve conflict", ReviewerID: env.creatorID})
 				default:
-					return svc.Decide(writeCtx, careplan.OfferingChangeDecisionInput{RequestID: request.ID, Approve: operation != "reject", Reason: "Reviewed", ReviewedBy: env.creatorID, ActorRole: "admin"})
+					return decideOfferingChange(writeCtx, svc, careplan.OfferingChangeDecisionInput{RequestID: request.ID, Approve: operation != "reject", Reason: "Reviewed", ReviewedBy: env.creatorID, ActorRole: "admin"})
 				}
 			}
 			membership, err := owners.NewSchoolMembership(database)
@@ -208,7 +208,7 @@ func TestOfferingReviewRechecksVersionAfterWaitingForGate(t *testing.T) {
 		require.NoError(t, tx.NewRaw("SELECT pg_backend_pid()").Scan(editCtx, &pid))
 		go func() {
 			done <- testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(reviewCtx context.Context, _ bun.Tx) error {
-				return svc.Decide(reviewCtx, careplan.OfferingChangeDecisionInput{
+				return decideOfferingChange(reviewCtx, svc, careplan.OfferingChangeDecisionInput{
 					RequestID: request.ID, ExpectedVersion: careplan.ParentRequestVersion(request.UpdatedAt),
 					Reason: "Reviewed", ReviewedBy: env.creatorID,
 				})

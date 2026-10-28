@@ -303,6 +303,8 @@ basis
 	GET /api/timetable/instances/{instance_id}/students/{student_id}/corrections
 	GET /api/timetable/offering-sources
 	GET /api/timetable/offering-sources/combined-counts
+	GET /api/timetable/offering-sources/preview
+	GET /api/timetable/offering-sources/suggestion
 	GET /api/timetable/operations/active-groups/{id}/roster
 	GET /api/timetable/operations/active-sessions
 	GET /api/timetable/operations/capabilities
@@ -315,7 +317,9 @@ basis
 	GET /api/timetable/student/{id}/day
 	GET /api/timetable/student/{id}/week
 	GET /api/timetable/templates
+	GET /api/timetable/templates/roster-deviations
 	GET /api/timetable/templates/{id}
+	GET /api/timetable/templates/{id}/offering-preview
 	GET /api/users/
 	GET /api/users/{id}
 	GET /auth/account
@@ -584,7 +588,9 @@ basis
 	POST /api/timetable/substitutions/bulk
 	POST /api/timetable/templates
 	POST /api/timetable/templates/{id}/end
+	POST /api/timetable/templates/{id}/offering-connection
 	POST /api/timetable/templates/{id}/split
+	POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 	POST /api/users/
 	POST /auth/accounts/{accountId}/caregiver-capability
 	POST /auth/invitations/
@@ -647,6 +653,7 @@ basis
 	POST /operator/organizations/{id}/restore
 	POST /operator/organizations/{id}/sample-children
 	POST /operator/organizations/{id}/traeger-members
+	POST /operator/organizations/{id}/traeger-members/invitations
 	POST /operator/profile/email-change
 	POST /operator/profile/password
 	POST /operator/schools/
@@ -743,6 +750,7 @@ basis
 	PUT /api/timetable/planning-tracks/order
 	PUT /api/timetable/planning-tracks/{id}
 	PUT /api/timetable/templates/{id}
+	PUT /api/timetable/templates/{id}/manual-roster
 	PUT /api/users/{id}
 	PUT /auth/accounts/{accountId}/
 	PUT /auth/accounts/{accountId}/mfa/override
@@ -846,6 +854,7 @@ mittagessen
 	GET /caterer/schools  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
 	GET /caterer/schools/{schoolId}/orders  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
 	POST /api/meal-caterer/invitations
+	POST /caterer/account/password  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
 	POST /caterer/auth/login  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
 	POST /caterer/auth/password-reset  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
 	POST /caterer/auth/password-reset/confirm  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
@@ -1109,6 +1118,7 @@ unterricht_vormittag
 	GET /school/class-day/arrival-exceptions/block-start
 	GET /school/class-day/classes
 	GET /school/class-day/school-day
+	GET /school/class-day/shared-notes/{schoolClass}/students/{studentId}
 	GET /school/notifications/preferences/
 	GET /school/notifications/push/public-key
 	GET /school/parent-letters/

@@ -21,12 +21,13 @@ export function tenantSlugFromHost(host: string | null): string | null {
     );
   }
   if (!host) return null;
-  const hostname = host.split(":")[0] ?? "";
+  const normalizedTenantDomain = tenantDomain.toLowerCase().replace(/\.$/, "");
+  const hostname = (host.split(":")[0] ?? "").toLowerCase().replace(/\.$/, "");
 
-  if (hostname === tenantDomain) return null;
-  if (!hostname.endsWith(`.${tenantDomain}`)) return null;
+  if (hostname === normalizedTenantDomain) return null;
+  if (!hostname.endsWith(`.${normalizedTenantDomain}`)) return null;
 
-  const slug = hostname.slice(0, -(tenantDomain.length + 1));
+  const slug = hostname.slice(0, -(normalizedTenantDomain.length + 1));
   if (!slug) return null;
   if (RESERVED_SLUGS.has(slug)) return null;
   return slug;

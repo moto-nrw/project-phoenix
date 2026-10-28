@@ -466,6 +466,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/timetable/templates/{id}"}:                                                    notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/end"}:                                               notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/split"}:                                             notCaptured,
+	{http.MethodPut, "/api/timetable/templates/{id}/manual-roster"}:                                      notCaptured,
+	{http.MethodPost, "/api/timetable/templates/{id}/offering-connection"}:                               event("template_offering_connected"),
+	{http.MethodPost, "/api/timetable/templates/{id}/students/{studentId}/remove-days"}:                  notCaptured,
 	{http.MethodPost, "/api/users/"}:                                                                     notCaptured,
 	{http.MethodDelete, "/api/users/{id}"}:                                                               notCaptured,
 	{http.MethodPut, "/api/users/{id}"}:                                                                  notCaptured,
@@ -687,6 +690,7 @@ var coreActions = map[RouteKey]CoreAction{
 
 	// Caterer portal (ADR 0077). Accepting the mailed invitation starts no
 	// session yet, so it counts on the caterer surface itself.
+	{http.MethodPost, "/caterer/account/password"}:                            notCaptured,
 	{http.MethodPost, "/caterer/auth/password-reset"}:                         notCaptured,
 	{http.MethodPost, "/caterer/auth/password-reset/confirm"}:                 notCaptured,
 	{http.MethodPost, "/caterer/auth/login"}:                                  session("login_success"),

@@ -259,6 +259,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET operator /operator/organizations/id%2F1/traeger-members",
     "POST operator /operator/organizations/id%2F1/traeger-members",
   ],
+  "api/operator/provisioning/organizations/[id]/traeger-members/invitations": [
+    "POST operator /operator/organizations/id%2F1/traeger-members/invitations",
+  ],
   "api/operator/provisioning/organizations/[id]/persons": [
     "GET operator /operator/organizations/id%2F1/persons",
   ],
@@ -1039,6 +1042,12 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/timetable/offering-sources/combined-counts": [
     "GET tenant /api/timetable/offering-sources/combined-counts",
   ],
+  "api/timetable/offering-sources/preview": [
+    "GET tenant /api/timetable/offering-sources/preview",
+  ],
+  "api/timetable/offering-sources/suggestion": [
+    "GET tenant /api/timetable/offering-sources/suggestion",
+  ],
   "api/timetable/operations/active-groups/[id]/roster": [
     "GET tenant /api/timetable/operations/active-groups/id%2F1/roster",
   ],
@@ -1123,8 +1132,23 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/timetable/templates/id%2F1",
     "PUT tenant /api/timetable/templates/id%2F1",
   ],
+  "api/timetable/templates/[id]/manual-roster": [
+    "PUT tenant /api/timetable/templates/id%2F1/manual-roster",
+  ],
+  "api/timetable/templates/[id]/offering-connection": [
+    "POST tenant /api/timetable/templates/id%2F1/offering-connection",
+  ],
+  "api/timetable/templates/[id]/offering-preview": [
+    "GET tenant /api/timetable/templates/id%2F1/offering-preview",
+  ],
   "api/timetable/templates/[id]/split": [
     "POST tenant /api/timetable/templates/id%2F1/split",
+  ],
+  "api/timetable/templates/[id]/students/[studentId]/remove-days": [
+    "POST tenant /api/timetable/templates/id%2F1/students/studentId%2F1/remove-days",
+  ],
+  "api/timetable/templates/roster-deviations": [
+    "GET tenant /api/timetable/templates/roster-deviations",
   ],
   "api/traeger/access-log": ["GET traeger /traeger/access-log"],
   "api/traeger/access-log/people": ["GET traeger /traeger/access-log/people"],

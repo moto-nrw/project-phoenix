@@ -16,8 +16,11 @@ import { Archive, Palette, Users } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { schoolClassLabel } from "~/lib/school-class-label";
+import type { RosterDeviation } from "~/lib/roster-deviation";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
+import { RosterDeviationHint } from "./roster-deviation-hint";
 import { RosterMaintenanceBadge } from "./roster-maintenance-badge";
 import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import {
@@ -34,6 +37,10 @@ interface TemplateCardProps {
   onArchive: (template: TimetableTemplate) => void;
   /** Leseansicht (#2283): false blendet die Karten-Aktionen aus. */
   canManage?: boolean;
+  /** Erkannte Abweichung von den Anmeldungen (#5103). */
+  deviation?: RosterDeviation;
+  onConnect?: (template: TimetableTemplate, deviation: RosterDeviation) => void;
+  onKeepManual?: (template: TimetableTemplate) => void;
 }
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
@@ -70,11 +77,7 @@ function summarizeTargets(template: TimetableTemplate): string | null {
   const labels = targets.map((target) => {
     if (target.type === "jahrgang") return `Jahrgang ${target.gradeLevel}`;
     if (target.type === "klasse") {
-      const schoolClass = target.schoolClass?.trim();
-      if (!schoolClass) return "Klasse";
-      return /^klasse(?:\s|$)/i.test(schoolClass)
-        ? schoolClass
-        : `Klasse ${schoolClass}`;
+      return schoolClassLabel(target.schoolClass ?? "") || "Klasse";
     }
     return target.educationGroupName ?? "Gruppe";
   });
@@ -87,6 +90,9 @@ export function TemplateCard({
   onApply,
   onArchive,
   canManage = true,
+  deviation,
+  onConnect,
+  onKeepManual,
 }: TemplateCardProps) {
   const color = template.planningTrackColor ?? TIMETABLE_UNTYPED_EDGE_COLOR;
   // Schichtfarbe kommt aus den Tenant-Daten; fehlt sie, steht dort das
@@ -120,7 +126,9 @@ export function TemplateCard({
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
-            {template.rosterMaintenance && template.type !== "duty" ? (
+            {template.rosterMaintenance &&
+            template.type !== "duty" &&
+            !deviation ? (
               <RosterMaintenanceBadge
                 state={template.rosterMaintenance}
                 className="mt-1 mr-1.5"
@@ -164,6 +172,23 @@ export function TemplateCard({
             />
           )}
         </div>
+
+        {/* #5103: die Abweichung ersetzt die graue Plakette „Manuell“. */}
+        {deviation && template.type !== "duty" ? (
+          <RosterDeviationHint
+            deviation={deviation}
+            onConnect={
+              canManage && onConnect
+                ? () => onConnect(template, deviation)
+                : undefined
+            }
+            onKeepManual={
+              canManage && onKeepManual
+                ? () => onKeepManual(template)
+                : undefined
+            }
+          />
+        ) : null}
 
         <div className="flex gap-1">
           {WEEKDAYS.map((wd) => {

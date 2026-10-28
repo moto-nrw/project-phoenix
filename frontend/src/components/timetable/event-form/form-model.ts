@@ -759,11 +759,6 @@ export function sortPeople<T extends PersonOption>(items: T[]): T[] {
   });
 }
 
-export function schoolClassLabel(schoolClass: string): string {
-  const trimmed = schoolClass.trim();
-  return /^klasse(?:\s|$)/i.test(trimmed) ? trimmed : `Klasse ${trimmed}`;
-}
-
 export function targetCohortActionLabel(
   label: string,
   memberCount: number,
