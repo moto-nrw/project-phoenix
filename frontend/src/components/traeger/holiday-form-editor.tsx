@@ -242,7 +242,8 @@ export function HolidayFormEditor({
             <EditActions
               onCancel={() => {
                 errorPath.clear();
-                setFields([...form.fields]);
+                // New row identities also discard row-local input drafts.
+                setFields(form.fields.map((field) => ({ ...field })));
               }}
               onSave={() => void save()}
               saving={saving}

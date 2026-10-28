@@ -230,4 +230,34 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(questionInputs()[0]).toHaveValue("Darf an Ausflügen teilnehmen");
     expect(save).toBeDisabled();
   });
+
+  it("restores saved selection options when discarding a draft", () => {
+    renderEditor(
+      form([
+        {
+          key: "anreise",
+          label: "Anreise",
+          type: "select",
+          options: [
+            { label: "Bus", value: "bus" },
+            { label: "Bahn", value: "bahn" },
+          ],
+          sort_order: 0,
+        },
+      ]),
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Auswahloptionen" }), {
+      target: { value: "Bus\nFahrrad" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen verwerfen" }),
+    );
+
+    expect(
+      screen.getByRole("textbox", { name: "Auswahloptionen" }),
+    ).toHaveValue("Bus\nBahn");
+    expect(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    ).toBeDisabled();
+  });
 });

@@ -9429,6 +9429,7 @@ export const traegerHolidayFormTopic =
         "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
         "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig.",
         "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
+        "Mit `Änderungen verwerfen` holen Sie die gespeicherten Fragen zurück. Das gilt auch für Auswahloptionen.",
         "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nur in der Anmeldung, nicht in Liste und Export.",
         "Antworten ohne Gesundheitsangabe stehen im Export in eigenen Spalten.",
         "Die ausrichtende OGS sieht die Antworten nicht.",
