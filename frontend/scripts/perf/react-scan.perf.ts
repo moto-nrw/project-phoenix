@@ -12,6 +12,7 @@ import {
   tenantBaseUrl,
 } from "./access";
 import { RequestRecorder } from "./recorder";
+import { withPerfCleanup } from "./cleanup";
 import { PERF_TARGETS } from "./targets";
 
 // Render-Zählung mit react-scan gegen den DEV-Server (#2938). Läuft NUR über
@@ -124,15 +125,17 @@ for (const target of PERF_TARGETS) {
     const recorder = new RequestRecorder(page);
     const dump = () =>
       page.evaluate(() => (window as ScanWindow).__perfRenders!.dump());
-    try {
-      await login(page, access);
+    await withPerfCleanup(async () => {
+      await test.step("login", () => login(page, access));
       await dismissNotificationHint(page, base);
       await page.evaluate(() => (window as ScanWindow).__perfRenders!.reset());
       recorder.start();
       const mountStart = performance.now();
-      await gotoTolerant(page, `${base}${target.path}`);
-      await expect(target.ready(page)).toBeVisible({ timeout: 60_000 });
-      await recorder.waitForQuiet(QUIET);
+      await test.step("navigation", () =>
+        gotoTolerant(page, `${base}${target.path}`));
+      await test.step("target ready", () =>
+        expect(target.ready(page)).toBeVisible({ timeout: 60_000 }));
+      await test.step("wait for quiet", () => recorder.waitForQuiet(QUIET));
       const hooked = await page.evaluate(
         () => typeof (window as ScanWindow).reactScan === "function",
       );
@@ -143,7 +146,7 @@ for (const target of PERF_TARGETS) {
       // Fenster sind Timer-, SSE- oder Effekt-Schleifen.
       await page.evaluate(() => (window as ScanWindow).__perfRenders!.reset());
       const idleStart = performance.now();
-      await page.waitForTimeout(10_000);
+      await test.step("idle render window", () => page.waitForTimeout(10_000));
       const idle = aggregate(await dump(), performance.now() - idleStart);
 
       let interaction: (RenderReport & { label: string }) | null = null;
@@ -153,8 +156,8 @@ for (const target of PERF_TARGETS) {
         );
         recorder.start();
         const start = performance.now();
-        await target.interaction.run(page);
-        await recorder.waitForQuiet(QUIET);
+        await test.step("interaction", () => target.interaction!.run(page));
+        await test.step("wait for quiet", () => recorder.waitForQuiet(QUIET));
         interaction = {
           label: target.interaction.label,
           ...aggregate(await dump(), performance.now() - start),
@@ -168,8 +171,6 @@ for (const target of PERF_TARGETS) {
           2,
         ),
       );
-    } finally {
-      await context.close();
-    }
+    }, [() => context.close()]);
   });
 }
