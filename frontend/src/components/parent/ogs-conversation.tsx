@@ -26,6 +26,7 @@ import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
+import { useLatest } from "~/lib/hooks/use-latest";
 import {
   type MessageAudience,
   parentEventI18nDescriptor,
@@ -116,10 +117,8 @@ export function OgsConversation({
   // Only the conversation of the chosen audience is shown. A late answer for
   // the other one (a slow load or send from before a switch) never appears
   // under this audience's title and readers.
-  const audienceRef = useRef(audience);
-  useLayoutEffect(() => {
-    audienceRef.current = audience;
-  });
+  const audienceRef = useLatest(audience);
+
   const thread =
     loadedThread && (loadedThread.audience ?? "team") === audience
       ? loadedThread
@@ -310,7 +309,6 @@ export function OgsConversation({
   // so a text can still go to the other side.
   const changeAudience = (next: MessageAudience) => {
     if (next === audience || sending) return;
-    setThread(null);
     setLoading(true);
     clearSendError();
     if (onAudienceChange) onAudienceChange(next);
@@ -369,6 +367,7 @@ export function OgsConversation({
     sending,
     studentId,
     audience,
+    audienceRef,
     applyThread,
     clearLoadError,
     clearSendError,
@@ -591,14 +590,17 @@ export function OgsConversation({
               Gate on care.loading FIRST: features start at DEFAULT_FEATURES
               (notes_enabled = false) until getChildFeatures resolves, so without
               this guard a messaging-enabled school would flash the read-only
-              fallback on first paint before flipping to the composer. */}
+              fallback on first paint before flipping to the composer.
+
+              Without the conversation nobody knows who would read a message
+              (#5200): no composer then; a failed load above offers the retry. */}
           {care.loading || (loading && !thread) ? (
             <ConversationComposerSkeleton />
           ) : !care.features.notes_enabled ? (
             <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
               {tm("writingDisabled")}
             </p>
-          ) : !thread ? null : leadershipClosed ? ( // a message (#5200); the failed load above offers the retry. // Without the conversation nobody knows who would read
+          ) : !thread ? null : leadershipClosed ? (
             <p className="rounded-xl bg-gray-50 px-4 py-3 text-[15px] text-gray-600">
               {leadershipClosedText}
             </p>

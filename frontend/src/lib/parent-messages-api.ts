@@ -22,10 +22,10 @@ import {
   endSentence,
   leadershipNameList,
 } from "~/lib/messaging-status";
+import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
 /** Leadership accounts without a person name (#5200), as staff read them. */
 const UNNAMED_LEADER_LABEL = "Schulverwaltung";
-import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
 // The wire message shape is shared with the parent client; see ChatMessage.
 // A guardian's answer to a Gruppennachricht (#4784) names that thread.
