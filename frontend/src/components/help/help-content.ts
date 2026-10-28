@@ -9634,7 +9634,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       {
         title: "Bestätigen oder stornieren",
         steps: [
-          "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen unter `Weitere Angaben`.",
+          "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
           "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
           "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
           "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",

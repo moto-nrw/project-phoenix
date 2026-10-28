@@ -265,7 +265,7 @@ export default function TraegerHolidayRegistrationPage() {
           ))}
           {registration.form.fields.length > 0 ? (
             <SectionCard
-              title="Weitere Angaben"
+              title="Weitere Angaben zur Familie"
               description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
             >
               {answeredQuestions(
