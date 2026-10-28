@@ -444,3 +444,76 @@ export function KnownChildPicker({
     </fieldset>
   );
 }
+
+/** Exactly one optional co-guardian; the registering parent's data stays separate. */
+export function SecondGuardianCard({
+  guardian,
+  fieldError,
+  onChange,
+}: Readonly<{
+  guardian: RegistrationDraft["guardian"];
+  fieldError: FieldError;
+  onChange: (guardian: RegistrationDraft["guardian"]) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  const namesRequired = Object.values(guardian).some(
+    (value) => value.trim() !== "",
+  );
+  return (
+    <SectionCard
+      title={t("secondGuardianTitle")}
+      description={t("secondGuardianText")}
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Input
+          name="second_guardian.first_name"
+          label={namesRequired ? requiredLabel(t("firstName")) : t("firstName")}
+          required={namesRequired}
+          autoComplete="section-second-guardian given-name"
+          maxLength={100}
+          value={guardian.firstName}
+          error={fieldError("second_guardian.first_name")}
+          onChange={(event) =>
+            onChange({ ...guardian, firstName: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.last_name"
+          label={namesRequired ? requiredLabel(t("lastName")) : t("lastName")}
+          required={namesRequired}
+          autoComplete="section-second-guardian family-name"
+          maxLength={100}
+          value={guardian.lastName}
+          error={fieldError("second_guardian.last_name")}
+          onChange={(event) =>
+            onChange({ ...guardian, lastName: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.email"
+          type="email"
+          label={t("emailOptional")}
+          autoComplete="section-second-guardian email"
+          maxLength={254}
+          value={guardian.email}
+          error={fieldError("second_guardian.email")}
+          onChange={(event) =>
+            onChange({ ...guardian, email: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.phone"
+          type="tel"
+          label={t("phoneOptional")}
+          autoComplete="section-second-guardian tel"
+          maxLength={40}
+          value={guardian.phone}
+          error={fieldError("second_guardian.phone")}
+          onChange={(event) =>
+            onChange({ ...guardian, phone: event.target.value })
+          }
+        />
+      </div>
+    </SectionCard>
+  );
+}

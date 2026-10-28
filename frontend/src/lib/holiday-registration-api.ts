@@ -77,6 +77,7 @@ export interface HolidayRegistrationPayload {
     readonly email: string;
     readonly phone: string;
   };
+  readonly second_guardian?: HolidayRegistrationPayload["guardian"];
   readonly children: readonly {
     readonly first_name: string;
     readonly last_name: string;
