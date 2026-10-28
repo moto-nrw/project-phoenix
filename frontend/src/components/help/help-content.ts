@@ -6809,6 +6809,8 @@ function modulesTopic(): HelpTopic {
       "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
       "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
       "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
+      "Ohne `NFC-Anwesenheit` lässt sich kein Tablet mit der Geräte-PIN anmelden. Das Tablet zeigt dann einen Hinweis.",
+      "Ohne `Zeiterfassung` kann Ihr Team am Tablet nicht stempeln. Anwesenheit mit Armband geht weiter.",
     ],
     differences: [
       "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",

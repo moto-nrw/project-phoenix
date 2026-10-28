@@ -787,52 +787,52 @@ basis
 	TRACE /internal/metrics
 
 nfc_anwesenheit
-	DELETE /api/iot/*/{id}  (#4896 Geräte und PyrePortal)
-	DELETE /api/iot/staff/{staffId}/rfid  (#4896 Geräte und PyrePortal)
-	DELETE /api/students/{id}/rfid  (#4896 Geräte: Armband am Tablet zuordnen)
-	GET /api/iot/*/  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/active  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/device/{deviceId}  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/maintenance  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/offline  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/registered-by/{personId}  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/statistics  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/status/{status}  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/type/{type}  (#4896 Geräte und PyrePortal)
-	GET /api/iot/*/{id}  (#4896 Geräte und PyrePortal)
-	GET /api/iot/activities  (#4896 Geräte und PyrePortal)
-	GET /api/iot/attendance/status/{rfid}  (#4896 Geräte und PyrePortal)
-	GET /api/iot/config  (#4896 Geräte und PyrePortal)
-	GET /api/iot/rfid/{tagId}  (#4896 Geräte und PyrePortal)
-	GET /api/iot/rooms/available  (#4896 Geräte und PyrePortal)
-	GET /api/iot/school-name  (#4896 Geräte und PyrePortal)
-	GET /api/iot/session/current  (#4896 Geräte und PyrePortal)
-	GET /api/iot/session/timeout-info  (#4896 Geräte und PyrePortal)
-	GET /api/iot/status  (#4896 Geräte und PyrePortal)
-	GET /api/iot/students  (#4896 Geräte und PyrePortal)
-	GET /api/iot/teachers/  (#4896 Geräte und PyrePortal)
-	PATCH /api/iot/*/{deviceId}/status  (#4896 Geräte und PyrePortal)
-	POST /api/iot/*/  (#4896 Geräte und PyrePortal)
-	POST /api/iot/*/detect-new  (#4896 Geräte und PyrePortal)
-	POST /api/iot/*/scan-network  (#4896 Geräte und PyrePortal)
-	POST /api/iot/*/{deviceId}/ping  (#4896 Geräte und PyrePortal)
-	POST /api/iot/attendance/toggle  (#4896 Geräte und PyrePortal)
-	POST /api/iot/checkin  (#4896 Geräte und PyrePortal)
-	POST /api/iot/error-reports  (#4896 Geräte und PyrePortal)
-	POST /api/iot/feedback  (#4896 Geräte und PyrePortal)
-	POST /api/iot/move-to-room  (#4896 Geräte und PyrePortal)
-	POST /api/iot/pickup-query  (#4896 Geräte und PyrePortal)
-	POST /api/iot/ping  (#4896 Geräte und PyrePortal)
-	POST /api/iot/session/activity  (#4896 Geräte und PyrePortal)
-	POST /api/iot/session/check-conflict  (#4896 Geräte und PyrePortal)
-	POST /api/iot/session/end  (#4896 Geräte und PyrePortal)
-	POST /api/iot/session/start  (#4896 Geräte und PyrePortal)
-	POST /api/iot/session/timeout  (#4896 Geräte und PyrePortal)
-	POST /api/iot/session/validate-timeout  (#4896 Geräte und PyrePortal)
-	POST /api/iot/staff/{staffId}/rfid  (#4896 Geräte und PyrePortal)
-	POST /api/students/{id}/rfid  (#4896 Geräte: Armband am Tablet zuordnen)
-	PUT /api/iot/*/{id}  (#4896 Geräte und PyrePortal)
-	PUT /api/iot/session/{sessionId}/supervisors  (#4896 Geräte und PyrePortal)
+	DELETE /api/iot/*/{id}
+	DELETE /api/iot/staff/{staffId}/rfid
+	DELETE /api/students/{id}/rfid
+	GET /api/iot/*/
+	GET /api/iot/*/active
+	GET /api/iot/*/device/{deviceId}
+	GET /api/iot/*/maintenance
+	GET /api/iot/*/offline
+	GET /api/iot/*/registered-by/{personId}
+	GET /api/iot/*/statistics
+	GET /api/iot/*/status/{status}
+	GET /api/iot/*/type/{type}
+	GET /api/iot/*/{id}
+	GET /api/iot/activities
+	GET /api/iot/attendance/status/{rfid}
+	GET /api/iot/config
+	GET /api/iot/rfid/{tagId}
+	GET /api/iot/rooms/available
+	GET /api/iot/school-name
+	GET /api/iot/session/current
+	GET /api/iot/session/timeout-info
+	GET /api/iot/status
+	GET /api/iot/students
+	GET /api/iot/teachers/
+	PATCH /api/iot/*/{deviceId}/status
+	POST /api/iot/*/
+	POST /api/iot/*/detect-new
+	POST /api/iot/*/scan-network
+	POST /api/iot/*/{deviceId}/ping
+	POST /api/iot/attendance/toggle
+	POST /api/iot/checkin
+	POST /api/iot/error-reports
+	POST /api/iot/feedback
+	POST /api/iot/move-to-room
+	POST /api/iot/pickup-query
+	POST /api/iot/ping
+	POST /api/iot/session/activity
+	POST /api/iot/session/check-conflict
+	POST /api/iot/session/end
+	POST /api/iot/session/start
+	POST /api/iot/session/timeout
+	POST /api/iot/session/validate-timeout
+	POST /api/iot/staff/{staffId}/rfid
+	POST /api/students/{id}/rfid
+	PUT /api/iot/*/{id}
+	PUT /api/iot/session/{sessionId}/supervisors
 
 mittagessen
 	DELETE /api/meal-caterer/invitations/{invitationId}
@@ -1244,8 +1244,8 @@ zeiterfassung
 	POST /api/absence-types/
 	POST /api/import/opening-balances/import
 	POST /api/import/opening-balances/preview
-	POST /api/iot/staff-clock  (#4896 Geräte und PyrePortal)
-	POST /api/iot/staff-clock/state  (#4896 Geräte und PyrePortal)
+	POST /api/iot/staff-clock
+	POST /api/iot/staff-clock/state
 	POST /api/staff/absences/{absenceId}/approve
 	POST /api/staff/absences/{absenceId}/deny
 	POST /api/staff/absences/{absenceId}/question
