@@ -102,7 +102,6 @@ type StaffMessageRecords interface {
 type StaffReadRecords interface {
 	MarkStaffReadUpTo(context.Context, int64, int64, time.Time, int64) error
 	StaffUnreadCount(context.Context, int64) (int, error)
-	StaffUnreadDirectCount(context.Context, int64) (int, error)
 	ListStaffInbox(context.Context, int64, bool) ([]*StaffInboxRecord, error)
 	ListAddressableStaff(context.Context, int64) ([]*AddressableStaffRecord, error)
 	IsAddressableStaff(context.Context, int64) (bool, error)

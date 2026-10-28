@@ -220,7 +220,11 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 		return 0, err
 	}
 	if !active {
-		return s.ReadRepo.UnreadDirectCount(ctx, accountID)
+		rows, err := s.ReadRepo.ListInbox(ctx, accountID, true)
+		if err != nil {
+			return 0, err
+		}
+		return directUnreadCount(rows), nil
 	}
 	return s.ReadRepo.UnreadCount(ctx, accountID)
 }
@@ -242,6 +246,16 @@ func containsGroupThread(rows []*StaffInboxThread) bool {
 		}
 	}
 	return false
+}
+
+func directUnreadCount(rows []*StaffInboxThread) int {
+	count := 0
+	for _, row := range rows {
+		if row.Kind != groupKind {
+			count += row.UnreadCount
+		}
+	}
+	return count
 }
 
 // ListMessageableStaff returns the colleagues the caller may write to.

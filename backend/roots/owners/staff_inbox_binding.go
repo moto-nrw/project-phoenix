@@ -10,15 +10,11 @@ import (
 type communicationStaffInbox struct{ source staffStoreProjection }
 type staffStoreProjection interface {
 	UnreadCount(context.Context, int64) (int, error)
-	UnreadDirectCount(context.Context, int64) (int, error)
 	ListInbox(context.Context, int64, bool) ([]*staffInboxContract.StaffInboxThread, error)
 }
 
 func (r communicationStaffInbox) UnreadCount(ctx context.Context, accountID int64) (int, error) {
 	return r.source.UnreadCount(ctx, accountID)
-}
-func (r communicationStaffInbox) UnreadDirectCount(ctx context.Context, accountID int64) (int, error) {
-	return r.source.UnreadDirectCount(ctx, accountID)
 }
 func (r communicationStaffInbox) ListInbox(ctx context.Context, accountID int64, unread bool) ([]*communication.StaffInboxRecord, error) {
 	values, err := r.source.ListInbox(ctx, accountID, unread)

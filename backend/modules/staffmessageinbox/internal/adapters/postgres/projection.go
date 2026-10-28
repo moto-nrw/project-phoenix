@@ -80,16 +80,6 @@ func withTenant[Q interface {
 // UnreadCount is the account's total unread messages across every conversation
 // it takes part in — the sidebar badge.
 func (p *Projection) UnreadCount(ctx context.Context, accountID int64) (int, error) {
-	return p.unreadCount(ctx, accountID, false)
-}
-
-// UnreadDirectCount excludes group chats for a member who is no longer an
-// active colleague. Direct-chat history remains available after offboarding.
-func (p *Projection) UnreadDirectCount(ctx context.Context, accountID int64) (int, error) {
-	return p.unreadCount(ctx, accountID, true)
-}
-
-func (p *Projection) unreadCount(ctx context.Context, accountID int64, directOnly bool) (int, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return 0, err
@@ -97,15 +87,11 @@ func (p *Projection) unreadCount(ctx context.Context, accountID int64, directOnl
 	query := db.NewSelect().
 		TableExpr(`users.staff_messages AS "m"`).
 		ColumnExpr(`COUNT(*)`).
-		Join(`JOIN users.staff_message_threads AS "t" ON t.id = m.thread_id AND t.tenant_id = m.tenant_id`).
 		Join(`JOIN users.staff_message_participants AS "mine"
 			ON mine.thread_id = m.thread_id AND mine.account_id = ?`, accountID).
 		Join(`LEFT JOIN users.staff_message_reads AS "r"
 			ON r.thread_id = m.thread_id AND r.account_id = ?`, accountID).
 		Where(unreadPredicateM, accountID)
-	if directOnly {
-		query = query.Where(`t.kind = 'direct'`)
-	}
 	query = withTenant(query, "m", tenantID)
 
 	count := 0
