@@ -144,6 +144,10 @@ func TestStaffGroupChatLifecycle(t *testing.T) {
 
 	rec = f.do(t, ben, http.MethodPost, "/threads/"+threadID, `{"body":"Ausflug am Freitag"}`)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	sent := decodeData[staffmessaging.MessageResponse](t, rec.Body.Bytes())
+	assert.Equal(t, 2, sent.ReaderCount, "the send response includes the initial receipt")
+	assert.Empty(t, sent.ReadByAccountIDs)
+	assert.ElementsMatch(t, []string{anna.idString(), lena.idString()}, sent.EligibleReaderAccountIDs)
 
 	row = f.inboxRow(t, lena, threadID)
 	require.NotNil(t, row)

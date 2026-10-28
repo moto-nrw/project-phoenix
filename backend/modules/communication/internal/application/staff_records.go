@@ -56,6 +56,13 @@ type StaffReadReceipt struct {
 	EligibleReaderAccountIDs []int64
 	ReaderCount              int
 }
+
+// StaffMessagePostResult is the new message together with its initial group
+// read receipt. Direct messages have no receipt.
+type StaffMessagePostResult[M any] struct {
+	Message *M
+	Receipt *StaffReadReceipt
+}
 type StaffMessageSource interface {
 	communication.StaffMessageRecords
 }

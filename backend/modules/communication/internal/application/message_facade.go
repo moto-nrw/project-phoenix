@@ -253,11 +253,16 @@ func (m *staffMessaging[I, T, M, G, R]) GetStaffMessageThread(ctx context.Contex
 }
 func (m *staffMessaging[I, T, M, G, R]) PostStaffMessage(ctx context.Context, threadID int64, body string) (*communication.StaffMessage, error) {
 	return observeMessageResult(ctx, m.observe, "staff_messages.post_message", func(runCtx context.Context) (*communication.StaffMessage, error) {
-		message, err := m.service.PostMessage(runCtx, threadID, body)
-		if message == nil {
+		result, err := m.service.PostMessage(runCtx, threadID, body)
+		if result == nil || result.Message == nil {
 			return nil, m.mapError(err)
 		}
-		mapped := mapNativeStaffMessage(message, m.rows.Message)
+		mapped := mapNativeStaffMessage(result.Message, m.rows.Message)
+		if receipt := result.Receipt; receipt != nil {
+			mapped.ReadByAccountIDs = receipt.ReadBy
+			mapped.EligibleReaderAccountIDs = receipt.EligibleReaderAccountIDs
+			mapped.ReaderCount = receipt.ReaderCount
+		}
 		return &mapped, m.mapError(err)
 	})
 }

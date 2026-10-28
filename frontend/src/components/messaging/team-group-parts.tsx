@@ -240,8 +240,9 @@ export function GroupMembersPanel({
         </ul>
         {!manage && portal === "tenant" && (
           <p className="mt-3 text-sm text-gray-500">
-            Mitglieder und Namen ändern die Person, die den Gruppenchat angelegt
-            hat, und die OGS-Leitung, wenn sie Mitglied ist.
+            Nur Mitglieder dürfen den Namen und die Mitglieder ändern. Das
+            dürfen die Person, die den Gruppenchat angelegt hat, und die
+            OGS-Leitung.
           </p>
         )}
       </SectionCard>

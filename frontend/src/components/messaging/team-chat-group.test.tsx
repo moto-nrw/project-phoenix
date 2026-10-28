@@ -228,6 +228,23 @@ describe("Team-Chat groups (#4776)", () => {
       expect(portal.navigate).toHaveBeenCalledWith("/team-chat"),
     );
   });
+
+  it("explains who may change a group", async () => {
+    api.fetchThread.mockResolvedValue({ ...group, can_manage: false });
+    renderThread(api, "tenant");
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mitglieder (3)" }),
+    );
+    expect(
+      screen.getByText(
+        (_, element) =>
+          element?.tagName === "P" &&
+          element.textContent ===
+            "Nur Mitglieder dürfen den Namen und die Mitglieder ändern. Das dürfen die Person, die den Gruppenchat angelegt hat, und die OGS-Leitung.",
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("Team-Chat inbox with groups (#4776)", () => {

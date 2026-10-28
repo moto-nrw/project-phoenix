@@ -417,10 +417,14 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 	if err != nil {
 		return nil, err
 	}
-	// A group closes for a deactivated member at once (#4776); the direct
-	// chat keeps its history readable after leaving the school.
-	if err := s.requireActiveGroupMember(ctx, thread, accountID); err != nil {
-		return nil, err
+	// A group membership may change after the initial authorization. Lock and
+	// authorize again before reading its participant state and history, so a
+	// just-removed member cannot receive the group's complete history (#4776).
+	if thread.Kind == groupKind {
+		thread, err = s.lockAndReauthorizeThread(ctx, threadID, accountID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	detail, err := s.buildDetail(ctx, thread, accountID)
@@ -447,7 +451,7 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 }
 
 // PostMessage appends a message to a conversation the caller takes part in.
-func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*StaffMessage, error) {
+func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*deliveryPorts.StaffMessagePostResult[StaffMessage], error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -504,8 +508,16 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// clearing their unread signal for messages the sender never saw.
 	// TestSendingDoesNotSwallowIncomingUnread pins this.
 
+	var receipt *deliveryPorts.StaffReadReceipt
+	if thread.Kind == groupKind {
+		receipt, err = s.groupMessageReceipt(ctx, threadID, message)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	s.notifyAfterCommit(ctx, thread, message, accountID)
-	return message, nil
+	return &deliveryPorts.StaffMessagePostResult[StaffMessage]{Message: message, Receipt: receipt}, nil
 }
 
 // validateBody trims and range-checks a message body.

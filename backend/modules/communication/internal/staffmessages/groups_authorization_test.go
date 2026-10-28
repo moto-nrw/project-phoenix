@@ -93,6 +93,14 @@ func TestGroupMutationAndSendReauthorizeAfterThreadLock(t *testing.T) {
 		assert.Equal(t, 2, repo.participantChecks)
 		assert.False(t, repo.appendAttempted)
 	})
+
+	t.Run("read", func(t *testing.T) {
+		svc, repo := newService()
+		_, err := svc.GetThread(t.Context(), 1)
+
+		assert.ErrorIs(t, err, ErrNotParticipant)
+		assert.Equal(t, 2, repo.participantChecks)
+	})
 }
 
 type finalMemberRepository struct {
