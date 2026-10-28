@@ -1,59 +1,49 @@
-// Bundle-Size-Ratchet (#2939): Client-JavaScript je Route (komprimiert, laut
-// Turbopack) gegen die eingecheckte Baseline `scripts/perf/bundle-baseline.json`.
-//
-//   pnpm run perf:bundle-ratchet             analysieren + prüfen (CI, Job frontend-build)
-//   pnpm run perf:bundle-ratchet --update    analysieren + Baseline auf den Ist-Stand setzen
-//   ... --skip-analyze                       vorhandene .next/diagnostics/analyze wiederverwenden
-//
-// Shrink-only nach dem Muster der bestehenden Ratchets: eine Route über
-// Baseline + Toleranz schlägt fehl, eine Route unter Baseline - Toleranz auch
-// (dann Baseline mit --update nachziehen, damit der Gewinn gesichert bleibt).
-// Toleranz je Route: 2 % oder 10 kB, was größer ist, damit ein Patch-Bump einer
-// Dependency keine Baseline-Pflege erzwingt. Neue Routen ohne Eintrag und
-// Einträge ohne Route sind Fehler. Die Analyse kompiliert immer kalt (siehe
-// analyze(): `.next` wird geleert, der Build-Cache beiseitegelegt); zwei kalte
-// Läufe derselben Quelle liefern byte-identische Zahlen, deshalb ist die
-// Prüfung hart. Lokal ist der eigene `.next`-Build danach weg, der Cache nicht.
-//
-// Die Baseline sind CI-Zahlen. Die Chunk-Aufteilung ist plattformabhängig
-// (macOS gegen Linux-Runner: eine Route 48 kB auseinander, der Rest 1 bis
-// 2 kB durch eingebettete NEXT_PUBLIC_*-Werte), auf dem Runner selbst aber
-// stabil. Jeder Lauf schreibt die Messung nach perf-results/bundle-measured.json
-// (im Job frontend-build als Artefakt `bundle-measured`). Baseline-Pflege:
-// Artefakt laden und als scripts/perf/bundle-baseline.json einchecken.
-// `--update` lokal ergibt macOS-Zahlen und ist nur zum Ausprobieren gedacht.
+// Approved bundle budgets are reviewed policy, not the latest observation.
+// `perf:bundle-ratchet` compiles cold, writes a versioned measurement artifact,
+// and enforces fixed per-route ceilings from bundle-budgets/<portal>/<resource>.json.
+// Improvements/retired observations pass; new routes need an explicit budget.
+// --update is deliberately unsupported: observations cannot approve budgets.
 import { spawnSync } from "node:child_process";
 import {
   appendFileSync,
   existsSync,
-  mkdirSync,
   readFileSync,
   renameSync,
   rmSync,
-  writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import { readRouteBundles } from "./bundle-routes.mjs";
 import { perfServerEnv } from "./env.mjs";
+import { compareBudgets, readBudgets } from "./bundle-policy.mjs";
+import {
+  identityForRevision,
+  makeMeasurement,
+  measurementKey,
+  readBaseComparison,
+  writeMeasurement,
+} from "./bundle-measurement.mjs";
 
-const BASELINE_FILE = join(process.cwd(), "scripts/perf/bundle-baseline.json");
-const TOLERANCE_RATIO = 0.02;
-const TOLERANCE_BYTES = 10 * 1024;
+const BUDGET_DIR = join(process.cwd(), "scripts/perf/bundle-budgets");
 const MEASURED_FILE = join(process.cwd(), "perf-results/bundle-measured.json");
-const UPDATE_HINT =
-  "Baseline nachziehen: Artefakt `bundle-measured` aus dem Job frontend-build laden und als scripts/perf/bundle-baseline.json einchecken (CI-Zahlen, nicht lokale).";
-
+const ANALYSIS_IDENTITY = join(
+  process.cwd(),
+  ".next/diagnostics/analyze/bundle-source-identity.json",
+);
 const args = new Set(process.argv.slice(2));
-const update = args.has("--update");
+if (args.has("--update")) {
+  throw new Error(
+    "--update cannot approve bundle budgets. Review an explicit bundle-budgets/<portal>/<resource>.json policy change instead.",
+  );
+}
+for (const argument of args) {
+  if (argument !== "--skip-analyze")
+    throw new Error(`Unknown bundle budget option: ${argument}`);
+}
 const skipAnalyze = args.has("--skip-analyze");
 
 function kb(bytes) {
   return `${(bytes / 1024).toFixed(1)} kB`;
-}
-
-function tolerance(baseline) {
-  return Math.max(TOLERANCE_BYTES, Math.round(baseline * TOLERANCE_RATIO));
 }
 
 const NEXT_DIR = join(process.cwd(), ".next");
@@ -97,109 +87,81 @@ function analyze() {
   }
 }
 
-/** @returns {Record<string, number>} Route -> komprimierte Bytes */
-function readBaseline() {
-  const parsed = JSON.parse(readFileSync(BASELINE_FILE, "utf8"));
-  if (!parsed || typeof parsed.routes !== "object") {
-    throw new Error(`${BASELINE_FILE}: Feld "routes" fehlt.`);
-  }
-  return parsed.routes;
-}
-
-/** Gleiche Form wie die Baseline, damit die Messdatei direkt übernommen werden kann. */
-function writeMeasured(file, measured) {
-  const routes = Object.fromEntries(
-    [...measured.entries()].sort(([a], [b]) => a.localeCompare(b)),
-  );
-  const content = {
-    _doc: "Client-JS je Route, komprimierte Bytes laut `next experimental-analyze` auf dem CI-Runner. Pflege: Artefakt `bundle-measured` aus dem Job frontend-build hierher kopieren (frontend/scripts/perf/bundle-ratchet.mjs, #2939).",
-    routes,
-  };
-  mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, `${JSON.stringify(content, null, 2)}\n`);
-}
-
-function compare(baseline, measured) {
-  const failures = [];
-  const rows = [];
-  for (const [route, bytes] of [...measured.entries()].sort()) {
-    const expected = baseline[route];
-    if (expected === undefined) {
-      failures.push(
-        `Neue Route ohne Baseline-Eintrag: ${route} (${kb(bytes)}). ${UPDATE_HINT}`,
-      );
-      continue;
-    }
-    const delta = bytes - expected;
-    const limit = tolerance(expected);
-    rows.push({ route, expected, bytes, delta });
-    if (delta > limit) {
-      failures.push(
-        `${route}: ${kb(bytes)} liegt ${kb(delta)} über der Baseline ${kb(expected)} (Toleranz ${kb(limit)}). Bundle verkleinern (next/dynamic, Import prüfen) oder die Erhöhung im PR begründen und die Baseline mit --update setzen.`,
-      );
-    } else if (delta < -limit) {
-      failures.push(
-        `${route}: ${kb(bytes)} liegt ${kb(-delta)} unter der Baseline ${kb(expected)}. ${UPDATE_HINT}`,
-      );
-    }
-  }
-  for (const route of Object.keys(baseline)) {
-    if (!measured.has(route)) {
-      failures.push(
-        `Baseline-Eintrag ohne Route: ${route}. Eintrag entfernen (${UPDATE_HINT})`,
-      );
-    }
-  }
-  return { failures, rows };
-}
-
-function summary(rows, failures) {
-  const lines = ["## Bundle-Ratchet", ""];
+function summary(rows, failures, baseStatus) {
+  const lines = ["## Bundle-Budgets", "", baseStatus, ""];
   lines.push(
     failures.length === 0
-      ? `Alle ${rows.length} Routen innerhalb der Toleranz (2 % oder 10 kB).`
-      : `${failures.length} Verstöße:`,
+      ? `Alle ${rows.length} gemessenen Routen innerhalb ihrer genehmigten Obergrenzen.`
+      : `${failures.length} Budget-Verstöße:`,
   );
-  lines.push("");
   for (const failure of failures) lines.push(`- ${failure}`);
   const moved = rows
-    // Zwei kalte Läufe auf demselben Runner liegen wenige Bytes auseinander;
-    // das ist Rauschen, nicht Bericht.
-    .filter((r) => Math.abs(r.delta) >= 512)
-    .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta))
+    .map((row) => ({
+      ...row,
+      change: row.bytes - (row.baseBytes ?? row.referenceBytes),
+    }))
+    .filter((row) => Math.abs(row.change) >= 512)
+    .sort((a, b) => Math.abs(b.change) - Math.abs(a.change))
     .slice(0, 10);
   if (moved.length > 0) {
-    lines.push("", "| Route | Baseline | Ist | Delta |", "|---|---|---|---|");
-    for (const r of moved) {
+    lines.push(
+      "",
+      "| Route | Genehmigte Referenz | Obergrenze | Ist | Delta zur Basis oder Referenz |",
+      "|---|---|---|---|---|",
+    );
+    for (const row of moved)
       lines.push(
-        `| \`${r.route}\` | ${kb(r.expected)} | ${kb(r.bytes)} | ${r.delta > 0 ? "+" : ""}${kb(r.delta)} |`,
+        `| \`${row.route}\` | ${kb(row.referenceBytes)} | ${kb(row.maxBytes)} | ${kb(row.bytes)} | ${row.change > 0 ? "+" : ""}${kb(row.change)} |`,
       );
-    }
   }
   return `${lines.join("\n")}\n`;
 }
 
-if (!skipAnalyze) analyze();
+const budgets = readBudgets(BUDGET_DIR);
+const current = identityForRevision();
+if (!skipAnalyze) {
+  analyze();
+  if (
+    measurementKey(identityForRevision().identity) !==
+    measurementKey(current.identity)
+  ) {
+    throw new Error(
+      "Frontend source/configuration changed during bundle analysis; measurement was not published.",
+    );
+  }
+  writeMeasurement(ANALYSIS_IDENTITY, {
+    format: "moto-bundle-analysis/v1",
+    ...current,
+  });
+} else {
+  const previous = JSON.parse(readFileSync(ANALYSIS_IDENTITY, "utf8"));
+  if (
+    previous?.format !== "moto-bundle-analysis/v1" ||
+    measurementKey(previous.identity) !== measurementKey(current.identity)
+  ) {
+    throw new Error(
+      "Existing bundle analysis belongs to another source tree or build configuration; rerun without --skip-analyze.",
+    );
+  }
+}
 const measured = new Map(
-  readRouteBundles().map((r) => [r.route, r.compressed]),
+  readRouteBundles().map((route) => [route.route, route.compressed]),
 );
-if (measured.size === 0) {
+if (measured.size === 0)
   throw new Error("Keine Routen in .next/diagnostics/analyze/data gefunden.");
-}
-
-writeMeasured(MEASURED_FILE, measured);
-if (update) {
-  writeMeasured(BASELINE_FILE, measured);
-  process.stdout.write(
-    `Baseline geschrieben: ${measured.size} Routen -> ${BASELINE_FILE}\n`,
-  );
-  process.exit(0);
-}
-
-const { failures, rows } = compare(readBaseline(), measured);
-const text = summary(rows, failures);
+writeMeasurement(
+  MEASURED_FILE,
+  makeMeasurement(
+    current.identity,
+    current.sourceRevision,
+    measured,
+    process.env.GITHUB_RUN_ID ?? null,
+  ),
+);
+const base = readBaseComparison(process.cwd(), current.identity);
+const { failures, rows } = compareBudgets(budgets, measured, base.routes);
+const text = summary(rows, failures, base.status);
 process.stdout.write(text);
-if (process.env.GITHUB_STEP_SUMMARY) {
+if (process.env.GITHUB_STEP_SUMMARY)
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, text);
-}
 process.exit(failures.length === 0 ? 0 : 1);

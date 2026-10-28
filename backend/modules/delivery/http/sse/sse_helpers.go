@@ -169,7 +169,7 @@ func (conn *sseConnection[E, C]) sendEvent(event E) error {
 	return conn.writeSSEMessage(event.SSEType(), eventData)
 }
 
-// Registered class codes (error-registry.json) of the stream's refusals.
+// Registered class codes (error-registry/) of the stream's refusals.
 // This package may not import api/common, so it names them once here.
 const (
 	codeGeneralPermission  = "general.permission"

@@ -1,0 +1,45 @@
+{
+  "packages": [
+    {
+      "path": "modules/timetableblockdisplay/internal/adapters/postgres",
+      "owner": "timetable-block-display",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetableblockdisplay/compose",
+      "owner": "timetable-block-display",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "timetable-block-display.timetable-public",
+      "description": "The block display projection returns the Timetable owner's display vocabulary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-block-display",
+      "source_role": "postgres",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "timetable-block-display",
+      "package": "modules/timetableblockdisplay/internal/adapters/postgres",
+      "data_objects": [
+        "activities.groups",
+        "education.groups",
+        "facilities.rooms",
+        "schedule.activity_instances",
+        "schedule.planning_tracks"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "already_assigned": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+  "conflict": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+  "forbidden": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+  "internal": "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
+  "invalid_period": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+  "invalid_target": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+  "last_supervisor": "Sie sind die einzige Aufsicht. Übergeben Sie die Aufsicht an eine Person oder beenden Sie die Aktivität.",
+  "not_found": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+  "not_running": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+  "self_assignment": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben."
+}

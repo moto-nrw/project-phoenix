@@ -1,0 +1,48 @@
+{
+  "days": {
+    "label": "W które dni?",
+    "all": "Codziennie",
+    "some": "Tylko w wybrane dni",
+    "pickOne": "Proszę wybrać co najmniej jeden dzień."
+  },
+  "weekday": {
+    "1": "pon.",
+    "2": "wt.",
+    "3": "śr.",
+    "4": "czw.",
+    "5": "pt."
+  },
+  "weekdayLong": {
+    "1": "poniedziałek",
+    "2": "wtorek",
+    "3": "środa",
+    "4": "czwartek",
+    "5": "piątek"
+  },
+  "signature": {
+    "title": "Państwa zgoda",
+    "procedure": "Podpisują Państwo prostym podpisem elektronicznym z odręcznie narysowanym podpisem.",
+    "missing": "Proszę się podpisać i nacisnąć „Potwierdź podpis”."
+  },
+  "statement": {
+    "permissionAll": "Zezwalam, aby {person} odbierał(a) dziecko z OGS codziennie.",
+    "permissionSome": "Zezwalam, aby {person} odbierał(a) dziecko z OGS w te dni: {days}.",
+    "day": "Zezwalam, aby {person} odebrał(a) dziecko z OGS w dniu {date}.",
+    "aloneDay": "Zezwalam, aby dziecko w dniu {date} samo wróciło do domu.",
+    "aloneWeekly": "Zezwalam, aby dziecko w te dni samo wracało do domu: {days}."
+  },
+  "waitsForOgs": "OGS potwierdza zgodę. Do tego czasu nie obowiązuje.",
+  "pendingBadge": "Czeka na OGS",
+  "pending": "Czeka na OGS: {days}",
+  "onlyDays": "Tylko {days}",
+  "requestSent": "Państwa prośba jest w OGS. Tutaj zobaczą Państwo, kiedy zostanie potwierdzona.",
+  "proofPdf": "Potwierdzenie (PDF)",
+  "errorObjectProof": "Potwierdzenie",
+  "errorObjectRequest": "Zgoda na odbiór",
+  "pickupPerson": {
+    "label": "Kto odbiera?",
+    "none": "Jak zwykle",
+    "hint": "Tylko osoby zapisane w kontaktach.",
+    "manageLink": "Dodaj nową osobę do kontaktów"
+  }
+}

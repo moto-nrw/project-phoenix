@@ -1,0 +1,261 @@
+{
+  "packages": [
+    {
+      "path": "modules/classday/http",
+      "owner": "class-day-view",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/classday",
+      "owner": "class-day-view",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/classday/internal/application",
+      "owner": "class-day-view",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/classday/internal/ports",
+      "owner": "class-day-view",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/classday/compose",
+      "owner": "class-day-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "class-day-view.compose.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.school-structure",
+      "description": "class-day-view reads the public school-structure query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "school-structure",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.student-presence",
+      "description": "class-day-view reads the public student-presence query seam.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.http.public",
+      "description": "The Class Day HTTP adapter calls its own public projection capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "http",
+      "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.application.public",
+      "description": "The class-day application serves the projection's own contract (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "class-day-view",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.application.port",
+      "description": "The class-day application reads the retained services only through its consumer-owned ports (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "class-day-view",
+      "target_role": "port"
+    },
+    {
+      "id": "class-day-view.from.people-directory",
+      "description": "class-day-view reads the public people-directory query seam (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.facilities",
+      "description": "class-day-view reads the public facilities query seam for room names (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.from.care-plan",
+      "description": "class-day-view reads the public care-plan query seam for status days and pickup exceptions (#2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.application.crypto",
+      "description": "The class-day application fingerprints a rendered list for the export drift guard (#1565, #2701).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "application",
+      "target_class": "crypto"
+    },
+    {
+      "id": "class-day-view.http.common.tenant-runtime-common",
+      "description": "The Class Day HTTP adapter uses the shared HTTP runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "class-day-view.http.security-contract",
+      "description": "The Class Day HTTP adapter names its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "class-day-view.http.identity-runtime",
+      "description": "The Class Day HTTP adapter reads authenticated account claims through the session runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "class-day-view.adapter-test.identity-runtime",
+      "description": "Class Day external handler tests construct school-scope claims through the session runtime.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "class-day-view.internal-test.people-directory-public",
+      "description": "Class-day application tests build directory students for the candidate rules (#2701).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "module-internal-test",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "class-day-view.integration-test.care-plan-support",
+      "description": "Class-day integration tests compose Care Plan through its test support (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "care-plan",
+      "target_role": "test-support"
+    },
+    {
+      "id": "class-day-view.integration-test.facilities-compose",
+      "description": "Class-day integration tests construct the real Facilities owner for room lookups (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "facilities",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.integration-test.people-directory-compose",
+      "description": "Class-day integration tests construct the real People Directory owner for students and names (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.integration-test.school-structure-compose",
+      "description": "Class-day integration tests construct the real School Structure owner for group names (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-structure",
+      "target_role": "compose"
+    },
+    {
+      "id": "class-day-view.integration-test.student-presence-compose",
+      "description": "Class-day integration tests construct the real Student Presence owner for visits and attendance (#2701).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "class-day-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    }
+  ]
+}

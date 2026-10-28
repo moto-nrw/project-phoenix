@@ -577,6 +577,23 @@ func (h *Hub) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, even
 // no-miss granularity — the refetch is server-side access-filtered).
 // Fire-and-forget, same drop semantics as the other broadcasts.
 func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Event) error {
+	h.broadcastParentMessage(tenantID, guardianAccountID, event, false)
+	return nil
+}
+
+// BroadcastLeadershipParentMessage is BroadcastParentMessage for a
+// conversation only the leadership reads (#5200): the guardian's own tabs get
+// the full event, and of the tenant's staff only the connections marked
+// ReadsLeadershipMessages get the sanitized copy. Every other staff tab hears
+// nothing, so it cannot even learn that a leadership conversation moved.
+func (h *Hub) BroadcastLeadershipParentMessage(tenantID, guardianAccountID int64, event Event) error {
+	h.broadcastParentMessage(tenantID, guardianAccountID, event, true)
+	return nil
+}
+
+// broadcastParentMessage is the shared fan-out of both parent-message
+// broadcasts; leadershipOnly keeps the staff copy to leadership connections.
+func (h *Hub) broadcastParentMessage(tenantID, guardianAccountID int64, event Event, leadershipOnly bool) {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 
@@ -593,6 +610,7 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("guardian_account_id", guardianAccountID),
 				slog.String("event_type", string(event.Type)),
+				slog.Bool("leadership_only", leadershipOnly),
 			)
 		}
 	}
@@ -606,60 +624,22 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 		deliver(client, event)
 	}
 	for _, client := range h.tenantClients[tenantID] {
-		deliver(client, staffEvent)
+		if !leadershipOnly || client.ReadsLeadershipMessages {
+			deliver(client, staffEvent)
+		}
 	}
 	h.getLogger().Debug("SSE parent-message broadcast",
 		slog.Int64("tenant_id", tenantID),
 		slog.Int64("guardian_account_id", guardianAccountID),
 		slog.String("event_type", string(event.Type)),
+		slog.Bool("leadership_only", leadershipOnly),
 		slog.Int("recipient_count", recipients),
 	)
-	h.observeDelivery(tenantID, string(event.Type), "parent_message", droppedCount)
-	return nil
-}
-
-// BroadcastLeadershipParentMessage is BroadcastParentMessage for a
-// conversation only the leadership reads (#5200): the guardian's own tabs get
-// the full event, and of the tenant's staff only the connections marked
-// ReadsLeadershipMessages get the sanitized copy. Every other staff tab hears
-// nothing, so it cannot even learn that a leadership conversation moved.
-func (h *Hub) BroadcastLeadershipParentMessage(tenantID, guardianAccountID int64, event Event) error {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-
-	recipients := 0
-	droppedCount := 0
-	deliver := func(client *Client, payload Event) {
-		recipients++
-		select {
-		case client.Channel <- payload:
-		default:
-			droppedCount++
-			h.getLogger().Warn("SSE client channel full, skipping leadership parent-message broadcast",
-				slog.Int64("user_id", client.UserID),
-				slog.Int64("tenant_id", tenantID),
-				slog.Int64("guardian_account_id", guardianAccountID),
-				slog.String("event_type", string(event.Type)),
-			)
-		}
+	target := "parent_message"
+	if leadershipOnly {
+		target = "parent_message_leadership"
 	}
-	staffEvent := staffSafeParentMessage(event)
-	for _, client := range h.guardianClients[guardianAccountID] {
-		deliver(client, event)
-	}
-	for _, client := range h.tenantClients[tenantID] {
-		if client.ReadsLeadershipMessages {
-			deliver(client, staffEvent)
-		}
-	}
-	h.getLogger().Debug("SSE leadership parent-message broadcast",
-		slog.Int64("tenant_id", tenantID),
-		slog.Int64("guardian_account_id", guardianAccountID),
-		slog.String("event_type", string(event.Type)),
-		slog.Int("recipient_count", recipients),
-	)
-	h.observeDelivery(tenantID, string(event.Type), "parent_message_leadership", droppedCount)
-	return nil
+	h.observeDelivery(tenantID, string(event.Type), target, droppedCount)
 }
 
 // BroadcastToGuardian wakes ONLY the addressed guardian's own portal clients —

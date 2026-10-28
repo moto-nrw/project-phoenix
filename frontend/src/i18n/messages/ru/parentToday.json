@@ -1,0 +1,36 @@
+{
+  "today": "Сегодня",
+  "sectionTitle": "Сегодня",
+  "sectionDescription": "Статус на сегодня и важные действия с первого взгляда.",
+  "statusLabel": "Текущий статус",
+  "atOgs": "В продлёнке",
+  "notAtOgs": "Не в продлёнке",
+  "state": {
+    "present": "Здесь с {time}",
+    "presentNoTime": "Сегодня здесь",
+    "left": "Ушёл домой в {time}",
+    "leftNoTime": "Сегодня ушёл домой",
+    "expected": "Придёт сегодня в {time}",
+    "expectedNoTime": "Придёт сегодня",
+    "notArrived": "Ожидается с {time}",
+    "notArrivedNoTime": "Ожидается сегодня",
+    "absent": "Сегодня отсутствует",
+    "noCare": "Сегодня нет продлёнки",
+    "unknown": "Статус сейчас недоступен"
+  },
+  "actions": {
+    "profile": "Открыть профиль",
+    "sick": "Сообщить, что {name} отсутствует",
+    "sickCompact": "Сообщить об отсутствии",
+    "sickHint": "Болезнь или уважительная причина",
+    "pickup": "Изменить время ухода для {name}",
+    "pickupCompact": "Изменить время ухода",
+    "pickupHint": "Изменить время ухода на один день",
+    "message": "Написать сообщение",
+    "messageCompact": "Написать сообщение",
+    "messageHint": "Связаться с продлёнкой по поводу {name}",
+    "pickupWithMode": "Изменить уход домой для {name}",
+    "pickupCompactWithMode": "Изменить уход домой",
+    "pickupHintWithMode": "Изменить время или способ ухода на один день"
+  }
+}

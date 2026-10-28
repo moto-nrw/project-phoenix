@@ -361,7 +361,7 @@ func (rs *Resource) getChildConversation(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	view, err := rs.ParentService.GetChildConversationFor(r.Context(), accountID, studentID, r.URL.Query().Get("audience"))
+	view, err := rs.ParentService.GetChildConversation(r.Context(), accountID, studentID, r.URL.Query().Get("audience"))
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
@@ -390,7 +390,7 @@ func (rs *Resource) postChildMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	view, err := rs.ParentService.PostChildMessageTo(r.Context(), accountID, studentID, req.Body, req.Audience, groupThreadID)
+	view, err := rs.ParentService.PostChildReply(r.Context(), accountID, studentID, req.Body, groupThreadID, req.Audience)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return

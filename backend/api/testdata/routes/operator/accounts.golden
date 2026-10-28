@@ -1,0 +1,10 @@
+DELETE /operator/accounts/{accountId}/tenants/{tenantId}
+GET /operator/accounts
+GET /operator/accounts/{accountId}/mfa/global-override
+GET /operator/accounts/{accountId}/tenants
+GET /operator/accounts/{accountId}/tenants/
+GET /operator/accounts/{accountId}/tenants/{tenantId}/roles
+POST /operator/accounts/{accountId}/tenants
+POST /operator/accounts/{accountId}/tenants/
+PUT /operator/accounts/{accountId}/mfa/global-override
+PUT /operator/accounts/{accountId}/tenants/{tenantId}

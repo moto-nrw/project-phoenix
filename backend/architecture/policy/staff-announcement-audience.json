@@ -1,0 +1,56 @@
+{
+  "packages": [
+    {
+      "path": "modules/staffannouncementaudience/internal/adapters/postgres",
+      "owner": "staff-announcement-audience",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffannouncementaudience/contract",
+      "owner": "staff-announcement-audience",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/staffannouncementaudience",
+      "owner": "staff-announcement-audience",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "staff-announcement-audience.postgres.staff-audience.native-public",
+      "description": "Native projection values replace the private constructor boundary; bindings are supplied by the root.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-announcement-audience",
+      "source_role": "postgres",
+      "source_package": "modules/staffannouncementaudience/internal/adapters/postgres",
+      "target_owner": "staff-announcement-audience",
+      "target_role": "public",
+      "target_package": "modules/staffannouncementaudience/contract"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "staff-announcement-audience",
+      "package": "modules/staffannouncementaudience/internal/adapters/postgres",
+      "data_objects": [
+        "auth.account_roles",
+        "auth.account_tenants",
+        "auth.accounts",
+        "auth.roles",
+        "platform.announcement_views",
+        "platform.announcements",
+        "platform.schools"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

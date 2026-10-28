@@ -111,13 +111,25 @@ type ParentMessageLeaderDirectory interface {
 	ParentMessageLeaders(context.Context) ([]ParentMessageLeader, error)
 }
 
-// ParentMessageLeaderShortNames returns the short names of the leaders.
+// ParentMessageUnnamedLeaderLabel names a leadership account without a
+// person behind it, such as the school's administration account (#5200).
+const ParentMessageUnnamedLeaderLabel = "Schulverwaltung"
+
+// ParentMessageLeaderShortNames returns the short names of the leaders, one
+// per reader, so the list matches who reads. Accounts without a name appear
+// once as ParentMessageUnnamedLeaderLabel.
 func ParentMessageLeaderShortNames(leaders []ParentMessageLeader) []string {
 	names := make([]string, 0, len(leaders))
+	unnamed := false
 	for _, leader := range leaders {
-		if name := leader.ShortName(); name != "" {
-			names = append(names, name)
+		name := leader.ShortName()
+		if name == "" {
+			if unnamed {
+				continue
+			}
+			unnamed, name = true, ParentMessageUnnamedLeaderLabel
 		}
+		names = append(names, name)
 	}
 	return names
 }
@@ -153,8 +165,7 @@ type ParentMessageLeadershipSetting interface {
 
 // ParentMessageLeadershipChoice is the leadership option of the school in
 // context: whether the school switched it on and who the leadership persons
-// are. The persons are resolved whether or not it is on, because existing
-// leadership conversations stay readable and name their readers.
+// are.
 type ParentMessageLeadershipChoice struct {
 	Enabled bool
 	Leaders []ParentMessageLeader
@@ -172,12 +183,18 @@ func (c ParentMessageLeadershipChoice) ShortNames() []string {
 }
 
 // ResolveParentMessageLeadershipChoice reads the switch and the leadership
-// persons of the school in context. Both errors propagate: the caller decides
-// to refuse rather than to offer or hide the choice on a failed read.
-func ResolveParentMessageLeadershipChoice(ctx context.Context, setting ParentMessageLeadershipSetting, leaders ParentMessageLeaderDirectory) (ParentMessageLeadershipChoice, error) {
+// persons of the school in context. While the switch is off the persons are
+// listed only with namesWhenOff, for an existing leadership conversation that
+// stays readable and names its readers; otherwise nobody needs them. Both
+// errors propagate: the caller decides to refuse rather than to offer or hide
+// the choice on a failed read.
+func ResolveParentMessageLeadershipChoice(ctx context.Context, setting ParentMessageLeadershipSetting, leaders ParentMessageLeaderDirectory, namesWhenOff bool) (ParentMessageLeadershipChoice, error) {
 	enabled, err := setting.ParentMessageLeadershipEnabled(ctx)
 	if err != nil {
 		return ParentMessageLeadershipChoice{}, fmt.Errorf("resolve parent message leadership setting: %w", err)
+	}
+	if !enabled && !namesWhenOff {
+		return ParentMessageLeadershipChoice{}, nil
 	}
 	persons, err := leaders.ParentMessageLeaders(ctx)
 	if err != nil {

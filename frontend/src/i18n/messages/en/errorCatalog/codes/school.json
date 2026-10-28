@@ -1,0 +1,5 @@
+{
+  "no_school_portal_role": "You cannot access {object}. Please contact the school.",
+  "setup_completed": "{object} could not be changed. Please check its current status.",
+  "setup_incomplete": "{object} could not be changed. Please check its current status."
+}

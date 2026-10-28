@@ -257,7 +257,7 @@ type PortalService interface {
 	// The audience ("team" when empty, or "leadership", #5200) selects the
 	// conversation; the view also says who reads it and whether the
 	// leadership option is offered.
-	GetChildConversationFor(ctx context.Context, accountID, studentID int64, audience string) (*parentService.MessageThreadView, error)
+	GetChildConversation(ctx context.Context, accountID, studentID int64, audience ...string) (*parentService.MessageThreadView, error)
 
 	// PostChildReply appends a guardian message to the child's conversation,
 	// creating it on the first message, and notifies the OGS. Gated by
@@ -266,7 +266,7 @@ type PortalService interface {
 	// the guardian for this child and still be open.
 	// The audience selects the conversation (#5200); a new leadership
 	// conversation needs the school's leadership option.
-	PostChildMessageTo(ctx context.Context, accountID, studentID int64, body, audience string, groupThreadID int64) (*parentService.MessageThreadView, error)
+	PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64, audience ...string) (*parentService.MessageThreadView, error)
 
 	// ListGroupThreads returns the group threads that reached the guardian,
 	// newest first (#4784). Cross-tenant.

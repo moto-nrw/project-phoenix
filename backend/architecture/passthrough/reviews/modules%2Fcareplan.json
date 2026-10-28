@@ -1,0 +1,979 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/careplan/ArrivalSchedule.InheritsClassTime",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/InvalidInputError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/OfferingBookings.LockCareOfferingBookings",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/PickupBaselineProjection.AllowsPickupForWeekday",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/ReviewStudent.CareEndedOn",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/ArrivalExceptionRecords.FindByStudentID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/ArrivalRecords.FindByStudentID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/PickupExceptionRecords.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/PickupExceptionRecords.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/PickupRecords.FindByStudentID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/PickupRecords.UpsertSchedule",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/RequestRecords.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/RequestRecords.Decide",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/RequestRecords.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/statusStudentDirectory.ClearStudentStatusFlags",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/statusStudentDirectory.ListEnrolledStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/statusStudentDirectory.ListStudentsWithStatusFlag",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/statusStudentDirectory.LockStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/careplantest/studentNames.ListStudentNamesByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/compose/ParentPortalRepositories.WithSchools",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/parentpostgres/EnrollmentRequestRepository.BackfillGuardianAccountID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/parentpostgres/ParentGuardianDirectory.ListGuardianLinksByAccount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/parentpostgres/ParentStudentDirectory.ListStudentsByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/postgres/DirectoryStore.LockCareExitPeople",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/postgres/GuardianPickupPermissions.ChangeGuardianPickupPermission",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/postgres/GuardianPickupPermissions.CreateGuardianPickupPermission",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/postgres/parentChildQueries.FindForAccount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/postgres/parentChildQueries.ListByAccount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/postgres/parentPhaseQueries.GuardianSubmitStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/adapters/postgres/statusDayStore.CountEffectiveStudentAbsences",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ClassArrivalExceptions.ListClassArrivalExceptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/CompanionEdges.CompanionDaysCoveredExcluding",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/CompanionEdges.DeleteCompanionEdges",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/CompanionEdges.ListCompanionEdges",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Companions.CompanionIDsForWeekday",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Companions.ListCompanionsForStudents",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Companions.LockStudentsForUpdateBelow",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/DocumentFileRecords.ActivateQueuedCleanup",
+      "reason": "ADR 0075 amendment: transaction-boundary names or Settings HTTP policy edge block removal."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/DocumentFileRecords.MarkFileDeleted",
+      "reason": "ADR 0075 amendment: transaction-boundary names or Settings HTTP policy edge block removal."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/DocumentFileRecords.MarkQueuedCleanupCompleteByFilename",
+      "reason": "ADR 0075 amendment: transaction-boundary names or Settings HTTP policy edge block removal."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.ApproveExcusedBulk",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.ConflictCandidate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.DecideConflictRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.GetExcusedBulkCandidate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.LockConflictRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.LockExcusedBulkRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedParentRequests.WriteStaffValue",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedRequests.ConflictCandidate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ExcusedRequests.LockExcusedBulkRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/ParentChildLinks.ListByAccount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/PickupAutoExcusalSyncer.DetachForDate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/PickupAutoExcusalSyncer.ReleaseBeforeDelete",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/RequestConflicts.DecideConflictRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/SchoolChildRepository.FindForAccount",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ActivateCareDocumentCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ArchiveStudentStatusFlags",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ClearStudentStatusDayByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ClearStudentStatusDays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CloseOpenCareRequests",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CompanionCountsExcluding",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CompanionDaysCoveredExcluding",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CompanionIDsForWeekday",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CompanionWeekdays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CompleteCareDocumentCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CompleteCareDocumentCleanupByFilename",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CountCareOfferingsByPhase",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CountCarePlanDeletionRecords",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CountCompanionLinks",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CountEffectiveStudentAbsences",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CountOpenCareRequests",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CountStudentScheduleRows",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CountStudentStatusDays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CreateCareDocument",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CreateCareScheduleRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CreateExcusedAbsenceRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.CreateStudentDataRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DecideCareScheduleRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DecideExcusedAbsenceRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DecideOfferingChange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DecideStudentDataRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalException",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalExceptionsByStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalNote",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalNotesByStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalSchedule",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteArrivalSchedulesByStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteCareExits",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteCareOffering",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteCompanionEdges",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeleteExpiredStudentStatusDays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeletePickupException",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeletePickupExceptionsByStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeletePickupNote",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeletePickupNotesByStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeletePickupSchedule",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DeletePickupSchedulesByStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.DiscardCareExitRemovals",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ExistingStudentStatusDayIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindCareExits",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindCareScheduleRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindExcusedAbsenceRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindPendingCareScheduleRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindPendingExcusedAbsenceRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindPendingStudentDataRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindPendingWithdrawalStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindStudentDataRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindStudentStatusDay",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.FindWithdrawalCompletion",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.HasPendingStudentDataRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListArrivalExceptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListArrivalNotes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListArrivalSchedules",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListCareDocumentCleanups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListCareDocuments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListCareExitRemovals",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListCareExitSourceRemovals",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListCareScheduleRequests",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListCompanionEdges",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListDeletedCareDocuments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListDepartureExceptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListExcusedAbsenceRequests",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListPendingCareDocumentCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListPendingWithdrawalBoundaries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListPendingWithdrawalStudentIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListPendingWithdrawalsByStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListPickupExceptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListPickupNotes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListPickupSchedules",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListStatusDaySummaries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListStudentDataRequests",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ListStudentStatusDays",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.LockExcusedAbsenceRequests",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.LockOpenCareRequests",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.MarkCareDocumentFileDeleted",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.MarkPendingWithdrawalsObsoleteForWeeklyPlans",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.MarkWithdrawalObsoleteForRebooking",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.QueueCareDocumentCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.RecordCareExitRemovals",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.RecordCareExitSourceRemovals",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.RedactWithdrawalsForDeletedStudent",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.RedecideCareScheduleRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.RedecideExcusedAbsenceRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.RedecideStudentDataRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ReopenWithdrawalAfterCancelledExit",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ReplaceAutoAddTriggers",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ResolvePendingWithdrawalAsDeleted",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.ResolveWithdrawal",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.SaveDepartureException",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.SoftDeleteCareDocument",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdateApprovedCompleteWithdrawal",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdateArrivalException",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdateArrivalNote",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdateArrivalSchedule",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdateCareScheduleRequestSnapshot",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdatePendingCareScheduleRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdatePendingExcusedAbsenceRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdatePendingStudentDataRequest",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdatePickupNote",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpdatePickupSchedule",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpsertCareExit",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpsertPendingWithdrawal",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/Service.UpsertStudentStatusDay",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/StudentDocuments.CanSeeStudentDocumentCategory",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/StudentDocuments.ListDeletedStudentDocumentsPendingFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/StudentDocuments.QueueStudentDocumentFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/StudentDocuments.ResolveStudentDocumentCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/arrivalBaselineSource.BookingsAuthoritative",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/arrivalBaselineSource.ClassArrivalExceptions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/arrivalBaselineSource.StoredArrivalRows",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/arrivalBaselineSource.StudentClasses",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/arrivalScheduleService.DeleteAllStudentArrivalSchedules",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/arrivalScheduleService.GetStudentsWithStoredArrivalSchedules",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/arrivalScheduleService.UpsertStudentArrivalSchedule",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/careDayService.ParticipatingStudentIDsByDate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/partialAbsenceService.ListPartialAbsences",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/personEnrollablePhaseRepository.GuardianSubmitStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.CreateNote",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.FindDepartureForDate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.FindForDate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.SaveDeparture",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/pickupApprovalExceptions.Update",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/pickupBaselineSource.StoredPickupRows",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/studentProfiles.ClearStudentStatusFlags",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/studentProfiles.SaveStudentCareProfile",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/studentProfiles.SetStudentHealthInfo",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/application/studentProfiles.SetStudentLiveStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/ports/MasterDataWriteError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/ports/bookingRowNotFound.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/internal/ports/catalogRowNotFound.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/offeringDayRoster.ActiveCareOfferings",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/requestfeed/http/Resource.TenantRouter",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/requestfeed/internal/adapters/postgres/AccessResolver.Resolve",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/requestfeed/internal/adapters/postgres/Store.List",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/careplan/requestfeed/internal/application/Service.Status",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

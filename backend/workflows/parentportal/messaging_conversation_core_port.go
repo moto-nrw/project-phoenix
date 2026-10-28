@@ -16,7 +16,7 @@ type ConversationCoreCallbacks struct {
 	// LeadershipOption reads the school's leadership option (#5200). Without
 	// it the option is closed: no choice is offered and no new leadership
 	// conversation begins.
-	LeadershipOption func(ctx context.Context) (LeadershipOption, error)
+	LeadershipOption func(ctx context.Context, namesWhenOff bool) (LeadershipOption, error)
 }
 
 func NewConversationCore(c ConversationCoreCallbacks) ConversationCore {
@@ -40,9 +40,9 @@ func (p conversationCoreBinding) Broadcast(tenantID int64, guardianAccountID int
 func (p conversationCoreBinding) BroadcastRead(tenantID int64, guardianAccountID int64, threadID int64, studentID int64, audience string) {
 	p.callbacks.BroadcastRead(tenantID, guardianAccountID, threadID, studentID, audience)
 }
-func (p conversationCoreBinding) LeadershipOption(ctx context.Context) (messaging.LeadershipOption, error) {
+func (p conversationCoreBinding) LeadershipOption(ctx context.Context, namesWhenOff bool) (messaging.LeadershipOption, error) {
 	if p.callbacks.LeadershipOption == nil {
 		return messaging.LeadershipOption{}, nil
 	}
-	return p.callbacks.LeadershipOption(ctx)
+	return p.callbacks.LeadershipOption(ctx, namesWhenOff)
 }

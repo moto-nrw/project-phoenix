@@ -2,3 +2,8 @@
 package common
 
 var errorClassByCode = make(map[string]string)
+
+type errorCodeClass struct {
+	code  string
+	class string
+}

@@ -1,0 +1,7 @@
+{
+  "graduates_checked_in": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "not_applied": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "not_draft": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "not_latest_transition": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "preview_stale": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+}

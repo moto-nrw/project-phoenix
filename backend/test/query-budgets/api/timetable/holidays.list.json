@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.holidays.list",
+  "max": 5,
+  "exact": true,
+  "description": "modules/timetable/http — GET /holidays (#4775): tenant transaction plus\nthe federal-state setting read; holiday calculation itself is local."
+}

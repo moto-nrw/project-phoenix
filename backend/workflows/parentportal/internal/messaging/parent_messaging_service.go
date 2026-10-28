@@ -324,9 +324,6 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		GuardianName: senderName,
 	}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		if err := s.decorateLeadership(txCtx, view); err != nil {
-			return err
-		}
 		if err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, groupRef, view); err != nil {
 			return err
 		}
@@ -346,6 +343,26 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		slog.Int64("tenant_id", child.TenantID),
 	)
 	return view, nil
+}
+
+// guardianName is resolveGuardianName inside the caller's tenant
+// transaction. A genuinely missing/blank profile keeps the "Elternteil"
+// default — that is not an error. Only a real lookup FAILURE propagates, so a
+// transient DB blip never denormalizes the wrong sender name onto the
+// persisted message forever.
+func (s *Service) guardianName(txCtx context.Context, accountID int64) (string, error) {
+	name := "Elternteil"
+	if s.GuardianProfileRepo == nil {
+		return name, nil
+	}
+	profile, err := s.GuardianProfileRepo.FindByAccountID(txCtx, accountID)
+	if err != nil || profile == nil {
+		return name, err
+	}
+	if full := strings.TrimSpace(profile.FirstName + " " + profile.LastName); full != "" {
+		name = full
+	}
+	return name, nil
 }
 
 // requireChildReply checks that the guardian may write for the child now and
@@ -403,21 +420,9 @@ func (s *Service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 		return name, nil
 	}
 	if txErr := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-		profile, err := s.GuardianProfileRepo.FindByAccountID(txCtx, accountID)
-		if err != nil {
-			return err
-		}
-		// A genuinely missing/blank profile keeps the "Elternteil" default — that is
-		// not an error. Only a real lookup FAILURE must propagate (below), so a
-		// transient DB blip never denormalizes the wrong sender name onto the
-		// persisted message forever.
-		if profile == nil {
-			return nil
-		}
-		if full := strings.TrimSpace(profile.FirstName + " " + profile.LastName); full != "" {
-			name = full
-		}
-		return nil
+		var err error
+		name, err = s.guardianName(txCtx, accountID)
+		return err
 	}); txErr != nil {
 		s.Logger.Warn("parent: resolve guardian name failed",
 			slog.Int64("account_id", accountID),

@@ -117,6 +117,10 @@ func TestParentMessageLeaderShortNameAndChoice(t *testing.T) {
 			t.Errorf("%+v: available %v, want %v", test.choice, got, test.want)
 		}
 	}
+	unnamed := []ParentMessageLeader{{AccountID: 1, FirstName: "Swantje", LastName: "Meier"}, {AccountID: 2}, {AccountID: 3}}
+	if got := ParentMessageLeaderShortNames(unnamed); len(got) != 2 || got[1] != ParentMessageUnnamedLeaderLabel {
+		t.Errorf("unnamed readers appear once under the neutral label, got %v", got)
+	}
 	if audience, ok := NormalizeParentMessageAudience(""); !ok || audience != ParentMessageAudienceTeam {
 		t.Error("an empty audience stays the team conversation")
 	}

@@ -44,8 +44,9 @@ type ConversationCore interface {
 	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64, audience string)
 	// LeadershipOption reads the school's leadership option in the caller's
 	// tenant transaction (#5200): whether the school offers it and the
-	// leadership persons' short names.
-	LeadershipOption(ctx context.Context) (LeadershipOption, error)
+	// leadership persons' short names. While the option is off the names are
+	// read only with namesWhenOff, for an existing leadership conversation.
+	LeadershipOption(ctx context.Context, namesWhenOff bool) (LeadershipOption, error)
 }
 
 // MessagingGate reports the owner's fail-open feature flag for a school.

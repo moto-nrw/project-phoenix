@@ -1,0 +1,30 @@
+{
+  "packages": [
+    {
+      "path": "modules/guardianlinkview/internal/adapters/postgres",
+      "owner": "guardian-link-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/guardianlinkview/compose",
+      "owner": "guardian-link-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "guardian-link-view",
+      "package": "modules/guardianlinkview/internal/adapters/postgres",
+      "data_objects": [
+        "auth.guardian_student_access",
+        "users.student_guardian_pickup_permissions",
+        "users.student_guardian_relationships"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

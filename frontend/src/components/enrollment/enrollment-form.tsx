@@ -17,7 +17,7 @@ import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Input } from "~/components/ui/input";
 import { useTenant } from "~/lib/tenant-context";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
 import {
   fetchMyEnrollmentProfile,

@@ -6,11 +6,8 @@ import "github.com/moto-nrw/project-phoenix/modules/communication"
 // this package; the values are Communication's public contract.
 type (
 	StaffReach                   = communication.ParentMessageStaffReach
-	ParentMessageLeader          = communication.ParentMessageLeader
 	ParentMessageLeaderDirectory = communication.ParentMessageLeaderDirectory
 	ParentMessageReaderPreview   = communication.ParentMessageReaderPreview
-	ParentMessageReaders         = communication.ParentMessageReaders
-	ParentMessageGuardianReader  = communication.ParentMessageGuardianReader
 	ParentMessageSchoolReaders   = communication.ParentMessageSchoolReaders
 )
 

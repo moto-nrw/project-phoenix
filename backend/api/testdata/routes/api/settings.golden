@@ -1,0 +1,14 @@
+DELETE /api/settings/enrollment/legal-agb-document
+DELETE /api/settings/home-layout
+DELETE /api/settings/login-image
+DELETE /api/settings/values/{key}
+GET /api/settings/home-layout
+GET /api/settings/login-image
+GET /api/settings/payroll-status
+GET /api/settings/schema
+GET /api/settings/values/{key}/reveal
+POST /api/settings/enrollment/legal-agb-document
+POST /api/settings/login-image
+PUT /api/settings/home-layout
+PUT /api/settings/home-layout/policies
+PUT /api/settings/values/{key}

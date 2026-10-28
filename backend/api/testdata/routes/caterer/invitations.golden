@@ -1,0 +1,2 @@
+GET /caterer/invitations/{schoolId}/{token}
+POST /caterer/invitations/{schoolId}/{token}/accept

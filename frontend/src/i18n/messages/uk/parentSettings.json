@@ -1,0 +1,11 @@
+{
+  "eyebrow": "Ваш обліковий запис",
+  "title": "Налаштування",
+  "description": "Виберіть мову та сповіщення для вашого облікового запису.",
+  "languageTitle": "Мова",
+  "languageDescription": "Виберіть мову, якою показується moto.",
+  "appInstallTitle": "Установити moto як застосунок",
+  "appInstallDescription": "Не встановлюйте moto через Samsung Internet. Для цього відкрийте moto у Chrome.",
+  "appInstallGenericDescription": "Додайте moto на головний екран телефона й відкривайте його як застосунок.",
+  "appInstallGuide": "Відкрити інструкцію"
+}

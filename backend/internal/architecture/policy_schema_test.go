@@ -9,7 +9,7 @@ import (
 
 func toolingSchema4(t *testing.T) string {
 	t.Helper()
-	return mutatePolicy(t, readFile(t, "../../architecture/policy.json"), func(doc map[string]any) {
+	return mutatePolicy(t, readMaterializedPolicy(t, "../../architecture/policy.json"), func(doc map[string]any) {
 		doc["schema_version"] = 4
 		for _, value := range doc["owners"].([]any) {
 			owner := value.(map[string]any)
@@ -148,7 +148,7 @@ func TestToolsHaveNoWritableDataOrDomainGraphNode(t *testing.T) {
 
 func TestImmutableBaseKeepsARoleTheCandidateRetired(t *testing.T) {
 	t.Parallel()
-	document := mutatePolicy(t, readFile(t, "../../architecture/policy.json"), func(doc map[string]any) {
+	document := mutatePolicy(t, readMaterializedPolicy(t, "../../architecture/policy.json"), func(doc map[string]any) {
 		doc["roles"] = append(doc["roles"].([]any), "retired-role")
 		doc["packages"] = append(doc["packages"].([]any), map[string]any{
 			"path": "retired", "owner": "legacy-composition", "role": "retired-role",

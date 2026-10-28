@@ -1,0 +1,5 @@
+{
+  "activity_participant_limit_reached": "{object} could not be changed. Please check its current status.",
+  "room_capacity_exceeded": "{object} could not be changed. Please check its current status.",
+  "statistics_range_invalid": "{object} could not be saved. Please check your entries."
+}

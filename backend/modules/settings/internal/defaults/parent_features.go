@@ -49,7 +49,7 @@ var parentFeaturesDefinitions = []config.Definition{
 		// bestehende Unterhaltungen lesbar; neue beginnt niemand.
 		Key:             config.KeyParentMessageLeadershipEnabled,
 		Label:           "Nachrichten nur an die Leitung (Eltern)",
-		Description:     "Eltern können wählen: an das ganze Team oder nur an die Leitung. Nur die Leitung liest diese Nachrichten. Zur Leitung gehört, wer das Recht „Vertrauliche Elternnachrichten lesen“ hat.",
+		Description:     "Eltern können wählen: an das ganze Team oder nur an die Leitung. Nur die Leitung liest diese Nachrichten. Eltern sehen die Namen der Leitung, zum Beispiel „Anna M.“. Das gilt auch, wenn die Namen des Teams sonst nicht angezeigt werden. Zur Leitung gehört, wer das Recht „Vertrauliche Elternnachrichten lesen“ hat.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",

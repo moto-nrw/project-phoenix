@@ -1,0 +1,151 @@
+{
+  "packages": [
+    {
+      "path": "workflows/staffoffboarding",
+      "owner": "staff-offboarding",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/staffoffboarding/compose",
+      "owner": "staff-offboarding",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "staff-offboarding.to.people-directory",
+      "description": "Staff Offboarding coordinates the public owner capability required by #2709.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "public",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.to.school-membership",
+      "description": "Staff Offboarding coordinates the public owner capability required by #2709.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "public",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.to.timetable-activities",
+      "description": "Staff Offboarding coordinates the public owner capability required by #2709.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "public",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.to.workforce",
+      "description": "Staff Offboarding coordinates the public owner capability required by #2709.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "public",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.integration-test.people-directory.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.integration-test.school-membership.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "school-membership",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.integration-test.timetable-activities.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.integration-test.workforce.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "workforce",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.integration-test.student-presence.compose",
+      "description": "Staff Offboarding integration tests use real owner composition and the outer tenant UnitOfWork.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "workflow-integration-test",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.delivery-platform.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.compose.offboarding.school-membership.public",
+      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "staff-offboarding.compose.database-binding",
+      "description": "Bind owner adapters to the shared database and ambient UnitOfWork; no workflow SQL.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "staff-offboarding",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    }
+  ]
+}

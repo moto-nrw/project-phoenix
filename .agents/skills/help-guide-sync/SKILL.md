@@ -28,7 +28,9 @@ The three long guide pages are gone (#2229). `/help/setup`, `/help/features` and
 ## Files to Read First
 
 ```
-frontend/src/components/help/help-content.ts    # THE CONTENT — every article (edit this)
+frontend/src/components/help/articles/*.ts      # article text and settings variants
+frontend/src/components/help/help-content.ts    # explicit product order and public facade
+frontend/src/components/help/help-types.ts      # shared article types
 frontend/src/lib/help-topics.ts                 # HELP_TOPICS ids + app-path mapping
 frontend/src/components/help/help-view.tsx      # the shell; GROUP_ORDER_BY_ROLE lives here
 frontend/public/help/screens/                   # app screenshots (also the UI visual reference)
@@ -51,7 +53,7 @@ A category also needs an entry in `HELP_GROUP_LABELS` and in `GROUP_ORDER_BY_ROL
 ## Process
 
 1. **Register the id** in `HELP_TOPICS` (`src/lib/help-topics.ts`) — camelCase key, URL slug as the value. A typo becomes a compile error. Add the id with its `audience` to `HELP_TOPIC_AUDIENCE` (`src/lib/help-topic-availability.ts`), which keeps the article texts out of the header's bundle.
-2. **Write the article** in `help-content.ts` as `function <name>Topic(): HelpTopic`, then add the call to the role list in `getHelpTopics` **at a position its prerequisites allow** — order inside a category is array order, not alphabetical.
+2. **Write the article** in `articles/<topic>.ts` as an exported `function <name>Topic(): HelpTopic`. Run `pnpm generate:help-index`, then add `articles.<name>Topic()` to the role list in `help-content.ts` **at a position its prerequisites allow**. The generated index discovers files; category order stays explicit, not alphabetical.
 3. **Read the labels off the running screen**, not from memory, and put each one in backticks exactly as it is spelled there.
 4. **Write German** per `moto-einfache-sprache`: Sie-Form, one thought per sentence, no technical vocabulary.
 5. **Pick the right section.** `differences` = the screen looks different; `troubleshootingDetails` = something is missing or broken; `notes` = an optional extra that changes no step.

@@ -1,0 +1,605 @@
+{
+  "packages": [
+    {
+      "path": "modules/timetable",
+      "owner": "timetable-activities",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/compose",
+      "owner": "timetable-activities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/compose/httpintegration",
+      "owner": "timetable-activities",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/timetable/http",
+      "owner": "timetable-activities",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/timetable/internal/adapters/postgres",
+      "owner": "timetable-activities",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/application",
+      "owner": "timetable-activities",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/ports",
+      "owner": "timetable-activities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/ports",
+      "owner": "timetable-activities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/http/activities",
+      "owner": "timetable-activities",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/timetable/activitycontract",
+      "owner": "timetable-activities",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain/activityrecords",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/fixturetest",
+      "owner": "timetable-activities",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/internal/domain/schedulerecords",
+      "owner": "timetable-activities",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "activities.categories",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.group_targets",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.groups",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.schedules",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.student_enrollments",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "activities.supervisors",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "education.class_arrival_exceptions",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "education.class_arrival_times",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "education.class_homework",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "education.homework_feedback",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.activity_exceptions",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.activity_instances",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.grade_transition_roster_removals",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.instance_staff",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.instance_students",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.pickup_extension_tasks",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.planning_tracks",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.recurrence_rules",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.timeframes",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.timetable_conflict_acks",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "users.staff_notice_acks",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "users.staff_notices",
+      "write_owner": "timetable-activities"
+    }
+  ],
+  "rules": [
+    {
+      "id": "timetable-activities.http.care-plan-public",
+      "description": "The timetable routes read the care days of the Care Plan owner through its public contract (#3351, #2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.student-presence-public",
+      "description": "Timetable day/week responses map plain Student Presence visits (#2691, #2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.public",
+      "description": "The timetable routes drive the Timetable owner through its public capability (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.tenant-runtime.common",
+      "description": "The timetable routes reuse the shared HTTP runtime of api/common: the tenant and school route groups, the permission gates, request parsing and response rendering, like the other owners' HTTP adapters (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "timetable-activities.http.identity-adapter",
+      "description": "The timetable routes read the authenticated claims and permissions from the session token adapter (ADR 0031, #2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "timetable-activities.http.security-contract",
+      "description": "The timetable routes gate on the permission registry (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "timetable-activities.http.security-public",
+      "description": "The timetable routes decide student read access and permission matches through the Security Runtime capability (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.tenant-runtime",
+      "description": "The timetable routes mark rollbacks and read the request tenant through the tenant runtime (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.settings-public",
+      "description": "The timetable routes resolve the request tenant's settings through the Settings Platform contract (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.adapter-test.identity-adapter",
+      "description": "Timetable route tests mint the claims and permissions the routes read from the session token adapter (ADR 0031, #2732).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "timetable-activities.port-domain",
+      "description": "Timetable & Activities ports express persistence operations using owner domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "timetable-activities.port.student-presence.public",
+      "description": "Timetable & Activities ports name student-presence public values in their dependency types (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compose.orm-sql",
+      "description": "Timetable & Activities composition supplies the Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "timetable-activities.application.school-calendar.public",
+      "description": "Timetable & Activities' staff notices resolve the school calendar's week pattern through its public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.tenant-runtime",
+      "description": "Timetable & Activities' template, materialization and series services read the tenant and its transaction from the tenant runtime (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.transaction-runtime",
+      "description": "Timetable & Activities' application classifies the driver's no-rows result through the transaction runtime's public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.student-presence.public",
+      "description": "Timetable & Activities' conflict detection reads Student Presence's sessions through its public contract, as the composition did (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.module-internal-test.tenant-runtime",
+      "description": "The internal tests of Timetable & Activities' application put the tenant into their context, as the moved code reads it (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compose.tenant-runtime",
+      "description": "Timetable & Activities composition resolves ambient tenant transactions through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.internal-test.tenant-runtime",
+      "description": "Timetable & Activities composition tests verify rollback and tenant isolation through the shared runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.integration-test.support",
+      "description": "Timetable & Activities integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "timetable-activities.integration-test.domain",
+      "description": "Timetable integration tests create retained owner rows.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.http.document-rendering",
+      "description": "The timetable Betreuungsplan export calls the public plan export capability (#2706, #2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compose.student-presence.public",
+      "description": "Replace the retired room-capacity sentinel alias with its public owner (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.school-calendar-public",
+      "description": "The calendar period and closing day routes drive the School Calendar owner's public contract (timetable planning dissolution, ADR 0038, #2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.compose.school-calendar.public",
+      "description": "The schedules HTTP composition serves dateframes from the School Calendar owner's public contract (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "compose",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.production.activity-contract",
+      "description": "Actual native activity values and capability replace retained model and compose declarations.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.workflow-integration-test.internal_test.activity-contract",
+      "description": "Actual native activity values and capability replace retained model and compose declarations.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract",
+      "source_package": "modules/timetable/compose"
+    },
+    {
+      "id": "timetable-activities.activity-contract.public",
+      "description": "The activity capability uses the owner's existing native people and occupancy values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "contract",
+      "source_package": "modules/timetable/activitycontract",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.http.activity-contract",
+      "description": "Owner HTTP uses its native activity capability, following the existing owner HTTP contract shape.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "http",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.http.adapter-test.common",
+      "description": "The unchanged route suites move with their owner HTTP transport, preserving the exact runtime target.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "adapter-test",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "timetable-activities.http.adapter-test.identity-runtime",
+      "description": "The unchanged route suites move with their owner HTTP transport, preserving the exact runtime target.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "adapter-test",
+      "source_package": "modules/timetable/http/activities",
+      "target_owner": "identity-access",
+      "target_role": "http",
+      "target_package": "modules/identityaccess/sessiontoken"
+    },
+    {
+      "id": "timetable-activities.test-support.activity-contract",
+      "description": "The owner fixture seam accepts the standing activity contract; precedent delivery.test-support.native-contracts (#4086).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "timetable-activities.test-support.native-domain",
+      "description": "The owner fixture seam constructs its canonical native rows and error contracts (Round 6, ADR 0069). Same-owner shape: security-runtime.test-support.domain.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "source_package": "modules/timetable/fixturetest",
+      "target_owner": "timetable-activities",
+      "target_role": "domain"
+    },
+    {
+      "id": "timetable-activities.test-support.school-calendar-public",
+      "description": "The owner fixture queries use School Calendar native dateframe filters. Narrow fixture successor of timetable-activities.application.school-calendar.public, ADR 0071.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "test-support",
+      "source_package": "modules/timetable/fixturetest",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "postgres",
+      "source_package": "modules/timetable/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    }
+  ]
+}
