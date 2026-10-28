@@ -941,6 +941,7 @@ function TimetablesContent() {
     data: templateData,
     error: templatesError,
     isLoading: templatesLoading,
+    isValidating: templatesValidating,
   } = useSWRAuth(
     // Regeltermine braucht nur die Serienansicht und das Detailpanel eines
     // Termins (#4996); Woche, Tag und Monat laden sie nicht beim Öffnen.
@@ -950,6 +951,7 @@ function TimetablesContent() {
       ? `timetable-templates-${templatePeriodID}`
       : null,
     () => timetableService.getTemplates(templatePeriodID),
+    { keepPreviousData: false },
   );
   const templatesLoadError = useSwrLoadError(
     templatesError,
@@ -960,19 +962,53 @@ function TimetablesContent() {
     () => templateData?.templates ?? [],
     [templateData?.templates],
   );
+  const connectTemplateID = params.verbinden;
+  const resolveConnectTemplate =
+    !!connectTemplateID && canManageSchedules && view === "series";
+  const needsConnectLookup =
+    resolveConnectTemplate &&
+    !!templateData &&
+    !templates.some((entry) => entry.id === connectTemplateID);
+  // The period-free list is metadata only. Switch periods before using the
+  // normal scoped list, so the editor never receives an unscoped roster.
+  const {
+    data: connectTemplates,
+    error: connectTemplatesError,
+    isValidating: connectTemplatesValidating,
+  } = useSWRAuth(
+    status === "authenticated" && needsConnectLookup
+      ? "timetable-connect-templates"
+      : null,
+    () => timetableService.getTemplates(),
+    { keepPreviousData: false, revalidateOnMount: true },
+  );
+  const connectTemplatesLoadError = useSwrLoadError(
+    needsConnectLookup ? connectTemplatesError : undefined,
+    "den Regeltermin",
+    () => tenantMutate("timetable-connect-templates"),
+  );
   // Abweichungen von den Anmeldungen (#5103): Hinweis an Karte und Termin.
-  const { deviations: rosterDeviations, settled: rosterDeviationsSettled } =
-    useRosterDeviations(
-      templatePeriodID,
-      status === "authenticated",
-      templateData,
-    );
+  const {
+    deviations: rosterDeviations,
+    settled: rosterDeviationsSettled,
+    error: rosterDeviationsError,
+    retry: retryRosterDeviations,
+  } = useRosterDeviations(
+    templatePeriodID,
+    status === "authenticated",
+    templateData,
+    resolveConnectTemplate ? connectTemplateID : null,
+  );
+  const connectLoadError = useSwrLoadError(
+    resolveConnectTemplate ? rosterDeviationsError : undefined,
+    "die Prüfung der Kinderlisten",
+    retryRosterDeviations,
+  );
   const reviewOnly = params.pruefen === "1";
   // „Mit Angebot verbinden“ aus der Rückmeldung nach einer Buchungsänderung
   // (#5137): öffnet einmal den Dialog des Regeltermins. Findet moto kein
   // passendes Angebot, öffnet der Regeltermin zum Bearbeiten; dort lässt sich
   // ein Angebot als Quelle wählen.
-  const connectTemplateID = params.verbinden;
   useEffect(() => {
     if (!connectTemplateID || status !== "authenticated") return;
     // Ohne Planungsrecht gibt es weder Serienansicht noch Dialog.
@@ -980,10 +1016,31 @@ function TimetablesContent() {
       updateUrlParams({ verbinden: null });
       return;
     }
-    if (view !== "series" || !templateData || !rosterDeviationsSettled) return;
-    updateUrlParams({ verbinden: null });
+    if (view !== "series" || !templateData) return;
+    if (templatesError) return;
     const template = templates.find((entry) => entry.id === connectTemplateID);
-    if (!template) return;
+    if (!template) {
+      if (
+        templatesValidating ||
+        !connectTemplates ||
+        connectTemplatesError ||
+        connectTemplatesValidating
+      )
+        return;
+      const linked = connectTemplates.templates.find(
+        (entry) => entry.id === connectTemplateID,
+      );
+      const periodID = linked && resolveTemplateCalendarPeriodId(linked);
+      const period = calendarPeriods.find((entry) => entry.id === periodID);
+      if (period && period.id !== templatePeriodID) {
+        updateUrlParams({ d: period.startDate });
+        return;
+      }
+      updateUrlParams({ verbinden: null });
+      return;
+    }
+    if (!rosterDeviationsSettled) return;
+    updateUrlParams({ verbinden: null });
     const deviation = rosterDeviations.get(template.id);
     if (deviation) {
       setConnecting({ template, deviation });
@@ -1003,6 +1060,13 @@ function TimetablesContent() {
     view,
     templateData,
     rosterDeviationsSettled,
+    templatesError,
+    templatesValidating,
+    connectTemplates,
+    connectTemplatesError,
+    connectTemplatesValidating,
+    calendarPeriods,
+    templatePeriodID,
     rosterDeviations,
     templates,
     canManageSchedules,
@@ -2341,6 +2405,8 @@ function TimetablesContent() {
       }
     >
       <LoadErrorAlert error={periodsLoadError} />
+      <LoadErrorAlert error={connectTemplatesLoadError} />
+      <LoadErrorAlert error={connectLoadError} />
       {/* Ein Ladefehler bei vorhandenen Daten: der Plan bleibt stehen. */}
       {view === "series" ? (
         templateData ? (

@@ -841,6 +841,10 @@ function setupSWR({
   filterGroups = [] as Array<{ id: string; name: string }>,
   filterRooms = [] as Array<{ id: string; name: string }>,
   rosterDeviations,
+  rosterDeviationsValidating = false,
+  rosterDeviationsError,
+  allTemplates = templates,
+  templatesByPeriod,
 }: {
   periods?: Array<typeof period>;
   periodsState?: "ready" | "loading" | "error";
@@ -858,6 +862,10 @@ function setupSWR({
   filterRooms?: Array<{ id: string; name: string }>;
   /** undefined = the deviation read has not answered yet. */
   rosterDeviations?: RosterDeviation[];
+  rosterDeviationsValidating?: boolean;
+  rosterDeviationsError?: Error;
+  allTemplates?: TimetableTemplate[];
+  templatesByPeriod?: Record<string, TimetableTemplate[]>;
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -926,11 +934,22 @@ function setupSWR({
       }
       return { data: { gaps, acknowledged: [] }, isLoading: false };
     }
+    if (key === "timetable-connect-templates") {
+      return { data: { templates: allTemplates }, isValidating: false };
+    }
     if (key.startsWith("timetable-templates")) {
-      return { data: { templates }, isLoading: false };
+      return {
+        data: { templates: templatesByPeriod?.[key] ?? templates },
+        isLoading: false,
+      };
     }
     if (key.startsWith("roster-deviations-")) {
-      return rosterDeviations ? { data: rosterDeviations } : {};
+      return {
+        data: rosterDeviations,
+        isValidating: rosterDeviationsValidating,
+        error: rosterDeviationsError,
+        mutate: () => mockTenantMutate(key),
+      };
     }
     if (key.startsWith("timetable-")) {
       return {
@@ -1309,6 +1328,85 @@ describe("BetreuungsplanView", () => {
     expect(urlParams().get("verbinden")).toBe("7");
     expect(mockEventModalProps).not.toHaveBeenCalledWith(
       expect.objectContaining({ isOpen: true }),
+    );
+  });
+
+  it("waits for fresh deviations instead of using an empty cached list", async () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR({ rosterDeviations: [], rosterDeviationsValidating: true });
+    const { rerender } = render(<BetreuungsplanView />);
+
+    // Anker: die Serienansicht ist geladen, der Link bleibt offen.
+    expect(screen.getByText("create-template")).toBeVisible();
+    expect(urlParams().get("verbinden")).toBe("7");
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
+    );
+
+    setupSWR({ rosterDeviations: [deviation] });
+    rerender(<BetreuungsplanView />);
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeVisible();
+  });
+
+  it("keeps the link on a failed read and connects after retry", async () => {
+    setUrl("view=serien&verbinden=7");
+    setupSWR({
+      rosterDeviationsError: new ApiError("failed", 503, {
+        code: "general.unavailable",
+      }),
+    });
+    const { rerender } = render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByRole("button", { name: /erneut|wiederholen/i }),
+    ).toBeVisible();
+    expect(urlParams().get("verbinden")).toBe("7");
+    expect(mockEventModalProps).not.toHaveBeenCalledWith(
+      expect.objectContaining({ isOpen: true }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /erneut|wiederholen/i }),
+    );
+    expect(mockTenantMutate).toHaveBeenCalledWith(
+      "roster-deviations-5-connect-7",
+    );
+
+    setupSWR({ rosterDeviations: [deviation] });
+    rerender(<BetreuungsplanView />);
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeVisible();
+  });
+
+  it("resolves a linked template in a later planning period", async () => {
+    setUrl("view=serien&verbinden=7");
+    const laterTemplate = {
+      ...template,
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        calendarPeriodId: laterPeriod.id,
+      })),
+    };
+    setupSWR({
+      periods: [period, laterPeriod],
+      templates: [],
+      templatesByPeriod: { "timetable-templates-6": [laterTemplate] },
+      allTemplates: [laterTemplate],
+      rosterDeviations: [deviation],
+    });
+    render(<BetreuungsplanView />);
+
+    expect(
+      await screen.findByRole("dialog", { name: "Mit Angebot verbinden" }),
+    ).toBeVisible();
+    expect(urlParams().get("d")).toBe(laterPeriod.startDate);
+    expect(urlParams().has("verbinden")).toBe(false);
+    expect(mockUseSWRAuth).toHaveBeenCalledWith(
+      "timetable-templates-6",
+      expect.any(Function),
+      expect.objectContaining({ keepPreviousData: false }),
     );
   });
 
