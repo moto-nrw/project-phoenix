@@ -16,7 +16,7 @@ import (
 // ratchet has no allowlist: it rejects "Klasse " + x and "Klasse %s" in any
 // quoted Go string, including raw strings, outside that helper. The demo
 // seeder only parses the prefix and stays outside the scan.
-var handBuiltSchoolClassLabel = regexp.MustCompile("(?:\"[^\"]*|`[^`]*)\\bKlassen? „?(?:\\s*\\+|%[sqv])")
+var handBuiltSchoolClassLabel = regexp.MustCompile("\"[^\"]*\\bKlassen? „?\"\\s*\\+|`[^`]*\\bKlassen? „?`\\s*\\+|(?:\"[^\"]*|`[^`]*)\\bKlassen? „?%[sqv]")
 
 var schoolClassLabelScanExempt = []string{
 	"sharedkernel/collation/",
