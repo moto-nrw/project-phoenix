@@ -17,7 +17,8 @@ import (
 //   - OGS staff and the leadership start groups; a Lehrkraft takes part but
 //     does not start one.
 //   - the person who started a group and the leadership (role kind admin)
-//     rename it and add or remove members; every member may leave.
+//     rename it and add or remove members, as long as they are members
+//     themselves: access stays membership; every member may leave.
 //   - a new member sees the history from the moment they joined.
 
 const (
@@ -183,6 +184,11 @@ func (s *Service) managedGroup(ctx context.Context, threadID int64) (*StaffMessa
 	if thread.Kind != groupKind {
 		return nil, 0, ErrThreadNotFound
 	}
+	// Serialize membership changes on the thread row, so two additions cannot
+	// both pass the size cap and a last leave cannot race an addition.
+	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+		return nil, 0, err
+	}
 	manager, err := s.canManage(ctx, thread, accountID)
 	if err != nil {
 		return nil, 0, err
@@ -298,6 +304,9 @@ func (s *Service) LeaveGroup(ctx context.Context, threadID int64) error {
 	}
 	if thread.Kind != groupKind {
 		return ErrThreadNotFound
+	}
+	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+		return err
 	}
 	if err := s.Groups.RemoveStaffParticipant(ctx, threadID, accountID); err != nil {
 		return err

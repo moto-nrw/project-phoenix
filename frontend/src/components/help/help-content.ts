@@ -2083,7 +2083,7 @@ function teamChatTopic(): HelpTopic {
       {
         title: "Mitglieder ändern oder den Gruppenchat verlassen",
         description:
-          "Mitglieder und Namen ändern die Person, die den Gruppenchat angelegt hat, und die OGS-Leitung.",
+          "Mitglieder und Namen ändern die Person, die den Gruppenchat angelegt hat, und die OGS-Leitung, wenn sie Mitglied ist.",
         ordered: true,
         steps: [
           "Öffnen Sie den Gruppenchat.",

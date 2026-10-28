@@ -61,8 +61,11 @@ func (rs *Resource) renameGroup(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	body, _, ok := decodeGroupRequest(w, r)
-	if !ok {
+	var body struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	detail, err := rs.Service.RenameStaffMessageGroup(r.Context(), threadID, body.Name)

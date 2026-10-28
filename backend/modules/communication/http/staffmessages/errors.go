@@ -70,13 +70,13 @@ var staffMessagingErrorRules = []common.ErrorRule{
 		return common.ErrorForbiddenMessageWithCode("only the creator and the leadership may manage this group", common.CodeCommunicationStaffGroupManageForbidden)
 	}},
 	{Target: communication.ErrStaffMessageGroupNameInvalid, Render: func(_ error) render.Renderer {
-		return common.ErrorInvalidRequestMessageWithCode("group name must not be empty or longer than 80 characters", common.CodeCommunicationStaffGroupNameInvalid)
+		return common.ErrorInvalidRequestMessageWithCode("group name is empty or too long", common.CodeCommunicationStaffGroupNameInvalid)
 	}},
 	{Target: communication.ErrStaffMessageGroupMembersRequired, Render: func(_ error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode("choose at least one new member", common.CodeCommunicationStaffGroupMembersRequired)
 	}},
 	{Target: communication.ErrStaffMessageGroupTooLarge, Render: func(_ error) render.Renderer {
-		return common.ErrorInvalidRequestMessageWithCode("a group has at most 100 members", common.CodeCommunicationStaffGroupTooLarge)
+		return common.ErrorInvalidRequestMessageWithCode("too many members for one group", common.CodeCommunicationStaffGroupTooLarge)
 	}},
 	{Target: communication.ErrStaffMessagingNoActor, Render: func(_ error) render.Renderer {
 		return common.ErrorForbiddenMessage("Bitte melden Sie sich erneut an.")

@@ -32,8 +32,9 @@ func init() {
 //   - name holds the group's display name; a direct chat has none, a group
 //     must have one (chk_staff_message_threads_group_name).
 //   - created_by_account_id records who started the group: that person and
-//     the school leadership may manage members and the name. SET NULL on
-//     account deletion keeps the group; only the leadership manages it then.
+//     the school leadership (when a member) may manage members and the name.
+//     SET NULL on account deletion keeps the group; then only members of the
+//     leadership manage it.
 //   - history_from on a participant row is the instant the member joined a
 //     group. Messages before it stay invisible to them and never count as
 //     unread. NULL means the whole history (every direct chat participant).
