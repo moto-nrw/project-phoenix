@@ -1,10 +1,15 @@
 import { act, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import {
   DISCARDED_WRITE_MESSAGE,
-  SessionEndNotice,
-} from "./session-end-notice";
+  NotificationBridge,
+} from "./notification-bridge";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn() }),
+  useParams: () => ({}),
+}));
 
 function sessionEnd(ending: boolean, discardedWrites: number) {
   act(() => {
@@ -17,11 +22,11 @@ function sessionEnd(ending: boolean, discardedWrites: number) {
 }
 
 // A logout that leaves the tab open discards the writes it held (#5126).
-describe("SessionEndNotice", () => {
+describe("NotificationBridge session-end notice", () => {
   it("says once that a held change was not saved", () => {
     render(
       <ToastProvider>
-        <SessionEndNotice />
+        <NotificationBridge />
       </ToastProvider>,
     );
     sessionEnd(true, 0);

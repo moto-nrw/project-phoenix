@@ -566,7 +566,7 @@ function useApiErrorCore(
   const show = useCallback(
     async (error: unknown, options: ApiErrorDisplayOptions) => {
       // A logout discarded the request and reports it once itself
-      // (SessionEndNotice); a second message here would only repeat it.
+      // (NotificationBridge); a second message here would only repeat it.
       if (discardedBySessionEnd(error)) return;
       const version = showVersion.current + 1;
       showVersion.current = version;

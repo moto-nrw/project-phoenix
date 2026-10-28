@@ -38,6 +38,7 @@ type Phase = "open" | "holding" | "cookie-deleted";
 
 interface HeldRequest {
   write: boolean;
+  cleanup: () => void;
   reject: (reason: unknown) => void;
 }
 
@@ -83,6 +84,7 @@ function reset(): void {
   const queue = held;
   held = [];
   for (const request of queue) {
+    request.cleanup();
     const error = new DOMException(
       "The logout discarded this request",
       "AbortError",
@@ -130,10 +132,31 @@ export function installSessionEndBarrier(): void {
     const method = requestMethod(input, init);
     if (phase === "holding" && !SIGN_OUT_PATHS.has(url.pathname)) {
       return new Promise<Response>((_resolve, reject) => {
-        held.push({
-          write: !["GET", "HEAD", "OPTIONS"].includes(method),
+        const signal =
+          init?.signal !== undefined
+            ? init.signal
+            : input instanceof Request
+              ? input.signal
+              : undefined;
+        if (signal?.aborted) {
+          reject(signal.reason);
+          return;
+        }
+        const abort = () => {
+          held = held.filter((entry) => entry !== request);
+          request.cleanup();
+          reject(signal?.reason);
+        };
+        const request: HeldRequest = {
+          // Background telemetry is not an unsaved user change.
+          write:
+            url.pathname !== "/api/logs" &&
+            !["GET", "HEAD", "OPTIONS"].includes(method),
+          cleanup: () => signal?.removeEventListener("abort", abort),
           reject,
-        });
+        };
+        held.push(request);
+        signal?.addEventListener("abort", abort, { once: true });
       });
     }
 

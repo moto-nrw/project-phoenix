@@ -2,9 +2,14 @@
 
 import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useToast } from "~/contexts/ToastContext";
+import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import type { PhoenixNotificationDetail } from "~/lib/notification-events";
 import { installRateLimitFetchGuard } from "~/lib/rate-limit-backoff";
+import {
+  installSessionEndBarrier,
+  SESSION_END_EVENT,
+  type SessionEndDetail,
+} from "~/lib/session-end-barrier";
 import { tenantAwarePath } from "~/lib/tenant-path";
 
 export type { PhoenixNotificationDetail } from "~/lib/notification-events";
@@ -45,12 +50,28 @@ export function tenantNotificationPath(
   return tenantAwarePath(path, tenantSlug, routingMode);
 }
 
+export const DISCARDED_WRITE_MESSAGE =
+  "Ihre letzte Änderung wurde nicht gespeichert, weil Sie gerade abgemeldet wurden. Bitte speichern Sie sie noch einmal.";
+
 export function NotificationBridge() {
+  const { showMessage } = useApiErrorDisplay();
+
+  useEffect(() => {
+    const onSessionEnd = (event: Event) => {
+      const detail = (event as CustomEvent<SessionEndDetail>).detail;
+      if (!detail.ending && detail.discardedWrites > 0)
+        showMessage(DISCARDED_WRITE_MESSAGE);
+    };
+    window.addEventListener(SESSION_END_EVENT, onSessionEnd);
+    return () => window.removeEventListener(SESSION_END_EVENT, onSessionEnd);
+  }, [showMessage]);
+
   const toast = useToast();
   const router = useRouter();
   const { tenant: tenantSlug } = useParams<{ tenant?: string }>();
 
   useEffect(() => installRateLimitFetchGuard(), []);
+  useEffect(installSessionEndBarrier, []);
 
   useEffect(() => {
     const onNotification = (event: Event) => {

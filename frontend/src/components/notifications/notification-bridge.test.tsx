@@ -18,6 +18,7 @@ const useParams = vi.hoisted(() => vi.fn(() => ({})));
 
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => toast,
+  useApiErrorDisplay: () => ({ showMessage: vi.fn() }),
 }));
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerPush }),

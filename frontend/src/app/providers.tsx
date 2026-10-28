@@ -4,7 +4,6 @@ import { useEffect } from "react";
 import { ModalProvider } from "@/components/dashboard/modal-context";
 import { NotificationBridge } from "~/components/notifications/notification-bridge";
 import { ServiceWorkerRegistrar } from "~/components/notifications/service-worker-registrar";
-import { SessionEndNotice } from "~/components/notifications/session-end-notice";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { schedulePostHogInitialization } from "~/lib/posthog-client";
 
@@ -26,7 +25,6 @@ export function Providers({
     <ModalProvider>
       <ToastProvider>
         <NotificationBridge />
-        <SessionEndNotice />
         <ServiceWorkerRegistrar />
         {children}
       </ToastProvider>

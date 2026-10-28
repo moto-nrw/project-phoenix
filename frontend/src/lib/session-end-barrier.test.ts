@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionEndDetail } from "./session-end-barrier";
 
 vi.unmock("~/lib/session-end-barrier");
+vi.mock("./api-url", () => ({ resolveApiUrl: async (path: string) => path }));
 
 // Every authenticated BFF answer carries the session cookie again. A logout
 // holds the tab's requests and waits for those in flight, so no answer lands
@@ -149,6 +150,57 @@ describe("session end barrier", () => {
         new DOMException("superseded", "AbortError"),
       ),
     ).toBe(false);
+  });
+
+  it("honors init and Request cancellation without counting cancelled writes", async () => {
+    const barrier = await loadBarrier();
+    const cancel = await barrier.holdRequestsUntilSessionEnds();
+    const alreadyAborted = new AbortController();
+    alreadyAborted.abort();
+    await expect(
+      window.fetch("/api/groups", {
+        method: "POST",
+        signal: alreadyAborted.signal,
+      }),
+    ).rejects.toBe(alreadyAborted.signal.reason);
+    for (const useRequest of [false, true]) {
+      const controller = new AbortController();
+      const options = { method: "POST", signal: controller.signal };
+      const request = useRequest
+        ? window.fetch(
+            new Request(new URL("/api/groups", window.location.href), options),
+          )
+        : window.fetch("/api/groups", options);
+      controller.abort();
+      await expect(request).rejects.toBe(controller.signal.reason);
+    }
+    cancel();
+    expect(sent).toEqual([]);
+    expect(phases.at(-1)).toEqual({ ending: false, discardedWrites: 0 });
+  });
+
+  it("holds background logs without reporting them as discarded user changes", async () => {
+    const barrier = await loadBarrier();
+    const cancel = await barrier.holdRequestsUntilSessionEnds();
+    const logs = window.fetch("/api/logs?batch=1", { method: "POST" });
+    cancel();
+    await expect(logs).rejects.toMatchObject({ name: "AbortError" });
+    expect(sent).toEqual([]);
+    expect(phases.at(-1)).toEqual({ ending: false, discardedWrites: 0 });
+  });
+
+  it("retains discarded identity through the student update service", async () => {
+    const barrier = await loadBarrier();
+    const { studentService } = await import("./api");
+    const cancel = await barrier.holdRequestsUntilSessionEnds();
+    const update = studentService.updateStudent("1", {});
+    await flush();
+    cancel();
+    const error = await update.catch((cause: unknown) => cause);
+    expect(error).toBeInstanceOf(Error);
+    expect(barrier.discardedBySessionEnd(error)).toBe(true);
+    expect(sent).toEqual([]);
+    expect(phases.at(-1)).toEqual({ ending: false, discardedWrites: 1 });
   });
 
   it("resets when the navigation after sign-out is aborted", async () => {
