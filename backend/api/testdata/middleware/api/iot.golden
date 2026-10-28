@@ -1,0 +1,56 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > api.iotMetricsMiddleware > api.gateDeviceAuthentication.# > api.iotAuthTiming
+	POST /api/iot/error-reports
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > api.iotMetricsMiddleware > api.gateDeviceAuthentication.# > api.iotAuthTiming > api/common.TenantTxMiddleware > api.iotTxTiming
+	GET /api/iot/activities
+	GET /api/iot/config
+	GET /api/iot/rfid/{tagId}
+	GET /api/iot/rooms/available
+	GET /api/iot/school-name
+	GET /api/iot/status
+	GET /api/iot/students
+	POST /api/iot/checkin
+	POST /api/iot/feedback
+	POST /api/iot/move-to-room
+	POST /api/iot/pickup-query
+	POST /api/iot/ping
+	POST /api/iot/staff-clock
+	POST /api/iot/staff-clock/state
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > api.iotMetricsMiddleware > api.gateDeviceAuthentication.# > api.iotAuthTiming > api/common.TenantTxMiddleware > api.iotTxTiming > github.com/go-chi/render.SetContentType.#
+	DELETE /api/iot/staff/{staffId}/rfid
+	GET /api/iot/attendance/status/{rfid}
+	GET /api/iot/session/current
+	GET /api/iot/session/timeout-info
+	GET /api/iot/teachers/
+	POST /api/iot/attendance/toggle
+	POST /api/iot/session/activity
+	POST /api/iot/session/check-conflict
+	POST /api/iot/session/end
+	POST /api/iot/session/start
+	POST /api/iot/session/timeout
+	POST /api/iot/session/validate-timeout
+	POST /api/iot/staff/{staffId}/rfid
+	PUT /api/iot/session/{sessionId}/supervisors
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > api/common.TenantTxMiddleware > github.com/go-chi/render.SetContentType.# > api/common.requirePermissions.#
+	DELETE /api/iot/*/{id}
+	GET /api/iot/*/
+	GET /api/iot/*/active
+	GET /api/iot/*/device/{deviceId}
+	GET /api/iot/*/maintenance
+	GET /api/iot/*/offline
+	GET /api/iot/*/registered-by/{personId}
+	GET /api/iot/*/statistics
+	GET /api/iot/*/status/{status}
+	GET /api/iot/*/type/{type}
+	GET /api/iot/*/{id}
+	PATCH /api/iot/*/{deviceId}/status
+	POST /api/iot/*/
+	POST /api/iot/*/detect-new
+	POST /api/iot/*/scan-network
+	POST /api/iot/*/{deviceId}/ping
+	PUT /api/iot/*/{id}

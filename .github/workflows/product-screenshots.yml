@@ -38,6 +38,11 @@ on:
         description: "Release-Version, etwa 1.4.0 (leer: neuestes Release)"
         required: false
         type: string
+      capture_workers:
+        description: "Aufnahme-Parallelität (1 für seriellen Vergleich)"
+        type: choice
+        options: ["4", "2", "1"]
+        default: "4"
   workflow_call:
     inputs:
       version:
@@ -148,7 +153,7 @@ jobs:
       # The schedulers would mutate seeded rows before the capture.
       CLEANUP_SCHEDULER_ENABLED: "false"
       SESSION_END_SCHEDULER_ENABLED: "false"
-      # --- Frontend: `next dev`, wie lokal (scripts/dev-native.sh) ---
+      # --- Frontend: Production-Build/Server mit Wegwerf-Entwicklungsdaten ---
       API_URL: http://localhost:8080
       NEXT_PUBLIC_API_URL: http://localhost:8080
       NEXT_PUBLIC_TENANT_DOMAIN: localhost
@@ -341,12 +346,26 @@ jobs:
             --clock-command "${RUNNER_TEMP}/set-clock"
           echo "Uhr der VM nach der Simulation: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
+      # Erst nach der Simulation: Deren Uhrsprünge dürfen keinen laufenden
+      # Build treffen. Der Production-Server kompiliert beim Fotografieren
+      # keine Seiten oder API-Routen mehr nach; das Datenprofil bleibt dev.
+      - name: Build frontend for capture
+        working-directory: frontend
+        env:
+          NODE_ENV: production
+        run: |
+          build_started=$(node -p 'process.hrtime.bigint().toString()')
+          pnpm run build
+          build_finished=$(node -p 'process.hrtime.bigint().toString()')
+          echo "Frontend production build completed in $(( (build_finished - build_started) / 1000000 )) ms"
+
       - name: Start frontend
         working-directory: frontend
         env:
           PORT: "3000"
+          NODE_ENV: production
         run: |
-          pnpm run dev > "${RUNNER_TEMP}/frontend.log" 2>&1 &
+          pnpm run start > "${RUNNER_TEMP}/frontend.log" 2>&1 &
           echo $! > "${RUNNER_TEMP}/frontend.pid"
           for _ in $(seq 1 180); do
             if curl -fsS -o /dev/null http://localhost:3000/help; then
@@ -363,7 +382,8 @@ jobs:
         env:
           SHOT_OUT: ${{ runner.temp }}/product-screenshots
           SHOT_VERSION: ${{ steps.version.outputs.version }}
-        run: pnpm run generate:screenshots
+          CAPTURE_WORKERS: ${{ inputs.capture_workers || '4' }}
+        run: pnpm run generate:screenshots --workers="$CAPTURE_WORKERS"
 
       # Vor jedem Upload: Artefakt-Dienst und TLS erwarten die echte Zeit.
       - name: Restore the runner clock

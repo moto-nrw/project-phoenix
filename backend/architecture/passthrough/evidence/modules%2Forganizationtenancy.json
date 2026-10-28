@@ -1,0 +1,487 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (d DemoSchoolAccess) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {\n\tif slug == d.standing {\n\t\treturn nil\n\t}\n\treturn d.orders.MarkDemoSchoolUsed(ctx, slug, usedAt)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchoolAccess.MarkDemoSchoolUsed",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d DemoSchoolAccess) PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {\n\tif d.standing != \"\" {\n\t\treturn d.standing, nil\n\t}\n\treturn d.orders.OrderDemoSchool(ctx, schoolName, firstName, lastName)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchoolAccess.PrepareDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d DemoSchoolAccess) ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (string, error) {\n\tif d.standing != \"\" || slug == StandingDemoSchoolSlug {\n\t\treturn \"\", ErrDemoRestartRefused\n\t}\n\tif err := d.orders.RetireDemoSchool(ctx, slug); err != nil {\n\t\treturn \"\", err\n\t}\n\treturn d.PrepareDemoSchool(ctx, schoolName, firstName, lastName)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchoolAccess.ReplaceDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchoolOrders) DemoSchoolProgress(ctx context.Context, slug string) (*DemoSchoolProgress, error) {\n\treturn d.engine.DemoSchoolProgress(ctx, slug)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/DemoSchoolOrders.DemoSchoolProgress",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchoolOrders) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {\n\treturn d.engine.MarkDemoSchoolUsed(ctx, slug, usedAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/DemoSchoolOrders.MarkDemoSchoolUsed",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchoolOrders) OrderDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {\n\tif schoolName == \"\" || firstName == \"\" || lastName == \"\" {\n\t\treturn \"\", fmt.Errorf(\"demo school name and the visitor's first and last name are required\")\n\t}\n\treturn d.engine.OrderDemoSchool(ctx, schoolName, firstName, lastName)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchoolOrders.OrderDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchoolOrders) RetireDemoSchool(ctx context.Context, slug string) error {\n\tif slug == \"\" {\n\t\treturn fmt.Errorf(\"demo school slug is required\")\n\t}\n\treturn d.engine.RetireDemoSchool(ctx, slug)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchoolOrders.RetireDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchools) LoadDemoSchool(ctx context.Context, name string) (*DemoSchoolState, error) {\n\tif name == \"\" {\n\t\treturn nil, fmt.Errorf(\"demo school name is required\")\n\t}\n\treturn d.engine.LoadDemoSchool(ctx, name)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchools.LoadDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchools) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {\n\tif name == \"\" || state.SchoolID \u003c= 0 || len(state.SeedJSON) == 0 {\n\t\treturn fmt.Errorf(\"demo school name, school ID and seed state are required\")\n\t}\n\treturn d.engine.RememberDemoSchool(ctx, name, state)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchools.RememberDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchools) ReserveDemoSchool(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error {\n\tif name == \"\" || schoolID \u003c= 0 {\n\t\treturn fmt.Errorf(\"demo school name and school ID are required\")\n\t}\n\treturn d.engine.ReserveDemoSchool(ctx, name, schoolID, visitorAccountID, visitorParentAccountID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchools.ReserveDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchools) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {\n\tif name == \"\" || state.SchoolID \u003c= 0 || len(state.SeedJSON) == 0 {\n\t\treturn fmt.Errorf(\"demo school name, school ID and seed state are required\")\n\t}\n\treturn d.engine.UpdateDemoSchool(ctx, name, state)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchools.UpdateDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {\n\tif name == \"\" || run == nil {\n\t\treturn fmt.Errorf(\"demo lease name and callback are required\")\n\t}\n\treturn d.engine.WithDemoLease(ctx, name, run)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/DemoSchools.WithDemoLease",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *identityStoreFailure) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/identityStoreFailure.Error",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *BillingResource) GetKeyDay(w http.ResponseWriter, r *http.Request) {\n\tkeyDay, err := rs.service.BillingKeyDay(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, rs.billingError(r, err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, toBillingKeyDayResponse(keyDay), \"Billing key day retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/BillingResource.GetKeyDay",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *BillingResource) ListKeyDateCounts(w http.ResponseWriter, r *http.Request) {\n\tcounts, err := rs.service.ListBillingKeyDateCounts(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, rs.billingError(r, err))\n\t\treturn\n\t}\n\tresult := make([]billingKeyDateCountResponse, 0, len(counts))\n\tfor _, count := range counts {\n\t\tresult = append(result, toBillingKeyDateCountResponse(count))\n\t}\n\tcommon.Respond(w, r, http.StatusOK, result, \"Billing key-date counts retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/BillingResource.ListKeyDateCounts",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *BillingResource) SeedKeyDateCounts(w http.ResponseWriter, r *http.Request) {\n\tif rs.isLocalSeedRequest == nil || !rs.isLocalSeedRequest(r) {\n\t\tcommon.RenderError(w, r, common.OperatorForbidden(\"Die Demo-Erfassung ist nur lokal verfügbar.\"))\n\t\treturn\n\t}\n\twritten, err := rs.service.SeedBillingKeyDateCounts(r.Context(), time.Now())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, rs.billingError(r, err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusCreated, map[string]int{\"written\": written}, \"Demo-Stichtagszahlen erfasst\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/BillingResource.SeedKeyDateCounts",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *BillingResource) UpdateKeyDay(w http.ResponseWriter, r *http.Request) {\n\treq := \u0026updateBillingKeyDayRequest{}\n\tif err := render.Bind(r, req); err != nil {\n\t\tcommon.RenderError(w, r, common.OperatorInvalidRequest(err))\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\tkeyDay, err := rs.service.SetBillingKeyDay(r.Context(), *req.KeyDay, operatorID)\n\tif err != nil {\n\t\tcommon.RenderError(w, r, rs.billingError(r, err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, toBillingKeyDayResponse(keyDay), \"Billing key day updated successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/BillingResource.UpdateKeyDay",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) DeleteDevice(w http.ResponseWriter, r *http.Request) {\n\tdeviceID, ok := common.ParseInt64IDWithError(w, r, \"id\", invalidDeviceIDMessage)\n\tif !ok {\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\terr := rs.service.DeleteDevice(r.Context(), deviceID, operatorID, common.ParseClientIP(r))\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, nil, \"Device deleted successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.DeleteDevice",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) GetDeviceTransferStatus(w http.ResponseWriter, r *http.Request) {\n\tdeviceID, ok := common.ParseInt64IDWithError(w, r, \"id\", invalidDeviceIDMessage)\n\tif !ok {\n\t\treturn\n\t}\n\tstatus, err := rs.service.GetDeviceTransferStatus(r.Context(), deviceID)\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, status, \"Device transfer status retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.GetDeviceTransferStatus",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) GetProvisioningStats(w http.ResponseWriter, r *http.Request) {\n\tstats, err := rs.service.GetProvisioningStats(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, stats, \"Provisioning stats retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.GetProvisioningStats",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) ListAllAccounts(w http.ResponseWriter, r *http.Request) {\n\taccounts, err := rs.service.ListAllAccounts(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, accounts, \"All accounts retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListAllAccounts",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) ListAllDevices(w http.ResponseWriter, r *http.Request) {\n\tdevices, err := rs.service.ListAllDevices(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, devices, \"All devices retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListAllDevices",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) ListOrganizationSummaries(w http.ResponseWriter, r *http.Request) {\n\tsummaries, err := rs.service.ListOrganizationSummaries(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, summaries, \"Organization summaries retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListOrganizationSummaries",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) ListOrganizations(w http.ResponseWriter, r *http.Request) {\n\torganizations, err := rs.service.ListOrganizations(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, organizations, \"Organizations retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListOrganizations",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) ListSchoolSummaries(w http.ResponseWriter, r *http.Request) {\n\tsummaries, err := rs.service.ListSchoolSummaries(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, summaries, \"School summaries retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListSchoolSummaries",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) ListSchools(w http.ResponseWriter, r *http.Request) {\n\tschools, err := rs.service.ListSchools(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, schools, \"Schools retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListSchools",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) ListSystemRoles(w http.ResponseWriter, r *http.Request) {\n\troles, err := rs.service.ListSystemRoles(r.Context())\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, roles, \"System roles retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.ListSystemRoles",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) RestoreOrganization(w http.ResponseWriter, r *http.Request) {\n\torgID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\tif err := rs.service.RestoreOrganization(r.Context(), orgID, operatorID, common.ParseClientIP(r)); err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, nil, \"Organization restored successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RestoreOrganization",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) RestoreSchool(w http.ResponseWriter, r *http.Request) {\n\tschoolID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid school ID\")\n\tif !ok {\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\tif err := rs.service.RestoreSchool(r.Context(), schoolID, operatorID, common.ParseClientIP(r)); err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, nil, \"School restored successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.RestoreSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) SoftDeleteOrganization(w http.ResponseWriter, r *http.Request) {\n\torgID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid organization ID\")\n\tif !ok {\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\tif err := rs.service.SoftDeleteOrganization(r.Context(), orgID, operatorID, common.ParseClientIP(r)); err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.RespondNoContent(w, r)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.SoftDeleteOrganization",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) SoftDeletePerson(w http.ResponseWriter, r *http.Request) {\n\tpersonID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid person ID\")\n\tif !ok {\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\terr := rs.service.SoftDeletePerson(r.Context(), personID, operatorID, common.ParseClientIP(r))\n\tif err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, nil, \"Person deleted successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.SoftDeletePerson",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *ProvisioningResource) SoftDeleteSchool(w http.ResponseWriter, r *http.Request) {\n\tschoolID, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid school ID\")\n\tif !ok {\n\t\treturn\n\t}\n\toperatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)\n\tif err := rs.service.SoftDeleteSchool(r.Context(), schoolID, operatorID, common.ParseClientIP(r)); err != nil {\n\t\tcommon.RenderError(w, r, ProvisioningErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.RespondNoContent(w, r)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/inbound/operator/ProvisioningResource.SoftDeleteSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoOrderEngine) DemoSchoolProgress(ctx context.Context, slug string) (*organizationtenancy.DemoSchoolProgress, error) {\n\tprogress, err := e.Store.Progress(ctx, slug)\n\tif err != nil || progress == nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026organizationtenancy.DemoSchoolProgress{Status: progress.Status, SchoolID: progress.TenantID, VisitorAccountID: progress.VisitorAccountID, VisitorParentAccountID: progress.VisitorParentAccountID}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoOrderEngine.DemoSchoolProgress",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoOrderEngine) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {\n\treturn e.Store.MarkUsed(ctx, slug, usedAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoOrderEngine.MarkDemoSchoolUsed",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoOrderEngine) RetireDemoSchool(ctx context.Context, slug string) error {\n\treturn e.Store.Retire(ctx, slug)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoOrderEngine.RetireDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error) {\n\treturn e.Store.ActiveNames(ctx, since)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ActiveDemoSchools",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) ClaimDemoSchoolOrder(ctx context.Context) (*organizationtenancy.DemoSchoolOrder, error) {\n\torder, err := e.Store.Claim(ctx)\n\tif err != nil || order == nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026organizationtenancy.DemoSchoolOrder{Slug: order.Name, SchoolName: order.SchoolName, FirstName: order.FirstName, LastName: order.LastName, Attempts: order.Attempts, Seeded: order.Seeded}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ClaimDemoSchoolOrder",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (bool, error) {\n\treturn e.Store.Fail(ctx, slug, maxAttempts)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.FailDemoSchoolOrder",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {\n\treturn e.Store.Finish(ctx, slug, visitorAccountID, visitorParentAccountID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.FinishDemoSchoolOrder",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) ReadyDemoSchools(ctx context.Context) ([]string, error) {\n\treturn e.Store.ReadyNames(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ReadyDemoSchools",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) ReleaseDemoSchoolOrders(ctx context.Context) error {\n\treturn e.Store.ReleaseClaims(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ReleaseDemoSchoolOrders",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) RequeueDeferredDemoSchoolOrder(ctx context.Context, slug string) error {\n\treturn e.Store.RequeueDeferred(ctx, slug)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.RequeueDeferredDemoSchoolOrder",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) RequeueDeferredDemoSchoolOrders(ctx context.Context) error {\n\treturn e.Store.RequeueDeferred(ctx, \"\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.RequeueDeferredDemoSchoolOrders",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) RetireDemoSchools(ctx context.Context, slugs []string) (int, int, error) {\n\treturn e.Store.RetireMany(ctx, slugs)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.RetireDemoSchools",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoQueueEngine) ReturnDemoSchoolOrder(ctx context.Context, slug string) error {\n\treturn e.Store.Return(ctx, slug)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoQueueEngine.ReturnDemoSchoolOrder",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoStateEngine) LoadDemoSchool(ctx context.Context, name string) (*organizationtenancy.DemoSchoolState, error) {\n\tstate, err := e.Store.Load(ctx, name)\n\tif err != nil || state == nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026organizationtenancy.DemoSchoolState{SchoolID: state.TenantID, SeedJSON: []byte(state.SeedJSON), VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.LoadDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoStateEngine) RememberDemoSchool(ctx context.Context, name string, state organizationtenancy.DemoSchoolState) error {\n\treturn e.Store.Remember(ctx, name, DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON), VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.RememberDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoStateEngine) ReserveDemoSchool(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error {\n\treturn e.Store.Reserve(ctx, name, schoolID, visitorAccountID, visitorParentAccountID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.ReserveDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoStateEngine) UpdateDemoSchool(ctx context.Context, name string, state organizationtenancy.DemoSchoolState) error {\n\treturn e.Store.Update(ctx, name, DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON), VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.UpdateDemoSchool",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoStateEngine) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {\n\tacquired, err := e.Store.WithLease(ctx, name, run)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif !acquired {\n\t\treturn organizationtenancy.ErrDemoAlreadyRunning\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateEngine.WithDemoLease",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoStateStore) ActiveNames(ctx context.Context, since time.Time) ([]string, error) {\n\tvar names []string\n\terr := s.db.NewRaw(`SELECT state.name FROM platform.demo_school_states AS state\n\t\tJOIN platform.schools AS school ON school.id = state.tenant_id\n\t\tWHERE state.status = 'ready' AND school.deleted_at IS NULL AND state.last_used_at \u003e= ?\n\t\tORDER BY state.created_at, state.name`, since).Scan(ctx, \u0026names)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"list demo schools in use: %w\", err)\n\t}\n\treturn names, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.ActiveNames",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccountID, visitorParentAccountID int64) error {\n\t_, err := s.db.NewRaw(`UPDATE platform.demo_school_states\n\t\tSET status = 'ready', claimed_at = NULL,\n\t\t\tvisitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0),\n\t\t\tvisitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),\n\t\t\tvisitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL),\n\t\t\tvisitor_school_ids = array_remove(visitor_school_ids || ARRAY[tenant_id], NULL)\n\t\tWHERE name = ?`, visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"finish demo school order: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.Finish",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoStateStore) Load(ctx context.Context, name string) (*DemoState, error) {\n\tvar state DemoState\n\terr := s.db.NewRaw(`SELECT tenant_id, seed_state, COALESCE(visitor_account_id, 0) AS visitor_account_id,\n\t\tCOALESCE(visitor_parent_account_id, 0) AS visitor_parent_account_id\n\t\tFROM platform.demo_school_states WHERE name = ? AND seed_state IS NOT NULL`, name).Scan(ctx, \u0026state)\n\tif errors.Is(err, sql.ErrNoRows) {\n\t\treturn nil, nil\n\t}\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"load demo school state: %w\", err)\n\t}\n\treturn \u0026state, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.Load",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoStateStore) ReadyNames(ctx context.Context) ([]string, error) {\n\tvar names []string\n\terr := s.db.NewRaw(`SELECT state.name FROM platform.demo_school_states AS state\n\t\tJOIN platform.schools AS school ON school.id = state.tenant_id\n\t\tWHERE state.status = 'ready' AND school.deleted_at IS NULL ORDER BY state.created_at, state.name`).Scan(ctx, \u0026names)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"list demo schools: %w\", err)\n\t}\n\treturn names, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.ReadyNames",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoStateStore) ReleaseClaims(ctx context.Context) error {\n\t_, err := s.db.NewRaw(`UPDATE platform.demo_school_states SET claimed_at = NULL WHERE status = 'preparing' AND claimed_at IS NOT NULL`).Exec(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"release demo school orders: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.ReleaseClaims",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (hidden, erased int, err error) {\n\tvar result struct {\n\t\tHidden int `bun:\"hidden\"`\n\t\tErased int `bun:\"erased\"`\n\t}\n\tif err := s.db.NewRaw(`SELECT hidden, erased FROM platform.retire_expired_demo_schools(?::text[])`, pgdialect.Array(names)).Scan(ctx, \u0026result); err != nil {\n\t\treturn 0, 0, fmt.Errorf(\"retire demo schools: %w\", err)\n\t}\n\treturn result.Hidden, result.Erased, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.RetireMany",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoStateStore) Return(ctx context.Context, name string) error {\n\t_, err := s.db.NewRaw(`UPDATE platform.demo_school_states SET claimed_at = NULL, attempts = GREATEST(attempts - 1, 0)\n\t\tWHERE name = ? AND status = 'preparing'`, name).Exec(ctx)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"return demo school order: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoStateStore.Return",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *Provisioning) ListAllAccounts(ctx context.Context) ([]organizationtenancy.OrganizationAccount, error) {\n\treturn adminValue(ctx, p, func(adminCtx context.Context) ([]organizationtenancy.OrganizationAccount, error) {\n\t\taccounts, err := p.identity.ListAllAccounts(adminCtx)\n\t\treturn organizationAccounts(accounts), err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListAllAccounts",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *Provisioning) ListOrganizationDevices(ctx context.Context, organizationID int64) ([]organizationtenancy.OperatorDevice, error) {\n\treturn adminValue(ctx, p, func(adminCtx context.Context) ([]organizationtenancy.OperatorDevice, error) {\n\t\torganization, err := p.organizations.FindOrganization(adminCtx, organizationID)\n\t\tif err != nil {\n\t\t\treturn nil, mapOrganizationError(err, organizationID)\n\t\t}\n\t\tif organization.IsDeleted() {\n\t\t\treturn nil, \u0026organizationtenancy.OrganizationDeletedError{OrganizationID: organizationID}\n\t\t}\n\t\treturn p.listDevices(adminCtx, deviceFilter{organizationID: \u0026organizationID})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListOrganizationDevices",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *Provisioning) ListOrganizationSchoolSummaries(ctx context.Context, organizationID int64) ([]*organizationtenancy.SchoolSummary, error) {\n\treturn adminValue(ctx, p, func(adminCtx context.Context) ([]*organizationtenancy.SchoolSummary, error) {\n\t\tif _, err := p.organizations.FindOrganization(adminCtx, organizationID); err != nil {\n\t\t\treturn nil, mapOrganizationError(err, organizationID)\n\t\t}\n\t\treturn p.schoolSummaries(adminCtx, \u0026organizationID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListOrganizationSchoolSummaries",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *Provisioning) ListPWAUsage(ctx context.Context, window time.Duration) ([]organizationtenancy.SchoolPWAUsageRow, error) {\n\treturn adminValue(ctx, p, func(adminCtx context.Context) ([]organizationtenancy.SchoolPWAUsageRow, error) {\n\t\trows, err := p.dashboard.AllSchoolsPWAUsage(adminCtx, window)\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\tresult := make([]organizationtenancy.SchoolPWAUsageRow, 0, len(rows))\n\t\tfor _, row := range rows {\n\t\t\tresult = append(result, organizationtenancy.SchoolPWAUsageRow(row))\n\t\t}\n\t\treturn result, nil\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListPWAUsage",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *Provisioning) ListSystemRoles(ctx context.Context) ([]organizationtenancy.SystemRole, error) {\n\treturn adminValue(ctx, p, func(adminCtx context.Context) ([]organizationtenancy.SystemRole, error) {\n\t\troles, err := p.identity.ListSystemRoles(adminCtx)\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\tresult := make([]organizationtenancy.SystemRole, 0, len(roles))\n\t\tfor _, role := range roles {\n\t\t\tresult = append(result, organizationtenancy.SystemRole{ID: role.ID, Name: role.Name, IsSystem: role.IsSystem})\n\t\t}\n\t\treturn result, nil\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.ListSystemRoles",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *Provisioning) RestoreOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {\n\treturn p.inAdmin(ctx, func(adminCtx context.Context) error {\n\t\torganization, err := p.organizations.RestoreOrganization(adminCtx, organizationID)\n\t\tif err != nil {\n\t\t\treturn mapOrganizationError(err, organizationID)\n\t\t}\n\t\treturn p.recordAction(adminCtx, operatorID, domain.AuditActionRestore, domain.AuditResourceOrganization, \u0026organizationID, clientIP, map[string]any{\"name\": organization.Name, \"slug\": organization.Slug})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.RestoreOrganization",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *Provisioning) SoftDeleteOrganization(ctx context.Context, organizationID, operatorID int64, clientIP net.IP) error {\n\treturn p.inAdmin(ctx, func(adminCtx context.Context) error {\n\t\torganization, err := p.organizations.SoftDeleteOrganization(adminCtx, organizationID)\n\t\tif err != nil {\n\t\t\treturn mapOrganizationError(err, organizationID)\n\t\t}\n\t\treturn p.recordAction(adminCtx, operatorID, domain.AuditActionSoftDelete, domain.AuditResourceOrganization, \u0026organizationID, clientIP, map[string]any{\"name\": organization.Name, \"slug\": organization.Slug})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Provisioning.SoftDeleteOrganization",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindSchoolByOrganizationAndSlug(ctx context.Context, organizationID int64, slug string) (result organizationtenancy.School, err error) {\n\tslug = strings.TrimSpace(strings.ToLower(slug))\n\tif organizationID \u003c= 0 {\n\t\treturn organizationtenancy.School{}, invalidSchool(\"organization ID is required\")\n\t}\n\tif err := organizationtenancy.ValidateSlug(slug); err != nil {\n\t\treturn organizationtenancy.School{}, invalidSchool(err.Error())\n\t}\n\treturn s.findSchool(ctx, \"find_school_by_organization_and_slug\", func(txCtx context.Context) (organizationtenancy.School, bool, domain.OperationStats, error) {\n\t\treturn s.store.FindSchoolByOrganizationAndSlug(txCtx, organizationID, slug)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Service.FindSchoolByOrganizationAndSlug",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindSchoolBySlug(ctx context.Context, slug string) (result organizationtenancy.School, err error) {\n\tslug = strings.TrimSpace(strings.ToLower(slug))\n\tif err := organizationtenancy.ValidateSlug(slug); err != nil {\n\t\treturn organizationtenancy.School{}, invalidSchool(err.Error())\n\t}\n\treturn s.findSchool(ctx, \"find_school_by_slug\", func(txCtx context.Context) (organizationtenancy.School, bool, domain.OperationStats, error) {\n\t\treturn s.store.FindSchoolBySlug(txCtx, slug)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Service.FindSchoolBySlug",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindSchoolBySubdomain(ctx context.Context, subdomain string) (result organizationtenancy.School, err error) {\n\tsubdomain = strings.TrimSpace(strings.ToLower(subdomain))\n\tif err := organizationtenancy.ValidateSubdomain(subdomain); err != nil {\n\t\treturn organizationtenancy.School{}, err\n\t}\n\treturn s.findSchool(ctx, \"find_school_by_subdomain\", func(txCtx context.Context) (organizationtenancy.School, bool, domain.OperationStats, error) {\n\t\treturn s.store.FindSchoolBySubdomain(txCtx, subdomain)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Service.FindSchoolBySubdomain",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListOrganizations(ctx context.Context) (result []organizationtenancy.Organization, err error) {\n\terr = s.run(ctx, \"list_organizations\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tresult, queryStats, err = s.store.List(txCtx)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif result == nil {\n\t\tresult = []organizationtenancy.Organization{}\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Service.ListOrganizations",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *TraegerMasterData) LogoImage(ctx context.Context, organizationID int64) (organizationtenancy.TraegerLogoImage, error) {\n\tif organizationID \u003c= 0 {\n\t\treturn organizationtenancy.TraegerLogoImage{}, errTraegerRequired\n\t}\n\tlogo, found, err := m.store.LogoImage(ctx, organizationID)\n\tif err != nil {\n\t\treturn organizationtenancy.TraegerLogoImage{}, err\n\t}\n\tif !found {\n\t\treturn organizationtenancy.TraegerLogoImage{}, organizationtenancy.ErrTraegerLogoNotFound\n\t}\n\treturn logo, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/TraegerMasterData.LogoImage",
+      "owner": "modules/organizationtenancy"
+    }
+  ]
+}

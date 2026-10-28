@@ -1,0 +1,7 @@
+GET /parent/me/messages -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/messages/children/{studentId} -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/messages/children/{studentId}/threads -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/messages/group-threads -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/messages/group-threads/{groupThreadId} -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+GET /parent/me/messages/unread-count -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)
+POST /parent/me/messages/children/{studentId} -> eltern_app  (#4895 Elternportal: Eltern-Sitzung und ParentScopeMiddleware)

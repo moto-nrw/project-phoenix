@@ -170,6 +170,7 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
+      actions: read
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
       SKIP_ENV_VALIDATION: "true"
@@ -223,15 +224,37 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Verify bundle budget and observation contracts
+        working-directory: frontend
+        run: node --test scripts/perf/bundle-policy.node-test.mjs scripts/perf/bundle-measurement.node-test.mjs
+
+      - name: Identify bundle observation source and configuration
+        id: bundle-key
+        working-directory: frontend
+        env:
+          BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          if [[ -n "$BASE_REVISION" && ! "$BASE_REVISION" =~ ^0+$ ]]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REVISION"
+            node scripts/perf/bundle-measurement.mjs --prepare-ci "$BASE_REVISION"
+          else
+            node scripts/perf/bundle-measurement.mjs --prepare-ci
+          fi
+
+      - name: Reuse compatible base bundle observation without rebuilding it
+        working-directory: frontend
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/perf/bundle-measurement.mjs --fetch-base
+
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
 
-      # Bundle-Size-Ratchet (#2939): `next experimental-analyze` kompiliert
-      # kalt (Chunk-Aufteilung hängt sonst vom Cache-Zustand ab) und vergleicht
-      # Client-JS je Route mit scripts/perf/bundle-baseline.json. Die Baseline
-      # sind Runner-Zahlen: zum Nachziehen das Artefakt `bundle-measured`
-      # laden und als bundle-baseline.json einchecken.
+      # Observations are versioned CI artifacts. Only separately reviewed,
+      # portal-scoped policy sets ceilings; missing base data never disables it.
+      # Keep the regular build: experimental-analyze's cold compilation is not
+      # assumed to cover every Next.js build/type/route-validation contract.
       - name: Bundle size ratchet
         working-directory: frontend
         run: pnpm run perf:bundle-ratchet
@@ -240,7 +263,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: bundle-measured
+          name: bundle-measured-${{ steps.bundle-key.outputs.measurement-key }}
+          overwrite: true
           path: frontend/perf-results/bundle-measured.json
           retention-days: 14
           if-no-files-found: ignore

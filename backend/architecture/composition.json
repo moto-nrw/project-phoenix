@@ -51,7 +51,7 @@
       "declaration": "TestFullProductionRouterGolden",
       "target": "api.WithRuntime",
       "lines": [
-        378
+        392
       ],
       "tables": []
     },

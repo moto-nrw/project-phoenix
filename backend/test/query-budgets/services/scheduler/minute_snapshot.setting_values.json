@@ -1,0 +1,6 @@
+{
+  "scenario": "services.scheduler.minute_snapshot.setting_values",
+  "max": 1,
+  "exact": true,
+  "description": "Worker minute snapshot (settingsCompose.NewTenantSnapshots, #2746) — one\nsettings read for all tenants."
+}

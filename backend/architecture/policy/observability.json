@@ -1,0 +1,69 @@
+{
+  "packages": [
+    {
+      "path": "analytics",
+      "owner": "observability",
+      "role": "http",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "observability/internal/adapters/applog",
+      "owner": "observability",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "observability",
+      "owner": "observability",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "observability/internal/adapters/pwausage",
+      "owner": "observability",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "observability/compose",
+      "owner": "observability",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "iot.pwa_standalone_usage",
+      "write_owner": "observability"
+    }
+  ],
+  "rules": [
+    {
+      "id": "observability.postgres.tenant-runtime",
+      "description": "The PWA usage adapter resolves the ambient transaction through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "observability",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "observability.integration-test.postgres",
+      "description": "PWA usage integration tests exercise their own adapter.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "observability",
+      "source_role": "workflow-integration-test",
+      "target_owner": "observability",
+      "target_role": "postgres"
+    }
+  ]
+}

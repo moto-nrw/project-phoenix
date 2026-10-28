@@ -1,0 +1,29 @@
+{
+  "api/school/supervisions": [
+    "GET school /school/supervisions/"
+  ],
+  "api/school/supervisions/[id]/complete": [
+    "POST school /school/supervisions/id/1/complete"
+  ],
+  "api/school/supervisions/[id]/roster": [
+    "GET school /school/supervisions/id/1/roster"
+  ],
+  "api/school/supervisions/[id]/start": [
+    "POST school /school/supervisions/id/1/start"
+  ],
+  "api/school/supervisions/[id]/students/[studentId]/attendance": [
+    "PATCH school /school/supervisions/id/1/students/studentId/1/attendance"
+  ],
+  "api/school/supervisions/[id]/students/[studentId]/check-in": [
+    "POST school /school/supervisions/id/1/students/studentId/1/check-in"
+  ],
+  "api/school/supervisions/[id]/students/[studentId]/check-out": [
+    "POST school /school/supervisions/id/1/students/studentId/1/check-out"
+  ],
+  "api/school/supervisions/[id]/students/[studentId]/homework-feedback": [
+    "PUT school /school/supervisions/id%2F1/students/studentId%2F1/homework-feedback"
+  ],
+  "api/school/supervisions/[id]/students/[studentId]/sheet": [
+    "GET school /school/supervisions/id/1/students/studentId/1/sheet"
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "api/active/groups": [
+    "GET tenant /api/active/groups raw",
+    "POST tenant /api/active/groups raw"
+  ],
+  "api/active/groups/[id]/supervisors": [
+    "GET tenant /api/active/groups/id%2F1/supervisors raw"
+  ],
+  "api/active/groups/[id]/visits": [
+    "GET tenant /api/active/groups/id%2F1/visits raw"
+  ],
+  "api/active/groups/[id]/visits/display": [
+    "GET tenant /api/active/groups/id%2F1/visits/display"
+  ],
+  "api/active/groups/group/[groupId]": [
+    "GET tenant /api/active/groups/group/groupId%2F1 raw"
+  ],
+  "api/active/groups/room/[roomId]": [
+    "GET tenant /api/active/groups/room/roomId%2F1 raw"
+  ],
+  "api/active/groups/unclaimed": [
+    "GET tenant /api/active/groups/unclaimed raw"
+  ],
+  "api/active/supervisors/all": [
+    "GET tenant /api/active/supervisors/all"
+  ],
+  "api/active/supervisors/group/[groupId]": [
+    "GET tenant /api/active/supervisors/group/groupId%2F1 raw"
+  ],
+  "api/active/supervisors/staff/[staffId]": [
+    "GET tenant /api/active/supervisors/staff/staffId%2F1 raw"
+  ],
+  "api/active/supervisors/staff/[staffId]/active": [
+    "GET tenant /api/active/supervisors/staff/staffId%2F1/active"
+  ],
+  "api/active/tracking-indicators": [
+    "POST tenant /api/active/tracking-indicators"
+  ],
+  "api/active/visits/group/[groupId]": [
+    "GET tenant /api/active/visits/group/groupId%2F1 raw"
+  ],
+  "api/active/visits/move-to-group": [
+    "POST tenant /api/active/visits/move-to-group"
+  ],
+  "api/active/visits/student/[studentId]": [
+    "GET tenant /api/active/visits/student/studentId%2F1 raw"
+  ],
+  "api/active/visits/student/[studentId]/current": [
+    "GET tenant /api/active/visits/student/studentId%2F1/current raw"
+  ],
+  "api/active/visits/transit/assign": [
+    "POST tenant /api/active/visits/transit/assign"
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "title": "moto jako aplikacja",
+  "samsungDescription": "Proszę nie instalować moto przez Samsung Internet. Proszę otworzyć moto w Chrome i tam się zalogować.",
+  "samsungStep": "Następnie w menu Chrome proszę wybrać",
+  "samsungFallback": "Jeśli to nie zadziała, proszę otworzyć Chrome i wpisać {host}.",
+  "oneTapDescription": "Proszę zainstalować moto bezpośrednio z tego widoku. Wtedy moto otwiera się zawsze na pełnym ekranie, bez paska przeglądarki.",
+  "iosBefore": "W Safari proszę dotknąć",
+  "iosBetween": "a potem",
+  "androidBefore": "Proszę otworzyć menu przeglądarki i dotknąć",
+  "androidOr": "lub",
+  "share": "Udostępnij",
+  "homeScreen": "Do ekranu początkowego",
+  "install": "Zainstaluj aplikację",
+  "addToHome": "Dodaj do ekranu głównego",
+  "openInChrome": "Otwórz w Chrome",
+  "close": "Zamknij wskazówkę"
+}

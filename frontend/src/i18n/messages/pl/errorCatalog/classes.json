@@ -1,0 +1,7 @@
+{
+  "input": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "permission": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "business_rejection": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "unavailable": "{object} jest teraz niedostępne. Spróbuj ponownie.",
+  "server": "Nie udało się przetworzyć: {object}. Spróbuj ponownie później."
+}

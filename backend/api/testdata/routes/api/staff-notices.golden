@@ -1,0 +1,7 @@
+DELETE /api/staff-notices/{noticeId}
+GET /api/staff-notices/
+GET /api/staff-notices/today
+GET /api/staff-notices/{noticeId}/acknowledgements
+POST /api/staff-notices/
+POST /api/staff-notices/{noticeId}/acknowledge
+PUT /api/staff-notices/{noticeId}

@@ -72,11 +72,11 @@ vi.mock("@marsidev/react-turnstile", () => ({
 }));
 
 vi.mock("next-intl", async () => {
-  const de = (await import("~/i18n/messages/de.json")).default as Record<
+  const de = (await import("~/i18n/messages/de.generated")).default as Record<
     string,
     unknown
   >;
-  const en = (await import("~/i18n/messages/en.json")).default as Record<
+  const en = (await import("~/i18n/messages/en.generated")).default as Record<
     string,
     unknown
   >;

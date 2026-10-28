@@ -1,0 +1,52 @@
+{
+  "packages": [
+    {
+      "path": "modules/timetableprojection/internal/adapters/postgres",
+      "owner": "timetable-legacy-view",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetableprojection/compose",
+      "owner": "timetable-legacy-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetableprojection/integration",
+      "owner": "timetable-legacy-view",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "timetable-legacy-view.test.subject",
+      "description": "Projection regression tests call the exported SQL projection boundary.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "timetable-legacy-view",
+      "source_role": "workflow-integration-test",
+      "target_owner": "timetable-legacy-view",
+      "target_role": "postgres"
+    }
+  ],
+  "read_projections": [
+    {
+      "id": "timetable-legacy-view",
+      "package": "modules/timetableprojection/internal/adapters/postgres",
+      "data_objects": [
+        "activities.groups",
+        "activities.student_enrollments",
+        "enrollment.request_children",
+        "schedule.activity_instances",
+        "schedule.instance_students"
+      ],
+      "tenant_safe": true
+    }
+  ]
+}

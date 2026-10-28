@@ -1,0 +1,6 @@
+{
+  "scenario": "services.users.list_guardians.reads",
+  "max": 2,
+  "exact": false,
+  "description": "ADR 0077: the caterer's delivery list of a week over three schools\nthrough the production router. Each school runs in its own\ntransaction with the supply check and the order read of\nmodules.mealplan.orders.read_week, so it grows by a fixed number per\nschool and never with the children; the window is at most a week."
+}

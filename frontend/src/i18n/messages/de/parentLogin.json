@@ -1,0 +1,20 @@
+{
+  "eyebrow": "Elternportal",
+  "title": "Willkommen im Eltern-Portal",
+  "subtitle": "Melden Sie sich an, um alles Wichtige zur Betreuung Ihres Kindes im Blick zu behalten.",
+  "emailLabel": "E-Mail-Adresse",
+  "passwordLabel": "Passwort",
+  "showPassword": "Passwort anzeigen",
+  "hidePassword": "Passwort verbergen",
+  "loading": "Lädt...",
+  "submitting": "Anmeldung läuft...",
+  "submit": "Anmelden",
+  "forgotPassword": "Passwort vergessen?",
+  "fromStaffBanner": "Elternkonten melden sich hier an. Bitte geben Sie Ihr Passwort noch einmal ein.",
+  "staffLoginLink": "Zur Schul-Anmeldung",
+  "errors": {
+    "rateLimited": "Zu viele Anmeldeversuche. Bitte versuchen Sie es später erneut.",
+    "notAGuardian": "Dieses Konto gehört zum Personal einer Schule. Bitte melden Sie sich über die Schul-Anmeldung an."
+  },
+  "errorObject": "die Anmeldung"
+}

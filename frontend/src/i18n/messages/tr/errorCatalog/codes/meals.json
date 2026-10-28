@@ -1,0 +1,18 @@
+{
+  "child_not_enrolled": "{object} mümkün değil. Çocuk bu gün bakımda değil.",
+  "day_closed": "{object} mümkün değil. Okul bu gün kapalı.",
+  "day_past": "{object} artık mümkün değil. Bu gün geçti.",
+  "invalid_allergens": "Alerjenler kaydedilemedi. Lütfen yeniden seçin.",
+  "invalid_dishes": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "invalid_meal_date": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "invalid_participation": "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
+  "participation_cutoff_passed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "participation_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "plan_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+  "plan_week_out_of_range": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "registration_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+  "delivery_range_too_long": "Teslimat listesi en fazla yedi günü kapsar. Lütfen daha kısa bir dönem seçin.",
+  "not_supplied": "Artık bu okula yemek sağlamıyorsunuz. Lütfen okula danışın.",
+  "order_not_found": "Bu sipariş mevcut değil. Lütfen sayfayı yeniden yükleyin.",
+  "supply_active": "{object} şu anda mümkün değil. Okula hâlâ bir yemek firması yemek sağlıyor. Önce bu tedariki sonlandırın."
+}

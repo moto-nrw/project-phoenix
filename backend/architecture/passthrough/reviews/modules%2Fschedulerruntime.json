@@ -1,0 +1,24 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/schedulerruntime/internal/application/leaseStore[Term].Acquire",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schedulerruntime/internal/application/leaseStore[Term].Assert",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schedulerruntime/internal/application/leaseStore[Term].Release",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schedulerruntime/internal/application/leaseStore[Term].Renew",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}
