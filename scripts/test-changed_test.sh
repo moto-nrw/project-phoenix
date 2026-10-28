@@ -270,7 +270,7 @@ run_wrapper test-changed.sh 0 origin/development
 run_wrapper test-backend.sh 0 ./probe
 unset PHX_FIXTURE_TMPDIR
 
-# Keep this list explicit: these are the 13 scan contracts in #5226, not
+# Keep this list explicit: these are the filesystem scan contracts, not
 # import dependencies. The fake list returns one guard too: it must run only once.
 guards=(
   src/app/api/proxy-routes.test.ts
@@ -286,7 +286,10 @@ guards=(
   src/components/ui/tenant-page-scaffold.test.ts
   src/components/ui/plan-design-guards.test.ts
   src/components/settings/settings-filter.test.ts
+  src/components/school-setup/setup-tour-targets.test.ts
 )
+# Validate against real source files, not only the mirrored fixture list.
+node "$repo_root/scripts/test-frontend-changed.mjs" --check-guards
 guard_call="pnpm:exec vitest run ${guards[*]} src/listed.test.ts"
 changed_call='pnpm:exec vitest list --filesOnly --json --changed origin/development'
 
@@ -372,5 +375,13 @@ for change in modify delete; do
     scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
   assert_calls $'pnpm:install --frozen-lockfile\npnpm:vitest run src/components/settings/settings-filter.test.ts'
 done
+
+# Workflow-only changes must select the tour guard, not skip frontend tests.
+mkdir -p "$fixture/.github/workflows"
+printf '# changed E2E paths\n' >"$fixture/.github/workflows/e2e.yml"
+: >"$call_log"
+(cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+  scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
+assert_calls $'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
 
 echo 'full/changed-test resource budget, build workspace, filesystem guards and lifecycle tests passed'

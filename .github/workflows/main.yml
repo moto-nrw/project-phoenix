@@ -167,6 +167,7 @@ jobs:
               - '!frontend/**/*.md'
             frontend-fs-inputs:
               - 'backend/modules/settings/internal/defaults/**'
+              - '.github/workflows/e2e.yml'
             backend-test-infra:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'

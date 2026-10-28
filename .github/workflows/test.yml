@@ -367,6 +367,10 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
+      - name: Check filesystem guard inventory
+        if: ${{ matrix.project == 'node' }}
+        run: node scripts/test-frontend-changed.mjs --check-guards
+
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
       # The binary is cached per lockfile, OS libs install every run.
       - name: Cache Playwright browsers

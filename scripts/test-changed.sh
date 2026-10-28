@@ -89,8 +89,8 @@ fi
 
 frontend_changes=$(
   {
-    git diff --name-only "$MB" -- frontend scripts/test-frontend-changed.mjs
-    git ls-files --others --exclude-standard -- frontend scripts/test-frontend-changed.mjs
+    git diff --name-only "$MB" -- frontend scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
+    git ls-files --others --exclude-standard -- frontend scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
   } | awk '!/\.md$/' | sort -u
 )
 run_frontend_vitest() {
