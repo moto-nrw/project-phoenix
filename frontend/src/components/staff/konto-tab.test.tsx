@@ -410,7 +410,7 @@ describe("KontoTab", () => {
       );
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Bearbeiten" }));
     fireEvent.change(screen.getByLabelText("Rolle"), {
       target: { value: "1" },
     });
