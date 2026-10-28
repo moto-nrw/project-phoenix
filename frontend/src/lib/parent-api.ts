@@ -1039,15 +1039,13 @@ export interface ThreadSummary {
   readonly readers?: ParentReaders;
 }
 
-export type { MessageAudience };
-
 /**
  * Who can read a conversation (#5200), as the backend reports it. `guardian`
  * is the signed-in parent (absent on list rows); other guardians of the child
  * do not read along. `school.names` carries the leadership's short names
  * („Swantje M.“) on an opened leadership conversation.
  */
-export interface ParentReaders {
+interface ParentReaders {
   readonly guardian?: { readonly name: string };
   readonly school: {
     readonly kind: "all_staff" | "leadership";
