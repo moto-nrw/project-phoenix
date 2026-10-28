@@ -561,6 +561,9 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
   "api/school/class-day/school-day": [
     "GET school /school/class-day/school-day",
   ],
+  "api/school/class-day/shared-notes/[schoolClass]/students/[studentId]": [
+    "GET school /school/class-day/shared-notes/schoolClass%2F1/students/studentId%2F1",
+  ],
   "api/school/parent-letters": [
     "GET school /school/parent-letters/",
     "POST school /school/parent-letters/",
