@@ -37,7 +37,7 @@ func decodeGroupRequest(w http.ResponseWriter, r *http.Request) (groupRequest, [
 	}
 	ids, ok := parseAccountIDs(body.AccountIDs)
 	if !ok {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessage("invalid account id"))
+		common.RenderError(w, r, common.ErrorInvalidRequestMessage("Ungültige Konto-ID."))
 		return body, nil, false
 	}
 	return body, ids, true

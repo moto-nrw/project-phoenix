@@ -235,6 +235,10 @@ func TestStaffGroupChatRules(t *testing.T) {
 	rec = f.do(t, ben, http.MethodPost, "/groups", fmt.Sprintf(`{"name":"Allein","account_ids":[%q]}`, ben.idString()))
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "communication.staff_group_members_required")
+	rec = f.do(t, ben, http.MethodPost, "/groups", `{"name":"Team","account_ids":["ungültig"]}`)
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "general.invalid_request")
+	assert.Contains(t, rec.Body.String(), "Ungültige Konto-ID.")
 
 	// No members from another school.
 	otherTenant, _ := testpkg.CreateTestTenant(t, f.db)

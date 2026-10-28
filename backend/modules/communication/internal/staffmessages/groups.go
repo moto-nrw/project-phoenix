@@ -333,7 +333,13 @@ func (s *Service) LeaveGroup(ctx context.Context, threadID int64) error {
 		return err
 	}
 	if len(remaining) == 0 {
-		return s.Groups.DeleteStaffThread(ctx, threadID)
+		if err := s.Groups.DeleteStaffThread(ctx, threadID); err != nil {
+			return err
+		}
+		// Deleting the thread also deletes its participant rows, so use the
+		// departing account captured above instead of resolving recipients again.
+		s.broadcastMembershipRecipients(ctx, thread, accountID, []int64{accountID})
+		return nil
 	}
 	s.broadcastMembershipChange(ctx, thread, accountID, []int64{accountID})
 	return nil
@@ -355,6 +361,10 @@ func (s *Service) broadcastMembershipChange(ctx context.Context, thread *StaffMe
 		return
 	}
 	recipients := append(append([]int64{}, participants...), formerMembers...)
+	s.broadcastMembershipRecipients(ctx, thread, actorAccountID, recipients)
+}
+
+func (s *Service) broadcastMembershipRecipients(ctx context.Context, thread *StaffMessageThread, actorAccountID int64, recipients []int64) {
 	tenantID, threadID := thread.TenantID, thread.ID
 	s.runtime.RegisterAfterCommit(ctx, func() {
 		event := realtime.NewStaffMessageEvent(actorAccountID, threadID)
