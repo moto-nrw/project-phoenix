@@ -51,7 +51,34 @@ async function login(page: Page) {
 
 /** Only cookie metadata and its presence; never its value in evidence. */
 async function sessionCookie(context: BrowserContext) {
-  return (await context.cookies(source)).find((c) => c.name === cookieName);
+  return (await context.cookies(source))
+    .map(({ name, domain, httpOnly }) => ({ name, domain, httpOnly }))
+    .find((cookie) => cookie.name === cookieName);
+}
+
+/** A concurrent UI answer may rewrite the jar after a valid deletion. */
+async function waitForSessionCookieDeletion(page: Page) {
+  const response = await page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      new URL(response.url()).pathname === "/api/auth/signout",
+  );
+  return (
+    response.status() === 200 &&
+    (await response.headersArray()).some(({ name, value }) => {
+      if (name.toLowerCase() !== "set-cookie") return false;
+      const parts = value
+        .toLowerCase()
+        .split(";")
+        .map((part) => part.trim());
+      return (
+        parts[0] === `${cookieName}=` &&
+        parts.includes("max-age=0") &&
+        parts.includes("path=/") &&
+        parts.some((part) => /^domain=\.?mfa\.localhost$/.test(part))
+      );
+    })
+  );
 }
 
 /**
@@ -65,6 +92,7 @@ async function holdResponse(
 ) {
   let release!: () => void;
   const released = new Promise<void>((resolve) => (release = resolve));
+  let heldCookieValue: string | undefined;
   let heldResponse!: (value: { setCookie: boolean }) => void;
   const held = new Promise<{ setCookie: boolean }>(
     (resolve) => (heldResponse = resolve),
@@ -82,19 +110,29 @@ async function holdResponse(
     });
     const setCookie = response
       .headersArray()
-      .some(
+      .filter(
         (header) =>
           header.name.toLowerCase() === "set-cookie" &&
           header.value.startsWith(`${cookieName}=`) &&
           !header.value.startsWith(`${cookieName}=;`),
-      );
-    heldResponse({ setCookie });
+      )
+      .at(-1);
+    heldCookieValue = setCookie?.value
+      .split(";")[0]
+      ?.slice(cookieName.length + 1);
+    heldResponse({ setCookie: setCookie !== undefined });
     await released;
     await route.fulfill({ response });
   });
   const finished = start(page).catch(() => undefined);
   return {
     held,
+    restored: async (context: BrowserContext) =>
+      heldCookieValue !== undefined &&
+      (await context.cookies(source)).some(
+        (cookie) =>
+          cookie.name === cookieName && cookie.value === heldCookieValue,
+      ),
     release: async () => {
       release();
       await finished;
@@ -169,15 +207,23 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
       const pending = await holdResponse(tab2, late.pattern, late.start);
       expect((await pending.held).setCookie).toBe(true);
 
-      await endSession(tab1);
+      const [deleted] = await Promise.all([
+        waitForSessionCookieDeletion(tab1),
+        endSession(tab1),
+      ]);
+      expect(deleted).toBe(true);
       const afterEnd = await (await request.get(fixtureState)).json();
       expect(afterEnd.logoutRequests - before.logoutRequests).toBe(1);
       expect(afterEnd.liveFamilies).toBe(before.liveFamilies - 1);
-      expect(await sessionCookie(context)).toBeUndefined();
+      // Stop other UI answers from obscuring which cookie the held response
+      // installs. Revocation already committed; concurrent copies are allowed
+      // to exist, but must grant no access (#5194).
+      await tab1.close();
 
       // The held answer arrives late and writes the old cookie back.
       await pending.release();
       expect(await sessionCookie(context)).toBeDefined();
+      expect(await pending.restored(context)).toBe(true);
 
       // Protected data stays locked although the access token is unexpired.
       const tab3 = await context.newPage();
@@ -270,8 +316,14 @@ test("a failed revocation keeps the session and shows the error with a retry", a
   expect(after.liveFamilies).toBe(before.liveFamilies);
 
   await page.unroute("**/api/auth/logout");
-  await alert.getByRole("button", { name: "Wiederholen" }).click();
+  const [deleted] = await Promise.all([
+    waitForSessionCookieDeletion(page),
+    alert.getByRole("button", { name: "Wiederholen" }).click(),
+  ]);
   await page.waitForURL((url) => url.pathname === "/");
-  expect(await sessionCookie(context)).toBeUndefined();
+  expect(deleted).toBe(true);
+  const afterRetry = await (await request.get(fixtureState)).json();
+  expect(afterRetry.logoutRequests - before.logoutRequests).toBe(1);
+  expect(afterRetry.liveFamilies).toBe(before.liveFamilies - 1);
   await context.close();
 });
