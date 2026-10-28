@@ -95,11 +95,10 @@ func (s *Service) resolvePerson(ctx context.Context, device *devicescan.Principa
 	return person, nil
 }
 
-// lookupStudent locks the student before any sessions, matching check-ins,
-// school checkout batches and staff moves. A lookup failure is logged and
-// treated as "no student", so the scan continues as a staff scan.
+// lookupStudent resolves the student behind a person. A lookup failure is
+// logged and treated as "no student", so the scan continues as a staff scan.
 func (s *Service) lookupStudent(ctx context.Context, personID int64) *ports.Student {
-	student, err := s.people.FindStudentByPerson(ctx, personID, true)
+	student, err := s.people.FindStudentByPerson(ctx, personID)
 	if err != nil {
 		s.logger.DebugContext(ctx, "student lookup for person",
 			slog.Int64("person_id", personID),
@@ -285,7 +284,7 @@ func binaryModeGreeting(action, firstName string) string {
 func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDevice, student *ports.Student, person *ports.Person, command devicescan.ScanCommand) (*devicescan.ScanResult, error) {
 	now := s.now()
 
-	checkout, err := s.lockSessionsAndCheckout(ctx, device.ID, student, person, command.RoomID)
+	checkout, err := s.checkoutCurrentVisit(ctx, student, person)
 	if err != nil {
 		return nil, err
 	}
@@ -338,26 +337,6 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 		slog.String("room", result.RoomName),
 	)
 	return result, nil
-}
-
-// lockSessionsAndCheckout locks every session the checkout, check-in and
-// heartbeat can change before any of them writes, in one ascending order
-// (#5128), then closes the current room stay. Two scans moving children in
-// opposite directions, or into each other's device sessions, wait for each
-// other instead of deadlocking.
-func (s *Service) lockSessionsAndCheckout(ctx context.Context, deviceID int64, student *ports.Student, person *ports.Person, roomID *int64) (currentVisitCheckout, error) {
-	var room int64
-	if roomID != nil {
-		room = *roomID
-	}
-	if err := s.presence.LockVisitSessions(ctx, student.ID, room, deviceID); err != nil {
-		s.logger.ErrorContext(ctx, "failed to lock visit sessions",
-			slog.Int64("student_id", student.ID),
-			slog.String("error", err.Error()),
-		)
-		return currentVisitCheckout{}, devicescan.Internal(devicescan.MessageInternalServerError, err)
-	}
-	return s.checkoutCurrentVisit(ctx, student, person)
 }
 
 // applyActiveStudentCount sets the kiosk counter with its session and

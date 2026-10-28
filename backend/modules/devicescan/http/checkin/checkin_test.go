@@ -505,7 +505,7 @@ func TestDeviceCheckin_ActiveStudentsCarriesSessionRevision(t *testing.T) {
 	assert.Equal(t, float64(2), data["active_students"])
 	assert.Equal(t, float64(group.ID), data["active_students_session_id"])
 	var stored int64
-	require.NoError(t, k.db.NewRaw("SELECT visit_revision FROM active.groups WHERE id = ?", group.ID).Scan(testpkg.Ctx(t), &stored))
+	require.NoError(t, k.db.NewRaw("SELECT COALESCE(sum(changes), 0) FROM active.visit_revision_events WHERE active_group_id = ?", group.ID).Scan(testpkg.Ctx(t), &stored))
 	assert.Equal(t, float64(2), data["active_students_revision"], "the fixture visit and the scan each raised the revision")
 	assert.EqualValues(t, stored, data["active_students_revision"], "the answer carries the committed revision")
 }

@@ -192,37 +192,31 @@ order of its requests. Both fields are additive; an older kiosk ignores them.
   together, only with an `active_students` of the scanning device's own
   session in the scanned room. A room-wide count (the device runs no session
   there), a failed count and a binary-mode or supervisor scan carry neither.
-- **Scope and monotonicity.** The revision is
-  `active.groups.visit_revision` of one session (Student Presence). Every
-  statement on `active.visits` that opens, closes, moves or deletes an open
-  visit raises it by one for each session whose count it changed, in the same
-  transaction (statement trigger of migration 1.15.685). Revisions compare
-  only within one session; a new session starts at 0.
-- **Snapshot and ties.** Count and revision come from one statement. The
-  trigger locks the sessions it raises (ascending id) until commit, so writers
-  of one session commit in revision order, and a scan reads the revision its
-  own change raised. One revision of a session always names one count; an
-  equal revision is the same state.
-- **Restarts and processes.** The revision lives in the database. Neither a
-  backend restart nor several backend processes reset or fork it.
+- **Scope and monotonicity.** The revision of one session (Student
+  Presence) is the sum of its rows in `active.visit_revision_events` that a
+  read sees. Every statement on `active.visits` that opens, closes, moves or
+  deletes an open visit inserts one event for each session whose count it
+  changed, in the same transaction (statement trigger of migration 1.15.705).
+  Events are never updated, so the revision never falls, also for deletes
+  and moves. Revisions compare only within one session; a new session starts
+  at 0.
+- **Snapshot.** Count and revision come from one statement. A read that
+  started before a write committed does not see the write's events and
+  carries a lower revision than the writer's answer, which sees them.
+- **Concurrent writers.** Two writers of one session that overlap can each
+  answer the same revision with a different count; the kiosk keeps the one it
+  has, and the next poll after both commits carries both changes with a
+  higher revision. The blur is at most one poll interval (ADR 0131).
+- **No session lock.** The trigger only inserts and the event table has no
+  key to the session row; visit writers take the same locks as before
+  #5128. The nightly close compacts the events of ended sessions into one row
+  each without changing a revision and drops those of deleted sessions.
+- **Restarts and processes.** The events live in the database. Neither a
+  backend restart nor several backend processes reset or fork a revision.
 - **Kiosk rule.** Within one scope (activity, room, session), accept a count
   whose revision is greater than the shown one, ignore a smaller or equal one,
   and never take a revision from another session. A count without a revision
   (room-wide count, older backend) keeps the kiosk's previous rule.
-- **Lock order.** Every change of existing visits in Student Presence locks
-  the sessions it changes `FOR UPDATE` in ascending id order before any visit
-  row (`session_lock_order.go` in its Postgres adapter); a session end does
-  the same. A visit insert names one session, which a check-in locks before
-  it. A scan's initial student lookup takes the shared class-writes gate and
-  student row lock in one statement, matching check-ins, school checkout
-  batches and staff moves, then takes all its sessions with `LockVisitSessions`:
-  the session of the child's open visit, every open session of the scanned
-  room and the scanning device's running session, whose heartbeat the scan
-  refreshes. Two scans moving children in opposite directions or into each
-  other's device sessions, a care exit and a session end, or a checkout and a
-  session end therefore wait for each other instead of deadlocking. A session the transaction creates itself needs no
-  earlier lock. `UpdateVisit` takes source and destination session locks in
-  ascending order as part of its target-session guard, not just in the final write.
 
 Deploy the backend first; the kiosk change in PyrePortal follows.
 

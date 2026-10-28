@@ -142,12 +142,8 @@ func (s *Store) ReviseVisit(ctx context.Context, row *studentpresence.Visit) (po
 	}
 	row.TenantID = tenantID
 	started := time.Now()
-	// Session lock order (session_lock_order.go): the visit's session and,
-	// for a move, its destination, before the visit row.
 	result, err := db.NewUpdate().Model(visitRowFromRecord(row)).ModelTableExpr(`active.visits AS "visit"`).
-		WherePK().Where("visit.tenant_id = ?", tenantID).
-		Where(lockRevisedVisitSessionsFirst, tenantID, row.ActiveGroupID, bun.List([]int64{row.ID})).
-		Exec(ctx)
+		WherePK().Where("visit.tenant_id = ?", tenantID).Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("revise visit: %w", err)
@@ -168,10 +164,7 @@ func (s *Store) DeleteVisit(ctx context.Context, id int64) (ports.Stats, error) 
 		return ports.Stats{}, err
 	}
 	started := time.Now()
-	// Session lock order (session_lock_order.go): the session before the visit row.
-	result, err := db.NewDelete().Table("active.visits").Where("tenant_id = ?", tenantID).Where("id = ?", id).
-		Where(lockVisitSessionsFirst, tenantID, bun.List([]int64{id})).
-		Exec(ctx)
+	result, err := db.NewDelete().Table("active.visits").Where("tenant_id = ?", tenantID).Where("id = ?", id).Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
 		return stats, fmt.Errorf("delete visit: %w", err)
@@ -191,12 +184,9 @@ func (s *Store) CloseVisits(ctx context.Context, ids []int64, at time.Time) ([]*
 		return []*studentpresence.Visit{}, ports.Stats{}, nil
 	}
 	started := time.Now()
-	// Session lock order (session_lock_order.go): sessions before visit rows.
 	err = db.NewUpdate().Model((*visitRow)(nil)).ModelTableExpr(`active.visits AS "visit"`).
 		Set("exit_time = ?", at).Where("visit.tenant_id = ?", tenantID).
-		Where("visit.id IN (?)", bun.List(ids)).Where("visit.exit_time IS NULL").
-		Where(lockOpenVisitSessionsFirst, tenantID, bun.List(ids)).
-		Returning("*").Scan(ctx, &rows)
+		Where("visit.id IN (?)", bun.List(ids)).Where("visit.exit_time IS NULL").Returning("*").Scan(ctx, &rows)
 	stats := ports.Stats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, stats, fmt.Errorf("close visits: %w", err)

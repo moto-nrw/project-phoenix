@@ -97,8 +97,6 @@ type StudentRepository interface {
 
 	// FindByPersonID retrieves a student by their person ID
 	FindByPersonID(ctx context.Context, personID int64) (*peopledirectory.StudentState, error)
-	// FindByPersonIDForUpdate takes the class-writes gate, then the student row.
-	FindByPersonIDForUpdate(ctx context.Context, personID int64) (*peopledirectory.StudentState, error)
 
 	// FindByGroupID retrieves students by their group ID
 	FindByGroupID(ctx context.Context, groupID int64) ([]*peopledirectory.StudentState, error)

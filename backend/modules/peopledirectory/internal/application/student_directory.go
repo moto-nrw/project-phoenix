@@ -98,21 +98,3 @@ func (s *StudentService) ListRecordsByIDs(ctx context.Context, ids []int64) (res
 	})
 	return result, err
 }
-
-// lockRecordByPersonID runs within the transaction required by the retained
-// locked-read boundary. Scans must own the student before any sessions.
-func (s *StudentService) lockRecordByPersonID(ctx context.Context, personID int64) (result domain.StudentRecord, err error) {
-	err = s.run(ctx, "lock_student_record_by_person", func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, func(txCtx context.Context, stats *domain.OperationStats) error {
-		record, found, queryStats, err := s.store.LockRecordByPersonID(txCtx, personID)
-		stats.Add(queryStats)
-		if err != nil {
-			return err
-		}
-		if !found {
-			return domain.ErrStudentNotFound
-		}
-		result = record
-		return nil
-	})
-	return result, err
-}

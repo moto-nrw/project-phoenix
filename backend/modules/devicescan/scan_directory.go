@@ -33,7 +33,6 @@ type StaffLookup interface {
 type StudentLookup interface {
 	GetStudentByIDForUpdate(context.Context, int64) (*ScanStudent, error)
 	GetStudentByPersonID(context.Context, int64) (*ScanStudent, error)
-	GetStudentByPersonIDForUpdate(context.Context, int64) (*ScanStudent, error)
 	Students(context.Context, []int64) ([]DirectoryStudent, error)
 }
 

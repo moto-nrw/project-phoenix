@@ -11,7 +11,6 @@ import (
 // tenant in context when one is present; inside an admin transaction they
 // span every tenant. Writes always require a tenant.
 type StudentStore interface {
-	LockRecordByPersonID(context.Context, int64) (domain.StudentRecord, bool, domain.OperationStats, error)
 	ListDepartureModes(context.Context, []int64) (map[int64]map[string][]string, domain.OperationStats, error)
 	CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, domain.OperationStats, error)
 	// AppendFamilyProtection inserts one immutable ledger row. The caller

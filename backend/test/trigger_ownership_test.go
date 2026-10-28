@@ -115,7 +115,7 @@ func triggerRoutineWrites(id int64, bodies map[int64]string, byName map[string][
 		if upper == "DELETE" && i+1 < len(tokens) && strings.EqualFold(tokens[i+1], "FROM") {
 			target = i + 2
 		}
-		if upper == "UPDATE" && !triggerLockClause(tokens, i) && (i == 0 || !strings.EqualFold(tokens[i-1], "DO")) {
+		if upper == "UPDATE" && (i == 0 || (!strings.EqualFold(tokens[i-1], "FOR") && !strings.EqualFold(tokens[i-1], "DO"))) {
 			target = i + 1
 		}
 		if target >= 0 {
@@ -137,15 +137,6 @@ func triggerRoutineWrites(id int64, bodies map[int64]string, byName map[string][
 		}
 	}
 	return result, nil
-}
-
-// triggerLockClause reports whether the UPDATE at i ends a row-locking
-// clause (FOR UPDATE, FOR NO KEY UPDATE), which writes no table.
-func triggerLockClause(tokens []string, i int) bool {
-	if i >= 1 && strings.EqualFold(tokens[i-1], "FOR") {
-		return true
-	}
-	return i >= 3 && strings.EqualFold(tokens[i-1], "KEY") && strings.EqualFold(tokens[i-2], "NO") && strings.EqualFold(tokens[i-3], "FOR")
 }
 
 // SQL quotes/comments are removed before recognizing statements. PostgreSQL
@@ -220,8 +211,4 @@ func TestTriggerOwnershipFollowsFunctionsAndRejectsDynamicWrites(t *testing.T) {
 	bodies[2] = `BEGIN UPDATE rows SET id = 1; END`
 	_, err = triggerRoutineWrites(1, bodies, map[string][]int64{"owner.child": {2}}, map[int64]bool{})
 	require.ErrorContains(t, err, "unqualified/unresolved")
-	bodies[2] = `BEGIN PERFORM 1 FROM owner.rows ORDER BY id FOR NO KEY UPDATE; PERFORM 1 FROM owner.rows FOR UPDATE; UPDATE other.rows SET id = 1; END`
-	writes, err = triggerRoutineWrites(1, bodies, map[string][]int64{"owner.child": {2}}, map[int64]bool{})
-	require.NoError(t, err)
-	require.Equal(t, map[string]bool{"other.rows": true}, writes, "a row-locking clause writes no table")
 }

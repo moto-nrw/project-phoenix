@@ -13,11 +13,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The visit revision of a session orders the kiosk counter (#5128). These
-// tests pin its invariants: every committed change of the open visit count
-// raises it, nothing else does, one revision names one count, writers of one
-// session commit in revision order, and a read that started before a write
-// committed never carries that write's revision.
+// The visit revision of a session orders the kiosk counter (#5128, ADR
+// 0131). It is the sum of the session's append-only change events a read
+// sees. These tests pin its invariants: every committed change of the open
+// visit count raises it, also deletes and moves, nothing else does, a read
+// that started before a write committed never carries that write's events,
+// visit writes take no lock they did not take before, the nightly
+// compaction keeps every revision, and the deadlocks of the earlier
+// lock-based design stay gone.
 
 type countSnapshot struct {
 	count    int
@@ -247,198 +250,188 @@ func TestVisitRevisionOrdersAPollBeforeTheScanCommitted(t *testing.T) {
 	assert.Equal(t, scanAnswer, readSnapshot(t, ctx, module, group.ID), "the same revision names the same count")
 }
 
-// TestVisitRevisionSerializesWritersOfOneSession runs two scans into one
-// session at once, as two kiosks would. The second waits for the first to
-// commit, so commit order, revision order and count agree.
-func TestVisitRevisionSerializesWritersOfOneSession(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	ctx := testpkg.Ctx(t)
-	module := newRevisionModule(t, db)
-	activity := testpkg.CreateTestActivityGroup(t, db, "Writers activity")
-	room := testpkg.CreateTestRoom(t, db, "Writers room")
-	otherRoom := testpkg.CreateTestRoom(t, db, "Writers other room")
-	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	otherGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, otherRoom.ID)
-	first := testpkg.CreateTestStudent(t, db, "First", "Writer", "3a")
-	second := testpkg.CreateTestStudent(t, db, "Second", "Writer", "3a")
-	elsewhere := testpkg.CreateTestStudent(t, db, "Elsewhere", "Writer", "3a")
-	book := func(studentID, groupID int64, answer *countSnapshot) func(context.Context) error {
-		return func(txCtx context.Context) error {
-			if _, err := module.RecordVisit(txCtx, studentpresence.Visit{StudentID: studentID, ActiveGroupID: groupID, EntryTime: time.Now()}); err != nil {
-				return err
-			}
-			*answer = readSnapshot(t, txCtx, module, groupID)
-			return nil
-		}
-	}
-
-	w1 := startTx(t, ctx, db)
-	var a1, a2, other countSnapshot
-	awaitStep(t, w1.run(book(first.ID, group.ID, &a1)))
-
-	independent := startTx(t, ctx, db)
-	awaitStep(t, independent.run(book(elsewhere.ID, otherGroup.ID, &other)))
-	independent.commit(t)
-	assert.Equal(t, countSnapshot{count: 1, revision: 1}, other, "another session never waits for this one")
-
-	w2 := startTx(t, ctx, db)
-	second2 := w2.run(book(second.ID, group.ID, &a2))
-	awaitBlockedBy(t, db, w2, w1)
-	w1.commit(t)
-	awaitStep(t, second2)
-	w2.commit(t)
-
-	assert.Equal(t, countSnapshot{count: 1, revision: 1}, a1)
-	assert.Equal(t, countSnapshot{count: 2, revision: 2}, a2, "the later commit carries the next revision and both children")
-	assert.Equal(t, a2, readSnapshot(t, ctx, module, group.ID))
+func countEventRows(t *testing.T, db *bun.DB, groupID int64) int {
+	t.Helper()
+	var rows int
+	require.NoError(t, db.NewRaw("SELECT count(*) FROM active.visit_revision_events WHERE active_group_id = ?", groupID).Scan(context.Background(), &rows))
+	return rows
 }
 
-// TestCloseVisitsWaitsForASessionEndWithoutDeadlock pins the lock order the
-// revision needs: a checkout locks the session before its visit, as a
-// session end does. A session end holding the session lets the checkout
-// wait instead of both transactions deadlocking.
-func TestCloseVisitsWaitsForASessionEndWithoutDeadlock(t *testing.T) {
+func newSession(t *testing.T, db *bun.DB, name string) *testpkg.ActiveGroupRow {
+	t.Helper()
+	activity := testpkg.CreateTestActivityGroup(t, db, name+" activity")
+	room := testpkg.CreateTestRoom(t, db, name+" room")
+	return testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+}
+
+// TestVisitWritesTakeNoSessionLock pins that the revision adds no lock edge:
+// while another transaction holds a session FOR UPDATE (as a session end
+// does), closing, moving and deleting its visits complete without waiting,
+// and two check-ins into one session do not wait for each other.
+func TestVisitWritesTakeNoSessionLock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
-	activity := testpkg.CreateTestActivityGroup(t, db, "Deadlock activity")
-	room := testpkg.CreateTestRoom(t, db, "Deadlock room")
-	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	visit := openVisit(t, ctx, module, db, group.ID, "Leaving")
+	group := newSession(t, db, "No lock")
+	other := newSession(t, db, "No lock other")
+	closing := openVisit(t, ctx, module, db, group.ID, "Closing")
+	moving := openVisit(t, ctx, module, db, group.ID, "Moving")
+	deleting := openVisit(t, ctx, module, db, group.ID, "Deleting")
 	before := readSnapshot(t, ctx, module, group.ID)
 
-	sessionEnd := startTx(t, ctx, db)
-	awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
+	holder := startTx(t, ctx, db)
+	awaitStep(t, holder.run(func(txCtx context.Context) error {
 		_, err := module.LockGroup(txCtx, group.ID)
 		return err
 	}))
-	checkout := startTx(t, ctx, db)
-	var closed []studentpresence.Visit
-	closing := checkout.run(func(txCtx context.Context) error {
-		var err error
-		closed, err = module.CloseVisits(txCtx, []int64{visit.ID}, time.Now())
-		return err
-	})
-	awaitBlockedBy(t, db, checkout, sessionEnd)
-	awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
-		_, err := module.EndGroupSession(txCtx, group.ID, time.Now())
-		return err
+	writer := startTx(t, ctx, db)
+	awaitStep(t, writer.run(func(txCtx context.Context) error {
+		if _, err := module.CloseVisits(txCtx, []int64{closing.ID}, time.Now()); err != nil {
+			return err
+		}
+		moved := moving
+		moved.ActiveGroupID = other.ID
+		if _, err := module.ReviseVisit(txCtx, moved); err != nil {
+			return err
+		}
+		return module.DeleteVisit(txCtx, deleting.ID)
 	}))
-	sessionEnd.commit(t)
-	awaitStep(t, closing)
-	checkout.commit(t)
+	writer.commit(t)
+	holder.commit(t)
+	assert.Equal(t, countSnapshot{count: 0, revision: before.revision + 3}, readSnapshot(t, ctx, module, group.ID))
+	assert.Equal(t, countSnapshot{count: 1, revision: 1}, readSnapshot(t, ctx, module, other.ID))
 
-	assert.Empty(t, closed, "the session end closed the visit first")
-	assert.Equal(t, countSnapshot{count: 0, revision: before.revision + 1}, readSnapshot(t, ctx, module, group.ID))
-}
-
-// Deletion and revision must lock the session before the visit, including
-// both sessions when a revision moves an open visit.
-func TestVisitWritersWaitForASessionEndWithoutDeadlock(t *testing.T) {
-	t.Parallel()
-	db := testpkg.SetupTestDB(t)
-	for _, operation := range []string{"delete", "close", "move from ending session", "move to ending session"} {
-		t.Run(operation, func(t *testing.T) {
-			testpkg.OwnTenant(t)
-			ctx := testpkg.Ctx(t)
-			module := newRevisionModule(t, db)
-			activity := testpkg.CreateTestActivityGroup(t, db, "Writer activity")
-			room := testpkg.CreateTestRoom(t, db, "Writer room")
-			otherRoom := testpkg.CreateTestRoom(t, db, "Writer target room")
-			group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-			target := testpkg.CreateTestActiveGroup(t, db, activity.ID, otherRoom.ID)
-			visit := openVisit(t, ctx, module, db, group.ID, "Leaving")
-			endingID := group.ID
-			if operation == "move to ending session" {
-				endingID = target.ID
-			}
-
-			sessionEnd := startTx(t, ctx, db)
-			awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
-				_, err := module.LockGroup(txCtx, endingID)
-				return err
-			}))
-			writer := startTx(t, ctx, db)
-			writing := writer.run(func(txCtx context.Context) error {
-				if operation == "delete" {
-					return module.DeleteVisit(txCtx, visit.ID)
-				}
-				if operation == "close" {
-					at := time.Now()
-					visit.ExitTime = &at
-				} else {
-					visit.ActiveGroupID = target.ID
-				}
-				_, err := module.ReviseVisit(txCtx, visit)
-				return err
-			})
-			awaitBlockedBy(t, db, writer, sessionEnd)
-			awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
-				_, err := module.EndGroupSession(txCtx, endingID, time.Now())
-				return err
-			}))
-			sessionEnd.commit(t)
-			awaitStep(t, writing)
-			writer.commit(t)
-
-			assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, group.ID))
-			if operation == "delete" || operation == "close" {
-				assert.Equal(t, countSnapshot{}, readSnapshot(t, ctx, module, target.ID))
-			} else {
-				assert.Equal(t, countSnapshot{count: 1, revision: 1}, readSnapshot(t, ctx, module, target.ID))
-			}
-		})
-	}
-}
-
-// awaitBlockedOrDone waits until the waiter blocks on the holder (true) or
-// its step finishes first (false, with the step's error). The test then
-// knows which interleaving the lock order produced.
-func awaitBlockedOrDone(t *testing.T, db *bun.DB, waiter, holder *txActor, step <-chan error) (bool, error) {
-	t.Helper()
-	deadline := time.Now().Add(10 * time.Second)
-	for time.Now().Before(deadline) {
-		select {
-		case err := <-step:
-			return false, err
-		default:
+	first := startTx(t, ctx, db)
+	second := startTx(t, ctx, db)
+	firstStudent := testpkg.CreateTestStudent(t, db, "First", "Parallel", "3a")
+	secondStudent := testpkg.CreateTestStudent(t, db, "Second", "Parallel", "3a")
+	record := func(studentID int64) func(context.Context) error {
+		return func(txCtx context.Context) error {
+			_, err := module.RecordVisit(txCtx, studentpresence.Visit{StudentID: studentID, ActiveGroupID: other.ID, EntryTime: time.Now()})
+			return err
 		}
-		var blocked bool
-		require.NoError(t, db.NewRaw("SELECT ?::int = ANY (pg_blocking_pids(?::int))", holder.pid, waiter.pid).Scan(context.Background(), &blocked))
-		if blocked {
-			return true, nil
-		}
-		time.Sleep(10 * time.Millisecond)
 	}
-	t.Fatal("waiter neither blocked nor finished")
-	return false, nil
+	awaitStep(t, first.run(record(firstStudent.ID)))
+	awaitStep(t, second.run(record(secondStudent.ID)))
+	second.commit(t)
+	first.commit(t)
+	assert.Equal(t, countSnapshot{count: 3, revision: 3}, readSnapshot(t, ctx, module, other.ID))
 }
 
-// TestOppositeScansWaitInsteadOfDeadlocking replays two scans that move
-// children in opposite directions between two sessions, each as the device
-// scan runs it: lock the scan's sessions, close the current visit, lock the
-// target (CreateVisit) and record the new visit. Locking every session up
-// front in ascending order makes the second scan wait for the first;
-// without it, each holds its source and waits for the other's.
-func TestOppositeScansWaitInsteadOfDeadlocking(t *testing.T) {
+// TestConcurrentWritersOfOneSessionMeetOnTheNextRead pins the remaining
+// blur ADR 0131 accepts: two writers of one session that overlap each read
+// their own change and the other's absence, so both answers can carry the
+// same revision. No answer is older than a committed state, and the next
+// read after both commits carries both changes with a higher revision.
+func TestConcurrentWritersOfOneSessionMeetOnTheNextRead(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
-	activity := testpkg.CreateTestActivityGroup(t, db, "Opposite activity")
-	firstRoom := testpkg.CreateTestRoom(t, db, "Opposite first room")
-	secondRoom := testpkg.CreateTestRoom(t, db, "Opposite second room")
-	first := testpkg.CreateTestActiveGroup(t, db, activity.ID, firstRoom.ID)
-	second := testpkg.CreateTestActiveGroup(t, db, activity.ID, secondRoom.ID)
-	leavingFirst := openVisit(t, ctx, module, db, first.ID, "Forward")
-	leavingSecond := openVisit(t, ctx, module, db, second.ID, "Backward")
-	checkout := func(visit studentpresence.Visit, roomID int64) func(context.Context) error {
+	group := newSession(t, db, "Overlap")
+	present := openVisit(t, ctx, module, db, group.ID, "Present")
+	before := readSnapshot(t, ctx, module, group.ID)
+	arriving := testpkg.CreateTestStudent(t, db, "Arriving", "Overlap", "3a")
+
+	checkin := startTx(t, ctx, db)
+	checkout := startTx(t, ctx, db)
+	var checkinAnswer, checkoutAnswer countSnapshot
+	awaitStep(t, checkin.run(func(txCtx context.Context) error {
+		if _, err := module.RecordVisit(txCtx, studentpresence.Visit{StudentID: arriving.ID, ActiveGroupID: group.ID, EntryTime: time.Now()}); err != nil {
+			return err
+		}
+		checkinAnswer = readSnapshot(t, txCtx, module, group.ID)
+		return nil
+	}))
+	awaitStep(t, checkout.run(func(txCtx context.Context) error {
+		if _, err := module.CloseVisits(txCtx, []int64{present.ID}, time.Now()); err != nil {
+			return err
+		}
+		checkoutAnswer = readSnapshot(t, txCtx, module, group.ID)
+		return nil
+	}))
+	checkin.commit(t)
+	checkout.commit(t)
+
+	assert.Equal(t, countSnapshot{count: 2, revision: before.revision + 1}, checkinAnswer)
+	assert.Equal(t, countSnapshot{count: 0, revision: before.revision + 1}, checkoutAnswer)
+	assert.Equal(t, countSnapshot{count: 1, revision: before.revision + 2}, readSnapshot(t, ctx, module, group.ID),
+		"the next read carries both changes above both answers")
+}
+
+// TestNightlyCloseCompactsEventsWithoutChangingRevisions pins the cleanup:
+// the nightly close replaces the events of ended sessions by one row each
+// and drops those of deleted sessions; every revision stays, also for a
+// session reopened afterwards and for an event a concurrent writer commits
+// while the compaction runs.
+func TestNightlyCloseCompactsEventsWithoutChangingRevisions(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module := newRevisionModule(t, db)
+	ended := newSession(t, db, "Compact ended")
+	deleted := newSession(t, db, "Compact deleted")
+	running := newSession(t, db, "Compact running")
+	stillOpen := openVisit(t, ctx, module, db, ended.ID, "Late")
+	leaving := openVisit(t, ctx, module, db, ended.ID, "Leaving")
+	_, err := module.CloseVisits(ctx, []int64{leaving.ID}, time.Now())
+	require.NoError(t, err)
+	gone := openVisit(t, ctx, module, db, deleted.ID, "Gone")
+	require.NoError(t, module.DeleteVisit(ctx, gone.ID))
+	openVisit(t, ctx, module, db, running.ID, "Running")
+	_, err = db.NewRaw("UPDATE active.groups SET end_time = NOW() WHERE id = ?", ended.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw("DELETE FROM active.groups WHERE id = ?", deleted.ID).Exec(ctx)
+	require.NoError(t, err)
+	endedBefore := readSnapshot(t, ctx, module, ended.ID)
+	require.Equal(t, 3, countEventRows(t, db, ended.ID))
+
+	writer := startTx(t, ctx, db)
+	awaitStep(t, writer.run(func(txCtx context.Context) error {
+		_, err := module.CloseVisits(txCtx, []int64{stillOpen.ID}, time.Now())
+		return err
+	}))
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		_, err := module.EndGroupSessions(txCtx, []int64{running.ID}, time.Now())
+		return err
+	}))
+	writer.commit(t)
+
+	assert.Equal(t, countSnapshot{count: 0, revision: endedBefore.revision + 1}, readSnapshot(t, ctx, module, ended.ID),
+		"the compaction keeps the revision and the concurrent writer's event")
+	assert.Equal(t, 2, countEventRows(t, db, ended.ID), "one compacted row and the concurrent writer's event")
+	assert.Zero(t, countEventRows(t, db, deleted.ID), "a deleted session's events go")
+	runningAfter := readSnapshot(t, ctx, module, running.ID)
+	assert.Equal(t, countSnapshot{count: 0, revision: 2}, runningAfter, "the nightly close of the running session is its second change")
+	assert.Equal(t, 1, countEventRows(t, db, running.ID))
+
+	_, err = db.NewRaw("UPDATE active.groups SET end_time = NULL WHERE id = ?", running.ID).Exec(ctx)
+	require.NoError(t, err)
+	openVisit(t, ctx, module, db, running.ID, "Reopened")
+	assert.Equal(t, countSnapshot{count: 1, revision: runningAfter.revision + 1}, readSnapshot(t, ctx, module, running.ID),
+		"a reopened session continues above its compacted revision")
+}
+
+// The tests below replay the deadlocks both review rounds reproduced
+// against the lock-based design. They interleave the writers the way the
+// production paths do; with the event table no writer locks a session it
+// did not lock before, and every pair finishes.
+
+// TestOppositeScansDoNotDeadlock: two scans move children in opposite
+// directions between two sessions (checkout, then the check-in's target
+// lock and insert).
+func TestOppositeScansDoNotDeadlock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module := newRevisionModule(t, db)
+	first := newSession(t, db, "Opposite first")
+	second := newSession(t, db, "Opposite second")
+	forwardVisit := openVisit(t, ctx, module, db, first.ID, "Forward")
+	backwardVisit := openVisit(t, ctx, module, db, second.ID, "Backward")
+	checkout := func(visit studentpresence.Visit) func(context.Context) error {
 		return func(txCtx context.Context) error {
-			if err := module.LockVisitSessions(txCtx, visit.StudentID, roomID, 0); err != nil {
-				return err
-			}
 			_, err := module.CloseVisits(txCtx, []int64{visit.ID}, time.Now())
 			return err
 		}
@@ -454,136 +447,183 @@ func TestOppositeScansWaitInsteadOfDeadlocking(t *testing.T) {
 	}
 
 	forward := startTx(t, ctx, db)
-	awaitStep(t, forward.run(checkout(leavingFirst, secondRoom.ID)))
 	backward := startTx(t, ctx, db)
-	backwardCheckout := backward.run(checkout(leavingSecond, firstRoom.ID))
-	blocked, err := awaitBlockedOrDone(t, db, backward, forward, backwardCheckout)
-	if !blocked {
-		require.NoError(t, err)
-		forwardCheckin := forward.run(checkin(leavingFirst.StudentID, second.ID))
-		backwardCheckin := backward.run(checkin(leavingSecond.StudentID, first.ID))
-		require.NoError(t, <-backwardCheckin, "the opposite scan must wait instead of deadlocking")
-		require.NoError(t, <-forwardCheckin, "the opposite scan must wait instead of deadlocking")
-		t.Fatal("the opposite scan did not wait for the sessions the first scan locked")
-	}
-	awaitStep(t, forward.run(checkin(leavingFirst.StudentID, second.ID)))
+	awaitStep(t, forward.run(checkout(forwardVisit)))
+	awaitStep(t, backward.run(checkout(backwardVisit)))
+	awaitStep(t, forward.run(checkin(forwardVisit.StudentID, second.ID)))
+	awaitStep(t, backward.run(checkin(backwardVisit.StudentID, first.ID)))
 	forward.commit(t)
-	awaitStep(t, backwardCheckout)
-	awaitStep(t, backward.run(checkin(leavingSecond.StudentID, first.ID)))
 	backward.commit(t)
 
 	assert.Equal(t, countSnapshot{count: 1, revision: 3}, readSnapshot(t, ctx, module, first.ID))
 	assert.Equal(t, countSnapshot{count: 1, revision: 3}, readSnapshot(t, ctx, module, second.ID))
 }
 
-// TestCareExitWaitsForASessionEndWithoutDeadlock replays a care exit (lock
-// the child's open presence, then close it) next to a session end of the
-// child's session (lock the session, then close its visits). The care exit
-// locks the session before the visit, as the session end does.
-func TestCareExitWaitsForASessionEndWithoutDeadlock(t *testing.T) {
+// TestCheckoutAndSessionEndDoNotDeadlock: a checkout closes a visit while a
+// session end holds the session and then closes its visits.
+func TestCheckoutAndSessionEndDoNotDeadlock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
-	activity := testpkg.CreateTestActivityGroup(t, db, "Care exit activity")
-	room := testpkg.CreateTestRoom(t, db, "Care exit room")
-	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	group := newSession(t, db, "Checkout end")
+	visit := openVisit(t, ctx, module, db, group.ID, "Leaving")
+
+	sessionEnd := startTx(t, ctx, db)
+	checkout := startTx(t, ctx, db)
+	awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
+		_, err := module.LockGroup(txCtx, group.ID)
+		return err
+	}))
+	awaitStep(t, checkout.run(func(txCtx context.Context) error {
+		_, err := module.CloseVisits(txCtx, []int64{visit.ID}, time.Now())
+		return err
+	}))
+	ending := sessionEnd.run(func(txCtx context.Context) error {
+		_, err := module.EndGroupSession(txCtx, group.ID, time.Now())
+		return err
+	})
+	awaitBlockedBy(t, db, sessionEnd, checkout)
+	checkout.commit(t)
+	awaitStep(t, ending)
+	sessionEnd.commit(t)
+
+	assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, group.ID))
+}
+
+// TestCareExitAndSessionEndDoNotDeadlock: a care exit locks the child's
+// presence and closes it while a session end of the child's session holds
+// the session and waits for the visit.
+func TestCareExitAndSessionEndDoNotDeadlock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module := newRevisionModule(t, db)
+	group := newSession(t, db, "Care exit")
 	leaving := openVisit(t, ctx, module, db, group.ID, "Leaving")
-	staying := openVisit(t, ctx, module, db, group.ID, "Staying")
+	openVisit(t, ctx, module, db, group.ID, "Staying")
 
 	careExit := startTx(t, ctx, db)
+	sessionEnd := startTx(t, ctx, db)
 	awaitStep(t, careExit.run(func(txCtx context.Context) error {
 		return module.LockOpenPresence(txCtx, []int64{leaving.StudentID})
 	}))
-	sessionEnd := startTx(t, ctx, db)
-	sessionLock := sessionEnd.run(func(txCtx context.Context) error {
+	awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
 		_, err := module.LockGroup(txCtx, group.ID)
 		return err
-	})
-	endSession := func(txCtx context.Context) error {
+	}))
+	ending := sessionEnd.run(func(txCtx context.Context) error {
 		_, err := module.EndGroupSession(txCtx, group.ID, time.Now())
 		return err
-	}
-	closePresence := func(txCtx context.Context) error {
+	})
+	awaitBlockedBy(t, db, sessionEnd, careExit)
+	awaitStep(t, careExit.run(func(txCtx context.Context) error {
 		_, err := module.CloseOpenPresence(txCtx, []int64{leaving.StudentID}, time.Now())
 		return err
-	}
-	blocked, err := awaitBlockedOrDone(t, db, sessionEnd, careExit, sessionLock)
-	if !blocked {
-		require.NoError(t, err)
-		ending := sessionEnd.run(endSession)
-		closing := careExit.run(closePresence)
-		require.NoError(t, <-closing, "the care exit must not deadlock with the session end")
-		require.NoError(t, <-ending, "the session end must not deadlock with the care exit")
-		t.Fatal("the session end did not wait for the session the care exit locked")
-	}
-	awaitStep(t, careExit.run(closePresence))
+	}))
 	careExit.commit(t)
-	awaitStep(t, sessionLock)
-	awaitStep(t, sessionEnd.run(endSession))
+	awaitStep(t, ending)
 	sessionEnd.commit(t)
 
 	assert.Equal(t, countSnapshot{count: 0, revision: 4}, readSnapshot(t, ctx, module, group.ID),
 		"two openings, the care exit and the session end each raised the revision")
-	assert.NotZero(t, staying.ID)
 }
 
-// TestCrossDeviceCheckoutsWaitInsteadOfDeadlocking replays two checkouts
-// without a room: each device scans a child that stays in the other
-// device's session, closes that visit and refreshes its own session's
-// heartbeat. The scan's lock set includes the device's running session, so
-// the second scan waits for the first instead of both deadlocking.
-func TestCrossDeviceCheckoutsWaitInsteadOfDeadlocking(t *testing.T) {
+// TestAdminTransferWaitingCheckoutAndSessionEndDoNotDeadlock: an admin
+// moves a visit to another session (target guard lock, then the update)
+// while a checkout of that visit waits; the checkout then closes the moved
+// visit, and a session end of the target waits for it.
+func TestAdminTransferWaitingCheckoutAndSessionEndDoNotDeadlock(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
-	activity := testpkg.CreateTestActivityGroup(t, db, "Cross device activity")
-	firstRoom := testpkg.CreateTestRoom(t, db, "Cross device first room")
-	secondRoom := testpkg.CreateTestRoom(t, db, "Cross device second room")
-	firstDevice := testpkg.CreateTestDevice(t, db, "cross-device-first")
-	secondDevice := testpkg.CreateTestDevice(t, db, "cross-device-second")
-	first := testpkg.CreateTestActiveGroup(t, db, activity.ID, firstRoom.ID)
-	second := testpkg.CreateTestActiveGroup(t, db, activity.ID, secondRoom.ID)
-	testpkg.LinkDeviceToActiveGroup(t, db, first.ID, firstDevice.ID)
-	testpkg.LinkDeviceToActiveGroup(t, db, second.ID, secondDevice.ID)
-	inSecond := openVisit(t, ctx, module, db, second.ID, "InSecond")
-	inFirst := openVisit(t, ctx, module, db, first.ID, "InFirst")
-	checkout := func(visit studentpresence.Visit, deviceID int64) func(context.Context) error {
-		return func(txCtx context.Context) error {
-			if err := module.LockVisitSessions(txCtx, visit.StudentID, 0, deviceID); err != nil {
-				return err
-			}
-			_, err := module.CloseVisits(txCtx, []int64{visit.ID}, time.Now())
+	source := newSession(t, db, "Transfer source")
+	target := newSession(t, db, "Transfer target")
+	visit := openVisit(t, ctx, module, db, source.ID, "Moved")
+
+	admin := startTx(t, ctx, db)
+	checkout := startTx(t, ctx, db)
+	sessionEnd := startTx(t, ctx, db)
+	awaitStep(t, admin.run(func(txCtx context.Context) error {
+		if _, err := module.LockGroup(txCtx, target.ID); err != nil {
 			return err
 		}
-	}
-	heartbeat := func(actor *txActor, groupID int64) func(context.Context) error {
-		return func(txCtx context.Context) error {
-			_, err := actor.tx.NewRaw("UPDATE active.groups SET last_activity = NOW() WHERE id = ?", groupID).Exec(txCtx)
+		moved := visit
+		moved.ActiveGroupID = target.ID
+		_, err := module.ReviseVisit(txCtx, moved)
+		return err
+	}))
+	closing := checkout.run(func(txCtx context.Context) error {
+		_, err := module.CloseVisits(txCtx, []int64{visit.ID}, time.Now())
+		return err
+	})
+	awaitBlockedBy(t, db, checkout, admin)
+	admin.commit(t)
+	awaitStep(t, closing)
+	awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
+		_, err := module.LockGroup(txCtx, target.ID)
+		return err
+	}))
+	ending := sessionEnd.run(func(txCtx context.Context) error {
+		_, err := module.EndGroupSession(txCtx, target.ID, time.Now())
+		return err
+	})
+	awaitBlockedBy(t, db, sessionEnd, checkout)
+	checkout.commit(t)
+	awaitStep(t, ending)
+	sessionEnd.commit(t)
+
+	assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, source.ID), "opened, then moved out")
+	assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, target.ID), "moved in, then closed")
+}
+
+// TestReattachAndScanDoNotDeadlock: a device reattaches to its session (the
+// session row update) and takes over the open visits of its recently ended
+// session, while a scan checks a child out of that ended session into
+// another room's session.
+func TestReattachAndScanDoNotDeadlock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module := newRevisionModule(t, db)
+	device := testpkg.CreateTestDevice(t, db, "reattach-device")
+	ended := newSession(t, db, "Reattach ended")
+	reattached := newSession(t, db, "Reattach target")
+	elsewhere := newSession(t, db, "Reattach elsewhere")
+	testpkg.LinkDeviceToActiveGroup(t, db, ended.ID, device.ID)
+	scanned := openVisit(t, ctx, module, db, ended.ID, "Scanned")
+	openVisit(t, ctx, module, db, ended.ID, "TakenOver")
+	_, err := db.NewRaw("UPDATE active.groups SET end_time = NOW() - INTERVAL '5 minutes' WHERE id = ?", ended.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	reattach := startTx(t, ctx, db)
+	scan := startTx(t, ctx, db)
+	awaitStep(t, reattach.run(func(txCtx context.Context) error {
+		_, err := reattach.tx.NewRaw("UPDATE active.groups SET device_id = ? WHERE id = ?", device.ID, reattached.ID).Exec(txCtx)
+		return err
+	}))
+	awaitStep(t, scan.run(func(txCtx context.Context) error {
+		_, err := module.CloseVisits(txCtx, []int64{scanned.ID}, time.Now())
+		return err
+	}))
+	takeOver := reattach.run(func(txCtx context.Context) error {
+		_, err := module.TransferRecentDeviceVisits(txCtx, reattached.ID, device.ID)
+		return err
+	})
+	awaitBlockedBy(t, db, reattach, scan)
+	awaitStep(t, scan.run(func(txCtx context.Context) error {
+		if _, err := module.LockGroup(txCtx, elsewhere.ID); err != nil {
 			return err
 		}
-	}
+		_, err := module.RecordVisit(txCtx, studentpresence.Visit{StudentID: scanned.StudentID, ActiveGroupID: elsewhere.ID, EntryTime: time.Now()})
+		return err
+	}))
+	scan.commit(t)
+	awaitStep(t, takeOver)
+	reattach.commit(t)
 
-	scanOne := startTx(t, ctx, db)
-	awaitStep(t, scanOne.run(checkout(inSecond, firstDevice.ID)))
-	scanTwo := startTx(t, ctx, db)
-	twoCheckout := scanTwo.run(checkout(inFirst, secondDevice.ID))
-	blocked, err := awaitBlockedOrDone(t, db, scanTwo, scanOne, twoCheckout)
-	if !blocked {
-		require.NoError(t, err)
-		oneHeartbeat := scanOne.run(heartbeat(scanOne, first.ID))
-		twoHeartbeat := scanTwo.run(heartbeat(scanTwo, second.ID))
-		require.NoError(t, <-twoHeartbeat, "the second device's scan must wait instead of deadlocking")
-		require.NoError(t, <-oneHeartbeat, "the first device's scan must wait instead of deadlocking")
-		t.Fatal("the second device's scan did not wait for the sessions the first scan locked")
-	}
-	awaitStep(t, scanOne.run(heartbeat(scanOne, first.ID)))
-	scanOne.commit(t)
-	awaitStep(t, twoCheckout)
-	awaitStep(t, scanTwo.run(heartbeat(scanTwo, second.ID)))
-	scanTwo.commit(t)
-
-	assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, first.ID))
-	assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, second.ID))
+	assert.Equal(t, 1, readSnapshot(t, ctx, module, reattached.ID).count, "the child still in the ended session moved over")
+	assert.Equal(t, countSnapshot{count: 1, revision: 1}, readSnapshot(t, ctx, module, elsewhere.ID))
+	assert.Equal(t, countSnapshot{count: 0, revision: 4}, readSnapshot(t, ctx, module, ended.ID), "two openings, the checkout and the takeover")
 }

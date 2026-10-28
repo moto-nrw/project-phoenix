@@ -116,7 +116,6 @@ type fakePresence struct {
 	groupCounts map[int64]int
 	// groupRevisions are the visit revisions of the session counts (#5128).
 	groupRevisions map[int64]int64
-	lockErr        error
 	roomErr        error
 	groupErr       error
 }
@@ -126,9 +125,6 @@ func (p *fakePresence) CountOpenVisitsInRoom(_ context.Context, id int64) (int, 
 }
 func (p *fakePresence) CountOpenVisitsInGroup(_ context.Context, id int64) (int, error) {
 	return p.groupCounts[id], p.groupErr
-}
-func (p *fakePresence) LockVisitSessions(context.Context, int64, int64, int64) error {
-	return p.lockErr
 }
 func (p *fakePresence) CountOpenVisitsInGroupWithRevision(_ context.Context, id int64) (int, int64, error) {
 	return p.groupCounts[id], p.groupRevisions[id], p.groupErr
@@ -216,7 +212,7 @@ func (p *fakePeople) FindPersonByTag(_ context.Context, tag string) (*ports.Pers
 	}
 	return person, nil
 }
-func (p *fakePeople) FindStudentByPerson(_ context.Context, personID int64, _ bool) (*ports.Student, error) {
+func (p *fakePeople) FindStudentByPerson(_ context.Context, personID int64) (*ports.Student, error) {
 	if p.studentErr != nil {
 		return nil, p.studentErr
 	}

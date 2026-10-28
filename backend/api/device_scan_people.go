@@ -178,13 +178,6 @@ func (p DeviceScanPeople) GetStudentByPersonID(ctx context.Context, personID int
 	return scanStudent(student), err
 }
 
-// GetStudentByPersonIDForUpdate resolves and locks a scan's student in one
-// statement, including the shared class-writes gate before the row lock.
-func (p DeviceScanPeople) GetStudentByPersonIDForUpdate(ctx context.Context, personID int64) (*devicescan.ScanStudent, error) {
-	student, err := p.Users.StudentRows().FindByPersonIDForUpdate(ctx, personID)
-	return scanStudent(student), err
-}
-
 // Students lists the kiosk roster: every child, or those of the teachers'
 // groups, with name, class, group and card.
 func (p DeviceScanPeople) Students(ctx context.Context, teacherIDs []int64) ([]devicescan.DirectoryStudent, error) {
