@@ -305,9 +305,10 @@ export function installSessionEndBarrier(): void {
 
 /**
  * Holds new requests, waits up to five seconds for those in flight and returns
- * `cancel` for a failed logout, which resets the barrier. The sign-out then has
- * ten seconds before the barrier aborts it and resets on its own. Call it right before
- * deleting the cookie. After the timeout a request still open may restore the
+ * `cancel` for a failed logout, which resets the barrier. It rejects instead if
+ * the barrier ended this generation while waiting, so that attempt stops before
+ * its sign-out. The sign-out then has ten seconds before the barrier aborts it
+ * and resets on its own. Call it right before deleting the cookie. After the timeout a request still open may restore the
  * cookie; the next page then still sees the old session, as before.
  */
 export async function holdRequestsUntilSessionEnds(): Promise<() => void> {
@@ -330,8 +331,13 @@ export async function holdRequestsUntilSessionEnds(): Promise<() => void> {
     }),
   ]);
   clearTimeout(timer);
-  if (ending === generation && phase === "holding")
-    signOutTimer = setTimeout(() => expireSignOut(ending), SIGN_OUT_TIMEOUT_MS);
+  // Ended while waiting (bfcache restore, a newer hold): this attempt is over
+  // and must not go on to sign out. A new logout may already be running.
+  if (ending !== generation || phase !== "holding")
+    throw unavailableApiError(
+      new DOMException("The logout ended before it finished", "AbortError"),
+    );
+  signOutTimer = setTimeout(() => expireSignOut(ending), SIGN_OUT_TIMEOUT_MS);
   return () => cancel(ending);
 }
 

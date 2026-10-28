@@ -597,6 +597,74 @@ describe("session end barrier", () => {
     });
   });
 
+  // A bfcache reset and a new logout lead to exactly one sign-out (#5126).
+  describe("bfcache reset followed by a new logout", () => {
+    function restoreFromCache() {
+      const pageshow = new Event("pageshow");
+      Object.defineProperty(pageshow, "persisted", { value: true });
+      window.dispatchEvent(pageshow);
+    }
+    const signOuts = () =>
+      sent.filter((url) => url === "/api/auth/signout").length;
+
+    it("stops the old attempt when the reset hits while it holds", async () => {
+      const barrier = await loadBarrier();
+      const { endSessionOnce } = await import("./session-end-flight");
+      // A request in flight keeps the hold waiting.
+      window.fetch("/api/announcements/unread").catch(() => undefined);
+      const logoutOnce = () =>
+        endSessionOnce(async () => {
+          const cancel = await barrier.holdRequestsUntilSessionEnds();
+          try {
+            await window.fetch("/api/auth/signout", { method: "POST" });
+          } catch (error) {
+            cancel();
+            throw error;
+          }
+        });
+      const first = logoutOnce();
+      first.catch(() => undefined);
+      await flush();
+
+      restoreFromCache();
+      const second = logoutOnce();
+      expect(second).not.toBe(first);
+      answers.get("/api/announcements/unread")?.();
+
+      await expect(first).rejects.toMatchObject({
+        code: "general.unavailable",
+      });
+      await vi.waitFor(() => expect(signOuts()).toBe(1));
+      answers.get("/api/auth/signout")?.();
+      await second;
+      expect(signOuts()).toBe(1);
+    });
+
+    it("joins the running attempt when the reset hits before it holds", async () => {
+      const barrier = await loadBarrier();
+      const { endSessionOnce } = await import("./session-end-flight");
+      let prepared!: () => void;
+      const preparing = new Promise<void>((resolve) => (prepared = resolve));
+      const run = vi.fn(async () => {
+        await preparing; // e.g. push cleanup or the logout BFF
+        await barrier.holdRequestsUntilSessionEnds();
+        await window.fetch("/api/auth/signout", { method: "POST" });
+      });
+      const first = endSessionOnce(run);
+      await flush();
+
+      restoreFromCache();
+      const second = endSessionOnce(run);
+      expect(second).toBe(first);
+      prepared();
+      await vi.waitFor(() => expect(signOuts()).toBe(1));
+      answers.get("/api/auth/signout")?.();
+      await first;
+      expect(run).toHaveBeenCalledOnce();
+      expect(signOuts()).toBe(1);
+    });
+  });
+
   it("stops waiting for an unanswered request after five seconds", async () => {
     vi.useFakeTimers();
     const { holdRequestsUntilSessionEnds } = await loadBarrier();
