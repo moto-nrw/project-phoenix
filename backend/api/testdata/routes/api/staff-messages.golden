@@ -1,0 +1,6 @@
+GET /api/staff-messages/
+GET /api/staff-messages/recipients
+GET /api/staff-messages/threads/{threadID}
+GET /api/staff-messages/unread-count
+POST /api/staff-messages/threads/open
+POST /api/staff-messages/threads/{threadID}

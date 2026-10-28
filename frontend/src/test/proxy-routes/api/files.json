@@ -1,0 +1,16 @@
+{
+  "api/files/audience": [
+    "GET tenant /api/files/audience"
+  ],
+  "api/files/folders": [
+    "GET tenant /api/files/folders",
+    "POST tenant /api/files/folders"
+  ],
+  "api/files/folders/[folderId]": [
+    "DELETE tenant /api/files/folders/folderId%2F1",
+    "PUT tenant /api/files/folders/folderId%2F1"
+  ],
+  "api/files/folders/[folderId]/files/[fileId]": [
+    "DELETE tenant /api/files/folders/folderId%2F1/files/fileId%2F1"
+  ]
+}

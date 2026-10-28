@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -32,7 +34,7 @@ func TestModuleContractInventoryRatchet(t *testing.T) {
 	t.Parallel()
 	root, err := findBackendRoot()
 	require.NoError(t, err)
-	policyBytes, err := os.ReadFile(filepath.Join(root, "architecture/policy.json"))
+	policyBytes, err := artifacts.ReadPolicy(filepath.Join(root, "architecture/policy.json"))
 	require.NoError(t, err)
 	var policy struct {
 		ModulePath string `json:"module_path"`

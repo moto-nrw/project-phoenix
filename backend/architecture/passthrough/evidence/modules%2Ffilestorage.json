@@ -1,0 +1,88 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (c Content) Close() error {\n\tif c.Object == nil {\n\t\treturn nil\n\t}\n\treturn c.Object.Close()\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/filestorage/Content.Close",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *Coordinator) Remove(ctx context.Context, tenantID int64, storedName string) error {\n\treturn c.Backend.RemovePrivate(ctx, c.Kind, tenantID, storedName)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/adapters/documents/Coordinator.Remove",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *Coordinator) Save(ctx context.Context, tenantID int64, storedName string, source io.Reader) (int64, error) {\n\treturn c.Backend.SavePrivate(ctx, c.Kind, tenantID, storedName, source)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/adapters/documents/Coordinator.Save",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DocumentStore[R]) ListByOwner(ctx context.Context, ownerID int64) ([]domain.Document, domain.OperationStats, error) {\n\treturn s.list(ctx, \"list\", func(query *bun.SelectQuery) *bun.SelectQuery {\n\t\treturn s.table.whereOwner(query, ownerID).Where(`\"document\".deleted_at IS NULL`).OrderExpr(`\"document\".created_at DESC, \"document\".id DESC`)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/adapters/postgres/DocumentStore[R].ListByOwner",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DocumentStore[R]) ListDeletedPendingCleanupByOwner(ctx context.Context, ownerID int64) ([]domain.Document, domain.OperationStats, error) {\n\treturn s.list(ctx, \"list deleted pending cleanup by owner\", func(query *bun.SelectQuery) *bun.SelectQuery {\n\t\treturn s.table.whereOwner(query, ownerID).Where(`\"document\".deleted_at IS NOT NULL`).Where(`\"document\".file_deleted_at IS NULL`).OrderExpr(`\"document\".id ASC`).Limit(domain.RequestCleanupRetryLimit)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/adapters/postgres/DocumentStore[R].ListDeletedPendingCleanupByOwner",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DocumentStore[R]) ListPendingCleanupByOwner(ctx context.Context, ownerID int64) ([]domain.Document, domain.OperationStats, error) {\n\treturn s.list(ctx, \"list pending cleanup\", func(query *bun.SelectQuery) *bun.SelectQuery {\n\t\treturn s.table.whereOwner(query, ownerID).Where(`\"document\".file_deleted_at IS NULL`).OrderExpr(`\"document\".id ASC`)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/adapters/postgres/DocumentStore[R].ListPendingCleanupByOwner",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *CleanupRetention) DeleteRemovedFiles(ctx context.Context) (int, int, error) {\n\tdeleted, err := r.store.DeleteRemovedFiles(ctx, domain.RemovedFileRetentionWindow)\n\tif err != nil {\n\t\treturn 0, 0, err\n\t}\n\treturn deleted, int(domain.RemovedFileRetentionWindow.Hours() / 24), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/application/CleanupRetention.DeleteRemovedFiles",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (i IdentityAdapter) ListShareableRoles(ctx context.Context) ([]filestorage.AudienceRole, error) {\n\troles, err := i.Module.ListSchoolRoles(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]filestorage.AudienceRole, 0, len(roles))\n\tfor _, role := range roles {\n\t\tif role == nil || role.Name == \"guardian\" || (role.BaseRole != nil \u0026\u0026 *role.BaseRole == \"guardian\") {\n\t\t\tcontinue\n\t\t}\n\t\tresult = append(result, filestorage.AudienceRole{ID: role.ID, Name: role.Name})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/application/IdentityAdapter.ListShareableRoles",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s ObjectStore) Open(ctx context.Context, tenantID int64, storedName string) (ports.Object, error) {\n\treturn s.Backend.OpenPrivate(ctx, s.Kind, tenantID, storedName)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/application/ObjectStore.Open",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s ObjectStore) Remove(ctx context.Context, tenantID int64, storedName string) error {\n\treturn s.Backend.RemovePrivate(ctx, s.Kind, tenantID, storedName)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/application/ObjectStore.Remove",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s ObjectStore) Save(ctx context.Context, tenantID int64, storedName string, source io.Reader) (int64, error) {\n\treturn s.Backend.SavePrivate(ctx, s.Kind, tenantID, storedName, source)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/application/ObjectStore.Save",
+      "owner": "modules/filestorage"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountAttachments(ctx context.Context, announcementID int64) (count int, err error) {\n\terr = s.runRead(ctx, \"count_attachments\", func(ctx context.Context, o *op) error {\n\t\tif announcementID \u003c= 0 {\n\t\t\treturn fmt.Errorf(\"%w: announcement id is required\", filestorage.ErrInvalid)\n\t\t}\n\t\tvar stats domain.OperationStats\n\t\tvar err error\n\t\tcount, stats, err = s.deps.Attachments.CountByOwner(ctx, announcementID)\n\t\to.add(stats)\n\t\treturn err\n\t})\n\treturn count, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/filestorage/internal/application/Service.CountAttachments",
+      "owner": "modules/filestorage"
+    }
+  ]
+}

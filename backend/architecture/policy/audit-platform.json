@@ -1,0 +1,276 @@
+{
+  "packages": [
+    {
+      "path": "modules/auditlog/classlist",
+      "owner": "audit-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/imports",
+      "owner": "audit-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/consents",
+      "owner": "audit-platform",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/internal/adapters/auditpostgres/integration",
+      "owner": "audit-platform",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/auditlog",
+      "owner": "audit-platform",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/compose",
+      "owner": "audit-platform",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/internal/adapters/postgres",
+      "owner": "audit-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/internal/adapters/auditpostgres",
+      "owner": "audit-platform",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/records",
+      "owner": "audit-platform",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/auditlog/internal/application",
+      "owner": "audit-platform",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "audit.attendance_corrections",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.auth_events",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.class_list_entry_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.data_access_log",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.data_deletions",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.data_imports",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.deviation_events",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.enrollment_deletions",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.enrollment_offering_adjustments",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.enrollment_restorations",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.file_event_ledger",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.guardian_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.signatures",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.guardian_financial_change_ledger",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.personnel_number_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.staff_master_data_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.substitution_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.student_consent_changes",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.student_deletions",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.student_field_edits",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.time_tracking_deletions",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.time_tracking_audit_log",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.work_session_edits",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "platform.operator_audit_log",
+      "write_owner": "audit-platform"
+    },
+    {
+      "name": "audit.traeger_account_changes",
+      "write_owner": "audit-platform"
+    }
+  ],
+  "rules": [
+    {
+      "id": "audit-platform.postgres.records-port",
+      "description": "The Audit ledgers persist the owner's own records, which the owner publishes as its port for the root (#4085).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "postgres",
+      "target_owner": "audit-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "audit-platform.postgres.audit-consent-contract",
+      "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "postgres",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "audit-platform.application.audit-consent-contract",
+      "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "application",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "audit-platform.checkpoint-adapter-test.postgres",
+      "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "adapter-test",
+      "target_owner": "audit-platform",
+      "target_role": "postgres"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.tenant",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.postgres.public",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "postgres",
+      "target_owner": "audit-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.integration.tenant",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "audit-platform.native-corrections.integration.fixtures",
+      "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "audit-platform.native-corrections.compose.orm",
+      "description": "Bind the native Audit correction query to the caller's database transaction (#3179).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "audit-platform",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    }
+  ]
+}

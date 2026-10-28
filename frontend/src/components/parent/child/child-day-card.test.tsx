@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import type { ChildFeatures, ChildToday } from "~/lib/parent-api";
 import { ChildDayCard, type ChildDayCardChild } from "./child-day-card";
 

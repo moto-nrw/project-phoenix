@@ -12,8 +12,8 @@ import { loadShotList, selectShots } from "./shot-list";
 //   SHOT_OUT   Ausgabeverzeichnis (wird ersetzt)
 //   SHOT_VERSION  Versionsname im Manifest, Standard "lokal"
 
-// Der vollständige Lauf fotografiert und rahmt alle Gerätevarianten. Auf
-// CI benötigt schon die Aufnahme rund elf Minuten; die Rahmung kommt dazu.
+// Der vollständige Lauf behält alle Gerätevarianten. --workers steuert auch
+// den internen Aufnahme-Pool; Rahmung bleibt auf höchstens zwei Bilder begrenzt.
 test.describe.configure({ timeout: 30 * 60_000 });
 
 test("Produkt-Screenshots erzeugen", async () => {
@@ -36,6 +36,8 @@ test("Produkt-Screenshots erzeugen", async () => {
     shots,
     outDir,
     version: process.env.SHOT_VERSION ?? "lokal",
+    captureConcurrency: test.info().config.workers,
+    frameConcurrency: Math.min(2, test.info().config.workers),
     log: (message) => console.log(message),
   });
   const files = manifest.shots.reduce(

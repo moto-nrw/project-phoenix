@@ -1,0 +1,354 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (r *RecordUnregisteredTagScan) Normalize(now time.Time) {\n\tr.TagUID = strings.TrimSpace(r.TagUID)\n\tif r.ScannedAt.IsZero() {\n\t\tr.ScannedAt = now\n\t}\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/RecordUnregisteredTagScan.Normalize",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) DeviceOnlineWindow(ctx context.Context) time.Duration {\n\treturn s.devices.DeviceOnlineWindow(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/devicefleet/administration.DeviceOnlineWindow",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*Device, error) {\n\tif deviceID == \"\" {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByDeviceID\", Err: errors.New(errDeviceIDEmpty)}\n\t}\n\tdevice, err := s.devices.FindDeviceByDeviceID(ctx, deviceID)\n\tif err != nil {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByDeviceID\", Err: err}\n\t}\n\tif device.ID \u003c= 0 {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByDeviceID\", Err: \u0026AdministrationDeviceNotFoundError{DeviceID: deviceID}}\n\t}\n\treturn administrationDevicePointer(device), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.GetDeviceByDeviceID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) GetDeviceByID(ctx context.Context, id int64) (*Device, error) {\n\tif id \u003c= 0 {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByID\", Err: errors.New(\"invalid ID\")}\n\t}\n\tdevice, err := s.devices.FindDevice(ctx, id)\n\tif err != nil {\n\t\tif errors.Is(err, ErrDeviceNotFound) {\n\t\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByID\", Err: ErrAdministrationDeviceNotFound}\n\t\t}\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceByID\", Err: err}\n\t}\n\treturn administrationDevicePointer(device), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.GetDeviceByID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) GetDeviceTypeStatistics(ctx context.Context) (map[string]int, error) {\n\tstats, err := s.devices.CountDevicesByType(ctx)\n\tif err != nil {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDeviceTypeStatistics\", Err: err}\n\t}\n\treturn stats, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.GetDeviceTypeStatistics",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) GetDevicesByRegisteredBy(ctx context.Context, personID int64) ([]*Device, error) {\n\tif personID \u003c= 0 {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDevicesByRegisteredBy\", Err: errors.New(\"invalid person ID\")}\n\t}\n\tdevices, err := s.devices.ListDevices(ctx, DeviceFilter{RegisteredByID: \u0026personID})\n\tif err != nil {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDevicesByRegisteredBy\", Err: err}\n\t}\n\treturn administrationDevicePointers(devices), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.GetDevicesByRegisteredBy",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) GetDevicesByType(ctx context.Context, deviceType string) ([]*Device, error) {\n\tif deviceType == \"\" {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDevicesByType\", Err: errors.New(\"device type cannot be empty\")}\n\t}\n\tdevices, err := s.devices.ListDevices(ctx, DeviceFilter{DeviceType: \u0026deviceType})\n\tif err != nil {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetDevicesByType\", Err: err}\n\t}\n\treturn administrationDevicePointers(devices), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.GetDevicesByType",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) GetOfflineDevices(ctx context.Context, offlineDuration time.Duration) ([]*Device, error) {\n\tif offlineDuration \u003c= 0 {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetOfflineDevices\", Err: errors.New(\"invalid offline duration\")}\n\t}\n\tdevices, err := s.devices.ListOfflineDevices(ctx, offlineDuration)\n\tif err != nil {\n\t\treturn nil, \u0026AdministrationError{Op: \"GetOfflineDevices\", Err: err}\n\t}\n\treturn administrationDevicePointers(devices), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.GetOfflineDevices",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) IsDeviceOnlineAt(ctx context.Context, device *Device, now time.Time) bool {\n\tif device == nil {\n\t\treturn false\n\t}\n\treturn s.devices.IsDeviceOnlineAt(ctx, *device, now)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.IsDeviceOnlineAt",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) IsLastSeenOnline(ctx context.Context, lastSeen *time.Time) bool {\n\treturn s.devices.IsDeviceOnline(ctx, Device{LastSeen: lastSeen})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.IsLastSeenOnline",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *administration) ListDevices(ctx context.Context, filter DeviceFilter) ([]*Device, error) {\n\tif filter.DeviceType == nil {\n\t\texcluded := WebManualDeviceID\n\t\tfilter.ExcludeDeviceID = \u0026excluded\n\t}\n\tdevices, err := s.devices.ListDevices(ctx, filter)\n\tif err != nil {\n\t\treturn nil, \u0026AdministrationError{Op: \"ListDevices\", Err: err}\n\t}\n\treturn administrationDevicePointers(devices), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/administration.ListDevices",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *Authenticators) Device() Middleware {\n\treturn a.authenticator.Device()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/devicefleet/deviceauth/Authenticators.Device",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *Authenticators) DeviceOnly() Middleware {\n\treturn a.authenticator.DeviceOnly()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/devicefleet/deviceauth/Authenticators.DeviceOnly",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d fleetDirectory) RecordLastSeen(ctx context.Context, deviceID int64, seenAt time.Time) error {\n\treturn d.fleet.UpdateDeviceLastSeen(tenant.ContextWithoutTransaction(ctx), deviceID, seenAt)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/deviceauth/fleetDirectory.RecordLastSeen",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e tagScanRefusal) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/devicefleet/inbound/operator/tagScanRefusal.Error",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (k DeviceKeys) Mint() (string, error) {\n\treturn k.Minter.Mint()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/devicefleet/internal/adapters/credentials/DeviceKeys.Mint",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *DeviceRepository) Delete(ctx context.Context, id any) error {\n\tkey, err := int64ID(id)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn r.devices.DeleteDevice(ctx, key)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/adapters/repositoryadapter/DeviceRepository.Delete",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *DeviceRepository) FindByAPIKey(ctx context.Context, apiKey string) (*devicefleet.Device, error) {\n\tdevice, err := r.devices.FindDeviceByAPIKey(ctx, apiKey)\n\treturn r.translate(\"find by API key\", device, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/adapters/repositoryadapter/DeviceRepository.FindByAPIKey",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *DeviceRepository) FindByDeviceID(ctx context.Context, deviceID string) (*devicefleet.Device, error) {\n\tdevice, err := r.devices.FindDeviceByDeviceID(ctx, deviceID)\n\treturn r.translate(\"find by device ID\", device, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/adapters/repositoryadapter/DeviceRepository.FindByDeviceID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *DeviceRepository) FindByID(ctx context.Context, id any) (*devicefleet.Device, error) {\n\tkey, err := int64ID(id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tdevice, err := r.devices.FindDevice(ctx, key)\n\treturn r.translate(\"find by id\", device, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/adapters/repositoryadapter/DeviceRepository.FindByID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *DeviceRepository) FindByIDForUpdate(ctx context.Context, id int64) (*devicefleet.Device, error) {\n\tdevice, err := r.devices.FindDeviceForUpdate(ctx, id)\n\treturn r.translate(\"find by id for update\", device, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/adapters/repositoryadapter/DeviceRepository.FindByIDForUpdate",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *DeviceRepository) List(ctx context.Context, filters map[string]any) ([]*devicefleet.Device, error) {\n\tfilter, err := toFilter(filters)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn r.translateList(r.devices.ListDevices(ctx, filter))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/adapters/repositoryadapter/DeviceRepository.List",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r PresenceReader) ListOpenVisits(ctx context.Context) ([]domain.PresentVisit, error) {\n\tvisits, err := r.Presence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.PresentVisit, 0, len(visits))\n\tfor _, visit := range visits {\n\t\tif visit.ExitTime != nil {\n\t\t\tcontinue\n\t\t}\n\t\tresult = append(result, domain.PresentVisit{ActiveGroupID: visit.ActiveGroupID, StudentID: visit.StudentID})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/PresenceReader.ListOpenVisits",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r PresenceReader) ListPresentStudents(ctx context.Context, today time.Time) ([]int64, error) {\n\tday := today.Format(time.DateOnly)\n\tattendance, err := r.Presence.ListAttendance(ctx, studentpresence.AttendanceFilter{FromDate: day, UntilDate: day})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tpresent := make([]int64, 0, len(attendance))\n\tfor _, entry := range attendance {\n\t\tif entry.CheckOutTime == nil {\n\t\t\tpresent = append(present, entry.StudentID)\n\t\t}\n\t}\n\treturn present, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/PresenceReader.ListPresentStudents",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d RoomDirectory) ListRooms(ctx context.Context) ([]domain.Room, error) {\n\trooms, err := d.Rooms.ListRooms(ctx, facilitiesModule.RoomFilter{})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn ToDomainRooms(rooms), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/RoomDirectory.ListRooms",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d RoomDirectory) ListRoomsByID(ctx context.Context, ids []int64) ([]domain.Room, error) {\n\trooms, err := d.Rooms.ListRoomsByID(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn ToDomainRooms(rooms), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/RoomDirectory.ListRoomsByID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountDevicesByTenant(ctx context.Context) (map[int64]int, error) {\n\tvar counts map[int64]int\n\terr := s.runInTenant(ctx, \"count_devices_by_tenant\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tfound, queryStats, err := s.deps.Devices.CountByTenant(ctx)\n\t\tstats.Add(queryStats)\n\t\tcounts = found\n\t\treturn err\n\t})\n\treturn counts, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.CountDevicesByTenant",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountDevicesByType(ctx context.Context) (map[string]int, error) {\n\tvar counts map[string]int\n\terr := s.runInTenant(ctx, \"count_devices_by_type\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tfound, queryStats, err := s.deps.Devices.CountByType(ctx)\n\t\tstats.Add(queryStats)\n\t\tcounts = found\n\t\treturn err\n\t})\n\treturn counts, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.CountDevicesByType",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteDevice(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn s.reject(\"delete_device\", devicefleet.ErrInvalidDevice)\n\t}\n\treturn s.runWrite(ctx, \"delete_device\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\t_, queryStats, err := s.deps.Devices.Delete(ctx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.DeleteDevice",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteExpiredUnregisteredTagScans(ctx context.Context, cutoff time.Time) (int64, error) {\n\tif cutoff.IsZero() {\n\t\treturn 0, s.reject(\"delete_expired_unregistered_tag_scans\", devicefleet.ErrInvalidUnregisteredTagScan)\n\t}\n\tvar deleted int64\n\terr := s.runWrite(ctx, \"delete_expired_unregistered_tag_scans\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar err error\n\t\tdeleted, queryStats, err = s.deps.Scans.DeleteExpired(ctx, cutoff)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn deleted, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.DeleteExpiredUnregisteredTagScans",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteUnregisteredTagScansAfterRetention(ctx context.Context) (int, int, error) {\n\tcutoff := s.deps.Now().Add(-unregisteredTagScanRetentionWindow - retentionClockMargin)\n\tdeleted, err := s.DeleteExpiredUnregisteredTagScans(ctx, cutoff)\n\treturn int(deleted), devicefleet.UnregisteredTagScanRetentionDays, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.DeleteUnregisteredTagScansAfterRetention",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeviceOnlineWindow(ctx context.Context) time.Duration {\n\tif s.deps.Window == nil {\n\t\treturn domain.DefaultDeviceOnlineWindow\n\t}\n\tif window := s.deps.Window(ctx); window \u003e 0 {\n\t\treturn window\n\t}\n\treturn domain.DefaultDeviceOnlineWindow\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.DeviceOnlineWindow",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindDevice(ctx context.Context, id int64) (devicefleet.Device, error) {\n\tif id \u003c= 0 {\n\t\treturn devicefleet.Device{}, s.reject(\"find_device\", devicefleet.ErrInvalidDevice)\n\t}\n\tvalue, err := s.findDevice(ctx, \"find_device\", true, func(ctx context.Context) (devicefleet.Device, bool, domain.OperationStats, error) {\n\t\treturn s.deps.Devices.FindByID(ctx, id, \"\")\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.FindDevice",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindDeviceByDeviceID(ctx context.Context, deviceID string) (devicefleet.Device, error) {\n\tif deviceID == \"\" {\n\t\treturn devicefleet.Device{}, s.reject(\"find_device_by_device_id\", devicefleet.ErrInvalidDevice)\n\t}\n\tvalue, err := s.findDevice(ctx, \"find_device_by_device_id\", true, func(ctx context.Context) (devicefleet.Device, bool, domain.OperationStats, error) {\n\t\treturn s.deps.Devices.FindByDeviceID(ctx, deviceID)\n\t})\n\treturn value, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.FindDeviceByDeviceID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) IsDeviceOnline(ctx context.Context, device devicefleet.Device) bool {\n\treturn s.IsDeviceOnlineAt(ctx, device, s.deps.Now())\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.IsDeviceOnline",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListDisplays(ctx context.Context) ([]devicefleet.Display, error) {\n\tvar displays []domain.Display\n\terr := s.runInTenant(ctx, \"list_displays\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tfound, queryStats, err := s.deps.Displays.List(ctx)\n\t\tstats.Add(queryStats)\n\t\tdisplays = found\n\t\treturn err\n\t})\n\tresult := make([]devicefleet.Display, 0, len(displays))\n\tfor _, value := range displays {\n\t\tresult = append(result, toPublicDisplay(value))\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.ListDisplays",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) UpdateRoomID(ctx context.Context, id, roomID int64) error {\n\tif id \u003c= 0 || roomID \u003c= 0 {\n\t\treturn s.reject(\"update_device_room\", devicefleet.ErrInvalidDevice)\n\t}\n\treturn s.updateOneColumnSet(ctx, \"update_device_room\", domain.UpdateDevice{ID: id, RoomID: \u0026roomID, UpdatedAt: s.deps.Now()}, []string{\"room_id\", \"updated_at\"})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/Service.UpdateRoomID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) DetectNewDevices(ctx context.Context) ([]*devicefleet.Device, error) {\n\trows, err := s.Administration.DetectNewDevices(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn administrationToModels(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.DetectNewDevices",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetActiveDevices(ctx context.Context) ([]*devicefleet.Device, error) {\n\trows, err := s.Administration.GetActiveDevices(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn administrationToModels(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.GetActiveDevices",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetDeviceByDeviceID(ctx context.Context, deviceID string) (*devicefleet.Device, error) {\n\trow, err := s.Administration.GetDeviceByDeviceID(ctx, deviceID)\n\tif err != nil || row == nil {\n\t\treturn nil, err\n\t}\n\treturn toModel(*row), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.GetDeviceByDeviceID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetDeviceByID(ctx context.Context, id int64) (*devicefleet.Device, error) {\n\trow, err := s.Administration.GetDeviceByID(ctx, id)\n\tif err != nil || row == nil {\n\t\treturn nil, err\n\t}\n\treturn toModel(*row), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.GetDeviceByID",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetDevicesByRegisteredBy(ctx context.Context, personID int64) ([]*devicefleet.Device, error) {\n\trows, err := s.Administration.GetDevicesByRegisteredBy(ctx, personID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn administrationToModels(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.GetDevicesByRegisteredBy",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetDevicesByStatus(ctx context.Context, status devicefleet.DeviceStatus) ([]*devicefleet.Device, error) {\n\trows, err := s.Administration.GetDevicesByStatus(ctx, devicefleet.DeviceStatus(status))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn administrationToModels(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.GetDevicesByStatus",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetDevicesByType(ctx context.Context, deviceType string) ([]*devicefleet.Device, error) {\n\trows, err := s.Administration.GetDevicesByType(ctx, deviceType)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn administrationToModels(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.GetDevicesByType",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetDevicesRequiringMaintenance(ctx context.Context) ([]*devicefleet.Device, error) {\n\trows, err := s.Administration.GetDevicesRequiringMaintenance(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn administrationToModels(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.GetDevicesRequiringMaintenance",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) GetOfflineDevices(ctx context.Context, duration time.Duration) ([]*devicefleet.Device, error) {\n\trows, err := s.Administration.GetOfflineDevices(ctx, duration)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn administrationToModels(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.GetOfflineDevices",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) IsDeviceOnlineAt(ctx context.Context, row *devicefleet.Device, now time.Time) bool {\n\tif row == nil {\n\t\treturn false\n\t}\n\tvalue := toAdministrationDevice(row)\n\treturn s.Administration.IsDeviceOnlineAt(ctx, \u0026value, now)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.IsDeviceOnlineAt",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) ListDevices(ctx context.Context, filters map[string]interface{}) ([]*devicefleet.Device, error) {\n\tfilter, err := toFilter(filters)\n\tif err != nil {\n\t\treturn nil, \u0026IoTError{Op: \"ListDevices\", Err: err}\n\t}\n\trows, err := s.Administration.ListDevices(ctx, filter)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn administrationToModels(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.ListDevices",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) UpdateDeviceStatus(ctx context.Context, id string, status devicefleet.DeviceStatus) error {\n\treturn s.Administration.UpdateDeviceStatus(ctx, id, devicefleet.DeviceStatus(status))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/application/deviceservice/service.UpdateDeviceStatus",
+      "owner": "modules/devicefleet"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *ResolveUnregisteredTagScan) Normalize(now time.Time) {\n\tif r.Note != nil {\n\t\ttrimmed := strings.TrimSpace(*r.Note)\n\t\tif trimmed == \"\" {\n\t\t\tr.Note = nil\n\t\t} else {\n\t\t\tr.Note = \u0026trimmed\n\t\t}\n\t}\n\tif r.ResolvedAt.IsZero() {\n\t\tr.ResolvedAt = now\n\t}\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/devicefleet/internal/domain/ResolveUnregisteredTagScan.Normalize",
+      "owner": "modules/devicefleet"
+    }
+  ]
+}

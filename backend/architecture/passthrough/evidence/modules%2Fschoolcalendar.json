@@ -1,0 +1,123 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) ServeCalDAV(w http.ResponseWriter, r *http.Request) {\n\trs.calDAVHandler.ServeHTTP(w, r)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/schoolcalendar/http/Resource.ServeCalDAV",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p CalendarPeriodIDs) ListCalendarPeriodIDs(ctx context.Context) ([]int64, error) {\n\tvalues, err := p.Calendar.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tids := make([]int64, 0, len(values))\n\tfor _, value := range values {\n\t\tids = append(ids, value.ID)\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/CalendarPeriodIDs.ListCalendarPeriodIDs",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d NonWorkingDays) HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {\n\treturn calendarDateSet(d.Calendar.NonWorkingDayDates(ctx, from.String(), to.String()))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/NonWorkingDays.HolidayDates",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateClosingDay(ctx context.Context, input schoolcalendar.CreateClosingDay) (result schoolcalendar.ClosingDay, err error) {\n\tif err := validateClosingDayFields(\u0026input.ClosingDayFields); err != nil {\n\t\treturn schoolcalendar.ClosingDay{}, err\n\t}\n\tfields := input.ClosingDayFields\n\terr = s.run(ctx, \"create_closing_day\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar createStats domain.OperationStats\n\t\tresult, createStats, err = s.store.CreateClosingDay(ctx, fields)\n\t\tstats.Add(createStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.CreateClosingDay",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CreateDateframe(ctx context.Context, input schoolcalendar.CreateDateframe) (result schoolcalendar.Dateframe, err error) {\n\tif err := validateDateframeFields(input.DateframeFields); err != nil {\n\t\treturn schoolcalendar.Dateframe{}, err\n\t}\n\tfields := input.DateframeFields\n\terr = s.run(ctx, \"create_dateframe\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvar createStats domain.OperationStats\n\t\tresult, createStats, err = s.store.CreateDateframe(ctx, fields)\n\t\tstats.Add(createStats)\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.CreateDateframe",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteCalendarPeriod(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalidPeriod(\"calendar period ID is required\")\n\t}\n\treturn s.run(ctx, \"delete_calendar_period\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tdeleteStats, err := s.store.DeleteCalendarPeriod(ctx, id)\n\t\tstats.Add(deleteStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.DeleteCalendarPeriod",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteClosingDay(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalidClosingDay(\"closing day ID is required\")\n\t}\n\treturn s.run(ctx, \"delete_closing_day\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tdeleteStats, err := s.store.DeleteClosingDay(ctx, id)\n\t\tstats.Add(deleteStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.DeleteClosingDay",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteDateframe(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\treturn invalidDateframe(\"dateframe ID is required\")\n\t}\n\treturn s.run(ctx, \"delete_dateframe\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tdeleteStats, err := s.store.DeleteDateframe(ctx, id)\n\t\tstats.Add(deleteStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.DeleteDateframe",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) HolidayDates(ctx context.Context, region, from, to string) (result map[string]bool, err error) {\n\tif err := validateHolidayWindow(from, to); err != nil {\n\t\treturn nil, err\n\t}\n\terr = s.observeOperation(\"holiday_dates\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tresult, err = s.CalendarAlgorithms.HolidayDates(ctx, region, from, to)\n\t\tstats.Rows = int64(len(result))\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.HolidayDates",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListHolidays(ctx context.Context, region, from, to string) (result []schoolcalendar.Holiday, err error) {\n\tif err := validateHolidayWindow(from, to); err != nil {\n\t\treturn nil, err\n\t}\n\terr = s.observeOperation(\"list_holidays\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tresult, err = s.CalendarAlgorithms.ListHolidays(ctx, region, from, to)\n\t\tstats.Rows = int64(len(result))\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.ListHolidays",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RenderCalendar(ctx context.Context, name string, events []schoolcalendar.CalendarEvent) (result string, err error) {\n\tfor _, event := range events {\n\t\tif err := validateCalendarEvent(event); err != nil {\n\t\t\treturn \"\", err\n\t\t}\n\t}\n\terr = s.observeOperation(\"render_calendar\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tresult, err = s.CalendarAlgorithms.RenderCalendar(ctx, name, events)\n\t\tstats.Rows = int64(len(events))\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.RenderCalendar",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RenderCalendarObject(ctx context.Context, event schoolcalendar.CalendarEvent) (result string, err error) {\n\tif err := validateCalendarEvent(event); err != nil {\n\t\treturn \"\", err\n\t}\n\terr = s.observeOperation(\"render_calendar_object\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tresult, err = s.CalendarAlgorithms.RenderCalendarObject(ctx, event)\n\t\tstats.Rows = 1\n\t\treturn err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/Service.RenderCalendarObject",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c TenantClosingDays) ClosingDayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {\n\treturn calendarDateSet(c.Calendar.ClosingDayDates(ctx, from.String(), to.String()))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/TenantClosingDays.ClosingDayDates",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (h TenantHolidays) HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {\n\treturn calendarDateSet(h.Calendar.TenantHolidayDates(ctx, from.String(), to.String()))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/internal/application/TenantHolidays.HolidayDates",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a calendarRenderer) RenderCalendar(ctx context.Context, name string, events []portal.CalendarEvent) (string, error) {\n\tvalues := make([]schoolcalendar.CalendarEvent, 0, len(events))\n\tfor _, event := range events {\n\t\tvalues = append(values, schoolCalendarEvent(event))\n\t}\n\treturn a.renderer.RenderCalendar(ctx, name, values)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/portal/internal/application/calendarRenderer.RenderCalendar",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a calendarRenderer) RenderCalendarObject(ctx context.Context, event portal.CalendarEvent) (string, error) {\n\treturn a.renderer.RenderCalendarObject(ctx, schoolCalendarEvent(event))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/portal/internal/application/calendarRenderer.RenderCalendarObject",
+      "owner": "modules/schoolcalendar"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) CleanupExpiredFeedTombstones(ctx context.Context) (int, error) {\n\tif s.cfg.StaffFeedTombstoneRepo == nil {\n\t\treturn 0, fmt.Errorf(\"%w: calendar feed cleanup not configured\", ErrInvalidRequest)\n\t}\n\tcutoff := time.Now().AddDate(0, 0, -feedTombstoneDays)\n\treturn s.cfg.StaffFeedTombstoneRepo.DeleteFeedCancellationsBefore(ctx, cutoff)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/schoolcalendar/portal/internal/application/service.CleanupExpiredFeedTombstones",
+      "owner": "modules/schoolcalendar"
+    }
+  ]
+}

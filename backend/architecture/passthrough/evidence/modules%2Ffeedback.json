@@ -1,0 +1,18 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (s *Service) Available(ctx context.Context) (available bool, err error) {\n\terr = s.run(ctx, \"availability\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\tavailable, err = s.settings.FeedbackEnabled(txCtx)\n\t\treturn domain.OperationStats{}, err\n\t})\n\treturn available, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/feedback/internal/application/Service.Available",
+      "owner": "modules/feedback"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) EraseEntry(ctx context.Context, id int64) error {\n\tif id \u003c= 0 {\n\t\terr := \u0026feedback.InvalidEntryDataError{Err: feedback.ErrInvalidParameters}\n\t\ts.ObserveRejection(\"delete\", 0, err)\n\t\treturn err\n\t}\n\treturn s.run(ctx, \"delete\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.store.Delete(txCtx, id)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/feedback/internal/application/Service.EraseEntry",
+      "owner": "modules/feedback"
+    }
+  ]
+}

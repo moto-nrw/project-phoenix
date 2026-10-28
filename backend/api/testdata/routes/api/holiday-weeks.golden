@@ -1,0 +1,4 @@
+GET /api/holiday-weeks/
+GET /api/holiday-weeks/{weekId}/participants
+GET /api/holiday-weeks/{weekId}/participants/export
+PUT /api/holiday-weeks/{weekId}/guest-group

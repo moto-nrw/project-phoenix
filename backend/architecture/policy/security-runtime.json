@@ -1,0 +1,103 @@
+{
+  "packages": [
+    {
+      "path": "modules/securityruntime",
+      "owner": "security-runtime",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/securityruntime/internal/application/authorize",
+      "owner": "security-runtime",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "auth/authorize/permissions",
+      "owner": "security-runtime",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/securityruntime/internal/domain/userpass",
+      "owner": "security-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/securityruntime/userpasstest",
+      "owner": "security-runtime",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/clientip",
+      "owner": "security-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/randstr",
+      "owner": "security-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/seedtoken",
+      "owner": "security-runtime",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/securityruntime/ports",
+      "owner": "security-runtime",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "external.crypto.security-runtime",
+      "description": "security-runtime may use classified cryptographic dependencies.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "security-runtime",
+      "target_class": "crypto"
+    },
+    {
+      "id": "security-runtime.test-support.domain",
+      "description": "auth/userpass/userpasstest sets and uses the cheap Argon2id profile of the hashing package (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "security-runtime",
+      "source_role": "test-support",
+      "target_owner": "security-runtime",
+      "target_role": "domain"
+    },
+    {
+      "id": "security-runtime.public.authorization-port",
+      "description": "Native authorization inputs replace public application aliases; narrower successor of platform.public-application, precedent transaction-runtime.public.stats-port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "security-runtime",
+      "source_role": "public",
+      "target_owner": "security-runtime",
+      "target_role": "port",
+      "target_package": "modules/securityruntime/ports"
+    }
+  ]
+}

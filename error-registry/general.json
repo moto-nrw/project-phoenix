@@ -1,0 +1,40 @@
+{
+  "codes": [
+    {
+      "code": "general.business_rejection",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "general.business_rejection"
+    },
+    {
+      "code": "general.input",
+      "class": "input",
+      "parameters": [],
+      "legacy": "general.input"
+    },
+    {
+      "code": "general.permission",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "general.permission"
+    },
+    {
+      "code": "general.request_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "general.request_too_large"
+    },
+    {
+      "code": "general.server",
+      "class": "server",
+      "parameters": [],
+      "legacy": "general.server"
+    },
+    {
+      "code": "general.unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "general.unavailable"
+    }
+  ]
+}

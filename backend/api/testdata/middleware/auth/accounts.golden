@@ -1,0 +1,23 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.TenantTxMiddleware > api/common.requirePermissions#
+	DELETE /auth/accounts/{accountId}/mfa/
+	DELETE /auth/accounts/{accountId}/tokens/
+	GET /auth/accounts/{accountId}/mfa/
+	GET /auth/accounts/{accountId}/roles/
+	GET /auth/accounts/{accountId}/tokens/
+	PUT /auth/accounts/{accountId}/mfa/override
+	PUT /auth/accounts/{accountId}/roles/
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.TenantTxMiddleware > api/common.requirePermissions.#
+	DELETE /auth/accounts/{accountId}/caregiver-capability
+	GET /auth/accounts/{accountId}/caregiver-capability
+	POST /auth/accounts/{accountId}/caregiver-capability
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions#
+	GET /auth/accounts/
+	GET /auth/accounts/by-role/{roleName}
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TenantScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions.#
+	PUT /auth/accounts/{accountId}/

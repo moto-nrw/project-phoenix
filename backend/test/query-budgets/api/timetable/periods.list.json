@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.periods.list",
+  "max": 7,
+  "exact": true,
+  "description": "modules/timetable/http — GET /periods (#3124): tenant transaction (BEGIN, SET\nLOCAL ROLE, set_config, COMMIT) + period list + one usage read per\nowner (Enrollment phases, Timetable planning tables). The two owner\nround trips are the accepted #2580 boundary cost; the count is flat in\nthe number of periods. Pinned exact so an owner-boundary move fails\nhere instead of at a runtime checkpoint (#3020)."
+}

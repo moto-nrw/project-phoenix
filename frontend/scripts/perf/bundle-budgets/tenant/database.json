@@ -1,0 +1,90 @@
+{
+  "format": "moto-bundle-budget/v1",
+  "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
+  "routes": {
+    "/[tenant]/database": {
+      "referenceBytes": 956276,
+      "maxBytes": 975402
+    },
+    "/[tenant]/database/absence-types": {
+      "referenceBytes": 980223,
+      "maxBytes": 999827
+    },
+    "/[tenant]/database/activities": {
+      "referenceBytes": 984642,
+      "maxBytes": 1004335
+    },
+    "/[tenant]/database/categories": {
+      "referenceBytes": 980408,
+      "maxBytes": 1000016
+    },
+    "/[tenant]/database/devices": {
+      "referenceBytes": 985240,
+      "maxBytes": 1004945
+    },
+    "/[tenant]/database/exports": {
+      "referenceBytes": 965954,
+      "maxBytes": 985273
+    },
+    "/[tenant]/database/grade-transitions": {
+      "referenceBytes": 969924,
+      "maxBytes": 989322
+    },
+    "/[tenant]/database/groups": {
+      "referenceBytes": 981994,
+      "maxBytes": 1001634
+    },
+    "/[tenant]/database/permissions": {
+      "referenceBytes": 975653,
+      "maxBytes": 995166
+    },
+    "/[tenant]/database/personal": {
+      "referenceBytes": 988290,
+      "maxBytes": 1008056
+    },
+    "/[tenant]/database/personal/import": {
+      "referenceBytes": 964698,
+      "maxBytes": 983992
+    },
+    "/[tenant]/database/personal/opening-balances": {
+      "referenceBytes": 1003223,
+      "maxBytes": 1023287
+    },
+    "/[tenant]/database/planning-tracks": {
+      "referenceBytes": 980676,
+      "maxBytes": 1000290
+    },
+    "/[tenant]/database/roles": {
+      "referenceBytes": 990901,
+      "maxBytes": 1010719
+    },
+    "/[tenant]/database/rooms": {
+      "referenceBytes": 972850,
+      "maxBytes": 992307
+    },
+    "/[tenant]/database/shift-types": {
+      "referenceBytes": 982089,
+      "maxBytes": 1001731
+    },
+    "/[tenant]/database/students": {
+      "referenceBytes": 1103635,
+      "maxBytes": 1125708
+    },
+    "/[tenant]/database/students/class-list": {
+      "referenceBytes": 961271,
+      "maxBytes": 980496
+    },
+    "/[tenant]/database/students/class-list/import": {
+      "referenceBytes": 960720,
+      "maxBytes": 979934
+    },
+    "/[tenant]/database/students/ended-care": {
+      "referenceBytes": 1013080,
+      "maxBytes": 1033342
+    },
+    "/[tenant]/database/students/import": {
+      "referenceBytes": 962381,
+      "maxBytes": 981629
+    }
+  }
+}

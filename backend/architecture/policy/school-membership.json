@@ -1,0 +1,208 @@
+{
+  "packages": [
+    {
+      "path": "modules/schoolmembership",
+      "owner": "school-membership",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolmembership/compose",
+      "owner": "school-membership",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolmembership/http",
+      "owner": "school-membership",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolmembership/http/classlistentries",
+      "owner": "school-membership",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolmembership/internal/adapters/postgres",
+      "owner": "school-membership",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolmembership/internal/adapters/postgres/calendar",
+      "owner": "school-membership",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolmembership/internal/adapters/displayorder",
+      "owner": "school-membership",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolmembership/internal/application",
+      "owner": "school-membership",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolmembership/internal/domain",
+      "owner": "school-membership",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolmembership/internal/ports",
+      "owner": "school-membership",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "education.class_teachers",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "education.group_teacher",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.class_list_entries",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.external_caregivers",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.staff",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.staff_school_memberships",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.student_school_memberships",
+      "write_owner": "school-membership"
+    },
+    {
+      "name": "users.teachers",
+      "write_owner": "school-membership"
+    }
+  ],
+  "rules": [
+    {
+      "id": "school-membership.application.tenant-runtime",
+      "description": "School Membership application code runs the staff identity read inside the caller's tenant transaction or opens one for the tenant in context (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-membership.http.public",
+      "description": "The School Membership HTTP adapters call their own public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "http",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "school-membership.http.security-contract",
+      "description": "The School Membership HTTP adapters bind their established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-membership.port-domain",
+      "description": "School Membership ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "school-membership.postgres.calendar-adapter",
+      "description": "School Membership persistence maps calendar dates through its internal calendar adapter.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "postgres",
+      "target_owner": "school-membership",
+      "target_role": "adapter"
+    },
+    {
+      "id": "school-membership.compose.orm-sql",
+      "description": "School Membership composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-membership.compose.tenant-runtime",
+      "description": "School Membership composition binds the shared tenant transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-membership.internal-test.tenant-runtime",
+      "description": "School Membership composition tests verify transaction, rollback, and tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-membership.integration-test.support",
+      "description": "School Membership integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    }
+  ]
+}

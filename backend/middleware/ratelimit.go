@@ -165,7 +165,7 @@ func (rl *RateLimiter) reject(w http.ResponseWriter, r *http.Request, bucket str
 	})
 }
 
-// codeGeneralUnavailable is the registered class code (error-registry.json)
+// codeGeneralUnavailable is the registered class code (error-registry/)
 // of a rate-limited request. This package may not import api/common, so it
 // names the code once here.
 const codeGeneralUnavailable = "general.unavailable"

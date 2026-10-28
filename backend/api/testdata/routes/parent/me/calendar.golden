@@ -1,0 +1,6 @@
+GET /parent/me/calendar
+GET /parent/me/calendar/appointments/{appointmentId}/ics
+GET /parent/me/calendar/appointments/{appointmentId}/overview
+GET /parent/me/calendar/feed
+POST /parent/me/calendar/feed/rotate
+POST /parent/me/calendar/recipients/{recipientId}/response

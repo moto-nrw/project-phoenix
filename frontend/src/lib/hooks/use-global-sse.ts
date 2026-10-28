@@ -819,8 +819,8 @@ export function useGlobalSSE(): SSEHookState {
     // Zero-topic admins receive only the tenant-wide aggregate event, so it
     // must also wake their bell/list.
     //
-    // This hook deliberately does not own the tenant-prefixed
-    // "{slug}:reminders" SWR key. Dispatch a window event and let
+    // This hook deliberately does not own the scoped
+    // "{slug}:{account}:reminders" SWR key. Dispatch a window event and let
     // useReminders() — which owns that key and knows whether the feature is
     // enabled — perform the revalidation. This mirrors the
     // tenant_settings_changed / parent_message decoupling above and keeps the

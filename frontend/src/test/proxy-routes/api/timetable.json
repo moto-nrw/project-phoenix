@@ -1,0 +1,206 @@
+{
+  "api/timetable/closing-days": [
+    "GET tenant /api/timetable/closing-days",
+    "POST tenant /api/timetable/closing-days"
+  ],
+  "api/timetable/closing-days/[id]": [
+    "DELETE tenant /api/timetable/closing-days/id%2F1",
+    "PUT tenant /api/timetable/closing-days/id%2F1"
+  ],
+  "api/timetable/conflict-acks": [
+    "GET tenant /api/timetable/conflict-acks"
+  ],
+  "api/timetable/conflict-acks/[fingerprint]": [
+    "DELETE tenant /api/timetable/conflict-acks/fingerprint%2F1",
+    "PUT tenant /api/timetable/conflict-acks/fingerprint%2F1"
+  ],
+  "api/timetable/conflict-check": [
+    "GET tenant /api/timetable/conflicts"
+  ],
+  "api/timetable/deviations/history": [
+    "GET tenant /api/timetable/deviations/history"
+  ],
+  "api/timetable/gaps": [
+    "GET tenant /api/timetable/gaps"
+  ],
+  "api/timetable/holidays": [
+    "GET tenant /api/timetable/holidays"
+  ],
+  "api/timetable/instances": [
+    "GET tenant /api/timetable/instances",
+    "POST tenant /api/timetable/instances"
+  ],
+  "api/timetable/instances/[id]": [
+    "DELETE tenant /api/timetable/instances/id%2F1",
+    "PUT tenant /api/timetable/instances/id%2F1"
+  ],
+  "api/timetable/instances/[id]/cancel": [
+    "POST tenant /api/timetable/instances/id%2F1/cancel"
+  ],
+  "api/timetable/instances/[id]/complete": [
+    "POST tenant /api/timetable/instances/id%2F1/complete"
+  ],
+  "api/timetable/instances/[id]/deviations": [
+    "POST tenant /api/timetable/instances/id%2F1/deviations"
+  ],
+  "api/timetable/instances/[id]/guardian-notice": [
+    "GET tenant /api/timetable/instances/id%2F1/guardian-notice"
+  ],
+  "api/timetable/instances/[id]/move-staff": [
+    "POST tenant /api/timetable/instances/id%2F1/move-staff"
+  ],
+  "api/timetable/instances/[id]/participants": [
+    "GET tenant /api/timetable/instances/id%2F1/participants"
+  ],
+  "api/timetable/instances/[id]/reopen": [
+    "POST tenant /api/timetable/instances/id%2F1/reopen"
+  ],
+  "api/timetable/instances/[id]/staff-pool": [
+    "GET tenant /api/timetable/instances/id%2F1/staff-pool"
+  ],
+  "api/timetable/instances/[id]/start": [
+    "POST tenant /api/timetable/instances/id%2F1/start"
+  ],
+  "api/timetable/instances/[id]/students/[studentId]": [
+    "PATCH tenant /api/timetable/instances/id%2F1/students/studentId%2F1"
+  ],
+  "api/timetable/instances/[id]/students/[studentId]/correction": [
+    "POST tenant /api/timetable/instances/id%2F1/students/studentId%2F1/correction"
+  ],
+  "api/timetable/instances/[id]/students/[studentId]/corrections": [
+    "GET tenant /api/timetable/instances/id%2F1/students/studentId%2F1/corrections"
+  ],
+  "api/timetable/instances/bulk-cancel": [
+    "POST tenant /api/timetable/instances/bulk-cancel"
+  ],
+  "api/timetable/instances/edited-in-window": [
+    "GET tenant /api/timetable/instances/edited-in-window"
+  ],
+  "api/timetable/instances/re-plan-week": [
+    "POST tenant /api/timetable/instances/re-plan-week"
+  ],
+  "api/timetable/materialize": [
+    "POST tenant /api/timetable/materialize"
+  ],
+  "api/timetable/offering-gaps": [
+    "GET tenant /api/timetable/offering-gaps"
+  ],
+  "api/timetable/offering-gaps/[id]/acknowledgement": [
+    "PUT tenant /api/timetable/offering-gaps/id%2F1/acknowledgement"
+  ],
+  "api/timetable/offering-sources": [
+    "GET tenant /api/timetable/offering-sources"
+  ],
+  "api/timetable/offering-sources/combined-counts": [
+    "GET tenant /api/timetable/offering-sources/combined-counts"
+  ],
+  "api/timetable/offering-sources/preview": [
+    "GET tenant /api/timetable/offering-sources/preview"
+  ],
+  "api/timetable/offering-sources/suggestion": [
+    "GET tenant /api/timetable/offering-sources/suggestion"
+  ],
+  "api/timetable/operations/active-groups/[id]/roster": [
+    "GET tenant /api/timetable/operations/active-groups/id%2F1/roster"
+  ],
+  "api/timetable/operations/instances/[id]/complete": [
+    "POST tenant /api/timetable/operations/instances/id%2F1/complete"
+  ],
+  "api/timetable/operations/instances/[id]/reopen": [
+    "POST tenant /api/timetable/operations/instances/id%2F1/reopen"
+  ],
+  "api/timetable/operations/instances/[id]/roster": [
+    "GET tenant /api/timetable/operations/instances/id%2F1/roster"
+  ],
+  "api/timetable/operations/instances/[id]/start": [
+    "POST tenant /api/timetable/operations/instances/id%2F1/start"
+  ],
+  "api/timetable/operations/instances/[id]/students/[studentId]/attendance": [
+    "PATCH tenant /api/timetable/operations/instances/id%2F1/students/studentId%2F1/attendance"
+  ],
+  "api/timetable/operations/instances/[id]/students/[studentId]/check-in": [
+    "POST tenant /api/timetable/operations/instances/id%2F1/students/studentId%2F1/check-in"
+  ],
+  "api/timetable/operations/instances/[id]/students/[studentId]/check-out": [
+    "POST tenant /api/timetable/operations/instances/id%2F1/students/studentId%2F1/check-out"
+  ],
+  "api/timetable/operations/instances/[id]/students/[studentId]/homework-feedback": [
+    "PUT tenant /api/timetable/operations/instances/id%2F1/students/studentId%2F1/homework-feedback"
+  ],
+  "api/timetable/operations/instances/[id]/students/check-in": [
+    "POST tenant /api/timetable/operations/instances/id%2F1/students/check-in"
+  ],
+  "api/timetable/operations/planned-now": [
+    "GET tenant /api/timetable/operations/planned-now"
+  ],
+  "api/timetable/operations/spontaneous/start": [
+    "POST tenant /api/timetable/operations/spontaneous/start"
+  ],
+  "api/timetable/periods": [
+    "GET tenant /api/timetable/periods",
+    "POST tenant /api/timetable/periods"
+  ],
+  "api/timetable/periods/[id]": [
+    "DELETE tenant /api/timetable/periods/id%2F1",
+    "GET tenant /api/timetable/periods/id%2F1",
+    "PUT tenant /api/timetable/periods/id%2F1"
+  ],
+  "api/timetable/periods/bootstrap": [
+    "POST tenant /api/timetable/periods/bootstrap"
+  ],
+  "api/timetable/pickup-extensions": [
+    "GET tenant /api/timetable/pickup-extensions/"
+  ],
+  "api/timetable/pickup-extensions/[id]/resolve": [
+    "POST tenant /api/timetable/pickup-extensions/id%2F1/resolve"
+  ],
+  "api/timetable/planning-tracks": [
+    "GET tenant /api/timetable/planning-tracks",
+    "POST tenant /api/timetable/planning-tracks"
+  ],
+  "api/timetable/planning-tracks/[id]/restore": [
+    "POST tenant /api/timetable/planning-tracks/id%2F1/restore"
+  ],
+  "api/timetable/planning-tracks/order": [
+    "PUT tenant /api/timetable/planning-tracks/order"
+  ],
+  "api/timetable/shift-coverage": [
+    "POST tenant /api/timetable/shift-coverage"
+  ],
+  "api/timetable/student/[id]/day": [
+    "GET tenant /api/timetable/student/id%2F1/day"
+  ],
+  "api/timetable/student/[id]/week": [
+    "GET tenant /api/timetable/student/id%2F1/week"
+  ],
+  "api/timetable/substitutions/bulk": [
+    "POST tenant /api/timetable/substitutions/bulk"
+  ],
+  "api/timetable/templates": [
+    "GET tenant /api/timetable/templates",
+    "POST tenant /api/timetable/templates"
+  ],
+  "api/timetable/templates/[id]": [
+    "DELETE tenant /api/timetable/templates/id%2F1",
+    "GET tenant /api/timetable/templates/id%2F1",
+    "PUT tenant /api/timetable/templates/id%2F1"
+  ],
+  "api/timetable/templates/[id]/manual-roster": [
+    "PUT tenant /api/timetable/templates/id%2F1/manual-roster"
+  ],
+  "api/timetable/templates/[id]/offering-connection": [
+    "POST tenant /api/timetable/templates/id%2F1/offering-connection"
+  ],
+  "api/timetable/templates/[id]/offering-preview": [
+    "GET tenant /api/timetable/templates/id%2F1/offering-preview"
+  ],
+  "api/timetable/templates/[id]/split": [
+    "POST tenant /api/timetable/templates/id%2F1/split"
+  ],
+  "api/timetable/templates/[id]/students/[studentId]/remove-days": [
+    "POST tenant /api/timetable/templates/id%2F1/students/studentId%2F1/remove-days"
+  ],
+  "api/timetable/templates/roster-deviations": [
+    "GET tenant /api/timetable/templates/roster-deviations"
+  ]
+}

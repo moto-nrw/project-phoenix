@@ -12,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
 )
 
 type transactionSite struct {
@@ -76,7 +78,7 @@ func TestTransactionBoundaryRatchet(t *testing.T) {
 }
 
 func transactionSites(root string) ([]transactionSite, error) {
-	raw, err := os.ReadFile(filepath.Join(root, "architecture/policy.json"))
+	raw, err := artifacts.ReadPolicy(filepath.Join(root, "architecture/policy.json"))
 	if err != nil {
 		return nil, err
 	}
