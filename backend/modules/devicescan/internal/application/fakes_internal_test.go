@@ -127,7 +127,9 @@ func (p *fakePresence) CountOpenVisitsInRoom(_ context.Context, id int64) (int, 
 func (p *fakePresence) CountOpenVisitsInGroup(_ context.Context, id int64) (int, error) {
 	return p.groupCounts[id], p.groupErr
 }
-func (p *fakePresence) LockVisitSessions(context.Context, int64, int64) error { return p.lockErr }
+func (p *fakePresence) LockVisitSessions(context.Context, int64, int64, int64) error {
+	return p.lockErr
+}
 func (p *fakePresence) CountOpenVisitsInGroupWithRevision(_ context.Context, id int64) (int, int64, error) {
 	return p.groupCounts[id], p.groupRevisions[id], p.groupErr
 }

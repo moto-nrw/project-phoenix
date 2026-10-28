@@ -126,6 +126,7 @@ func TestVisitRevisionStaysInsideTheSchool(t *testing.T) {
 // hold it open, let it block on a lock, and decide when it commits.
 type txActor struct {
 	pid   int
+	tx    bun.Tx
 	steps chan func(context.Context) error
 	done  chan error
 }
@@ -140,6 +141,7 @@ func startTx(t *testing.T, ctx context.Context, db *bun.DB) *txActor {
 			if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &pid); err != nil {
 				return err
 			}
+			actor.tx = tx
 			ready <- pid
 			for step := range actor.steps {
 				if step == nil {
@@ -434,7 +436,7 @@ func TestOppositeScansWaitInsteadOfDeadlocking(t *testing.T) {
 	leavingSecond := openVisit(t, ctx, module, db, second.ID, "Backward")
 	checkout := func(visit studentpresence.Visit, roomID int64) func(context.Context) error {
 		return func(txCtx context.Context) error {
-			if err := module.LockVisitSessions(txCtx, visit.StudentID, roomID); err != nil {
+			if err := module.LockVisitSessions(txCtx, visit.StudentID, roomID, 0); err != nil {
 				return err
 			}
 			_, err := module.CloseVisits(txCtx, []int64{visit.ID}, time.Now())
@@ -524,4 +526,64 @@ func TestCareExitWaitsForASessionEndWithoutDeadlock(t *testing.T) {
 	assert.Equal(t, countSnapshot{count: 0, revision: 4}, readSnapshot(t, ctx, module, group.ID),
 		"two openings, the care exit and the session end each raised the revision")
 	assert.NotZero(t, staying.ID)
+}
+
+// TestCrossDeviceCheckoutsWaitInsteadOfDeadlocking replays two checkouts
+// without a room: each device scans a child that stays in the other
+// device's session, closes that visit and refreshes its own session's
+// heartbeat. The scan's lock set includes the device's running session, so
+// the second scan waits for the first instead of both deadlocking.
+func TestCrossDeviceCheckoutsWaitInsteadOfDeadlocking(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module := newRevisionModule(t, db)
+	activity := testpkg.CreateTestActivityGroup(t, db, "Cross device activity")
+	firstRoom := testpkg.CreateTestRoom(t, db, "Cross device first room")
+	secondRoom := testpkg.CreateTestRoom(t, db, "Cross device second room")
+	firstDevice := testpkg.CreateTestDevice(t, db, "cross-device-first")
+	secondDevice := testpkg.CreateTestDevice(t, db, "cross-device-second")
+	first := testpkg.CreateTestActiveGroup(t, db, activity.ID, firstRoom.ID)
+	second := testpkg.CreateTestActiveGroup(t, db, activity.ID, secondRoom.ID)
+	testpkg.LinkDeviceToActiveGroup(t, db, first.ID, firstDevice.ID)
+	testpkg.LinkDeviceToActiveGroup(t, db, second.ID, secondDevice.ID)
+	inSecond := openVisit(t, ctx, module, db, second.ID, "InSecond")
+	inFirst := openVisit(t, ctx, module, db, first.ID, "InFirst")
+	checkout := func(visit studentpresence.Visit, deviceID int64) func(context.Context) error {
+		return func(txCtx context.Context) error {
+			if err := module.LockVisitSessions(txCtx, visit.StudentID, 0, deviceID); err != nil {
+				return err
+			}
+			_, err := module.CloseVisits(txCtx, []int64{visit.ID}, time.Now())
+			return err
+		}
+	}
+	heartbeat := func(actor *txActor, groupID int64) func(context.Context) error {
+		return func(txCtx context.Context) error {
+			_, err := actor.tx.NewRaw("UPDATE active.groups SET last_activity = NOW() WHERE id = ?", groupID).Exec(txCtx)
+			return err
+		}
+	}
+
+	scanOne := startTx(t, ctx, db)
+	awaitStep(t, scanOne.run(checkout(inSecond, firstDevice.ID)))
+	scanTwo := startTx(t, ctx, db)
+	twoCheckout := scanTwo.run(checkout(inFirst, secondDevice.ID))
+	blocked, err := awaitBlockedOrDone(t, db, scanTwo, scanOne, twoCheckout)
+	if !blocked {
+		require.NoError(t, err)
+		oneHeartbeat := scanOne.run(heartbeat(scanOne, first.ID))
+		twoHeartbeat := scanTwo.run(heartbeat(scanTwo, second.ID))
+		require.NoError(t, <-twoHeartbeat, "the second device's scan must wait instead of deadlocking")
+		require.NoError(t, <-oneHeartbeat, "the first device's scan must wait instead of deadlocking")
+		t.Fatal("the second device's scan did not wait for the sessions the first scan locked")
+	}
+	awaitStep(t, scanOne.run(heartbeat(scanOne, first.ID)))
+	scanOne.commit(t)
+	awaitStep(t, twoCheckout)
+	awaitStep(t, scanTwo.run(heartbeat(scanTwo, second.ID)))
+	scanTwo.commit(t)
+
+	assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, first.ID))
+	assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, second.ID))
 }

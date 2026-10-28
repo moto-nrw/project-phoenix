@@ -166,15 +166,15 @@ func (s *Service) LockOpenPresence(ctx context.Context, ids []int64) error {
 
 // LockVisitSessions takes a move's session locks up front, in the session
 // lock order of the store (#5128).
-func (s *Service) LockVisitSessions(ctx context.Context, studentID, roomID int64) error {
+func (s *Service) LockVisitSessions(ctx context.Context, studentID, roomID, deviceID int64) error {
 	return s.run("lock_visit_sessions", func() (ports.Stats, error) {
-		if studentID <= 0 || roomID < 0 {
+		if studentID <= 0 || roomID < 0 || deviceID < 0 {
 			return ports.Stats{}, errors.New("student presence: invalid visit session lock")
 		}
 		if err := s.tx.Require(ctx); err != nil {
 			return ports.Stats{}, err
 		}
-		return s.store.LockVisitSessions(ctx, studentID, roomID)
+		return s.store.LockVisitSessions(ctx, studentID, roomID, deviceID)
 	})
 }
 

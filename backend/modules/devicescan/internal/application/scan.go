@@ -285,7 +285,7 @@ func binaryModeGreeting(action, firstName string) string {
 func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDevice, student *ports.Student, person *ports.Person, command devicescan.ScanCommand) (*devicescan.ScanResult, error) {
 	now := s.now()
 
-	checkout, err := s.lockSessionsAndCheckout(ctx, student, person, command.RoomID)
+	checkout, err := s.lockSessionsAndCheckout(ctx, device.ID, student, person, command.RoomID)
 	if err != nil {
 		return nil, err
 	}
@@ -340,16 +340,17 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 	return result, nil
 }
 
-// lockSessionsAndCheckout locks every session the checkout and check-in can
-// change before either touches a visit, in one ascending order (#5128), then
-// closes the current room stay. Two scans moving children in opposite
-// directions wait for each other instead of deadlocking.
-func (s *Service) lockSessionsAndCheckout(ctx context.Context, student *ports.Student, person *ports.Person, roomID *int64) (currentVisitCheckout, error) {
+// lockSessionsAndCheckout locks every session the checkout, check-in and
+// heartbeat can change before any of them writes, in one ascending order
+// (#5128), then closes the current room stay. Two scans moving children in
+// opposite directions, or into each other's device sessions, wait for each
+// other instead of deadlocking.
+func (s *Service) lockSessionsAndCheckout(ctx context.Context, deviceID int64, student *ports.Student, person *ports.Person, roomID *int64) (currentVisitCheckout, error) {
 	var room int64
 	if roomID != nil {
 		room = *roomID
 	}
-	if err := s.presence.LockVisitSessions(ctx, student.ID, room); err != nil {
+	if err := s.presence.LockVisitSessions(ctx, student.ID, room, deviceID); err != nil {
 		s.logger.ErrorContext(ctx, "failed to lock visit sessions",
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
