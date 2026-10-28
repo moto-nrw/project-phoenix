@@ -355,6 +355,100 @@ describe("session end barrier", () => {
     expect(barrier.isSessionEnding()).toBe(false);
   });
 
+  // Invariants (#5126): every transition acts only on its own generation, and
+  // the barrier opens exactly once per generation.
+  const openings = () => phases.filter((detail) => !detail.ending).length;
+
+  it("ignores a stale cancel of an earlier generation", async () => {
+    const barrier = await loadBarrier();
+    const cancelFirst = await barrier.holdRequestsUntilSessionEnds();
+    const cancelSecond = await barrier.holdRequestsUntilSessionEnds();
+    expect(openings()).toBe(1);
+
+    cancelFirst();
+    expect(barrier.isSessionEnding()).toBe(true);
+    expect(openings()).toBe(1);
+
+    cancelSecond();
+    expect(barrier.isSessionEnding()).toBe(false);
+    expect(openings()).toBe(2);
+  });
+
+  it("ignores a late sign-out answer of an earlier generation", async () => {
+    const barrier = await loadBarrier();
+    const cancelFirst = await barrier.holdRequestsUntilSessionEnds();
+    const lateSignOut = window.fetch("/api/auth/signout", { method: "POST" });
+    cancelFirst();
+    const holding = barrier.holdRequestsUntilSessionEnds();
+    // The first generation's sign-out answers while the second one ends.
+    answers.get("/api/auth/signout")?.();
+    await lateSignOut;
+    const cancelSecond = await holding;
+    await flush();
+
+    // Still ending: a read is held, not sent.
+    window.fetch("/api/me/profile").catch(() => undefined);
+    expect(sent).not.toContain("/api/me/profile");
+    cancelSecond();
+    expect(openings()).toBe(2);
+  });
+
+  it("opens once when the deadline and a late sign-out answer meet", async () => {
+    vi.useFakeTimers();
+    const barrier = await loadBarrier();
+    const cancel = await barrier.holdRequestsUntilSessionEnds();
+    const signOut = window.fetch("/api/auth/signout", { method: "POST" });
+    signOut.catch(() => undefined);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    answers.get("/api/auth/signout")?.();
+    await flush();
+    cancel();
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    await expect(signOut).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
+    expect(barrier.isSessionEnding()).toBe(false);
+    expect(openings()).toBe(1);
+  });
+
+  it("does not let a navigation timer of an earlier generation open the current one", async () => {
+    vi.useFakeTimers();
+    const barrier = await loadBarrier();
+    await signOutAndHold(barrier);
+    await vi.advanceTimersByTimeAsync(5_000);
+    const cancelSecond = await barrier.holdRequestsUntilSessionEnds();
+    expect(openings()).toBe(1);
+
+    // The first generation's ten-second navigation watch has passed.
+    await vi.advanceTimersByTimeAsync(6_000);
+    expect(barrier.isSessionEnding()).toBe(true);
+    expect(openings()).toBe(1);
+    cancelSecond();
+    expect(openings()).toBe(2);
+  });
+
+  it("opens once when the cache restores the page and the logout fails late", async () => {
+    const barrier = await loadBarrier();
+    const { cancel } = await signOutAndHold(barrier);
+    const pageshow = new Event("pageshow");
+    Object.defineProperty(pageshow, "persisted", { value: true });
+    window.dispatchEvent(pageshow);
+    cancel();
+    expect(openings()).toBe(1);
+  });
+
+  it("opens once when a new sign-in succeeds and the logout fails late", async () => {
+    const barrier = await loadBarrier();
+    const { cancel } = await signOutAndHold(barrier);
+    void window.fetch("/api/auth/callback/credentials", { method: "POST" });
+    answers.get("/api/auth/callback/credentials")?.();
+    await flush();
+    cancel();
+    expect(openings()).toBe(1);
+  });
+
   it("stops waiting for an unanswered request after five seconds", async () => {
     vi.useFakeTimers();
     const { holdRequestsUntilSessionEnds } = await loadBarrier();

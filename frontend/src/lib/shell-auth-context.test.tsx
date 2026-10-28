@@ -89,9 +89,9 @@ import {
   ParentShellProvider,
   SchoolShellProvider,
   CatererShellProvider,
-  logoutFailureReported,
   useShellAuth,
 } from "./shell-auth-context";
+import { endSessionOnce, sessionEndFailureClaimed } from "./session-end-flight";
 import { sidebarMemoryKey } from "./sidebar-memory";
 import { holdRequestsUntilSessionEnds } from "~/lib/session-end-barrier";
 
@@ -532,8 +532,8 @@ describe("TeacherShellProvider", () => {
         retry: expect.any(Function),
       });
       // The logout modal closes for a failure the shell already reported.
-      expect(logoutFailureReported(failure)).toBe(true);
-      expect(logoutFailureReported(new Error("other"))).toBe(false);
+      expect(sessionEndFailureClaimed(failure)).toBe(true);
+      expect(sessionEndFailureClaimed(new Error("other"))).toBe(false);
       expect(sessionStorage.getItem("deliberateLogout")).toBeNull();
 
       // The toast's retry runs the whole logout again.
@@ -544,6 +544,73 @@ describe("TeacherShellProvider", () => {
       mockSignOut.mockResolvedValueOnce(undefined);
       options.retry();
       await vi.waitFor(() => expect(mockSignOut).toHaveBeenCalledTimes(2));
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // One logout per tab, one message per failure (#5126).
+  it("starts one logout for a double click and shows its failure once", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", fetchMock);
+    let failSignOut!: (error: Error) => void;
+    mockSignOut.mockReturnValueOnce(
+      new Promise((_resolve, reject) => (failSignOut = reject)),
+    );
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    try {
+      const { result } = renderHook(() => useShellAuth(), { wrapper });
+      const first = result.current.logout();
+      const second = result.current.logout();
+      await vi.waitFor(() => expect(mockSignOut).toHaveBeenCalledOnce());
+      // A retry while it still runs joins it too.
+      const retry = result.current.logout();
+
+      const failure = new Error("sign-out failed");
+      failSignOut(failure);
+      await expect(first).rejects.toBe(failure);
+      await expect(second).rejects.toBe(failure);
+      await expect(retry).rejects.toBe(failure);
+
+      expect(mockSignOut).toHaveBeenCalledOnce();
+      expect(
+        fetchMock.mock.calls.filter(([url]) => url === "/api/auth/logout"),
+      ).toHaveLength(1);
+      expect(holdRequestsUntilSessionEnds).toHaveBeenCalledOnce();
+      expect(mockShowLogoutError).toHaveBeenCalledOnce();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("joins a running school switch instead of starting a second logout", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", fetchMock);
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+    let failSwitch!: (error: Error) => void;
+    const schoolSwitch = endSessionOnce(
+      () => new Promise<void>((_resolve, reject) => (failSwitch = reject)),
+    );
+
+    try {
+      const { result } = renderHook(() => useShellAuth(), { wrapper });
+      const menu = result.current.logout();
+      const failure = new Error("switch logout failed");
+      failSwitch(failure);
+      await expect(schoolSwitch).rejects.toBe(failure);
+      await expect(menu).rejects.toBe(failure);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(mockSignOut).not.toHaveBeenCalled();
+      // The switch had no caller claiming it here, so the menu shows it once.
+      expect(mockShowLogoutError).toHaveBeenCalledOnce();
     } finally {
       vi.unstubAllGlobals();
     }

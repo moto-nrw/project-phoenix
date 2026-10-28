@@ -20,6 +20,7 @@ import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useShellSeed } from "~/lib/shell-seed";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
+import { claimSessionEndFailure } from "~/lib/session-end-flight";
 import { trackTenantEvent } from "~/lib/analytics";
 import { clientEnv } from "~/env.client";
 import { Alert } from "~/components/ui/alert";
@@ -185,6 +186,8 @@ export function BrandTenantSwitcher({
                 reloginAtTenant(targetTenant.subdomain),
               )
               .catch((error: unknown) => {
+                // A joined logout's failure is shown by its first caller.
+                if (!claimSessionEndFailure(error)) return;
                 void showSwitchError(error, {
                   object: "die Abmeldung",
                   retry: openTargetLogin,

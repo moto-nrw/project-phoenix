@@ -13,6 +13,10 @@ import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
 import { createLogger } from "~/lib/logger";
 import { holdRequestsUntilSessionEnds } from "~/lib/session-end-barrier";
+import {
+  claimSessionEndFailure,
+  endSessionOnce,
+} from "~/lib/session-end-flight";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { getSmartRedirectPath } from "~/lib/redirect-utils";
@@ -20,16 +24,6 @@ import { performEndStaffPreview } from "~/lib/staff-preview-api";
 import { mutate } from "~/lib/swr";
 
 const logger = createLogger({ component: "ShellAuthContext" });
-
-// Logout failures a shell already showed to the person (#5126).
-const reportedLogoutFailures = new WeakSet<object>();
-
-/** Whether the shell already reported this logout failure with a retry. */
-export function logoutFailureReported(error: unknown): boolean {
-  return typeof error === "object" && error !== null
-    ? reportedLogoutFailures.has(error)
-    : false;
-}
 
 interface ShellUser {
   /**
@@ -196,18 +190,20 @@ export function TeacherShellProvider({
       window.location.href = "/";
     };
     // The tenant shell reports every failed logout itself, with a retry, so
-    // the logout modal only closes (#5126). Still signed in afterwards.
+    // the logout modal only closes (#5126). Still signed in afterwards. One
+    // logout per tab: a double click, a retry during a running logout or a
+    // school switch at the same time join it, and only one caller shows its
+    // failure.
     const logout = async (): Promise<void> => {
       try {
-        await endSession();
+        await endSessionOnce(endSession);
       } catch (err: unknown) {
+        if (!claimSessionEndFailure(err)) throw err;
         try {
           sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
         } catch {
           // sessionStorage unavailable
         }
-        if (typeof err === "object" && err !== null)
-          reportedLogoutFailures.add(err);
         void showLogoutError(err, {
           object: "die Abmeldung",
           retry: () => void logout().catch(() => undefined),

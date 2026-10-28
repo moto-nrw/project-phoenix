@@ -23,6 +23,19 @@
  * answered by then, the barrier aborts those requests with `general.unavailable`
  * and resets, so a hanging logout never keeps the tab locked; the caller's
  * sign-out fails and shows that the logout did not go through.
+ *
+ * State machine, one generation per hold:
+ *   idle ──hold──▶ ending(g) ──sign-out answered──▶ left(g) ──page leaves──▶ (gone)
+ *                    │                                 │
+ *                    └─ cancel / deadline / bfcache ───┴─ aborted navigation,
+ *                       / new sign-in ──▶ idle            no page change ──▶ idle
+ * Invariants:
+ *  - At most one logout runs per tab (`endSessionOnce` in session-end-flight);
+ *    the barrier still guards every transition by its generation.
+ *  - `cancel`, timers, sign-out answers and navigation watchers act only on
+ *    the generation that created them; a stale one is a no-op.
+ *  - The barrier opens exactly once per generation (`open`), which rejects
+ *    the held requests, reports discarded writes and lets SSE reconnect.
  */
 
 import { unavailableApiError } from "~/lib/api-error";
@@ -44,6 +57,7 @@ const NAVIGATION_TIMEOUT_MS = 10_000;
 // Time Auth.js gets for its csrf and sign-out requests once requests are held.
 const SIGN_OUT_TIMEOUT_MS = 10_000;
 
+// "open" = idle, "holding" = ending, "cookie-deleted" = left.
 type Phase = "open" | "holding" | "cookie-deleted";
 
 interface HeldRequest {
@@ -54,6 +68,8 @@ interface HeldRequest {
 
 let installed = false;
 let phase: Phase = "open";
+// Increments with every hold; see the invariants above.
+let generation = 0;
 let held: HeldRequest[] = [];
 const inFlight = new Set<Promise<void>>();
 const discarded = new WeakSet<object>();
@@ -61,8 +77,8 @@ let stopNavigationWatch: (() => void) | null = null;
 // Aborts the requests that pass while this session ends; see the module comment.
 let endController: AbortController | null = null;
 let signOutTimer: ReturnType<typeof setTimeout> | undefined;
-// Set when the deadline passed: this logout's late sign-out must not go out.
-let signOutExpiredReason: unknown = null;
+// Set when the deadline passed: this generation's late sign-out must not go out.
+let expired: { generation: number; reason: unknown } | null = null;
 
 /** Whether a logout of this tab is under way. */
 export function isSessionEnding(): boolean {
@@ -94,8 +110,9 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
   ).toUpperCase();
 }
 
-function reset(): void {
-  if (phase === "open") return;
+/** Opens the barrier, once, if `ending` is still the current generation. */
+function open(ending: number): void {
+  if (ending !== generation || phase === "open") return;
   phase = "open";
   clearTimeout(signOutTimer);
   endController = null;
@@ -119,17 +136,18 @@ function reset(): void {
   window.dispatchEvent(new CustomEvent(SESSION_END_EVENT, { detail }));
 }
 
-/** After the cookie deletion the tab should leave; if it stays, reset. */
-function watchNavigation(): void {
+/** After the cookie deletion the tab should leave; if it stays, open. */
+function watchNavigation(ending: number): void {
   const navigation = (window as { navigation?: EventTarget }).navigation;
+  const stay = () => open(ending);
   const left = () => {
-    // The page is leaving. If it comes back from the cache, `pageshow` resets.
+    // The page is leaving. If it comes back from the cache, `pageshow` opens.
     clearTimeout(timer);
-    navigation?.removeEventListener("navigateerror", reset);
+    navigation?.removeEventListener("navigateerror", stay);
   };
-  const timer = setTimeout(reset, NAVIGATION_TIMEOUT_MS);
+  const timer = setTimeout(stay, NAVIGATION_TIMEOUT_MS);
   window.addEventListener("pagehide", left, { once: true });
-  navigation?.addEventListener("navigateerror", reset);
+  navigation?.addEventListener("navigateerror", stay);
   stopNavigationWatch = () => {
     left();
     window.removeEventListener("pagehide", left);
@@ -162,15 +180,16 @@ function withDeadline(
   return { ...init, signal: combined.signal };
 }
 
-/** The sign-out did not answer in time: abort what passed and reset. */
-function expireSignOut(): void {
+/** The sign-out did not answer in time: abort what passed and open. */
+function expireSignOut(ending: number): void {
+  if (ending !== generation) return;
   const reason = unavailableApiError(
     new DOMException("The logout did not finish in time", "TimeoutError"),
   );
   endController?.abort(reason);
   if (phase !== "holding") return;
-  signOutExpiredReason = reason;
-  reset();
+  expired = { generation: ending, reason };
+  open(ending);
 }
 
 /** Wraps window.fetch once; requests started before it are not awaited. */
@@ -179,7 +198,7 @@ export function installSessionEndBarrier(): void {
   installed = true;
   const originalFetch = window.fetch.bind(window);
   window.addEventListener("pageshow", (event) => {
-    if (event.persisted) reset();
+    if (event.persisted) open(generation);
   });
 
   window.fetch = (input, init) => {
@@ -187,8 +206,8 @@ export function installSessionEndBarrier(): void {
     if (url.origin !== window.location.origin)
       return originalFetch(input, init);
     const method = requestMethod(input, init);
-    if (signOutExpiredReason && SIGN_OUT_PATHS.has(url.pathname))
-      return Promise.reject(signOutExpiredReason);
+    if (expired?.generation === generation && SIGN_OUT_PATHS.has(url.pathname))
+      return Promise.reject(expired.reason);
     if (phase === "holding" && !SIGN_OUT_PATHS.has(url.pathname)) {
       return new Promise<Response>((_resolve, reject) => {
         const signal =
@@ -234,11 +253,12 @@ export function installSessionEndBarrier(): void {
     void settled.then(() => inFlight.delete(settled));
     if (url.pathname === "/api/auth/signout" && phase === "holding") {
       // The answer has deleted the cookie: later requests cannot restore it.
+      const ending = generation;
       void response.then(
         () => {
-          if (phase !== "holding") return;
+          if (ending !== generation || phase !== "holding") return;
           phase = "cookie-deleted";
-          watchNavigation();
+          watchNavigation(ending);
         },
         () => undefined,
       );
@@ -249,9 +269,10 @@ export function installSessionEndBarrier(): void {
       phase === "cookie-deleted"
     ) {
       // A new sign-in in this document replaces the ended session.
+      const ending = generation;
       void response.then(
         (answer) => {
-          if (answer.ok) reset();
+          if (answer.ok) open(ending);
         },
         () => undefined,
       );
@@ -269,10 +290,11 @@ export function installSessionEndBarrier(): void {
  */
 export async function holdRequestsUntilSessionEnds(): Promise<() => void> {
   installSessionEndBarrier();
-  stopNavigationWatch?.();
-  stopNavigationWatch = null;
-  clearTimeout(signOutTimer);
-  signOutExpiredReason = null;
+  // A previous generation still ending is opened first, exactly once.
+  open(generation);
+  generation += 1;
+  const ending = generation;
+  expired = null;
   endController = new AbortController();
   phase = "holding";
   const detail: SessionEndDetail = { ending: true, discardedWrites: 0 };
@@ -285,12 +307,14 @@ export async function holdRequestsUntilSessionEnds(): Promise<() => void> {
     }),
   ]);
   clearTimeout(timer);
-  signOutTimer = setTimeout(expireSignOut, SIGN_OUT_TIMEOUT_MS);
-  return cancel;
+  if (ending === generation && phase === "holding")
+    signOutTimer = setTimeout(() => expireSignOut(ending), SIGN_OUT_TIMEOUT_MS);
+  return () => cancel(ending);
 }
 
-/** A failed logout: reset, and let the next attempt's sign-out go out. */
-function cancel(): void {
-  signOutExpiredReason = null;
-  reset();
+/** A failed logout of `ending`: open it, and let a retry's sign-out go out. */
+function cancel(ending: number): void {
+  if (ending !== generation) return;
+  expired = null;
+  open(ending);
 }

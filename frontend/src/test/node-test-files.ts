@@ -78,6 +78,7 @@ export const nodeLogicTestFiles = [
   "src/lib/auth-helpers.test.ts",
   "src/lib/auth-utils.test.ts",
   "src/lib/browser-token-ratchet.test.ts",
+  "src/lib/session-end-flight.test.ts",
   "src/lib/student-access.test.ts",
   "src/lib/backend-proxy-response.server.test.ts",
   "src/lib/backend-proxy-route.server.test.ts",

@@ -7,17 +7,13 @@ import { clientEnv } from "~/env.client";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { createLogger } from "~/lib/logger";
 import { holdRequestsUntilSessionEnds } from "~/lib/session-end-barrier";
+import { endSessionOnce } from "~/lib/session-end-flight";
 
 const logger = createLogger({ component: "TenantRelogin" });
-let pendingRelogin: Promise<void> | null = null;
-
 /** Same logout endpoints/order as the tenant shell, without its source-host redirect. */
 export function reloginAtTenant(subdomain: string): Promise<void> {
-  // Coalesce repeated clicks: no late logout response may reissue the cookie.
-  pendingRelogin ??= endSessionAndNavigate(subdomain).finally(() => {
-    pendingRelogin = null;
-  });
-  return pendingRelogin;
+  // One logout per tab: repeated clicks and a menu logout join this one.
+  return endSessionOnce(() => endSessionAndNavigate(subdomain));
 }
 
 async function endSessionAndNavigate(subdomain: string): Promise<void> {

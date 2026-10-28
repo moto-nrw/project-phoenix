@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { logoutFailureReported, useShellAuth } from "~/lib/shell-auth-context";
+import { useShellAuth } from "~/lib/shell-auth-context";
+import { sessionEndFailureClaimed } from "~/lib/session-end-flight";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { Modal } from "./modal";
 import { createLogger } from "~/lib/logger";
@@ -52,7 +53,7 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
       }
       setIsLoggingOut(false);
       // The shell showed the failure with a retry; the modal would cover it.
-      if (logoutFailureReported(error)) onClose();
+      if (sessionEndFailureClaimed(error)) onClose();
     }
   };
 

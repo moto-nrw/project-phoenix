@@ -13,8 +13,11 @@ const mockFailureReported = vi.hoisted(() =>
 );
 
 // Mock shell auth context
+vi.mock("~/lib/session-end-flight", () => ({
+  sessionEndFailureClaimed: mockFailureReported,
+}));
+
 vi.mock("~/lib/shell-auth-context", () => ({
-  logoutFailureReported: mockFailureReported,
   useShellAuth: () => ({
     user: { name: "Test User", email: "test@example.com", roles: [] },
     profile: { firstName: "Test", lastName: "User" },

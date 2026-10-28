@@ -19,6 +19,7 @@ vi.mock("~/env.client", () => ({
 }));
 
 import { holdRequestsUntilSessionEnds } from "~/lib/session-end-barrier";
+import { endSessionOnce } from "~/lib/session-end-flight";
 import { reloginAtTenant } from "./tenant-relogin";
 
 describe("target-school reauthentication", () => {
@@ -187,6 +188,20 @@ describe("target-school reauthentication", () => {
       "cookie deletion failed",
     );
     expect(release).toHaveBeenCalledOnce();
+  });
+
+  it("joins a running menu logout instead of starting a second one (#5126)", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch");
+    let finishMenu!: () => void;
+    const menu = endSessionOnce(
+      () => new Promise<void>((resolve) => (finishMenu = resolve)),
+    );
+    const relogin = reloginAtTenant("school-b");
+    expect(relogin).toBe(menu);
+    finishMenu();
+    await relogin;
+    expect(fetch).not.toHaveBeenCalled();
+    expect(signOut).not.toHaveBeenCalled();
   });
 
   it("still deletes a revoked cookie when SWR cleanup fails", async () => {

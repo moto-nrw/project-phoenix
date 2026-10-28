@@ -16,6 +16,7 @@ import { isDemoEntryPath } from "~/lib/demo-access";
 import { isTraegerHandoffPath } from "~/lib/traeger-handoff";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
+import { claimSessionEndFailure } from "~/lib/session-end-flight";
 import { Button } from "~/components/ui/button";
 import { credentialError } from "~/components/auth/credential-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -600,6 +601,8 @@ function GuardedTenant({
                         reloginAtTenant(urlSubdomain!),
                       )
                       .catch((err: unknown) => {
+                        // A joined logout's failure is shown by its first caller.
+                        if (!claimSessionEndFailure(err)) return;
                         void showActionError(err, { object: "die Abmeldung" });
                       });
                   }}
