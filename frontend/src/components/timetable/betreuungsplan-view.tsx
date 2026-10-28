@@ -994,6 +994,9 @@ function TimetablesContent() {
     setEditingTemplate(template);
     setEventDefaultRepeat("weekly");
     setEventModalOpen(true);
+    toast.info(
+      "moto findet kein passendes Angebot. Wählen Sie unter „Personal und Kinder“ das Angebot selbst.",
+    );
   }, [
     connectTemplateID,
     status,
@@ -1004,6 +1007,7 @@ function TimetablesContent() {
     templates,
     canManageSchedules,
     updateUrlParams,
+    toast,
   ]);
   const modalCalendarPeriods = useMemo(() => {
     const periodIDs = new Set(assignedPeriods.map((period) => period.id));

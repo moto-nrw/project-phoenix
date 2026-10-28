@@ -25,6 +25,7 @@ const {
   mockToastSuccess,
   mockToastError,
   mockToastWarning,
+  mockToastInfo,
   mockTenantMutate,
   mockUseSWRAuth,
   mockMaterialize,
@@ -49,6 +50,7 @@ const {
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
   mockToastWarning: vi.fn(),
+  mockToastInfo: vi.fn(),
   mockTenantMutate: vi.fn(),
   mockUseSWRAuth: vi.fn(),
   mockMaterialize: vi.fn(),
@@ -135,6 +137,7 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
     success: mockToastSuccess,
     error: mockToastError,
     warning: mockToastWarning,
+    info: mockToastInfo,
   }),
   useApiErrorDisplay: () => ({ show: mockShowActionError }),
 }));
@@ -1324,6 +1327,9 @@ describe("BetreuungsplanView", () => {
     );
     // Anker: der Bearbeiten-Dialog des Regeltermins ist offen.
     expect(screen.getByText("event-close")).toBeInTheDocument();
+    expect(mockToastInfo).toHaveBeenCalledWith(
+      "moto findet kein passendes Angebot. Wählen Sie unter „Personal und Kinder“ das Angebot selbst.",
+    );
     expect(
       screen.queryByRole("dialog", { name: "Mit Angebot verbinden" }),
     ).not.toBeInTheDocument();
