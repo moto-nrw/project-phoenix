@@ -222,6 +222,12 @@ func TestOfferingWeekdayBookingsListsTheBookedWeekdays(t *testing.T) {
 	assert.Equal(t, []int{1}, bookings[0].Weekdays, "the booking plans Monday")
 	assert.Equal(t, source.CountsAsCare, bookings[0].CountsAsCare, "the catalog flags travel with the booking")
 	assert.Equal(t, source.IncludesLunch, bookings[0].IncludesLunch)
+	require.Len(t, bookings[0].Windows, 1)
+	require.NotNil(t, bookings[0].Windows[0].ValidFrom)
+	assert.Equal(t, calendar.Date(env.sourcePhase.ServiceStartDate), *bookings[0].Windows[0].ValidFrom)
+	require.NotNil(t, bookings[0].Windows[0].ValidUntil)
+	assert.Equal(t, calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1), *bookings[0].Windows[0].ValidUntil,
+		"an open-ended booking ends with the phase's inclusive last service day")
 }
 
 // TestOfferingTemplateGapDecisionTravelsWithTheBookings: the school's

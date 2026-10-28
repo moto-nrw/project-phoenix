@@ -48,7 +48,7 @@ func (m *BookingMaterialization) OfferingWeekdayBookings(ctx context.Context, ca
 	if err != nil {
 		return nil, fmt.Errorf("offering weekday bookings: list approved children: %w", err)
 	}
-	return collectOfferingWeekdayBookings(byID, children, from, calendarPeriodID), nil
+	return collectOfferingWeekdayBookings(byID, phases, children, from, calendarPeriodID), nil
 }
 
 type offeringStudentKey struct {
@@ -58,6 +58,7 @@ type offeringStudentKey struct {
 
 func collectOfferingWeekdayBookings(
 	offerings map[int64]*careplan.CareOffering,
+	phases map[int64]careplan.OfferingPhase,
 	children []ports.ApprovedOfferingChild,
 	from calendar.Date,
 	calendarPeriodID *int64,
@@ -75,7 +76,17 @@ func collectOfferingWeekdayBookings(
 			continue
 		}
 		weekdays := offeringWeekdays(days)
-		window := careplan.OfferingBookingWindow{ValidFrom: link.ValidFrom, ValidUntil: link.ValidUntil, Weekdays: weekdays}
+		phase, ok := phases[offering.PhaseID]
+		if !ok {
+			continue
+		}
+		// Use the materialized roster's service and link bounds, including
+		// the phase's last service day but never dates outside the phase.
+		validFrom, validUntil, ok := sourcedRosterWindow(&link, rosterWindow{phase: phase, effectiveFrom: from})
+		if !ok {
+			continue
+		}
+		window := careplan.OfferingBookingWindow{ValidFrom: &validFrom, ValidUntil: &validUntil, Weekdays: weekdays}
 		key := offeringStudentKey{offeringID: offering.ID, studentID: child.StudentID}
 		if position, ok := index[key]; ok {
 			merged := append(result[position].Weekdays, weekdays...)

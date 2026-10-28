@@ -48,6 +48,7 @@ export function OfferingGapHints({
   const { data, error } = useSWRAuth(
     periodId ? offeringGapsKey(periodId) : null,
     () => timetableService.getOfferingGaps(periodId!),
+    { keepPreviousData: false },
   );
 
   useEffect(() => {
