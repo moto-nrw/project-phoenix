@@ -78,6 +78,9 @@ describe("SWR Hooks", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseTenantSlugSafe.mockReturnValue(null);
+    vi.mocked(useSession).mockReturnValue(
+      createMockSession("signed-in") as ReturnType<typeof useSession>,
+    );
 
     // Default SWR mock return value
     vi.mocked(useSWR).mockReturnValue({
@@ -98,7 +101,7 @@ describe("SWR Hooks", () => {
       renderHook(() => useSWRAuth("test-key", mockFetcher));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "test-key",
+        "tenant:-:user-1:test-key",
         mockFetcher,
         expect.objectContaining({
           dedupingInterval: 5000,
@@ -203,7 +206,7 @@ describe("SWR Hooks", () => {
       renderHook(() => useSWRAuth("test-key", mockFetcher));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "test-key",
+        "tenant:-:user-1:test-key",
         mockFetcher,
         expect.any(Object),
       );
@@ -252,7 +255,7 @@ describe("SWR Hooks", () => {
       renderHook(() => useSWRAuth("test-key", mockFetcher, customOptions));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "test-key",
+        "tenant:-:user-1:test-key",
         mockFetcher,
         expect.objectContaining({
           refreshInterval: 5000,
@@ -270,7 +273,7 @@ describe("SWR Hooks", () => {
       renderHook(() => useImmutableSWR("immutable-key", mockFetcher));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "immutable-key",
+        "tenant:-:user-1:immutable-key",
         mockFetcher,
         expect.objectContaining({
           revalidateIfStale: false,
@@ -294,7 +297,7 @@ describe("SWR Hooks", () => {
       renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "entity-123",
+        "tenant:-:user-1:entity-123",
         expect.any(Function),
         expect.any(Object),
       );
@@ -308,7 +311,7 @@ describe("SWR Hooks", () => {
       renderHook(() => useSWRWithId("entity", "123", mockIdFetcher));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "entity-123",
+        "tenant:-:user-1:entity-123",
         expect.any(Function),
         expect.any(Object),
       );
@@ -380,7 +383,7 @@ describe("SWR Hooks", () => {
       );
 
       expect(useSWR).toHaveBeenCalledWith(
-        "entity-123",
+        "tenant:-:user-1:entity-123",
         expect.any(Function),
         expect.objectContaining({
           refreshInterval: 3000,
@@ -401,14 +404,14 @@ describe("SWR Hooks", () => {
 
       // Call the wrapped fetcher to cover the fetcher(id!) line
       if (wrappedFetcher) {
-        await wrappedFetcher("entity-123");
+        await wrappedFetcher("tenant:-:user-1:entity-123");
         expect(mockIdFetcher).toHaveBeenCalledWith("123");
       }
     });
   });
 
   describe("tenant key prefixing", () => {
-    it("prefixes useSWRAuth key with tenant slug", () => {
+    it("prefixes useSWRAuth key with tenant slug and account", () => {
       mockUseTenantSlugSafe.mockReturnValue("school-a");
       vi.mocked(useSession).mockReturnValue(
         createMockSession("test-token") as ReturnType<typeof useSession>,
@@ -417,13 +420,13 @@ describe("SWR Hooks", () => {
       renderHook(() => useSWRAuth("students-list", mockFetcher));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "school-a:students-list",
+        "school-a:user-1:students-list",
         mockFetcher,
         expect.any(Object),
       );
     });
 
-    it("uses plain key when no tenant context", () => {
+    it("scopes a key without tenant context to the portal and account", () => {
       mockUseTenantSlugSafe.mockReturnValue(null);
       vi.mocked(useSession).mockReturnValue(
         createMockSession("test-token") as ReturnType<typeof useSession>,
@@ -432,13 +435,13 @@ describe("SWR Hooks", () => {
       renderHook(() => useSWRAuth("students-list", mockFetcher));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "students-list",
+        "tenant:-:user-1:students-list",
         mockFetcher,
         expect.any(Object),
       );
     });
 
-    it("prefixes useSWRWithId key with tenant slug", () => {
+    it("prefixes useSWRWithId key with tenant slug and account", () => {
       mockUseTenantSlugSafe.mockReturnValue("school-b");
       vi.mocked(useSession).mockReturnValue(
         createMockSession("test-token") as ReturnType<typeof useSession>,
@@ -448,7 +451,7 @@ describe("SWR Hooks", () => {
       renderHook(() => useSWRWithId("student", "42", idFetcher));
 
       expect(useSWR).toHaveBeenCalledWith(
-        "school-b:student-42",
+        "school-b:user-1:student-42",
         expect.any(Function),
         expect.any(Object),
       );
@@ -456,24 +459,64 @@ describe("SWR Hooks", () => {
   });
 
   describe("useTenantMutate", () => {
-    it("calls swr mutate with tenant-prefixed key", () => {
+    it("calls swr mutate with the tenant and account prefixed key", () => {
       mockUseTenantSlugSafe.mockReturnValue("school-a");
 
       const { result } = renderHook(() => useTenantMutate());
       void result.current("database-teachers-list");
 
       expect(mockSwrMutate).toHaveBeenCalledWith(
-        "school-a:database-teachers-list",
+        "school-a:user-1:database-teachers-list",
       );
     });
 
-    it("calls swr mutate with plain key when no tenant context", () => {
+    it("scopes the key to the portal and account without tenant context", () => {
       mockUseTenantSlugSafe.mockReturnValue(null);
 
       const { result } = renderHook(() => useTenantMutate());
       void result.current("some-key");
 
-      expect(mockSwrMutate).toHaveBeenCalledWith("some-key");
+      expect(mockSwrMutate).toHaveBeenCalledWith("tenant:-:user-1:some-key");
+    });
+
+    it("mutates nothing without a signed-in session", async () => {
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      vi.mocked(useSession).mockReturnValue(
+        createMockSession() as ReturnType<typeof useSession>,
+      );
+
+      const { result } = renderHook(() => useTenantMutate());
+
+      await expect(result.current("some-key")).resolves.toBeUndefined();
+      expect(mockSwrMutate).not.toHaveBeenCalled();
+    });
+
+    it("keeps a mutate of an earlier account on that account's keys", () => {
+      // A rollback that resolves after an account switch must not reach the
+      // cache of the account after it (#5006).
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      const { result, rerender } = renderHook(() => useTenantMutate());
+      const earlier = result.current;
+      vi.mocked(useSession).mockReturnValue({
+        data: { user: { id: "user-2" }, expires: "2099-01-01" },
+        status: "authenticated",
+        update: vi.fn(),
+      } as ReturnType<typeof useSession>);
+      rerender();
+
+      void earlier("ogs-students-42", { rows: [] }, { revalidate: false });
+      void result.current("ogs-students-42");
+
+      expect(mockSwrMutate).toHaveBeenNthCalledWith(
+        1,
+        "school-a:user-1:ogs-students-42",
+        { rows: [] },
+        { revalidate: false },
+      );
+      expect(mockSwrMutate).toHaveBeenNthCalledWith(
+        2,
+        "school-a:user-2:ogs-students-42",
+      );
     });
 
     it("passes seeded data and revalidation options to swr mutate", () => {
@@ -485,7 +528,7 @@ describe("SWR Hooks", () => {
       void result.current("ogs-students-42", data, options);
 
       expect(mockSwrMutate).toHaveBeenCalledWith(
-        "school-a:ogs-students-42",
+        "school-a:user-1:ogs-students-42",
         data,
         options,
       );
@@ -526,8 +569,10 @@ describe("SWR Hooks", () => {
         "ogs-students",
       ]);
 
-      expect(matcher("school-a:active-supervision-dashboard-0")).toBe(true);
-      expect(matcher("school-a:ogs-students-42")).toBe(true);
+      expect(matcher("school-a:user-1:active-supervision-dashboard-0")).toBe(
+        true,
+      );
+      expect(matcher("school-a:user-1:ogs-students-42")).toBe(true);
     });
 
     it("rejects keys for OTHER tenants even when the substring matches", () => {
@@ -539,15 +584,34 @@ describe("SWR Hooks", () => {
         "active-supervision",
       ]);
 
-      expect(matcher("school-b:active-supervision-dashboard-0")).toBe(false);
-      expect(matcher("school-c:active-supervision-visits-1")).toBe(false);
+      expect(matcher("school-b:user-1:active-supervision-dashboard-0")).toBe(
+        false,
+      );
+      expect(matcher("school-c:user-1:active-supervision-visits-1")).toBe(
+        false,
+      );
+    });
+
+    it("rejects keys of another account of the same school", () => {
+      // Another account signed in on this device keeps its own entries; a
+      // change of this account does not reach them (#5006).
+      const matcher = renderAndCaptureMatcher("school-a", [
+        "active-supervision",
+      ]);
+
+      expect(matcher("school-a:user-2:active-supervision-dashboard-0")).toBe(
+        false,
+      );
+      expect(matcher("school-a:user-1:active-supervision-dashboard-0")).toBe(
+        true,
+      );
     });
 
     it("rejects keys that match the tenant but no substring", () => {
       const matcher = renderAndCaptureMatcher("school-a", ["ogs-students"]);
 
-      expect(matcher("school-a:database-teachers-list")).toBe(false);
-      expect(matcher("school-a:students-search-foo")).toBe(false);
+      expect(matcher("school-a:user-1:database-teachers-list")).toBe(false);
+      expect(matcher("school-a:user-1:students-search-foo")).toBe(false);
     });
 
     it("rejects non-string keys (SWR allows arrays/objects as keys)", () => {
@@ -559,14 +623,25 @@ describe("SWR Hooks", () => {
       expect(matcher(undefined)).toBe(false);
     });
 
-    it("falls back to substring-only matching when no tenant context", () => {
-      // Operator dashboard / pre-auth scenarios use bare keys without slug
-      // prefix. The hook must still work there without filtering everything
-      // out — otherwise a colorless tenant context would silently no-op.
+    it("matches the portal and account scope when no tenant context", () => {
+      // Without a TenantProvider the wrappers scope keys to the portal and
+      // account (#5006); the matcher follows them, not the bare keys.
       const matcher = renderAndCaptureMatcher(null, ["operator-foo"]);
 
-      expect(matcher("operator-foo-1")).toBe(true);
-      expect(matcher("unrelated-bar")).toBe(false);
+      expect(matcher("tenant:-:user-1:operator-foo-1")).toBe(true);
+      expect(matcher("operator-foo-1")).toBe(false);
+      expect(matcher("tenant:-:user-1:unrelated-bar")).toBe(false);
+    });
+
+    it("matches nothing without a signed-in session", async () => {
+      mockUseTenantSlugSafe.mockReturnValue("school-a");
+      vi.mocked(useSession).mockReturnValue(
+        createMockSession() as ReturnType<typeof useSession>,
+      );
+      const { result } = renderHook(() => useTenantMutateMatching(["foo"]));
+
+      await expect(result.current()).resolves.toEqual([]);
+      expect(mockSwrMutate).not.toHaveBeenCalled();
     });
 
     it("passes only the matcher when called without options (revalidate path)", () => {
@@ -596,9 +671,13 @@ describe("SWR Hooks", () => {
 
       // Same matcher contract as the revalidate path: tenant-scoped.
       const matcher = lastCall?.[0] as (key: unknown) => boolean;
-      expect(matcher("school-a:timetable-sammel-vertretung-x")).toBe(true);
-      expect(matcher("school-b:timetable-sammel-vertretung-x")).toBe(false);
-      expect(matcher("school-a:unrelated")).toBe(false);
+      expect(matcher("school-a:user-1:timetable-sammel-vertretung-x")).toBe(
+        true,
+      );
+      expect(matcher("school-b:user-1:timetable-sammel-vertretung-x")).toBe(
+        false,
+      );
+      expect(matcher("school-a:user-1:unrelated")).toBe(false);
     });
 
     it("leaves the keys named in `except` out of the revalidation", () => {
@@ -614,10 +693,12 @@ describe("SWR Hooks", () => {
       // A plain revalidation: no data, so no answer in flight is discarded.
       expect(lastCall).toHaveLength(1);
       const matcher = lastCall?.[0] as (key: unknown) => boolean;
-      expect(matcher('school-a:request-feed:7:open:["Mia"]')).toBe(true);
-      expect(matcher('school-a:request-feed:7:history:[""]')).toBe(true);
-      expect(matcher('school-a:request-feed:7:open:[""]')).toBe(false);
-      expect(matcher('school-b:request-feed:7:open:["Mia"]')).toBe(false);
+      expect(matcher('school-a:user-1:request-feed:7:open:["Mia"]')).toBe(true);
+      expect(matcher('school-a:user-1:request-feed:7:history:[""]')).toBe(true);
+      expect(matcher('school-a:user-1:request-feed:7:open:[""]')).toBe(false);
+      expect(matcher('school-b:user-1:request-feed:7:open:["Mia"]')).toBe(
+        false,
+      );
     });
 
     it("returns the same callback when called with a fresh array of identical contents", () => {

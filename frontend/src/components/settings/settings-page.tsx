@@ -331,7 +331,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
   // Reminders settings decide whether the header reminders bell shows at all.
   // After saving/resetting one, revalidate THIS tenant's /api/reminders cache
   // so the bell's `enabled` flag flips immediately instead of waiting for the
-  // poll. The reminders SWR key is tenant-prefixed ("{slug}:reminders");
+  // poll. The reminders SWR key is scoped ("{slug}:{account}:reminders");
   // useTenantMutate applies that prefix, so a different tenant's cache held in
   // another tab is left untouched (no cross-tenant revalidation).
   const revalidateRemindersIfNeeded = useCallback(

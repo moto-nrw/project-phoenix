@@ -14,6 +14,14 @@ import { StrictMode } from "react";
 // Anmeldephasen jetzt bearbeitet werden, bliebe im Test leer. Derselbe Ersatz
 // wie in components/ui/slide-over.test.tsx — die Struktur bleibt, nur die
 // Animationsschicht fällt weg.
+// useTenantMutate scopes its keys to the signed-in account (#5006).
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "1" }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("vaul", async () => {
   const React = await import("react");
 
