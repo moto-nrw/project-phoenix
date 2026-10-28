@@ -331,3 +331,62 @@ func TestCloseVisitsWaitsForASessionEndWithoutDeadlock(t *testing.T) {
 	assert.Empty(t, closed, "the session end closed the visit first")
 	assert.Equal(t, countSnapshot{count: 0, revision: before.revision + 1}, readSnapshot(t, ctx, module, group.ID))
 }
+
+// Deletion and revision must lock the session before the visit, including
+// both sessions when a revision moves an open visit.
+func TestVisitWritersWaitForASessionEndWithoutDeadlock(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	for _, operation := range []string{"delete", "close", "move from ending session", "move to ending session"} {
+		t.Run(operation, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			ctx := testpkg.Ctx(t)
+			module := newRevisionModule(t, db)
+			activity := testpkg.CreateTestActivityGroup(t, db, "Writer activity")
+			room := testpkg.CreateTestRoom(t, db, "Writer room")
+			otherRoom := testpkg.CreateTestRoom(t, db, "Writer target room")
+			group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+			target := testpkg.CreateTestActiveGroup(t, db, activity.ID, otherRoom.ID)
+			visit := openVisit(t, ctx, module, db, group.ID, "Leaving")
+			endingID := group.ID
+			if operation == "move to ending session" {
+				endingID = target.ID
+			}
+
+			sessionEnd := startTx(t, ctx, db)
+			awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
+				_, err := module.LockGroup(txCtx, endingID)
+				return err
+			}))
+			writer := startTx(t, ctx, db)
+			writing := writer.run(func(txCtx context.Context) error {
+				if operation == "delete" {
+					return module.DeleteVisit(txCtx, visit.ID)
+				}
+				if operation == "close" {
+					at := time.Now()
+					visit.ExitTime = &at
+				} else {
+					visit.ActiveGroupID = target.ID
+				}
+				_, err := module.ReviseVisit(txCtx, visit)
+				return err
+			})
+			awaitBlockedBy(t, db, writer, sessionEnd)
+			awaitStep(t, sessionEnd.run(func(txCtx context.Context) error {
+				_, err := module.EndGroupSession(txCtx, endingID, time.Now())
+				return err
+			}))
+			sessionEnd.commit(t)
+			awaitStep(t, writing)
+			writer.commit(t)
+
+			assert.Equal(t, countSnapshot{count: 0, revision: 2}, readSnapshot(t, ctx, module, group.ID))
+			if operation == "delete" || operation == "close" {
+				assert.Equal(t, countSnapshot{}, readSnapshot(t, ctx, module, target.ID))
+			} else {
+				assert.Equal(t, countSnapshot{count: 1, revision: 1}, readSnapshot(t, ctx, module, target.ID))
+			}
+		})
+	}
+}

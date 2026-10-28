@@ -209,11 +209,12 @@ order of its requests. Both fields are additive; an older kiosk ignores them.
   whose revision is greater than the shown one, ignore a smaller or equal one,
   and never take a revision from another session. A count without a revision
   (room-wide count, older backend) keeps the kiosk's previous rule.
-- **Lock order.** `CloseVisits` locks the visits' sessions before the visit
-  rows, like a session end, so a checkout and a session end of one session
-  wait instead of deadlocking. Two transfers in opposite directions between
-  the same two sessions at the same moment can still deadlock; PostgreSQL
-  aborts one of them and that scan answers with an error.
+- **Lock order.** `CloseVisits`, `DeleteVisit` and `ReviseVisit` lock the
+  visits' sessions before the visit rows, like a session end, so these writers
+  and a session end wait instead of deadlocking. `ReviseVisit` locks both the
+  current and destination sessions in ascending id order. Two transfers in
+  opposite directions between the same two sessions at the same moment can
+  still deadlock; PostgreSQL aborts one of them and that scan answers with an error.
 
 Deploy the backend first; the kiosk change in PyrePortal follows.
 
