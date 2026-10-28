@@ -243,10 +243,16 @@ async function walkTour(
       }
       continue;
     }
-    await expect(
-      page.locator("[data-e2e-tour-target]"),
-      `${label}: Die markierte Stelle ist nicht zu sehen.`,
-    ).toBeVisible();
+    // Rendert die Seite die Stelle neu, geht die Markierung mit dem alten
+    // Element verloren; dann die neue markieren.
+    await expect(async () => {
+      expect(await markHighlightedTarget(page, stop.target)).toBe(true);
+      await expect(page.locator("[data-e2e-tour-target]")).toBeVisible({
+        timeout: 1_000,
+      });
+    }, `${label}: Die markierte Stelle ist nicht zu sehen.`).toPass({
+      timeout: 10_000,
+    });
 
     if (SIDE_EFFECT_TARGETS.has(stop.target)) {
       annotateStations(visited);
@@ -259,6 +265,7 @@ async function walkTour(
       // Leiste), scrollt die Person sie erst frei und tippt dann. Scrollte
       // erst der Klick sie frei, schlösse das Scrollen ein eben geöffnetes
       // Menü gleich wieder.
+      let navHref: string | null = null;
       await expect(async () => {
         expect(await markHighlightedTarget(page, stop.target)).toBe(true);
         const free = await page
@@ -274,10 +281,15 @@ async function walkTour(
             return false;
           });
         expect(free, "Die Stelle liegt unter etwas anderem.").toBe(true);
+        navHref = await page
+          .locator("a[data-e2e-tour-target]")
+          .getAttribute("href", { timeout: 500 })
+          .catch(() => null);
         await page.locator("[data-e2e-tour-target]").click({ timeout: 2_000 });
       }, `${label}: Die markierte Stelle lässt sich nicht anklicken.`).toPass({
         timeout: 30_000,
       });
+      if (stop.nav && navHref) await expectNavigation(page, label, navHref);
     } else {
       await bubble.getByRole("button", { name: /^(Weiter|Fertig)$/ }).click();
     }
@@ -294,6 +306,32 @@ async function walkTour(
     }
   }
   throw new Error(`Die Tour endet nicht: ${visited.join(" → ")}`);
+}
+
+/**
+ * Ein Link in der Navigation muss zur Seite führen. Im Dev-Server geht ein
+ * Seitenwechsel verloren, wenn gleichzeitig Fast Refresh neu baut; dann
+ * tippt die Person noch einmal, wie ein Mensch. Führt auch das nicht zur
+ * Seite, ist der Link kaputt.
+ */
+async function expectNavigation(
+  page: Page,
+  label: string,
+  href: string,
+): Promise<void> {
+  const target = new URL(href, page.url()).pathname;
+  const link = page.locator(`a[href="${href}"]:visible`).first();
+  const arrived = () => new URL(page.url()).pathname === target;
+  for (let attempt = 0; attempt < 2 && !arrived(); attempt++) {
+    try {
+      await page.waitForURL((url) => url.pathname === target, {
+        timeout: 10_000,
+      });
+    } catch {
+      if (await link.isVisible()) await link.click({ timeout: 2_000 });
+    }
+  }
+  expect(arrived(), `${label}: Der Link führt nicht zu ${target}.`).toBe(true);
 }
 
 /** Klappt die Checkliste auf, den Schritt auf und startet seine Tour. */
