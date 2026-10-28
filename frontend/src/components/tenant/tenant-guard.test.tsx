@@ -1097,7 +1097,37 @@ describe("TenantGuard", () => {
       );
       expect(sessionRoute).toHaveBeenCalledWith("/api/auth/session", {
         cache: "no-store",
+        signal: expect.any(AbortSignal),
       });
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    // quorum on #5175: a stalled read of the session route kept the guard
+    // in "checking" without a way out.
+    it("offers a way out when the session route stalls after a null lookup", async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_url: string, init?: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener("abort", () =>
+                reject(new DOMException("aborted", "AbortError")),
+              );
+            }),
+        ),
+      );
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+      await act(async () => settleLookup(null));
+      // Anker: die Prüfung läuft noch.
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+
+      expect(screen.getByText(CHECK_FAILED)).toBeInTheDocument();
       expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
     });
 

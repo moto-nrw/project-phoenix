@@ -198,13 +198,22 @@ function GuardedTenant({
         // update() answers null for a failed lookup and for a session that
         // ended meanwhile (logout in another tab). Only the second has a way
         // forward: this school's login, without the old page in between.
+        // Bounded by the check's deadline: a stalled read ends in the
+        // failed state, never in an endless "checking".
+        const abort = new AbortController();
+        const stop = setTimeout(
+          () => abort.abort(),
+          Math.max(0, deadline - Date.now()),
+        );
         const signedOut = await fetch("/api/auth/session", {
           cache: "no-store",
+          signal: abort.signal,
         })
           .then(
             async (response) => response.ok && (await response.json()) === null,
           )
-          .catch(() => false);
+          .catch(() => false)
+          .finally(() => clearTimeout(stop));
         if (run !== refusalRun.current) return;
         if (signedOut) {
           latest.current.redirect("/?error=SessionExpired");
