@@ -31,6 +31,10 @@ type Resource struct {
 	// SchoolDay serves the school-wide day overview (#4802); the capability
 	// serves both facades. Without it the route answers "not configured".
 	SchoolDay classday.SchoolDay
+	// SharedNotes serves the notes the OGS released for the school (#4797);
+	// the capability serves this facade too. Without it the route answers
+	// "not configured" and no class offers the view.
+	SharedNotes classday.SharedNotes
 	// AbsenceReports enters and withdraws the Schulverwaltung's reports
 	// (#4791); the capability serves both facades. Without it the routes
 	// answer "not configured".
@@ -49,10 +53,11 @@ func NewResource(capability classday.ClassDay, logger *slog.Logger) *Resource {
 	}
 	hints, _ := capability.(classday.DayHints)
 	schoolDay, _ := capability.(classday.SchoolDay)
+	sharedNotes, _ := capability.(classday.SharedNotes)
 	reports, _ := capability.(classday.AbsenceReports)
 	absenceList, _ := capability.(classday.AbsenceList)
 	return &Resource{
-		ClassDay: capability, DayHints: hints, SchoolDay: schoolDay, AbsenceReports: reports, AbsenceList: absenceList, logger: logger,
+		ClassDay: capability, DayHints: hints, SchoolDay: schoolDay, SharedNotes: sharedNotes, AbsenceReports: reports, AbsenceList: absenceList, logger: logger,
 	}
 }
 
@@ -84,6 +89,9 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	// assigned classes, the Schulverwaltung every class.
 	r.With(read, withTx).Get("/absence-list", rs.getAbsenceList)
 	r.With(read, withTx).Get("/absence-list/export", rs.exportAbsenceList)
+	// Notes the OGS released for the school (#4797): read-only, only for the
+	// Lehrkraft assigned to the child's class; every read is logged.
+	r.With(read, withTx).Get("/shared-notes/{schoolClass}/students/{studentId}", rs.getSharedNotes)
 
 	// Class-wide arrival day exceptions (#2970): the list is readable with
 	// class_day:read, the writes and the preset lookup need the write

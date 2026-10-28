@@ -236,6 +236,7 @@ export const HELP_TOPICS = {
   teacherAbsenceReport: "meldung-fuer-ein-fehlendes-kind-nachtragen",
   teacherAbsenceList: "fehlzeiten-einer-klasse-ansehen",
   teacherDayHint: "der-ogs-einen-hinweis-fuer-heute-geben",
+  teacherSharedNotes: "beobachtungen-der-ogs-lesen",
   teacherSupervision: "meine-aufsichten-ansehen",
   teacherStartSupervision: "eine-aufsicht-starten",
   teacherSupervisionRoster: "kinder-meiner-aufsicht-sehen",
@@ -377,6 +378,7 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
 const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/": HELP_TOPICS.teacherClassDay,
   "/klasse": HELP_TOPICS.teacherClassList,
+  "/klasse/kind": HELP_TOPICS.teacherSharedNotes,
   "/aufsichten": HELP_TOPICS.teacherSupervision,
   "/tagesinformationen": HELP_TOPICS.teacherNotices,
   "/kalender": HELP_TOPICS.teacherCalendar,

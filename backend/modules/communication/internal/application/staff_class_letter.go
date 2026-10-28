@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // Class letters (#4800): a Lehrkraft writes to the parents of one of her
@@ -87,7 +88,7 @@ func classLetterMailIntro(a *StaffParentAnnouncement, schoolName, intro string) 
 	if sender == nil {
 		return intro
 	}
-	from := fmt.Sprintf("diese Nachricht kommt von %s, %s", sender.Name, schoolClassLabel(sender.SchoolClass))
+	from := fmt.Sprintf("diese Nachricht kommt von %s, %s", sender.Name, collation.SchoolClassLabel(sender.SchoolClass))
 	if schoolName != "" {
 		from += ", " + schoolName
 	}
@@ -96,13 +97,4 @@ func classLetterMailIntro(a *StaffParentAnnouncement, schoolName, intro string) 
 	}
 	runes := []rune(intro)
 	return from + ". " + strings.ToUpper(string(runes[0])) + string(runes[1:])
-}
-
-// schoolClassLabel names a class as the school spells it: a school that
-// stores "Klasse 3a" does not read "Klasse Klasse 3a".
-func schoolClassLabel(class string) string {
-	if strings.HasPrefix(strings.ToLower(class), "klasse") {
-		return class
-	}
-	return "Klasse " + class
 }

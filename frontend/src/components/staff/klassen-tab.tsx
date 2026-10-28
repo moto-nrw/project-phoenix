@@ -32,16 +32,11 @@ import { Skeleton } from "~/components/ui/skeleton";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { authFetch } from "~/lib/api-helpers";
 import { createLogger } from "~/lib/logger";
+import { schoolClassLabel } from "~/lib/school-class-label";
 
 const logger = createLogger({ component: "StaffKlassenTab" });
 
 const OBJECT = "die Zuweisung der Schulklassen";
-
-// Klassennamen sind Freitext — manche Schulen speichern "1a", andere schon
-// "Klasse 1a". Kein doppeltes Präfix anzeigen.
-function classLabel(klass: string): string {
-  return /^klasse\b/i.test(klass.trim()) ? klass.trim() : `Klasse ${klass}`;
-}
 
 interface ProxyResponse<T> {
   success: boolean;
@@ -250,14 +245,14 @@ export function KlassenTab({
                 // Entfernen-Button (h-8) daneben steht.
                 className={`inline-flex min-h-8 items-center gap-1 rounded-lg border border-gray-200 bg-white pl-3 text-sm font-medium text-gray-900 shadow-sm ${editing ? "pr-1" : "pr-3"}`}
               >
-                {classLabel(klass)}
+                {schoolClassLabel(klass)}
                 {editing && (
                   <Button
                     type="button"
                     variant="ghost"
                     size="icon"
-                    aria-label={`Klasse ${klass} entfernen`}
-                    title={`Klasse ${klass} entfernen`}
+                    aria-label={`${schoolClassLabel(klass)} entfernen`}
+                    title={`${schoolClassLabel(klass)} entfernen`}
                     onClick={() => removeClass(klass)}
                     disabled={saving}
                   >

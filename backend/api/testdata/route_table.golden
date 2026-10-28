@@ -643,6 +643,7 @@ GET /school/class-day/arrival-exceptions
 GET /school/class-day/arrival-exceptions/block-start
 GET /school/class-day/classes
 GET /school/class-day/school-day
+GET /school/class-day/shared-notes/{schoolClass}/students/{studentId}
 GET /school/notifications/preferences/
 GET /school/notifications/push/public-key
 GET /school/parent-letters/
@@ -1034,6 +1035,7 @@ POST /operator/organizations/{id}/erasure-order
 POST /operator/organizations/{id}/restore
 POST /operator/organizations/{id}/sample-children
 POST /operator/organizations/{id}/traeger-members
+POST /operator/organizations/{id}/traeger-members/invitations
 POST /operator/profile/email-change
 POST /operator/profile/password
 POST /operator/schools/

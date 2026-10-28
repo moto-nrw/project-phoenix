@@ -351,6 +351,28 @@ describe("PageHeaderWithSearch", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("offers the mobile filter button without a search field", () => {
+    const { search: _search, ...withoutSearch } = baseProps;
+    render(
+      <PageHeaderWithSearch
+        {...withoutSearch}
+        filters={[
+          {
+            id: "status",
+            label: "Status",
+            type: "dropdown",
+            value: "all",
+            onChange: vi.fn(),
+            options: [{ value: "all", label: "Alle Status" }],
+          },
+        ]}
+      />,
+    );
+    expect(screen.queryByTestId("search-bar")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("mobile-filter-button"));
+    expect(screen.getByTestId("mobile-filter-panel")).toBeInTheDocument();
+  });
+
   it("renders badge when provided", () => {
     const propsWithBadge: PageHeaderWithSearchProps = {
       ...baseProps,

@@ -21,6 +21,7 @@ import {
   ClipboardTextIcon,
   ClockIcon,
   ClockCounterClockwiseIcon,
+  CoinsIcon,
   ContactlessPaymentIcon,
   DatabaseIcon,
   DevicesIcon,
@@ -40,6 +41,7 @@ import {
   HouseIcon,
   HouseLineIcon,
   IdentificationCardIcon,
+  InvoiceIcon,
   ListBulletsIcon,
   ListChecksIcon,
   LockKeyIcon,
@@ -273,6 +275,23 @@ export const MOTO_CONCEPTS = {
     "neutral",
     "function",
     "planning",
+  ),
+  // Träger-Portal (#5145): die Regeln für den Ferienbeitrag (#4664) und die
+  // Abrechnungsläufe an die Familien (#4668). Die Abrechnung des Trägers ist
+  // eine Rechnung an Familien, nicht die Lohnabrechnung (`payroll`).
+  contributions: concept(
+    "Beiträge",
+    CoinsIcon,
+    "gold",
+    "function",
+    "administration",
+  ),
+  billing: concept(
+    "Beitragsabrechnung",
+    InvoiceIcon,
+    "petrol",
+    "function",
+    "administration",
   ),
 
   messages: concept(

@@ -12,6 +12,7 @@ import (
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
@@ -28,7 +29,7 @@ func NewParentGroupThreadTestPort(db transactionruntime.Database) parentService.
 // staff account, inside the caller's school transaction.
 func CreateParentGroupClassThreadForTest(ctx context.Context, db transactionruntime.Database, staffAccountID int64, class, title, body string) (int64, error) {
 	detail, err := parentGroupThreadsForTest(db, staffAccountID).CreateParentGroupThread(ctx, communication.ParentGroupThreadInput{
-		Target: communication.ParentGroupTarget{Type: communication.ParentGroupTargetClass, RefText: &class, Label: "Klasse " + class},
+		Target: communication.ParentGroupTarget{Type: communication.ParentGroupTargetClass, RefText: &class, Label: collation.SchoolClassLabel(class)},
 		Title:  title, Body: body,
 	})
 	if err != nil {

@@ -20,6 +20,7 @@ import (
 	provisioningoperator "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
 // chiWalk traverses all routes in the chi.Router and calls fn for each
@@ -46,11 +47,12 @@ type protectedRouteProvisioningService struct {
 	organizationtenancy.Provisioning
 	createSchoolFn func(context.Context, *organizationtenancy.CreateSchool, int64, net.IP) (*organizationtenancy.School, error)
 	reads          []organizationtenancy.OperatorReadAccess
+	readErr        error
 }
 
 func (s *protectedRouteProvisioningService) RecordOperatorRead(_ context.Context, access organizationtenancy.OperatorReadAccess) error {
 	s.reads = append(s.reads, access)
-	return nil
+	return s.readErr
 }
 
 func (s *protectedRouteProvisioningService) CreateSchool(ctx context.Context, school *organizationtenancy.CreateSchool, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
@@ -115,7 +117,7 @@ func TestRouter(t *testing.T) {
 			bookingAuthorityImpact: http.NotFoundHandler(),
 		}
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-			provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil)
+			provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 		require.NotNil(t, router)
 
 		// Walk the route tree and assert the settings subroute exists under /schools.
@@ -145,7 +147,7 @@ func TestRouter(t *testing.T) {
 		}
 		assert.Panics(t, func() {
 			operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-				provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil)
+				provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 		})
 	})
 
@@ -165,7 +167,7 @@ func TestRouter(t *testing.T) {
 	t.Run("billing seed route is mounted with the billing report", func(t *testing.T) {
 		billing := provisioningoperator.NewBillingResource(stubBillingReport{}, nil, nil)
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-			provisioningoperator.ProvisioningConfig{}, billing, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil)
+			provisioningoperator.ProvisioningConfig{}, billing, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 
 		found := false
 		err := chiWalk(router, func(pattern string) {
@@ -175,6 +177,35 @@ func TestRouter(t *testing.T) {
 		})
 		require.NoError(t, err)
 		assert.True(t, found, "expected local billing seed route when billing is configured")
+	})
+
+	t.Run("demo presence history is mounted only in the demo behind operator auth", func(t *testing.T) {
+		assert.Nil(t, newDemoPresenceHistoryRoute(transactionruntime.Database{}, "production"), "no route outside APP_ENV=demo")
+		assert.Nil(t, newDemoPresenceHistoryRoute(transactionruntime.Database{}, "development"))
+
+		reached := false
+		history := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			reached = true
+			w.WriteHeader(http.StatusTeapot)
+		})
+		for _, handler := range []http.HandlerFunc{nil, history} {
+			router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
+				provisioningoperator.ProvisioningConfig{}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, handler)
+			found := false
+			require.NoError(t, chiWalk(router, func(pattern string) {
+				if pattern == "/schools/{id}/demo-presence-history" {
+					found = true
+				}
+			}))
+			assert.Equal(t, handler != nil, found)
+			if handler == nil {
+				continue
+			}
+			anonymous := httptest.NewRecorder()
+			router.ServeHTTP(anonymous, httptest.NewRequest(http.MethodPost, "/schools/1/demo-presence-history", nil))
+			assert.Equal(t, http.StatusUnauthorized, anonymous.Code)
+			assert.False(t, reached, "the route sits behind the operator session")
+		}
 	})
 }
 
@@ -198,7 +229,7 @@ func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 	}
 	provisioning := &protectedRouteProvisioningService{}
 	router := operatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)},
-		provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler(), nil)
+		provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 
 	anonymous := httptest.NewRecorder()
 	router.ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, "/unregistered-tag-scans/", nil))
@@ -286,11 +317,57 @@ func TestProtectedOperatorRoutesAllowActiveOperator(t *testing.T) {
 	assert.EqualValues(t, 42, provisioningService.reads[0].OperatorID)
 }
 
+func TestDemoPresenceHistoryRouteRequiresAudit(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		auditErr error
+		status   int
+	}{
+		{name: "recorded", status: http.StatusNoContent},
+		{name: "unavailable", auditErr: &organizationtenancy.OperatorAuditUnavailableError{Err: fmt.Errorf("audit unavailable")}, status: http.StatusServiceUnavailable},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			authService := &mockOperatorAuthService{
+				getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
+					op := &identityaccess.Operator{Active: true}
+					op.ID = id
+					return op, nil
+				},
+			}
+			provisioningService := &protectedRouteProvisioningService{readErr: tc.auditErr}
+			historyCalled := false
+			history := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				historyCalled = true
+				w.WriteHeader(http.StatusNoContent)
+			})
+			router := operatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)},
+				provisioningoperator.ProvisioningConfig{Service: provisioningService}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, history)
+			req := httptest.NewRequest(http.MethodPost, "/schools/42/demo-presence-history", nil)
+			req.Header.Set("Authorization", "Bearer "+operatorRouteAccessToken(t, 42))
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			require.Equal(t, tc.status, rr.Code, rr.Body.String())
+			require.Len(t, provisioningService.reads, 1)
+			assert.Equal(t, organizationtenancy.ReadDemoPresenceHistory, provisioningService.reads[0].View)
+			assert.EqualValues(t, 42, provisioningService.reads[0].SchoolID)
+			assert.EqualValues(t, 42, provisioningService.reads[0].OperatorID)
+			assert.Equal(t, tc.auditErr == nil, historyCalled, "the write must not run when its audit cannot be recorded")
+			if tc.auditErr != nil {
+				assert.Contains(t, rr.Body.String(), `"code":"operator.audit_unavailable"`)
+			}
+		})
+	}
+}
+
 // testOperatorRouter mounts the operator routes over the given Identity &
 // Access inputs and provisioning service, without billing, school settings,
 // announcements, the tag scan review or rate limits.
 func testOperatorRouter(identity operatorIdentity, provisioning organizationtenancy.Provisioning) chi.Router {
-	return operatorRouter(identity, provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil)
+	return operatorRouter(identity, provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 }
 
 // operatorTestSessions binds the operator session chains to the seeded test

@@ -300,7 +300,7 @@ export type ParentRequestReasonPolicy =
  * Pflicht nie stillschweigend abschalten. Gegenstück zu
  * normalizeOverviewScope, das aus demselben Grund auf "own" fällt.
  */
-function normalizeReasonPolicy(raw: unknown): ParentRequestReasonPolicy {
+export function normalizeReasonPolicy(raw: unknown): ParentRequestReasonPolicy {
   return raw === "nobody" || raw === "guardians" || raw === "staff"
     ? raw
     : "both";

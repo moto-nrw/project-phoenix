@@ -12,9 +12,10 @@ import { TraegerBankAccountsCard } from "~/components/traeger/traeger-bank-accou
 import { TraegerContactCard } from "~/components/traeger/traeger-contact-card";
 import { TraegerLetterheadPreview } from "~/components/traeger/traeger-letterhead-preview";
 import { TraegerLogoCard } from "~/components/traeger/traeger-logo-card";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { CardSkeleton, SkeletonRegion } from "~/components/ui/page-skeletons";
+import { Alert } from "~/components/ui/alert";
+import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
@@ -129,34 +130,32 @@ export default function TraegerBriefkopfPage() {
   const defaultAccount =
     masterData.bankAccounts.find((account) => account.isDefault) ?? null;
 
+  // Ein fehlgeschlagenes Nachladen lässt die gezeigten Angaben stehen; die
+  // Meldung steht dann über ihnen statt an ihrer Stelle.
+  const error =
+    pageLoad.error && loaded
+      ? {
+          message: pageLoad.error.message,
+          action: errorAlertActions(pageLoad.error),
+          keepContent: true,
+        }
+      : pageLoad.error;
+
   return (
-    <div className="w-full space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-          Briefkopf
-        </h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Diese Angaben stehen auf allen Briefen und Rechnungen Ihres Trägers.
-        </p>
-        {!canEdit ? (
-          <p className="mt-1 text-sm text-gray-500">
-            Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro
-            das Recht „Einstellungen“ hat.
-          </p>
-        ) : null}
-      </div>
-
-      <LoadErrorAlert error={pageLoad.error} />
-
-      {loading ? (
-        <SkeletonRegion label="Briefkopf wird geladen" className="space-y-6">
-          <CardSkeleton rows={4} />
-          <CardSkeleton rows={3} />
-        </SkeletonRegion>
-      ) : null}
-
-      {!loading && loaded ? (
+    <TenantPage
+      title="Briefkopf"
+      info="Diese Angaben stehen auf allen Briefen und Rechnungen Ihres Trägers."
+      error={error}
+      loading={loading}
+    >
+      {loaded ? (
         <>
+          {!canEdit ? (
+            <Alert
+              type="info"
+              message="Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
+            />
+          ) : null}
           <SectionCard
             title="Vorschau"
             description="So sehen Kopf und Fuß eines Briefs aus. Die Vorschau ändert sich mit Ihren Angaben."
@@ -204,6 +203,6 @@ export default function TraegerBriefkopfPage() {
           />
         </>
       ) : null}
-    </div>
+    </TenantPage>
   );
 }

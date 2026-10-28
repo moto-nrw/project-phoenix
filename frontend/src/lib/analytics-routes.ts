@@ -167,6 +167,7 @@ export const TRACKED_SCHOOL_ROUTE_TEMPLATES = [
   "/invite",
   "/kalender",
   "/klasse",
+  "/klasse/kind",
   "/login",
   "/nachrichten",
   "/nachrichten/:threadID",

@@ -15,15 +15,22 @@ import {
   holidayTimeModelNames,
   schoolNames,
 } from "~/components/traeger/holiday-registration-format";
+import { holidayPeriodTabs } from "~/components/traeger/holiday-period-head";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { Alert } from "~/components/ui/alert";
-import { BackLink } from "~/components/ui/back-link";
-import { Button } from "~/components/ui/button";
-import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
-import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  ExportMenu,
+  type ExportMenuOption,
+  exportFormatOptions,
+} from "~/components/ui/export-menu";
+import type {
+  ActiveFilter,
+  FilterConfig,
+} from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
@@ -44,7 +51,11 @@ const logger = createLogger({ component: "TraegerHolidayRegistrationsPage" });
 
 type StatusChoice = HolidayRegistrationStatus | "all";
 
-// A select, not a segmented control: four choices do not fit a phone.
+const EXPORT_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
+  "xlsx",
+  "csv",
+]);
+
 const STATUS_OPTIONS: { value: StatusChoice; label: string }[] = [
   { value: "all", label: "Alle Status" },
   { value: "received", label: "Eingegangen" },
@@ -270,80 +281,120 @@ export default function TraegerHolidayRegistrationsPage() {
   const duplicates = duplicateCount(list);
   const loadError = listLoad.error ?? periodLoad.error ?? schoolsError;
 
+  const filters: FilterConfig[] = [
+    {
+      id: "status",
+      label: "Status",
+      type: "dropdown",
+      value: status,
+      onChange: (value) => setStatus(value as StatusChoice),
+      options: STATUS_OPTIONS,
+    },
+    {
+      id: "school",
+      label: "Schule",
+      type: "dropdown",
+      value: school,
+      onChange: (value) => setSchool(value as string),
+      options: schoolOptions,
+    },
+    {
+      id: "week",
+      label: "Woche",
+      type: "dropdown",
+      value: weekId,
+      onChange: (value) => setWeekId(value as string),
+      options: weekOptions,
+    },
+    {
+      id: "timeModel",
+      label: "Zeitmodell",
+      type: "dropdown",
+      value: timeModel,
+      onChange: (value) => setTimeModel(value as string),
+      options: timeModelOptions,
+    },
+  ];
+  const optionLabel = (
+    options: readonly { value: string; label: string }[],
+    value: string,
+  ) => options.find((option) => option.value === value)?.label ?? value;
+  const activeFilters: ActiveFilter[] = [
+    ...(status !== "all"
+      ? [
+          {
+            id: "status",
+            label: optionLabel(STATUS_OPTIONS, status),
+            onRemove: () => setStatus("all"),
+          },
+        ]
+      : []),
+    ...(school
+      ? [
+          {
+            id: "school",
+            label: optionLabel(schoolOptions, school),
+            onRemove: () => setSchool(""),
+          },
+        ]
+      : []),
+    ...(weekId
+      ? [
+          {
+            id: "week",
+            label: optionLabel(weekOptions, weekId),
+            onRemove: () => setWeekId(""),
+          },
+        ]
+      : []),
+    ...(timeModel
+      ? [
+          {
+            id: "timeModel",
+            label: timeModel,
+            onRemove: () => setTimeModel(""),
+          },
+        ]
+      : []),
+  ];
+  const clearFilters = () => {
+    setStatus("all");
+    setSchool("");
+    setWeekId("");
+    setTimeModel("");
+  };
+
   return (
-    <div className="w-full space-y-6">
-      <div className="space-y-2">
-        <BackLink
-          href={traegerPath(`/traeger/ferien/${periodId}`)}
-          label="Zurück zum Ferienzeitraum"
+    <TenantPage
+      title={period?.name ?? "Ferienzeitraum"}
+      back
+      backHref={traegerPath("/traeger/ferien")}
+      backLabel="Zurück zu den Ferien"
+      stats={list ? statusLine(list) : null}
+      statsLoading={!list && !loadError}
+      tabs={holidayPeriodTabs(
+        periodId,
+        "anmeldungen",
+        period?.registrationCount,
+      )}
+      actions={
+        <ExportMenu
+          ariaLabel="Anmeldungen herunterladen"
+          options={EXPORT_FORMATS}
+          busyKey={exporting}
+          unavailable={loading || Boolean(loadError)}
+          onSelect={(option) => {
+            if (option.format === "csv" || option.format === "xlsx") {
+              void exportFile(option.format);
+            }
+          }}
         />
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900 sm:text-2xl">
-              Anmeldungen{period ? `: ${period.name}` : ""}
-            </h1>
-            {list ? (
-              <p className="mt-1 text-sm text-gray-500">{statusLine(list)}</p>
-            ) : null}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              isLoading={exporting === "csv"}
-              loadingText="Export läuft …"
-              disabled={loading || exporting !== null}
-              onClick={() => void exportFile("csv")}
-            >
-              Als CSV herunterladen
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              isLoading={exporting === "xlsx"}
-              loadingText="Export läuft …"
-              disabled={loading || exporting !== null}
-              onClick={() => void exportFile("xlsx")}
-            >
-              Als Excel herunterladen
-            </Button>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <CustomSelect
-          value={status}
-          options={STATUS_OPTIONS}
-          onChange={(value) => setStatus(value as StatusChoice)}
-          ariaLabel="Status"
-          className="w-full sm:w-44"
-        />
-        <CustomSelect
-          value={school}
-          options={schoolOptions}
-          onChange={setSchool}
-          ariaLabel="Schule"
-          className="w-full sm:w-56"
-        />
-        <CustomSelect
-          value={weekId}
-          options={weekOptions}
-          onChange={setWeekId}
-          ariaLabel="Woche"
-          className="w-full sm:w-72"
-        />
-        <CustomSelect
-          value={timeModel}
-          options={timeModelOptions}
-          onChange={setTimeModel}
-          ariaLabel="Zeitmodell"
-          className="w-full sm:w-48"
-        />
-      </div>
-
+      }
+      filters={filters}
+      activeFilters={activeFilters}
+      onClearAllFilters={clearFilters}
+      error={loadError}
+    >
       {duplicates > 0 ? (
         <Alert
           type="warning"
@@ -354,41 +405,36 @@ export default function TraegerHolidayRegistrationsPage() {
           }
         />
       ) : null}
-
-      {loadError ? (
-        <LoadErrorAlert error={loadError} />
-      ) : (
-        <DataTable
-          columns={columns(names)}
-          rows={[...(list?.registrations ?? [])]}
-          getRowKey={(registration) => registration.id}
-          isLoading={loading && list === null}
-          loadingRowCount={4}
-          stackedOnMobile
-          onRowClick={(registration) =>
-            router.push(
-              traegerPath(
-                `/traeger/ferien/${periodId}/anmeldungen/${registration.id}`,
-              ),
-            )
-          }
-          emptyState={
-            <EmptyState
-              icon={<ClipboardList className="h-12 w-12" aria-hidden="true" />}
-              title={
-                filtered
-                  ? "Zu diesen Filtern gibt es keine Anmeldung."
-                  : "Es ist noch keine Anmeldung eingegangen."
-              }
-              description={
-                filtered
-                  ? "Wählen Sie andere Filter."
-                  : "Eltern melden ihre Kinder über den Link für Eltern an."
-              }
-            />
-          }
-        />
-      )}
-    </div>
+      <DataTable
+        columns={columns(names)}
+        rows={[...(list?.registrations ?? [])]}
+        getRowKey={(registration) => registration.id}
+        isLoading={loading && list === null}
+        loadingRowCount={4}
+        stackedOnMobile
+        onRowClick={(registration) =>
+          router.push(
+            traegerPath(
+              `/traeger/ferien/${periodId}/anmeldungen/${registration.id}`,
+            ),
+          )
+        }
+        emptyState={
+          <EmptyState
+            icon={<ClipboardList className="h-12 w-12" aria-hidden="true" />}
+            title={
+              filtered
+                ? "Zu diesen Filtern gibt es keine Anmeldung."
+                : "Es ist noch keine Anmeldung eingegangen."
+            }
+            description={
+              filtered
+                ? "Wählen Sie andere Filter."
+                : "Eltern melden ihre Kinder über den Link für Eltern an."
+            }
+          />
+        }
+      />
+    </TenantPage>
   );
 }
