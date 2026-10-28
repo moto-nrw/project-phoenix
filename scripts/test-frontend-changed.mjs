@@ -12,14 +12,10 @@ const [base, ...options] = process.argv.slice(2);
 if (!base) throw new Error("base ref required");
 const cwd = fileURLToPath(new URL("../frontend/", import.meta.url));
 
-// Input scopes (relative to frontend):
-// src/app/**: route inventories, page metadata, loading boundaries and scaffolds.
-// src/**/*.ts(x): personal-storage and browser-token source scans.
-// src/components/{ui,timetable,staff}/**: planning design contracts.
-// ../backend/modules/settings/internal/defaults/*.go: category labels.
-// ../.github/workflows/e2e.yml: setup-tour target E2E path coverage.
-// Always run every scan guard: this covers new/deleted files and directory renames,
-// without duplicating each guard's traversal/exclusion logic in a path matcher.
+// Fixed files and directory scans have no import edges. Always run this small
+// inventory rather than duplicate each test's input paths and traversal rules.
+// Include fixture-only filesystem tests too: conservative selection needs no
+// exception list and cannot silently lose a new repository input in those tests.
 const guards = [
   "src/app/api/proxy-routes.test.ts",
   "src/app/api/route-cache-policy.test.ts",
@@ -35,6 +31,17 @@ const guards = [
   "src/components/ui/plan-design-guards.test.ts",
   "src/components/settings/settings-filter.test.ts",
   "src/components/school-setup/setup-tour-targets.test.ts",
+  "src/lib/hooks/use-sse.test.ts",
+  "src/lib/service-worker.test.ts",
+  "src/styles/moto-token-drift.test.ts",
+  "src/server/node-header-limit.test.ts",
+  "src/lib/permission-labels.test.ts",
+  "src/lib/modules.test.ts",
+  "src/lib/role-labels.test.ts",
+  "scripts/oxlint-plugin-bauart.test.ts",
+  "scripts/product-screenshots/shot-list.test.ts",
+  "scripts/product-screenshots/pipeline.test.ts",
+  "scripts/product-screenshots/publish.test.ts",
 ];
 
 // Run in every frontend CI node job, including full-suite runs which do not
@@ -44,16 +51,18 @@ if (base === "--check-guards") {
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
       const file = join(directory, entry.name);
       if (entry.isDirectory()) return scan(file);
-      return /\.test\./.test(entry.name) &&
-        readFileSync(file, "utf8").includes("readdirSync")
+      return /\.(test|spec)\.[cm]?[jt]sx?$/.test(entry.name) &&
+        /\b(readFileSync|readFile|readdirSync|readdir|globSync|glob)\b/.test(
+          readFileSync(file, "utf8"),
+        )
         ? [relative(cwd, file).split("\\").join("/")]
         : [];
     });
   }
   assert.deepEqual(
     [...guards].sort(),
-    scan(join(cwd, "src")).sort(),
-    "Filesystem guard inventory differs from frontend tests using readdirSync",
+    [...scan(join(cwd, "src")), ...scan(join(cwd, "scripts"))].sort(),
+    "Filesystem guard inventory differs from frontend tests using file inputs",
   );
   process.exit(0);
 }

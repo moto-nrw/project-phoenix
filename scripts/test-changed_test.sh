@@ -17,7 +17,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture"/{backend/probe,fake-bin,scripts}
+mkdir -p "$fixture"/{backend/probe,fake-bin,scripts,frontend}
 for script in test-backend.sh test-changed.sh test-frontend-changed.mjs test-run-id.sh go-package-workers.sh go-test-workspace.sh; do
   cp "$repo_root/scripts/$script" "$fixture/scripts/$script"
 done
@@ -193,6 +193,42 @@ assert_calls() {
   fi
 }
 
+# Keep this list explicit: these are the filesystem scan contracts, not
+# import dependencies. The fake list returns one guard too: it must run only once.
+guards=(
+  src/app/api/proxy-routes.test.ts
+  src/app/api/route-cache-policy.test.ts
+  src/server/auth/route-handler-coverage.test.ts
+  src/lib/app-route-invariants.test.ts
+  src/lib/analytics-routes.test.ts
+  src/lib/help-topics.test.ts
+  src/lib/loading-boundaries.test.ts
+  src/lib/navigation-sync.test.ts
+  src/lib/personal-storage.test.ts
+  src/lib/browser-token-ratchet.test.ts
+  src/components/ui/tenant-page-scaffold.test.ts
+  src/components/ui/plan-design-guards.test.ts
+  src/components/settings/settings-filter.test.ts
+  src/components/school-setup/setup-tour-targets.test.ts
+  src/lib/hooks/use-sse.test.ts
+  src/lib/service-worker.test.ts
+  src/styles/moto-token-drift.test.ts
+  src/server/node-header-limit.test.ts
+  src/lib/permission-labels.test.ts
+  src/lib/modules.test.ts
+  src/lib/role-labels.test.ts
+  scripts/oxlint-plugin-bauart.test.ts
+  scripts/product-screenshots/shot-list.test.ts
+  scripts/product-screenshots/pipeline.test.ts
+  scripts/product-screenshots/publish.test.ts
+)
+# Validate against real source files, not only the mirrored fixture list.
+node "$repo_root/scripts/test-frontend-changed.mjs" --check-guards
+guard_call="pnpm:exec vitest run ${guards[*]} src/listed.test.ts"
+changed_call='pnpm:exec vitest list --filesOnly --json --changed origin/development'
+
+frontend_calls=$'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
+
 # Exercise both public wrappers, not just the arithmetic helper. Low memory,
 # low CPU and OS-specific clone-I/O limits must select the same package budget.
 while read -r os cpus ram workers; do
@@ -203,7 +239,9 @@ while read -r os cpus ram workers; do
     else
       run_wrapper "$wrapper" 0 origin/development
     fi
-    assert_calls "$(printf 'bootstrap\ntest:phoenix_test_template_regression:test -p %s -parallel 8 -tags=testhooks ./probe\nsweep' "$workers")"
+    expected=$(printf 'bootstrap\ntest:phoenix_test_template_regression:test -p %s -parallel 8 -tags=testhooks ./probe' "$workers")
+    if [ "$wrapper" = test-changed.sh ]; then expected+=$'\n'"$frontend_calls"; fi
+    assert_calls "$expected"$'\nsweep'
   done
 done <<'EOF'
 Darwin 32 8 1
@@ -255,7 +293,9 @@ for wrapper in test-backend.sh test-changed.sh; do
 
   export PHX_FIXTURE_SWEEP_STATUS=9
   run_wrapper "$wrapper" 1 "${args[@]}"
-  assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./probe\nsweep'
+  expected=$'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./probe'
+  if [ "$wrapper" = test-changed.sh ]; then expected+=$'\n'"$frontend_calls"; fi
+  assert_calls "$expected"$'\nsweep'
   unset PHX_FIXTURE_SWEEP_STATUS
 done
 
@@ -269,29 +309,6 @@ export PHX_FIXTURE_TMPDIR="$fixture/custom-go-tmp"
 run_wrapper test-changed.sh 0 origin/development
 run_wrapper test-backend.sh 0 ./probe
 unset PHX_FIXTURE_TMPDIR
-
-# Keep this list explicit: these are the filesystem scan contracts, not
-# import dependencies. The fake list returns one guard too: it must run only once.
-guards=(
-  src/app/api/proxy-routes.test.ts
-  src/app/api/route-cache-policy.test.ts
-  src/server/auth/route-handler-coverage.test.ts
-  src/lib/app-route-invariants.test.ts
-  src/lib/analytics-routes.test.ts
-  src/lib/help-topics.test.ts
-  src/lib/loading-boundaries.test.ts
-  src/lib/navigation-sync.test.ts
-  src/lib/personal-storage.test.ts
-  src/lib/browser-token-ratchet.test.ts
-  src/components/ui/tenant-page-scaffold.test.ts
-  src/components/ui/plan-design-guards.test.ts
-  src/components/settings/settings-filter.test.ts
-  src/components/school-setup/setup-tour-targets.test.ts
-)
-# Validate against real source files, not only the mirrored fixture list.
-node "$repo_root/scripts/test-frontend-changed.mjs" --check-guards
-guard_call="pnpm:exec vitest run ${guards[*]} src/listed.test.ts"
-changed_call='pnpm:exec vitest list --filesOnly --json --changed origin/development'
 
 # Frontend failures must survive both the frontend-only path (no EXIT trap)
 # and the mixed-stack path, whose backend cleanup runs after Vitest.
@@ -343,7 +360,7 @@ for no_backend in 0 1; do
   done
 done
 
-# Backend-only settings defaults need the frontend category guard as well.
+# Backend-only inputs use the same inventory as frontend changes.
 rm -f "$fixture/frontend/package.json" "$fixture/frontend/src/probe.ts"
 mkdir -p "$fixture/backend/modules/settings/internal/defaults"
 printf 'package defaults\n' >"$fixture/backend/modules/settings/internal/defaults/probe.go"
@@ -351,7 +368,7 @@ export PHX_FIXTURE_INSTALL_STATUS=0 PHX_FIXTURE_VITEST_STATUS=0 PHX_FIXTURE_CHAN
 : >"$call_log"
 (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
   scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
-assert_calls $'pnpm:install --frozen-lockfile\npnpm:vitest run src/components/settings/settings-filter.test.ts'
+assert_calls $'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
 
 # Project filters used by CI reach both invocations unchanged.
 : >"$call_log"
@@ -360,7 +377,7 @@ assert_calls $'pnpm:install --frozen-lockfile\npnpm:vitest run src/components/se
 options='--disableConsoleIntercept --project api-node --project logic-node'
 assert_calls "$changed_call $options"$'\n'"${guard_call/pnpm:exec vitest run/pnpm:exec vitest run $options}"
 
-# Committed defaults still select the guard when modified or deleted.
+# Committed inputs still select the guards when modified or deleted.
 git -C "$fixture" add backend/modules/settings/internal/defaults/probe.go
 git -C "$fixture" commit -qm defaults
 git -C "$fixture" update-ref refs/remotes/origin/development HEAD
@@ -373,7 +390,42 @@ for change in modify delete; do
   : >"$call_log"
   (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
     scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
-  assert_calls $'pnpm:install --frozen-lockfile\npnpm:vitest run src/components/settings/settings-filter.test.ts'
+  assert_calls $'pnpm:install --frozen-lockfile\n'"$changed_call"$'\n'"$guard_call"
+done
+
+# Clear the defaults deletion so it cannot mask a missing fixed-input trigger.
+git -C "$fixture" add -u
+git -C "$fixture" commit -qm remove-defaults
+git -C "$fixture" update-ref refs/remotes/origin/development HEAD
+
+# Fixed backend inputs and the native launcher select guards even without Go
+# packages. Cover creation, committed modification, deletion and rename.
+for input in backend/auth/authorize/permissions/catalog.json \
+  backend/modules/settings/records/modules.go \
+  backend/modules/identityaccess/mails.go \
+  backend/modules/dataimport/internal/application/importservice/staff_import_config.go \
+  scripts/dev-native.sh; do
+  mkdir -p "$fixture/$(dirname "$input")"
+  printf 'probe\n' >"$fixture/$input"
+  for change in create modify rename delete; do
+    case "$change" in
+      modify)
+        git -C "$fixture" add "$input"
+        git -C "$fixture" commit -qm "input $input"
+        git -C "$fixture" update-ref refs/remotes/origin/development HEAD
+        printf 'changed\n' >>"$fixture/$input" ;;
+      rename) mv "$fixture/$input" "$fixture/$input.renamed" ;;
+      delete) rm "$fixture/$input.renamed" ;;
+    esac
+    : >"$call_log"
+    (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
+      scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
+    assert_calls "$frontend_calls"
+  done
+  # Start the next case without the deleted input still selecting guards.
+  git -C "$fixture" add -u
+  git -C "$fixture" commit -qm "remove $input"
+  git -C "$fixture" update-ref refs/remotes/origin/development HEAD
 done
 
 # Workflow-only changes must select the tour guard, not skip frontend tests.

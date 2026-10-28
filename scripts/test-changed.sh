@@ -89,8 +89,8 @@ fi
 
 frontend_changes=$(
   {
-    git diff --name-only "$MB" -- frontend scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
-    git ls-files --others --exclude-standard -- frontend scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
+    git diff --name-only "$MB" -- frontend backend scripts/dev-native.sh scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
+    git ls-files --others --exclude-standard -- frontend backend scripts/dev-native.sh scripts/test-frontend-changed.mjs .github/workflows/e2e.yml
   } | awk '!/\.md$/' | sort -u
 )
 run_frontend_vitest() {
@@ -112,14 +112,12 @@ if printf '%s\n' "$frontend_changes" | grep -qxE \
   echo "==> vitest (frontend test infrastructure changed)"
   run_frontend_vitest
 elif [ -n "$frontend_changes" ]; then
+  # Backend inputs also reach the same guard inventory; no separate selector.
   # Vitest 4 includes committed, staged, unstaged, and untracked files in its
   # dependency traversal. Filesystem guards run separately because runtime
   # scans do not create import edges for that traversal.
   echo "==> vitest --changed $BASE"
   run_frontend_vitest --changed "$BASE"
-elif [ -n "$(git diff --name-only "$MB" -- backend/modules/settings/internal/defaults; git ls-files --others --exclude-standard -- backend/modules/settings/internal/defaults)" ]; then
-  echo "==> vitest (backend settings category guard)"
-  run_frontend_vitest src/components/settings/settings-filter.test.ts
 else
   echo "==> frontend: keine Änderungen"
 fi
