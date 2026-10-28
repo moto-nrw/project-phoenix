@@ -9790,8 +9790,8 @@ function traegerBillingRunTopic(): HelpTopic {
         description: "Das geht, sobald der Lauf freigegeben ist.",
         steps: [
           "Öffnen Sie den freigegebenen Lauf.",
-          "Wählen Sie bei `Rechnungen` den Knopf `Übersicht für die Kämmerei`.",
-          "Wählen Sie das Format: `PDF`, `Excel` oder `CSV`.",
+          "Wählen Sie oben in der Karte `Rechnungen` das Menü mit den drei Punkten.",
+          "Wählen Sie unter `Exportieren` das Format: `PDF`, `Excel` oder `CSV`.",
           "Geben Sie die Datei an die Kämmerei weiter.",
         ],
       },
@@ -9807,7 +9807,7 @@ function traegerBillingRunTopic(): HelpTopic {
     differences: [
       "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
       "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
-      "Sie sehen keine `Übersicht für die Kämmerei`? Der Lauf ist noch nicht freigegeben.",
+      "Sie sehen oben in der Karte `Rechnungen` kein Menü mit den drei Punkten? Der Lauf ist noch nicht freigegeben.",
     ],
     troubleshootingDetails: [
       "Die Freigabe meldet, dass sich der Lauf geändert hat? Inzwischen wurde eine Anmeldung bestätigt. Prüfen Sie die neue Vorschau und geben Sie dann frei.",
