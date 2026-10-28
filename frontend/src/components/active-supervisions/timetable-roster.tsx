@@ -1,7 +1,7 @@
 "use client";
 
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
-import { schoolClassName } from "~/lib/school-class-label";
+import { schoolClassLabel, schoolClassName } from "~/lib/school-class-label";
 import {
   Fragment,
   useEffect,
@@ -121,16 +121,20 @@ function RosterStudentMeta({
   row,
   instanceIsSpontaneous,
 }: Readonly<{ row: TimetableRosterRow; instanceIsSpontaneous: boolean }>) {
-  const showGroup = row.groupName && row.groupName !== row.schoolClass;
+  const className = schoolClassName(row.schoolClass);
+  const groupName = schoolClassName(row.groupName);
+  const showGroup = row.groupName && groupName !== className;
   return (
     <>
-      {row.schoolClass ? (
+      {className ? (
         <span className={ROSTER_META_CLASS}>
           <SchoolClassIcon />
           {/* Das Symbol steht für „Klasse“; der Name kommt ohne das Wort,
               auch wo die Schule „Klasse 2a“ speichert (#5101). */}
-          <span className="sr-only">Klasse </span>
-          {schoolClassName(row.schoolClass)}
+          {schoolClassLabel(row.schoolClass) !== "Klasse" ? (
+            <span className="sr-only">Klasse </span>
+          ) : null}
+          {className}
         </span>
       ) : null}
       {showGroup ? (
