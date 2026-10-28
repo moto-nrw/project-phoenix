@@ -3,9 +3,11 @@ package contracttest_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
@@ -235,4 +237,105 @@ func TestSourcedRowPeriod_ScheduleAndTemplateFallbackDisagreePlanWithoutPeriod(t
 func TestSourcedRowPeriod_MatchingTemplateAndSchedulePeriodStays(t *testing.T) {
 	t.Parallel()
 	runDivergingPeriodCycle(t, "zeitraum-gleich@example.com", divergingPeriodCase{template: "P", monday: "P", wednesday: "", want: "P"})
+}
+
+// Connecting a source to a template whose schedule period covers only part
+// of the enrollment phase must not fail on the phase check (I4): the check
+// runs against the template's own period, as on development, while the row
+// carries the schedule period its instances materialize under.
+func TestSourcedRowPeriod_ConnectingSourceWithNarrowerSchedulePeriodSucceeds(t *testing.T) {
+	t.Parallel()
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	source := createSourceOffering(t, env, "MittagessenTeil", nil)
+	studentID, childID := submitAndApproveOfferingChild(t, env, source.ID, "zeitraum-teil@example.com", "Teil", 2)
+	templatePeriodID := createMixedPeriodCalendarPeriod(t, env, "termin")
+	// The enrollment phase runs 2026-09-01 to 2027-07-31.
+	narrow := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) },
+		testpkg.NewDatabase(t, env.db), ctx, testpkg.Tenant(t),
+		uniqueSchemaName("zeitplan-teil-"+t.Name()), calendar.NewDate(2026, 10, 1), calendar.NewDate(2027, 3, 31))
+	group := createCareOfferingTemplateGroup(t, env.db, "MittagessenTeil")
+	group.CalendarPeriodID = &templatePeriodID
+	require.NoError(t, timetableCompose.NativeGroupRecords(testTimetableRepositories(env.db).Timetable).Update(ctx, group))
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayMonday, &narrow.ID)
+
+	resyncer := offeringResyncer(t, env)
+	templates, err := api.NewTimetableHTTP(testpkg.NewDatabase(t, env.db),
+		api.WithOfferingRosterResync(resyncer.ResyncTemplateOfferingRoster),
+		api.WithOfferingSourceValidator(env.offeringCatalog.ValidateTemplateOfferingSource))
+	require.NoError(t, err)
+	module, _, _, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, env.db), testpkg.TenantRuntime(t, env.db))
+	require.NoError(t, err)
+	monday := firstFutureMondayOnOrAfter(calendar.Date(env.sourcePhase.ServiceStartDate))
+
+	err = testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, connectErr := templates.RosterReview.ConnectOfferingSource(txCtx, timetable.ConnectOfferingSourceCommand{
+			TemplateID: group.ID, OfferingIDs: []int64{source.ID}, EffectiveDate: monday,
+		})
+		return connectErr
+	})
+	require.NoError(t, err, "connecting the source must not fail on the phase check, as on development")
+
+	f := divergingPeriodFixture{
+		env: env, template: group, source: source, childID: childID, studentID: studentID,
+		wantPeriodID: &narrow.ID, timetable: module,
+	}
+	f.requireSingleRow(t, "connect source")
+	f.requirePlannedOn(t, "connect source", monday)
+	f.resyncTenant(t)
+	settled := f.requireSingleRow(t, "tenant-wide resync after connect")
+	f.resyncTenant(t)
+	requireUnchanged(t, "repeated tenant-wide resync", settled, f.requireSingleRow(t, "repeated tenant-wide resync"))
+	f.requirePlannedOn(t, "tenant-wide resync", monday.AddDays(7))
+}
+
+// The one-time rewrite of a row a former resync left on the template period
+// (#5176 deploy) reaches only future instances: past instances, their
+// recorded attendance and their missing children stay as they are.
+func TestSourcedRowPeriod_RewriteLeavesPastInstancesAndAttendance(t *testing.T) {
+	t.Parallel()
+	f := setupDivergingPeriodFixture(t, "zeitraum-vergangen@example.com", divergingPeriodCase{template: "P", monday: "Q", wednesday: "Q", want: "Q"})
+	ctx := testpkg.Ctx(t)
+	// Reproduce the state development's resync wrote: the row on P.
+	_, err := f.env.db.NewUpdate().
+		TableExpr("activities.student_enrollments").
+		Set("calendar_period_id = ?", *f.template.CalendarPeriodID).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("activity_group_id = ?", f.template.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	stale := loadTemplateEnrollments(t, f.env, f.template.ID)
+	require.Len(t, stale, 1)
+
+	monday := firstFutureMondayOnOrAfter(calendar.Date(f.env.sourcePhase.ServiceStartDate))
+	// Two Mondays of the phase that have already passed.
+	attended, missed := calendar.NewDate(2026, 9, 14), calendar.NewDate(2026, 9, 7)
+	require.NotNil(t, f.template.PlannedRoomID)
+	schedulePeriodID := f.wantPeriodID
+	pastAttended := testpkg.CreateTestActivityInstance(t, f.env.db, attended, *f.template.PlannedRoomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &f.template.ID, CalendarPeriodID: schedulePeriodID,
+	})
+	pastMissed := testpkg.CreateTestActivityInstance(t, f.env.db, missed, *f.template.PlannedRoomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &f.template.ID, CalendarPeriodID: schedulePeriodID,
+	})
+	checkedIn := time.Date(2026, 9, 14, 12, 5, 0, 0, time.UTC)
+	recorded := testpkg.CreateTestInstanceStudent(t, f.env.db, pastAttended.ID, f.studentID, testpkg.ScheduleAttendanceStatusPresent, testpkg.InstanceStudentOpts{
+		CheckedInAt: &checkedIn,
+	})
+	// The stale P row leaves the child off the future instance.
+	_, err = f.timetable.Materialization.MaterializeForTenant(ctx, monday, monday, timetable.MaterializationSourceManual)
+	require.NoError(t, err)
+
+	f.resyncTenant(t)
+
+	rewritten := f.requireSingleRow(t, "one-time rewrite")
+	assert.NotEqual(t, stale[0].ID, rewritten.ID, "sanity: the rewrite replaced the stale row")
+	f.requirePlannedOn(t, "one-time rewrite", monday)
+	rows := loadSourcedInstanceStudents(t, f.env, pastAttended.ID)
+	require.Len(t, rows, 1, "the past instance keeps exactly its recorded attendance")
+	assert.Equal(t, recorded.ID, rows[0].ID)
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusPresent, rows[0].Status)
+	require.NotNil(t, rows[0].CheckedInAt)
+	assert.True(t, checkedIn.Equal(*rows[0].CheckedInAt), "the recorded check-in stays untouched")
+	assert.Empty(t, loadSourcedInstanceStudents(t, f.env, pastMissed.ID), "a past instance the child was missing from is not backfilled")
 }

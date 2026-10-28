@@ -268,21 +268,28 @@ func (m *BookingMaterialization) sourcedTemplateSegment(
 		return careplan.LinkedSegment{}, false
 	}
 	group := careplan.LinkedGroup{ID: tmpl.ID, IsTemplate: true, CalendarPeriodID: tmpl.CalendarPeriodID}
-	// Every resync plans a sourced template under the same period
-	// (sourcedRowPeriodID); a template whose schedules name no period or
-	// different periods must not be skipped here, or a correction deletes
-	// rows it never re-creates (#5114, #5153).
-	period, err := m.catalog.offeringSourcePeriod(ctx, sourcedRowPeriodID(group.CalendarPeriodID, schedules))
+	// The phase is checked against the template's own period and the rows
+	// carry the period the instances materialize under (sourcedRowPeriodID),
+	// both exactly as every resync does. A template whose schedules name no
+	// period or different periods must not be skipped here, or a correction
+	// deletes rows it never re-creates (#5114, #5153, #5176).
+	checked, err := m.catalog.offeringSourcePeriod(ctx, group.CalendarPeriodID)
 	if err != nil {
 		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
 		return careplan.LinkedSegment{}, false
 	}
-	if period == nil {
-		return careplan.LinkedSegment{Group: group, Schedules: schedules}, true
+	if checked != nil {
+		if err := careplan.ValidatePhaseWithinPeriod(feed.phase, checked); err != nil {
+			m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "phase outside template period", err)
+			return careplan.LinkedSegment{}, false
+		}
 	}
-	if err := careplan.ValidatePhaseWithinPeriod(feed.phase, period); err != nil {
-		m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "phase outside template period", err)
-		return careplan.LinkedSegment{}, false
+	period := checked
+	if rowPeriodID := sourcedRowPeriodID(group.CalendarPeriodID, schedules); !sameOptionalInt64(rowPeriodID, group.CalendarPeriodID) {
+		if period, err = m.catalog.offeringSourcePeriod(ctx, rowPeriodID); err != nil {
+			m.logSkippedSourcedTemplate(tmpl.ID, []int64{feed.offering.ID}, "calendar period not resolvable", err)
+			return careplan.LinkedSegment{}, false
+		}
 	}
 	return careplan.LinkedSegment{Group: group, Period: period, Schedules: schedules}, true
 }
