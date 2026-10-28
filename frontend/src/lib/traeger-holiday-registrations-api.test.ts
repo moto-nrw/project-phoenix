@@ -127,6 +127,32 @@ describe("traeger-holiday-registrations-api", () => {
     });
   });
 
+  it("maps a second guardian on details without adding it to the list", async () => {
+    const backend = {
+      ...BACKEND_DETAIL,
+      second_guardian: {
+        first_name: "Tom",
+        last_name: "Anders",
+        email: "tom@example.org",
+        phone: "0151 2345678",
+      },
+    };
+    fetchMock.mockResolvedValue(jsonResponse(200, { data: backend }));
+    expect((await fetchHolidayRegistration("5", "7")).secondGuardian).toEqual({
+      firstName: "Tom",
+      lastName: "Anders",
+      email: "tom@example.org",
+      phone: "0151 2345678",
+    });
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, { data: { registrations: [backend], total: 1 } }),
+    );
+    expect(
+      (await fetchHolidayRegistrations("5", EMPTY_HOLIDAY_REGISTRATION_FILTER))
+        .registrations[0],
+    ).not.toHaveProperty("secondGuardian");
+  });
+
   it("maps the detail with health information, contacts and history", async () => {
     fetchMock.mockResolvedValue(
       jsonResponse(200, { status: "success", data: BACKEND_DETAIL }),
@@ -137,6 +163,7 @@ describe("traeger-holiday-registrations-api", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe(
       "/api/traeger/holiday-periods/5/registrations/7",
     );
+    expect(detail.secondGuardian).toBeNull();
     expect(detail.health).toEqual([
       { childId: "9", allergies: "Erdnüsse", medication: "", healthNotes: "" },
     ]);

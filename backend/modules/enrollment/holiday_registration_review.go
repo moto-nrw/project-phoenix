@@ -188,6 +188,7 @@ type HolidayRegistrationAnswers struct {
 // included (#5198).
 type HolidayRegistrationDetail struct {
 	HolidayRegistrationSummary
+	SecondGuardian     *HolidayGuardianInput        `json:"second_guardian,omitempty"`
 	Health             []HolidayRegistrationHealth  `json:"health"`
 	Form               *HolidayPeriodForm           `json:"form"`
 	CustomData         HolidayAnswers               `json:"custom_data"`
@@ -203,10 +204,11 @@ type HolidayRegistrationDetail struct {
 // child and week. Answers are the family's and the child's answers to the
 // export's Columns, never to a question with health information (#5198).
 type HolidayRegistrationExportRow struct {
-	Registration HolidayRegistrationSummary
-	Child        HolidayRegistrationChild
-	Booking      HolidayRegistrationBooking
-	Answers      HolidayAnswers
+	SecondGuardian *HolidayGuardianInput
+	Registration   HolidayRegistrationSummary
+	Child          HolidayRegistrationChild
+	Booking        HolidayRegistrationBooking
+	Answers        HolidayAnswers
 }
 
 // HolidayRegistrationExport is the export of a period: its rows and one

@@ -96,9 +96,12 @@ func (s *HolidayRegistrationStore) CountHolidayRegistrationAttempt(ctx context.C
 const (
 	insertHolidayRegistrationQuery = `INSERT INTO enrollment.holiday_registrations
 			(organization_id, holiday_period_id, guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
-			 privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, form_version, custom_data)
+			 privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared,
+			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
+			form_version, custom_data)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
-			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END, ?, ?, ?::jsonb)
+			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END, ?,
+			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb)
 		RETURNING id, submitted_at`
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
 			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id)
@@ -162,13 +165,17 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 		SubmittedAt time.Time `bun:"submitted_at"`
 	}
 	guardian := input.Guardian
+	second := enrollment.HolidayGuardianInput{}
+	if input.SecondGuardian != nil {
+		second = *input.SecondGuardian
+	}
 	answers, err := encodeAnswers(input.CustomData)
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	if err := db.NewRaw(insertHolidayRegistrationQuery, organizationID, periodID, guardian.FirstName, guardian.LastName,
 		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.BenefitsDeclared,
-		input.FormVersion, answers).Scan(ctx, &receipt); err != nil {
+		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
 	}
 	var childIDs, weekIDs, modelIDs []int64

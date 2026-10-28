@@ -1691,6 +1691,9 @@
     "signatureEyebrow": "Proof"
   },
   "holidayRegistration": {
+    "secondGuardianTitle": "Second legal guardian",
+    "secondGuardianText": "Optional. If you enter any details, both names are required.",
+    "emailOptional": "Email address (optional)",
     "eyebrow": "Holiday care",
     "loading": "Loading the registration.",
     "errorObject": "the holiday registration",
@@ -1775,6 +1778,7 @@
     "doneText": "We will send a confirmation to {email}.",
     "doneNext": "This is not yet a confirmed place. The provider checks the registration and writes to you whether your child gets a place.",
     "errors": {
+      "phone": "Please enter a valid phone number.",
       "required": "Please fill in this field.",
       "email": "Please enter a valid e-mail address.",
       "school": "Please choose your child's school.",

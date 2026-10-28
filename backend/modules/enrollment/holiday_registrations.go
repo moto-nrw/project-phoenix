@@ -91,12 +91,12 @@ type HolidayRegistrationOffer struct {
 	Form HolidayPeriodForm
 }
 
-// HolidayGuardianInput is the parent who registers.
+// HolidayGuardianInput holds the registering or optional second guardian’s contact details.
 type HolidayGuardianInput struct {
-	FirstName string
-	LastName  string
-	Email     string
-	Phone     string
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+	Phone     string `json:"phone"`
 }
 
 // HolidayBookingInput is the time model a child books in one week.
@@ -139,6 +139,7 @@ type HolidayContactInput struct {
 // does not say); CustomData are the answers per family (#5198).
 type HolidayRegistrationInput struct {
 	Guardian          HolidayGuardianInput
+	SecondGuardian    *HolidayGuardianInput
 	Children          []HolidayChildInput
 	EmergencyContacts []HolidayContactInput
 	PickupPersons     []HolidayContactInput

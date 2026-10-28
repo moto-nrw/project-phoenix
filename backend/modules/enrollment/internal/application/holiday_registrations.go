@@ -303,6 +303,7 @@ func normalizeHolidayRegistration(input enrollment.HolidayRegistrationInput) enr
 		child.HealthNotes = strings.TrimSpace(child.HealthNotes)
 		children[i] = child
 	}
+	input.SecondGuardian = normalizeHolidaySecondGuardian(input.SecondGuardian)
 	input.Children = children
 	input.EmergencyContacts = normalizeHolidayContacts(input.EmergencyContacts)
 	input.PickupPersons = normalizeHolidayContacts(input.PickupPersons)
@@ -340,6 +341,11 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 	errs := validation.Errors{}
 	if guardianErrs := validateHolidayGuardian(input.Guardian); len(guardianErrs) > 0 {
 		errs["guardian"] = guardianErrs
+	}
+	if input.SecondGuardian != nil {
+		if guardianErrs := validateHolidaySecondGuardian(*input.SecondGuardian); len(guardianErrs) > 0 {
+			errs["second_guardian"] = guardianErrs
+		}
 	}
 	byKey := buildFieldsByKey(holidayFormSchema(form))
 	if answerErrs := validateHolidayAnswers(form, false, answers.family,

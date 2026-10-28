@@ -42,6 +42,7 @@ import {
   ChildCard,
   ContactList,
   KnownChildPicker,
+  SecondGuardianCard,
   requiredLabel,
 } from "./holiday-registration-sections";
 import { HolidayQuestions } from "./holiday-registration-questions";
@@ -298,6 +299,11 @@ export function HolidayRegistrationForm({
         </div>
       </SectionCard>
 
+      <SecondGuardianCard
+        guardian={draft.secondGuardian}
+        fieldError={fieldError}
+        onChange={(secondGuardian) => setDraft({ ...draft, secondGuardian })}
+      />
       {familyQuestions.some((field) =>
         isFieldVisible(field, familyContext(draft, offer.form)),
       ) ? (

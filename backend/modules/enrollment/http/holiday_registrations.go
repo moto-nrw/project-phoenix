@@ -130,6 +130,7 @@ type holidayContactRequest struct {
 // per child (#5198).
 type HolidayRegistrationRequest struct {
 	Guardian          holidayGuardianRequest    `json:"guardian"`
+	SecondGuardian    *holidayGuardianRequest   `json:"second_guardian"`
 	Children          []holidayChildRequest     `json:"children"`
 	EmergencyContacts []holidayContactRequest   `json:"emergency_contacts"`
 	PickupPersons     []holidayContactRequest   `json:"pickup_persons"`
@@ -158,7 +159,13 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 			Medication: child.Medication, HealthNotes: child.HealthNotes, Bookings: bookings, CustomData: child.CustomData,
 		}
 	}
+	var secondGuardian *capability.HolidayGuardianInput
+	if req.SecondGuardian != nil {
+		value := capability.HolidayGuardianInput(*req.SecondGuardian)
+		secondGuardian = &value
+	}
 	return capability.HolidayRegistrationInput{
+		SecondGuardian:    secondGuardian,
 		Guardian:          capability.HolidayGuardianInput(req.Guardian),
 		Children:          children,
 		EmergencyContacts: holidayContacts(req.EmergencyContacts),
