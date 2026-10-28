@@ -33,6 +33,8 @@
   "notBooked": "Nicht angemeldet",
   "weekRange": "{starts} bis {ends}",
   "timeModel": "{name} ({startsAt} bis {endsAt} Uhr)",
+  "timeModelPrice": "{name} · {price} ({startsAt} bis {endsAt} Uhr)",
+  "weeksPriceText": "Der Preis gilt pro Woche und Kind, ohne Ermäßigung oder Befreiung. Ihren Beitrag sehen Sie in der Zusammenfassung.",
   "healthTitle": "Gesundheit (freiwillig)",
   "healthText": "Nur die Betreuung sieht diese Angaben.",
   "allergies": "Allergien und Unverträglichkeiten",

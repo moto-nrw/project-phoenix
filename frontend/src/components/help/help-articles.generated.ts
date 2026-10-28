@@ -5796,7 +5796,7 @@ export const parentHolidayRegistrationTopic =
         "Öffnen Sie den Link.",
         "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
         "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
-        "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt.",
+        "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche.",
         "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
         "Tragen Sie `Ihre Angaben` und die `Notfallkontakte` ein.",
         "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
@@ -5813,6 +5813,7 @@ export const parentHolidayRegistrationTopic =
         "Ein Elternkonto brauchen Sie nicht.",
         "Gesundheitsangaben sind freiwillig. Nur die Betreuung sieht sie.",
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
+        "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
       ],
       differences: [
@@ -9356,7 +9357,7 @@ export const traegerHolidayContributionTopic =
         },
       ],
       result:
-        "Eltern sehen den Beitrag vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
+        "Eltern sehen den Preis jedes Zeitmodells schon bei der Wahl der Wochen. Den Beitrag sehen sie vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
       notes: [
         "Geschwister sind Kinder derselben Ferienanmeldung. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
         "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
@@ -9501,7 +9502,7 @@ export const traegerHolidayPeriodTopic =
       notes: [
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
-        "Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
+        "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",

@@ -21,6 +21,8 @@ export interface HolidayRegistrationTimeModel {
   readonly name: string;
   readonly startsAt: string;
   readonly endsAt: string;
+  /** Price per week in cent: the base line of the contribution (#5237). */
+  readonly priceCents: number;
 }
 
 export interface HolidayRegistrationWeek {
@@ -67,7 +69,13 @@ interface BackendOffer {
         ends_on: string;
         host_school_name: string;
         time_models?:
-          | { id: number; name: string; starts_at: string; ends_at: string }[]
+          | {
+              id: number;
+              name: string;
+              starts_at: string;
+              ends_at: string;
+              price_cents: number;
+            }[]
           | null;
       }[]
     | null;
@@ -139,6 +147,7 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
         name: model.name,
         startsAt: model.starts_at,
         endsAt: model.ends_at,
+        priceCents: model.price_cents,
       })),
     })),
     schools: (offer.schools ?? []).map((school) => ({

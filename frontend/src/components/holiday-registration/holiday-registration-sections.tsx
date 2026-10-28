@@ -42,8 +42,12 @@ import { HolidayQuestions } from "./holiday-registration-questions";
 export function useWeekLabels() {
   const t = useTranslations("holidayRegistration");
   const locale = useLocale();
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const euro = new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "EUR",
+    });
+    return {
       range: (week: HolidayRegistrationWeek) =>
         t("weekRange", {
           starts: formatDate(week.startsOn, false, locale),
@@ -55,9 +59,18 @@ export function useWeekLabels() {
           startsAt: model.startsAt,
           endsAt: model.endsAt,
         }),
-    }),
-    [locale, t],
-  );
+      // The price per week at the choice: the base line the summary shows
+      // under "Beitrag", before any sibling discount or exemption (#5237).
+      // It follows the name, so a narrow field cuts the times, not the price.
+      pricedTimeModel: (model: HolidayRegistrationTimeModel) =>
+        t("timeModelPrice", {
+          name: model.name,
+          price: euro.format(model.priceCents / 100),
+          startsAt: model.startsAt,
+          endsAt: model.endsAt,
+        }),
+    };
+  }, [locale, t]);
 }
 
 export function ChildCard({
@@ -195,7 +208,9 @@ export function ChildCard({
             {t("weeksTitle")}
             <RequiredMark />
           </legend>
-          <p className="text-sm text-gray-600">{t("weeksText")}</p>
+          <p className="text-sm text-gray-600">
+            {`${t("weeksText")} ${t("weeksPriceText")}`}
+          </p>
           {offer.weeks.map((week) => (
             <div
               key={week.id}
@@ -222,7 +237,7 @@ export function ChildCard({
                   { value: "", label: t("notBooked") },
                   ...week.timeModels.map((model) => ({
                     value: model.id,
-                    label: labels.timeModel(model),
+                    label: labels.pricedTimeModel(model),
                   })),
                 ]}
                 onChange={(timeModelId) => {
