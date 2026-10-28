@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // The families' side of the Elternsprechtag (#4801). The parent portal has
@@ -307,7 +308,7 @@ func (s *service) liveParentConferenceAppointment(ctx context.Context, booking *
 
 func parentConferenceAppointmentRequest(conference *schoolcalendar.ParentConference, minute int) UpdateAppointmentRequest {
 	return UpdateAppointmentRequest{
-		Title:     "Elternsprechtag " + parentConferenceClassLabel(conference.SchoolClass),
+		Title:     "Elternsprechtag " + collation.SchoolClassLabel(conference.SchoolClass),
 		Location:  conference.Location,
 		StartDate: appointmentcap.Date(conference.Date.String()),
 		EndDate:   appointmentcap.Date(conference.Date.String()),
@@ -333,15 +334,6 @@ func isParentConferenceAppointment(appointment *appointmentcap.Appointment) bool
 
 func clockMinuteTime(minute int) time.Time {
 	return time.Date(1, time.January, 1, minute/60, minute%60, 0, 0, time.UTC)
-}
-
-// parentConferenceClassLabel writes a class the way moto schule does: class
-// names are free text, and "Klasse Klasse 2a" must not happen.
-func parentConferenceClassLabel(class string) string {
-	if strings.HasPrefix(strings.ToLower(class), "klasse") {
-		return class
-	}
-	return "Klasse " + class
 }
 
 func conferencesOfClass(conferences []*schoolcalendar.ParentConference, class string) []*schoolcalendar.ParentConference {
@@ -465,7 +457,7 @@ func (s *service) notifyParentConferenceOrganizer(ctx context.Context, conferenc
 		Type:           portal.NotificationTypeParentConferenceBooking,
 		IdempotencyKey: fmt.Sprintf("parent-conference:%d:%s:%d:%d", conference.ConferenceID, kind, minute, s.now().UnixNano()),
 		RelatedType:    "parent_conference", RelatedID: conference.ConferenceID,
-		Title:          "Elternsprechtag " + parentConferenceClassLabel(conference.SchoolClass),
+		Title:          "Elternsprechtag " + collation.SchoolClassLabel(conference.SchoolClass),
 		Body:           parentConferenceNoticeBody(conference, kind, minute),
 		SchoolDeepLink: fmt.Sprintf("/school/elternsprechtag?sprechtag=%d", conference.ConferenceID),
 		Priority:       "normal",
