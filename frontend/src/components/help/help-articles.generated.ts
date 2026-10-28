@@ -9026,7 +9026,7 @@ export const traegerAccessLogTopic =
           title: "Protokoll ansehen",
           steps: [
             "Melden Sie sich im Träger-Portal an.",
-            "Wählen Sie in der Navigation `Zugriffsprotokoll`.",
+            "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Zugriffsprotokoll`.",
             "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
             "Wählen Sie bei Bedarf eine Schule und eine Person.",
             "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
@@ -9049,7 +9049,8 @@ export const traegerAccessLogTopic =
         "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
       ],
       differences: [
-        "Sie sehen in der Navigation kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
+        "Auf dem Handy steht `Zugriffsprotokoll` in der Leiste unten oder unter `Mehr`.",
+        "Sie sehen unter `Einstellungen` kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
         "Steht bei Person `Unbekannte Person`? Zu diesem Konto kennt moto an der Schule keinen Namen, zum Beispiel bei Eltern.",
       ],
       troubleshootingDetails: [
@@ -9255,7 +9256,7 @@ export const traegerBriefkopfTopic =
         {
           title: "Logo hochladen",
           steps: [
-            "Wählen Sie in der Navigation `Briefkopf`.",
+            "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Briefkopf`.",
             "Wählen Sie bei `Logo` den Knopf `Logo hochladen`.",
             "Wählen Sie ein Bild im Format PNG oder JPG, bis 1 MB.",
           ],
@@ -9296,6 +9297,7 @@ export const traegerBriefkopfTopic =
         "Jedes Ansehen und jede Änderung von Ansprechpartner und Bankverbindungen steht im Protokoll des Trägers.",
       ],
       differences: [
+        "Auf dem Handy steht `Briefkopf` in der Leiste unten oder unter `Mehr`.",
         "Sie können die Angaben nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
       ],
       troubleshootingDetails: [
@@ -9654,6 +9656,7 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
+      "`Briefkopf`, `Einstellungen` und `Zugriffsprotokoll` stehen am Computer links unten unter `Einstellungen`. Ein Klick darauf klappt sie auf.",
     ],
     troubleshootingDetails: [
       "Keine E-Mail mit Code? Schauen Sie im Spam-Ordner nach. Wählen Sie sonst `Neuen Code anfordern`.",
@@ -9720,7 +9723,8 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
     icon: "Settings",
     requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
     steps: [
-      "Wählen Sie in der Navigation `Einstellungen`.",
+      "Klicken Sie links unten in der Navigation auf `Einstellungen`.",
+      "Wählen Sie darunter noch einmal `Einstellungen`.",
       "Wählen Sie den Bereich, zum Beispiel `Anmeldung` oder `Betrieb`.",
       "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
     ],
@@ -9734,6 +9738,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
     ],
     differences: [
+      "Auf dem Handy steht `Einstellungen` in der Leiste unten oder unter `Mehr`.",
       "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
