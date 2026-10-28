@@ -82,7 +82,7 @@ const conditionOperatorLabels: Record<ConditionOperator, string> = {
   includes: "enthält",
 };
 
-export const freeFieldTypes = [
+const freeFieldTypes = [
   "boolean",
   "number",
   "text",
@@ -160,7 +160,7 @@ export function normalizeFieldKey(value: string): string {
   return out;
 }
 
-export function getRequiredHint(field: FormField): string {
+function getRequiredHint(field: FormField): string {
   if (field.type === "boolean") {
     return "Eltern müssen Ja oder Nein auswählen.";
   }
@@ -809,7 +809,7 @@ export function FieldEditorRow({
   );
 }
 
-export function FormChoice({
+function FormChoice({
   checked,
   onChange,
   label,
@@ -905,7 +905,7 @@ function defaultConditionForSource(
  * care offering. Eligible controlling questions are limited to yes/no
  * and selection fields observable from this field's scope.
  */
-export function ConditionEditor({
+function ConditionEditor({
   field,
   index,
   allFields,
@@ -1289,7 +1289,7 @@ export function PreviewAttachmentNames({
   );
 }
 
-export function PreviewCustomField({
+function PreviewCustomField({
   field,
   badge,
 }: Readonly<{ field: FormField; badge?: ReactNode }>) {

@@ -14,10 +14,7 @@ import { formatDate } from "~/lib/date-helpers";
 import type { HolidayFormField } from "~/lib/holiday-form-field";
 
 /** The answer as the Träger-Büro reads it; "Keine Angabe" without one. */
-export function holidayAnswerText(
-  field: HolidayFormField,
-  value: unknown,
-): string {
+function holidayAnswerText(field: HolidayFormField, value: unknown): string {
   if (field.type === "boolean") {
     if (value === true) return "Ja";
     if (value === false) return "Nein";

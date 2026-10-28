@@ -12,7 +12,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import type { FormField } from "~/lib/enrollment-form-schema-api";
 
 /** Reads the texts of `enrollmentForm` the renderer needs. */
-export type FieldInputTranslator = (key: string) => string;
+type FieldInputTranslator = (key: string) => string;
 
 /** A read-only text block of a form: heading, text and attachments. */
 export function InfoBlock({ field }: { readonly field: FormField }) {

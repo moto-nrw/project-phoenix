@@ -320,7 +320,7 @@ export function visibleChildQuestions(
 }
 
 /** The family answers that are sent: visible questions, answered ones only. */
-export function familyAnswersToSend(
+function familyAnswersToSend(
   draft: RegistrationDraft,
   form: HolidayFormVersion,
 ): Record<string, unknown> {
@@ -328,7 +328,7 @@ export function familyAnswersToSend(
 }
 
 /** The answers of one child that are sent. */
-export function childAnswersToSend(
+function childAnswersToSend(
   draft: RegistrationDraft,
   child: ChildDraft,
   form: HolidayFormVersion,
