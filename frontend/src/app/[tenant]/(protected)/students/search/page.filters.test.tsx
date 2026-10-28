@@ -1532,7 +1532,7 @@ describe("StudentSearchPage — Unterwegs-Karte (#5026)", () => {
     );
   });
 
-  it("counts only transit children that pass client-side filters", async () => {
+  it("counts all loaded transit children before client-side filters", async () => {
     currentSearch = new URLSearchParams({
       view: "status",
       pickup_time: "14:00",
@@ -1592,7 +1592,7 @@ describe("StudentSearchPage — Unterwegs-Karte (#5026)", () => {
     await screen.findByTestId("student-card-7");
     expect(screen.getByTestId("transit-card")).toHaveAttribute(
       "data-count",
-      "1",
+      "4",
     );
   });
 

@@ -98,6 +98,8 @@ interface TransitStudentsSectionProps {
   readonly onSelectionActiveChange?: (active: boolean) => void;
   /** Meldet die geladene Zahl für die Statuszeile der eigenständigen Seite. */
   readonly onTotalCountChange?: (totalCount: number | null) => void;
+  /** Beschränkt die Liste auf dieselbe Tagesplanung wie den Einstieg. */
+  readonly dayStatus?: "comes_today" | "not_coming_today";
   readonly fromReferrer?: string;
   readonly collapsible?: boolean;
 }
@@ -105,6 +107,7 @@ interface TransitStudentsSectionProps {
 export function TransitStudentsSection({
   onSelectionActiveChange,
   onTotalCountChange,
+  dayStatus,
   fromReferrer: fromReferrerOverride,
   collapsible = false,
 }: TransitStudentsSectionProps) {
@@ -159,8 +162,12 @@ export function TransitStudentsSection({
   } = useSWRAuth<{
     students: Student[];
     pagination?: { total_records: number };
-  }>("transit-students", () =>
-    studentService.getStudents({ locationState: "transit", pageSize: 200 }),
+  }>(dayStatus ? `transit-students-${dayStatus}` : "transit-students", () =>
+    studentService.getStudents({
+      locationState: "transit",
+      ...(dayStatus ? { dayStatus } : {}),
+      pageSize: 200,
+    }),
   );
 
   const {

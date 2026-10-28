@@ -501,7 +501,10 @@ function validQueryValue<T extends string>(
 }
 
 function searchParamsHavePersistedFilters(searchParams: SearchParamReader) {
-  return FILTER_QUERY_PARAMS.some((key) => searchParams.has(key));
+  return (
+    searchParams.has(SEARCH_QUERY_PARAM) ||
+    FILTER_QUERY_PARAMS.some((key) => searchParams.has(key))
+  );
 }
 
 function persistedFiltersToSearchParams(filters: PersistedSearchFilters) {
@@ -2726,10 +2729,9 @@ function SearchPageContent() {
     ],
   );
 
-  // These filters are applied after the backend result, so every secondary
-  // consumer of the visible scope must use them as well. The transit card
-  // deliberately leaves the status filter out: its count mirrors the target
-  // page, which also includes sick children without a room.
+  // These filters are applied after the backend result. The transit card uses
+  // the unfiltered loaded result because its target cannot apply these
+  // client-side filters.
   const matchesNonStatusClientFilters = useCallback(
     (student: Student) => {
       if (
@@ -2821,11 +2823,6 @@ function SearchPageContent() {
 
     return matchesNonStatusClientFilters(student);
   });
-
-  const transitCardStudents = useMemo(
-    () => students.filter(matchesNonStatusClientFilters),
-    [students, matchesNonStatusClientFilters],
-  );
 
   // Apply sort mode (name = stable A-Z; arrival/pickup = daily operational order)
   const sortedStudents = useMemo(() => {
@@ -3494,7 +3491,7 @@ function SearchPageContent() {
               gemeldetes Kind ohne Raum steht in der Liste unter „Krank“,
               auf der Seite „Unterwegs“ aber mit. */}
           <StudentSearchTransitCard
-            students={transitCardStudents}
+            students={students}
             show={
               isToday &&
               (effectiveAttendanceFilter === "unterwegs" ||

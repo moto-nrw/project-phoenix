@@ -8,6 +8,7 @@ import {
   useTenantMutate,
   useTenantMutateMatching,
 } from "~/lib/swr";
+import { studentService } from "~/lib/api";
 import { TransitStudentsSection } from "./transit-students-section";
 import {
   useAttendanceWebEnabled,
@@ -198,7 +199,7 @@ function mockTransitData({
       return { data: undefined, error: null, isLoading: false } as never;
     }
 
-    if (key === "transit-students") {
+    if (typeof key === "string" && key.startsWith("transit-students")) {
       return {
         data: { students, pagination: { total_records: students.length } },
         error: studentsError,
@@ -300,6 +301,25 @@ describe("TransitStudentsSection", () => {
     render(<TransitStudentsSection onTotalCountChange={onTotalCountChange} />);
 
     expect(onTotalCountChange).toHaveBeenLastCalledWith(2);
+  });
+
+  it("keeps the day-planning scope in the transit request", async () => {
+    vi.mocked(studentService.getStudents).mockResolvedValue({
+      students: mockStudents,
+    });
+    render(<TransitStudentsSection dayStatus="comes_today" />);
+
+    const transitCall = vi
+      .mocked(useSWRAuth)
+      .mock.calls.find(([key]) => key === "transit-students-comes_today");
+    const fetchTransitStudents = transitCall?.[1] as () => Promise<unknown>;
+    await fetchTransitStudents();
+
+    expect(studentService.getStudents).toHaveBeenCalledWith({
+      locationState: "transit",
+      dayStatus: "comes_today",
+      pageSize: 200,
+    });
   });
 
   it("filters active target rooms to the current staff member's supervisions", () => {

@@ -25,14 +25,17 @@ vi.mock("~/lib/tenant-context", () => ({
 
 vi.mock("~/components/rooms/transit-students-section", () => ({
   TransitStudentsSection: ({
+    dayStatus,
     fromReferrer,
     onTotalCountChange,
   }: {
+    dayStatus?: "comes_today" | "not_coming_today";
     fromReferrer?: string;
     onTotalCountChange?: (count: number | null) => void;
   }) => (
     <div
       data-testid="transit-section"
+      data-day-status={dayStatus}
       data-from={fromReferrer}
       data-count-handler={onTotalCountChange ? "yes" : "no"}
     />
@@ -86,18 +89,25 @@ describe("TransitPage", () => {
   });
 
   it("returns to the filtered child overview it was opened from", () => {
-    searchParams.set("from", "/students/search?status=unterwegs");
+    searchParams.set(
+      "from",
+      "/students/search?status=unterwegs&day_status=comes_today",
+    );
     render(<TransitPage />);
 
     const back = screen.getByTestId("back-button");
     expect(back).toHaveAttribute(
       "data-href",
-      "/students/search?status=unterwegs",
+      "/students/search?status=unterwegs&day_status=comes_today",
     );
     expect(back).toHaveTextContent("Zurück zur Kinderübersicht");
     expect(screen.getByTestId("transit-section")).toHaveAttribute(
       "data-from",
-      `/rooms/unterwegs?from=${encodeURIComponent("/students/search?status=unterwegs")}`,
+      `/rooms/unterwegs?from=${encodeURIComponent("/students/search?status=unterwegs&day_status=comes_today")}`,
+    );
+    expect(screen.getByTestId("transit-section")).toHaveAttribute(
+      "data-day-status",
+      "comes_today",
     );
   });
 

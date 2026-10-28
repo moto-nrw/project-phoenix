@@ -18,6 +18,17 @@ const TRANSIT_PATH = "/rooms/unterwegs";
  */
 const CHILD_OVERVIEW_PATH = "/students/search";
 
+function transitDayStatusFromReferrer(
+  referrer: string,
+): "comes_today" | "not_coming_today" | undefined {
+  const dayStatus = new URL(referrer, "https://moto.invalid").searchParams.get(
+    "day_status",
+  );
+  return dayStatus === "comes_today" || dayStatus === "not_coming_today"
+    ? dayStatus
+    : undefined;
+}
+
 /**
  * Kinder ohne Raumzuweisung (#3115). Bis dahin ein Slide-over auf /rooms
  * („Unterwegs"); jetzt eine Seite wie jeder Raum, damit „Zurück", ein
@@ -43,6 +54,9 @@ function TransitPageContent() {
   const backLabel = referrer.startsWith(CHILD_OVERVIEW_PATH)
     ? "Zurück zur Kinderübersicht"
     : "Zurück zu den Räumen";
+  const transitDayStatus = referrer.startsWith(CHILD_OVERVIEW_PATH)
+    ? transitDayStatusFromReferrer(referrer)
+    : undefined;
   const transitReferrer = `${TRANSIT_PATH}?from=${encodeURIComponent(referrer)}`;
 
   return (
@@ -60,6 +74,7 @@ function TransitPageContent() {
       leading={<MotoConceptIcon concept="transit" size={40} />}
     >
       <TransitStudentsSection
+        dayStatus={transitDayStatus}
         fromReferrer={transitReferrer}
         onTotalCountChange={setTotalCount}
       />
