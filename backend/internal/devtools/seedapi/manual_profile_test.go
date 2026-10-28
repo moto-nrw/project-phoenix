@@ -12,22 +12,82 @@ import (
 func TestVerifyDeviceAdministrationLocked_ExpectsModuleBookingRefusal(t *testing.T) {
 	t.Parallel()
 
-	requests := 0
+	var paths []string
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
-		requests++
-		assert.Equal(t, seedHTTPMethodGet, r.Method)
-		assert.Equal(t, "/api/iot/", r.URL.Path)
-		assert.Equal(t, "terminal", r.URL.Query().Get("device_type"))
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(seedHTTPStatusForbidden)
-		_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+		paths = append(paths, r.URL.Path)
+		switch r.URL.Path {
+		case "/api/iot/":
+			assert.Equal(t, "Bearer tenant-token", r.Header.Get("Authorization"))
+			assert.Equal(t, "terminal", r.URL.Query().Get("device_type"))
+			w.WriteHeader(seedHTTPStatusForbidden)
+			_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+		case "/operator/schools/42/devices":
+			assert.Equal(t, "Bearer operator-token", r.Header.Get("Authorization"))
+			_, _ = fmt.Fprint(w, `{"data":[{"id":9000,"device_id":"WEB-MANUAL-001","device_type":"virtual","name":"Web-Portal (Manuell)","status":"active"}]}`)
+		case "/operator/devices/9000/transfer-status":
+			assert.Equal(t, "Bearer operator-token", r.Header.Get("Authorization"))
+			_, _ = fmt.Fprint(w, `{"data":{"is_protected":true}}`)
+		default:
+			t.Errorf("unexpected path %s", r.URL.Path)
+		}
 	})
 	defer srv.Close()
 
-	device, err := verifyDeviceAdministrationLocked(&Runtime{Client: newTestClient(srv.URL, false)})
+	client := newTestClient(srv.URL, false)
+	client.BindAuth(AuthRef{Kind: AuthBearer, Token: "tenant-token"})
+	device, err := verifyDeviceAdministrationLocked(&Runtime{
+		Client: client, TenantAuth: AuthRef{Kind: AuthBearer, Token: "tenant-token"},
+		OperatorAuth: AuthRef{Kind: AuthBearer, Token: "operator-token"}, Bootstrap: &bootstrapSeedState{SchoolID: 42},
+	})
 	require.NoError(t, err)
-	assert.Equal(t, SeedDevice{DeviceID: webManualDeviceID, DeviceType: "virtual", Name: "Web-Portal (Manuell)", Protected: true}, device)
-	assert.Equal(t, 1, requests)
+	assert.Equal(t, SeedDevice{ID: 9000, DeviceID: webManualDeviceID, DeviceType: "virtual", Name: webManualDeviceName, Protected: true}, device)
+	assert.Equal(t, []string{"/api/iot/", "/operator/schools/42/devices", "/operator/devices/9000/transfer-status"}, paths)
+}
+
+func TestVerifyDeviceAdministrationLocked_RejectsInvalidDeviceState(t *testing.T) {
+	t.Parallel()
+
+	validWebDevice := map[string]any{
+		"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": webManualDeviceName, "status": "active",
+	}
+	for _, tc := range []struct {
+		name        string
+		devices     []map[string]any
+		isProtected bool
+		want        string
+	}{
+		{name: "missing web device", want: "virtual web device WEB-MANUAL-001 missing"},
+		{name: "physical terminal", devices: []map[string]any{validWebDevice, {"id": 9001, "device_id": "NFC-001", "device_type": "terminal"}}, want: "unexpected physical terminal NFC-001"},
+		{name: "malformed web device", devices: []map[string]any{{"id": 0, "device_id": webManualDeviceID, "device_type": "virtual", "name": webManualDeviceName, "status": "active"}}, want: "invalid virtual web device WEB-MANUAL-001"},
+		{name: "unprotected web device", devices: []map[string]any{validWebDevice}, want: "virtual web device WEB-MANUAL-001 is not protected"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/api/iot/":
+					w.WriteHeader(seedHTTPStatusForbidden)
+					_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+				case "/operator/schools/42/devices":
+					_ = json.NewEncoder(w).Encode(map[string]any{"data": tc.devices})
+				case "/operator/devices/9000/transfer-status":
+					_ = json.NewEncoder(w).Encode(map[string]any{"data": map[string]bool{"is_protected": tc.isProtected}})
+				default:
+					t.Errorf("unexpected path %s", r.URL.Path)
+				}
+			})
+			defer srv.Close()
+
+			client := newTestClient(srv.URL, false)
+			client.BindAuth(AuthRef{Kind: AuthBearer, Token: "tenant-token"})
+			_, err := verifyDeviceAdministrationLocked(&Runtime{
+				Client: client, TenantAuth: AuthRef{Kind: AuthBearer, Token: "tenant-token"},
+				OperatorAuth: AuthRef{Kind: AuthBearer, Token: "operator-token"}, Bootstrap: &bootstrapSeedState{SchoolID: 42},
+			})
+			require.ErrorContains(t, err, tc.want)
+		})
+	}
 }
 
 func TestVerifyManualStudentRowsAcceptsAtSchoolBeforeCheckIn(t *testing.T) {

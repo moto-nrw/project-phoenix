@@ -1230,6 +1230,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/operator/schools/2/devices" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{
+					"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": webManualDeviceName, "status": "active",
+				}},
+			})
+			return
+		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/operator/devices/9000/transfer-status" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"is_protected": true},

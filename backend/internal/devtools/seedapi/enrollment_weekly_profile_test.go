@@ -179,6 +179,12 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": token, "refresh_token": "refresh"})
 		return true
+	case strings.HasPrefix(path, "/operator/schools/") && strings.HasSuffix(path, "/devices"):
+		data = []map[string]any{{
+			"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": webManualDeviceName, "status": "active",
+		}}
+	case path == "/operator/devices/9000/transfer-status":
+		data = map[string]any{"is_protected": true}
 	case strings.Contains(path, "/settings/values/"):
 		m.settings[parts[len(parts)-1]] = body["value"]
 	case strings.HasSuffix(path, "/settings/schema"):

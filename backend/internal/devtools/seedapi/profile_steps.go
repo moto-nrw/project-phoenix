@@ -9,7 +9,10 @@ import (
 	"sort"
 )
 
-const webManualDeviceID = "WEB-MANUAL-001"
+const (
+	webManualDeviceID   = "WEB-MANUAL-001"
+	webManualDeviceName = "Web-Portal (Manuell)"
+)
 
 type configureProfileStep struct {
 	definition demoProfileDefinition
@@ -173,9 +176,12 @@ func verifyProfileDevices(rt *Runtime, minimumPhysical int) (SeedDevice, error) 
 }
 
 func verifyDeviceAdministrationLocked(rt *Runtime) (SeedDevice, error) {
-	// Schools without NFC attendance cannot administer devices. The web device
-	// is provisioned with the school and remains the attendance attribution,
-	// but it deliberately is not visible through the locked device route.
+	if rt.Bootstrap == nil || rt.Bootstrap.SchoolID <= 0 {
+		return SeedDevice{}, fmt.Errorf("device administration: bootstrap school is unavailable")
+	}
+	// Schools without NFC attendance cannot administer devices. Verify that
+	// tenant-facing lock first, then inspect the provisioned web device through
+	// the operator API, which is not part of the locked tenant surface.
 	_, err := listSeedDevices(rt, "terminal")
 	var apiErr *APIError
 	if err == nil {
@@ -184,7 +190,61 @@ func verifyDeviceAdministrationLocked(rt *Runtime) (SeedDevice, error) {
 	if !errors.As(err, &apiErr) || apiErr.StatusCode != 403 || apiErr.Code != "module.not_booked" {
 		return SeedDevice{}, fmt.Errorf("device administration: expected 403 module.not_booked, got %w", err)
 	}
-	return SeedDevice{DeviceID: webManualDeviceID, DeviceType: "virtual", Name: "Web-Portal (Manuell)", Protected: true}, nil
+
+	raw, err := rt.Client.GetWithAuth(rt.OperatorAuth, fmt.Sprintf("/operator/schools/%d/devices", rt.Bootstrap.SchoolID))
+	if err != nil {
+		return SeedDevice{}, fmt.Errorf("list operator devices: %w", err)
+	}
+	var devices struct {
+		Data []struct {
+			ID         int64   `json:"id"`
+			DeviceID   string  `json:"device_id"`
+			DeviceType string  `json:"device_type"`
+			Name       *string `json:"name"`
+			Status     string  `json:"status"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &devices); err != nil {
+		return SeedDevice{}, fmt.Errorf("decode operator devices: %w", err)
+	}
+
+	var webDevice *SeedDevice
+	for _, device := range devices.Data {
+		if device.DeviceType == "terminal" {
+			return SeedDevice{}, fmt.Errorf("device administration: unexpected physical terminal %s", device.DeviceID)
+		}
+		if device.DeviceID != webManualDeviceID {
+			continue
+		}
+		if webDevice != nil {
+			return SeedDevice{}, fmt.Errorf("device administration: multiple virtual web devices %s", webManualDeviceID)
+		}
+		if device.ID <= 0 || device.DeviceType != "virtual" || device.Name == nil || *device.Name != webManualDeviceName || device.Status != "active" {
+			return SeedDevice{}, fmt.Errorf("device administration: invalid virtual web device %s", webManualDeviceID)
+		}
+		webDevice = &SeedDevice{ID: device.ID, DeviceID: device.DeviceID, DeviceType: device.DeviceType, Name: *device.Name}
+	}
+	if webDevice == nil {
+		return SeedDevice{}, fmt.Errorf("device administration: virtual web device %s missing", webManualDeviceID)
+	}
+
+	raw, err = rt.Client.GetWithAuth(rt.OperatorAuth, fmt.Sprintf("/operator/devices/%d/transfer-status", webDevice.ID))
+	if err != nil {
+		return SeedDevice{}, fmt.Errorf("read virtual web device protection: %w", err)
+	}
+	var transferStatus struct {
+		Data struct {
+			IsProtected bool `json:"is_protected"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &transferStatus); err != nil {
+		return SeedDevice{}, fmt.Errorf("decode virtual web device protection: %w", err)
+	}
+	if !transferStatus.Data.IsProtected {
+		return SeedDevice{}, fmt.Errorf("virtual web device %s is not protected", webManualDeviceID)
+	}
+	webDevice.Protected = true
+	return *webDevice, nil
 }
 
 func listSeedDevices(rt *Runtime, deviceType string) ([]SeedDevice, error) {
