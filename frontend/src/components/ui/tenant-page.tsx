@@ -27,7 +27,7 @@ import type { FormErrorDetail } from "~/components/ui/form-error";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { BackLink } from "~/components/ui/back-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import type { PageHeaderWithSearchProps } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -375,7 +375,7 @@ export function TenantPageListSearch({
     // Die Auswahl „Gruppe“ öffnet über den Kartenrand hinaus.
     <SectionCard overflow="visible">
       <div role="search" aria-label={label} className={CONTROL_HEIGHT}>
-        <PageHeaderWithSearch
+        <PageHeaderSearchLayout
           embedded
           title=""
           search={search}
@@ -661,7 +661,7 @@ function TenantPageView({
           >
             {searchSlot}
             {!searchSlot && hasSearchRow && (
-              <PageHeaderWithSearch
+              <PageHeaderSearchLayout
                 // Der Titel steht in der Kopfkarte darüber.
                 embedded
                 title=""

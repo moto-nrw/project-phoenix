@@ -64,9 +64,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: vi.fn(
+// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: vi.fn(
     ({
       title,
       badge,

@@ -69,9 +69,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock PageHeaderWithSearch (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: vi.fn(
+// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
+  PageHeaderSearchLayout: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -284,7 +284,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -292,7 +292,7 @@ import {
 import MeinRaumPage from "./page";
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderWithSearch)
+  .mocked(PageHeaderSearchLayout)
   .getMockImplementation()!;
 
 vi.mock("~/lib/student-api", async (importOriginal) => {
@@ -342,7 +342,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 beforeEach(() => {
-  vi.mocked(PageHeaderWithSearch)
+  vi.mocked(PageHeaderSearchLayout)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)
