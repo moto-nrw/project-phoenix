@@ -15,7 +15,7 @@ import (
 // TestParentMessageLeaders_RoleGrantAndAdminWildcard pins who reads the
 // leadership conversations (#5200): a custom role holding
 // parent_messages:leadership and an account with admin:* are leadership; a
-// staff member without either is not.
+// staff member also needs users:read to open the staff messaging routes.
 func TestParentMessageLeaders_RoleGrantAndAdminWildcard(t *testing.T) {
 	t.Parallel()
 
@@ -28,12 +28,18 @@ func TestParentMessageLeaders_RoleGrantAndAdminWildcard(t *testing.T) {
 	_, roleAccount := testpkg.CreateTestCalendarStaff(t, db, "Swantje", "Meier")
 	_, adminAccount := testpkg.CreateTestCalendarStaff(t, db, "Anton", "Admin")
 	_, bystanderAccount := testpkg.CreateTestCalendarStaff(t, db, "Bodo", "Betreuer")
+	// No base user role: this custom-role staff member has leadership access
+	// without the users:read permission required by the messaging router.
+	_, leadershipOnlyAccount := testpkg.CreateTestStaffWithAccount(t, db, "Lena", "Leitung")
 
 	none, err := testpkg.TenantQuery0(t, ctx, db, leaders.ParentMessageLeaders)
 	require.NoError(t, err)
 	assert.Empty(t, none, "nobody is leadership before the permission is granted")
 
 	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), roleAccount.ID, "parent_messages:leadership")
+	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), roleAccount.ID, "users:read")
+	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), leadershipOnlyAccount.ID, "parent_messages:leadership")
+	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), bystanderAccount.ID, "users:read")
 	testpkg.GrantTestPermission(t, db, testpkg.Tenant(t), adminAccount.ID, "admin:*")
 	// The school's administration account reads every child through admin:*
 	// without a staff record, so it reads the leadership conversations too
@@ -56,6 +62,7 @@ func TestParentMessageLeaders_RoleGrantAndAdminWildcard(t *testing.T) {
 	assert.ElementsMatch(t, []int64{roleAccount.ID, adminAccount.ID, officeAccount.ID}, accounts)
 	assert.NotContains(t, accounts, bystanderAccount.ID)
 	assert.NotContains(t, accounts, strayAccount.ID)
+	assert.NotContains(t, accounts, leadershipOnlyAccount.ID, "leadership permission alone cannot open messages")
 	assert.Equal(t, []string{"Anton A.", "Swantje M.", communication.ParentMessageUnnamedLeaderLabel}, communication.ParentMessageLeaderShortNames(listed),
 		"named persons by name, the administration account under a neutral label")
 

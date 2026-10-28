@@ -24,9 +24,9 @@ type effectiveAdmins interface {
 
 // ParentMessageLeadership binds Communication's leadership directory (#5200)
 // to exactly the accounts that read the leadership conversations: live staff
-// whose account holds parent_messages:leadership through a role (admin:*
-// included), and every school administrator account, which reads every child
-// through admin:* even without a staff record. Such an account carries no
+// whose account holds both parent_messages:leadership and users:read through
+// roles (admin:* included), and every school administrator account, which reads
+// every child through admin:* even without a staff record. Such an account carries no
 // name; Communication shows it with a neutral label.
 type ParentMessageLeadership struct {
 	Staff  permissionStaff
@@ -40,6 +40,16 @@ func (l ParentMessageLeadership) ParentMessageLeaders(ctx context.Context) ([]co
 	if err != nil {
 		return nil, err
 	}
+	readers, err := l.Staff.ListStaffWithPermission(ctx, permissions.UsersRead)
+	if err != nil {
+		return nil, err
+	}
+	canRead := make(map[int64]bool, len(readers))
+	for _, reader := range readers {
+		if reader != nil {
+			canRead[reader.AccountID] = true
+		}
+	}
 	adminIDs, err := l.Admins.ListEffectiveAdminAccountIDs(ctx)
 	if err != nil {
 		return nil, err
@@ -47,7 +57,7 @@ func (l ParentMessageLeadership) ParentMessageLeaders(ctx context.Context) ([]co
 	leaders := make([]communication.ParentMessageLeader, 0, len(rows))
 	seen := make(map[int64]bool, len(rows))
 	for _, row := range rows {
-		if row == nil || row.AccountID <= 0 || seen[row.AccountID] {
+		if row == nil || row.AccountID <= 0 || !canRead[row.AccountID] || seen[row.AccountID] {
 			continue
 		}
 		seen[row.AccountID] = true

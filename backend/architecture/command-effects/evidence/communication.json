@@ -50,7 +50,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "binding_digest": "daa00f26ae7dee14fd3ad64d83c3034d",
+      "binding_digest": "785dae6776902ac4207040895a4e6370",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
@@ -58,7 +58,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "binding_digest": "8468803fd3c522c479079469d400e14b",
+      "binding_digest": "e3fc36e2245bd2f593808df2f32a5892",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
@@ -66,7 +66,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "binding_digest": "a90eeebf2e7ebb08a24ba2481506ab11",
+      "binding_digest": "267502caed02633a5f65a5170fe144fc",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
@@ -74,7 +74,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "binding_digest": "ef4d1c6cf5d1eef3f116e3c4785e46b3",
+      "binding_digest": "20c7850006a3b01ec2b6900a9a92f8b4",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
@@ -82,7 +82,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
-      "binding_digest": "daa00f26ae7dee14fd3ad64d83c3034d",
+      "binding_digest": "785dae6776902ac4207040895a4e6370",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
@@ -90,7 +90,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
-      "binding_digest": "8468803fd3c522c479079469d400e14b",
+      "binding_digest": "e3fc36e2245bd2f593808df2f32a5892",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
@@ -98,7 +98,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
-      "binding_digest": "a90eeebf2e7ebb08a24ba2481506ab11",
+      "binding_digest": "267502caed02633a5f65a5170fe144fc",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
@@ -106,7 +106,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
-      "binding_digest": "ef4d1c6cf5d1eef3f116e3c4785e46b3",
+      "binding_digest": "20c7850006a3b01ec2b6900a9a92f8b4",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
@@ -1002,7 +1002,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
-      "binding_digest": "daa00f26ae7dee14fd3ad64d83c3034d",
+      "binding_digest": "785dae6776902ac4207040895a4e6370",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
@@ -1010,7 +1010,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
-      "binding_digest": "8468803fd3c522c479079469d400e14b",
+      "binding_digest": "e3fc36e2245bd2f593808df2f32a5892",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
@@ -1018,7 +1018,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
-      "binding_digest": "a90eeebf2e7ebb08a24ba2481506ab11",
+      "binding_digest": "267502caed02633a5f65a5170fe144fc",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
@@ -1026,7 +1026,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
-      "binding_digest": "ef4d1c6cf5d1eef3f116e3c4785e46b3",
+      "binding_digest": "20c7850006a3b01ec2b6900a9a92f8b4",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
