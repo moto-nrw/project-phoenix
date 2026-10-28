@@ -33,5 +33,6 @@
   "composerPlaceholderLeadership": "Napisz wiadomość do kierownictwa",
   "emptyLeadershipDescription": "Napisz pierwszą wiadomość do kierownictwa. Pozostali pracownicy jej nie widzą.",
   "leadershipUnstaffed": "Obecnie nikt z kierownictwa tego nie czyta. Prosimy napisać do całego zespołu OGS.",
-  "leadershipUnavailable": "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS."
+  "leadershipUnavailable": "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
+  "readersUnnamedLeader": "administracja szkoły"
 }

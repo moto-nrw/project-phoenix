@@ -31,7 +31,7 @@ export function parentMessageTopic(): HelpTopic {
         steps: [
           "Wählen Sie unter `Nachrichten` den Knopf `Neue Nachricht`.",
           "Wählen Sie das Kind und dann `Weiter`.",
-          "Wählen Sie bei `Wer liest auf Ihrer Seite mit?` den Punkt `Nur die Leitung`.",
+          "Wählen Sie bei `Wer liest auf Ihrer Seite mit?` den Punkt `Nur Leitung`.",
           "Wählen Sie die Bezugsperson.",
         ],
       },
@@ -84,7 +84,7 @@ export function parentMessageTopic(): HelpTopic {
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
       "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
-      "Steht bei einer Unterhaltung `Nur Leitung`? Dann hat die Bezugsperson nur an die Leitung geschrieben. Ohne das Recht `Vertrauliche Elternnachrichten lesen` sehen Sie solche Unterhaltungen nicht.",
+      "Steht bei einer Unterhaltung `Nur Leitung`? Dann lesen sie nur die Bezugsperson und die Leitung. Begonnen hat sie die Bezugsperson oder jemand aus der Leitung. Ohne das Recht `Vertrauliche Elternnachrichten lesen` sehen Sie solche Unterhaltungen nicht.",
       "Eltern können nur an die Leitung schreiben, wenn unter `Einstellungen` der Schalter `Nachrichten nur an die Leitung (Eltern)` an ist und jemand das Recht `Vertrauliche Elternnachrichten lesen` hat. Das Recht vergeben Sie unter `Rollen`.",
     ],
     notes: [

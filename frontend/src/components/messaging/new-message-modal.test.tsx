@@ -292,7 +292,7 @@ describe("NewMessageModal readers and audience", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Nur die Leitung" }),
+      screen.queryByRole("button", { name: "Nur Leitung" }),
     ).not.toBeInTheDocument();
   });
 
@@ -329,9 +329,7 @@ describe("NewMessageModal readers and audience", () => {
     });
     const { onOpened } = renderPreset();
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Nur die Leitung" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Nur Leitung" }));
     expect(
       await screen.findByText(
         "Lesen können: Anna Muster (Elternteil) und die Leitung: Swantje M.",

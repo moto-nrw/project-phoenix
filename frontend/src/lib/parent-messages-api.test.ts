@@ -644,9 +644,20 @@ describe("readersLabel (#5200)", () => {
     );
   });
 
+  it("names unnamed accounts as Schulverwaltung and ends the sentence once", () => {
+    expect(
+      readersLabel({
+        guardian,
+        school: { kind: "leadership", names: ["Swantje M."], unnamed_count: 1 },
+      }),
+    ).toBe(
+      "Lesen können: Sabine Schneider (Mutter) und die Leitung: Swantje M., Schulverwaltung.",
+    );
+  });
+
   it("says leadership only when the row carries no names", () => {
     expect(
       readersLabel({ guardian, school: { kind: "leadership", names: [] } }),
-    ).toBe("Lesen können: Sabine Schneider (Mutter) und nur die Leitung.");
+    ).toBe("Lesen können: Sabine Schneider (Mutter) und die Leitung.");
   });
 });

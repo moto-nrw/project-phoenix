@@ -1,7 +1,12 @@
 "use client";
 
 import { Suspense, use } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import {
+  type MessageAudience,
+  childConversationPath,
+} from "~/lib/messaging-status";
+import { parentPath } from "~/lib/parent-url";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { ParentPageSkeleton } from "~/components/parent/parent-page";
 
@@ -23,9 +28,11 @@ function ParentChildConversationContent({
   readonly params: Promise<{ studentId: string }>;
 }) {
   const { studentId } = use(params);
-  // `?audience=leadership` opens the conversation with the leadership only
-  // (#5200); every other link opens the one with the whole team.
-  const leadership = useSearchParams().get("audience") === "leadership";
+  // `?audience=leadership` shows the conversation with the leadership only
+  // (#5200); the switch writes it back, so reload and back keep the choice.
+  const router = useRouter();
+  const audience: MessageAudience =
+    useSearchParams().get("audience") === "leadership" ? "leadership" : "team";
   // Reached only by multi-child parents picking a child from the list, so show
   // the back link and the child (to disambiguate which conversation this is).
   return (
@@ -33,7 +40,10 @@ function ParentChildConversationContent({
       studentId={studentId}
       showBack
       showChild
-      initialAudience={leadership ? "leadership" : "team"}
+      audience={audience}
+      onAudienceChange={(next) =>
+        router.replace(parentPath(childConversationPath(studentId, next)))
+      }
     />
   );
 }

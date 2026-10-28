@@ -17,8 +17,14 @@ import {
 import {
   type ChatMessage,
   type MessageAudience,
+  type SchoolReaders,
   audienceQuery,
+  endSentence,
+  leadershipNameList,
 } from "~/lib/messaging-status";
+
+/** Leadership accounts without a person name (#5200), as staff read them. */
+const UNNAMED_LEADER_LABEL = "Schulverwaltung";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 
 // The wire message shape is shared with the parent client; see ChatMessage.
@@ -42,7 +48,7 @@ export type ThreadAudience = MessageAudience;
  */
 export interface ThreadReaders {
   guardian: { account_id: string; name: string; relationship_type?: string };
-  school: { kind: "all_staff" | "leadership"; names: string[] };
+  school: SchoolReaders;
 }
 
 export interface InboxThread {
@@ -161,14 +167,13 @@ export function readersLabel(readers: ThreadReaders): string {
   const parent = guardian.name
     ? `${guardian.name} (${relationshipLabel(guardian.relationship_type)})`
     : relationshipLabel(guardian.relationship_type);
-  // Short names end with a period („Swantje M.“), so a name list ends the
-  // sentence itself.
-  if (school.kind === "leadership" && school.names.length > 0) {
-    return `Lesen können: ${parent} und die Leitung: ${school.names.join(", ")}`;
+  if (school.kind !== "leadership") {
+    return `Lesen können: ${parent} und alle Mitarbeitenden.`;
   }
-  const side =
-    school.kind === "leadership" ? "nur die Leitung" : "alle Mitarbeitenden";
-  return `Lesen können: ${parent} und ${side}.`;
+  const names = leadershipNameList(school, UNNAMED_LEADER_LABEL);
+  return names
+    ? endSentence(`Lesen können: ${parent} und die Leitung: ${names}`)
+    : `Lesen können: ${parent} und die Leitung.`;
 }
 
 export async function fetchInboxWithFilters(filters: {

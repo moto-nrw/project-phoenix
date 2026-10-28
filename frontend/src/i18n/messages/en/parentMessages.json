@@ -33,5 +33,6 @@
   "composerPlaceholderLeadership": "Write a message to the leadership",
   "emptyLeadershipDescription": "Write the first message to the leadership. The other staff members do not see it.",
   "leadershipUnstaffed": "Nobody from the leadership reads along right now. Please write to the whole OGS team.",
-  "leadershipUnavailable": "Messages to the leadership only are not possible here right now. Please write to the whole OGS team."
+  "leadershipUnavailable": "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
+  "readersUnnamedLeader": "school administration"
 }

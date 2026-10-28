@@ -27,6 +27,7 @@ import {
   type ChatMessage,
   type MessageAudience,
   type RequestDiffEntry,
+  type SchoolReaders,
   audienceQuery,
 } from "~/lib/messaging-status";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
@@ -1047,10 +1048,7 @@ export interface ThreadSummary {
  */
 interface ParentReaders {
   readonly guardian?: { readonly name: string };
-  readonly school: {
-    readonly kind: "all_staff" | "leadership";
-    readonly names: readonly string[];
-  };
+  readonly school: SchoolReaders;
 }
 
 // One parent-news feed entry (#1669). read/acknowledged are THIS guardian's
@@ -1202,6 +1200,7 @@ export interface ThreadView {
   readonly leadership_option?: {
     readonly available: boolean;
     readonly names: readonly string[];
+    readonly unnamed_count?: number;
   };
   readonly messages: ParentMessage[];
 }

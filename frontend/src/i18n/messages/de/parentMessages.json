@@ -33,5 +33,6 @@
   "composerPlaceholderLeadership": "Nachricht an die Leitung schreiben",
   "emptyLeadershipDescription": "Schreiben Sie die erste Nachricht an die Leitung. Die anderen Mitarbeitenden sehen sie nicht.",
   "leadershipUnstaffed": "Zurzeit liest niemand aus der Leitung mit. Bitte schreiben Sie an das ganze OGS-Team.",
-  "leadershipUnavailable": "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team."
+  "leadershipUnavailable": "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
+  "readersUnnamedLeader": "Schulverwaltung"
 }

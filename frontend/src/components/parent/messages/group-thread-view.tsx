@@ -34,7 +34,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import {
   childConversationPath,
-  parentReadersI18nDescriptor,
+  parentReadersLine,
 } from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
 
@@ -202,11 +202,8 @@ export function ParentGroupThreadView({
   const counterpart = thread.school_name
     ? tm("ogsTeam", { school: thread.school_name })
     : thread.counterpart_name;
-  const readersDescriptor = thread.readers
-    ? parentReadersI18nDescriptor(thread.readers)
-    : null;
-  const readersLine = readersDescriptor
-    ? tm(readersDescriptor.key, readersDescriptor.values)
+  const readersLine = thread.readers
+    ? parentReadersLine(thread.readers, tm)
     : null;
   const chatChild = sentFor ?? selected ?? thread.children[0]?.student_id;
   const chatLink = chatChild ? (

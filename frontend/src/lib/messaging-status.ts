@@ -362,27 +362,66 @@ export function audienceQuery(audience: MessageAudience = "team"): string {
   return audience === "leadership" ? "?audience=leadership" : "";
 }
 
+/** The school side of a conversation's readers, as both APIs send it. */
+export interface SchoolReaders {
+  readonly kind: "all_staff" | "leadership";
+  /** Leadership persons with a name, short form („Swantje M.“). */
+  readonly names: readonly string[];
+  /** Leadership accounts without a person name, named by the client. */
+  readonly unnamed_count?: number;
+}
+
+/** Whether the backend named anyone of the leadership (person or account). */
+export function hasLeadershipReaders(school: SchoolReaders): boolean {
+  return school.names.length > 0 || (school.unnamed_count ?? 0) > 0;
+}
+
 /**
- * „Lesen können: …“ of a parent conversation (#5200), as a key of the
- * `parentMessages` namespace. Built only from the readers the backend
- * reports: the parent is „Sie“, the school side everyone at the OGS or the
- * named leadership.
+ * The leadership as a list for a reader sentence: the named persons, then
+ * once the label for accounts without a name (the school's administration).
+ * Empty when the backend named nobody.
  */
-export function parentReadersI18nDescriptor(readers: {
-  readonly school: {
-    readonly kind: "all_staff" | "leadership";
-    readonly names: readonly string[];
-  };
-}):
-  | { key: "readersTeam" | "readersLeadershipUnnamed"; values?: undefined }
-  | { key: "readersLeadership"; values: { names: string } } {
-  if (readers.school.kind !== "leadership") return { key: "readersTeam" };
-  return readers.school.names.length > 0
-    ? {
-        key: "readersLeadership",
-        values: { names: readers.school.names.join(", ") },
-      }
-    : { key: "readersLeadershipUnnamed" };
+export function leadershipNameList(
+  school: SchoolReaders,
+  unnamedLabel: string,
+): string {
+  const names = [...school.names];
+  if ((school.unnamed_count ?? 0) > 0) names.push(unnamedLabel);
+  return names.join(", ");
+}
+
+/**
+ * Ends a sentence with exactly one period. Short names end with one
+ * already („Swantje M.“), other names and labels do not (#5200).
+ */
+export function endSentence(text: string): string {
+  return text.endsWith(".") ? text : `${text}.`;
+}
+
+/** The translator of the `parentMessages` namespace, as far as needed here. */
+type ParentMessagesTranslator = (
+  key:
+    | "readersTeam"
+    | "readersLeadership"
+    | "readersLeadershipUnnamed"
+    | "readersUnnamedLeader",
+  values?: { names: string },
+) => string;
+
+/**
+ * „Lesen können: …“ of a parent conversation (#5200), built only from the
+ * readers the backend reports: the parent is „Sie“, the school side everyone
+ * at the OGS or the leadership by name.
+ */
+export function parentReadersLine(
+  readers: { readonly school: SchoolReaders },
+  t: ParentMessagesTranslator,
+): string {
+  if (readers.school.kind !== "leadership") return t("readersTeam");
+  const names = leadershipNameList(readers.school, t("readersUnnamedLeader"));
+  return names
+    ? endSentence(t("readersLeadership", { names }))
+    : t("readersLeadershipUnnamed");
 }
 
 /**

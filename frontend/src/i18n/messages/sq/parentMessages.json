@@ -33,5 +33,6 @@
   "composerPlaceholderLeadership": "Shkruani një mesazh për drejtuesit",
   "emptyLeadershipDescription": "Shkruani mesazhin e parë për drejtuesit. Punonjësit e tjerë nuk e shohin.",
   "leadershipUnstaffed": "Tani askush nga drejtuesit nuk e lexon. Ju lutemi shkruajini gjithë ekipit të OGS.",
-  "leadershipUnavailable": "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS."
+  "leadershipUnavailable": "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
+  "readersUnnamedLeader": "administrata e shkollës"
 }

@@ -182,7 +182,7 @@ describe("OgsConversation without a leadership left", () => {
       ],
     });
 
-    render(<OgsConversation studentId="42" initialAudience="leadership" />);
+    render(<OgsConversation studentId="42" audience="leadership" />);
 
     expect(
       await screen.findByText("Bitte um ein Gespräch"),
@@ -213,7 +213,7 @@ describe("OgsConversation leadership not offered", () => {
       leadership_option: { available: false, names: [] },
     });
 
-    render(<OgsConversation studentId="42" initialAudience="leadership" />);
+    render(<OgsConversation studentId="42" audience="leadership" />);
 
     expect(
       (
@@ -226,5 +226,101 @@ describe("OgsConversation leadership not offered", () => {
     expect(
       screen.getByRole("button", { name: "Ganzes OGS-Team" }),
     ).toBeInTheDocument();
+  });
+});
+
+// Review #5249 A1/A2/S-Minor2: Antworten und Ladefehler passen immer zur
+// angezeigten Unterhaltung.
+describe("OgsConversation switching and failures", () => {
+  it("keeps the switch locked while a message is on its way", async () => {
+    mockGetConversation.mockImplementation((_id: string, audience?: string) =>
+      Promise.resolve(audience === "leadership" ? leadershipView : teamView),
+    );
+    let finish: (view: unknown) => void = () => undefined;
+    mockPostMessage.mockReturnValue(
+      new Promise((resolve) => {
+        finish = resolve;
+      }),
+    );
+
+    render(<OgsConversation studentId="42" audience="leadership" />);
+
+    fireEvent.change(await screen.findByLabelText("Nachricht"), {
+      target: { value: "Bitte um ein Gespräch" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Ganzes OGS-Team" }),
+      ).toBeDisabled(),
+    );
+    finish({
+      ...leadershipView,
+      messages: [
+        {
+          id: "m1",
+          kind: "message",
+          sender_kind: "guardian",
+          sender_name: "Sabine Schneider",
+          body: "Bitte um ein Gespräch",
+          created_at: "2026-09-09T08:00:00Z",
+        },
+      ],
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Ganzes OGS-Team" }),
+      ).toBeEnabled(),
+    );
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: "OGS-Leitung der Schule am Berg",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the switch when the list of conversations fails to load", async () => {
+    mockGetConversation.mockResolvedValue({
+      ...teamView,
+      leadership_option: { available: false, names: [] },
+    });
+    mockListChildThreads.mockRejectedValue(new Error("offline"));
+
+    render(<OgsConversation studentId="42" />);
+
+    expect(
+      await screen.findByRole("button", { name: "Nur die Leitung" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no composer before it knows who reads", async () => {
+    mockGetConversation.mockReturnValue(new Promise(() => undefined));
+
+    render(<OgsConversation studentId="42" />);
+
+    expect(
+      await screen.findByTestId("parent-conversation-composer-skeleton"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+  });
+
+  it("tells the route about a switch instead of switching itself", async () => {
+    mockGetConversation.mockResolvedValue(teamView);
+    const onAudienceChange = vi.fn();
+
+    render(
+      <OgsConversation
+        studentId="42"
+        audience="team"
+        onAudienceChange={onAudienceChange}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Nur die Leitung" }),
+    );
+    expect(onAudienceChange).toHaveBeenCalledWith("leadership");
   });
 });

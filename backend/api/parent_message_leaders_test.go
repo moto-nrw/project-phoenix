@@ -56,8 +56,8 @@ func TestParentMessageLeaders_RoleGrantAndAdminWildcard(t *testing.T) {
 	assert.ElementsMatch(t, []int64{roleAccount.ID, adminAccount.ID, officeAccount.ID}, accounts)
 	assert.NotContains(t, accounts, bystanderAccount.ID)
 	assert.NotContains(t, accounts, strayAccount.ID)
-	assert.Equal(t, []string{"Anton A.", "Swantje M.", communication.ParentMessageUnnamedLeaderLabel}, communication.ParentMessageLeaderShortNames(listed),
-		"named persons by name, the administration account under a neutral label")
+	assert.Equal(t, []string{"Anton A.", "Swantje M.", ""}, communication.ParentMessageLeaderShortNames(listed),
+		"named persons by name, the administration account as an empty entry the clients name")
 
 	ids, err := testpkg.TenantQuery0(t, ctx, db, leaders.LeadershipAccountIDs)
 	require.NoError(t, err)

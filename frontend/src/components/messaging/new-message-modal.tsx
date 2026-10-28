@@ -10,6 +10,7 @@ import {
 } from "~/components/students/student-choice-list";
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
 import {
   SlideOver,
   SlideOverBody,
@@ -355,7 +356,7 @@ export function NewMessageModal({
                     }}
                     items={[
                       { value: "team", label: "Ganzes Team" },
-                      { value: "leadership", label: "Nur die Leitung" },
+                      { value: "leadership", label: LEADERSHIP_AUDIENCE_LABEL },
                     ]}
                   />
                 </div>

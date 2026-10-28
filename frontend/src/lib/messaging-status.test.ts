@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import type { ChatMessage } from "./messaging-status";
 import {
   childConversationPath,
-  parentReadersI18nDescriptor,
+  parentReadersLine,
   parentEventI18nDescriptor,
   parentRequestStatusI18nKey,
   parentRequestTypeI18nKey,
@@ -461,30 +461,59 @@ describe("parentThreadPreviewI18nDescriptor", () => {
   });
 });
 
-describe("parentReadersI18nDescriptor (#5200)", () => {
+describe("parentReadersLine (#5200)", () => {
+  const texts: Record<string, string> = {
+    readersTeam: "Lesen können: Sie und alle Mitarbeitenden der OGS.",
+    readersLeadership: "Lesen können: Sie und die Leitung: {names}",
+    readersLeadershipUnnamed: "Lesen können: Sie und die Leitung der OGS.",
+    readersUnnamedLeader: "Schulverwaltung",
+  };
+  const t = (key: string, values?: { names: string }) =>
+    (texts[key] ?? key).replace("{names}", values?.names ?? "");
+
   it("names all staff for the team conversation", () => {
     expect(
-      parentReadersI18nDescriptor({ school: { kind: "all_staff", names: [] } }),
-    ).toEqual({ key: "readersTeam" });
+      parentReadersLine({ school: { kind: "all_staff", names: [] } }, t),
+    ).toBe("Lesen können: Sie und alle Mitarbeitenden der OGS.");
   });
 
-  it("names the leadership persons the backend reports", () => {
+  it("ends with one period after a short name", () => {
     expect(
-      parentReadersI18nDescriptor({
-        school: { kind: "leadership", names: ["Swantje M.", "Tom K."] },
-      }),
-    ).toEqual({
-      key: "readersLeadership",
-      values: { names: "Swantje M., Tom K." },
-    });
+      parentReadersLine(
+        { school: { kind: "leadership", names: ["Swantje M.", "Tom K."] } },
+        t,
+      ),
+    ).toBe("Lesen können: Sie und die Leitung: Swantje M., Tom K.");
   });
 
-  it("still says leadership when no names came along", () => {
+  it("names unnamed accounts in the reader's language and ends the sentence", () => {
     expect(
-      parentReadersI18nDescriptor({
-        school: { kind: "leadership", names: [] },
-      }),
-    ).toEqual({ key: "readersLeadershipUnnamed" });
+      parentReadersLine(
+        {
+          school: {
+            kind: "leadership",
+            names: ["Swantje M."],
+            unnamed_count: 2,
+          },
+        },
+        t,
+      ),
+    ).toBe("Lesen können: Sie und die Leitung: Swantje M., Schulverwaltung.");
+  });
+
+  it("adds the period after a name without one", () => {
+    expect(
+      parentReadersLine(
+        { school: { kind: "leadership", names: ["Swantje"] } },
+        t,
+      ),
+    ).toBe("Lesen können: Sie und die Leitung: Swantje.");
+  });
+
+  it("still says leadership when nobody is named", () => {
+    expect(
+      parentReadersLine({ school: { kind: "leadership", names: [] } }, t),
+    ).toBe("Lesen können: Sie und die Leitung der OGS.");
   });
 });
 

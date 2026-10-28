@@ -111,27 +111,32 @@ type ParentMessageLeaderDirectory interface {
 	ParentMessageLeaders(context.Context) ([]ParentMessageLeader, error)
 }
 
-// ParentMessageUnnamedLeaderLabel names a leadership account without a
-// person behind it, such as the school's administration account (#5200).
-const ParentMessageUnnamedLeaderLabel = "Schulverwaltung"
-
 // ParentMessageLeaderShortNames returns the short names of the leaders, one
-// per reader, so the list matches who reads. Accounts without a name appear
-// once as ParentMessageUnnamedLeaderLabel.
+// per reader, so the list matches who reads. An account without a person
+// name (such as the school's administration account) is an empty entry: the
+// HTTP edges count those as unnamed_count and the clients name them in the
+// reader's language (#5200).
 func ParentMessageLeaderShortNames(leaders []ParentMessageLeader) []string {
 	names := make([]string, 0, len(leaders))
-	unnamed := false
 	for _, leader := range leaders {
-		name := leader.ShortName()
+		names = append(names, leader.ShortName())
+	}
+	return names
+}
+
+// SplitParentMessageLeaderNames separates the named leaders from the count
+// of unnamed leadership accounts in a list from ParentMessageLeaderShortNames.
+// names is never nil.
+func SplitParentMessageLeaderNames(all []string) (names []string, unnamed int) {
+	names = make([]string, 0, len(all))
+	for _, name := range all {
 		if name == "" {
-			if unnamed {
-				continue
-			}
-			unnamed, name = true, ParentMessageUnnamedLeaderLabel
+			unnamed++
+			continue
 		}
 		names = append(names, name)
 	}
-	return names
+	return names, unnamed
 }
 
 // ParentMessageReaders says who can read one conversation: the one guardian
