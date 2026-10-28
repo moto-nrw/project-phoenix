@@ -50,6 +50,10 @@ var unmappedDateColumns = map[string]string{
 	// entry describes is carried by the adapter-local studentNoteRow as a
 	// *calendar.Date and travels through the capability as the same type.
 	"users.student_notes.subject_date": "People Directory adapter row studentNoteRow uses *calendar.Date",
+	// The planned exit (#4809) lives on the membership row; School
+	// Membership's adapter-local staffRow names its table without a schema
+	// and carries the day as a *calendar.Date.
+	"users.staff_school_memberships.planned_exit_day": "School Membership adapter row staffRow uses *calendar.Date",
 	// The day Abholart (#3945) is read and written only by the Care Plan
 	// adapter; its row carries the day as the adapter's calendarDate.
 	"schedule.student_departure_exceptions.exception_date": "Care Plan adapter row departureExceptionRow uses calendarDate",

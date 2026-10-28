@@ -330,7 +330,10 @@ func newHarness(t *testing.T, membership *fakeMembership) *harness {
 			h.offboarded, h.offboardedBy = staffID, username
 			return h.offboardErr
 		},
-		Log: slog.New(slog.DiscardHandler),
+		PlanExit:     func(_ context.Context, _ int64, day, _ string) (string, error) { return day, nil },
+		WithdrawExit: func(context.Context, int64, string) error { return nil },
+		ExitFailure:  func(w http.ResponseWriter, _ *http.Request, _ error) { w.WriteHeader(http.StatusInternalServerError) },
+		Log:          slog.New(slog.DiscardHandler),
 	})
 	h.router = chi.NewRouter()
 	h.router.Mount("/staff", resource.Router())

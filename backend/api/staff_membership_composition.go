@@ -147,6 +147,10 @@ type StaffMembershipRuntime struct {
 	CreateStaff func(context.Context, StaffCreateInput) (StaffCreateResult, error)
 	UpdateStaff func(context.Context, StaffUpdateInput) (StaffUpdateResult, error)
 	Offboard    func(context.Context, int64, string) error
+	// PlanExit and WithdrawExit enter, move and withdraw the planned exit
+	// of #4809, with the acting username as Offboard has it.
+	PlanExit     func(ctx context.Context, staffID int64, lastWorkingDay, actorUsername string) (string, error)
+	WithdrawExit func(ctx context.Context, staffID int64, actorUsername string) error
 }
 
 // bindStaffMembershipRuntime composes the closures over the legacy service
@@ -165,6 +169,7 @@ func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education sch
 		panic("staff membership runtime: identity offboarding and role administration are required")
 	}
 	workflow := newStaffOffboardingWorkflow(hub, identity, offboarding, logger, hooks)
+	planner := newStaffExitPlanner(workflow, offboarding, nil)
 	person, persons := staffDirectoryPersons(users)
 	activeCaregivers, staffByRoles := membershipRoleRows(users)
 	createStaff, updateStaff := staffDirectoryWrites(users)
@@ -202,7 +207,31 @@ func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education sch
 			}
 			return err
 		},
+		PlanExit: func(ctx context.Context, staffID int64, lastWorkingDay, actorUsername string) (string, error) {
+			plan, err := planner.Plan(context.WithValue(ctx, staffOffboardingActorNameKey{}, actorUsername), staffID, lastWorkingDay)
+			return plan.LastWorkingDay, err
+		},
+		WithdrawExit: func(ctx context.Context, staffID int64, actorUsername string) error {
+			return planner.Withdraw(context.WithValue(ctx, staffOffboardingActorNameKey{}, actorUsername), staffID)
+		},
 	}
+}
+
+// newStaffExitPlanner binds the planned exit of #4809 to the offboarding
+// workflow, School Membership's planned exits and the audit trail. notify
+// is the scheduler's notice; the request path plans without one.
+func newStaffExitPlanner(workflow *staffoffboarding.Workflow, offboarding offboardingcompose.Dependencies, notify func(context.Context, staffoffboarding.ExitNotice) (bool, error)) *staffoffboarding.Planner {
+	planner, err := staffoffboarding.NewPlanner(workflow, staffoffboarding.PlannerDependencies{
+		AppendAudit: func(ctx context.Context, actor staffoffboarding.Actor, change staffoffboarding.ExitPlanChange) error {
+			return offboarding.Audit.Append(ctx, StaffExitPlanRecord(actor, change))
+		},
+		Notify: notify,
+		Now:    time.Now,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return planner
 }
 
 // newStaffOffboardingWorkflow composes the offboarding workflow with the

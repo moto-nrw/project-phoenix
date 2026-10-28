@@ -55,6 +55,7 @@ DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
 DELETE /api/staff/{id}/absences/{absenceId}
 DELETE /api/staff/{id}/documents/{documentId}
+DELETE /api/staff/{id}/planned-exit
 DELETE /api/staff/{id}/target-overrides/{overrideId}
 DELETE /api/staff/{id}/time-tracking/adjustments/{adjustmentId}
 DELETE /api/staff/{id}/vacation/opening
@@ -1182,6 +1183,7 @@ PUT /api/staff-shifts/{id}/cancellation
 PUT /api/staff-shifts/{id}/move
 PUT /api/staff/{id}
 PUT /api/staff/{id}/payroll-number
+PUT /api/staff/{id}/planned-exit
 PUT /api/staff/{id}/schedule
 PUT /api/staff/{id}/school-classes
 PUT /api/staff/{id}/stammdaten/arbeitsvertrag

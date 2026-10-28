@@ -670,6 +670,10 @@ export const PROXY_ROUTES: Record<string, readonly string[]> = {
     "GET tenant /api/staff/id%2F1/payroll-number",
     "PUT tenant /api/staff/id%2F1/payroll-number",
   ],
+  "api/staff/[id]/planned-exit": [
+    "PUT tenant /api/staff/id%2F1/planned-exit",
+    "DELETE tenant /api/staff/id%2F1/planned-exit",
+  ],
   "api/staff/[id]/schedule": [
     "GET tenant /api/staff/id%2F1/schedule",
     "PUT tenant /api/staff/id%2F1/schedule",

@@ -229,6 +229,13 @@ type Runtime struct {
 	CreateStaff func(context.Context, CreateStaffInput) (CreateStaffResult, error)
 	UpdateStaff func(context.Context, UpdateStaffInput) (UpdateStaffResult, error)
 	Offboard    func(context.Context, int64, string) error
+	// PlanExit and WithdrawExit enter, move and withdraw a planned exit
+	// (#4809) with the acting username; ExitFailure renders (and observes)
+	// their refusals: invalid day -> 400, day in the past -> 400, unknown
+	// staff or no planned exit -> 404, exit already due -> 409, else 500.
+	PlanExit     func(ctx context.Context, staffID int64, lastWorkingDay, actorUsername string) (string, error)
+	WithdrawExit func(ctx context.Context, staffID int64, actorUsername string) error
+	ExitFailure  func(http.ResponseWriter, *http.Request, error)
 
 	// ParseIDParam reads an int64 path parameter: api/common.ParseIDParam.
 	ParseIDParam func(*http.Request, string) (int64, error)
@@ -260,6 +267,7 @@ func NewResource(membership schoolmembership.Capability, runtime Runtime) *Resou
 		runtime.TeacherGroups == nil || runtime.SchoolClasses == nil || runtime.SetSchoolClasses == nil ||
 		runtime.ActiveCaregivers == nil || runtime.StaffByRoles == nil ||
 		runtime.CreateStaff == nil || runtime.UpdateStaff == nil || runtime.Offboard == nil ||
+		runtime.PlanExit == nil || runtime.WithdrawExit == nil || runtime.ExitFailure == nil ||
 		runtime.ParseIDParam == nil || runtime.Log == nil {
 		panic("staff HTTP: all dependencies are required")
 	}
@@ -313,4 +321,8 @@ func (rs *Resource) Register(r chi.Router, withTx Middleware) {
 	r.With(rs.runtime.Permission(permissions.UsersCreate), withTx).Post("/externals/{id}/invitation", rs.inviteExternalStaff)
 	r.With(rs.runtime.Permission(permissions.StaffManage), withTx).Put("/{id}", rs.updateStaff)
 	r.With(rs.runtime.Permission(permissions.UsersDelete), withTx).Delete("/{id}", rs.deleteStaff)
+	// Planning an exit (#4809) is the deferred deletion, so it takes the
+	// deletion's permission.
+	r.With(rs.runtime.Permission(permissions.UsersDelete), withTx).Put("/{id}/planned-exit", rs.planExit)
+	r.With(rs.runtime.Permission(permissions.UsersDelete), withTx).Delete("/{id}/planned-exit", rs.withdrawExit)
 }

@@ -25,6 +25,9 @@ type Actor struct {
 	AccountID int64
 	StaffID   int64
 	Username  string
+	// PlannedExitDay is the last working day when the scheduler runs a
+	// planned exit in the planner's name (#4809), empty for a request.
+	PlannedExitDay string
 }
 
 type AccessPreview struct {
@@ -45,6 +48,7 @@ type AccessResult struct {
 type Membership interface {
 	Preview(context.Context, int64) (schoolmembership.RetirementPreview, error)
 	Execute(context.Context, int64, string) (schoolmembership.Retirement, error)
+	PlannedExits
 }
 
 type Workforce interface {
@@ -163,7 +167,13 @@ func (w *Workflow) Offboard(ctx context.Context, staffID int64) (result Result, 
 }
 
 func (w *Workflow) execute(ctx context.Context, staffID int64, revision string) (result Result, err error) {
-	err = w.run(ctx, "execute", staffID, func(txCtx context.Context, actor Actor) (Result, error) {
+	return w.executeAs(ctx, "execute", staffID, revision, w.deps.Authorize)
+}
+
+// executeAs is the one execution path of the immediate and the planned
+// offboarding: an empty revision executes the current state.
+func (w *Workflow) executeAs(ctx context.Context, operation string, staffID int64, revision string, authorize func(context.Context) (Actor, error)) (result Result, err error) {
+	err = w.runAs(ctx, operation, staffID, authorize, func(txCtx context.Context, actor Actor) (Result, error) {
 		preview, err := w.snapshot(txCtx, actor, staffID)
 		if err != nil {
 			return Result{}, err
@@ -187,6 +197,12 @@ func (w *Workflow) execute(ctx context.Context, staffID int64, revision string) 
 }
 
 func (w *Workflow) run(ctx context.Context, operation string, staffID int64, fn func(context.Context, Actor) (Result, error)) (err error) {
+	return w.runAs(ctx, operation, staffID, w.deps.Authorize, fn)
+}
+
+// runAs is run with the actor resolved by authorize: the request's principal,
+// or for a planned exit the person who planned it (#4809).
+func (w *Workflow) runAs(ctx context.Context, operation string, staffID int64, authorize func(context.Context) (Actor, error), fn func(context.Context, Actor) (Result, error)) (err error) {
 	started := time.Now()
 	var result Result
 	defer func() {
@@ -199,7 +215,7 @@ func (w *Workflow) run(ctx context.Context, operation string, staffID int64, fn 
 		return errors.New("staff offboarding: staff ID is required")
 	}
 	return w.deps.UnitOfWork(ctx, func(txCtx context.Context) error {
-		actor, err := w.deps.Authorize(txCtx)
+		actor, err := authorize(txCtx)
 		if err != nil {
 			return err
 		}

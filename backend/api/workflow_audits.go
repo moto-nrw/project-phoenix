@@ -42,6 +42,19 @@ func staffAbsenceDeletionRecord(absence workforce.StaffAbsence, actorID int64) (
 	return &auditModels.TimeTrackingDeletion{StaffID: deletion.StaffID, Source: auditModels.TimeTrackingDeletionSourceAbsence, SourceID: deletion.AbsenceID, DeletedBy: deletion.DeletedBy, Payload: deletion.Payload, Note: deletion.Note}, nil
 }
 
+// StaffExitPlanRecord is the Stammdaten change record of one planning step
+// of a planned exit (#4809): the Änderungshistorie of the staff member shows
+// who entered, moved or withdrew the last working day.
+func StaffExitPlanRecord(actor staffoffboarding.Actor, change staffoffboarding.ExitPlanChange) any {
+	event := &auditModels.StaffMasterDataChange{
+		StaffID: change.StaffID, ChangedBy: actor.StaffID,
+		Section: auditModels.StammdatenSectionAustritt, FieldName: auditModels.StammdatenFieldLastWorkingDay,
+		OldValue: change.OldDay, NewValue: change.NewDay, Note: change.Action,
+	}
+	event.SetTenantID(actor.TenantID)
+	return event
+}
+
 // staffOffboardingRecord is the manual data deletion record of one
 // offboarded staff member, as the workflow builds it.
 func staffOffboardingRecord(actor staffoffboarding.Actor, result staffoffboarding.Result) any {
