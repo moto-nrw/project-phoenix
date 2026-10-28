@@ -8,6 +8,12 @@ import { LogoutModal } from "./logout-modal";
 
 // Mock logout function
 const mockLogout = vi.fn();
+const mockShowError = vi.hoisted(() => vi.fn());
+
+// A failed logout is reported through the error path (#5126).
+vi.mock("~/contexts/ToastContext", () => ({
+  useApiErrorDisplay: () => ({ show: mockShowError }),
+}));
 
 // Mock shell auth context
 vi.mock("~/lib/shell-auth-context", () => ({
@@ -208,5 +214,23 @@ describe("LogoutModal", () => {
     );
 
     consoleErrorSpy.mockRestore();
+  });
+
+  it("tells the person when the logout did not go through (#5126)", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const failure = new Error("Sign out failed");
+    mockLogout.mockRejectedValue(failure);
+
+    render(<LogoutModal isOpen={true} onClose={mockOnClose} />);
+    fireEvent.click(screen.getByRole("button", { name: /Abmelden/i }));
+    await act(async () => {
+      await vi.runAllTimersAsync();
+    });
+
+    expect(mockShowError).toHaveBeenCalledWith(failure, {
+      object: "die Abmeldung",
+    });
+    // Anker: the button is usable again, so the person can retry.
+    expect(screen.getByRole("button", { name: "Abmelden" })).toBeEnabled();
   });
 });

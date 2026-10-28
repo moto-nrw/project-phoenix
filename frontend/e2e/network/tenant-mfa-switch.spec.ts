@@ -226,6 +226,33 @@ test("an aborted navigation after sign-out reports a held write as not saved", a
   expect(writes).toBe(0);
 });
 
+// #5126: a sign-out that never answers must not keep the tab locked. The
+// barrier aborts it, the person sees that the logout failed, and the retry
+// reaches the target school's login.
+test("a hanging sign-out releases the tab and reports a recoverable logout failure", async ({
+  page,
+  context,
+}) => {
+  await login(page, context);
+  await page.route("**/api/auth/signout", () => undefined);
+  await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
+  await page.getByText("School B", { exact: true }).click();
+  await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
+  const failure = page
+    .getByRole("alert")
+    .filter({ hasText: "Abmeldung ist gerade nicht erreichbar" });
+  await expect(failure).toBeVisible();
+  expect(page.url()).toBe(`${source}/home`);
+  if (process.env.TENANT_SWITCH_SHOT_DIR)
+    await page.screenshot({
+      path: join(process.env.TENANT_SWITCH_SHOT_DIR, "hanging-sign-out.png"),
+    });
+  await page.unroute("**/api/auth/signout");
+  await failure.getByRole("button", { name: "Wiederholen" }).click();
+  await page.waitForURL(`${target}/`);
+  await expect(page.locator('input[type="email"]')).toBeVisible();
+});
+
 test("a failed Auth.js cookie deletion stops at the target guard and permits explicit recovery", async ({
   page,
   context,

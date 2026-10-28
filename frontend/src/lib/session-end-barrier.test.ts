@@ -24,13 +24,17 @@ describe("session end barrier", () => {
     answers = new Map();
     sent = [];
     phases = [];
-    window.fetch = vi.fn((input: RequestInfo | URL) => {
+    // Like the browser, an aborted signal rejects with its reason.
+    window.fetch = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : input.toString();
       sent.push(url);
-      return new Promise<Response>((resolve) => {
+      return new Promise<Response>((resolve, reject) => {
         answers.set(url, (status = 200) =>
           resolve(new Response(null, { status })),
         );
+        const signal = init?.signal;
+        if (signal?.aborted) reject(signal.reason);
+        signal?.addEventListener("abort", () => reject(signal.reason));
       });
     });
     window.addEventListener("phoenix:session-end", onSessionEnd);
@@ -286,6 +290,69 @@ describe("session end barrier", () => {
     await expect(write).rejects.toMatchObject({ name: "AbortError" });
     expect(barrier.isSessionEnding()).toBe(false);
     expect(phases.at(-1)).toEqual({ ending: false, discardedWrites: 1 });
+  });
+
+  it("aborts a hanging sign-out after ten seconds, resets and reports the logout as unavailable", async () => {
+    vi.useFakeTimers();
+    const barrier = await loadBarrier();
+    const cancel = await barrier.holdRequestsUntilSessionEnds();
+    const write = window.fetch("/api/groups", { method: "POST" });
+    write.catch(() => undefined);
+    const signOut = window.fetch("/api/auth/signout", { method: "POST" });
+    signOut.catch(() => undefined);
+
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(barrier.isSessionEnding()).toBe(true);
+    await vi.advanceTimersByTimeAsync(1);
+
+    const failure = await signOut.catch((error: unknown) => error);
+    expect(failure).toMatchObject({ code: "general.unavailable", status: 503 });
+    // The person sees this failure; it is not a silently discarded request.
+    expect(barrier.discardedBySessionEnd(failure)).toBe(false);
+    await expect(write).rejects.toMatchObject({ name: "AbortError" });
+    expect(barrier.isSessionEnding()).toBe(false);
+    expect(phases.at(-1)).toEqual({ ending: false, discardedWrites: 1 });
+    // Requests flow again.
+    void window.fetch("/api/me/profile");
+    expect(sent).toContain("/api/me/profile");
+    cancel();
+  });
+
+  it("refuses this logout's late sign-out after a hanging csrf request, until the caller cancels", async () => {
+    vi.useFakeTimers();
+    const barrier = await loadBarrier();
+    const cancel = await barrier.holdRequestsUntilSessionEnds();
+    // Auth.js swallows a failed csrf lookup and posts the sign-out anyway.
+    const csrf = window.fetch("/api/auth/csrf");
+    csrf.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await expect(csrf).rejects.toMatchObject({ code: "general.unavailable" });
+
+    await expect(
+      window.fetch("/api/auth/signout", { method: "POST" }),
+    ).rejects.toMatchObject({ code: "general.unavailable" });
+    expect(sent).toEqual(["/api/auth/csrf"]);
+
+    // The caller's failed logout cancels; a retry's sign-out goes out.
+    cancel();
+    void window.fetch("/api/auth/signout", { method: "POST" });
+    expect(sent).toEqual(["/api/auth/csrf", "/api/auth/signout"]);
+  });
+
+  it("aborts a session lookup still hanging after the cookie deletion", async () => {
+    vi.useFakeTimers();
+    const barrier = await loadBarrier();
+    await signOutAndHold(barrier);
+    // signOut({ redirect: false }) refetches the session before it returns.
+    const session = window.fetch("/api/auth/session");
+    session.catch(() => undefined);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await expect(session).rejects.toMatchObject({
+      code: "general.unavailable",
+    });
+    expect(barrier.isSessionEnding()).toBe(false);
   });
 
   it("stops waiting for an unanswered request after five seconds", async () => {
