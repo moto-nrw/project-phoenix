@@ -246,6 +246,22 @@ export default function TraegerHolidayRegistrationPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
+          {registration.secondGuardian ? (
+            <SectionCard title="Zweite sorgeberechtigte Person">
+              <DataGrid>
+                <DataField label="Name">
+                  {registration.secondGuardian.firstName}{" "}
+                  {registration.secondGuardian.lastName}
+                </DataField>
+                <DataField label="E-Mail">
+                  {registration.secondGuardian.email || "Nicht angegeben"}
+                </DataField>
+                <DataField label="Telefon">
+                  {registration.secondGuardian.phone || "Nicht angegeben"}
+                </DataField>
+              </DataGrid>
+            </SectionCard>
+          ) : null}
           {registration.children.map((child) => (
             <HolidayRegistrationChildCard
               key={child.id}

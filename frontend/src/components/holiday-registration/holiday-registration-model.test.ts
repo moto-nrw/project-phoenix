@@ -97,6 +97,28 @@ describe("validateRegistration", () => {
     });
   });
 
+  it("names the missing fields in the order of the form", () => {
+    // The form focuses the first refused field; it must be the first one
+    // on the screen, not the parent's own fields below the children.
+    expect(
+      Object.keys(validateRegistration(emptyRegistration(), offer)),
+    ).toEqual([
+      "children.0.first_name",
+      "children.0.last_name",
+      "children.0.birth_date",
+      "children.0.home_school_id",
+      "children.0.bookings",
+      "guardian.first_name",
+      "guardian.last_name",
+      "guardian.email",
+      "guardian.phone",
+      "emergency_contacts.0.name",
+      "emergency_contacts.0.phone",
+      "privacy_consent",
+      "binding_confirmed",
+    ]);
+  });
+
   it("asks for the health consent only when a child has health information", () => {
     const draft = complete();
     expect(validateRegistration(draft, offer)).toEqual({});
@@ -224,4 +246,63 @@ describe("known children of a parent account (#4662)", () => {
     expect(Object.keys(payload.children[0]!)).not.toContain("known_student_id");
     expect(JSON.stringify(payload)).not.toContain("41");
   });
+});
+
+describe("optional second guardian", () => {
+  it("omits a blank card and does not prefill it", () => {
+    const draft = complete();
+    expect(validateRegistration(draft, offer)).toEqual({});
+    expect(
+      payloadFromDraft(draft, offer, "captcha").second_guardian,
+    ).toBeUndefined();
+    expect(
+      registrationFromFamily({ guardian: draft.guardian, children: [] })
+        .secondGuardian,
+    ).toEqual(emptyRegistration().secondGuardian);
+  });
+
+  it("trims the card and keeps contacts optional", () => {
+    const draft = {
+      ...complete(),
+      secondGuardian: {
+        firstName: " Tom ",
+        lastName: " Anders ",
+        email: " ",
+        phone: " ",
+      },
+    };
+    expect(validateRegistration(draft, offer)).toEqual({});
+    expect(payloadFromDraft(draft, offer, "captcha").second_guardian).toEqual({
+      first_name: "Tom",
+      last_name: "Anders",
+      email: "",
+      phone: "",
+    });
+  });
+
+  it.each([
+    [
+      { firstName: "Tom", lastName: "", email: "", phone: "" },
+      { "second_guardian.last_name": "required" },
+    ],
+    [
+      { firstName: "", lastName: "Anders", email: "", phone: "" },
+      { "second_guardian.first_name": "required" },
+    ],
+    [
+      { firstName: "Tom", lastName: "Anders", email: "bad", phone: "" },
+      { "second_guardian.email": "email" },
+    ],
+    [
+      { firstName: "Tom", lastName: "Anders", email: "", phone: "abc" },
+      { "second_guardian.phone": "phone" },
+    ],
+  ])(
+    "validates the second guardian with field paths",
+    (secondGuardian, errors) => {
+      expect(
+        validateRegistration({ ...complete(), secondGuardian }, offer),
+      ).toEqual(errors);
+    },
+  );
 });

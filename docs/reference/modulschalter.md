@@ -101,7 +101,7 @@ Das Modul-Register `frontend/src/lib/module-register.ts` ordnet jede Seite der M
 - **Feinsteuerung.** Schul-Einstellungen wie `operations.meal_plan_enabled` oder `timetable.enabled` gelten nur bei gebuchtem Modul. Bei nicht gebuchtem Modul sieht die Leitung das Schloss, auch wenn die Einstellung aus ist.
 - **Startseite und Reiter.** Bausteine und Reiter der Personalakte eines nicht gebuchten Moduls fehlen für alle, ohne Schloss: eine Kachel ohne Daten belegt nur Platz, und die Leitung sieht das Modul in der Navigation und unter Einstellungen.
 - **Erklärender Zustand.** `TenantPage`, das Gerüst jeder Seite, zeigt auf jeder Seite eines nicht gebuchten Moduls statt des Inhalts, zu welchem Modul sie gehört und wer handelt: die Leitung das moto-Team, alle anderen ihre Leitung. Lehnt eine Anfrage mit `module.not_booked` ab, zeigen `TenantPage`, `LoadErrorAlert` und `FormErrorAlert` denselben Zustand als Hinweis statt als Fehler, und die Mandantendaten laden neu.
-- **Bewusste Abweichungen vom Backend.** Aktivitäten (`/activities`, `/database/activities`) gehören im Register zu NFC-Anwesenheit, weil sie vor den Modulen nur mit NFC zu sehen waren. Geräte (`/database/devices`) folgen NFC-Anwesenheit, obwohl das Backend sie erst mit #4896 sperrt.
+- **Bewusste Abweichung vom Backend.** Aktivitäten (`/activities`, `/database/activities`) gehören im Register zu NFC-Anwesenheit, weil sie vor den Modulen nur mit NFC zu sehen waren. Geräte (`/database/devices`) folgen NFC-Anwesenheit wie im Backend.
 
 ## Routen
 
@@ -111,7 +111,18 @@ Seit #4893 gehört jede Route des Produktions-Routers genau einem Modul oder der
 - **Sperre.** Ein Router-weiter Schritt ordnet jede Anfrage nach diesen Regeln ein. `api.TenantScopeMiddleware` prüft nach dem Binden der Schule, ob das Modul gebucht ist, und antwortet sonst mit 403 `module.not_booked`. Basis-Routen und das Operator-Portal sind nicht betroffen. Ein Plattform-Token ohne Schule läuft durch.
 - **Kosten.** Die Prüfung liest den Schalter in einer eigenen kurzen Lesetransaktion vor der Transaktion der Anfrage. Der Budget-Test der Anmeldungs-Rückläufe hält diese Form fest (genau ein Select des Schalters), das Budget der Route selbst bleibt unverändert.
 - **Öffentliche Anmeldung.** Die öffentlichen Routen lösen die Schule über den Pfad auf, nicht über eine Sitzung. `enrollment.enabled` gilt dort nur, wenn das Modul Online-Anmeldung gebucht ist. Phasenliste, Formular, Uploads und Absenden antworten dann mit `enrollment.disabled`. Formularaufbau, Angebotsliste, Rechtstexte und Captcha einer Phase enthalten keine Personendaten und bleiben lesbar. Auch der Statuslink einer abgeschickten Anmeldung schließt sich und antwortet wie ein abgelaufener Link. So erfährt die Familie nichts über den Vertrag der Schule. Die Anmeldung bleibt gespeichert; nach erneutem Buchen gilt der Link wieder.
-- **Portale.** Elternportal und Schulportal sperrt #4895 an der Sitzung, siehe unten. Geräte (`/api/iot` samt Geräteverwaltung im Team-Portal, Armband zuordnen unter `/api/students/{id}/rfid`) sperrt #4896 zusammen mit PyrePortal. Bis dahin behält eine Schule ohne NFC-Anwesenheit ihre Geräteverwaltung. Ihre Regeln nennen das Modul schon. Welche Flächen anderswo gesperrt werden, steht in `moduleRoutesLockedElsewhere`; der Golden-Test verlangt für jede andere Modulroute die Sperre.
+- **Portale.** Elternportal und Schulportal sperrt #4895 an der Sitzung, siehe unten. Geräte sperrt seit #4896 eine eigene Sperre hinter der Geräte-Anmeldung, siehe „Geräte und PyrePortal“. Welche Flächen anderswo gesperrt werden, steht in `moduleRoutesLockedElsewhere`; der Golden-Test verlangt für jede andere Modulroute die Sperre.
+
+## Geräte und PyrePortal (#4896)
+
+Geräte haben keine Sitzung, deshalb sperrt nicht `TenantScopeMiddleware`, sondern `gateDeviceAuthentication` in `backend/api/module_booking_gate.go`. Die Sperre sitzt hinter jeder Geräte-Anmeldung, also erst nach geprüftem Geräteschlüssel und PIN. Nur ein echtes Gerät erfährt, was die Schule gebucht hat.
+
+- **Jede Kiosk-Route braucht NFC-Anwesenheit:** Scannen, Aktivitäten, Anmeldung mit der Geräte-PIN, Gerätedaten, Fehlerberichte und Armband zuordnen am Tablet (`/api/students/{id}/rfid`).
+- **Stempeln am Kiosk** (`/api/iot/staff-clock`, `.../state`) braucht zusätzlich Zeiterfassung. Fehlt NFC-Anwesenheit, nennt die Antwort NFC-Anwesenheit; sonst Zeiterfassung. Ohne Zeiterfassung bleibt die Anwesenheit am Kiosk offen.
+- **Antwort:** 403 `module.not_booked` wie bei den übrigen Routen, mit `details.module` und `details.module_label`. PyrePortal zeigt dazu einen eigenen Hinweis: bei NFC-Anwesenheit schon bei der Anmeldung mit der PIN, bei Zeiterfassung beim Stempeln.
+- **Geräteverwaltung im Team-Portal** (`/api/iot/...` mit Sitzung) sperrt `TenantScopeMiddleware` wie jede Modulroute. Das Operator-Portal verwaltet Geräte weiter für jede Schule.
+
+Backend und PyrePortal gehören zusammen ausgerollt: Ein altes PyrePortal zeigt die Sperre nur mit dem allgemeinen Text „Das ist hier nicht erlaubt“.
 
 ## Jobs, Portale, E-Mail und Push (#4895)
 

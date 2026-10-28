@@ -6820,6 +6820,8 @@ function modulesTopic(): HelpTopic {
       "Ohne `Eltern-App` gibt es kein Elternportal. Eltern können sich dort nicht anmelden. moto schickt ihnen keine E-Mails und Mitteilungen mehr, zum Beispiel zu Terminen.",
       "Ohne `Unterricht am Vormittag` gibt es kein moto schule. Lehrkräfte können sich dort nicht anmelden.",
       "Ohne `Online-Anmeldung` verschickt moto keine E-Mails zu Anmeldungen.",
+      "Ohne `NFC-Anwesenheit` lässt sich kein Tablet mit der Geräte-PIN anmelden. Das Tablet zeigt dann einen Hinweis.",
+      "Ohne `Zeiterfassung` kann Ihr Team am Tablet nicht stempeln. Anwesenheit mit Armband geht weiter.",
     ],
     differences: [
       "Ein Menüpunkt hat ein Schloss? Dann gehört er zu einem Modul, das Ihre OGS nicht gebucht hat. Das Schloss sehen nur Sie als Leitung. Ihr Team sieht den Menüpunkt nicht.",
@@ -7989,6 +7991,8 @@ function parentHolidayRegistrationTopic(): HelpTopic {
     question: "Wie melde ich mein Kind für die Ferien an?",
     summary:
       "Der Träger gibt Ihnen einen Link. Dort melden Sie bis zu drei Kinder an.",
+    image: "/help/screens/ferienanmeldung-zweite-person.webp",
+    imageAlt: "Die freiwillige Karte für die zweite sorgeberechtigte Person.",
     group: "anmeldung",
     audience: "parent",
     icon: "SunHorizon",
@@ -8000,6 +8004,7 @@ function parentHolidayRegistrationTopic(): HelpTopic {
       "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt.",
       "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
       "Tragen Sie `Ihre Angaben` und die `Notfallkontakte` ein.",
+      "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
       "Tragen Sie unter `Wer darf die Kinder abholen?` alle Personen außer Ihnen ein.",
       "Setzen Sie die Haken unter `Einverständnis`.",
       "Wählen Sie `Weiter zur Zusammenfassung`.",
@@ -9354,7 +9359,7 @@ function traegerBriefkopfTopic(): HelpTopic {
         title: "Absender, Farbe und Fußzeile eintragen",
         steps: [
           "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein, jede Angabe in eine eigene Zeile.",
-          "Tragen Sie bei `Farbe für Briefe und Rechnungen` den Farbcode Ihres Trägers ein: eine Raute und sechs Zeichen, so wie er im Logo-Entwurf steht.",
+          "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf den farbigen Kreis und wählen Sie eine Farbe. Oder tragen Sie den Farbcode Ihres Trägers in das Feld daneben ein: eine Raute und sechs Zeichen, so wie er im Logo-Entwurf steht.",
           "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein.",
           "moto speichert jedes Feld von selbst.",
         ],
@@ -9416,6 +9421,7 @@ function traegerSchoolSwitchTopic(): HelpTopic {
       "moto öffnet die Schule in einem neuen Tab. Dort arbeiten Sie mit der Rolle Verwaltung der Schule.",
     notes: [
       "Sie können mehrere Schulen in mehreren Tabs offen haben.",
+      "Haben Sie in einem anderen Tab die Schule gewechselt? Dann stellt moto diesen Tab beim nächsten Klick wieder auf seine Schule um. Dieser Klick wird nicht ausgeführt. Wiederholen Sie ihn danach.",
       "Eine neue Schule Ihres Trägers können Sie sofort öffnen. Niemand muss Sie dafür freischalten.",
       "Jedes Öffnen steht im Protokoll der Schule.",
     ],
@@ -9538,6 +9544,9 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     question: "Wie bestätige, storniere und buche ich Ferienanmeldungen um?",
     summary:
       "Sie sehen alle Anmeldungen eines Ferienzeitraums in einer Liste. Dort bestätigen, stornieren und buchen Sie um.",
+    image: "/help/screens/ferienanmeldung-zweite-person-traeger.webp",
+    imageAlt:
+      "Die zweite sorgeberechtigte Person in der Einzelansicht beim Träger.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "ListChecks",
@@ -9596,6 +9605,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
       "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin.",
+      "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
       "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
       "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
     ],
@@ -9817,6 +9827,7 @@ function traegerHolidayRegistrationTopic(): HelpTopic {
       "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
     notes: [
       "Eltern brauchen kein Elternkonto.",
+      "Eltern können eine `Zweite sorgeberechtigte Person` angeben. Die Bestätigung geht nur an die anmeldende Person.",
       "Ein Kind ohne Schule Ihres Trägers melden Eltern als Feriengast an. Es wird dadurch kein Schulkind einer OGS.",
       "Eltern bekommen eine Bestätigung per E-Mail. Sie ist noch keine Zusage.",
       "Gesundheitsangaben stehen nur in der Anmeldung. Die Bestätigung nennt sie nicht.",

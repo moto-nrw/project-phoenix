@@ -150,17 +150,28 @@ func endOpenGroupRow(ctx context.Context, db bun.IDB, tenantID, groupID int64, a
 // still open, so a retry after a rolled-back run finds the same set again and
 // a group closed in between is left alone. Visit exits keep the clamp to the
 // entry time the nightly job always applied: one skewed interval must not
-// abort the whole batch.
+// abort the whole batch. It then compacts the visit revision events of the
+// tenant's ended sessions (compactVisitRevisionEvents).
 func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.Time, endDate ports.Date) (result studentpresence.EndedGroupSessions, stats ports.Stats, err error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return result, stats, err
 	}
+	started := time.Now()
+	defer func() { stats.StatementDuration = time.Since(started) }()
+	result, stats, err = endOpenGroupSessions(ctx, db, tenantID, groupIDs, at, endDate)
+	// Successful empty batches still maintain revisions for sessions ended
+	// manually or deleted since the last nightly run.
+	if err == nil {
+		err = compactVisitRevisions(ctx, db, tenantID, &stats)
+	}
+	return result, stats, err
+}
+
+func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, at time.Time, endDate ports.Date) (result studentpresence.EndedGroupSessions, stats ports.Stats, err error) {
 	if len(groupIDs) == 0 {
 		return result, stats, nil
 	}
-	started := time.Now()
-	defer func() { stats.StatementDuration = time.Since(started) }()
 
 	open := []int64{}
 	stats.Queries++
@@ -208,6 +219,35 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	stats.Rows = result.VisitsClosed + result.SessionsEnded + result.SupervisorsEnded
 	return result, stats, nil
 }
+
+func compactVisitRevisions(ctx context.Context, db bun.IDB, tenantID int64, stats *ports.Stats) error {
+	stats.Queries++
+	if _, err := db.NewRaw(compactVisitRevisionEvents, tenantID, tenantID, tenantID, tenantID).Exec(ctx); err != nil {
+		return fmt.Errorf("end group sessions: compact visit revision events: %w", err)
+	}
+	return nil
+}
+
+// compactVisitRevisionEvents keeps the change events of ended sessions small
+// (#5128): it replaces all events of such a session with one row carrying
+// their sum, so the session's revision does not change, and it drops the
+// events of deleted sessions, whose ids never return. A concurrent writer's
+// events are not in this statement's snapshot and stay as they are. The
+// DELETE returns only rows this statement deleted, so a second compaction
+// running at the same time cannot count a row twice.
+const compactVisitRevisionEvents = `WITH compacted AS (
+		DELETE FROM active.visit_revision_events AS e
+		WHERE e.tenant_id = ? AND e.active_group_id IN (
+			SELECT x.active_group_id FROM active.visit_revision_events AS x
+			LEFT JOIN active.groups AS g ON g.tenant_id = x.tenant_id AND g.id = x.active_group_id
+			WHERE x.tenant_id = ? AND (g.id IS NULL OR g.end_time IS NOT NULL)
+			GROUP BY x.active_group_id, g.id HAVING g.id IS NULL OR count(*) > 1)
+		RETURNING e.active_group_id, e.changes
+	)
+	INSERT INTO active.visit_revision_events (tenant_id, active_group_id, changes)
+	SELECT ?, c.active_group_id, sum(c.changes) FROM compacted AS c
+	WHERE EXISTS (SELECT 1 FROM active.groups AS g WHERE g.tenant_id = ? AND g.id = c.active_group_id)
+	GROUP BY c.active_group_id`
 
 // EndGroup stamps the end time of one still-open group and touches nothing
 // else. The lifecycle lock distinguishes a missing group from an ended one so

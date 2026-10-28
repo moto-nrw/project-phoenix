@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -139,15 +145,15 @@ function type(input: HTMLElement, value: string) {
 
 /** Fills a complete registration of one holiday guest. */
 function fillRegistration() {
-  const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname");
-  const [childLast, guardianLast] = screen.getAllByLabelText("Nachname");
+  const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname *");
+  const [childLast, guardianLast] = screen.getAllByLabelText("Nachname *");
   type(childFirst!, "Ben");
   type(childLast!, "Muster");
   choose(screen.getByRole("combobox", { name: "Tag" }), "4");
   choose(screen.getByRole("combobox", { name: "Monat" }), "Mai");
   choose(screen.getByRole("combobox", { name: "Jahr" }), "2017");
   choose(
-    screen.getByRole("combobox", { name: "Schule" }),
+    screen.getByRole("combobox", { name: "Schule *" }),
     "Eine andere Schule",
   );
   expect(screen.getByText(/Ihr Kind kommt als Feriengast/)).toBeInTheDocument();
@@ -157,15 +163,15 @@ function fillRegistration() {
   );
   type(guardianFirst!, "Eva");
   type(guardianLast!, "Muster");
-  type(screen.getByLabelText("E-Mail-Adresse"), "eva@example.org");
-  type(screen.getAllByLabelText("Telefon")[0]!, "0151 1");
-  type(screen.getAllByLabelText("Name")[0]!, "Oma Muster");
-  type(screen.getAllByLabelText("Telefon")[1]!, "05402 1");
+  type(screen.getByLabelText("E-Mail-Adresse *"), "eva@example.org");
+  type(screen.getAllByLabelText("Telefon *")[0]!, "0151 1");
+  type(screen.getAllByLabelText("Name *")[0]!, "Oma Muster");
+  type(screen.getAllByLabelText("Telefon *")[1]!, "05402 1");
   fireEvent.click(
     screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
   );
   fireEvent.click(
-    screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist."),
+    screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
   );
 }
 
@@ -374,7 +380,7 @@ describe("HolidayRegistrationForm", () => {
     mockSubmit.mockResolvedValue(undefined);
     renderForm(family);
 
-    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
+    expect(screen.getByLabelText("E-Mail-Adresse *")).toHaveValue(
       "sabine@example.org",
     );
     const known = screen.getByRole("checkbox", { name: /Felix Schneider/ });
@@ -383,7 +389,7 @@ describe("HolidayRegistrationForm", () => {
     ).toBeInTheDocument();
     fireEvent.click(known);
     expect(known).toBeChecked();
-    const childFirst = screen.getAllByLabelText("Vorname")[0]!;
+    const childFirst = screen.getAllByLabelText("Vorname *")[0]!;
     expect(childFirst).toHaveValue("Felix");
     expect(screen.getAllByText("Kind 1")).toHaveLength(1);
     type(childFirst, "Feli");
@@ -392,13 +398,13 @@ describe("HolidayRegistrationForm", () => {
       screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
       "bis 13 Uhr (08:00 bis 13:00 Uhr)",
     );
-    type(screen.getAllByLabelText("Name")[0]!, "Oma Schneider");
-    type(screen.getAllByLabelText("Telefon")[1]!, "05402 2");
+    type(screen.getAllByLabelText("Name *")[0]!, "Oma Schneider");
+    type(screen.getAllByLabelText("Telefon *")[1]!, "05402 2");
     fireEvent.click(
       screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
     );
     fireEvent.click(
-      screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist."),
+      screen.getByLabelText("Ich weiß, dass die Anmeldung verbindlich ist. *"),
     );
     fireEvent.click(
       screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
@@ -437,10 +443,10 @@ describe("HolidayRegistrationForm", () => {
     renderForm(family);
     const known = screen.getByRole("checkbox", { name: /Felix Schneider/ });
     fireEvent.click(known);
-    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("Felix");
+    expect(screen.getAllByLabelText("Vorname *")[0]).toHaveValue("Felix");
     fireEvent.click(known);
     expect(known).not.toBeChecked();
-    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("");
+    expect(screen.getAllByLabelText("Vorname *")[0]).toHaveValue("");
   });
 
   it("offers no known children without a parent account", () => {
@@ -450,4 +456,109 @@ describe("HolidayRegistrationForm", () => {
       screen.queryByText("Ihre Kinder aus dem Elternkonto"),
     ).not.toBeInTheDocument();
   });
+});
+
+describe("second guardian card", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  function card() {
+    const heading = screen.getByRole("heading", {
+      name: "Zweite sorgeberechtigte Person",
+    });
+    return within(heading.closest("section")!);
+  }
+
+  it("requires names only while the optional card contains information", () => {
+    renderForm();
+    const second = card();
+    const firstName = second.getByLabelText("Vorname");
+    const lastName = second.getByLabelText("Nachname");
+    expect(firstName).not.toBeRequired();
+    expect(lastName).not.toBeRequired();
+    const phone = second.getByLabelText("Telefon (freiwillig)");
+    type(phone, "0151 2345678");
+    expect(second.getByLabelText("Vorname *")).toBeRequired();
+    expect(second.getByLabelText("Nachname *")).toBeRequired();
+    type(phone, " ");
+    expect(firstName).not.toBeRequired();
+    expect(lastName).not.toBeRequired();
+  });
+
+  it("allows leaving the card blank", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    await renderFilledForm();
+    expect(screen.getByText("Eva Muster")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    expect(mockSubmit.mock.calls[0]![1].second_guardian).toBeUndefined();
+  });
+
+  it("shows the second guardian in the summary and submits all four fields", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm();
+    fillRegistration();
+    const second = card();
+    type(second.getByLabelText(/^Vorname\b/), "Tom");
+    type(second.getByLabelText(/^Nachname\b/), "Anders");
+    type(
+      second.getByLabelText("E-Mail-Adresse (freiwillig)"),
+      "tom@example.org",
+    );
+    type(second.getByLabelText("Telefon (freiwillig)"), "0151 2345678");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect(card().getByText("Tom Anders")).toBeInTheDocument();
+    expect(card().getByText("tom@example.org")).toBeInTheDocument();
+    expect(card().getByText("0151 2345678")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    expect(mockSubmit.mock.calls[0]![1].second_guardian).toEqual({
+      first_name: "Tom",
+      last_name: "Anders",
+      email: "tom@example.org",
+      phone: "0151 2345678",
+    });
+  });
+
+  it.each([
+    [/^Vorname\b/, "", /^Vorname\b/],
+    [/^Nachname\b/, "", /^Nachname\b/],
+    ["E-Mail-Adresse (freiwillig)", "bad", "E-Mail-Adresse (freiwillig)"],
+    ["Telefon (freiwillig)", "abc", "Telefon (freiwillig)"],
+  ])(
+    "shows errors at the second guardian field %s",
+    async (label, value, invalidLabel) => {
+      renderForm();
+      fillRegistration();
+      const second = card();
+      type(second.getByLabelText(/^Vorname\b/), "Tom");
+      type(second.getByLabelText(/^Nachname\b/), "Anders");
+      type(second.getByLabelText(label), value);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+      );
+      await waitFor(() =>
+        expect(second.getByLabelText(invalidLabel)).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        ),
+      );
+      expect(second.getByLabelText(invalidLabel)).toHaveAttribute(
+        "aria-describedby",
+      );
+    },
+  );
 });

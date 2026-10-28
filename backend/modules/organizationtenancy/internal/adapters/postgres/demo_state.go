@@ -177,23 +177,33 @@ func (s *DemoStateStore) ReleaseClaims(ctx context.Context) error {
 // seed to the normal provisioning queue. Its partial API writes are never
 // retried in place: the next attempt retires that school and starts clean. It
 // retains the tenant identity until a final failed attempt can retire it too.
+// A hidden school stays as it is: its visitor started over or its access
+// ended, and its deleted school still holds the subdomain a rebuild needs.
 func (s *DemoStateStore) RequeueDeferred(ctx context.Context, name string) error {
-	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
+	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states AS state
 		SET status = 'preparing', claimed_at = NULL, seed_state = NULL,
-			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[visitor_account_id], NULL),
-			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[visitor_parent_account_id], NULL),
-			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[tenant_id], NULL),
+			visitor_account_ids = array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL),
+			visitor_parent_account_ids = array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL),
+			visitor_school_ids = array_remove(state.visitor_school_ids || ARRAY[state.tenant_id], NULL),
 			visitor_account_id = NULL, visitor_parent_account_id = NULL
-		WHERE status IN ('preparing', 'ready') AND seed_state->>'deferred_seed_pending' = 'true'
-			AND (? = '' OR name = ?)`, name, name).Exec(ctx)
+		WHERE state.status IN ('preparing', 'ready') AND state.seed_state->>'deferred_seed_pending' = 'true'
+			AND (? = '' OR state.name = ?)
+			AND NOT EXISTS (SELECT 1 FROM platform.schools AS school
+				WHERE school.id = state.tenant_id AND school.deleted_at IS NOT NULL)`, name, name).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("requeue deferred demo school orders: %w", err)
 	}
-	if name != "" {
-		rows, err := result.RowsAffected()
-		if err != nil || rows != 1 {
-			return errors.New("deferred demo school order does not exist")
-		}
+	if name == "" {
+		return nil
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 1 {
+		return nil
+	}
+	var hidden bool
+	if err := s.db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.demo_school_states AS state
+		JOIN platform.schools AS school ON school.id = state.tenant_id
+		WHERE state.name = ? AND school.deleted_at IS NOT NULL)`, name).Scan(ctx, &hidden); err != nil || !hidden {
+		return errors.New("deferred demo school order does not exist")
 	}
 	return nil
 }

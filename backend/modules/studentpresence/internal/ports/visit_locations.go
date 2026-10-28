@@ -25,6 +25,7 @@ type VisitLocation struct {
 type VisitLocationStore interface {
 	ListVisitLocations(context.Context, studentpresence.VisitLocationFilter) ([]VisitLocation, Stats, error)
 	CountOpenVisitsInGroup(context.Context, int64) (int, Stats, error)
+	CountOpenVisitsInGroupWithRevision(context.Context, int64) (int, int64, Stats, error)
 	CountOpenVisitsInRoom(context.Context, int64) (int, Stats, error)
 	ListOpenVisitRooms(context.Context, int64) ([]studentpresence.OpenVisitRoom, Stats, error)
 }

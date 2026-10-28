@@ -107,6 +107,21 @@ Other kiosk programming errors and 5xx faults keep their class code. `device is 
 no code: no backend path returns it, and a second start answers the session
 conflict instead.
 
+### Booked modules (#4896)
+
+Every kiosk route belongs to the module NFC-Anwesenheit; the staff clock
+(`/api/iot/staff-clock`, `.../state`) also needs Zeiterfassung. A device of a
+school without the module gets `403 / module.not_booked` after
+authentication, with `details.module` (`nfc_anwesenheit` or
+`zeiterfassung`) and `details.module_label`. The lock runs in
+`gateDeviceAuthentication` (`backend/api/module_booking_gate.go`) behind each
+device authenticator. It covers `/api/iot/*` and the armband assignment
+`/api/students/{id}/rfid`. The device administration of the team portal
+under `/api/iot` passes `TenantScopeMiddleware` with the same code.
+PyrePortal shows the module's text from `details.module`. The tests are
+`TestDeviceLock*` (`backend/api/module_booking_gate_internal_test.go`) and
+`TestFullProductionRouterGolden/contracts/module_booking_gate`.
+
 ### Error reports relay
 
 `POST /api/iot/error-reports` is PyrePortal's Sentry tunnel (#3645, SDK option
@@ -179,6 +194,46 @@ carries `Server-Timing` with millisecond durations only: `auth` (device key, sch
 request transaction up to its commit or rollback) and `after-commit` (the
 hooks after a commit). Sections that did not run are left out. Code:
 `backend/api/iot_http_metrics.go`.
+
+### Student count revision (#5128)
+
+The kiosk orders its student counter by a server revision, not by the start
+order of its requests. Both fields are additive; an older kiosk ignores them.
+
+- **Wire.** `GET /api/iot/session/current` returns `active_students_revision`
+  exactly when it returns `active_students`; its scope is the
+  `active_group_id` of the same answer. `POST /api/iot/checkin` (detailed
+  mode) returns `active_students_session_id` and `active_students_revision`
+  together, only with an `active_students` of the scanning device's own
+  session in the scanned room. A room-wide count (the device runs no session
+  there), a failed count and a binary-mode or supervisor scan carry neither.
+- **Scope and monotonicity.** The revision of one session (Student
+  Presence) is the sum of its rows in `active.visit_revision_events` that a
+  read sees. Every statement on `active.visits` that opens, closes, moves or
+  deletes an open visit inserts one event for each session whose count it
+  changed, in the same transaction (statement trigger of migration 1.15.705).
+  Events are never updated, so the revision never falls, also for deletes
+  and moves. Revisions compare only within one session; a new session starts
+  at 0.
+- **Snapshot.** Count and revision come from one statement. A read that
+  started before a write committed does not see the write's events and
+  carries a lower revision than the writer's answer, which sees them.
+- **Concurrent writers.** Two writers of one session that overlap can each
+  answer the same revision with a different count; the kiosk keeps the one it
+  has, and the next poll after both commits carries both changes with a
+  higher revision. The blur is at most one poll interval (ADR 0131).
+- **No session lock.** The trigger only inserts and the event table has no
+  key to the session row; visit writers take the same locks as before
+  #5128. The nightly close compacts the events of ended sessions into one row
+  each without changing a revision and drops those of deleted sessions.
+- **Restarts and processes.** The events live in the database. Neither a
+  backend restart nor several backend processes reset or fork a revision.
+- **Kiosk rule.** Within one scope (activity, room, session), accept a count
+  whose revision is greater than the shown one, ignore a smaller or equal one,
+  and never take a revision from another session. A count without a revision
+  (room-wide count, older backend) keeps the kiosk's previous rule.
+
+Deploy the backend first; the kiosk change in PyrePortal follows.
 
 ### Destination choice into released rooms (#3067)
 
@@ -280,11 +335,24 @@ with 409 `identity.session_tenant_mismatch` before the route runs
 comes from the cached `/auth/tenant/resolve` lookup of the tenant layout; a
 failed lookup refuses the request. Exempt are the routes that end the mismatch:
 `/api/auth/switch-tenant`, `/api/auth/token`, `/api/auth/logout`,
-`/api/auth/staff-preview/end`. In the browser the refusal drops the session
-cache and wakes the `SessionProvider`, and `TenantGuard` switches back. Only
-because of this check may the session cache keep the provider's session until
-its next poll. The bare domain and path mode carry no school subdomain and are
-not checked.
+`/api/auth/staff-preview/end`, plus the tab's `/api/logs` and
+`/api/invitations/accept`, which acts for the invitation's school. In the
+browser a fetch observer (`frontend/src/lib/session-tenant-mismatch-observer.ts`,
+installed by `TenantGuard`) and `apiErrorFromBody` report the refusal, also
+for clients that read only `response.ok`. The session cache drops its session
+and wakes the `SessionProvider`; `TenantGuard` hides the page at once and
+shows it again only after a session lookup started after the refusal names
+this tab's school. An answer naming another school hands over to the switch,
+and while the provider names another school, refusals start no lookup. Without
+a valid answer within 10 s the guard offers only `Erneut versuchen`: a
+sign-out would not make a cookie that a late answer writes back worthless,
+because access tokens are stateless until they expire. Only because of this check may the
+session cache keep the provider's session until its next poll. Path mode
+(`{TENANT_DOMAIN}/{school}/...`) names no school in its host: the tenant
+layout redirects it to the school's subdomain (path and query from the
+proxy's `X-Moto-Original-Path`; the browser keeps the fragment), the BFF
+refuses a school's session on the bare domain, and `TenantGuard` moves a tab
+still on path mode to the subdomain.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|

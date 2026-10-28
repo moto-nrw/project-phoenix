@@ -34,6 +34,12 @@ import {
 /** Hint of a refused field, translated, or undefined. */
 export type FieldError = (name: string) => string | undefined;
 
+/**
+ * The label of a field the parent must fill in. Like the enrollment form, a
+ * star marks it; optional fields say "(freiwillig)" instead.
+ */
+export const requiredLabel = (label: string) => `${label} *`;
+
 export function useWeekLabels() {
   const t = useTranslations("holidayRegistration");
   const locale = useLocale();
@@ -109,7 +115,8 @@ export function ChildCard({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             name={`${prefix}.first_name`}
-            label={t("firstName")}
+            label={requiredLabel(t("firstName"))}
+            required
             autoComplete="off"
             maxLength={100}
             value={child.firstName}
@@ -118,7 +125,8 @@ export function ChildCard({
           />
           <Input
             name={`${prefix}.last_name`}
-            label={t("lastName")}
+            label={requiredLabel(t("lastName"))}
+            required
             autoComplete="off"
             maxLength={100}
             value={child.lastName}
@@ -128,7 +136,7 @@ export function ChildCard({
         </div>
         <div>
           <span className="block text-sm font-medium text-gray-700">
-            {t("birthDate")}
+            {requiredLabel(t("birthDate"))}
           </span>
           <DateOfBirthPicker
             value={child.birthDate}
@@ -144,7 +152,7 @@ export function ChildCard({
             id={`${prefix}-school-label`}
             className="block text-sm font-medium text-gray-700"
           >
-            {t("school")}
+            {requiredLabel(t("school"))}
           </span>
           <CustomSelect
             name={`${prefix}.home_school_id`}
@@ -184,7 +192,7 @@ export function ChildCard({
 
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-gray-900">
-            {t("weeksTitle")}
+            {requiredLabel(t("weeksTitle"))}
           </legend>
           <p className="text-sm text-gray-600">{t("weeksText")}</p>
           {offer.weeks.map((week) => (
@@ -301,7 +309,8 @@ export function ContactList({
             </legend>
             <Input
               name={`${kind}.${index}.name`}
-              label={t("name")}
+              label={requiredLabel(t("name"))}
+              required
               maxLength={120}
               value={contact.name}
               error={fieldError(`${kind}.${index}.name`)}
@@ -312,7 +321,8 @@ export function ContactList({
             <Input
               name={`${kind}.${index}.phone`}
               type="tel"
-              label={emergency ? t("phone") : t("phoneOptional")}
+              label={emergency ? requiredLabel(t("phone")) : t("phoneOptional")}
+              required={emergency}
               maxLength={40}
               value={contact.phone}
               error={fieldError(`${kind}.${index}.phone`)}
@@ -432,5 +442,78 @@ export function KnownChildPicker({
         <p className="text-sm text-gray-600">{t("knownChildrenFull")}</p>
       ) : null}
     </fieldset>
+  );
+}
+
+/** Exactly one optional co-guardian; the registering parent's data stays separate. */
+export function SecondGuardianCard({
+  guardian,
+  fieldError,
+  onChange,
+}: Readonly<{
+  guardian: RegistrationDraft["guardian"];
+  fieldError: FieldError;
+  onChange: (guardian: RegistrationDraft["guardian"]) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  const namesRequired = Object.values(guardian).some(
+    (value) => value.trim() !== "",
+  );
+  return (
+    <SectionCard
+      title={t("secondGuardianTitle")}
+      description={t("secondGuardianText")}
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Input
+          name="second_guardian.first_name"
+          label={namesRequired ? requiredLabel(t("firstName")) : t("firstName")}
+          required={namesRequired}
+          autoComplete="section-second-guardian given-name"
+          maxLength={100}
+          value={guardian.firstName}
+          error={fieldError("second_guardian.first_name")}
+          onChange={(event) =>
+            onChange({ ...guardian, firstName: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.last_name"
+          label={namesRequired ? requiredLabel(t("lastName")) : t("lastName")}
+          required={namesRequired}
+          autoComplete="section-second-guardian family-name"
+          maxLength={100}
+          value={guardian.lastName}
+          error={fieldError("second_guardian.last_name")}
+          onChange={(event) =>
+            onChange({ ...guardian, lastName: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.email"
+          type="email"
+          label={t("emailOptional")}
+          autoComplete="section-second-guardian email"
+          maxLength={254}
+          value={guardian.email}
+          error={fieldError("second_guardian.email")}
+          onChange={(event) =>
+            onChange({ ...guardian, email: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.phone"
+          type="tel"
+          label={t("phoneOptional")}
+          autoComplete="section-second-guardian tel"
+          maxLength={40}
+          value={guardian.phone}
+          error={fieldError("second_guardian.phone")}
+          onChange={(event) =>
+            onChange({ ...guardian, phone: event.target.value })
+          }
+        />
+      </div>
+    </SectionCard>
   );
 }

@@ -237,8 +237,14 @@ type ScanResult struct {
 	DailyCheckoutAvailable bool
 	FeedbackEnabled        bool
 	ActiveStudents         *int
-	PickupTime             *string
-	ProcessedAt            time.Time
+	// ActiveStudentsSessionID and ActiveStudentsRevision order
+	// ActiveStudents (#5128): the session the count belongs to and its visit
+	// revision from the same snapshot. Both are nil for a room-wide count,
+	// which no single revision orders, and when the count is unknown.
+	ActiveStudentsSessionID *int64
+	ActiveStudentsRevision  *int64
+	PickupTime              *string
+	ProcessedAt             time.Time
 }
 
 // PickupInfo is the read-only pickup projection of a student scan.

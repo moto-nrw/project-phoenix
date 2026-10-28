@@ -162,17 +162,25 @@ export function problemDetail(body: unknown): string | undefined {
   return typeof detail === "string" && detail.trim() ? detail : undefined;
 }
 
-let sessionTenantMismatchListener: (() => void) | undefined;
+const sessionTenantMismatchListeners = new Set<() => void>();
 
 /**
  * Who learns that the BFF refused a request because the session belongs to
- * another school than this subdomain (#5130). The session cache registers
- * itself: it drops its session and wakes the SessionProvider, so TenantGuard
- * switches back. Every client that reads an error answer passes through
- * apiErrorFromBody, whichever transport it used.
+ * another school than this subdomain (#5130). The session cache drops its
+ * session and wakes the SessionProvider, so TenantGuard switches back;
+ * TenantGuard hides the page until then. Error answers that become an
+ * ApiError report here, and the fetch observer reports every fetch answer,
+ * also of clients that never read the body. Returns the unsubscribe function.
  */
-export function onSessionTenantMismatch(listener: () => void): void {
-  sessionTenantMismatchListener = listener;
+export function onSessionTenantMismatch(listener: () => void): () => void {
+  sessionTenantMismatchListeners.add(listener);
+  return () => {
+    sessionTenantMismatchListeners.delete(listener);
+  };
+}
+
+export function reportSessionTenantMismatch(): void {
+  for (const listener of sessionTenantMismatchListeners) listener();
 }
 
 /**
@@ -209,7 +217,7 @@ export function apiErrorFromBody(
     instance: typeof data.instance === "string" ? data.instance : undefined,
   });
   if (error.code === "identity.session_tenant_mismatch") {
-    sessionTenantMismatchListener?.();
+    reportSessionTenantMismatch();
   }
   return error;
 }

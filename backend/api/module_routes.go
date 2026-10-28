@@ -26,7 +26,9 @@ type moduleRouteRule struct {
 // docs/reference/modulschalter.md, section "Routen".
 //
 // The lock in api.TenantScopeMiddleware refuses every module route except
-// the surfaces in moduleRoutesLockedElsewhere.
+// the surfaces in moduleRoutesLockedElsewhere. Kiosk routes carry no session;
+// gateDeviceAuthentication locks them behind the device authenticator
+// (#4896).
 var moduleRouteRules = []moduleRouteRule{
 	// Infrastructure, sign-in and the operator portal.
 	{"/", moduleRouteBasis},
@@ -170,8 +172,8 @@ var moduleRouteRules = []moduleRouteRule{
 }
 
 // moduleRoutesLockedElsewhere names, per rule prefix, the module routes the
-// tenant-scope lock leaves alone and who locks them instead: a later issue
-// for the portals and devices, or the owner where the route resolves its
+// tenant-scope lock leaves alone and who locks them instead: the portal
+// sessions, or the owner where the route resolves its
 // school from the path or a token rather than from a session.
 var moduleRoutesLockedElsewhere = map[string]string{
 	// The caterer portal spans schools: its session belongs to no school and
@@ -194,11 +196,6 @@ var moduleRoutesLockedElsewhere = map[string]string{
 	// Accepting an invitation creates the account, no session; the login
 	// afterwards refuses a school without Eltern-App (#4895).
 	"/auth/guardian-invitations": "#4895 Elternportal: Einladung annehmen stellt keine Sitzung aus, der Login sperrt",
-	// The device administration under /api/iot runs in the staff chain, but
-	// devices and their PyrePortal contract move as one in #4896.
-	"/api/iot":             "#4896 Geräte und PyrePortal",
-	"/api/iot/staff-clock": "#4896 Geräte und PyrePortal",
-	"/api/students/*/rfid": "#4896 Geräte: Armband am Tablet zuordnen",
 	// Public enrollment: enrollment.enabled counts only while the module is
 	// booked (EnrollmentIntakeValues.EnrollmentEnabled), status links close
 	// in Intake.requestByStatusToken.
