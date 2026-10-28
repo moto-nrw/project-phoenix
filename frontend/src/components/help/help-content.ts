@@ -9236,7 +9236,7 @@ function traegerSettingsTopic(): HelpTopic {
     requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
     steps: [
       "Wählen Sie in der Navigation `Einstellungen`.",
-      "Suchen Sie die Einstellung, zum Beispiel unter `Anmeldung` oder `Betrieb`.",
+      "Wählen Sie den Bereich, zum Beispiel `Anmeldung` oder `Betrieb`.",
       "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
     ],
     result:
@@ -9477,7 +9477,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         steps: [
           "Wählen Sie in der Navigation `Ferien`.",
           "Öffnen Sie den Ferienzeitraum.",
-          "Wählen Sie `Anmeldungen prüfen`.",
+          "Wählen Sie den Reiter `Anmeldungen`.",
           "Filtern Sie nach Status, `Schule`, `Woche` oder `Zeitmodell`. Unter `Schule` finden Sie auch `Feriengäste`.",
           "Wählen Sie eine Anmeldung, um sie zu öffnen.",
         ],
@@ -9512,7 +9512,7 @@ function traegerHolidayRegistrationReviewTopic(): HelpTopic {
         title: "Exportieren",
         steps: [
           "Stellen Sie die Filter ein, zum Beispiel eine Schule.",
-          "Wählen Sie `Als CSV herunterladen` oder `Als Excel herunterladen`.",
+          "Wählen Sie `Herunterladen` und dann `Excel` oder `CSV`.",
         ],
       },
     ],
@@ -9634,9 +9634,10 @@ function traegerBillingRunTopic(): HelpTopic {
       {
         title: "Lauf starten und prüfen",
         steps: [
-          "Wählen Sie bei `Abrechnungsläufe` den Knopf `Lauf starten`.",
+          "Wählen Sie `Lauf starten`.",
           "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
-          "Prüfen Sie die Vorschau. Je Familie steht eine Rechnung mit allen Positionen da.",
+          "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
+          "Die Positionen einer Rechnung sehen Sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
         ],
       },
       {
@@ -9685,7 +9686,7 @@ function traegerBillingRunTopic(): HelpTopic {
         description: "Das geht, sobald der Lauf freigegeben ist.",
         steps: [
           "Öffnen Sie den freigegebenen Lauf.",
-          "Wählen Sie bei `Übersicht für die Kämmerei` den Knopf `Herunterladen`.",
+          "Wählen Sie bei `Rechnungen` den Knopf `Übersicht für die Kämmerei`.",
           "Wählen Sie das Format: `PDF`, `Excel` oder `CSV`.",
           "Geben Sie die Datei an die Kämmerei weiter.",
         ],
@@ -9886,7 +9887,7 @@ function traegerAccessLogTopic(): HelpTopic {
         description: "Für einen Nachweis, zum Beispiel in einer Tabelle.",
         steps: [
           "Stellen Sie die Filter ein.",
-          "Wählen Sie `Als CSV herunterladen`.",
+          "Wählen Sie `Herunterladen` und dann `CSV`.",
           "moto lädt eine Datei mit allen Einträgen zu den Filtern herunter.",
         ],
       },
