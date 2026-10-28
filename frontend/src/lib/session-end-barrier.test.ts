@@ -17,8 +17,18 @@ describe("session end barrier", () => {
   const onSessionEnd = (event: Event) =>
     phases.push((event as CustomEvent<SessionEndDetail>).detail);
 
+  let originalLocation: PropertyDescriptor | undefined;
+  let reload: ReturnType<typeof vi.fn>;
+
   beforeEach(() => {
     vi.resetModules();
+    originalLocation = Object.getOwnPropertyDescriptor(window, "location");
+    reload = vi.fn();
+    const { href, origin } = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { href, origin, reload },
+    });
     originalFetch = window.fetch;
     originalNavigation = Object.getOwnPropertyDescriptor(window, "navigation");
     answers = new Map();
@@ -41,6 +51,8 @@ describe("session end barrier", () => {
   });
 
   afterEach(() => {
+    if (originalLocation)
+      Object.defineProperty(window, "location", originalLocation);
     window.removeEventListener("phoenix:session-end", onSessionEnd);
     window.fetch = originalFetch;
     if (originalNavigation)
@@ -263,10 +275,17 @@ describe("session end barrier", () => {
     expect(barrier.isSessionEnding()).toBe(false);
   });
 
-  it("keeps holding while the page leaves and resets when the cache restores it", async () => {
+  // Decision on #5126: a bfcache restore during a session end reloads the
+  // page; it no longer resets the barrier.
+  it("keeps holding while the page leaves and reloads when the cache restores it", async () => {
     vi.useFakeTimers();
     const barrier = await loadBarrier();
     const { write } = await signOutAndHold(barrier);
+    let writeSettled = false;
+    write.then(
+      () => (writeSettled = true),
+      () => (writeSettled = true),
+    );
 
     window.dispatchEvent(new Event("pagehide"));
     await vi.advanceTimersByTimeAsync(11_000);
@@ -275,8 +294,11 @@ describe("session end barrier", () => {
     const pageshow = new Event("pageshow");
     Object.defineProperty(pageshow, "persisted", { value: true });
     window.dispatchEvent(pageshow);
-    await expect(write).rejects.toMatchObject({ name: "AbortError" });
-    expect(barrier.isSessionEnding()).toBe(false);
+    window.dispatchEvent(new Event("pagehide"));
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(reload).toHaveBeenCalledOnce();
+    expect(barrier.isSessionEnding()).toBe(true);
+    expect(writeSettled).toBe(false);
   });
 
   it("resets when a new sign-in in this document succeeds", async () => {
@@ -430,14 +452,16 @@ describe("session end barrier", () => {
     expect(openings()).toBe(2);
   });
 
-  it("opens once when the cache restores the page and the logout fails late", async () => {
+  it("reloads on a cache restore and does not open when the logout fails late", async () => {
     const barrier = await loadBarrier();
     const { cancel } = await signOutAndHold(barrier);
     const pageshow = new Event("pageshow");
     Object.defineProperty(pageshow, "persisted", { value: true });
     window.dispatchEvent(pageshow);
+    window.dispatchEvent(pageshow);
     cancel();
-    expect(openings()).toBe(1);
+    expect(reload).toHaveBeenCalledOnce();
+    expect(openings()).toBe(0);
   });
 
   it("opens once when a new sign-in succeeds and the logout fails late", async () => {
@@ -529,19 +553,6 @@ describe("session end barrier", () => {
       await expectNewLogoutStarts();
     });
 
-    it("on a bfcache restore", async () => {
-      const barrier = await loadBarrier();
-      const { logout } = await hangingLogout(barrier, "sign-out");
-      const pageshow = new Event("pageshow");
-      Object.defineProperty(pageshow, "persisted", { value: true });
-      window.dispatchEvent(pageshow);
-      await expect(logout).rejects.toMatchObject({
-        code: "general.unavailable",
-      });
-      expect(barrier.isSessionEnding()).toBe(false);
-      await expectNewLogoutStarts();
-    });
-
     it("on an aborted navigation", async () => {
       const navigation = new EventTarget();
       Object.defineProperty(window, "navigation", {
@@ -582,6 +593,7 @@ describe("session end barrier", () => {
     });
 
     it("frees the slot even if the logout itself never settles", async () => {
+      vi.useFakeTimers();
       const barrier = await loadBarrier();
       const { endSessionOnce } = await flightModule();
       // A logout stuck in its own code, after the barrier ended.
@@ -590,15 +602,15 @@ describe("session end barrier", () => {
         await new Promise(() => undefined);
       });
       await flush();
-      const pageshow = new Event("pageshow");
-      Object.defineProperty(pageshow, "persisted", { value: true });
-      window.dispatchEvent(pageshow);
+      // The sign-out deadline ends it.
+      await vi.advanceTimersByTimeAsync(10_000);
       await expectNewLogoutStarts();
     });
   });
 
-  // A bfcache reset and a new logout lead to exactly one sign-out (#5126).
-  describe("bfcache reset followed by a new logout", () => {
+  // Decision on #5126: a bfcache restore during a session end reloads the page
+  // once; nothing of the old attempt runs on, and a new logout joins it.
+  describe("bfcache restore during a logout", () => {
     function restoreFromCache() {
       const pageshow = new Event("pageshow");
       Object.defineProperty(pageshow, "persisted", { value: true });
@@ -607,61 +619,106 @@ describe("session end barrier", () => {
     const signOuts = () =>
       sent.filter((url) => url === "/api/auth/signout").length;
 
-    it("stops the old attempt when the reset hits while it holds", async () => {
+    /** Like Auth.js' signOut after the hold, plus the shell's navigation. */
+    async function logoutAttempt(
+      barrier: Awaited<ReturnType<typeof loadBarrier>>,
+      steps: { navigated: boolean },
+    ) {
+      const cancel = await barrier.holdRequestsUntilSessionEnds();
+      try {
+        await window.fetch("/api/auth/csrf");
+        await window.fetch("/api/auth/signout", { method: "POST" });
+        await window.fetch("/api/auth/session");
+      } catch (error) {
+        cancel();
+        throw error;
+      }
+      steps.navigated = true; // window.location.href = "/"
+    }
+
+    it("during the csrf lookup: one reload, no sign-out, a new logout joins", async () => {
+      const barrier = await loadBarrier();
+      const { endSessionOnce } = await import("./session-end-flight");
+      const steps = { navigated: false };
+      const run = vi.fn(() => logoutAttempt(barrier, steps));
+      const first = endSessionOnce(run);
+      await vi.waitFor(() => expect(sent).toContain("/api/auth/csrf"));
+
+      restoreFromCache();
+      // The person starts the logout again.
+      const second = endSessionOnce(run);
+      answers.get("/api/auth/csrf")?.();
+      await flush();
+      await flush();
+
+      expect(second).toBe(first);
+      expect(run).toHaveBeenCalledOnce();
+      expect(reload).toHaveBeenCalledOnce();
+      expect(signOuts()).toBe(0);
+      expect(steps.navigated).toBe(false);
+    });
+
+    it("during the session refetch: one reload, no navigation", async () => {
+      const barrier = await loadBarrier();
+      const { endSessionOnce } = await import("./session-end-flight");
+      const steps = { navigated: false };
+      void endSessionOnce(() => logoutAttempt(barrier, steps));
+      await vi.waitFor(() => expect(sent).toContain("/api/auth/csrf"));
+      answers.get("/api/auth/csrf")?.();
+      await vi.waitFor(() => expect(sent).toContain("/api/auth/signout"));
+      answers.get("/api/auth/signout")?.();
+      await vi.waitFor(() => expect(sent).toContain("/api/auth/session"));
+
+      restoreFromCache();
+      answers.get("/api/auth/session")?.();
+      await flush();
+      await flush();
+
+      expect(reload).toHaveBeenCalledOnce();
+      expect(signOuts()).toBe(1);
+      expect(steps.navigated).toBe(false);
+    });
+
+    it("during the hold: one reload, no sign-out", async () => {
       const barrier = await loadBarrier();
       const { endSessionOnce } = await import("./session-end-flight");
       // A request in flight keeps the hold waiting.
       window.fetch("/api/announcements/unread").catch(() => undefined);
-      const logoutOnce = () =>
-        endSessionOnce(async () => {
-          const cancel = await barrier.holdRequestsUntilSessionEnds();
-          try {
-            await window.fetch("/api/auth/signout", { method: "POST" });
-          } catch (error) {
-            cancel();
-            throw error;
-          }
-        });
-      const first = logoutOnce();
-      first.catch(() => undefined);
+      const steps = { navigated: false };
+      void endSessionOnce(() => logoutAttempt(barrier, steps));
       await flush();
 
       restoreFromCache();
-      const second = logoutOnce();
-      expect(second).not.toBe(first);
       answers.get("/api/announcements/unread")?.();
+      await flush();
+      await flush();
 
-      await expect(first).rejects.toMatchObject({
-        code: "general.unavailable",
-      });
-      await vi.waitFor(() => expect(signOuts()).toBe(1));
-      answers.get("/api/auth/signout")?.();
-      await second;
-      expect(signOuts()).toBe(1);
+      expect(reload).toHaveBeenCalledOnce();
+      expect(sent).not.toContain("/api/auth/csrf");
+      expect(signOuts()).toBe(0);
+      expect(steps.navigated).toBe(false);
     });
 
-    it("joins the running attempt when the reset hits before it holds", async () => {
-      const barrier = await loadBarrier();
-      const { endSessionOnce } = await import("./session-end-flight");
-      let prepared!: () => void;
-      const preparing = new Promise<void>((resolve) => (prepared = resolve));
-      const run = vi.fn(async () => {
-        await preparing; // e.g. push cleanup or the logout BFF
-        await barrier.holdRequestsUntilSessionEnds();
-        await window.fetch("/api/auth/signout", { method: "POST" });
-      });
-      const first = endSessionOnce(run);
-      await flush();
-
+    it("without a running logout: no reload", async () => {
+      await loadBarrier();
       restoreFromCache();
-      const second = endSessionOnce(run);
-      expect(second).toBe(first);
-      prepared();
-      await vi.waitFor(() => expect(signOuts()).toBe(1));
-      answers.get("/api/auth/signout")?.();
-      await first;
-      expect(run).toHaveBeenCalledOnce();
-      expect(signOuts()).toBe(1);
+      void window.fetch("/api/me/profile");
+      expect(reload).not.toHaveBeenCalled();
+      expect(sent).toContain("/api/me/profile");
+    });
+
+    it("opens after five seconds if the reload was declined", async () => {
+      vi.useFakeTimers();
+      const barrier = await loadBarrier();
+      const { write } = await signOutAndHold(barrier);
+      restoreFromCache();
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(barrier.isSessionEnding()).toBe(true);
+      await vi.advanceTimersByTimeAsync(1);
+      await expect(write).rejects.toMatchObject({ name: "AbortError" });
+      expect(barrier.isSessionEnding()).toBe(false);
+      void window.fetch("/api/me/profile");
+      expect(sent).toContain("/api/me/profile");
     });
   });
 

@@ -12,11 +12,19 @@
  * cookie, new requests leave without it and pass again; the held ones stay
  * held while the tab leaves.
  *
- * If the tab stays instead (sign-out failed, navigation aborted, page restored
- * from the back-forward cache, or a new sign-in in this document), the barrier
- * resets: it aborts the held requests, reports the discarded writes and lets
- * Server-Sent Events reconnect. A held write is never sent later, because it
- * could reach the server under a different session.
+ * If the tab stays instead (sign-out failed, navigation aborted, or a new
+ * sign-in in this document), the barrier resets: it aborts the held requests,
+ * reports the discarded writes and lets Server-Sent Events reconnect. A held
+ * write is never sent later, because it could reach the server under a
+ * different session.
+ *
+ * A page restored from the back-forward cache while a session ends is reloaded
+ * instead (decision on #5126): its paused logout continuations (a csrf lookup,
+ * a session refetch, a navigation) would otherwise resume next to a new
+ * logout. The state is not reset; until the page unloads, the tab's
+ * same-origin requests and every answer of the ended session never settle, so
+ * nothing of the old attempt runs on. Should the reload not happen (a
+ * „Seite verlassen?“ prompt declined), the barrier opens after five seconds.
  *
  * Every request that passes while a session ends (Auth.js' csrf and sign-out,
  * and requests after the deletion) carries a deadline. If the sign-out has not
@@ -27,19 +35,21 @@
  * State machine, one generation per hold:
  *   idle ──hold──▶ ending(g) ──sign-out answered──▶ left(g) ──page leaves──▶ (gone)
  *                    │                                 │
- *                    └─ cancel / deadline / bfcache ───┴─ aborted navigation,
+ *                    └─ cancel / deadline ─────────────┴─ aborted navigation,
  *                       / new sign-in ──▶ idle            no page change ──▶ idle
+ *   ending(g) or left(g) ──bfcache restore──▶ reload (state kept, tab frozen)
  * Invariants:
  *  - At most one logout runs per tab (`endSessionOnce` in session-end-flight);
  *    the barrier still guards every transition by its generation.
  *  - `cancel`, timers, sign-out answers and navigation watchers act only on
  *    the generation that created them; a stale one is a no-op.
  *  - Every way out of `ending` or `left` (failure, deadline, aborted
- *    navigation, bfcache restore, new sign-in) goes through `open`, exactly
+ *    navigation, no page change, new sign-in) goes through `open`, exactly
  *    once per generation. It aborts the generation's requests still in flight
  *    (a hanging sign-out ends here), clears its timers, rejects the held
  *    requests, reports discarded writes, lets SSE reconnect and frees the
  *    single-flight slot, so the next logout can start.
+ *  - A bfcache restore during a session end reloads the page exactly once.
  */
 
 import { unavailableApiError } from "~/lib/api-error";
@@ -61,6 +71,9 @@ const SETTLE_TIMEOUT_MS = 5000;
 const NAVIGATION_TIMEOUT_MS = 10_000;
 // Time Auth.js gets for its csrf and sign-out requests once requests are held.
 const SIGN_OUT_TIMEOUT_MS = 10_000;
+// A reload still not under way after this was declined; the barrier opens.
+const RELOAD_GRACE_MS = 5000;
+const BARRIER_OWNER = Symbol.for("phoenix.session-end-barrier");
 
 // "open" = idle, "holding" = ending, "cookie-deleted" = left.
 type Phase = "open" | "holding" | "cookie-deleted";
@@ -73,6 +86,8 @@ interface HeldRequest {
 
 let installed = false;
 let phase: Phase = "open";
+// Set while the page reloads after a bfcache restore during a session end.
+let reloading = false;
 // Increments with every hold; see the invariants above.
 let generation = 0;
 let held: HeldRequest[] = [];
@@ -127,7 +142,7 @@ function open(
   ),
   releaseFlight = true,
 ): void {
-  if (ending !== generation || phase === "open") return;
+  if (reloading || ending !== generation || phase === "open") return;
   phase = "open";
   clearTimeout(signOutTimer);
   // A request of this generation still in flight, such as a hanging sign-out,
@@ -160,7 +175,7 @@ function watchNavigation(ending: number): void {
   const navigation = (window as { navigation?: EventTarget }).navigation;
   const stay = () => open(ending);
   const left = () => {
-    // The page is leaving. If it comes back from the cache, `pageshow` opens.
+    // The page is leaving. If it comes back from the cache, `pageshow` reloads.
     clearTimeout(timer);
     navigation?.removeEventListener("navigateerror", stay);
   };
@@ -214,19 +229,47 @@ function expireSignOut(ending: number): void {
   open(ending, reason);
 }
 
+/** Never settles: what the reloading page asked for must not run on. */
+function frozen<T>(): Promise<T> {
+  return new Promise<T>(() => undefined);
+}
+
+/** A bfcache restore while a session ends: reload, once, without a reset. */
+function reloadAbandonedSessionEnd(): void {
+  if (reloading || phase === "open") return;
+  reloading = true;
+  const ending = generation;
+  const grace = setTimeout(() => {
+    reloading = false;
+    open(ending);
+  }, RELOAD_GRACE_MS);
+  window.addEventListener("pagehide", () => clearTimeout(grace), {
+    once: true,
+  });
+  window.location.reload();
+}
+
 /** Wraps window.fetch once; requests started before it are not awaited. */
 export function installSessionEndBarrier(): void {
   if (installed || typeof window === "undefined") return;
   installed = true;
   const originalFetch = window.fetch.bind(window);
+  // One page, one barrier: only the latest installed copy handles pageshow
+  // (module copies only differ in tests that reload the module).
+  const owner = {};
+  (window as unknown as Record<symbol, object>)[BARRIER_OWNER] = owner;
   window.addEventListener("pageshow", (event) => {
-    if (event.persisted) open(generation);
+    const current = (window as unknown as Record<symbol, object>)[
+      BARRIER_OWNER
+    ];
+    if (event.persisted && current === owner) reloadAbandonedSessionEnd();
   });
 
   window.fetch = (input, init) => {
     const url = requestUrl(input);
     if (url.origin !== window.location.origin)
       return originalFetch(input, init);
+    if (reloading) return frozen();
     const method = requestMethod(input, init);
     if (expired?.generation === generation && SIGN_OUT_PATHS.has(url.pathname))
       return Promise.reject(expired.reason);
@@ -261,12 +304,21 @@ export function installSessionEndBarrier(): void {
     }
 
     // A new sign-in in this document is not part of the ending session.
-    const response = originalFetch(
+    const sent = originalFetch(
       input,
       phase === "open" || url.pathname.startsWith(SIGN_IN_PREFIX)
         ? init
         : withDeadline(input, init),
     );
+    // An answer arriving while the page reloads resumes nothing.
+    const response =
+      phase === "open"
+        ? sent
+        : sent.then(
+            (answer) => (reloading ? frozen<Response>() : answer),
+            (error: unknown) =>
+              reloading ? frozen<Response>() : Promise.reject(error),
+          );
     const settled: Promise<void> = response.then(
       () => undefined,
       () => undefined,
@@ -305,9 +357,8 @@ export function installSessionEndBarrier(): void {
 
 /**
  * Holds new requests, waits up to five seconds for those in flight and returns
- * `cancel` for a failed logout, which resets the barrier. It rejects instead if
- * the barrier ended this generation while waiting, so that attempt stops before
- * its sign-out. The sign-out then has ten seconds before the barrier aborts it
+ * `cancel` for a failed logout, which resets the barrier. The sign-out then has
+ * ten seconds before the barrier aborts it
  * and resets on its own. Call it right before deleting the cookie. After the timeout a request still open may restore the
  * cookie; the next page then still sees the old session, as before.
  */
@@ -331,12 +382,8 @@ export async function holdRequestsUntilSessionEnds(): Promise<() => void> {
     }),
   ]);
   clearTimeout(timer);
-  // Ended while waiting (bfcache restore, a newer hold): this attempt is over
-  // and must not go on to sign out. A new logout may already be running.
-  if (ending !== generation || phase !== "holding")
-    throw unavailableApiError(
-      new DOMException("The logout ended before it finished", "AbortError"),
-    );
+  // While the page reloads, this attempt must not go on to sign out.
+  if (reloading) return frozen();
   signOutTimer = setTimeout(() => expireSignOut(ending), SIGN_OUT_TIMEOUT_MS);
   return () => cancel(ending);
 }
