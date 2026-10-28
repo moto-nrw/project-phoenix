@@ -258,7 +258,7 @@ export interface EntityConfig<T = Record<string, unknown>> {
     mapRequest?: (data: Partial<T>) => Record<string, unknown>;
     // Custom CRUD methods
     create?: (data: Partial<T>) => Promise<T>;
-    update?: (id: string, data: Partial<T>) => Promise<T>;
+    update?: (id: string, data: Partial<T>, current?: T) => Promise<T>;
     delete?: (id: string) => Promise<void>;
     // Custom service methods
     customMethods?: Record<
@@ -349,7 +349,8 @@ export interface CrudService<T> {
   getList(filters?: Record<string, unknown>): Promise<PaginatedResponse<T>>;
   getOne(id: string): Promise<T>;
   create(data: Partial<T>): Promise<T>;
-  update(id: string, data: Partial<T>): Promise<T>;
+  /** Pass the loaded record when a custom update needs unchanged fields. */
+  update(id: string, data: Partial<T>, current?: T): Promise<T>;
   /**
    * Throws an `ApiError` with code, field errors and request ID instead of
    * returning a sentence. Resolves `false` when the `beforeDelete` hook

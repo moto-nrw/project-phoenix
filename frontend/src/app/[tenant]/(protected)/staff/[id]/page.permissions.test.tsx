@@ -783,6 +783,11 @@ describe("StaffDetailContent permissions", () => {
           first_name: "Milena",
           last_name: "Muster",
         }),
+        expect.objectContaining({
+          id: "42",
+          first_name: "Mila",
+          last_name: "Muster",
+        }),
       );
     });
     expect(mockRecordUpdate).not.toHaveBeenCalled();

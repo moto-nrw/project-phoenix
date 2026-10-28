@@ -55,6 +55,8 @@ vi.mock("~/lib/teacher-api", () => ({
 function staffPayload(id: string) {
   return {
     id,
+    person_id: "9007199254740993",
+    is_teacher: false,
     started_on: "2024-09-02",
     ended_on: null,
     name: `${server.firstName} Muster`,
@@ -200,5 +202,19 @@ describe("StaffDetailContent: Personal-Datensatz (#4993)", () => {
     ).not.toBeInTheDocument();
     // Ein Abruf beim Öffnen, einer nach dem Speichern.
     expect(recordRequests("103")).toHaveLength(2);
+    expect(mockUpdateTeacher).toHaveBeenCalledWith(
+      "103",
+      expect.objectContaining({
+        first_name: "Milena",
+        staff_notes: "Schlüssel für Raum 3",
+      }),
+      expect.objectContaining({
+        id: "103",
+        person_id: "9007199254740993",
+        is_teacher: false,
+        first_name: "Mila",
+        staff_notes: null,
+      }),
+    );
   });
 });

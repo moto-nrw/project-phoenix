@@ -296,7 +296,8 @@ export default function StaffDetailContent() {
       const hasRecordChanges = Object.keys(recordData).length > 0;
       if (hasRecordChanges) {
         try {
-          await teacherService.updateTeacher(staffId, recordData);
+          if (!record) throw new Error("Staff record is not loaded");
+          await teacherService.updateTeacher(staffId, recordData, record);
         } catch (err) {
           logger.error("failed to update staff record", {
             staff_id: staffId,
@@ -328,7 +329,7 @@ export default function StaffDetailContent() {
       toastSuccess("Die Änderungen sind gespeichert.");
       await refreshRecord();
     },
-    [accountId, refreshRecord, staffId, tenantMutate, toastSuccess],
+    [accountId, record, refreshRecord, staffId, tenantMutate, toastSuccess],
   );
 
   const handleDeleteRecord = useCallback(async () => {
