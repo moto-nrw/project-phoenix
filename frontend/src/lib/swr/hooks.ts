@@ -34,14 +34,16 @@ import { swrConfig, immutableConfig } from "./config";
 import {
   currentSWRDataGeneration,
   dataGenerationOf,
+  isCurrentSWRError,
   isCurrentSWRValue,
   isDiscardedAnswer,
+  isFallbackVisible,
+  noteFallbackShown,
   isStillCurrent,
   lockFetcher,
   subscribeSWRDataGeneration,
   lockMutation,
   requestGenerationOf,
-  stampSWRValue,
   startOf,
 } from "./generation";
 import {
@@ -89,6 +91,7 @@ function useSWRScope(): {
  *   commits the disabled keys after an owner-change event.
  */
 type OnError = NonNullable<SWRConfiguration["onError"]>;
+type Compare = NonNullable<SWRConfiguration["compare"]>;
 type OnErrorRetry = NonNullable<SWRConfiguration["onErrorRetry"]>;
 
 const generationLockMiddleware: Middleware =
@@ -117,13 +120,42 @@ const generationLockMiddleware: Middleware =
         options,
       );
     };
+    // Values of different generations are never equal, in either order:
+    // SWR keeps the cached reference on a match when an answer arrives, and
+    // keeps its last snapshot on a match when the cache changes. Either
+    // would leave the stamp of the old value on screen (hidden).
+    const compare: Compare = (a, b) => {
+      if (Object.is(a, b)) return true;
+      if (
+        typeof key === "string" &&
+        isCurrentSWRValue(key, a) !== isCurrentSWRValue(key, b)
+      ) {
+        return false;
+      }
+      return config.compare?.(a, b) ?? false;
+    };
     return useSWRNext(key, locked, {
       ...config,
+      compare,
       isPaused: () => isSWRSessionPending() || config.isPaused?.() === true,
       onError,
       onErrorRetry,
     });
   };
+
+/**
+ * The value a mutate resolves to, only while it belongs to the key's current
+ * generation: after a discarded revalidation SWR resolves to whatever the
+ * cache still holds.
+ */
+function currentResult<V>(
+  key: string,
+  result: Promise<V>,
+): Promise<V | undefined> {
+  return Promise.resolve(result).then((value) =>
+    isCurrentSWRValue(key, value) === false ? undefined : value,
+  );
+}
 
 /** A bound mutate of `key` whose writes go through the generation lock. */
 function lockBoundMutate<T>(
@@ -137,13 +169,19 @@ function lockBoundMutate<T>(
     // SWR counts the arguments: `mutate()` revalidates, while an explicit
     // `undefined` writes it. Pass revalidations through unchanged.
     if (args[0] === undefined) {
-      return (mutate as (...given: unknown[]) => Promise<T | undefined>)(
+      return currentResult(
         key,
-        ...args,
+        (mutate as (...given: unknown[]) => Promise<T | undefined>)(
+          key,
+          ...args,
+        ),
       );
     }
     const [locked, lockedOptions] = lockMutation(key, args[0], args[1]);
-    return mutate(key, locked as never, lockedOptions as never);
+    return currentResult(
+      key,
+      mutate(key, locked as never, lockedOptions as never),
+    );
   }) as SWRResponse<T>["mutate"];
 }
 
@@ -193,45 +231,45 @@ function useScopedSWR<T, E>(
   const raw = response.data;
   const rawError = response.error;
   const discarded = isDiscardedAnswer(rawError);
-  // A caller's `fallbackData` counts from the generation this hook first
-  // showed it in; any other value no path of ~/lib/swr produced (a raw
-  // write) is stamped on first sight.
-  const fallbackSeen = useRef<{ value: unknown; generation: number } | null>(
-    null,
-  );
-  let fallbackShown: { value: unknown; generation: number } | null = null;
+  // The value this hook showed last: SWR's previous data under
+  // `keepPreviousData`, which belongs to an earlier key.
+  const lastShown = useRef<unknown>(undefined);
+  // Every read path, against "nothing of an older generation is visible":
+  // - a value ~/lib/swr produced (fetch, preload, mutation, seed) by its
+  //   stamp;
+  // - previous data of an earlier key only under the keep guard above;
+  // - anything else (`fallbackData`, a provider fallback, a raw write) by
+  //   the key's fallback state, which a drop ends until fresh data came;
+  // - without a session nothing, not even `fallbackData`; a key the caller
+  //   left out keeps SWR's own behaviour under the keep guard;
+  // - a failure by its stamp; a discarded answer is no failure.
   let visible: boolean;
+  let fallbackShown = false;
   if (fullKey === null) {
-    // Without a session nothing is shown, not even `fallbackData`; a key
-    // the caller left out keeps SWR's own behaviour (the keep guard above).
     visible = prefix !== null;
   } else {
-    const current = isCurrentSWRValue(fullKey, raw);
-    if (current !== undefined) {
-      visible = current;
-    } else if (raw === options?.fallbackData) {
-      const seen = fallbackSeen.current;
-      fallbackShown = {
-        value: raw,
-        generation:
-          seen !== null && seen.value === raw
-            ? seen.generation
-            : dataGenerationOf(fullKey),
-      };
-      visible = fallbackShown.generation >= dataGenerationOf(fullKey);
-    } else {
-      stampSWRValue(fullKey, raw, dataGenerationOf(fullKey));
+    const stamped = isCurrentSWRValue(fullKey, raw);
+    if (stamped !== undefined) {
+      visible = stamped;
+    } else if (keep && raw === lastShown.current) {
       visible = true;
+    } else {
+      visible = isFallbackVisible(fullKey);
+      fallbackShown = visible;
     }
   }
-  // Remember the generation a fallback was first shown in, after render.
+  const fallbackGeneration = fullKey ? dataGenerationOf(fullKey) : 0;
   useLayoutEffect(() => {
-    if (fallbackShown && fallbackSeen.current?.value !== fallbackShown.value) {
-      fallbackSeen.current = fallbackShown;
-    }
-  });
+    if (fallbackShown && fullKey)
+      noteFallbackShown(fullKey, fallbackGeneration);
+  }, [fallbackShown, fullKey, fallbackGeneration]);
   const data = visible ? raw : undefined;
-  const error = discarded ? undefined : rawError;
+  useLayoutEffect(() => {
+    if (data !== undefined) lastShown.current = data;
+  }, [data]);
+  const errorVisible =
+    !discarded && (fullKey === null || isCurrentSWRError(fullKey, rawError));
+  const error = errorVisible ? rawError : undefined;
 
   const arrived = configured === true && !keep && data !== undefined;
   useLayoutEffect(() => {
@@ -245,7 +283,7 @@ function useScopedSWR<T, E>(
       ? null
       : discarded
         ? `request:${fullKey}:${requestGenerationOf(fullKey)}`
-        : !visible && rawError === undefined
+        : !visible && error === undefined
           ? `data:${fullKey}:${dataGenerationOf(fullKey)}`
           : null;
   const reloaded = useRef<string | null>(null);
@@ -356,11 +394,14 @@ export function useTenantMutate() {
         return Promise.resolve(undefined);
       const cacheKey = scopedSWRKey(prefix, key);
       if (data === undefined) {
-        return swrMutate(cacheKey);
+        return currentResult(cacheKey, swrMutate(cacheKey));
       }
       // A write that settles after the generation moved is not kept.
       const [locked, lockedOptions] = lockMutation(cacheKey, data, options);
-      return swrMutate(cacheKey, locked, lockedOptions as never);
+      return currentResult(
+        cacheKey,
+        swrMutate(cacheKey, locked, lockedOptions as never),
+      );
     },
     [prefix],
   );
@@ -524,7 +565,9 @@ export function useDiscardRefusedEntity() {
       },
     ): boolean => {
       if (!isEntityRefusal(error, entity.codes)) return false;
-      if (prefix !== null) discardScopedEntries(cache, prefix, entity.matches);
+      if (prefix !== null) {
+        discardScopedEntries(cache, prefix, entity.matches, error);
+      }
       return true;
     },
     [prefix, cache],

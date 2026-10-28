@@ -32,7 +32,9 @@ import {
   bumpDataGeneration,
   bumpRequestGeneration,
   bumpScopeGeneration,
+  dataGenerationOf,
   plainSWRKey,
+  stampSWRError,
 } from "./generation";
 import { hasSessionAccess } from "~/lib/session-access";
 
@@ -205,6 +207,8 @@ export function invalidateSWRKeys(
   cache: Cache,
   matches: (key: string) => boolean,
   mode: SWRInvalidation,
+  /** `discard`: the refusal that stays visible. */
+  refusal?: unknown,
 ): Promise<unknown[]> {
   const state = SWRGlobalState.get(cache);
   const keys = new Set<string>(cache.keys());
@@ -218,6 +222,15 @@ export function invalidateSWRKeys(
   // The lock first: it holds also for keys the cleanup cannot see.
   if (mode === "revalidate") bumpRequestGeneration(matched);
   else bumpDataGeneration(matches);
+  // `discard` keeps the refusal on screen: that failure counts in the new
+  // generation, everything else of the keys does not.
+  if (mode === "discard" && refusal !== undefined) {
+    for (const key of matched) {
+      if (cache.get(key)?.error === refusal) {
+        stampSWRError(refusal, dataGenerationOf(key));
+      }
+    }
+  }
   if (!cleanupEnabled || matched.length === 0) return Promise.resolve([]);
   const revalidations: Promise<unknown>[] = [];
   for (const key of matched) {
@@ -253,17 +266,20 @@ export function invalidateSWRKeys(
 
 /**
  * Drops every entry of scope `prefix` whose unscoped key `matches`, wherever
- * SWR keeps it (invalidateSWRKeys, `discard`). Nothing is fetched again.
+ * SWR keeps it (invalidateSWRKeys, `discard`). Nothing is fetched again;
+ * `refusal`, where an entry holds it, stays visible.
  */
 export function discardScopedEntries(
   cache: Cache,
   prefix: string,
   matches: (key: string) => boolean,
+  refusal?: unknown,
 ): void {
   const scope = `${prefix}:`;
   void invalidateSWRKeys(
     cache,
     (key) => key.startsWith(scope) && matches(key.slice(scope.length)),
     "discard",
+    refusal,
   );
 }

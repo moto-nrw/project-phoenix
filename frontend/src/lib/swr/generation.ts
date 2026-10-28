@@ -141,6 +141,7 @@ export function stampSWRValue(
   generation: number,
 ): void {
   if (value === undefined) return;
+  noteFreshData(key, generation);
   const plain = plainSWRKey(key);
   if (isObject(value)) {
     let stamps = objectStamps.get(plain);
@@ -176,6 +177,58 @@ export function isCurrentSWRValue(
   const stamp = stampOf(key, value);
   if (stamp === undefined) return undefined;
   return stamp >= dataGenerationOf(key);
+}
+
+// The data generation from which values of a key that no path of
+// ~/lib/swr stamped (a caller's `fallbackData`, a provider fallback, a raw
+// write) count, per key (#5006). Set when such a value is first shown and
+// raised by every fresh answer: a dropped key shows no fallback until data
+// of the current generation arrived, across remounts and hooks.
+const fallbackGenerations = new Map<string, number>();
+
+/** Only for tests: forget which keys showed a fallback. */
+export function _resetSWRFallbacksForTests(): void {
+  fallbackGenerations.clear();
+}
+
+/** Whether an unstamped value of `key` may be shown now. */
+export function isFallbackVisible(key: string): boolean {
+  const from = fallbackGenerations.get(plainSWRKey(key));
+  return from === undefined || from >= dataGenerationOf(key);
+}
+
+/**
+ * Records that unstamped values of `key` were shown in data generation
+ * `generation`; the first record of a key stays (call after render).
+ */
+export function noteFallbackShown(key: string, generation: number): void {
+  const plain = plainSWRKey(key);
+  if (!fallbackGenerations.has(plain)) {
+    fallbackGenerations.set(plain, generation);
+  }
+}
+
+function noteFreshData(key: string, generation: number): void {
+  const plain = plainSWRKey(key);
+  const from = fallbackGenerations.get(plain);
+  if (from !== undefined && from < generation) {
+    fallbackGenerations.set(plain, generation);
+  }
+}
+
+// The data generation each failure belongs to. A failure of an older
+// generation is not shown; the refusal an entity drop keeps is restamped.
+const errorStamps = new WeakMap<object, number>();
+
+export function stampSWRError(error: unknown, generation: number): void {
+  if (isObject(error)) errorStamps.set(error, generation);
+}
+
+/** Whether `error` of `key` may be shown; unstamped failures count. */
+export function isCurrentSWRError(key: string, error: unknown): boolean {
+  if (!isObject(error)) return true;
+  const stamp = errorStamps.get(error);
+  return stamp === undefined || stamp >= dataGenerationOf(key);
 }
 
 /** Generations a fetch, preload or mutation of `key` started in. */
@@ -223,6 +276,7 @@ export function lockFetcher<A extends unknown[], T>(
       // A failure of an ended generation is no result either: not shown,
       // not logged, not retried.
       if (!isStillCurrent(key, start)) throw new DiscardedAnswer();
+      stampSWRError(error, start.data);
       throw error;
     }
     if (!isStillCurrent(key, start)) throw new DiscardedAnswer();
@@ -262,35 +316,48 @@ export function lockMutation(
     isObject(value) && typeof (value as Promise<unknown>).then === "function"
       ? (value as Promise<unknown>).then(stamp)
       : stamp(value);
+  // A value of an ended generation is no base for a new one: functions of
+  // the mutation see nothing in its place, as for an empty entry.
+  const base = (value: unknown): unknown =>
+    isCurrentSWRValue(key, value) === false ? undefined : value;
   const locked =
     typeof data === "function"
-      ? (current: unknown) => settle((data as (c: unknown) => unknown)(current))
+      ? (current: unknown) =>
+          settle((data as (c: unknown) => unknown)(base(current)))
       : settle(data);
   if (typeof options === "boolean") options = { revalidate: options };
   const given = (options ?? {}) as {
     populateCache?: boolean | ((result: unknown, current: unknown) => unknown);
     optimisticData?: unknown;
   };
-  if (given.populateCache === false) return [locked, options];
-  const populate = given.populateCache;
   const optimistic = given.optimisticData;
+  // An optimistic value is shown whatever populateCache says: stamp it.
+  const withOptimistic = {
+    ...given,
+    ...(optimistic === undefined
+      ? {}
+      : {
+          optimisticData:
+            typeof optimistic === "function"
+              ? (...args: unknown[]) =>
+                  stamp(
+                    (optimistic as (...a: unknown[]) => unknown)(
+                      ...args.map(base),
+                    ),
+                  )
+              : stamp(optimistic),
+        }),
+  };
+  if (given.populateCache === false) return [locked, withOptimistic];
+  const populate = given.populateCache;
   return [
     locked,
     {
-      ...given,
-      ...(optimistic === undefined
-        ? {}
-        : {
-            optimisticData:
-              typeof optimistic === "function"
-                ? (...args: unknown[]) =>
-                    stamp((optimistic as (...a: unknown[]) => unknown)(...args))
-                : stamp(optimistic),
-          }),
+      ...withOptimistic,
       populateCache: (result: unknown, current: unknown) => {
         if (!isStillCurrent(key, start)) return current;
         return typeof populate === "function"
-          ? stamp(populate(result, current))
+          ? stamp(populate(result, base(current)))
           : result;
       },
     },
