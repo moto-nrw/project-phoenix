@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // TestComposingFixtureDeadlineStartsAfterNestedFixtures pins the budget rule
@@ -52,17 +53,35 @@ func TestComposingFixtureDeadlineStartsAfterNestedFixtures(t *testing.T) {
 // deadline. The leaf's deadline must start after it, like a composing one.
 func TestLeafFixtureDeadlineStartsAfterTenantCreation(t *testing.T) {
 	t.Parallel()
+	assertLeafDeadlineAfterTenantCreation(t, "CreateTestPerson", "users.persons", func(db *bun.DB) {
+		CreateTestPerson(t, db, "Lea", "Sommer")
+	})
+}
 
-	// A fresh clone and no Tenant call yet: CreateTestPerson creates the tenant.
+// TestHelperBuiltFixtureDeadlineStartsAfterTenantCreation is the same rule for
+// a fixture whose deadline comes from a helper (fixtureCtx) instead of a
+// direct context.WithTimeout.
+func TestHelperBuiltFixtureDeadlineStartsAfterTenantCreation(t *testing.T) {
+	t.Parallel()
+	assertLeafDeadlineAfterTenantCreation(t, "CreateTestRoomNamed", "facilities.rooms", func(db *bun.DB) {
+		CreateTestRoomNamed(t, db, "Kunstraum")
+	})
+}
+
+// assertLeafDeadlineAfterTenantCreation runs create as the first fixture on a
+// fresh clone, so it creates the test's tenant, and checks the leaf's own
+// deadline (5s) against the tenant statements.
+func assertLeafDeadlineAfterTenantCreation(t *testing.T, fixture, ownTable string, create func(*bun.DB)) {
+	t.Helper()
+	// A fresh clone and no Tenant call yet: the fixture creates the tenant.
 	db := SetupIsolatedTestDB(t)
 	counter := CaptureQueries(t, db)
 
-	CreateTestPerson(t, db, "Lea", "Sommer")
+	create(db)
 
-	statements := counter.Deadlines()
 	require.NotEmpty(t, counter.Matching(func(sql string) bool { return strings.Contains(sql, "platform.schools") }),
-		"the person fixture must have created the test tenant")
-	assertOwnDeadlineAfterNested(t, "CreateTestPerson", statements, "users.persons", 5*time.Second)
+		"%s must have created the test tenant", fixture)
+	assertOwnDeadlineAfterNested(t, fixture, counter.Deadlines(), ownTable, 5*time.Second)
 }
 
 // assertOwnDeadlineAfterNested finds the fixture's first own statement by the
