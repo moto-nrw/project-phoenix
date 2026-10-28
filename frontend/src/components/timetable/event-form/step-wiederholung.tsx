@@ -7,12 +7,12 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { getGermanWeekdayShort } from "~/lib/timetable-helpers";
-import { timetableRequiredMark } from "../timetable-style";
 import { Field } from "./field";
 import { isoWeekday } from "./form-model";
 import type { EventFormState, RepeatMode } from "./form-model";
 import { WEEKDAYS } from "./use-event-form";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { RequiredMark } from "~/components/ui/field-label";
 
 const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "none", label: "Nie" },
@@ -211,7 +211,7 @@ export function StepWiederholung({
         <>
           <div className="flex flex-col gap-1">
             <span className="text-xs font-semibold text-gray-700">
-              Wochentage <span className={timetableRequiredMark}>*</span>
+              Wochentage <RequiredMark />
             </span>
             <div className="flex flex-wrap gap-1.5">
               {WEEKDAYS.map((iso) => {

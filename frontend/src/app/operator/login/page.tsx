@@ -16,9 +16,10 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import {
   AuthShell,
   OperatorBrand,
-  authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { hasSessionAccess } from "~/lib/session-access";
@@ -303,33 +304,25 @@ export default function OperatorLoginPage() {
 
           <div className="space-y-4">
             <div className="text-left">
-              <label
-                htmlFor="operator-email"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                E-Mail-Adresse
-              </label>
-              <input
+              <Input
                 id="operator-email"
                 name="email"
                 type="email"
+                label="E-Mail-Adresse"
                 autoComplete="username"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className={authInputClassName}
+                controlSize="compact"
               />
             </div>
 
             <div className="text-left">
-              <label
-                htmlFor="operator-password"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
+              <FieldLabel htmlFor="operator-password" required>
                 Passwort
-              </label>
+              </FieldLabel>
               <div className="relative">
-                <input
+                <Input
                   id="operator-password"
                   name="password"
                   type={showPassword ? "text" : "password"}
@@ -337,7 +330,8 @@ export default function OperatorLoginPage() {
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className={`${authInputClassName} pr-10`}
+                  controlSize="compact"
+                  className="pr-10"
                 />
                 <PasswordToggleButton
                   showPassword={showPassword}

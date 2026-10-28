@@ -2,6 +2,9 @@
 package common
 
 const (
+	CodeTimetableAttendanceEntryNotFound               = "timetable.attendance_entry_not_found"
+	CodeTimetableAttendanceFrozen                      = "timetable.attendance_frozen"
+	CodeTimetableAttendanceInvalid                     = "timetable.attendance_invalid"
 	CodeTimetableCalendarPeriodCareOfferingConflict    = "timetable.calendar_period_care_offering_conflict"
 	CodeTimetableCalendarPeriodEndBeforeStart          = "timetable.calendar_period_end_before_start"
 	CodeTimetableCalendarPeriodInvalid                 = "timetable.calendar_period_invalid"
@@ -215,6 +218,9 @@ const (
 )
 
 var errorCodeClasses2 = map[string]string{
+	"timetable.attendance_entry_not_found":                 "business_rejection",
+	"timetable.attendance_frozen":                          "business_rejection",
+	"timetable.attendance_invalid":                         "input",
 	"timetable.calendar_period_care_offering_conflict":     "business_rejection",
 	"timetable.calendar_period_end_before_start":           "input",
 	"timetable.calendar_period_invalid":                    "input",

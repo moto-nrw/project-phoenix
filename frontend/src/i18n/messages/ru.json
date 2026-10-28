@@ -976,7 +976,7 @@
       "dateLabel": "День",
       "pickupLabel": "Новое время ухода",
       "noTime": "Пожалуйста, укажите время.",
-      "reasonLabel": "Почему? *",
+      "reasonLabel": "Почему?",
       "reasonPlaceholder": "Например, приём у врача или ребёнка заберут бабушка с дедушкой",
       "reasonRequired": "Пожалуйста, напишите коротко, почему время ухода меняется.",
       "reasonTooLong": "Причина может содержать не более 255 символов.",
@@ -1239,18 +1239,16 @@
       "offeringsOnlyDescription": "Выберите для каждого ребёнка предложения по присмотру и дни недели на новый период."
     },
     "fields": {
-      "firstName": "Имя *",
+      "firstName": "Имя",
       "firstNamePlain": "Имя",
-      "lastName": "Фамилия *",
+      "lastName": "Фамилия",
       "lastNamePlain": "Фамилия",
-      "email": "E-mail *",
+      "email": "E-mail",
       "phone": "Телефон",
-      "phoneRequired": "Телефон *",
       "emailPlain": "E-mail",
-      "dateOfBirth": "Дата рождения *",
-      "gradeLevel": "Класс *",
+      "dateOfBirth": "Дата рождения",
+      "gradeLevel": "Класс",
       "schoolClass": "Конкретный класс",
-      "schoolClassRequired": "Конкретный класс *",
       "schoolClassOpen": "Класс пока не назначен",
       "choose": "Пожалуйста, выберите",
       "grade": "{grade}. класс"
@@ -1263,6 +1261,7 @@
       "submitting": "Отправка…",
       "previewSubmit": "Предпросмотр, не отправлять",
       "showMore": "Показать больше",
+      "notice": "Примечание",
       "details": "Подробности",
       "detailsAria": "Показать подробности: {title}"
     },
@@ -3295,6 +3294,9 @@
         "disabled": "У вас нет доступа к: {object}. Обратитесь в школу."
       },
       "staff": {
+        "exit_already_due": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+        "exit_day_in_past": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+        "exit_not_planned": "Не удалось изменить: {object}. Проверьте текущее состояние.",
         "external_access_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "external_email_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
         "external_email_invited": "Не удалось изменить: {object}. Проверьте текущее состояние.",

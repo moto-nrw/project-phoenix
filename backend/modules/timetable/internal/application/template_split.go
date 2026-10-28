@@ -194,7 +194,7 @@ func (s *TemplateSplitService) validateSuccessorOfferingSource(
 	return nil
 }
 
-// resyncChangedOfferingSource runs when the successor's offering feed differs
+// resyncSuccessorOfferingSource runs when the successor's offering feed differs
 // from the old template's — the source was dropped (split away from
 // 'angebot', explicit null), switched to another offering, added, or its
 // Jahrgangsfilter changed (#2147 review rounds 8 and 14). createStudentRoster
@@ -206,14 +206,17 @@ func (s *TemplateSplitService) validateSuccessorOfferingSource(
 // series segment are protected by its lineage-wide legacy coverage. The
 // successor has no materialized occurrences yet, so the resync's instance
 // pass is a no-op; the split's own materialization runs afterwards and reads
-// the reconciled roster. An unchanged feed skips the resync — the plain
-// carry-over already produced the identical rows.
-func (s *TemplateSplitService) resyncChangedOfferingSource(
+// the reconciled roster. A successor that keeps a source is resynced even
+// when the feed is unchanged: the carry-over copies each sourced row's period,
+// but only Care Plan's resync decides which period a sourced row carries on
+// the successor's schedules (#5176). Only a feed that was and stays empty
+// skips it.
+func (s *TemplateSplitService) resyncSuccessorOfferingSource(
 	ctx context.Context,
 	old, successor *activityContract.Group,
 	in TemplateSplitInput,
 ) error {
-	if !offeringRosterFeedChanged(old, successor, s.deps.SchoolClasses.Normalize) {
+	if len(successor.SourceCareOfferingIDs) == 0 && !offeringRosterFeedChanged(old, successor, s.deps.SchoolClasses.Normalize) {
 		return nil
 	}
 	if s.deps.ResyncOfferingRoster == nil {
@@ -439,7 +442,7 @@ func (s *TemplateSplitService) writeSplitSuccessor(
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if err := s.resyncChangedOfferingSource(ctx, old, newGroup, *in); err != nil {
+	if err := s.resyncSuccessorOfferingSource(ctx, old, newGroup, *in); err != nil {
 		return nil, nil, nil, err
 	}
 	if err := s.validateCareOfferingSeries(ctx, newGroup.ID); err != nil {

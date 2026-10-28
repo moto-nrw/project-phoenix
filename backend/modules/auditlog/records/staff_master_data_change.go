@@ -24,7 +24,15 @@ const (
 	// change needs a trace. ChangedBy is the authenticated account ID (like
 	// bank-steuer): the users:manage holder need not have a staff mapping.
 	StammdatenSectionSchoolClasses = "school-classes"
+	// StammdatenSectionAustritt records planning, moving and withdrawing a
+	// planned exit (#4809): old/new carry the last working day, the note
+	// the action (planned, moved, withdrawn). The offboarding itself stays
+	// in audit.data_deletions.
+	StammdatenSectionAustritt = "austritt"
 )
+
+// StammdatenFieldLastWorkingDay is the field name of a planned exit.
+const StammdatenFieldLastWorkingDay = "last_working_day"
 
 // StammdatenFieldSchoolClasses is the field name of a school class
 // assignment rewrite in the school classes section.
@@ -61,7 +69,7 @@ func (c *StaffMasterDataChange) Validate() error {
 	switch c.Section {
 	case StammdatenSectionPerson, StammdatenSectionKontakt, StammdatenSectionArbeitsvertrag,
 		StammdatenSectionQualifikation, StammdatenSectionBankSteuer, StammdatenSectionDokumente,
-		StammdatenSectionSchoolClasses:
+		StammdatenSectionSchoolClasses, StammdatenSectionAustritt:
 		// valid
 	default:
 		return errors.New("unknown stammdaten section")
