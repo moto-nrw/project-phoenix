@@ -1,6 +1,10 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
+import {
+  expectIdleRenderBudget,
+  RENDER_BUDGET_MAX_COMMITS,
+} from "~/test/render-budget";
 
 const { mockPathname, sessionUser } = vi.hoisted(() => ({
   mockPathname: vi.fn(() => "/"),
@@ -145,5 +149,24 @@ describe("TraegerSidebar", () => {
     fireEvent.click(section);
     expect(section).toHaveAttribute("aria-expanded", "false");
     expect(section).toHaveAttribute("data-active", "true");
+  });
+
+  // Render-Budget (#2939): die Leiste ist auf jeder Seite des Portals
+  // gemountet; das Aufklappen beim Seitenwechsel darf keine Schleife sein.
+  describe("render budget", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it.each(["/", "/access-log"])(
+      `commits at most ${RENDER_BUDGET_MAX_COMMITS} times in idle on %s`,
+      async (pathname) => {
+        vi.useFakeTimers();
+        sessionUser.permissions = ALL_RIGHTS;
+        mockPathname.mockReturnValue(pathname);
+
+        await expectIdleRenderBudget(<TraegerSidebar />);
+      },
+    );
   });
 });
