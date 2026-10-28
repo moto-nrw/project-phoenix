@@ -25,7 +25,7 @@ type switchableLeadership struct {
 	names   []string
 }
 
-func (l *switchableLeadership) option(context.Context) (parentportal.LeadershipOption, error) {
+func (l *switchableLeadership) option(context.Context, bool) (parentportal.LeadershipOption, error) {
 	return parentportal.LeadershipOption{Enabled: l.enabled.Load(), Names: l.names}, nil
 }
 
@@ -42,12 +42,12 @@ func TestParentLeadership_UnavailableWithoutSettingOrLeaders(t *testing.T) {
 			chain := testpkg.CreateTestParentGuardianChain(t, db)
 			ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-			view, err := svc.GetChildConversationFor(ctx, chain.AccountID, chain.StudentID, parentportal.MessageAudienceLeadership)
+			view, err := svc.GetChildConversation(ctx, chain.AccountID, chain.StudentID, parentportal.MessageAudienceLeadership)
 			require.NoError(t, err)
 			assert.False(t, view.Leadership.Available(), "the compose box offers no leadership choice")
 			assert.Zero(t, view.ThreadID)
 
-			_, err = svc.PostChildMessageTo(ctx, chain.AccountID, chain.StudentID, "Nur für die Leitung", parentportal.MessageAudienceLeadership, 0)
+			_, err = svc.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Nur für die Leitung", 0, parentportal.MessageAudienceLeadership)
 			require.ErrorIs(t, err, parentportal.ErrLeadershipMessagesUnavailable)
 		})
 	}
@@ -67,7 +67,7 @@ func TestParentLeadership_SeparateConversationThatOutlivesTheSwitch(t *testing.T
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	team, err := svc.PostChildMessageTo(ctx, chain.AccountID, chain.StudentID, "An das ganze Team", "", 0)
+	team, err := svc.PostChildReply(ctx, chain.AccountID, chain.StudentID, "An das ganze Team", 0, "")
 	require.NoError(t, err)
 	assert.Equal(t, parentportal.MessageAudienceTeam, team.Audience)
 	assert.True(t, team.Leadership.Available())
@@ -75,7 +75,7 @@ func TestParentLeadership_SeparateConversationThatOutlivesTheSwitch(t *testing.T
 	assert.Empty(t, team.LeadershipReaders, "a team conversation is read by all staff")
 
 	bc.Reset()
-	leader, err := svc.PostChildMessageTo(ctx, chain.AccountID, chain.StudentID, "Gesprächstermin bitte", parentportal.MessageAudienceLeadership, 0)
+	leader, err := svc.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Gesprächstermin bitte", 0, parentportal.MessageAudienceLeadership)
 	require.NoError(t, err)
 	assert.NotEqual(t, team.ThreadID, leader.ThreadID, "the leadership has its own conversation")
 	assert.Equal(t, parentportal.MessageAudienceLeadership, leader.Audience)
@@ -96,13 +96,13 @@ func TestParentLeadership_SeparateConversationThatOutlivesTheSwitch(t *testing.T
 	}
 	assert.Equal(t, map[string]int64{parentportal.MessageAudienceTeam: team.ThreadID, parentportal.MessageAudienceLeadership: leader.ThreadID}, audiences)
 
-	teamView, err := svc.GetChildConversationFor(ctx, chain.AccountID, chain.StudentID, "")
+	teamView, err := svc.GetChildConversation(ctx, chain.AccountID, chain.StudentID, "")
 	require.NoError(t, err)
 	require.Len(t, teamView.Messages, 1, "the leadership message stays out of the team conversation")
 
 	// Switched off: the existing conversation stays readable and writable.
 	leadership.enabled.Store(false)
-	again, err := svc.PostChildMessageTo(ctx, chain.AccountID, chain.StudentID, "Noch eine Frage", parentportal.MessageAudienceLeadership, 0)
+	again, err := svc.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Noch eine Frage", 0, parentportal.MessageAudienceLeadership)
 	require.NoError(t, err)
 	assert.Equal(t, leader.ThreadID, again.ThreadID)
 	assert.False(t, again.Leadership.Available(), "no new leadership conversation is offered")
@@ -115,10 +115,50 @@ func TestParentLeadership_RejectsGroupAnswerAndUnknownAudience(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
-	_, err := svc.PostChildMessageTo(ctx, chain.AccountID, chain.StudentID, "Antwort", parentportal.MessageAudienceLeadership, 4711)
+	_, err := svc.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Antwort", 4711, parentportal.MessageAudienceLeadership)
 	require.ErrorIs(t, err, parentportal.ErrInvalidMessageAudience, "a group-thread answer goes to the team")
-	_, err = svc.PostChildMessageTo(ctx, chain.AccountID, chain.StudentID, "Hallo", "everyone", 0)
+	_, err = svc.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Hallo", 0, "everyone")
 	require.ErrorIs(t, err, parentportal.ErrInvalidMessageAudience)
-	_, err = svc.GetChildConversationFor(ctx, chain.AccountID, chain.StudentID, "everyone")
+	_, err = svc.GetChildConversation(ctx, chain.AccountID, chain.StudentID, "everyone")
 	require.ErrorIs(t, err, parentportal.ErrInvalidMessageAudience)
+}
+
+// TestParentLeadership_NoNamesWhileOffWithoutConversation: a guardian without
+// a leadership conversation learns no leadership names while the school does
+// not offer the choice.
+func TestParentLeadership_NoNamesWhileOffWithoutConversation(t *testing.T) {
+	t.Parallel()
+	svc, _, db, _ := buildReadServiceWithNotifier(t, true, nil, newSwitchableLeadership(false, "Swantje M.").option)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	view, err := svc.GetChildConversation(ctx, chain.AccountID, chain.StudentID, parentportal.MessageAudienceLeadership)
+	require.NoError(t, err)
+	assert.Zero(t, view.ThreadID)
+	assert.Empty(t, view.LeadershipReaders, "no names while the choice is off and no conversation exists")
+	assert.False(t, view.Leadership.Available())
+}
+
+// TestParentLeadership_ClosedOnceNobodyReads: a started leadership
+// conversation takes no new message once nobody is left to read it; its
+// history stays readable and names no reader.
+func TestParentLeadership_ClosedOnceNobodyReads(t *testing.T) {
+	t.Parallel()
+	leadership := newSwitchableLeadership(true, "Swantje M.")
+	svc, _, db, _ := buildReadServiceWithNotifier(t, true, nil, leadership.option)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	started, err := svc.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Gesprächstermin bitte", 0, parentportal.MessageAudienceLeadership)
+	require.NoError(t, err)
+
+	leadership.names = nil
+	_, err = svc.PostChildReply(ctx, chain.AccountID, chain.StudentID, "Noch da?", 0, parentportal.MessageAudienceLeadership)
+	require.ErrorIs(t, err, parentportal.ErrLeadershipMessagesUnavailable)
+
+	view, err := svc.GetChildConversation(ctx, chain.AccountID, chain.StudentID, parentportal.MessageAudienceLeadership)
+	require.NoError(t, err)
+	assert.Equal(t, started.ThreadID, view.ThreadID)
+	require.Len(t, view.Messages, 1, "the history stays readable")
+	assert.Empty(t, view.LeadershipReaders)
 }

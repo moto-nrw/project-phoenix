@@ -33,7 +33,7 @@ func buildReadService(t *testing.T, enabled bool) (*parentportal.Portal, *testpk
 	return buildReadServiceWithNotifier(t, enabled, nil)
 }
 
-func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentportal.StaffParentMessageNotifier, leadership ...func(context.Context) (parentportal.LeadershipOption, error)) (*parentportal.Portal, *testpkg.RecordingBroadcaster, *bun.DB, *api.ParentMessagingSuiteRepositories) {
+func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentportal.StaffParentMessageNotifier, leadership ...func(context.Context, bool) (parentportal.LeadershipOption, error)) (*parentportal.Portal, *testpkg.RecordingBroadcaster, *bun.DB, *api.ParentMessagingSuiteRepositories) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind

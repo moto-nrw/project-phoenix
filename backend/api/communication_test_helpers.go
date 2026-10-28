@@ -52,7 +52,7 @@ func NewParentConversationCore(
 	readRepo communication.ParentReadRecords,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
-	leadership ...func(context.Context) (parentportal.LeadershipOption, error),
+	leadership ...func(context.Context, bool) (parentportal.LeadershipOption, error),
 ) parentportal.ConversationCore {
 	return owners.BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 		ThreadRepo: threadRepo, MessageRepo: messageRepo, ReadRepo: readRepo, Broadcaster: broadcaster, Logger: logger,

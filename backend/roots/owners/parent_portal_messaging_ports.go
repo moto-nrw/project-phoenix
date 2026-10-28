@@ -41,10 +41,10 @@ func (e parentChildEvents) BroadcastChildUpdateToGuardians(tenantID, studentID i
 // BindParentLeadershipChoice binds the parents portal's leadership option to
 // Communication's rule over the school's switch and its leadership persons
 // (#5200). It runs in the child's tenant transaction.
-func BindParentLeadershipChoice(settings settingsValues.ParentMessagingValueSource, leaders communication.ParentMessageLeaderDirectory) func(context.Context) (parentportal.LeadershipOption, error) {
+func BindParentLeadershipChoice(settings settingsValues.ParentMessagingValueSource, leaders communication.ParentMessageLeaderDirectory) func(context.Context, bool) (parentportal.LeadershipOption, error) {
 	values := settingsValues.NewParentMessagingValues(settings)
-	return func(ctx context.Context) (parentportal.LeadershipOption, error) {
-		choice, err := communication.ResolveParentMessageLeadershipChoice(ctx, values, leaders)
+	return func(ctx context.Context, namesWhenOff bool) (parentportal.LeadershipOption, error) {
+		choice, err := communication.ResolveParentMessageLeadershipChoice(ctx, values, leaders, namesWhenOff)
 		if err != nil {
 			return parentportal.LeadershipOption{}, err
 		}

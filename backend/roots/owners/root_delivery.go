@@ -94,7 +94,7 @@ func BuildDeliveryNotifications(
 		Notifier:           notifier,
 		Preferences:        preferences,
 		StaffParentMessages: deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
-			messaging.ParentMessageThread, ParentMessageLeadership{Staff: people.Staff}, db.Pool(), logger.With("producer", "staff_parent_message_notifications")),
+			messaging.ParentMessageThread, ParentMessageLeadership{Staff: people.Staff, Admins: identity}, db.Pool(), logger.With("producer", "staff_parent_message_notifications")),
 		AbsenceNotifier: absences,
 	}, nil
 }

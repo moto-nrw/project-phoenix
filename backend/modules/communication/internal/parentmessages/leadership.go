@@ -42,7 +42,7 @@ func (s *Service) leadershipAvailable(ctx context.Context) (bool, []string, erro
 	if s.Leaders == nil {
 		return false, nil, errLeadersNotConfigured
 	}
-	choice, err := deliveryPorts.ResolveParentMessageLeadershipChoice(ctx, s.Settings, s.Leaders)
+	choice, err := deliveryPorts.ResolveParentMessageLeadershipChoice(ctx, s.Settings, s.Leaders, false)
 	if err != nil {
 		return false, nil, fmt.Errorf("messaging: %w", err)
 	}
@@ -98,10 +98,7 @@ func (s *Service) reach(ctx context.Context) StaffReach {
 
 // readsLeadership reports whether the caller holds the leadership permission.
 func (s *Service) readsLeadership(ctx context.Context) bool {
-	if s.UserContext == nil {
-		return false
-	}
-	return s.UserContext.ReadsLeadershipMessages(ctx, s.Session.Permissions(ctx))
+	return s.reach(ctx).Leadership
 }
 
 // conversationForWrite get-or-creates the (student, guardian, audience)

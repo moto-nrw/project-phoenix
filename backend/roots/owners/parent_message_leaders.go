@@ -15,16 +15,32 @@ type permissionStaff interface {
 	ListStaffWithPermission(ctx context.Context, permissionName string) ([]*peopleValues.StaffWithRoleInfo, error)
 }
 
-// ParentMessageLeadership binds Communication's leadership directory (#5200):
-// the staff whose account holds parent_messages:leadership through a role or
-// admin:*. They read the conversations parents address to the leadership.
-type ParentMessageLeadership struct {
-	Staff permissionStaff
+// effectiveAdmins lists the active accounts of the request's school with
+// admin authority (an admin role, admin:* or *:*), with or without a staff
+// record.
+type effectiveAdmins interface {
+	ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error)
 }
 
-// ParentMessageLeaders lists the leadership persons, ordered by name.
+// ParentMessageLeadership binds Communication's leadership directory (#5200)
+// to exactly the accounts that read the leadership conversations: live staff
+// whose account holds parent_messages:leadership through a role (admin:*
+// included), and every school administrator account, which reads every child
+// through admin:* even without a staff record. Such an account carries no
+// name; Communication shows it with a neutral label.
+type ParentMessageLeadership struct {
+	Staff  permissionStaff
+	Admins effectiveAdmins
+}
+
+// ParentMessageLeaders lists the leadership persons, named ones by name,
+// then the unnamed administrator accounts by id.
 func (l ParentMessageLeadership) ParentMessageLeaders(ctx context.Context) ([]communication.ParentMessageLeader, error) {
 	rows, err := l.Staff.ListStaffWithPermission(ctx, permissions.ParentMessagesLeadership)
+	if err != nil {
+		return nil, err
+	}
+	adminIDs, err := l.Admins.ListEffectiveAdminAccountIDs(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -37,17 +53,28 @@ func (l ParentMessageLeadership) ParentMessageLeaders(ctx context.Context) ([]co
 		seen[row.AccountID] = true
 		leaders = append(leaders, communication.ParentMessageLeader{AccountID: row.AccountID, FirstName: row.FirstName, LastName: row.LastName})
 	}
-	sort.SliceStable(leaders, func(i, j int) bool {
-		a, b := leaders[i], leaders[j]
-		if a.FirstName != b.FirstName {
-			return a.FirstName < b.FirstName
+	for _, accountID := range adminIDs {
+		if accountID > 0 && !seen[accountID] {
+			seen[accountID] = true
+			leaders = append(leaders, communication.ParentMessageLeader{AccountID: accountID})
 		}
-		if a.LastName != b.LastName {
-			return a.LastName < b.LastName
-		}
-		return a.AccountID < b.AccountID
-	})
+	}
+	sort.SliceStable(leaders, func(i, j int) bool { return leaderBefore(leaders[i], leaders[j]) })
 	return leaders, nil
+}
+
+// leaderBefore orders named persons by name before unnamed accounts by id.
+func leaderBefore(a, b communication.ParentMessageLeader) bool {
+	if (a.ShortName() == "") != (b.ShortName() == "") {
+		return a.ShortName() != ""
+	}
+	if a.FirstName != b.FirstName {
+		return a.FirstName < b.FirstName
+	}
+	if a.LastName != b.LastName {
+		return a.LastName < b.LastName
+	}
+	return a.AccountID < b.AccountID
 }
 
 // LeadershipAccountIDs lists the leadership persons' accounts for Delivery's

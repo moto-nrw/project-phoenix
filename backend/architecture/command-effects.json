@@ -23476,7 +23476,7 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
       "target_owner": "staff-directory-view",
-      "binding_digest": "8cb06b464960df18eb6db07a9f04b0f8",
+      "binding_digest": "daa00f26ae7dee14fd3ad64d83c3034d",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim."
@@ -23485,9 +23485,20 @@
       "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
+      "target_owner": "identity-access",
+      "binding_digest": "8468803fd3c522c479079469d400e14b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.Owner.ListEffectiveAdminAccountIDs: the school's administrator accounts, which read the leadership conversations through admin:* (#5200). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
       "target_owner": "people-directory",
-      "binding_digest": "a46207a2020b623ca570d8528b7728a2",
+      "binding_digest": "a90eeebf2e7ebb08a24ba2481506ab11",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim."
@@ -23498,7 +23509,7 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "3a165244588a44c78ad94ad88af6d4e4",
+      "binding_digest": "ef4d1c6cf5d1eef3f116e3c4785e46b3",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim."
@@ -23509,7 +23520,7 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
       "target_owner": "staff-directory-view",
-      "binding_digest": "8cb06b464960df18eb6db07a9f04b0f8",
+      "binding_digest": "daa00f26ae7dee14fd3ad64d83c3034d",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim."
@@ -23518,9 +23529,20 @@
       "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
+      "target_owner": "identity-access",
+      "binding_digest": "8468803fd3c522c479079469d400e14b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.Owner.ListEffectiveAdminAccountIDs: the school's administrator accounts, which read the leadership conversations through admin:* (#5200). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
       "target_owner": "people-directory",
-      "binding_digest": "a46207a2020b623ca570d8528b7728a2",
+      "binding_digest": "a90eeebf2e7ebb08a24ba2481506ab11",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim."
@@ -23531,7 +23553,7 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "3a165244588a44c78ad94ad88af6d4e4",
+      "binding_digest": "ef4d1c6cf5d1eef3f116e3c4785e46b3",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim."
@@ -24784,7 +24806,7 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
       "target_owner": "staff-directory-view",
-      "binding_digest": "8cb06b464960df18eb6db07a9f04b0f8",
+      "binding_digest": "daa00f26ae7dee14fd3ad64d83c3034d",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim."
@@ -24793,9 +24815,20 @@
       "source_owner": "communication",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
+      "target_owner": "identity-access",
+      "binding_digest": "8468803fd3c522c479079469d400e14b",
+      "effect": "query",
+      "classification": "query",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.Owner.ListEffectiveAdminAccountIDs: the school's administrator accounts, which read the leadership conversations through admin:* (#5200). May-bind method surface, not a production-call/liveness claim."
+    },
+    {
+      "source_owner": "communication",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
       "target_owner": "people-directory",
-      "binding_digest": "a46207a2020b623ca570d8528b7728a2",
+      "binding_digest": "a90eeebf2e7ebb08a24ba2481506ab11",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim."
@@ -24806,7 +24839,7 @@
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
       "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
       "target_owner": "staff-directory-view",
-      "binding_digest": "3a165244588a44c78ad94ad88af6d4e4",
+      "binding_digest": "ef4d1c6cf5d1eef3f116e3c4785e46b3",
       "effect": "query",
       "classification": "query",
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim."

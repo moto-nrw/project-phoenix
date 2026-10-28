@@ -86,23 +86,28 @@ func (s *Service) childConversationView(ctx context.Context, accountID, studentI
 	if err != nil {
 		return nil, nil, err
 	}
-	guardianName, err := s.resolveGuardianName(ctx, child.TenantID, accountID)
-	if err != nil {
-		return nil, nil, err
-	}
 	return child, &MessageThreadView{
 		StudentID: studentID, StudentName: child.StudentName, SchoolName: child.SchoolName,
-		Audience: audience, GuardianName: guardianName,
+		Audience: audience,
 	}, nil
 }
 
 // findChildConversation stamps the leadership option on the view and loads
 // the guardian's conversation of its audience, nil when none exists yet.
 func (s *Service) findChildConversation(txCtx context.Context, view *MessageThreadView, accountID int64) (*ParentMessageThread, error) {
-	if err := s.decorateLeadership(txCtx, view); err != nil {
+	guardianName, err := s.guardianName(txCtx, accountID)
+	if err != nil {
 		return nil, err
 	}
-	return s.MessageThreadRepo.FindByStudentGuardian(txCtx, view.StudentID, accountID, view.Audience)
+	view.GuardianName = guardianName
+	thread, err := s.MessageThreadRepo.FindByStudentGuardian(txCtx, view.StudentID, accountID, view.Audience)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.decorateLeadership(txCtx, view, thread != nil); err != nil {
+		return nil, err
+	}
+	return thread, nil
 }
 
 // normalizeMessageInput validates a guardian message: its audience, the team
@@ -123,15 +128,17 @@ func normalizeMessageInput(body, audience string, groupThreadID int64) (string, 
 }
 
 // decorateLeadership stamps the school's leadership option on the view and,
-// for a leadership conversation, its readers. It runs in the child's tenant
-// transaction.
-func (s *Service) decorateLeadership(txCtx context.Context, view *MessageThreadView) error {
-	option, err := s.Conversations.LeadershipOption(txCtx)
+// for a leadership conversation, its readers: named while the conversation
+// exists or the school offers the choice, never while it is off and no
+// conversation exists. It runs in the child's tenant transaction.
+func (s *Service) decorateLeadership(txCtx context.Context, view *MessageThreadView, conversationExists bool) error {
+	leadership := view.Audience == AudienceLeadership
+	option, err := s.Conversations.LeadershipOption(txCtx, leadership && conversationExists)
 	if err != nil {
 		return err
 	}
 	view.Leadership = option
-	if view.Audience == AudienceLeadership {
+	if leadership && (conversationExists || option.Available()) {
 		view.LeadershipReaders = option.Names
 	}
 	return nil
@@ -141,14 +148,23 @@ func (s *Service) decorateLeadership(txCtx context.Context, view *MessageThreadV
 // view's audience. A leadership conversation the guardian has not started
 // yet needs the school's leadership option.
 func (s *Service) guardianConversation(txCtx context.Context, tenantID, studentID, accountID int64, view *MessageThreadView) (*ParentMessageThread, error) {
-	if view.Audience == AudienceLeadership {
-		existing, err := s.MessageThreadRepo.FindByStudentGuardian(txCtx, studentID, accountID, AudienceLeadership)
-		if err != nil {
+	if view.Audience != AudienceLeadership {
+		if err := s.decorateLeadership(txCtx, view, false); err != nil {
 			return nil, err
 		}
-		if existing == nil && !view.Leadership.Available() {
-			return nil, ErrLeadershipUnavailable
-		}
+		return s.MessageThreadRepo.GetOrCreate(txCtx, tenantID, studentID, accountID, view.Audience)
+	}
+	existing, err := s.MessageThreadRepo.FindByStudentGuardian(txCtx, studentID, accountID, AudienceLeadership)
+	if err != nil {
+		return nil, err
+	}
+	// A new conversation needs the choice. A started one stays writable after
+	// the school switched it off, but not once nobody is left to read it.
+	if err := s.decorateLeadership(txCtx, view, existing != nil); err != nil {
+		return nil, err
+	}
+	if len(view.Leadership.Names) == 0 || (existing == nil && !view.Leadership.Enabled) {
+		return nil, ErrLeadershipUnavailable
 	}
 	return s.MessageThreadRepo.GetOrCreate(txCtx, tenantID, studentID, accountID, view.Audience)
 }

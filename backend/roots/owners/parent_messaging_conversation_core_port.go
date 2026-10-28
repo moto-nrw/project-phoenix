@@ -9,7 +9,7 @@ import (
 
 // BindParentConversationCore binds Communication's shared conversation rules
 // and, when given, the school's leadership option (#5200).
-func BindParentConversationCore(source communication.PortalConversationCore, leadership ...func(context.Context) (parentportal.LeadershipOption, error)) parentportal.ConversationCore {
+func BindParentConversationCore(source communication.PortalConversationCore, leadership ...func(context.Context, bool) (parentportal.LeadershipOption, error)) parentportal.ConversationCore {
 	if source == nil {
 		return nil
 	}
@@ -53,7 +53,7 @@ func BindParentConversationCore(source communication.PortalConversationCore, lea
 	})
 }
 
-func firstLeadershipOption(options []func(context.Context) (parentportal.LeadershipOption, error)) func(context.Context) (parentportal.LeadershipOption, error) {
+func firstLeadershipOption(options []func(context.Context, bool) (parentportal.LeadershipOption, error)) func(context.Context, bool) (parentportal.LeadershipOption, error) {
 	if len(options) == 0 {
 		return nil
 	}

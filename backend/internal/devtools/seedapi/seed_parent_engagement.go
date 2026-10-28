@@ -334,6 +334,32 @@ func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 	if _, err := rt.Client.GetWithAuth(auth, path); err != nil {
 		return fmt.Errorf("read seeded parent conversation: %w", err)
 	}
+	return seedLeadershipConversation(rt, auth, path)
+}
+
+// seedLeadershipConversation is the same parent's conversation with the
+// leadership only (#5200): a request the team does not read, answered by the
+// school's administration.
+func seedLeadershipConversation(rt *Runtime, auth AuthRef, path string) error {
+	if _, err := rt.Client.PutWithAuth(rt.TenantAuth, "/api/settings/values/operations.parent_message_leadership_enabled", map[string]any{"value": true}); err != nil {
+		return fmt.Errorf("enable leadership conversations: %w", err)
+	}
+	raw, err := rt.Client.PostWithAuth(auth, path, map[string]any{
+		"body":     "Ich würde gern in Ruhe mit Ihnen über die Betreuung von Felix sprechen. Haben Sie nächste Woche einen Termin?",
+		"audience": "leadership",
+	})
+	if err != nil {
+		return fmt.Errorf("seed leadership message: %w", err)
+	}
+	threadID, messageID, err := parseThreadMessageIDs(raw)
+	if err != nil {
+		return fmt.Errorf("parse leadership conversation: %w", err)
+	}
+	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/messages/threads/%d", threadID), map[string]any{
+		"body": "Gern. Passt Ihnen Dienstag um 14 Uhr?", "handled_up_to_message_id": strconv.FormatInt(messageID, 10),
+	}); err != nil {
+		return fmt.Errorf("seed leadership reply: %w", err)
+	}
 	return nil
 }
 
