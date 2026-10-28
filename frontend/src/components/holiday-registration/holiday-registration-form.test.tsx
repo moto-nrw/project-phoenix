@@ -563,7 +563,7 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
     ).toBeInTheDocument();
     fireEvent.click(
       screen.getByLabelText(
-        "Ich bin einverstanden, dass die Betreuung die Gesundheitsangaben meiner Kinder sieht.",
+        /^Ich bin einverstanden, dass die Betreuung die Gesundheitsangaben meiner Kinder sieht\./,
       ),
     );
     fireEvent.click(
