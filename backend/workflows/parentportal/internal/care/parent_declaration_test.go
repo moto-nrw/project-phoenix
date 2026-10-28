@@ -42,7 +42,7 @@ type declarationSetup struct {
 func newDeclarationSetup(t *testing.T, settings communication.ParentDeclarationSettings, deadline *time.Time) *declarationSetup {
 	t.Helper()
 	testpkg.OwnTenant(t)
-	svc, db, repos := buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), true)
+	svc, db, repos := buildAnnouncementServiceOn(t, testpkg.SetupTestDB(t), true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	setup := &declarationSetup{
 		svc: svc, db: db, repo: api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain: chain,
@@ -317,7 +317,7 @@ func TestDeclaration_ExpiredAllowsOnlyRevocation(t *testing.T) {
 func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing.T) {
 	t.Parallel()
 	testpkg.OwnTenant(t)
-	svc, db, repos := buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), true)
+	svc, db, repos := buildAnnouncementServiceOn(t, testpkg.SetupTestDB(t), true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
