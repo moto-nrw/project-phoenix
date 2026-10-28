@@ -24,12 +24,13 @@ func TestOfferingGapTemplateIndependentLinks(t *testing.T) {
 		SchoolClass: "3a", Weekdays: []int{1},
 	}}
 	today := calendar.NewDate(2026, 10, 26)
+	period := timetable.TemplateCapacityPeriod{ID: periodID, StartDate: today.String(), EndDate: today.AddDays(30).String()}
 	assert.Len(t, timetable.DetectOfferingGaps([]timetable.OfferingGapTemplate{
-		offeringGapTemplate(template, feeds, periodID, today),
+		offeringGapTemplate(template, feeds, period, today),
 	}, bookings), 1, "the source filter alone does not cover 3a")
 
 	feeds.LinkedOfferingIDs = []int64{offeringID}
 	assert.Empty(t, timetable.DetectOfferingGaps([]timetable.OfferingGapTemplate{
-		offeringGapTemplate(template, feeds, periodID, today),
+		offeringGapTemplate(template, feeds, period, today),
 	}, bookings), "the independent direct link covers 3a without the source filter")
 }

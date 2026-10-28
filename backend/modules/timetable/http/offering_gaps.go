@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -86,6 +87,9 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, periodID int64, to
 	if err != nil {
 		return nil, err
 	}
+	if len(rows) == 0 || rows[0].PlanningPeriod == nil {
+		return []timetable.OfferingGapTemplate{}, nil
+	}
 	templates := mapTemplateRows(rows, ratio, nil)
 	queries := make([]timetable.TemplateRosterMaintenanceQuery, 0, len(templates))
 	for _, template := range templates {
@@ -106,7 +110,7 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, periodID int64, to
 		if template.Type == timetable.GroupTypeDuty {
 			continue
 		}
-		result = append(result, offeringGapTemplate(template, feeds[template.ID], periodID, today))
+		result = append(result, offeringGapTemplate(template, feeds[template.ID], *rows[0].PlanningPeriod, today))
 	}
 	return result, nil
 }
@@ -114,9 +118,9 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, periodID int64, to
 // offeringGapTemplate splits the feeding offerings into the source rule,
 // which keeps its Jahrgang or Klassen filter, and the offerings' own links,
 // which feed every booked child.
-func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, periodID int64, today calendar.Date) timetable.OfferingGapTemplate {
+func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, period timetable.TemplateCapacityPeriod, today calendar.Date) timetable.OfferingGapTemplate {
 	gapTemplate := timetable.OfferingGapTemplate{
-		Weekdays:          runningWeekdays(template, periodID, today),
+		Weekdays:          runningWeekdays(template, period, today),
 		LinkedOfferingIDs: append([]int64(nil), feeds.LinkedOfferingIDs...),
 		Sources: timetable.OfferingSourceFilter{
 			GradeLevels: feeds.GradeLevels, SchoolClasses: feeds.SchoolClasses,
@@ -130,21 +134,33 @@ func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRost
 	return gapTemplate
 }
 
-// runningWeekdays are the weekdays of the template's schedules in the
-// period that still run on or after today.
-func runningWeekdays(template templateResponse, periodID int64, today calendar.Date) []int {
-	if template.EndDate != nil && *template.EndDate < today.String() {
-		return nil
+// runningWeekdays counts only schedules with an eligible occurrence left
+// in the period, respecting split bounds, the series end and A/B weeks.
+func runningWeekdays(template templateResponse, period timetable.TemplateCapacityPeriod, today calendar.Date) []int {
+	first := max(today, calendar.Date(period.StartDate))
+	last := calendar.Date(period.EndDate)
+	if template.EndDate != nil {
+		last = min(last, calendar.Date(*template.EndDate))
 	}
 	weekdays := make([]int, 0, len(template.Schedules))
+	cycle := schoolcalendar.WeekCycle{Length: period.WeekCycleLength, Anchor: period.WeekCycleAnchor}
 	for _, schedule := range template.Schedules {
-		if schedule.CalendarPeriodID != nil && *schedule.CalendarPeriodID != periodID {
+		if schedule.CalendarPeriodID != nil && *schedule.CalendarPeriodID != period.ID {
 			continue
 		}
-		if schedule.ValidUntil != "" && schedule.ValidUntil <= today.String() {
-			continue
+		start := max(first, calendar.Date(schedule.ValidFrom))
+		end := last
+		if schedule.ValidUntil != "" {
+			end = min(end, calendar.Date(schedule.ValidUntil).AddDays(-1))
 		}
-		weekdays = append(weekdays, schedule.Weekday)
+		// Jump to this weekday, then test only its weekly occurrences.
+		next := start.AddDays((schedule.Weekday - int(start.Weekday()) + 7) % 7)
+		for date := next; date <= end; date = date.AddDays(7) {
+			if schoolcalendar.WeekPatternApplies(schedule.WeekPattern, date.String(), cycle) {
+				weekdays = append(weekdays, schedule.Weekday)
+				break
+			}
+		}
 	}
 	return weekdays
 }

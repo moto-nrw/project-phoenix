@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -13,8 +14,94 @@ import (
 	"github.com/stretchr/testify/require"
 
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+func TestRunningWeekdaysRequiresRemainingOccurrence(t *testing.T) {
+	t.Parallel()
+	today := calendar.NewDate(2030, 3, 5) // Tuesday
+	period := timetableModule.TemplateCapacityPeriod{StartDate: "2030-03-04", EndDate: "2030-03-31"}
+	for _, bound := range []string{"schedule", "series"} {
+		t.Run(bound, func(t *testing.T) {
+			t.Parallel()
+			template := templateResponse{Schedules: []templateScheduleResponse{{Weekday: timetableModule.WeekdayMonday}}}
+			end := today.AddDays(1).String()
+			if bound == "schedule" {
+				template.Schedules[0].ValidUntil = end
+			} else {
+				template.EndDate = &end
+			}
+			assert.Empty(t, runningWeekdays(template, period, today), "yesterday's last Monday must not hide ongoing Monday bookings")
+		})
+	}
+}
+
+func TestRunningWeekdaysRecurrenceBounds(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name       string
+		today      string
+		periodFrom string
+		periodTo   string
+		validFrom  string
+		validUntil string
+		seriesEnd  string
+		pattern    int
+		want       bool
+	}{
+		{name: "today counts", today: "2030-03-04", want: true},
+		{name: "next Monday counts", today: "2030-03-05", want: true},
+		{name: "inclusive series end", today: "2030-03-05", seriesEnd: "2030-03-11", want: true},
+		{name: "exclusive split end", today: "2030-03-05", validUntil: "2030-03-11"},
+		{name: "inclusive split start", today: "2030-03-05", validFrom: "2030-03-11", validUntil: "2030-03-12", want: true},
+		{name: "start after last Monday", today: "2030-03-05", validFrom: "2030-03-12", seriesEnd: "2030-03-13"},
+		{name: "period ends before next Monday", today: "2030-03-05", periodTo: "2030-03-06"},
+		{name: "period starts after last Monday", today: "2030-03-05", periodFrom: "2030-03-12", seriesEnd: "2030-03-13"},
+		{name: "period end is inclusive", today: "2030-03-05", periodTo: "2030-03-11", want: true},
+		{name: "week A has no remaining Monday", today: "2030-03-05", validUntil: "2030-03-13", pattern: 1},
+		{name: "week B has a remaining Monday", today: "2030-03-05", validUntil: "2030-03-13", pattern: 2, want: true},
+		{name: "week A after skipped week B", today: "2030-03-05", pattern: 1, want: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			period := timetableModule.TemplateCapacityPeriod{
+				StartDate: "2030-03-04", EndDate: "2030-03-31", WeekCycleLength: 2, WeekCycleAnchor: "2030-03-04",
+			}
+			if tt.periodFrom != "" {
+				period.StartDate = tt.periodFrom
+			}
+			if tt.periodTo != "" {
+				period.EndDate = tt.periodTo
+			}
+			template := templateResponse{Schedules: []templateScheduleResponse{{
+				Weekday: timetableModule.WeekdayMonday, WeekPattern: tt.pattern, ValidFrom: tt.validFrom, ValidUntil: tt.validUntil,
+			}}}
+			if tt.seriesEnd != "" {
+				template.EndDate = &tt.seriesEnd
+			}
+			weekdays := runningWeekdays(template, period, calendar.Date(tt.today))
+			if tt.want {
+				assert.Equal(t, []int{timetableModule.WeekdayMonday}, weekdays)
+			} else {
+				assert.Empty(t, weekdays)
+			}
+		})
+	}
+}
+
+func TestOfferingGapsAfterLastScheduledWeekday(t *testing.T) {
+	t.Parallel()
+	s := buildOfferingGapsModule(t)
+	period := createTemplateTestPeriodRange(t, s.db, "Last-Monday", rosterReviewMonday, rosterReviewMonday.AddDays(30), 1, nil)
+	s.sources.bookings = withGrade(rosterReviewBookings(rosterReviewOfferingID, "Randstunde", "3a", createClassStudents(t, s.db, "3a", 1), 1), 3)
+	s.createSourcedTemplate(t, "Randstunde", period.ID, rosterReviewOfferingID, []int{3}, rosterReviewMonday.AddDays(2))
+	require.Empty(t, s.listGaps(t, period.ID), "Monday's occurrence still covers the booking on Monday")
+	s.res.Now = func() time.Time { return rosterReviewMonday.AddDays(1).BerlinMidnight() }
+	gaps := s.listGaps(t, period.ID)
+	require.Len(t, gaps, 1, "on Tuesday no Monday occurrence remains before the Wednesday series end")
+	assert.Equal(t, []int{timetableModule.WeekdayMonday}, gaps[0].Weekdays)
+}
 
 // offeringGapsSetup drives the offering-gap routes (#5140) over the real
 // template list. The offering side is the stub: its feeds name which
@@ -39,7 +126,7 @@ func buildOfferingGapsModule(t *testing.T) *offeringGapsSetup {
 // createSourcedTemplate creates a Monday/Wednesday Regeltermin sourced from
 // the offering for the given Jahrgänge and tells the stub that the offering
 // feeds it.
-func (s *offeringGapsSetup) createSourcedTemplate(t *testing.T, name string, periodID, offeringID int64, grades []int) int64 {
+func (s *offeringGapsSetup) createSourcedTemplate(t *testing.T, name string, periodID, offeringID int64, grades []int, endDate ...calendar.Date) int64 {
 	t.Helper()
 	body := map[string]any{
 		"name":                     name,
@@ -55,6 +142,9 @@ func (s *offeringGapsSetup) createSourcedTemplate(t *testing.T, name string, per
 		"source_grade_levels":      grades,
 		"student_ids":              []int64{},
 		"staff_ids":                []int64{s.staffA},
+	}
+	if len(endDate) > 0 {
+		body["end_date"] = endDate[0].String()
 	}
 	w := doTemplateJSON(t, s.router, http.MethodPost, "/templates", body)
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())

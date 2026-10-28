@@ -65,16 +65,20 @@ func (d *timetableData) templateEntries(ctx context.Context, rows []timetable.Te
 	if err != nil {
 		return nil, err
 	}
+	var planningPeriod *timetable.TemplateCapacityPeriod
 	if len(templateIDs) > 0 {
-		occurrences, err := d.templateCapacityOccurrences(ctx, periodID, templateIDs)
+		occurrences, selectedPeriod, err := d.templateCapacityOccurrences(ctx, periodID, templateIDs)
 		if err != nil {
 			return nil, err
 		}
 		applyWorstTemplateCapacity(rows, templateIDs, occurrences, childrenPerStaffRatio)
+		planningPeriod = selectedPeriod
 	}
 	entries := make([]timetable.TemplateListEntry, 0, len(rows))
 	for _, row := range rows {
-		entries = append(entries, templateListEntryOf(row, targets[row.TemplateID]))
+		entry := templateListEntryOf(row, targets[row.TemplateID])
+		entry.PlanningPeriod = planningPeriod
+		entries = append(entries, entry)
 	}
 	return entries, nil
 }
@@ -128,15 +132,23 @@ func (d *timetableData) attachTemplateOwnerNames(ctx context.Context, rows []tim
 
 // templateCapacityOccurrences reads the staffing snapshot of every
 // occurrence of the templates in School Calendar's active periods.
-func (d *timetableData) templateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64) ([]timetable.TemplateCapacityOccurrence, error) {
+func (d *timetableData) templateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64) ([]timetable.TemplateCapacityOccurrence, *timetable.TemplateCapacityPeriod, error) {
 	if d.deps.Directories.ActivePeriods == nil {
-		return nil, errors.New("timetable compatibility: school calendar is required")
+		return nil, nil, errors.New("timetable compatibility: school calendar is required")
 	}
 	periods, err := d.deps.Directories.ActivePeriods(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return d.deps.Templates.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs, periods)
+	var selectedPeriod *timetable.TemplateCapacityPeriod
+	for _, period := range periods {
+		if periodID != nil && period.ID == *periodID {
+			selectedPeriod = &period
+			break
+		}
+	}
+	occurrences, err := d.deps.Templates.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs, periods)
+	return occurrences, selectedPeriod, err
 }
 
 // attachTemplateTargets adds the dynamic targets, named with their
