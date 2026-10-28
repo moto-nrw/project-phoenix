@@ -820,6 +820,11 @@ export const ERROR_CATALOG = {
         "Diese Einstellung gibt es nicht. Bitte laden Sie die Seite neu.",
       "settings.presence_mode_switch_blocked":
         "Der Anwesenheitsmodus kann erst nach dem Tagesabschluss gewechselt werden. Bitte beenden Sie zuerst den laufenden Tag.",
+      "staff.exit_already_due":
+        "Der letzte Arbeitstag ist vorbei. Der Austritt läuft schon und lässt sich nicht mehr ändern.",
+      "staff.exit_day_in_past":
+        "Der letzte Arbeitstag darf nicht in der Vergangenheit liegen. Bitte wählen Sie heute oder einen späteren Tag.",
+      "staff.exit_not_planned": "Für diese Person ist kein Austritt geplant.",
       "staff.external_access_invalid":
         "Bitte wählen Sie, welchen Zugang die Person bekommt.",
       "staff.external_email_invalid":
@@ -1844,6 +1849,11 @@ export const ERROR_CATALOG = {
         "Your school has not booked the module {module_label}. To book it, please contact the moto team.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
+      "staff.exit_already_due":
+        "The last working day is over. The exit is already running and can no longer be changed.",
+      "staff.exit_day_in_past":
+        "The last working day cannot be in the past. Please choose today or a later day.",
+      "staff.exit_not_planned": "No exit is planned for this person.",
       "staff.external_access_invalid":
         "Please choose which access this person gets.",
       "staff.external_email_invalid":

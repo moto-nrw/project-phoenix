@@ -976,7 +976,7 @@
       "dateLabel": "Dita",
       "pickupLabel": "Ora e re e marrjes",
       "noTime": "Ju lutemi shkruani një orë.",
-      "reasonLabel": "Pse? *",
+      "reasonLabel": "Pse?",
       "reasonPlaceholder": "Për shembull, takim te mjeku ose marrje nga gjyshërit",
       "reasonRequired": "Ju lutemi shkruani shkurt pse ndryshon marrja.",
       "reasonTooLong": "Arsyeja mund të ketë maksimumi 255 karaktere.",
@@ -1239,18 +1239,16 @@
       "offeringsOnlyDescription": "Zgjidhni për çdo fëmijë ofertat e kujdesit dhe ditët e javës për periudhën e re."
     },
     "fields": {
-      "firstName": "Emri *",
+      "firstName": "Emri",
       "firstNamePlain": "Emri",
-      "lastName": "Mbiemri *",
+      "lastName": "Mbiemri",
       "lastNamePlain": "Mbiemri",
-      "email": "E-mail *",
+      "email": "E-mail",
       "phone": "Telefoni",
-      "phoneRequired": "Telefoni *",
       "emailPlain": "E-mail",
-      "dateOfBirth": "Data e lindjes *",
-      "gradeLevel": "Klasa *",
+      "dateOfBirth": "Data e lindjes",
+      "gradeLevel": "Klasa",
       "schoolClass": "Klasa konkrete",
-      "schoolClassRequired": "Klasa konkrete *",
       "schoolClassOpen": "Klasa ende e pacaktuar",
       "choose": "Ju lutemi zgjidhni",
       "grade": "Klasa {grade}"
@@ -1263,6 +1261,7 @@
       "submitting": "Duke dërguar…",
       "previewSubmit": "Parapamje, mos dërgo",
       "showMore": "Shfaq më shumë",
+      "notice": "Njoftim",
       "details": "Detaje",
       "detailsAria": "Shfaq detajet për {title}"
     },
@@ -3300,6 +3299,9 @@
         "disabled": "Nuk keni qasje te: {object}. Kontaktoni shkollën."
       },
       "staff": {
+        "exit_already_due": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+        "exit_day_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+        "exit_not_planned": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
         "external_access_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_email_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
         "external_email_invited": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",

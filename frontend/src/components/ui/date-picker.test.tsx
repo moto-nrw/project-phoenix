@@ -974,6 +974,7 @@ describe("ISODatePicker name", () => {
         name="start_date"
         value="2026-10-12"
         onChange={() => undefined}
+        invalid
       />,
     );
 
@@ -984,6 +985,10 @@ describe("ISODatePicker name", () => {
     // The shared error path focuses the trigger right after the hidden input.
     expect(hidden?.nextElementSibling?.querySelector("button")?.id).toBe(
       "closing-day-start",
+    );
+    expect(screen.getByRole("button", { name: "15.01.2024" })).toHaveAttribute(
+      "data-form-invalid",
+      "true",
     );
   });
 });

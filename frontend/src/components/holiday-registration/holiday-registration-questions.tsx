@@ -68,6 +68,7 @@ export function HolidayQuestions({
             renderStructured={() =>
               field.type === "date" ? (
                 <CustomDateFieldInput
+                  inputName={name}
                   field={field}
                   value={answers[field.key]}
                   onChange={(value) => onChange(field.key, value)}

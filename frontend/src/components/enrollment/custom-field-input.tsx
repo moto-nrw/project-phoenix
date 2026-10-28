@@ -1,20 +1,23 @@
 "use client";
 
-// Die Renderer-Bausteine des Formular-Baukastens (#5198): eine Frage mit
-// einfachem Typ (Ja/Nein, Text, langer Text, Auswahl, Zahl) und ein
-// Infotext. Datum und die strukturierten Typen der Online-Anmeldung kommen
-// über `renderStructured` (Datum: `custom-date-field-input.tsx`), damit die
-// Ferienanmeldung den Kalender und die strukturierten Eingaben nicht lädt.
-
-import type { ReactNode } from "react";
 import { AttachmentList } from "~/components/enrollment/attachment-list";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
+import { Radio } from "~/components/ui/radio";
+import { Textarea } from "~/components/ui/textarea";
+import type { ReactNode } from "react";
 import type { FormField } from "~/lib/enrollment-form-schema-api";
 
-/** Reads the texts of `enrollmentForm` the renderer needs. */
 type FieldInputTranslator = (key: string) => string;
-
-/** A read-only text block of a form: heading, text and attachments. */
+/**
+ * Read-only information block (FormFieldInfo). Renders an optional heading +
+ * plain-text body to parents; collects no answer. Newlines in the body are
+ * preserved via `whitespace-pre-line`. Content is plain text by design (no
+ * HTML/markdown), so it is safe to render directly.
+ */
 export function InfoBlock({ field }: { readonly field: FormField }) {
   return (
     <div className="border-moto-blue/20 bg-moto-blue/5 rounded-lg border p-3">
@@ -31,20 +34,12 @@ export function InfoBlock({ field }: { readonly field: FormField }) {
   );
 }
 
-/** The question with its required marker and help text. */
-export function CustomFieldLabel({ field }: { readonly field: FormField }) {
+function HelpText({ text }: { readonly text?: string }) {
+  if (!text) return null;
   return (
-    <>
-      <span className="block text-sm font-semibold text-gray-700">
-        {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </span>
-      {field.help_text && (
-        <span className="mt-1 block text-xs leading-5 text-gray-500">
-          {field.help_text}
-        </span>
-      )}
-    </>
+    <span className="-mt-1 mb-2 block text-xs leading-5 text-gray-500">
+      {text}
+    </span>
   );
 }
 
@@ -75,7 +70,6 @@ const SIMPLE_TYPES = new Set<FormField["type"]>([
   "number",
 ]);
 
-/** One answer-collecting question with its label, help text and error. */
 export function CustomFieldInput({
   field,
   inputName,
@@ -83,77 +77,93 @@ export function CustomFieldInput({
   onChange,
   error,
   tr,
+  controlId: suppliedControlId,
   renderStructured,
 }: CustomFieldInputProps) {
-  if (!SIMPLE_TYPES.has(field.type)) {
-    return renderStructured?.() ?? null;
-  }
-  const labelEl = <CustomFieldLabel field={field} />;
+  if (!SIMPLE_TYPES.has(field.type)) return renderStructured?.() ?? null;
+  const controlId = suppliedControlId ?? `enrollment-${inputName}`;
+  const errorId = `${controlId}-error`;
   const valueStr = typeof value === "string" ? value : "";
-
   if (field.type === "boolean") {
     const selectedValue = value === true ? "yes" : value === false ? "no" : "";
     return (
-      <fieldset aria-invalid={error ? "true" : undefined}>
-        {labelEl}
-        <div className="mt-2 grid grid-cols-2 gap-2">
+      <fieldset
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? errorId : undefined}
+      >
+        <legend className="mb-2 block text-sm font-medium text-gray-700">
+          {field.label}
+          {field.required && <RequiredMark />}
+        </legend>
+        <HelpText text={field.help_text} />
+        <div className="grid grid-cols-2 gap-2">
           {[
             { label: tr("structured.yes"), value: "yes", raw: true },
             { label: tr("structured.no"), value: "no", raw: false },
           ].map((option) => (
-            <label
+            <ChoiceTile
               key={option.value}
-              className={`flex h-10 cursor-pointer items-center justify-center rounded-lg border px-3 text-sm font-medium transition-colors ${
-                selectedValue === option.value
-                  ? "border-gray-900 bg-gray-900 text-white"
-                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-              }`}
+              selected={selectedValue === option.value}
+              className="h-10 justify-center py-0"
             >
-              <input
-                type="radio"
+              <Radio
                 name={inputName}
                 value={option.value}
                 checked={selectedValue === option.value}
                 onChange={() => onChange(option.raw)}
-                className="sr-only"
               />
               {option.label}
-            </label>
+            </ChoiceTile>
           ))}
         </div>
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+        <FieldErrorHint id={errorId} message={error} />
       </fieldset>
     );
   }
   if (field.type === "textarea") {
     return (
-      <label className="block">
-        {labelEl}
-        <textarea
+      <div>
+        <FieldLabel
+          htmlFor={controlId}
+          required={field.required}
+          invalid={Boolean(error)}
+        >
+          {field.label}
+        </FieldLabel>
+        <HelpText text={field.help_text} />
+        <Textarea
+          id={controlId}
+          name={inputName}
           value={valueStr}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          name={inputName}
-          className={`moto-content-surface mt-1 w-full rounded-lg border px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
-          aria-required={field.required}
-          aria-invalid={error ? "true" : undefined}
+          required={field.required}
+          error={error}
         />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </label>
+      </div>
     );
   }
   if (field.type === "select") {
     return (
-      <label className="block">
-        {labelEl}
+      <div>
+        <FieldLabel
+          htmlFor={controlId}
+          id={`${controlId}-label`}
+          required={field.required}
+          invalid={Boolean(error)}
+        >
+          {field.label}
+        </FieldLabel>
+        <HelpText text={field.help_text} />
         <CustomSelect
-          ariaLabel={field.label}
+          ariaLabelledBy={`${controlId}-label`}
+          id={controlId}
           value={valueStr}
           onChange={onChange}
           name={inputName}
           required={field.required}
           invalid={Boolean(error)}
-          className="mt-1"
+          ariaDescribedBy={error ? errorId : undefined}
           options={[
             { value: "", label: tr("fields.choose") },
             ...(field.options ?? []).map((option) => ({
@@ -162,24 +172,30 @@ export function CustomFieldInput({
             })),
           ]}
         />
-        {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-      </label>
+        <FieldErrorHint id={errorId} message={error} />
+      </div>
     );
   }
-  const inputType = field.type === "number" ? "number" : "text";
   return (
-    <label className="block">
-      {labelEl}
-      <input
+    <div>
+      <FieldLabel
+        htmlFor={controlId}
+        required={field.required}
+        invalid={Boolean(error)}
+      >
+        {field.label}
+      </FieldLabel>
+      <HelpText text={field.help_text} />
+      <Input
+        id={controlId}
         name={inputName}
-        type={inputType}
+        type={field.type === "number" ? "number" : "text"}
+        controlSize="compact"
         value={valueStr}
         onChange={(e) => onChange(e.target.value)}
-        aria-required={field.required}
-        aria-invalid={error ? "true" : undefined}
-        className={`moto-content-surface mt-1 h-10 w-full rounded-lg border px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${error ? "border-moto-red!" : ""}`}
+        required={field.required}
+        error={error}
       />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
-    </label>
+    </div>
   );
 }

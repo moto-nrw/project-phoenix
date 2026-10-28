@@ -271,7 +271,7 @@ describe("Dienstarten — Kategorie-Zuordnung (#1837, #3114)", () => {
       screen.getAllByRole("button", { name: "Dienstart anlegen" })[0]!,
     );
     const modal = within(screen.getByRole("dialog"));
-    fireEvent.change(modal.getByLabelText("Name*"), {
+    fireEvent.change(modal.getByLabelText("Name"), {
       target: { value: "Neue Dienstart" },
     });
     fireEvent.change(modal.getByLabelText("Beschreibung"), {

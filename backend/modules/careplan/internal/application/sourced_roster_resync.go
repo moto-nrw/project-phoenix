@@ -152,6 +152,10 @@ func (m *BookingMaterialization) wantedSourcedRoster(
 	if err != nil {
 		return nil, nil, fmt.Errorf("offering roster resync: load template schedules: %w", err)
 	}
+	// The sources above are checked against the template's own period; the
+	// rows carry the period the template's instances materialize under, as
+	// the approval and correction feeds do (#5176).
+	in.CalendarPeriodID = sourcedRowPeriodID(in.CalendarPeriodID, schedules)
 	envelopeFrom, envelopeUntil := scheduleValidityBounds(schedules)
 	window := rosterWindow{phase: *sources.Phase, effectiveFrom: in.EffectiveFrom, envelopeFrom: envelopeFrom, envelopeUntil: envelopeUntil}
 	wanted, err = m.unionWantedSourcedRosterTargets(ctx, sources.Offerings, in, window)

@@ -1,48 +1,54 @@
 "use client";
-
-// Eine Datumsfrage des Formular-Baukastens (#5198). Eigene Datei, weil der
-// Kalender mit seinen Sprachen groß ist: Die Ferienanmeldung lädt ihn erst,
-// wenn das Formular eine Datumsfrage hat.
-
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
+import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
-import {
-  CustomFieldLabel,
-  type CustomFieldInputProps,
-} from "./custom-field-input";
-
+import type { CustomFieldInputProps } from "./custom-field-input";
 export function CustomDateFieldInput({
   field,
+  inputName,
   value,
   onChange,
   error,
   controlId,
 }: Pick<
   CustomFieldInputProps,
-  "field" | "value" | "onChange" | "error" | "controlId"
+  "field" | "inputName" | "value" | "onChange" | "error" | "controlId"
 >) {
+  const dateId = controlId ?? `enrollment-${inputName}`;
+  const errorId = `${dateId}-error`;
   const datePicker = useLocalizedDatePicker();
-  const dateId = controlId ?? `enrollment-${field.key}`;
+  const valueStr = typeof value === "string" ? value : "";
   return (
-    <div className="block">
-      <label htmlFor={dateId}>
-        <CustomFieldLabel field={field} />
-      </label>
+    <div>
+      <FieldLabel
+        htmlFor={dateId}
+        required={field.required}
+        invalid={Boolean(error)}
+      >
+        {field.label}
+      </FieldLabel>
+      {field.help_text ? (
+        <span className="-mt-1 mb-2 block text-xs leading-5 text-gray-500">
+          {field.help_text}
+        </span>
+      ) : null}
       <ISODatePicker
         {...datePicker}
         id={dateId}
+        name={inputName}
         controlSize="md"
-        value={typeof value === "string" ? value : ""}
+        value={valueStr}
         onChange={onChange}
         invalid={Boolean(error)}
-        className="mt-1"
+        ariaDescribedBy={error ? errorId : undefined}
         calendarLayout="popover"
-        // A form-defined date field can be anything from a birthday to a
+        // A school-defined date field can be anything from a birthday to a
         // future appointment, so the year dropdown stays available and no
         // bound is imposed.
         monthYearNavigation
       />
-      {error && <p className="text-moto-red mt-1 text-xs">{error}</p>}
+      <FieldErrorHint id={errorId} message={error} />
     </div>
   );
 }

@@ -151,15 +151,15 @@ function type(input: HTMLElement, value: string) {
 
 /** Fills a complete registration of one holiday guest. */
 function fillRegistration() {
-  const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname *");
-  const [childLast, guardianLast] = screen.getAllByLabelText("Nachname *");
+  const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname");
+  const [childLast, guardianLast] = screen.getAllByLabelText("Nachname");
   type(childFirst!, "Ben");
   type(childLast!, "Muster");
   choose(screen.getByRole("combobox", { name: "Tag" }), "4");
   choose(screen.getByRole("combobox", { name: "Monat" }), "Mai");
   choose(screen.getByRole("combobox", { name: "Jahr" }), "2017");
   choose(
-    screen.getByRole("combobox", { name: "Schule *" }),
+    screen.getByRole("combobox", { name: "Schule" }),
     "Eine andere Schule",
   );
   expect(screen.getByText(/Ihr Kind kommt als Feriengast/)).toBeInTheDocument();
@@ -169,10 +169,10 @@ function fillRegistration() {
   );
   type(guardianFirst!, "Eva");
   type(guardianLast!, "Muster");
-  type(screen.getByLabelText("E-Mail-Adresse *"), "eva@example.org");
-  type(screen.getAllByLabelText("Telefon *")[0]!, "0151 1");
-  type(screen.getAllByLabelText("Name *")[0]!, "Oma Muster");
-  type(screen.getAllByLabelText("Telefon *")[1]!, "05402 1");
+  type(screen.getByLabelText("E-Mail-Adresse"), "eva@example.org");
+  type(screen.getAllByLabelText("Telefon")[0]!, "0151 1");
+  type(screen.getAllByLabelText("Name")[0]!, "Oma Muster");
+  type(screen.getAllByLabelText("Telefon")[1]!, "05402 1");
   fireEvent.click(
     screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
   );
@@ -386,7 +386,7 @@ describe("HolidayRegistrationForm", () => {
     mockSubmit.mockResolvedValue(undefined);
     renderForm(family);
 
-    expect(screen.getByLabelText("E-Mail-Adresse *")).toHaveValue(
+    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
       "sabine@example.org",
     );
     const known = screen.getByRole("checkbox", { name: /Felix Schneider/ });
@@ -395,7 +395,7 @@ describe("HolidayRegistrationForm", () => {
     ).toBeInTheDocument();
     fireEvent.click(known);
     expect(known).toBeChecked();
-    const childFirst = screen.getAllByLabelText("Vorname *")[0]!;
+    const childFirst = screen.getAllByLabelText("Vorname")[0]!;
     expect(childFirst).toHaveValue("Felix");
     expect(screen.getAllByText("Kind 1")).toHaveLength(1);
     type(childFirst, "Feli");
@@ -404,8 +404,8 @@ describe("HolidayRegistrationForm", () => {
       screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
       "bis 13 Uhr (08:00 bis 13:00 Uhr)",
     );
-    type(screen.getAllByLabelText("Name *")[0]!, "Oma Schneider");
-    type(screen.getAllByLabelText("Telefon *")[1]!, "05402 2");
+    type(screen.getAllByLabelText("Name")[0]!, "Oma Schneider");
+    type(screen.getAllByLabelText("Telefon")[1]!, "05402 2");
     fireEvent.click(
       screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
     );
@@ -449,10 +449,10 @@ describe("HolidayRegistrationForm", () => {
     renderForm(family);
     const known = screen.getByRole("checkbox", { name: /Felix Schneider/ });
     fireEvent.click(known);
-    expect(screen.getAllByLabelText("Vorname *")[0]).toHaveValue("Felix");
+    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("Felix");
     fireEvent.click(known);
     expect(known).not.toBeChecked();
-    expect(screen.getAllByLabelText("Vorname *")[0]).toHaveValue("");
+    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("");
   });
 
   it("offers no known children without a parent account", () => {
@@ -488,8 +488,8 @@ describe("second guardian card", () => {
     expect(lastName).not.toBeRequired();
     const phone = second.getByLabelText("Telefon (freiwillig)");
     type(phone, "0151 2345678");
-    expect(second.getByLabelText("Vorname *")).toBeRequired();
-    expect(second.getByLabelText("Nachname *")).toBeRequired();
+    expect(second.getByLabelText("Vorname")).toBeRequired();
+    expect(second.getByLabelText("Nachname")).toBeRequired();
     type(phone, " ");
     expect(firstName).not.toBeRequired();
     expect(lastName).not.toBeRequired();

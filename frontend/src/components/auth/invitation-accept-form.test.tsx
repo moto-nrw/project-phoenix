@@ -791,8 +791,9 @@ describe("InvitationAcceptForm", () => {
         ).toBeInTheDocument();
       });
 
-      const passwordLabel = screen.getByText("Passwort");
-      expect(passwordLabel.className).toContain("text-moto-red");
+      // The colour sits on the FieldLabel wrapper around the <label>.
+      const passwordLabel = screen.getByText("Passwort").parentElement;
+      expect(passwordLabel?.className).toContain("text-moto-red");
     });
   });
 });

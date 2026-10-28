@@ -2930,6 +2930,24 @@
       "legacy": "settings.presence_mode_switch_blocked"
     },
     {
+      "code": "staff.exit_already_due",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.exit_already_due"
+    },
+    {
+      "code": "staff.exit_day_in_past",
+      "class": "input",
+      "parameters": [],
+      "legacy": "staff.exit_day_in_past"
+    },
+    {
+      "code": "staff.exit_not_planned",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "staff.exit_not_planned"
+    },
+    {
       "code": "staff.external_access_invalid",
       "class": "input",
       "parameters": [],

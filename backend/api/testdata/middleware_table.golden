@@ -142,6 +142,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	DELETE /api/meal-caterer/invitations/{invitationId}
 	DELETE /api/meal-caterer/supply
 	DELETE /api/meal-plan/participation/{studentId}/days/{date}
+	DELETE /api/staff/{id}/planned-exit
 	GET /api/holiday-guests/{studentId}
 	GET /api/holiday-weeks/
 	GET /api/meal-caterer/
@@ -165,6 +166,7 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	POST /api/timetable/templates/{id}/students/{studentId}/remove-days
 	PUT /api/meal-plan/participation/{studentId}/days/{date}
 	PUT /api/meal-plan/participation/{studentId}/schedule
+	PUT /api/staff/{id}/planned-exit
 	PUT /api/timetable/operations/instances/{id}/students/{student_id}/homework-feedback
 	PUT /api/timetable/templates/{id}/manual-roster
 

@@ -81,6 +81,9 @@ type Staff struct {
 	// these people out; supervision pickers offer them.
 	HasExternalCaregiverRecord bool   `json:"has_external_caregiver_record"`
 	ExternalOrganization       string `json:"external_organization,omitempty"`
+	// PlannedExit is the planned last working day of a live member (#4809),
+	// nil when no exit is planned.
+	PlannedExit *PlannedExit `json:"-"`
 }
 
 func (s Staff) IsDeleted() bool { return s.DeletedAt != nil }
@@ -191,6 +194,9 @@ type StaffFilter struct {
 	// values carry ID, person, tenant and lifecycle only. Callers that read no
 	// employment field set it and save a statement.
 	MembershipOnly bool
+	// PlannedExitOnly lists only the live members with a planned exit
+	// (#4809).
+	PlannedExitOnly bool
 }
 
 // TeacherFilter narrows a teacher listing. The *Contains matches are

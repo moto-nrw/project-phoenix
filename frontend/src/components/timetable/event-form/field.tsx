@@ -1,5 +1,5 @@
-import { timetableRequiredMark } from "../timetable-style";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel } from "~/components/ui/field-label";
 
 export function Field({
   label,
@@ -18,10 +18,14 @@ export function Field({
   children: React.ReactNode;
 }) {
   const labelEl = (
-    <label htmlFor={htmlFor} className="text-xs font-semibold text-gray-700">
+    <FieldLabel
+      htmlFor={htmlFor}
+      required={required}
+      invalid={Boolean(error)}
+      className="mb-0 text-xs font-semibold"
+    >
       {label}
-      {required && <span className={timetableRequiredMark}>*</span>}
-    </label>
+    </FieldLabel>
   );
 
   return (

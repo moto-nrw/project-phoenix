@@ -29,7 +29,6 @@ import {
   AttachmentEditor,
   AttachmentUploadContext,
 } from "~/components/enrollment/attachment-editor";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import {
   applyFileFieldRules,
   createIncomeDeclarationFields,
@@ -100,6 +99,7 @@ import {
   PreviewAttachmentNames,
   PreviewFieldsSection,
   PreviewSection,
+  type PreviewFieldLabel,
   fieldErrorProps,
   fieldTypeLabels,
   normalizeFieldKey,
@@ -2218,21 +2218,18 @@ function BuilderTemplateSummary({
         </div>
 
         <div className="space-y-3">
-          <label className="block">
-            <span className="text-xs font-medium text-gray-700">
-              Name der Vorlage
-            </span>
-            <input
-              type="text"
-              value={name}
-              onChange={(event) => onNameChange(event.target.value)}
-              placeholder="z. B. Ferienbetreuung Sommer 2026"
-              disabled={saving}
-              {...nameError.controlProps}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100 disabled:text-gray-600"
-            />
-          </label>
-          <FieldErrorHint id={nameError.hintId} message={nameError.message} />
+          <Input
+            id={nameError.controlId}
+            name={nameError.controlProps.name}
+            type="text"
+            label="Name der Vorlage"
+            controlSize="compact"
+            value={name}
+            onChange={(event) => onNameChange(event.target.value)}
+            placeholder="z. B. Ferienbetreuung Sommer 2026"
+            disabled={saving}
+            error={nameError.message}
+          />
           {!isCreating ? (
             <div className="flex flex-wrap content-start gap-2 text-xs text-gray-600">
               <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
@@ -2570,44 +2567,47 @@ function LegalBlocksSection({
           </p>
           <div className="flex flex-wrap gap-2">
             {onReset ? (
-              <button
+              <Button
                 type="button"
                 onClick={onReset}
                 disabled={disabled}
-                className="inline-flex h-8 w-fit items-center rounded-lg px-2 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                variant="ghost"
+                size="compact"
+                className="w-fit text-sm"
               >
                 Einstellungen wieder verwenden
-              </button>
+              </Button>
             ) : null}
             {onRemove ? (
-              <button
+              <Button
                 type="button"
                 onClick={onRemove}
                 disabled={disabled}
-                className="text-moto-red-strong hover:bg-moto-red/10 inline-flex h-8 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50"
+                variant="ghost"
+                size="compact"
+                className="text-moto-red-strong hover:bg-moto-red/10 hover:text-moto-red-strong w-fit gap-2 text-sm"
               >
                 <Trash2 className="h-4 w-4" aria-hidden="true" />
                 Entfernen
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>
 
         <div className="mt-3">
-          <label className="block">
-            <span className="text-xs font-medium text-gray-700">Titel</span>
-            <input
-              type="text"
-              value={block.title}
-              disabled={disabled}
-              onChange={(event) =>
-                updateBlock(index, { title: event.target.value })
-              }
-              {...titleError.controlProps}
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:bg-gray-100"
-            />
-          </label>
-          <FieldErrorHint id={titleError.hintId} message={titleError.message} />
+          <Input
+            id={titleError.controlId}
+            name={titleError.controlProps.name}
+            type="text"
+            label="Titel"
+            controlSize="compact"
+            value={block.title}
+            disabled={disabled}
+            onChange={(event) =>
+              updateBlock(index, { title: event.target.value })
+            }
+            error={titleError.message}
+          />
         </div>
 
         <div className="mt-3">
@@ -2999,15 +2999,16 @@ function AGBTemplateSourceEditor({
                 </a>
               ) : null}
               {hasDocument ? (
-                <button
+                <Button
                   type="button"
                   onClick={onDocumentRemove}
                   disabled={disabled || documentSaving}
-                  className="border-moto-red/20 text-moto-red-strong hover:bg-moto-red/10 inline-flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1.5 font-medium shadow-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50"
+                  variant="outline_danger"
+                  size="compact"
                 >
                   <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Entfernen</span>
-                </button>
+                </Button>
               ) : null}
             </div>
           </div>
@@ -3327,11 +3328,11 @@ function FormPreview({
     isSaved,
   });
   const enabledLegalBlocks = legalBlocks.filter((block) => block.enabled);
-  const guardianFields = [
-    "Vorname *",
-    "Nachname *",
-    "E-Mail *",
-    coreRequirements.guardian_phone ? "Telefonnummer *" : "Telefonnummer",
+  const guardianFields: PreviewFieldLabel[] = [
+    { label: "Vorname", required: true },
+    { label: "Nachname", required: true },
+    { label: "E-Mail", required: true },
+    { label: "Telefonnummer", required: coreRequirements.guardian_phone },
   ];
 
   return (
@@ -3415,7 +3416,12 @@ function FormPreview({
       <PreviewSection title="Elternteil" fields={guardianFields} />
       <PreviewSection
         title="Kind"
-        fields={["Vorname *", "Nachname *", "Geburtsdatum *", "Klassenstufe *"]}
+        fields={[
+          { label: "Vorname", required: true },
+          { label: "Nachname", required: true },
+          { label: "Geburtsdatum", required: true },
+          { label: "Klassenstufe", required: true },
+        ]}
       />
       <PreviewSection
         title="Betreuungsangebot"
