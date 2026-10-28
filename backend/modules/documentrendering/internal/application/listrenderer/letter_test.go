@@ -8,6 +8,7 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"os"
 	"slices"
 	"strings"
 	"testing"
@@ -116,14 +117,23 @@ func TestRenderLetterWritesAPDFWithLogo(t *testing.T) {
 
 	img := image.NewRGBA(image.Rect(0, 0, 300, 100))
 	img.Set(1, 1, color.RGBA{R: 0x21, G: 0x7A, B: 0x78, A: 0xFF})
-	var pngLogo, jpegLogo bytes.Buffer
+	var pngLogo, jpegLogo, png16Logo bytes.Buffer
+	img16 := image.NewNRGBA64(image.Rect(0, 0, 32, 16))
+	img16.SetNRGBA64(1, 1, color.NRGBA64{R: 0x2121, G: 0x7a7a, B: 0x7878, A: 0xffff})
+	if err := png.Encode(&png16Logo, img16); err != nil {
+		t.Fatal(err)
+	}
 	if err := png.Encode(&pngLogo, img); err != nil {
 		t.Fatal(err)
 	}
 	if err := jpeg.Encode(&jpegLogo, img, nil); err != nil {
 		t.Fatal(err)
 	}
-	for name, logo := range map[string][]byte{"png": pngLogo.Bytes(), "jpeg": jpegLogo.Bytes()} {
+	interlaced, err := os.ReadFile("../../../../../testdata/interlaced-logo.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, logo := range map[string][]byte{"png": pngLogo.Bytes(), "jpeg": jpegLogo.Bytes(), "interlaced": interlaced, "16-bit": png16Logo.Bytes()} {
 		letter := sampleLetter()
 		letter.Logo = logo
 		_, trace := traceLetter(t, letter)

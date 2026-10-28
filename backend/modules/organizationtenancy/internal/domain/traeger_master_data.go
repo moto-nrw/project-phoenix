@@ -81,6 +81,7 @@ func ValidPhone(phone string) bool { return phonePattern.MatchString(phone) }
 
 // LogoImage is a checked logo.
 type LogoImage struct {
+	Data          []byte
 	ContentType   string
 	Width, Height int
 }
@@ -117,10 +118,21 @@ func CheckLogo(data []byte, maxBytes, maxDimension int) (LogoImage, bool) {
 	if err != nil || config.Width <= 0 || config.Height <= 0 || config.Width > maxDimension || config.Height > maxDimension {
 		return LogoImage{}, false
 	}
-	if _, err := decode(bytes.NewReader(data)); err != nil {
+	decoded, err := decode(bytes.NewReader(data))
+	if err != nil {
 		return LogoImage{}, false
 	}
-	return LogoImage{ContentType: contentType, Width: config.Width, Height: config.Height}, true
+	// PNG encoding removes Adam7 interlacing; NRGBA also reduces 16-bit
+	// channels to the 8-bit samples supported by document renderers.
+	// JPEG stays byte-for-byte intact to avoid lossy recompression.
+	if contentType == "image/png" {
+		var normalized bytes.Buffer
+		if err := png.Encode(&normalized, image8Bit(decoded)); err != nil || normalized.Len() > maxBytes {
+			return LogoImage{}, false
+		}
+		data = normalized.Bytes()
+	}
+	return LogoImage{Data: data, ContentType: contentType, Width: config.Width, Height: config.Height}, true
 }
 
 // TraegerLogoWrite is a checked logo image.
@@ -155,4 +167,21 @@ type TraegerMasterDataAuditEntry struct {
 	OldValue       json.RawMessage
 	NewValue       json.RawMessage
 	ActorAccountID int64
+}
+
+// image8Bit only converts PNG types whose 16-bit samples gopdf cannot read.
+// Keep 8-bit and palette images intact, including their alpha values.
+func image8Bit(source image.Image) image.Image {
+	switch source.(type) {
+	case *image.Gray16, *image.RGBA64, *image.NRGBA64:
+		pixels := image.NewNRGBA(source.Bounds())
+		for y := pixels.Bounds().Min.Y; y < pixels.Bounds().Max.Y; y++ {
+			for x := pixels.Bounds().Min.X; x < pixels.Bounds().Max.X; x++ {
+				pixels.Set(x, y, source.At(x, y))
+			}
+		}
+		return pixels
+	default:
+		return source
+	}
 }
