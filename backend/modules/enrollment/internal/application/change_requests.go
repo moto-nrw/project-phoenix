@@ -423,35 +423,9 @@ func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, inpu
 	var req *Request
 	var impacts []enrollmentNative.ChildRosterImpact
 	if err := s.withLockedChangeRequest(ctx, changeRequestID, func(txCtx context.Context, row *ChangeRequest) error {
-		if row.Status != enrollmentNative.ChangeRequestStatusPendingReview {
-			return enrollmentNative.ErrChangeRequestInvalidStatus
-		}
-		loadedReq, err := s.requestByID(txCtx, row.RequestID, false)
-		if err != nil {
-			return err
-		}
-		req = loadedReq
-		if outcome.apply != nil {
-			applied, err := outcome.apply(txCtx, row, input)
-			if err != nil {
-				return err
-			}
-			impacts = applied
-		}
-		var decisionNote *string
-		if note != "" {
-			decisionNote = &note
-		}
-		if err := s.deps.Requests.MarkChangeRequestReviewed(txCtx, row.ID, outcome.status, decisionNote, input.ActorAccountID, time.Now()); err != nil {
-			return err
-		}
-		if decisionNote == nil {
-			return nil
-		}
-		actorID := input.ActorAccountID
-		return s.deps.Requests.InsertChangeRequestMessage(txCtx, &enrollmentNative.ChangeRequestMessage{
-			ChangeRequestID: row.ID, AuthorType: enrollmentNative.ChangeRequestMessageAuthorStaff, AuthorAccountID: &actorID, Body: note,
-		})
+		var reviewErr error
+		req, impacts, reviewErr = s.reviewLockedChangeRequest(txCtx, row, input, outcome, note)
+		return reviewErr
 	}); err != nil {
 		return nil, err
 	}
@@ -463,6 +437,46 @@ func (s *ChangeRequests) review(ctx context.Context, changeRequestID int64, inpu
 		aggregate.RosterImpacts = impacts
 	}
 	return aggregate, err
+}
+
+// reviewLockedChangeRequest applies one decision while the parent request and
+// change-request row are locked by withLockedChangeRequest.
+func (s *ChangeRequests) reviewLockedChangeRequest(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput, outcome reviewOutcome, note string) (*Request, []enrollmentNative.ChildRosterImpact, error) {
+	if row.Status != enrollmentNative.ChangeRequestStatusPendingReview {
+		return nil, nil, enrollmentNative.ErrChangeRequestInvalidStatus
+	}
+	req, err := s.requestByID(ctx, row.RequestID, false)
+	if err != nil {
+		return nil, nil, err
+	}
+	impacts, err := applyReviewOutcome(ctx, row, input, outcome)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.recordChangeRequestReview(ctx, row.ID, outcome.status, note, input.ActorAccountID); err != nil {
+		return nil, nil, err
+	}
+	return req, impacts, nil
+}
+
+func applyReviewOutcome(ctx context.Context, row *ChangeRequest, input enrollmentNative.ReviewChangeRequestInput, outcome reviewOutcome) ([]enrollmentNative.ChildRosterImpact, error) {
+	if outcome.apply == nil {
+		return nil, nil
+	}
+	return outcome.apply(ctx, row, input)
+}
+
+func (s *ChangeRequests) recordChangeRequestReview(ctx context.Context, changeRequestID int64, status, note string, actorAccountID int64) error {
+	decisionNote := trimToNil(note)
+	if err := s.deps.Requests.MarkChangeRequestReviewed(ctx, changeRequestID, status, decisionNote, actorAccountID, time.Now()); err != nil {
+		return err
+	}
+	if decisionNote == nil {
+		return nil
+	}
+	return s.deps.Requests.InsertChangeRequestMessage(ctx, &enrollmentNative.ChangeRequestMessage{
+		ChangeRequestID: changeRequestID, AuthorType: enrollmentNative.ChangeRequestMessageAuthorStaff, AuthorAccountID: &actorAccountID, Body: *decisionNote,
+	})
 }
 
 // requestByID reads a request; a missing one is ErrRequestNotFound.

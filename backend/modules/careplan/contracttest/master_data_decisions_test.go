@@ -353,7 +353,9 @@ func TestMasterDataReview_ConcurrentDecisionsKeepStatusAndRecordConsistent(t *te
 		wg.Add(1)
 		go func(idx int, approve bool) {
 			defer wg.Done()
-			_, errs[idx] = f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: approve})
+			// A reason makes both decisions reach the locked-row race; a rejection
+			// without one is rejected before the concurrency contract is exercised.
+			_, errs[idx] = f.decide(t, svc, masterdatarequests.DecideInput{RequestID: row.ID, Approve: approve, Reason: "Gleichzeitig geprüft"})
 		}(i, approve)
 	}
 	wg.Wait()
