@@ -169,7 +169,7 @@ func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education sch
 		panic("staff membership runtime: identity offboarding and role administration are required")
 	}
 	workflow := newStaffOffboardingWorkflow(hub, identity, offboarding, logger, hooks)
-	planner := newStaffExitPlanner(workflow, offboarding, nil)
+	planner := newStaffExitPlanner(workflow, offboarding)
 	person, persons := staffDirectoryPersons(users)
 	activeCaregivers, staffByRoles := membershipRoleRows(users)
 	createStaff, updateStaff := staffDirectoryWrites(users)
@@ -218,15 +218,13 @@ func bindStaffMembershipRuntime(users peoplePorts.PersonDirectory, education sch
 }
 
 // newStaffExitPlanner binds the planned exit of #4809 to the offboarding
-// workflow, School Membership's planned exits and the audit trail. notify
-// is the scheduler's notice; the request path plans without one.
-func newStaffExitPlanner(workflow *staffoffboarding.Workflow, offboarding offboardingcompose.Dependencies, notify func(context.Context, staffoffboarding.ExitNotice) (bool, error)) *staffoffboarding.Planner {
+// workflow, School Membership's planned exits and the audit trail.
+func newStaffExitPlanner(workflow *staffoffboarding.Workflow, offboarding offboardingcompose.Dependencies) *staffoffboarding.Planner {
 	planner, err := staffoffboarding.NewPlanner(workflow, staffoffboarding.PlannerDependencies{
 		AppendAudit: func(ctx context.Context, actor staffoffboarding.Actor, change staffoffboarding.ExitPlanChange) error {
 			return offboarding.Audit.Append(ctx, StaffExitPlanRecord(actor, change))
 		},
-		Notify: notify,
-		Now:    time.Now,
+		Now: time.Now,
 	})
 	if err != nil {
 		panic(err)

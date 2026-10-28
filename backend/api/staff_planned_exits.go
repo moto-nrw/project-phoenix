@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/render"
 
@@ -27,7 +28,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 )
 
@@ -55,8 +56,23 @@ func PlannedStaffExitsJob(db transactionruntime.Database, hub *realtime.Hub, log
 			// five-minute file cleanup picks it up (ADR 0013).
 			QueueOffboardedDocumentCleanup: cleanup.Enqueue,
 		})
-		planner := newStaffExitPlanner(workflow, offboarding, staffExitNotifier(notifications, staff, logger))
-		return planner.RunDue
+		due, err := staffoffboarding.NewDueExits(newStaffExitPlanner(workflow, offboarding), staffoffboarding.DueExitDependencies{
+			Notify: staffExitNotifier(notifications, staff, logger), Isolate: isolatePlannedExit, Now: time.Now,
+		})
+		if err != nil {
+			panic(err)
+		}
+		return func(ctx context.Context) error {
+			run, err := due.RunDue(ctx)
+			for staffID, failure := range run.Failed {
+				logger.Error("planned staff exit failed",
+					"tenant_id", tenant.FromContext(ctx),
+					"staff_id", staffID,
+					"error", failure,
+				)
+			}
+			return err
+		}
 	}
 }
 
@@ -81,11 +97,7 @@ func staffExitNotifier(notifications owners.DeliveryNotifications, staff owners.
 		if len(recipients) == 0 {
 			return true, nil
 		}
-		event, err := staffExitEvent(notice, recipients)
-		if err != nil {
-			return false, err
-		}
-		err = notifications.Notifier.Notify(ctx, event)
+		err = notifications.Notifier.Notify(ctx, staffExitEvent(notice, recipients))
 		if errors.Is(err, deliveryCompose.ErrNotificationsDisabled) || errors.Is(err, deliveryCompose.ErrOutsideNotificationWindow) {
 			logger.Debug("planned staff exit notice held back",
 				"staff_id", notice.StaffID,
@@ -109,40 +121,31 @@ func staffAccountIDs(holders []*peopleValues.StaffWithRoleInfo) []int64 {
 	return ids
 }
 
-// staffExitEvent is the notice text of #4809 in moto's plain German.
-func staffExitEvent(notice staffoffboarding.ExitNotice, recipients []int64) (deliveryCompose.NotificationEvent, error) {
-	day, err := calendar.ParseDate(notice.LastWorkingDay)
-	if err != nil {
-		return deliveryCompose.NotificationEvent{}, err
+// isolatePlannedExit runs one planned exit in a savepoint: its own failure
+// is rolled back and reported, a broken savepoint aborts the school's run.
+func isolatePlannedExit(ctx context.Context, fn func(context.Context) error) (failed, err error) {
+	failed = tenant.WithSavepoint(ctx, fn)
+	if errors.Is(failed, tenant.ErrSavepointControl) {
+		return nil, failed
 	}
-	var title, body string
-	switch notice.Kind {
-	case staffoffboarding.NoticeWeekBefore:
-		title = "Austritt in einer Woche"
-		body = "Am " + day.Format("02.01.2006") + " hat eine Person aus dem Team ihren letzten Arbeitstag. Danach endet ihr Zugang zu moto."
-	case staffoffboarding.NoticeExitDay:
-		title = "Heute letzter Arbeitstag"
-		body = "Heute hat eine Person aus dem Team ihren letzten Arbeitstag. Heute Nacht endet ihr Zugang zu moto."
-	case staffoffboarding.NoticeBlocked:
-		title = "Austritt wartet noch"
-		body = "Die Person führt noch eine Aufsicht oder hat eine Gruppe übernommen. Ihre Anmeldung ist schon gesperrt. Beenden Sie die Aufsicht oder Übernahme. moto versucht es jede Stunde wieder."
-	default:
-		return deliveryCompose.NotificationEvent{}, fmt.Errorf("unknown staff exit notice %q", notice.Kind)
-	}
+	return failed, nil
+}
+
+func staffExitEvent(notice staffoffboarding.ExitNotice, recipients []int64) deliveryCompose.NotificationEvent {
 	return deliveryCompose.NotificationEvent{
 		Type:           deliveryContract.NotificationStaffPlannedExit,
-		IdempotencyKey: fmt.Sprintf("staff-exit-%d-%s-%s", notice.StaffID, notice.LastWorkingDay, notice.Kind),
+		IdempotencyKey: notice.IdempotencyKey,
 		RelatedType:    "staff",
 		RelatedID:      notice.StaffID,
-		Title:          title,
-		Body:           body,
-		DeepLink:       fmt.Sprintf("/staff/%d", notice.StaffID),
+		Title:          notice.Title,
+		Body:           notice.Body,
+		DeepLink:       notice.DeepLink,
 		Audience: deliveryCompose.NotificationAudience{
 			TenantID:        notice.TenantID,
 			Scope:           deliveryCompose.NotificationAudienceScope("staff"),
 			StaffAccountIDs: recipients,
 		},
-	}, nil
+	}
 }
 
 // renderStaffExitFailure answers the refusals of a planned exit with their

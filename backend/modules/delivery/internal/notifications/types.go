@@ -378,7 +378,7 @@ func registerStaffMessageTypes() {
 	RegisterType(TypeDefinition{
 		Key:         TypeStaffPlannedExit,
 		Label:       "Austritte aus dem Team",
-		Description: "Eine Woche vor und am letzten Arbeitstag einer Person. Und wenn ihr Austritt noch nicht laufen kann.",
+		Description: "Eine Woche vor dem letzten Arbeitstag einer Person, am Tag selbst und wenn ihr Austritt warten muss.",
 		Group:       GroupMessages,
 		Portal:      PortalStaff,
 		Permission:  permissionUsersDelete,

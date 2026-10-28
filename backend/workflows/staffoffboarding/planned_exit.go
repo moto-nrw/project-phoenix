@@ -3,7 +3,6 @@ package staffoffboarding
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -24,9 +23,15 @@ var (
 
 // Retry and reminder timing of the planned exit, fixed by #4809.
 const (
-	PlannedExitRetryInterval = time.Hour
+	plannedExitRetryInterval = time.Hour
 	plannedExitWeekNotice    = 7
 )
+
+// inReminderWeek tells whether today is in the seven days before the last
+// working day.
+func inReminderWeek(today, day calendar.Date) bool {
+	return !today.Before(day.AddDays(-plannedExitWeekNotice))
+}
 
 // PlannedExits is School Membership's store of the planned exits, part of
 // the workflow's Membership port.
@@ -54,34 +59,15 @@ type ExitPlanChange struct {
 	NewDay  string
 }
 
-// Notice kinds of a planned exit.
-const (
-	NoticeWeekBefore = "week_before"
-	NoticeExitDay    = "exit_day"
-	NoticeBlocked    = "blocked"
-)
-
-// ExitNotice tells the Leitung about a planned exit. It names the staff
-// member by ID only; the recipients open the profile for the name.
-type ExitNotice struct {
-	Kind           string
-	TenantID       int64
-	StaffID        int64
-	LastWorkingDay string
-}
-
-// PlannerDependencies are the ports of the planned exit beyond the
-// offboarding itself. Notify reports whether the notice went out; a notice
-// the school's delivery settings hold back now (paused, outside the active
-// hours) is sent on a later run. Only RunDue notifies, so a planner that
-// serves requests alone may leave Notify nil. Now is the scheduler's clock.
+// PlannerDependencies are the ports of planning beyond the offboarding
+// itself: the audit trail of a planning step and the clock that stamps the
+// settled week reminder.
 type PlannerDependencies struct {
 	AppendAudit func(context.Context, Actor, ExitPlanChange) error
-	Notify      func(context.Context, ExitNotice) (bool, error)
 	Now         func() time.Time
 }
 
-// Planner plans, moves and withdraws exits and runs the due ones.
+// Planner plans, moves and withdraws exits; DueExits runs them.
 type Planner struct {
 	workflow *Workflow
 	exits    PlannedExits
@@ -190,111 +176,14 @@ func (p *Planner) today() (calendar.Date, error) {
 	return calendar.ParseDate(p.workflow.deps.Today())
 }
 
-// RunDue sends the reminders and runs the due exits of the school in ctx.
-// The caller holds the school's transaction; a failure other than a blocked
-// offboarding rolls the whole run back for the next attempt.
-func (p *Planner) RunDue(ctx context.Context) error {
-	if p.deps.Notify == nil {
-		return errors.New("staff offboarding planner: the due run needs a notifier")
-	}
-	today, err := p.today()
-	if err != nil {
-		return err
-	}
-	plans, err := p.exits.ListPlannedExits(ctx)
-	if err != nil {
-		return err
-	}
-	now := p.deps.Now()
-	for _, plan := range plans {
-		day, err := calendar.ParseDate(plan.LastWorkingDay)
-		if err != nil {
-			return err
-		}
-		switch {
-		case day.After(today):
-			err = p.remindWeekBefore(ctx, plan, today, day)
-		case day == today:
-			err = p.remindOnce(ctx, plan, NoticeExitDay, plan.DayNoticeSentAt, func(progress *schoolmembership.PlannedExitProgress, at *time.Time) {
-				progress.DayNoticeSentAt = at
-			})
-		case plan.NextAttemptAt == nil || !now.Before(*plan.NextAttemptAt):
-			err = p.runExit(ctx, plan, now)
-		}
-		if err != nil {
-			return fmt.Errorf("planned exit of staff %d: %w", plan.StaffID, err)
-		}
-	}
-	return nil
-}
-
 // settleWeekNotice marks the week-before reminder as done for an exit
 // planned inside that week: the planner just entered it.
 func (p *Planner) settleWeekNotice(ctx context.Context, plan schoolmembership.PlannedExit, today, day calendar.Date) error {
-	if today.Before(day.AddDays(-plannedExitWeekNotice)) {
+	if !inReminderWeek(today, day) {
 		return nil
 	}
 	now := p.deps.Now()
 	return p.exits.RecordPlannedExitProgress(ctx, schoolmembership.PlannedExitProgress{StaffID: plan.StaffID, LastWorkingDay: plan.LastWorkingDay, WeekNoticeSentAt: &now})
-}
-
-// remindWeekBefore sends the reminder from seven days before the last
-// working day on.
-func (p *Planner) remindWeekBefore(ctx context.Context, plan schoolmembership.PlannedExit, today, day calendar.Date) error {
-	if today.Before(day.AddDays(-plannedExitWeekNotice)) {
-		return nil
-	}
-	return p.remindOnce(ctx, plan, NoticeWeekBefore, plan.WeekNoticeSentAt, func(progress *schoolmembership.PlannedExitProgress, at *time.Time) {
-		progress.WeekNoticeSentAt = at
-	})
-}
-
-func (p *Planner) remindOnce(ctx context.Context, plan schoolmembership.PlannedExit, kind string, sentAt *time.Time, mark func(*schoolmembership.PlannedExitProgress, *time.Time)) error {
-	if sentAt != nil {
-		return nil
-	}
-	sent, err := p.deps.Notify(ctx, ExitNotice{Kind: kind, TenantID: plan.TenantID, StaffID: plan.StaffID, LastWorkingDay: plan.LastWorkingDay})
-	if err != nil || !sent {
-		return err
-	}
-	now := p.deps.Now()
-	progress := schoolmembership.PlannedExitProgress{StaffID: plan.StaffID, LastWorkingDay: plan.LastWorkingDay, NextAttemptAt: plan.NextAttemptAt}
-	mark(&progress, &now)
-	return p.exits.RecordPlannedExitProgress(ctx, progress)
-}
-
-// runExit offboards the member through the immediate deletion's execution
-// path, acting as the planner. A blocked offboarding closes the member's
-// sign-in at this school anyway, tells the Leitung once and is retried every
-// hour until it succeeds.
-func (p *Planner) runExit(ctx context.Context, plan schoolmembership.PlannedExit, now time.Time) error {
-	actor := Actor{
-		TenantID: plan.TenantID, AccountID: plan.PlannedByAccountID, StaffID: plan.PlannedByStaffID,
-		Username: plan.PlannedByName, PlannedExitDay: plan.LastWorkingDay,
-	}
-	asPlanner := func(context.Context) (Actor, error) { return actor, nil }
-	_, err := p.workflow.executeAs(ctx, "planned_exit", plan.StaffID, "", asPlanner)
-	if !errors.Is(err, ErrInUse) {
-		return err
-	}
-	next := now.Add(PlannedExitRetryInterval)
-	progress := schoolmembership.PlannedExitProgress{StaffID: plan.StaffID, LastWorkingDay: plan.LastWorkingDay, NextAttemptAt: &next}
-	if plan.AccessLockedAt == nil {
-		if err := p.workflow.closeAccess(ctx, plan.StaffID, asPlanner); err != nil {
-			return err
-		}
-		progress.AccessLockedAt = &now
-	}
-	if plan.BlockedNoticeSentAt == nil {
-		sent, err := p.deps.Notify(ctx, ExitNotice{Kind: NoticeBlocked, TenantID: plan.TenantID, StaffID: plan.StaffID, LastWorkingDay: plan.LastWorkingDay})
-		if err != nil {
-			return err
-		}
-		if sent {
-			progress.BlockedNoticeSentAt = &now
-		}
-	}
-	return p.exits.RecordPlannedExitProgress(ctx, progress)
 }
 
 // closeAccess runs only the Identity & Access step of the offboarding: the

@@ -6,7 +6,7 @@ import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { staffPlannedExitService } from "~/lib/staff-api";
 
@@ -38,7 +38,8 @@ export function PlannedExitModal({
   onClose,
   onSaved,
 }: PlannedExitModalProps) {
-  const today = todayISO();
+  // Der Austritt zählt nach Berliner Zeit, wie im Backend.
+  const today = berlinTodayISO();
   // Ein Vertragsende in der Vergangenheit ist kein Vorschlag mehr.
   const suggestion =
     contractEndDate && contractEndDate >= today ? contractEndDate : undefined;

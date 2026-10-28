@@ -2,12 +2,14 @@ package contracttest_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/stretchr/testify/assert"
@@ -49,13 +51,24 @@ func TestPlannedExit_BlockedClosesThisSchoolThenCompletes(t *testing.T) {
 	var notices []staffoffboarding.ExitNotice
 	workflow, err := api.NewStaffOffboardingWorkflow(sc.deps)
 	require.NoError(t, err)
-	run, err := staffoffboarding.NewPlanner(workflow, staffoffboarding.PlannerDependencies{
+	exitPlanner, err := staffoffboarding.NewPlanner(workflow, staffoffboarding.PlannerDependencies{
 		AppendAudit: func(ctx context.Context, actor staffoffboarding.Actor, change staffoffboarding.ExitPlanChange) error {
 			return sc.deps.Audit.Append(ctx, api.StaffExitPlanRecord(actor, change))
 		},
+		Now: time.Now,
+	})
+	require.NoError(t, err)
+	run, err := staffoffboarding.NewDueExits(exitPlanner, staffoffboarding.DueExitDependencies{
 		Notify: func(_ context.Context, notice staffoffboarding.ExitNotice) (bool, error) {
 			notices = append(notices, notice)
 			return true, nil
+		},
+		Isolate: func(ctx context.Context, fn func(context.Context) error) (error, error) {
+			failed := tenant.WithSavepoint(ctx, fn)
+			if errors.Is(failed, tenant.ErrSavepointControl) {
+				return nil, failed
+			}
+			return failed, nil
 		},
 		Now: time.Now,
 	})
@@ -63,7 +76,9 @@ func TestPlannedExit_BlockedClosesThisSchoolThenCompletes(t *testing.T) {
 	runDue := func() {
 		t.Helper()
 		_, err := testpkg.TenantQuery0(t, sc.ctx, sc.db, func(ctx context.Context) (struct{}, error) {
-			return struct{}{}, run.RunDue(ctx)
+			result, err := run.RunDue(ctx)
+			require.Empty(t, result.Failed)
+			return struct{}{}, err
 		})
 		require.NoError(t, err)
 	}

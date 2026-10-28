@@ -2,12 +2,14 @@ package staffoffboarding_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	membershipcompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/stretchr/testify/require"
@@ -26,10 +28,39 @@ type plannerFixture struct {
 	notices    []staffoffboarding.ExitNotice
 	accessRuns int
 	deletion   []staffoffboarding.Actor
-	exits      *schoolmembership.PlannedExits
+	// failDeletion makes the offboarding's audit append fail, which rolls
+	// the offboarding back like any owner failure.
+	failDeletion bool
+	exits        *schoolmembership.PlannedExits
 }
 
-func newPlannerFixture(t *testing.T) (*plannerFixture, *staffoffboarding.Planner) {
+// testPlanner plans through the workflow's Planner and runs the due exits
+// the way the scheduler does: inside one school transaction, every planned
+// exit in a savepoint. lastRun keeps the failures the run reported.
+type testPlanner struct {
+	*staffoffboarding.Planner
+	t       *testing.T
+	due     *staffoffboarding.DueExits
+	lastRun staffoffboarding.DueRun
+}
+
+func (p *testPlanner) RunDue(ctx context.Context) error {
+	db := testpkg.SetupTestDB(p.t)
+	return testpkg.WithinTenantContext(p.t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) (err error) {
+		p.lastRun, err = p.due.RunDue(txCtx)
+		return err
+	})
+}
+
+func isolate(ctx context.Context, fn func(context.Context) error) (failed, err error) {
+	failed = tenant.WithSavepoint(ctx, fn)
+	if errors.Is(failed, tenant.ErrSavepointControl) {
+		return nil, failed
+	}
+	return failed, nil
+}
+
+func newPlannerFixture(t *testing.T) (*plannerFixture, *testPlanner) {
 	t.Helper()
 	f := &plannerFixture{fixture: newFixture(t), today: "2027-10-01", notify: true,
 		now: calendar.NewDate(2027, 10, 1).BerlinMidnight().Add(9 * time.Hour)}
@@ -57,6 +88,9 @@ func newPlannerFixture(t *testing.T) (*plannerFixture, *staffoffboarding.Planner
 		return staffoffboarding.AccessResult{TokensRevoked: 1}, nil
 	}
 	f.deps.AppendAudit = func(_ context.Context, actor staffoffboarding.Actor, _ staffoffboarding.Result) error {
+		if f.failDeletion {
+			return errors.New("audit refused")
+		}
 		f.deletion = append(f.deletion, actor)
 		return nil
 	}
@@ -67,16 +101,21 @@ func newPlannerFixture(t *testing.T) (*plannerFixture, *staffoffboarding.Planner
 			f.changes = append(f.changes, change)
 			return nil
 		},
+		Now: func() time.Time { return f.now },
+	})
+	require.NoError(t, err)
+	due, err := staffoffboarding.NewDueExits(planner, staffoffboarding.DueExitDependencies{
 		Notify: func(_ context.Context, notice staffoffboarding.ExitNotice) (bool, error) {
 			if f.notify {
 				f.notices = append(f.notices, notice)
 			}
 			return f.notify, nil
 		},
-		Now: func() time.Time { return f.now },
+		Isolate: isolate,
+		Now:     func() time.Time { return f.now },
 	})
 	require.NoError(t, err)
-	return f, planner
+	return f, &testPlanner{Planner: planner, t: t, due: due}
 }
 
 func (f *plannerFixture) linkAccount(t *testing.T, accountID int64) {
@@ -246,4 +285,28 @@ func TestPlannedExitStaysInsideItsSchool(t *testing.T) {
 		require.NoError(t, err)
 		require.Empty(t, exits)
 	})
+}
+
+// A failing offboarding is reported and rolled back on its own; sign-in is
+// closed anyway and the next attempt waits an hour (#4809).
+func TestFailingPlannedExitClosesAccessAndIsReported(t *testing.T) {
+	t.Parallel()
+	f, planner := newPlannerFixture(t)
+	ctx := testpkg.Ctx(t)
+	_, err := planner.Plan(ctx, f.staffID, "2027-10-01")
+	require.NoError(t, err)
+	f.failDeletion = true
+
+	f.today = "2027-10-02"
+	f.now = calendar.NewDate(2027, 10, 2).BerlinMidnight().Add(5 * time.Minute)
+	require.NoError(t, planner.RunDue(ctx))
+	require.Contains(t, planner.lastRun.Failed, f.staffID)
+	require.False(t, f.retired(t), "the failed offboarding rolled back")
+	require.Equal(t, 2, f.accessRuns, "the rolled-back offboarding ran the access step, then the lock-out closed sign-in for good")
+	require.Empty(t, f.notices, "only a blocked exit has a notice of its own")
+	plan, err := f.exits.FindPlannedExitForMutation(ctx, f.staffID)
+	require.NoError(t, err)
+	require.NotNil(t, plan.AccessLockedAt)
+	require.NotNil(t, plan.NextAttemptAt)
+	require.True(t, plan.NextAttemptAt.Equal(f.now.Add(time.Hour)))
 }
