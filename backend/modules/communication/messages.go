@@ -35,17 +35,16 @@ var (
 )
 
 type staffGroupNameInvalidError struct {
+	error
 	maxCharacters int
-	cause         error
 }
 
-func (e staffGroupNameInvalidError) Error() string { return e.cause.Error() }
-func (e staffGroupNameInvalidError) Unwrap() error { return e.cause }
+func (e staffGroupNameInvalidError) Unwrap() error { return e.error }
 
 // NewStaffGroupNameInvalidError preserves the enforced name limit at the
 // public capability boundary.
 func NewStaffGroupNameInvalidError(maxCharacters int, cause error) error {
-	return staffGroupNameInvalidError{maxCharacters: maxCharacters, cause: cause}
+	return staffGroupNameInvalidError{error: cause, maxCharacters: maxCharacters}
 }
 
 // StaffGroupNameInvalidMaxCharacters returns the limit from a mapped group
@@ -59,17 +58,16 @@ func StaffGroupNameInvalidMaxCharacters(err error) (int, bool) {
 }
 
 type staffGroupTooLargeError struct {
+	error
 	maxMembers int
-	cause      error
 }
 
-func (e staffGroupTooLargeError) Error() string { return e.cause.Error() }
-func (e staffGroupTooLargeError) Unwrap() error { return e.cause }
+func (e staffGroupTooLargeError) Unwrap() error { return e.error }
 
 // NewStaffGroupTooLargeError preserves the enforced member limit at the
 // public capability boundary.
 func NewStaffGroupTooLargeError(maxMembers int, cause error) error {
-	return staffGroupTooLargeError{maxMembers: maxMembers, cause: cause}
+	return staffGroupTooLargeError{error: cause, maxMembers: maxMembers}
 }
 
 // StaffGroupTooLargeMaxMembers returns the limit from a mapped group-size
