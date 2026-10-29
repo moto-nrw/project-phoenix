@@ -25,7 +25,6 @@ import {
   validateMeasurement,
   writeMeasurement,
 } from "./bundle-measurement.mjs";
-import { compareBudgets, legacyCeiling } from "./bundle-policy.mjs";
 
 const sourceTree = "a".repeat(40);
 const revision = "b".repeat(40);
@@ -169,28 +168,15 @@ test("foreign project, stale source/configuration and invalid bytes are rejected
   );
 });
 
-test("missing base comparison is explicit and cannot disable the approved ceiling", () =>
+test("a requested but missing base comparison fails closed instead of skipping PR delta", () =>
   inDirectory((directory) => {
     writeMeasurement(
       join(directory, "perf-results/bundle-base-identity.json"),
       { identity, sourceRevision: revision },
     );
-    const base = readBaseComparison(directory, identity);
-    assert.equal(base.routes, null);
-    assert.match(base.status, /nicht durchgeführt/);
-    const budgets = new Map([
-      [
-        "/parents/children",
-        { referenceBytes: 100_000, maxBytes: legacyCeiling(100_000) },
-      ],
-    ]);
-    assert.equal(
-      compareBudgets(
-        budgets,
-        new Map([["/parents/children", 111_000]]),
-        base.routes,
-      ).failures.length,
-      1,
+    assert.throws(
+      () => readBaseComparison(directory, identity),
+      /Required merge-base measurement missing/,
     );
   }));
 
@@ -443,7 +429,10 @@ test("only ineligible observations are an explicit miss, while corrupt eligible 
       calls.some((args) => args[0] === "run"),
       false,
     );
-    assert.equal(readBaseComparison(directory, identity).routes, null);
+    assert.throws(
+      () => readBaseComparison(directory, identity),
+      /Required merge-base measurement missing/,
+    );
   });
   inDirectory((directory) => {
     const { result } = fetchFixture(directory, { corrupt: true });

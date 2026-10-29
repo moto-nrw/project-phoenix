@@ -229,14 +229,12 @@ export function readBaseComparison(directory = process.cwd(), currentIdentity) {
   }
   const file = join(directory, BASE_MEASUREMENT);
   if (!existsSync(file))
-    return {
-      routes: null,
-      status:
-        "Keine passende Basismessung vorhanden; Basis-Regressionsvergleich nicht durchgeführt. Genehmigte absolute Budgets werden vollständig geprüft.",
-    };
+    throw new Error(
+      "Required merge-base measurement missing; run node scripts/perf/bundle-measurement.mjs --build-base. PR delta cannot be skipped.",
+    );
   return {
     routes: readMeasurement(file, identity),
-    status: `Basismessung für Quellbaum ${identity.sourceTree} wiederverwendet; Delta ist informativ, genehmigte absolute Budgets sind verbindlich.`,
+    status: `Verifizierte Basismessung für Quellbaum ${identity.sourceTree}; eigenes PR-Delta (2 % oder 10 KiB) und feste absolute Budgets werden getrennt geprüft.`,
   };
 }
 
@@ -372,7 +370,18 @@ function fetchBase() {
         ],
         { stdio: "pipe" },
       );
-      if (readdirSync(temporary).join(",") !== "bundle-measured.json")
+      const files = readdirSync(temporary);
+      if (
+        !files.includes("bundle-measured.json") ||
+        files.some(
+          (file) =>
+            ![
+              "bundle-measured.json",
+              "bundle-base.json",
+              "bundle-base-identity.json",
+            ].includes(file),
+        )
+      )
         throw new Error("Unexpected files in bundle measurement artifact");
       const measurement = JSON.parse(
         readFileSync(join(temporary, "bundle-measured.json"), "utf8"),
@@ -406,6 +415,6 @@ if (
   else if (process.argv[2] === "--build-base") buildBase();
   else
     throw new Error(
-      "Expected --prepare-ci [base-revision], --fetch-base or --build-base",
+      "Expected --prepare-ci [base-revision], --build-base or --fetch-base",
     );
 }
