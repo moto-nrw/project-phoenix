@@ -16,6 +16,9 @@ export function holidayGuestsTopic(): HelpTopic {
     group: "gruppen",
     audience: ["caregiver", "lead"],
     icon: "SunHorizon",
+    image: "/help/screens/feriengast-angaben-aus-der-anmeldung.webp",
+    imageAlt:
+      "Notfall, Abholung und Angaben aus der Ferienanmeldung bei einem Feriengast.",
     requirements: [
       "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
       "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",

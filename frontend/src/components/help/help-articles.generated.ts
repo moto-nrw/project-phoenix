@@ -2866,7 +2866,7 @@ export const holidayGuestGroupTopic =
         "Wählen Sie `Feriengäste übernehmen`.",
       ],
       result:
-        "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall und Abholung.",
+        "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
       notes: [
         "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
         "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
@@ -2897,6 +2897,9 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     group: "gruppen",
     audience: ["caregiver", "lead"],
     icon: "SunHorizon",
+    image: "/help/screens/feriengast-angaben-aus-der-anmeldung.webp",
+    imageAlt:
+      "Notfall, Abholung und Angaben aus der Ferienanmeldung bei einem Feriengast.",
     requirements: [
       "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
       "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",
@@ -2943,6 +2946,9 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
     group: "auswertung",
     audience: "lead",
     icon: "SunHorizon",
+    image: "/help/screens/ferienwochen-freigegebene-antworten.webp",
+    imageAlt:
+      "Die Liste der Kinder mit der zweiten sorgeberechtigten Person und den Antworten, die der Träger freigibt.",
     requirements: [
       "Der Träger hat Ihre OGS für eine Ferienwoche eingetragen.",
       "Der Träger hat Anmeldungen für diese Woche bestätigt.",
@@ -9396,6 +9402,9 @@ export const traegerHolidayFormTopic =
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "NotePencil",
+      image: "/help/screens/ferienformular-ogs-sieht-antwort.webp",
+      imageAlt:
+        "Eine Frage mit den Schaltern Gesundheitsangabe und OGS sieht die Antwort.",
       requirements: [
         "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
       ],

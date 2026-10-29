@@ -11,6 +11,9 @@ export function traegerHolidayFormTopic(): HelpTopic {
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "NotePencil",
+    image: "/help/screens/ferienformular-ogs-sieht-antwort.webp",
+    imageAlt:
+      "Eine Frage mit den Schaltern Gesundheitsangabe und OGS sieht die Antwort.",
     requirements: [
       "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
     ],
