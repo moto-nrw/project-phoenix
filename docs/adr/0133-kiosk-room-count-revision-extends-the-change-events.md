@@ -9,7 +9,7 @@ Decision of 2026-10-28 for
 the [decision comment](https://github.com/moto-nrw/project-phoenix/issues/5205):
 one revision per room. It extends the append-only change events of
 [ADR 0131](0131-kiosk-count-revision-comes-from-append-only-change-events.md)
-by a room scope, approves two new command-effect diagnostics and one
+by a room scope that the read resolves, approves two new command-effect diagnostics and one
 pass-through of the wrapper form ADR 0075 keeps. It adds no owner, no data
 object, no policy rule and no runtime exception.
 
@@ -25,45 +25,83 @@ would bring back the deadlocks ADR 0131 withdrew.
 
 ## Decision
 
-`active.visit_revision_events` (Student Presence) gets a nullable `room_id`
-(migration 1.15.710). The revision of a room is the sum of the events with its
-`room_id` that a read sees; count and revision come from one statement. The
-session revision stays the sum of the events with its `active_group_id`.
+`active.visit_revision_events` (Student Presence) gets two row kinds next to
+the session events of ADR 0131 (migration 1.15.710):
 
-- **Every change of a room count records a room event in its own
-  transaction.** The visit trigger of ADR 0131 stamps each session event with
-  the room the session has when the statement runs, also when the session has
-  ended, so a check-in racing a session end or reopening still raises the
-  room. A row trigger on `active.groups` records an event without a session
-  when a session changes its room (old and new room), ends or reopens, and
-  before an open session with open visits is deleted (the cascaded visit
-  deletion can no longer name the room). Inserting a session changes no
-  count and records nothing.
-- **Monotone.** Events are never updated. The nightly close
-  (`EndGroupSessions`) replaces the events of each ended session and room by
-  one row with their sum and the room events of each room by one row. A
-  deleted session's events keep their room as room events, so neither a
-  session revision nor a room revision falls.
-- **Older never wins.** A read that started before a write committed carries
-  a lower revision than the writer's own answer, as in ADR 0131.
-- **No new lock edge.** Both triggers only insert events and read
-  `active.groups` or `active.visits` without a lock; `room_id` has no foreign
-  key. A room change, session end or reopening does not wait for a visit
-  writer of that session, and a visit writer does not wait for them.
-- **Tenant boundary.** The trigger functions run as their owner with a fixed
-  `search_path` and take the school from the changed rows; the read filters
-  by the ambient school and RLS applies. The school erasure deletes
-  `active.visits` before `active.groups` (cascading foreign-key child first),
-  so its session deletion finds no open visit and records no event after the
-  event table is gone; the existing plan needs no new edge.
+- an **entry row** (`room_id`, `entered_group_id`): a session was in a room.
+  The `active.groups` trigger writes it when a session starts in a room,
+  moves into it or reopens in it; the migration writes one for every
+  existing session;
+- a **room row** (`room_id` only): a membership change. The trigger writes
+  it for the room a session leaves and for the room of a session that ends.
+
+The revision of a room is the sum of its entry and room rows plus the
+session revision of every session it ever held, read in one statement
+together with the count. The session revision stays the sum of the rows
+with its `active_group_id`; the visit trigger of 1.15.705 is unchanged.
+
+### Invariant
+
+**Every committed change of a room's count raises that room's revision in
+every later snapshot, and nothing lowers it.** A room's count is the open
+visits of the open sessions in it. A transaction changes it only by
+
+1. changing the open visits of a session in the room (check-in, checkout,
+   transfer, deletion of the session with its visits): the visit trigger
+   adds a session event, and the session is in the room's set, because the
+   transaction that put it into the room wrote its entry row;
+2. moving a session into or out of the room: an entry row for the new room,
+   a room row for the old one;
+3. ending or reopening a session in the room: a room row, or an entry row on
+   reopening.
+
+The read, not the writer, decides which sessions belong to the room, and the
+set only grows. A visit write racing a room change therefore raises both
+rooms: the session counts in the room it left and in the room it entered
+(the finding of PR #5232: a checkout racing a room change left the new room
+at its revision while its count fell from 2 to 1). Events are never updated,
+entry rows of existing sessions are never removed, and the compaction keeps
+every sum, so no revision falls.
+
+Path by path (tests in `modules/studentpresence/compose/room_visit_revision_test.go`):
+
+| Path | Rows it adds | Concurrency test |
+|---|---|---|
+| Checkout, check-in | session event | racing a room change; two sessions of one room; poll before commit |
+| Room change | entry row (new room), room row (old room) | racing checkout, check-in and transfer |
+| Group transfer (`TransferOpenVisits`, `ReviseVisit`) | session events of both sessions | racing a room change of the target |
+| Session end, reopening | room row; entry row on reopening | checkout racing the end; check-in racing the reopening |
+| Session deletion | session events of its cascaded visits; no trigger | sequential (FK serializes visit inserts) |
+| Nightly compaction | none; folds and collapses | late checkout of an ended session during the compaction |
+
+- **No new lock edge.** The triggers only insert. `room_id` and
+  `entered_group_id` have no foreign key, so no key-share lock reaches a room
+  or a session, and no trigger fires on deletes. A room change, session end
+  or reopening does not wait for a visit writer of that session, and a visit
+  writer does not wait for them (`room lifecycle takes no visit lock`); the
+  deadlock replays of ADR 0131, including reattach against scan (#5206),
+  stay green.
+- **Compaction.** The nightly close (`EndGroupSessions`) folds the events of
+  a deleted session into one room row per room it entered, with the
+  session's sum plus that room's entry sum. A deleted session gets no event
+  after its deletion commits, so the fold is exact. It collapses the
+  session rows of each ended session, the entry rows of each session and
+  room, and the room rows of each room into one row each. It never removes
+  an entry row of an existing session: an ended session can still receive a
+  late event, which then counts for every room it held.
+- **Read cost.** A room keeps every session it ever held until that session
+  is deleted; `active.groups` has no retention. The read sums the room's
+  rows through `idx_visit_revision_events_room` and one compacted session
+  row per held session through the session index, so its cost grows with the sessions a room held, not with
+  visits. It runs only for a room-wide kiosk count.
+- **Tenant boundary.** The trigger function runs as its owner with a fixed
+  `search_path` and takes the school from the changed session row; the read
+  filters every subquery by the ambient school and RLS applies. The school
+  erasure deletes the table by school; no trigger writes while it deletes
+  sessions, so the existing plan needs no new edge.
 - **Remaining blur.** Overlapping writers of one room can answer the same
   revision with different counts; the next read after both commits is higher
-  (ADR 0131). Beyond that, a visit write whose statement runs before its
-  session's room change commits, and which commits after it, raises the room
-  it saw. The new room then names its count before and after that write with
-  one revision until its next change. Room changes of a running session are
-  administrative edits; the blur needs both to overlap within one
-  transaction's lifetime, and no revision falls.
+  (ADR 0131). There is no further blur.
 
 ### Wire
 
