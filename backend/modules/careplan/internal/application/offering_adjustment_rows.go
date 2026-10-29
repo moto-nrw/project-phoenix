@@ -248,6 +248,9 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 		if !taggedWithRequestChild(row, adjusted.requestChildID) {
 			continue
 		}
+		if deferredToUnionResync(row, drafts, multiSource) {
+			continue
+		}
 		affectedGroups[row.ActivityGroupID] = true
 		if err := m.reconcileAdjustedEnrollment(ctx, row, adjusted.phase, effectiveFrom, drafts); err != nil {
 			return err
@@ -267,6 +270,21 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	// this one. Scoped to this child: a dated switch must not reconcile other
 	// children's rows as a side effect.
 	return m.resyncMultiSourceTemplates(ctx, multiSource, boundary, []int64{adjusted.requestChildID})
+}
+
+// deferredToUnionResync reports whether the union resync below, not the
+// per-link drafts, decides about the row: its template sources several
+// offerings, the new selection still feeds it, and no legacy link drafted
+// it. Such a template is never drafted (see addSourcedTemplateDrafts), so
+// the missing draft says nothing about whether the child still wants the
+// row; capping it here would replace an unchanged union row (#5234). A
+// template the selection no longer feeds is not in multiSource and is
+// capped below as before.
+func deferredToUnionResync(row ports.RosterEnrollment, drafts map[int64]*careEnrollmentDraft, multiSource map[int64]ports.SourcedTemplate) bool {
+	if _, ok := multiSource[row.ActivityGroupID]; !ok {
+		return false
+	}
+	return drafts[row.ActivityGroupID] == nil
 }
 
 // reconcileAdjustedEnrollment keeps, caps or deletes one of the request
