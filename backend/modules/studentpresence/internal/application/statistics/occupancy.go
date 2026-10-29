@@ -222,29 +222,35 @@ func plannedSlotsByDay(in occupancyInputs) (map[calendar.Date]daySlots, int) {
 	out := make(map[calendar.Date]daySlots, len(in.careDays))
 	untimed := 0
 	for day := range in.careDays {
-		var slots daySlots
-		if day.Before(in.planFrom) {
-			out[day] = slots
-			continue
-		}
-		for _, st := range in.students {
-			if st == nil || st.EnrolledOn == nil || !st.EnrolledOn(day, in.today) || absent[dayKey{st.ID, day}] {
-				continue
-			}
-			plan := in.planned[st.ID][day]
-			if !plan.Expected {
-				continue
-			}
-			window, ok := plannedWindow(plan)
-			if !ok {
-				untimed++
-				continue
-			}
-			slots.addWindows([]minuteWindow{window})
-		}
+		slots, untimedOnDay := plannedSlotsForDay(in, day, absent)
 		out[day] = slots
+		untimed += untimedOnDay
 	}
 	return out, untimed
+}
+
+func plannedSlotsForDay(in occupancyInputs, day calendar.Date, absent map[dayKey]bool) (daySlots, int) {
+	var slots daySlots
+	if day.Before(in.planFrom) {
+		return slots, 0
+	}
+	untimed := 0
+	for _, st := range in.students {
+		if st == nil || st.EnrolledOn == nil || !st.EnrolledOn(day, in.today) || absent[dayKey{st.ID, day}] {
+			continue
+		}
+		plan := in.planned[st.ID][day]
+		if !plan.Expected {
+			continue
+		}
+		window, ok := plannedWindow(plan)
+		if !ok {
+			untimed++
+			continue
+		}
+		slots.addWindows([]minuteWindow{window})
+	}
+	return slots, untimed
 }
 
 func plannedWindow(plan ports.PlannedCareDay) (minuteWindow, bool) {
