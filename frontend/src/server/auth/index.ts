@@ -48,9 +48,10 @@ export async function setTenantSession(
         token: accessToken,
         refreshToken,
       }),
-    (result) =>
-      typeof result === "string" &&
-      !new URL(result, "http://localhost").searchParams.has("error"),
+    // Auth.js server signIn throws on refused Credentials. Its return value
+    // is the callback URL, which may legitimately contain an `error` query
+    // inherited from the referring page; that is not an auth failure.
+    (result) => typeof result === "string",
   );
 }
 
