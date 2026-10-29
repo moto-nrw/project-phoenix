@@ -21,7 +21,7 @@ func (h *HolidayPeriods) UploadHolidayFormDocument(ctx context.Context, org, per
 		return enrollment.HolidayFormDocument{}, err
 	}
 	if len(content) > 10<<20 || !bytes.HasPrefix(content, []byte("%PDF-")) || !strings.EqualFold(filepath.Ext(filename), ".pdf") {
-		return enrollment.HolidayFormDocument{}, enrollment.InvalidInput("enrollment.form_attachment_invalid", "document", errors.New("expected a PDF of at most 10 MB"))
+		return enrollment.HolidayFormDocument{}, enrollment.InvalidInput(enrollment.CodeFormAttachmentInvalid, "document", errors.New("expected a PDF of at most 10 MB"))
 	}
 	return h.forms.InsertHolidayFormDocument(ctx, org, period, actor, filepath.Base(filename), content)
 }
@@ -34,7 +34,7 @@ func (h *HolidayPeriods) HolidayFormDocument(ctx context.Context, org, period in
 	if err != nil || parsed <= 0 || strconv.FormatInt(parsed, 10) != id {
 		return enrollment.HolidayFormDocument{}, enrollment.ErrHolidayFormDocumentNotFound
 	}
-	doc, found, err := h.forms.ReadHolidayFormDocument(ctx, org, period, id)
+	doc, found, err := h.forms.ReadHolidayFormDocument(ctx, org, period, id, true)
 	if err != nil {
 		return enrollment.HolidayFormDocument{}, err
 	}
@@ -48,7 +48,7 @@ func (h *HolidayPeriods) DeleteHolidayFormDocument(ctx context.Context, org, per
 	if _, err := foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, org, period, true)); err != nil {
 		return err
 	}
-	if _, err := readHolidayDocument(ctx, h.forms, org, period, id); err != nil {
+	if _, err := readHolidayDocument(ctx, h.forms, org, period, id, false); err != nil {
 		return err
 	}
 	deleted, err := h.forms.DeleteHolidayFormDocument(ctx, org, period, id)
@@ -61,12 +61,12 @@ func (h *HolidayPeriods) DeleteHolidayFormDocument(ctx context.Context, org, per
 	return nil
 }
 
-func readHolidayDocument(ctx context.Context, forms HolidayFormStore, org, period int64, id string) (enrollment.HolidayFormDocument, error) {
+func readHolidayDocument(ctx context.Context, forms HolidayFormStore, org, period int64, id string, content bool) (enrollment.HolidayFormDocument, error) {
 	parsed, err := strconv.ParseInt(id, 10, 64)
 	if err != nil || parsed <= 0 || strconv.FormatInt(parsed, 10) != id {
 		return enrollment.HolidayFormDocument{}, enrollment.ErrHolidayFormDocumentNotFound
 	}
-	doc, found, err := forms.ReadHolidayFormDocument(ctx, org, period, id)
+	doc, found, err := forms.ReadHolidayFormDocument(ctx, org, period, id, content)
 	if err != nil {
 		return enrollment.HolidayFormDocument{}, err
 	}
@@ -89,81 +89,103 @@ func (h *HolidayRegistrations) PublicHolidayFormDocument(ctx context.Context, li
 		}
 		for _, attachment := range block.Attachments {
 			if attachment.DocumentID == id {
-				return readHolidayDocument(ctx, h.deps.Forms, link.OrganizationID, link.PeriodID, id)
+				return readHolidayDocument(ctx, h.deps.Forms, link.OrganizationID, link.PeriodID, id, true)
 			}
 		}
 	}
 	return enrollment.HolidayFormDocument{}, enrollment.ErrHolidayFormDocumentNotFound
 }
 
+func holidayLegalInput(path string, err error) error {
+	return enrollment.InvalidInput(enrollment.CodeFormAttachmentInvalid, path, err)
+}
+
 func (h *HolidayPeriods) validateHolidayLegalBlocks(ctx context.Context, org, period int64, blocks []enrollment.FormLegalBlock) error {
-	invalid := func(path string, err error) error {
-		return enrollment.InvalidInput("enrollment.form_attachment_invalid", path, err)
-	}
 	if len(blocks) > 30 {
-		return invalid("legal_blocks", errors.New("at most 30 legal blocks"))
+		return holidayLegalInput("legal_blocks", errors.New("at most 30 legal blocks"))
 	}
 	keys := map[string]bool{}
 	for i := range blocks {
-		b := &blocks[i]
+		block := &blocks[i]
 		prefix := fmt.Sprintf("legal_blocks.%d", i)
-		b.Source = strings.TrimSpace(b.Source)
-		if b.Source == "" {
-			b.Source = enrollment.LegalBlockSourceCustom
+		if err := validateHolidayLegalBlock(block); err != nil {
+			return enrollment.NestInput(err, prefix, "legal block %d", i)
 		}
-		if b.Source != enrollment.LegalBlockSourceCustom {
-			return invalid(prefix+".source", errors.New("only custom holiday legal blocks"))
+		if keys[block.Key] {
+			return holidayLegalInput(prefix+".key", errors.New("duplicate legal block key"))
 		}
-		// Holiday notices may require acknowledgement, unlike school notices.
-		// PDF mode uses period-owned attachments, not the school AGB URL.
-		kind, mode := strings.TrimSpace(b.Kind), strings.TrimSpace(b.DisplayMode)
-		if kind == enrollment.LegalBlockKindNotice && b.Required {
-			b.Kind = enrollment.LegalBlockKindTerms
+		keys[block.Key] = true
+		if err := h.validateHolidayLegalDocuments(ctx, org, period, block.Attachments); err != nil {
+			return enrollment.NestInput(err, prefix, "legal block %d", i)
 		}
-		if mode == enrollment.LegalBlockDisplayModePDF {
-			if len(b.Attachments) == 0 {
-				return invalid(prefix+".attachments", errors.New("PDF mode requires a document"))
+		block.SortOrder = i + 1
+	}
+	return nil
+}
+
+// Validate the common shape without changing the school contract: holiday
+// notices may require acknowledgement and their PDFs use period document IDs.
+func validateHolidayLegalBlock(block *enrollment.FormLegalBlock) error {
+	checked, err := holidayLegalValidationCopy(*block)
+	if err != nil {
+		return err
+	}
+	if err := checked.Validate(); err != nil {
+		var rejected *enrollment.InvalidInputError
+		if errors.As(err, &rejected) {
+			return err
+		}
+		return holidayLegalInput("", err)
+	}
+	checked.Kind = strings.TrimSpace(block.Kind)
+	if strings.TrimSpace(block.DisplayMode) == enrollment.LegalBlockDisplayModePDF {
+		checked.DisplayMode = enrollment.LegalBlockDisplayModePDF
+	}
+	for i := range checked.Attachments {
+		checked.Attachments[i].DocumentURL = ""
+	}
+	*block = checked
+	return nil
+}
+
+func holidayLegalValidationCopy(block enrollment.FormLegalBlock) (enrollment.FormLegalBlock, error) {
+	block.Source = strings.TrimSpace(block.Source)
+	if block.Source == "" {
+		block.Source = enrollment.LegalBlockSourceCustom
+	}
+	if block.Source != enrollment.LegalBlockSourceCustom {
+		return block, holidayLegalInput("source", errors.New("only custom holiday legal blocks"))
+	}
+	if block.DocumentURL != "" {
+		return block, holidayLegalInput("document_url", errors.New("use a period document ID"))
+	}
+	if strings.TrimSpace(block.Kind) == enrollment.LegalBlockKindNotice && block.Required {
+		block.Kind = enrollment.LegalBlockKindTerms
+	}
+	if strings.TrimSpace(block.DisplayMode) == enrollment.LegalBlockDisplayModePDF {
+		if len(block.Attachments) == 0 {
+			return block, holidayLegalInput("attachments", errors.New("PDF mode requires a document"))
+		}
+		block.DisplayMode = enrollment.LegalBlockDisplayModeText
+	}
+	block.Attachments = append([]enrollment.FormAttachment(nil), block.Attachments...)
+	for j := range block.Attachments {
+		if block.Attachments[j].DocumentURL != "" {
+			return block, holidayLegalInput(fmt.Sprintf("attachments.%d.document_url", j), errors.New("use a period document ID"))
+		}
+		block.Attachments[j].DocumentURL = block.Attachments[j].DocumentID
+	}
+	return block, nil
+}
+
+func (h *HolidayPeriods) validateHolidayLegalDocuments(ctx context.Context, org, period int64, attachments []enrollment.FormAttachment) error {
+	for j, attachment := range attachments {
+		if _, err := readHolidayDocument(ctx, h.forms, org, period, attachment.DocumentID, false); err != nil {
+			if errors.Is(err, enrollment.ErrHolidayFormDocumentNotFound) {
+				return holidayLegalInput(fmt.Sprintf("attachments.%d.document_id", j), err)
 			}
-			b.DisplayMode = enrollment.LegalBlockDisplayModeText
+			return err
 		}
-		attachments := append([]enrollment.FormAttachment(nil), b.Attachments...)
-		for j := range b.Attachments {
-			if b.Attachments[j].DocumentURL != "" {
-				return invalid(fmt.Sprintf("%s.attachments.%d.document_url", prefix, j), errors.New("use a period document ID"))
-			}
-			b.Attachments[j].DocumentURL = b.Attachments[j].DocumentID
-		}
-		if err := b.Validate(); err != nil {
-			var rejected *enrollment.InvalidInputError
-			if errors.As(err, &rejected) {
-				return enrollment.NestInput(err, prefix, "legal block %d", i)
-			}
-			return invalid(prefix, err)
-		}
-		for j := range b.Attachments {
-			b.Attachments[j].DocumentURL = attachments[j].DocumentURL
-		}
-		b.Kind = kind
-		if mode == enrollment.LegalBlockDisplayModePDF {
-			b.DisplayMode = mode
-		}
-		if keys[b.Key] {
-			return invalid(prefix+".key", errors.New("duplicate legal block key"))
-		}
-		keys[b.Key] = true
-		if b.DocumentURL != "" {
-			return invalid(prefix+".document_url", errors.New("use a period document ID"))
-		}
-		for j := range b.Attachments {
-			a := &b.Attachments[j]
-			if _, err := readHolidayDocument(ctx, h.forms, org, period, a.DocumentID); err != nil {
-				if errors.Is(err, enrollment.ErrHolidayFormDocumentNotFound) {
-					return invalid(fmt.Sprintf("%s.attachments.%d.document_id", prefix, j), err)
-				}
-				return err
-			}
-		}
-		b.SortOrder = i + 1
 	}
 	return nil
 }

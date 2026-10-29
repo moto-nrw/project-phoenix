@@ -22,7 +22,7 @@ func (s *HolidayPeriodStore) InsertHolidayFormDocument(ctx context.Context, org,
 	return enrollment.HolidayFormDocument{ID: id, Filename: filename, Size: len(content)}, nil
 }
 
-func (s *HolidayPeriodStore) ReadHolidayFormDocument(ctx context.Context, org, period int64, id string) (enrollment.HolidayFormDocument, bool, error) {
+func (s *HolidayPeriodStore) ReadHolidayFormDocument(ctx context.Context, org, period int64, id string, content bool) (enrollment.HolidayFormDocument, bool, error) {
 	db, err := traegerDB(ctx, org)
 	if err != nil {
 		return enrollment.HolidayFormDocument{}, false, err
@@ -33,8 +33,8 @@ func (s *HolidayPeriodStore) ReadHolidayFormDocument(ctx context.Context, org, p
 		Content  []byte `bun:"content"`
 		Size     int    `bun:"size"`
 	}
-	err = db.NewRaw(`SELECT id, filename, content, size FROM enrollment.holiday_form_documents
-		WHERE organization_id = ? AND holiday_period_id = ? AND id = ?`, org, period, id).Scan(ctx, &rows)
+	err = db.NewRaw(`SELECT id, filename, CASE WHEN ? THEN content END AS content, size FROM enrollment.holiday_form_documents
+		WHERE organization_id = ? AND holiday_period_id = ? AND id = ?`, content, org, period, id).Scan(ctx, &rows)
 	if err != nil {
 		return enrollment.HolidayFormDocument{}, false, fmt.Errorf("enrollment postgres: read holiday PDF: %w", err)
 	}

@@ -22,6 +22,13 @@ func (seedHolidayLegalStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	path := fmt.Sprintf("/traeger/holiday-periods/%d/form", period)
+	if err := seedHolidayLegalForm(rt, auth, path); err != nil {
+		return err
+	}
+	return seedHolidayLegalRegistration(rt)
+}
+
+func seedHolidayLegalForm(rt *Runtime, auth AuthRef, path string) error {
 	raw, err := rt.Client.GetWithAuth(auth, path)
 	if err != nil {
 		return err
@@ -36,30 +43,40 @@ func (seedHolidayLegalStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	blocks := []map[string]any{}
 	for i, title := range []string{"Hinweise zur Ferienbetreuung", "Hinweise zu Ausflügen"} {
-		content := demoPDF(title, []string{"Bitte geben Sie Ihrem Kind eine Trinkflasche mit.", "Bei Fragen wenden Sie sich an das Traeger-Buero."})
-		raw, err = rt.Client.uploadFile(auth, "POST", path+"/documents", "document", fmt.Sprintf("hinweis-%d.pdf", i+1), content, nil)
+		id, err := seedHolidayLegalPDF(rt, auth, path, i+1, title)
 		if err != nil {
 			return err
 		}
-		var doc struct {
-			Data struct {
-				ID string `json:"id"`
-			} `json:"data"`
-		}
-		if err = json.Unmarshal(raw, &doc); err != nil {
-			return err
-		}
-		if doc.Data.ID == "" {
-			return fmt.Errorf("the seeded holiday PDF has no ID")
-		}
-		blocks = append(blocks, map[string]any{"key": fmt.Sprintf("hinweis_%d", i+1), "kind": "terms", "source": "custom", "title": title, "label": "Ich habe die Hinweise gelesen und zur Kenntnis genommen.", "enabled": true, "required": true, "display_mode": "pdf", "attachments": []map[string]string{{"label": title, "document_id": doc.Data.ID}}})
+		blocks = append(blocks, map[string]any{"key": fmt.Sprintf("hinweis_%d", i+1), "kind": "terms", "source": "custom", "title": title, "label": "Ich habe die Hinweise gelesen und zur Kenntnis genommen.", "enabled": true, "required": true, "display_mode": "pdf", "attachments": []map[string]string{{"label": title, "document_id": id}}})
 	}
 	blocks = append(blocks, map[string]any{"key": "fotos_ferien", "kind": "consent", "source": "custom", "title": "Fotos in der Ferienbetreuung", "label": "Mein Kind darf auf Erinnerungsfotos zu sehen sein.", "text": "Die Fotos bleiben in der OGS.", "enabled": true})
-	if _, err = rt.Client.PutWithAuth(auth, path, map[string]any{"fields": form.Data.Fields, "legal_blocks": blocks}); err != nil {
-		return err
+	_, err = rt.Client.PutWithAuth(auth, path, map[string]any{"fields": form.Data.Fields, "legal_blocks": blocks})
+	return err
+}
+
+func seedHolidayLegalPDF(rt *Runtime, auth AuthRef, path string, position int, title string) (string, error) {
+	content := demoPDF(title, []string{"Bitte geben Sie Ihrem Kind eine Trinkflasche mit.", "Bei Fragen hilft Ihnen die OGS."})
+	raw, err := rt.Client.uploadFile(auth, "POST", path+"/documents", "document", fmt.Sprintf("hinweis-%d.pdf", position), content, nil)
+	if err != nil {
+		return "", err
 	}
-	// A later registration proves the evidence display; older registrations
-	// retain version 1 without legal blocks in the same seeded period.
+	var doc struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(raw, &doc); err != nil {
+		return "", err
+	}
+	if doc.Data.ID == "" {
+		return "", fmt.Errorf("the seeded holiday PDF has no ID")
+	}
+	return doc.Data.ID, nil
+}
+
+// Older registrations retain version 1 without legal blocks. This later
+// registration demonstrates the evidence display of the new version.
+func seedHolidayLegalRegistration(rt *Runtime) error {
 	if rt.Values[seedHolidayRegistrationsSkippedKey] == true {
 		return nil
 	}
@@ -73,8 +90,6 @@ func (seedHolidayLegalStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	body["guardian"].(map[string]any)["email"] = "hinweise.ferien@example.org"
 	body["legal_acceptances"] = map[string]bool{"hinweis_1": true, "hinweis_2": true, "fotos_ferien": false}
-	if _, err = rt.Client.PostPublic("/traeger/holiday-registrations/"+token, body); err != nil {
-		return err
-	}
-	return nil
+	_, err = rt.Client.PostPublic("/traeger/holiday-registrations/"+token, body)
+	return err
 }

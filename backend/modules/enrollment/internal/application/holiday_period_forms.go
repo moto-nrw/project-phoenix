@@ -40,7 +40,7 @@ const (
 // periods in the Träger transaction.
 type HolidayFormStore interface {
 	InsertHolidayFormDocument(context.Context, int64, int64, int64, string, []byte) (enrollment.HolidayFormDocument, error)
-	ReadHolidayFormDocument(context.Context, int64, int64, string) (enrollment.HolidayFormDocument, bool, error)
+	ReadHolidayFormDocument(context.Context, int64, int64, string, bool) (enrollment.HolidayFormDocument, bool, error)
 	DeleteHolidayFormDocument(context.Context, int64, int64, string) (bool, error)
 	CurrentHolidayPeriodForm(ctx context.Context, organizationID, periodID int64) (enrollment.HolidayPeriodForm, bool, error)
 	// HolidayPeriodForms reads selected versions, or all versions when versions is empty.
