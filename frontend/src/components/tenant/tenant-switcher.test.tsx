@@ -361,7 +361,6 @@ describe("BrandTenantSwitcher", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -391,7 +390,6 @@ describe("BrandTenantSwitcher", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -543,7 +541,6 @@ describe("BrandTenantSwitcher", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });

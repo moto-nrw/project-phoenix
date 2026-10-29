@@ -513,3 +513,37 @@ describe("browser token ratchet (#5005)", () => {
     ).toEqual([]);
   });
 });
+
+// #5118 stage 1: these already-authenticated transitions no longer transport
+// fresh bearer credentials. Other login seeders are migrated in stages 2–4.
+describe("server-only switch and preview transitions", () => {
+  it.each(["lib/tenant-api.ts", "lib/staff-preview-api.ts"])(
+    "%s cannot handle fresh session credentials",
+    (relativePath) => {
+      const fileName = path.join(SRC_ROOT, relativePath);
+      const source = ts.createSourceFile(
+        fileName,
+        readFileSync(fileName, "utf8"),
+        ts.ScriptTarget.Latest,
+        true,
+      );
+      const forbidden = new Set([
+        ...TOKEN_FIELDS,
+        "internalRefresh",
+        "previewStart",
+        "signIn",
+      ]);
+      const findings: string[] = [];
+      function visit(node: ts.Node) {
+        if (
+          (ts.isIdentifier(node) || ts.isStringLiteral(node)) &&
+          forbidden.has(node.text)
+        )
+          findings.push(node.text);
+        ts.forEachChild(node, visit);
+      }
+      visit(source);
+      expect(findings).toEqual([]);
+    },
+  );
+});

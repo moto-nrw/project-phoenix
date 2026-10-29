@@ -7,6 +7,7 @@
  */
 
 import "server-only";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { JwtPayload } from "./jwt-payload";
 import type { DefaultSession, NextAuthConfig, Session, User } from "next-auth";
@@ -912,9 +913,8 @@ async function applyPreviewStart(
       : null;
   // Only genuine read-only preview tokens may be injected here — anything
   // else would smuggle a full session under the preview flag. The session
-  // stays as it is, so the session object returned to the client carries no
-  // preview; performStartStaffPreview reads that, closes the just-recorded
-  // preview in the audit trail, and reports the failure instead of reloading.
+  // stays as it is. The BFF checks the server update result and closes the
+  // just-recorded preview if the session did not enter the requested target.
   if (
     !payload?.read_only ||
     !admin ||
@@ -1411,6 +1411,7 @@ export const sharedJwtCallback: NonNullable<
     // while a preview is already active is ignored — it would overwrite the
     // parked admin tokens with preview tokens.
     if (
+      isServerSessionMutation() &&
       update.previewStart !== undefined &&
       !isPreviewActive(token) &&
       isPreviewStartUpdate(update.previewStart)

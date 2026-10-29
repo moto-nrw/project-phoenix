@@ -1,3 +1,4 @@
+import { withServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -84,15 +85,17 @@ function callJwt(
   token: Record<string, unknown>,
   session?: Record<string, unknown>,
 ) {
-  return authConfig.callbacks?.jwt?.({
-    token,
-    user: undefined as unknown as User,
-    account: null,
-    profile: undefined,
-    trigger: "update",
-    isNewUser: false,
-    session,
-  });
+  return withServerSessionMutation(async () =>
+    authConfig.callbacks?.jwt?.({
+      token,
+      user: undefined as unknown as User,
+      account: null,
+      profile: undefined,
+      trigger: "update",
+      isNewUser: false,
+      session,
+    }),
+  );
 }
 
 async function startPreview(token: Record<string, unknown>) {
@@ -155,6 +158,26 @@ describe("JWT callback — staff preview (#2893)", () => {
       expect(result?.previewTargetAccountId).toBeUndefined();
     },
   );
+
+  it("ignores browser previewStart updates even with a valid preview token", async () => {
+    const token = adminToken();
+    const result = await authConfig.callbacks.jwt({
+      token,
+      user: undefined as unknown as User,
+      account: null,
+      trigger: "update",
+      session: {
+        previewStart: {
+          accessToken: previewJwt(),
+          expiresIn: 900,
+          targetAccountId: "42",
+          targetName: "Erika Beispiel",
+        },
+      },
+    });
+    expect(result).toMatchObject({ id: token.id, token: token.token });
+    expect(result?.previewTargetAccountId).toBeUndefined();
+  });
 
   it("previewStart swaps onto the preview token and parks the admin state", async () => {
     const token = adminToken();

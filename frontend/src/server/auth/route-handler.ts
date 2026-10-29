@@ -1,6 +1,13 @@
 import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cache } from "react";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import {
+  getModifiedCookieValues,
+  type ResponseCookies,
+} from "next/dist/server/web/spec-extension/adapters/request-cookies";
+import { withServerSessionMutation } from "./session-mutation";
 import * as Sentry from "@sentry/nextjs";
 import type { NextAuthRequest, NextAuthResult } from "next-auth";
 import type { NextRequest } from "next/server";
@@ -34,6 +41,7 @@ type SessionContext = {
   request: NextRequest;
   freshSession?: Promise<ServerSession | null>;
   freshCookies: string[];
+  replacementCookies?: string[];
 };
 
 /**
@@ -93,6 +101,35 @@ export function createResponseAwareAuth(
     return current.freshSession;
   };
 
+  /** Capture Auth.js server-action cookies, including deletions and chunks.
+   * Next's mutable cookies are only fallbacks: handleAuth appends the old
+   * session afterwards. Commit the replacement explicitly after that wrapper.
+   * The pinned Next adapter retains options that cookies().getAll() omits.
+   */
+  const mutateSession = async <T>(
+    action: () => Promise<T>,
+    accepts: (result: T) => boolean,
+  ): Promise<T> => {
+    const current = requestSession.getStore();
+    if (!current)
+      throw new Error(
+        "Session mutation requires an authenticated response context",
+      );
+    const result = await withServerSessionMutation(action);
+    if (!accepts(result)) throw new Error("Session mutation was refused");
+    const jar = await cookies();
+    const response = new NextResponse(null);
+    for (const cookie of getModifiedCookieValues(
+      jar as unknown as ResponseCookies,
+    )) {
+      response.cookies.set(cookie);
+    }
+    current.replacementCookies = response.headers.getSetCookie();
+    if (!current.replacementCookies.length)
+      throw new Error("Session mutation produced no cookies");
+    return result;
+  };
+
   /**
    * Use the Auth.js handler overload so refresh Set-Cookie headers are appended
    * to every final response. Nested legacy `auth()` calls reuse request.auth
@@ -142,10 +179,28 @@ export function createResponseAwareAuth(
       for (const cookie of current.freshCookies) {
         response.headers.append("Set-Cookie", cookie);
       }
+      if (current.replacementCookies) {
+        // Discard ALL older writes of the replaced names, including chunks.
+        // A longer old rotation must not resurrect trailing session chunks.
+        const replacements = current.replacementCookies;
+        const names = replacements.map((cookie) =>
+          cookie.slice(0, cookie.indexOf("=")),
+        );
+        const bases = names.map((name) => name.replace(/\.\d+$/, ""));
+        const previous = response.headers.getSetCookie();
+        response.headers.delete("Set-Cookie");
+        for (const cookie of previous) {
+          const name = cookie.slice(0, cookie.indexOf("="));
+          if (!bases.includes(name.replace(/\.\d+$/, "")))
+            response.headers.append("Set-Cookie", cookie);
+        }
+        for (const cookie of replacements)
+          response.headers.append("Set-Cookie", cookie);
+      }
       // Every authenticated BFF route of every portal leaves through here.
       applyPrivateNoStore(response.headers);
       return response;
     };
 
-  return { auth, uncachedAuth, withAuthResponse };
+  return { auth, uncachedAuth, withAuthResponse, mutateSession };
 }
