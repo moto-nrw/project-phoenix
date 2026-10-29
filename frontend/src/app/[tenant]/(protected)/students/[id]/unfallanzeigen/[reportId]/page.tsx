@@ -161,6 +161,7 @@ export default function AccidentReportPage() {
       overlays={
         report && canManage && report.status === "signed" ? (
           <AccidentReportCreateModal
+            key={reportId}
             isOpen={correcting}
             onClose={() => setCorrecting(false)}
             studentId={studentId}

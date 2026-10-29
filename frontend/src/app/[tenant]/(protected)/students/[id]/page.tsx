@@ -1795,6 +1795,7 @@ function StudentDetailPageContent() {
           activeTab={activeTab}
           tabs={visibleTabs}
           canViewEnrollments={canViewEnrollments}
+          canRecordAccidents={canRecordAccidents}
           canReadChild={childGrantsFullAccess}
         />
       )}
@@ -1908,6 +1909,8 @@ interface LimitedAccessViewProps {
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
+  /** student_accidents:manage: enables „Unfall erfassen“ (#4771). */
+  canRecordAccidents: boolean;
   /**
    * Die Antwort zum Kind meldet Lesezugriff (CanReadStudent). Die Ansicht
    * ist trotzdem eingeschränkt, wenn der Sitzung users:read fehlt.
@@ -1924,6 +1927,7 @@ function LimitedAccessView({
   activeTab,
   tabs,
   canViewEnrollments,
+  canRecordAccidents,
   canReadChild,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
@@ -1947,6 +1951,14 @@ function LimitedAccessView({
   );
   useEffect(() => {
     if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
+  }, [activeTab]);
+  // Same lazy mount as the full view: document listing may trigger interrupted
+  // upload cleanup, so it waits until this permitted tab is actually opened.
+  const [documentsTabSeen, setDocumentsTabSeen] = useState(
+    activeTab === "dokumente",
+  );
+  useEffect(() => {
+    if (activeTab === "dokumente") setDocumentsTabSeen(true);
   }, [activeTab]);
   return (
     <>
@@ -1983,6 +1995,19 @@ function LimitedAccessView({
           <StudentEnrollmentsTab studentId={student.id} />
         </StudentTabPanel>
       ) : null}
+
+      <StudentTabPanel
+        value="dokumente"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {documentsTabSeen && (
+          <StudentDokumenteTab
+            studentId={studentId}
+            canRecordAccidents={canRecordAccidents}
+          />
+        )}
+      </StudentTabPanel>
 
       {tabs.includes("aenderungsprotokoll") && (
         <StudentTabPanel
