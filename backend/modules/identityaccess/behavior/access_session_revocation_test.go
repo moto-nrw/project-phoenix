@@ -121,14 +121,16 @@ func TestVerifyAccessSessionRefusesForeignAndMissingFamilies(t *testing.T) {
 	require.ErrorIs(t, module.VerifyAccessSession(ctx, session), identityaccess.ErrInvalidToken, "an expired family ends its access tokens")
 }
 
-// TestRefreshRejectsSessionWithoutFamily pins the decision for sessions from
-// before refresh families (#5194): their access tokens cannot be checked per
-// request, so their refresh is refused, the row deleted, and the person
-// signs in again.
-func TestRefreshRejectsSessionWithoutFamily(t *testing.T) {
+// TestRefreshGivesALegacyHeadAFamily pins the rotation side of #5194: a
+// head from before refresh families that the backfill has not reached (it
+// rotated while the migration ran) gets a family at its next refresh,
+// written onto its predecessor too, so the person stays signed in, the new
+// access token passes the family check and a logout revokes the chain.
+func TestRefreshGivesALegacyHeadAFamily(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	service := setupAuthService(t, db)
+	module := setupAuthFactory(t, db)
+	service := newFixtureAuthService(t, db, module)
 	ctx := testpkg.Ctx(t)
 	email, username := uniqueTestCredentials("refresh-no-family")
 	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
@@ -139,12 +141,19 @@ func TestRefreshRejectsSessionWithoutFamily(t *testing.T) {
 	_, err = db.ExecContext(ctx, `UPDATE auth.tokens SET family_id = NULL WHERE account_id = ?`, account.ID)
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshToken(ctx, refresh)
-	require.ErrorIs(t, err, identityaccess.ErrInvalidToken)
-
-	remaining, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+	access, renewed, err := service.RefreshToken(ctx, refresh)
 	require.NoError(t, err)
-	assert.Zero(t, remaining, "the session without family is deleted")
+
+	session := accessSessionOf(t, access)
+	require.NotEmpty(t, session.FamilyID)
+	require.NoError(t, module.VerifyAccessSession(ctx, session))
+	var families []string
+	require.NoError(t, db.NewRaw(`SELECT DISTINCT COALESCE(family_id, '') FROM auth.tokens WHERE account_id = ?`, account.ID).Scan(ctx, &families))
+	assert.Equal(t, []string{session.FamilyID}, families, "head and predecessor share the new family")
+
+	require.NoError(t, module.LogoutWithAudit(ctx, renewed, "", ""))
+	require.ErrorIs(t, module.VerifyAccessSession(ctx, session), identityaccess.ErrInvalidToken)
+	assert.Zero(t, familyRowCount(t, db, session.FamilyID))
 }
 
 // TestSwitchTenantRefusesRevokedSourceFamily pins that a switch cannot mint
@@ -372,4 +381,44 @@ func TestLogoutOfPartlyPlacedChainRevokesEverything(t *testing.T) {
 			assert.Zero(t, remaining, "no row of the chain survives its logout")
 		})
 	}
+}
+
+// TestLogoutIgnoresAnotherFamilysCollidingToken pins that the chain walk of
+// a logout follows only unique links (#5194): when another family of the
+// same account holds a token hash that collides with the logged-out chain's
+// hand-off, the logout revokes its own family completely and leaves the
+// other one valid.
+func TestLogoutIgnoresAnotherFamilysCollidingToken(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	service := newFixtureAuthService(t, db, module)
+	ctx := testpkg.Ctx(t)
+	email, username := uniqueTestCredentials("colliding-token")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+
+	_, ownFirst, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	ownAccess, _, err := service.RefreshToken(ctx, ownFirst)
+	require.NoError(t, err)
+	otherAccess, _, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	own, other := accessSessionOf(t, ownAccess), accessSessionOf(t, otherAccess)
+
+	// The other family's head now holds the token hash the own predecessor
+	// hands off to.
+	_, err = db.ExecContext(ctx, `
+		UPDATE auth.tokens SET token = (
+			SELECT replacement_token FROM auth.tokens WHERE family_id = ? AND rotated_at IS NOT NULL
+		) WHERE family_id = ?`, own.FamilyID, other.FamilyID)
+	require.NoError(t, err)
+
+	require.NoError(t, module.LogoutWithAudit(ctx, ownFirst, "", ""))
+
+	require.ErrorIs(t, module.VerifyAccessSession(ctx, own), identityaccess.ErrInvalidToken, "the own chain is revoked completely")
+	require.NoError(t, module.VerifyAccessSession(ctx, other), "the other family stays valid")
+	assert.Zero(t, familyRowCount(t, db, own.FamilyID))
+	assert.Positive(t, familyRowCount(t, db, other.FamilyID), "the other family keeps its session")
 }

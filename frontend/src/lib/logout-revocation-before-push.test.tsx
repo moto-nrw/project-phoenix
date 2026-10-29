@@ -6,8 +6,10 @@ import {
   OperatorShellProvider,
   ParentShellProvider,
   SchoolShellProvider,
+  TeacherShellProvider,
   useShellAuth,
 } from "./shell-auth-context";
+import { reloginAtTenant } from "~/components/tenant/tenant-relogin";
 
 const { mockUnsubscribe } = vi.hoisted(() => ({ mockUnsubscribe: vi.fn() }));
 
@@ -42,6 +44,11 @@ vi.mock("~/lib/parent-url", () => ({
   parentAbsoluteUrl: (path: string) => path,
   parentPath: (path: string) => path,
 }));
+vi.mock("~/lib/staff-preview-api", () => ({ performEndStaffPreview: vi.fn() }));
+vi.mock("~/lib/swr", () => ({ mutate: vi.fn() }));
+vi.mock("~/env.client", () => ({
+  clientEnv: { NEXT_PUBLIC_TENANT_DOMAIN: "localhost" },
+}));
 vi.mock("~/lib/push-api", () => ({ unsubscribePushSilently: mockUnsubscribe }));
 
 beforeEach(() => {
@@ -61,6 +68,7 @@ afterEach(() => {
 // #5194: the family revocation never waits for the push cleanup; a hanging
 // push cleanup must not keep the session's access tokens valid.
 it.each([
+  ["OGS", TeacherShellProvider, "/api/auth/logout"],
   ["Schule", SchoolShellProvider, "/api/school/auth/logout"],
   ["Eltern", ParentShellProvider, "/api/parent/auth/logout"],
   ["Betreiber", OperatorShellProvider, "/api/operator/auth/logout"],
@@ -84,3 +92,14 @@ it.each([
     );
   },
 );
+
+it("Zur Schulanmeldung: revokes although the push cleanup hangs", async () => {
+  void reloginAtTenant("school-b");
+
+  await waitFor(() =>
+    expect(fetch).toHaveBeenCalledWith(
+      "/api/auth/logout",
+      expect.objectContaining({ method: "POST" }),
+    ),
+  );
+});

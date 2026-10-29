@@ -400,9 +400,14 @@ back; the revoked family makes it worthless. Migration 1.15.707 gives every
 live chain from before families (head plus rotated predecessors linked by
 `replacement_token`, same account, generation + 1) one family in one
 recursive statement, so it keeps signing in through one forced renewal. A
-row without `family_id` is never valid: its access tokens get 401, its
-refresh is refused, and a logout presenting it revokes the whole chain it
-links into, all reached families included, before it reports success. A staff-view preview token carries the admin's
+head that rotates while the migration runs gets its family from the
+rotation itself, which also writes it onto the predecessor; the migration
+rechecks the locked row and never overwrites it. An access token without
+family gets 401, a rotated row without family is refused at refresh, and a
+logout revokes the whole chain it links into, all reached families
+included, before it reports success. The walk follows only unique links
+(one match, same account, generation ± 1); an ambiguous continuation of the
+own chain fails the logout instead. A staff-view preview token carries the admin's
 family and ends with the admin's session.
 
 In the frontend a backend 401 for an unexpired token renews the session at

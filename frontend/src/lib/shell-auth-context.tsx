@@ -26,7 +26,7 @@ type ShowLogoutError = ReturnType<typeof useApiErrorDisplay>["show"];
 /**
  * Wraps a portal's logout. A failure keeps the session signed in, is shown
  * once with a retry, and still reaches the caller, which only closes its
- * confirmation (#5194, #5126).
+ * confirmation (#5194).
  */
 function reportingLogout(
   endSession: () => Promise<void>,
@@ -206,13 +206,14 @@ export function TeacherShellProvider({
             });
           }
         }
-        // Best-effort: drop this device's Web Push registration while the
-        // session is still valid. Must never block logout.
-        await unsubscribePushSilently("tenant");
         // Finish backend revocation before clearing the Auth.js cookie. The
         // response-aware route may persist a just-refreshed session cookie;
         // awaiting it guarantees signOut remains the final cookie mutation.
+        // The revocation never waits for push (#5194): the backend drops the
+        // family's push subscriptions with it, and the device-side cleanup
+        // below stays best-effort (its deadline follows with #5260).
         await revokeSessionFamily("/api/auth/logout");
+        await unsubscribePushSilently("tenant");
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).
         clearPersonalStorage();

@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/gofrs/uuid"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -343,10 +345,10 @@ func (r *refreshRotation) validatePresented(ctx context.Context, presented domai
 
 func (r *refreshRotation) validateLineage(ctx context.Context, current domain.AccountSession) error {
 	if current.FamilyID == "" {
-		// A session from before refresh families carries no family_id, so
-		// its access tokens cannot be checked per request and are refused
-		// (#5194). The row goes, and the person signs in again.
-		return r.reject(ctx, current, "family_missing", "delete refresh token without family", identityaccess.ErrInvalidToken)
+		// A head from before refresh families that the backfill has not
+		// reached (it rotated while the migration ran) has no lineage to
+		// check; its rotation gives the chain a family (#5194).
+		return nil
 	}
 	latest, err := r.service.sessions.LatestAccountSessionInFamily(ctx, current.FamilyID)
 	if err != nil {
@@ -477,6 +479,12 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 	if predecessor.FamilyExpiryCap != nil && predecessor.FamilyExpiryCap.Before(expiry) {
 		expiry = *predecessor.FamilyExpiryCap
 	}
+	// A chain from before refresh families gets one here; the predecessor
+	// takes it when it is marked rotated (#5194).
+	familyID := predecessor.FamilyID
+	if familyID == "" {
+		familyID = uuid.Must(uuid.NewV4()).String()
+	}
 	successor := domain.AccountSession{
 		Token:           domain.SuccessorRefreshToken(predecessor.Token),
 		AccountID:       accountID,
@@ -485,7 +493,7 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		Expiry:          expiry,
 		Mobile:          predecessor.Mobile,
 		Identifier:      predecessor.Identifier,
-		FamilyID:        predecessor.FamilyID,
+		FamilyID:        familyID,
 		FamilyExpiryCap: predecessor.FamilyExpiryCap,
 		Generation:      predecessor.Generation + 1,
 		PortalScope:     domain.PersistedPortalScope(scope),

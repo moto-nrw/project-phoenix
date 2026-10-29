@@ -1,4 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { LogoutModal } from "~/components/ui/logout-modal";
@@ -44,7 +50,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-// #5194 with #5126: a failed revocation keeps the session and is shown
+// #5194: a failed revocation keeps the session and is shown
 // exactly once, by the shell, with a retry; the confirmation only closes.
 it.each([
   ["OGS", TeacherShellProvider],
@@ -74,5 +80,15 @@ it.each([
     ).toBeInTheDocument();
     expect(onClose).toHaveBeenCalledTimes(1);
     expect(mockSignOut).not.toHaveBeenCalled();
+
+    // "Wiederholen" runs the logout again: the revocation is requested anew.
+    const revocations = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => String(url).endsWith("/auth/logout"))
+        .length;
+    const before = revocations();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(revocations()).toBe(before + 1));
   },
 );

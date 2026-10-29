@@ -47,6 +47,13 @@ func init() {
 // runtime does for every row without family. Expired rows stay as they are;
 // the cleanup removes them.
 //
+// A session that rotates while the statement runs is handled by the
+// rotation itself: it gives a chain without family a family and writes it
+// onto the predecessor too. The UPDATE rechecks the family on the locked row
+// version, so it never overwrites the family such a rotation committed, and
+// the new head, which the statement's snapshot does not see, already has
+// one.
+//
 // Only rows without family are touched, so a rerun finds nothing to do. The
 // statement locks the legacy rows it updates and nothing else; logins and
 // rotations of other sessions do not wait. The migration connection runs
@@ -76,7 +83,8 @@ WITH RECURSIVE heads AS MATERIALIZED (
 UPDATE auth.tokens
 SET family_id = chain.family_id
 FROM chain
-WHERE auth.tokens.id = chain.id`
+WHERE auth.tokens.id = chain.id
+	AND (auth.tokens.family_id IS NULL OR auth.tokens.family_id = '')`
 
 func backfillSessionFamiliesUp(ctx context.Context, db *bun.DB) error {
 	return BackfillSessionFamilies(ctx, db)
