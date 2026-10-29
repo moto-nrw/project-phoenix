@@ -41,11 +41,7 @@ export function runTenantSessionEnd(
       // Leaving/restoring the document is not a failed logout to report.
       if (!signal.aborted) throw error;
     })
-    .finally(() => {
-      controller.abort();
-      dispose();
-      if (pending?.controller === controller) pending = null;
-    });
+    .finally(cancel);
   pending = { controller, promise };
   return promise;
 }
