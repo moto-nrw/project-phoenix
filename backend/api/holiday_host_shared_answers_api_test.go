@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type hostAnswerBody struct {
@@ -287,4 +288,54 @@ func TestHolidayGuestSheetCarriesTheSecondGuardianAndTheSharedAnswersUntilTheyEx
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_guests WHERE tenant_id = ? AND answers <> '[]'::jsonb`, f.nord).
 		Scan(t.Context(), &left))
 	assert.Zero(t, left, "the answers are deleted with the contacts after the read-only days")
+}
+
+func TestHolidayGuestSheetExcludesAnswersReclassifiedAsHealthInformation(t *testing.T) {
+	t.Parallel()
+	for _, day := range []calendar.Date{calendar.NewDate(2099, 7, 8), calendar.NewDate(2099, 7, 17)} {
+		t.Run(day.String(), func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			f := newHolidayGuestFixture(t, "Träger Gesundheitseinstufung Gäste")
+			lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+			saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.periodID(t), sharedQuestions())
+			registration := f.submitShared(t)
+			f.confirm(t, registration, "confirm")
+			rec := f.assign(t, lead, f.offer.Weeks[0].ID, f.group)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			f.today.Store(calendar.NewDate(2099, 7, 6))
+			f.reconcile(t)
+			student := f.roster(t, calendar.NewDate(2099, 7, 8))["Ida Sommer"]
+			require.Positive(t, student)
+			type sheetBody struct {
+				holidayGuestSheetBody
+				Answers []hostAnswerBody `json:"answers"`
+			}
+			rec = f.sheet(t, lead, student)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			require.Len(t, decodeSchoolPortalData[sheetBody](t, rec.Body.Bytes()).Answers, 3)
+
+			// Reclassify only after copying, also after the week when source
+			// reconciliation no longer runs. No reconciliation before this read.
+			f.today.Store(day)
+			questions := sharedQuestions()
+			questions[0]["health"], questions[0]["share_with_host"] = true, false
+			saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.periodID(t), questions)
+			for _, reconcile := range []bool{false, true} {
+				if reconcile {
+					f.reconcile(t)
+				}
+				rec = f.sheet(t, lead, student)
+				require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+				sheet := decodeSchoolPortalData[sheetBody](t, rec.Body.Bytes())
+				assert.Equal(t, day.After(calendar.NewDate(2099, 7, 10)), sheet.ReadOnly)
+				assert.Equal(t, []hostAnswerBody{
+					{Key: "ausflug_ab", Label: "Ausflug ab", Type: "date", Value: "2099-07-07"},
+					{Key: "abholung", Label: "Abholung", Type: "select", Value: "Mit dem Bus"},
+				}, sheet.Answers, "health information must disappear immediately, including during the read-only days")
+				assert.NotContains(t, rec.Body.String(), "darf_allein_nach_hause")
+				require.Len(t, sheet.Emergency, 3, "ordinary copied contacts remain readable")
+			}
+		})
+	}
 }

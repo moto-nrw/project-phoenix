@@ -110,7 +110,7 @@ type holidayGuestContactRow struct {
 const (
 	holidayGuestColumns = `id, organization_id, holiday_period_week_id, holiday_registration_child_id, student_id,
 		starts_on, ends_on, ended_on, home_school_id, guest_school_name, time_model_name, time_model_starts_at, time_model_ends_at,
-		answers`
+		enrollment.holiday_guest_shared_answers(id) AS answers`
 	guestWeekQuery = `SELECT week.id, week.organization_id, week.starts_on, week.ends_on
 		FROM enrollment.holiday_period_weeks AS week
 		JOIN enrollment.holiday_periods AS period
