@@ -167,7 +167,7 @@ func TestDatedCorrection_InactiveSourceWithMixedPeriodsKeepsValidSource(t *testi
 // keep refusing a template with an inactive source and write nothing.
 func TestInactiveSource_CatalogEditAndTemplateSaveStillRefuse(t *testing.T) {
 	t.Parallel()
-	f := setupInactiveSourceCorrection(t, "mehrquellen-inaktiv-streng@example.com", divergingPeriodCase{})
+	f := setupMultiSourceCorrection(t, "mehrquellen-inaktiv-streng@example.com", divergingPeriodCase{phaseStart: inactiveSourceToday.AddDays(-10)})
 	snapshot := map[int64][]timetable.StudentEnrollment{f.studentID: f.rowsOf(t, f.studentID), f.neighbourID: f.rowsOf(t, f.neighbourID)}
 	f.deactivate(t, f.first.ID)
 

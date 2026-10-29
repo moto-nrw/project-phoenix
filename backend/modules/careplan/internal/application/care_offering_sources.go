@@ -117,7 +117,18 @@ func (c *CareOfferingCatalog) loadValidatedOfferingSources(
 	for _, offering := range loaded {
 		byID[offering.ID] = offering
 	}
-	sources := careplan.OfferingSources{Offerings: make([]careplan.CareOffering, 0, len(loaded))}
+	return c.acceptOfferingSources(ctx, offeringIDs, byID, period, drift)
+}
+
+// acceptOfferingSources checks the loaded offerings in request order.
+func (c *CareOfferingCatalog) acceptOfferingSources(
+	ctx context.Context,
+	offeringIDs []int64,
+	byID map[int64]careplan.CareOffering,
+	period *careplan.LinkedPeriod,
+	drift sourceDrift,
+) (careplan.OfferingSources, error) {
+	sources := careplan.OfferingSources{Offerings: make([]careplan.CareOffering, 0, len(byID))}
 	var firstInactive *careplan.CareOffering
 	for _, offeringID := range offeringIDs {
 		offering, ok := byID[offeringID]
