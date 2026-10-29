@@ -7,6 +7,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -116,6 +117,9 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	// already closed manually; revision events still need compaction.
 	slices.Sort(activeIDs)
 	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.SchoolPresence.PrepareVisitWrites(txCtx, studentpresence.VisitWriteScope{GroupIDs: activeIDs}); err != nil {
+			return err
+		}
 		lockedIDs, err := s.lockActiveSessionIDs(txCtx, activeIDs)
 		if err != nil {
 			return err

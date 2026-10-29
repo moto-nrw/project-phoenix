@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -40,12 +41,13 @@ const opForceStartSession = "ForceStartActivitySessionWithSupervisors"
 
 func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **ports.ActiveGroup) error {
 	err := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
-		lockedStaff, finalRoomID, err := s.lockForceStart(txCtx, activityID, deviceID, supervisorIDs, roomID)
+		var prepared forceStartCohort
+		lockedStaff, finalRoomID, err := s.lockForceStart(txCtx, activityID, deviceID, supervisorIDs, roomID, &prepared)
 		if err != nil {
 			return err
 		}
 
-		conflictingSessionIDs, endedSessionIDs, err := s.endSessionsForForceStart(txCtx, activityID, deviceID)
+		conflictingSessionIDs, endedSessionIDs, err := s.endSessionsForForceStart(txCtx, activityID, deviceID, prepared)
 		if err != nil {
 			return err
 		}
@@ -73,9 +75,9 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 }
 
 // lockForceStart takes the force start's locks in their fixed order: the
-// activity start lock, the requested supervisors, then the rooms involved. It
+// activity start lock, supervisors, source visits, rooms and sessions. It
 // returns the locked staff and the room the session starts in.
-func (s *service) lockForceStart(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (map[int64]bool, int64, error) {
+func (s *service) lockForceStart(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, prepared *forceStartCohort) (map[int64]bool, int64, error) {
 	if err := s.acquireActivitySessionLock(ctx, activityID, opForceStartSession); err != nil {
 		return nil, 0, err
 	}
@@ -88,26 +90,32 @@ func (s *service) lockForceStart(ctx context.Context, activityID, deviceID int64
 	if err != nil {
 		return nil, 0, &ActiveError{Op: opForceStartSession, Err: err}
 	}
-	if err := s.lockForceStartRooms(ctx, activityID, deviceID, finalRoomID); err != nil {
-		return nil, 0, &ActiveError{Op: opForceStartSession, Err: ErrDatabaseOperation}
+	cohort, err := s.discoverForceStartCohort(ctx, activityID, deviceID)
+	if err != nil {
+		return nil, 0, err
 	}
+	sources := appendActiveGroupID(slices.Clone(cohort.activityIDs), cohort.deviceSessionID)
+	if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: sources, DeviceID: deviceID, RoomID: finalRoomID}); err != nil {
+		return nil, 0, err
+	}
+	*prepared = cohort
 	return lockedStaff, finalRoomID, nil
 }
 
 // endSessionsForForceStart ends the device's session and the activity's other
 // sessions. It returns the activity sessions whose state moves to the new
 // session and every session it ended.
-func (s *service) endSessionsForForceStart(ctx context.Context, activityID, deviceID int64) (conflictingSessionIDs, endedSessionIDs []int64, err error) {
+func (s *service) endSessionsForForceStart(ctx context.Context, activityID, deviceID int64, prepared forceStartCohort) (conflictingSessionIDs, endedSessionIDs []int64, err error) {
 	// Use simple cleanup (fullCleanup=false) to only mark the group as ended
 	// without ending visits, so TransferVisitsFromRecentSessions can move them
 	// to the new session. Using fullCleanup=true would set exit_time on all visits
 	// first, causing the transfer to find nothing and losing all checked-in students.
-	deviceEndedSessionID, err := s.endExistingDeviceSessionForForceStart(ctx, deviceID)
+	deviceEndedSessionID, err := s.endExistingDeviceSessionForForceStart(ctx, deviceID, prepared.deviceSessionID)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: opForceStartSession, Err: err}
 	}
 
-	conflictingSessionIDs, err = s.endExistingActivitySessionsForForceStart(ctx, activityID)
+	conflictingSessionIDs, err = s.endExistingActivitySessionsForForceStart(ctx, activityID, prepared.activityIDs)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: opForceStartSession, Err: err}
 	}
@@ -214,12 +222,18 @@ func (s *service) completeTimetableMirrorsForEndedSessions(ctx context.Context, 
 	return nil
 }
 
-func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, activityID int64) ([]int64, error) {
+func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, activityID int64, preparedIDs []int64) ([]int64, error) {
 	existingSessions, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
 	if err != nil {
 		return nil, err
 	}
 
+	// Validate the complete discovery before locking any newly observed session.
+	for _, session := range existingSessions {
+		if session != nil && session.ID > 0 && !slices.Contains(preparedIDs, session.ID) {
+			return nil, ErrSessionConflict
+		}
+	}
 	endedIDs := make([]int64, 0, len(existingSessions))
 	for _, session := range existingSessions {
 		if session == nil || session.ID <= 0 {
@@ -243,7 +257,7 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 	return endedIDs, nil
 }
 
-func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, deviceID int64) (int64, error) {
+func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, deviceID, preparedID int64) (int64, error) {
 	existingSession, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		return 0, err
@@ -251,6 +265,9 @@ func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, dev
 
 	if existingSession == nil {
 		return 0, nil
+	}
+	if existingSession.ID != preparedID {
+		return 0, ErrSessionConflict
 	}
 	locked, err := s.GroupRepo.FindByIDForUpdate(ctx, existingSession.ID)
 	if err != nil {
@@ -432,36 +449,33 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 	return roomID, nil
 }
 
-func (s *service) lockForceStartRooms(ctx context.Context, activityID, deviceID, finalRoomID int64) error {
-	roomIDs := map[int64]struct{}{finalRoomID: {}}
-	activitySessions, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
-	if err != nil {
-		return err
-	}
-	for _, session := range activitySessions {
-		if session != nil && session.RoomID > 0 {
-			roomIDs[session.RoomID] = struct{}{}
-		}
-	}
-	deviceSession, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
-	if err != nil {
-		return err
-	}
-	if deviceSession != nil && deviceSession.RoomID > 0 {
-		roomIDs[deviceSession.RoomID] = struct{}{}
-	}
+// forceStartCohort freezes sources before preparation. A later discovery
+// may drop ended rows, but never adds a source after higher-class locks.
+type forceStartCohort struct {
+	activityIDs     []int64
+	deviceSessionID int64
+}
 
-	ids := make([]int64, 0, len(roomIDs))
-	for roomID := range roomIDs {
-		ids = append(ids, roomID)
+func (s *service) discoverForceStartCohort(ctx context.Context, activityID, deviceID int64) (forceStartCohort, error) {
+	var cohort forceStartCohort
+	groups, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
+	if err != nil {
+		return cohort, err
 	}
-	slices.Sort(ids)
-	for _, roomID := range ids {
-		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, roomID); err != nil {
-			return err
+	for _, group := range groups {
+		if group != nil {
+			cohort.activityIDs = appendActiveGroupID(cohort.activityIDs, group.ID)
 		}
 	}
-	return nil
+	slices.Sort(cohort.activityIDs)
+	device, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
+	if err != nil {
+		return cohort, err
+	}
+	if device != nil {
+		cohort.deviceSessionID = device.ID
+	}
+	return cohort, nil
 }
 
 // getPlannedRoomID retrieves the planned room ID from activity configuration.

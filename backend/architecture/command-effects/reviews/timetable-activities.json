@@ -4242,6 +4242,39 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.QueryGroupSupervisions",
       "classification": "leaf",
       "effect": "lock",
@@ -7460,6 +7493,28 @@
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.PatchSessionAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PatchSessionAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
       "target_owner": "student-presence"
     },
     {
@@ -19082,6 +19137,17 @@
       "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.LifecyclePresence.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
       "target_owner": "student-presence"
     },
     {

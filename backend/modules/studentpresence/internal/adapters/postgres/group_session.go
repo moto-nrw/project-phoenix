@@ -72,6 +72,12 @@ func (s *Store) EndGroupSession(ctx context.Context, groupID int64, at time.Time
 	started := time.Now()
 	defer func() { stats.StatementDuration = time.Since(started) }()
 
+	plan, prepared, err := s.prepareVisitWritePlan(ctx, studentpresence.VisitWriteScope{GroupIDs: []int64{groupID}})
+	stats.Queries += prepared.Queries
+	if err != nil {
+		return result, stats, err
+	}
+
 	stats.Queries++
 	if err = lockOpenGroupLifecycle(ctx, db, tenantID, groupID); err != nil {
 		return result, stats, err
@@ -82,7 +88,7 @@ func (s *Store) EndGroupSession(ctx context.Context, groupID int64, at time.Time
 	err = db.NewUpdate().Model((*visitRow)(nil)).ModelTableExpr(`active.visits AS "visit"`).
 		Set("exit_time = ?", at).Set("updated_at = ?", at).
 		Where(`"visit".tenant_id = ?`, tenantID).Where(`"visit".active_group_id = ?`, groupID).
-		Where(`"visit".exit_time IS NULL`).Returning("*").Scan(ctx, &visits)
+		Where(`"visit".exit_time IS NULL`).Where(`"visit".id IN (?)`, bun.List(visitWriteIDs(plan.visits))).Returning("*").Scan(ctx, &visits)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return result, stats, fmt.Errorf("end group session: close visits: %w", err)
 	}
@@ -160,7 +166,12 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	}
 	started := time.Now()
 	defer func() { stats.StatementDuration = time.Since(started) }()
-	result, stats, err = endOpenGroupSessions(ctx, db, tenantID, groupIDs, at, endDate)
+	plan, prepared, err := s.prepareVisitWritePlan(ctx, studentpresence.VisitWriteScope{GroupIDs: groupIDs})
+	if err != nil {
+		return result, prepared, err
+	}
+	result, stats, err = endOpenGroupSessions(ctx, db, tenantID, groupIDs, visitWriteIDs(plan.visits), at, endDate)
+	stats.Queries += prepared.Queries
 	// Successful empty batches still maintain revisions for sessions ended
 	// manually or deleted since the last nightly run.
 	if err == nil {
@@ -169,7 +180,7 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	return result, stats, err
 }
 
-func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, at time.Time, endDate ports.Date) (result studentpresence.EndedGroupSessions, stats ports.Stats, err error) {
+func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, groupIDs, visitIDs []int64, at time.Time, endDate ports.Date) (result studentpresence.EndedGroupSessions, stats ports.Stats, err error) {
 	if len(groupIDs) == 0 {
 		return result, stats, nil
 	}
@@ -188,7 +199,7 @@ func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, group
 	stats.Queries++
 	visits, err := db.NewUpdate().Table("active.visits").
 		Set("exit_time = GREATEST(?, entry_time)", at).Set("updated_at = ?", at).
-		Where("tenant_id = ?", tenantID).Where("active_group_id IN (?)", bun.List(open)).Where("exit_time IS NULL").Exec(ctx)
+		Where("tenant_id = ?", tenantID).Where("active_group_id IN (?)", bun.List(open)).Where("exit_time IS NULL").Where("id IN (?)", bun.List(visitIDs)).Exec(ctx)
 	if err != nil {
 		return result, stats, fmt.Errorf("end group sessions: close visits: %w", err)
 	}

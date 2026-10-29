@@ -47,6 +47,7 @@ type SessionStartCommand interface {
 }
 
 type GroupSessionCommand interface {
+	VisitWriteLocks
 	SessionStartCommand
 	// LockGroup reads the group FOR UPDATE and returns ErrGroupNotFound when
 	// the tenant has no such row.
