@@ -100,6 +100,7 @@ func collectOfferingWeekdayBookings(
 			OfferingID:    offering.ID,
 			OfferingName:  offering.Name,
 			PhaseID:       offering.PhaseID,
+			HolidayPhase:  phase.Holiday,
 			StudentID:     child.StudentID,
 			SchoolClass:   child.SchoolClass,
 			GradeLevel:    child.GradeLevel,

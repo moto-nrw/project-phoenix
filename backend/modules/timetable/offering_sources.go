@@ -50,9 +50,13 @@ type OfferingWeekdayBooking struct {
 	OfferingName string
 	// PhaseID is the offering's enrollment phase; a combined source must
 	// stay within one phase (#5139).
-	PhaseID     int64
-	StudentID   int64
-	SchoolClass string
+	PhaseID int64
+	// HolidayPhase is true when that phase is of the kind Ferienbetreuung;
+	// such an offering is never suggested as a Regeltermin source (#5139).
+	// The offering's own IncludesHolidayCare flag plays no part.
+	HolidayPhase bool
+	StudentID    int64
+	SchoolClass  string
 	// GradeLevel is the Jahrgang derived from the school class; nil when
 	// the class carries none.
 	GradeLevel *int

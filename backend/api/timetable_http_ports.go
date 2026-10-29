@@ -343,6 +343,7 @@ func (s timetableOfferingSources) OfferingWeekdayBookings(ctx context.Context, c
 			OfferingID:            booking.OfferingID,
 			OfferingName:          booking.OfferingName,
 			PhaseID:               booking.PhaseID,
+			HolidayPhase:          booking.HolidayPhase,
 			StudentID:             booking.StudentID,
 			SchoolClass:           booking.SchoolClass,
 			GradeLevel:            grade,

@@ -304,7 +304,11 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		return state, fmt.Errorf("parse late enrollment invite: %w", err)
 	}
 
-	offerings, err := s.createCareOfferings(rt, adminAuth, phaseID)
+	holidayPhaseID, err := s.createHolidayPhase(rt, adminAuth, schemaID)
+	if err != nil {
+		return state, err
+	}
+	offerings, err := s.createCareOfferings(rt, adminAuth, phaseID, holidayPhaseID)
 	if err != nil {
 		return state, err
 	}
@@ -322,7 +326,7 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 		return state, err
 	}
 
-	seedSubmission := func(source, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, seedSource string, offeringKeys []string, selectedDays map[string][]string, status, reason string) enrollmentSubmission {
+	seedSubmissionIn := func(submissionPhaseID int64, source, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, seedSource string, offeringKeys []string, selectedDays map[string][]string, status, reason string) enrollmentSubmission {
 		offeringIDs := make([]int64, 0, len(offeringKeys))
 		selectedDaysByID := make(map[int64][]string, len(selectedDays))
 		for _, key := range offeringKeys {
@@ -340,12 +344,15 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 			source: source,
 			key:    seedSource,
 			path:   "/api/enrollment/" + rt.Bootstrap.TenantSlug + "/submit",
-			body: s.enrollmentSubmissionWithDays(phaseID, offerings, childFirstName, childLastName, dob, grade,
+			body: s.enrollmentSubmissionWithDays(submissionPhaseID, offerings, childFirstName, childLastName, dob, grade,
 				guardianFirstName, guardianLastName, scopedEmail(guardianEmail, rt.FixedSeeder.accountScope), seedSource, offeringIDs, selectedDaysByID,
 			),
 			status: status,
 			reason: reason,
 		}
+	}
+	seedSubmission := func(source, childFirstName, childLastName, dob string, grade int16, guardianFirstName, guardianLastName, guardianEmail, seedSource string, offeringKeys []string, selectedDays map[string][]string, status, reason string) enrollmentSubmission {
+		return seedSubmissionIn(phaseID, source, childFirstName, childLastName, dob, grade, guardianFirstName, guardianLastName, guardianEmail, seedSource, offeringKeys, selectedDays, status, reason)
 	}
 	submissions := []enrollmentSubmission{
 		// Zeynep und sieben weitere Kinder belegen die acht Plätze der Theater-AG
@@ -431,22 +438,20 @@ func (s parentEnrollmentSeedStep) seedEnrollment(rt *Runtime, adminAuth AuthRef,
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
 			}, "approved", "Zusage: fünf Betreuungstage"),
-		seedSubmission("public", "Sophie", "Sharma", "2016-12-19", 3,
+		// Die Ferienbetreuung hat ihre eigene Ferien-Phase (#5139); ihr
+		// Mittagessen ist im Angebot enthalten.
+		seedSubmissionIn(holidayPhaseID, "public", "Sophie", "Sharma", "2016-12-19", 3,
 			"Kavita", "Sharma", "kavita.sharma@example.test", "approved-5-days-holiday",
-			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
-				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, "approved", "Zusage: Ferienbetreuung"),
+			[]string{"ferienbetreuung"}, nil, "approved", "Zusage: Ferienbetreuung"),
 		seedSubmission("public", "Sofia", "Rossi", "2017-05-24", 3,
 			"Giulia", "Rossi", "giulia.rossi@example.test", "approved-5-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
 				"ogs-ganztag": {"mon", "tue", "wed", "thu", "fri"},
 				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
 			}, "approved", "Zusage: fünf Betreuungstage"),
-		seedSubmission("public", "Mika", "Winter", "2018-11-03", 2,
+		seedSubmissionIn(holidayPhaseID, "public", "Mika", "Winter", "2018-11-03", 2,
 			"Robert", "Winter", "robert.winter@example.test", "waitlisted-holiday",
-			[]string{"ferienbetreuung", "mittagessen"}, map[string][]string{
-				"mittagessen": {"mon", "tue", "wed", "thu", "fri"},
-			}, "waitlisted", "Warteliste: Die Ferienplätze gehen zuerst an Kinder aus der OGS."),
+			[]string{"ferienbetreuung"}, nil, "waitlisted", "Warteliste: Die Ferienplätze gehen zuerst an Kinder aus der OGS."),
 		seedSubmission("public", "Andrei", "Popescu", "2017-09-13", 2,
 			"Ioana", "Popescu", "ioana.popescu@example.test", "waitlisted-3-days",
 			[]string{"ogs-ganztag", "mittagessen"}, map[string][]string{
@@ -799,6 +804,38 @@ func (s parentEnrollmentSeedStep) createEnrollmentPhase(rt *Runtime, auth AuthRe
 	return id, body, nil
 }
 
+// createHolidayPhase opens the phase of the kind Ferienbetreuung for the
+// Herbstferien of the running school year (#5139). Its offering is holiday
+// care and never stands behind a Regeltermin, unlike Ganztag of the
+// school-year phase. It uses the school-year form.
+func (s parentEnrollmentSeedStep) createHolidayPhase(rt *Runtime, auth AuthRef, schemaID int64) (int64, error) {
+	now := time.Now().UTC()
+	first, last := holidayCareDays(todaySeedDate())
+	body := map[string]any{
+		"name":                         fmt.Sprintf("Ferienbetreuung Herbstferien %d", first.Year()),
+		"kind":                         "holiday",
+		"service_start_date":           first.String(),
+		"service_end_date":             last.String(),
+		"enrollment_open_at":           now.Add(-24 * time.Hour).Format(time.RFC3339),
+		"enrollment_close_at":          now.AddDate(0, 2, 0).Format(time.RFC3339),
+		"show_status_reason_to_parent": true,
+		"care_overflow_mode":           "waitlist",
+		"care_offering_selection_mode": "at_least_one",
+		"audience":                     "open",
+		"is_active":                    true,
+		"form_schema_id":               strconv.FormatInt(schemaID, 10),
+	}
+	respBody, err := rt.Client.PostWithAuth(auth, "/api/enrollment/phases", body)
+	if err != nil {
+		return 0, fmt.Errorf("create holiday enrollment phase: %w", err)
+	}
+	id, err := parseEnvelopeStringID(respBody)
+	if err != nil {
+		return 0, fmt.Errorf("parse holiday enrollment phase response: %w", err)
+	}
+	return id, nil
+}
+
 type seedCareOffering struct {
 	key          string
 	name         string
@@ -812,6 +849,9 @@ type seedCareOffering struct {
 	sort         int
 	countsAsCare bool
 	pickupTime   string
+	// holiday puts the offering into the holiday phase of the Herbstferien
+	// and marks it as holiday care (#5139).
+	holiday bool
 	// group puts the offering into a per-day selection group (#4514): the
 	// variants combine across the week, but never twice on one day.
 	group string
@@ -831,7 +871,7 @@ func demoCareOfferings() []seedCareOffering {
 		{key: "mittagessen", name: "Mittagessen", description: "Warme Mahlzeit an Betreuungstagen", daysMode: "parent_choice", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, required: true, price: 5200, sort: 30,
 			names:        map[string]string{"en": "Lunch", "ru": "Обед", "uk": "Обід"},
 			descriptions: map[string]string{"en": "Hot meal on care days", "ru": "Горячее питание в дни присмотра", "uk": "Гаряча їжа в дні догляду"}},
-		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: "fixed", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(20), sort: 40, countsAsCare: true, pickupTime: "16:00"},
+		{key: "ferienbetreuung", name: "Ferienbetreuung Herbst", description: "Plätze für die Herbstferien", daysMode: "fixed", days: []string{"mon", "tue", "wed", "thu", "fri"}, lunch: true, price: 7500, capacity: intPtr(20), sort: 40, countsAsCare: true, pickupTime: "16:00", holiday: true},
 		// Die Demo-Kurse (#3075): Angebote, die an einer AG hängen. Zwei davon,
 		// damit die Eltern-App beide Zustände zeigt — einer mit freien Plätzen,
 		// einer voll, der eine Anfrage auf die Warteliste setzt.
@@ -840,11 +880,17 @@ func demoCareOfferings() []seedCareOffering {
 	}
 }
 
-func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth AuthRef, phaseID int64) (map[string]int64, error) {
+// createCareOfferings creates the school-year offerings in phaseID and the
+// holiday care in holidayPhaseID (#5139).
+func (s parentEnrollmentSeedStep) createCareOfferings(rt *Runtime, auth AuthRef, phaseID, holidayPhaseID int64) (map[string]int64, error) {
 	offerings := demoCareOfferings()
 	created := make(map[string]int64, len(offerings))
 	for _, offering := range offerings {
-		body := careOfferingSeedBody(offering, phaseID)
+		offeringPhaseID := phaseID
+		if offering.holiday {
+			offeringPhaseID = holidayPhaseID
+		}
+		body := careOfferingSeedBody(offering, offeringPhaseID)
 		respBody, err := rt.Client.PostWithAuth(auth, "/api/enrollment/care-offerings", body)
 		if err != nil {
 			return nil, fmt.Errorf("create care offering %s: %w", offering.key, err)
@@ -865,7 +911,7 @@ func careOfferingSeedBody(offering seedCareOffering, phaseID int64) map[string]a
 		"description":           offering.description,
 		"days_of_week_mode":     offering.daysMode,
 		"available_days":        offering.days,
-		"includes_holiday_care": offering.key == "ferienbetreuung",
+		"includes_holiday_care": offering.holiday,
 		"includes_lunch":        offering.lunch,
 		"price_cents":           offering.price,
 		"is_active":             true,

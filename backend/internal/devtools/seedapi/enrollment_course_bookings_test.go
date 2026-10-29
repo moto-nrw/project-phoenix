@@ -12,8 +12,10 @@ import (
 
 // The approved online enrollments fill the courses believably: the
 // Fußball-AG about three quarters, the Theater-AG to its last place, so the
-// parents app keeps a full course, and the Ferienbetreuung partly. Every
-// booked child is an approved enrollment of the seed.
+// parents app keeps a full course. Every booked child is an approved
+// enrollment of the seed. The holiday care has its own holiday phase
+// (#5139): no school-year enrollment books it, Sophie Sharma's holiday
+// request does.
 func TestSeedEnrollmentCourseBookingsFillTheOfferings(t *testing.T) {
 	t.Parallel()
 
@@ -23,8 +25,7 @@ func TestSeedEnrollmentCourseBookingsFillTheOfferings(t *testing.T) {
 			capacity[offering.key] = *offering.capacity
 		}
 	}
-	// Sophie Sharma's enrollment selects the holiday care itself.
-	booked := map[string]int{"ferienbetreuung": 1}
+	booked := map[string]int{}
 	for child, keys := range seedEnrollmentCourseBookings {
 		require.NotEqual(t, "Sophie Sharma", child)
 		for _, key := range keys {
@@ -34,7 +35,7 @@ func TestSeedEnrollmentCourseBookingsFillTheOfferings(t *testing.T) {
 	assert.Equal(t, map[string]int{"ferienbetreuung": 20, "ag-fussball": 12, "ag-theater": 8}, capacity)
 	assert.Equal(t, 9, booked["ag-fussball"], "nine of twelve")
 	assert.Equal(t, capacity["ag-theater"], booked["ag-theater"], "the Theater-AG is full")
-	assert.Equal(t, 8, booked["ferienbetreuung"], "eight of twenty")
+	assert.Zero(t, booked["ferienbetreuung"], "the holiday care is booked in its own holiday phase")
 }
 
 func TestWithSeedCourseBookingsAddsTheCoursesOnce(t *testing.T) {
@@ -42,7 +43,7 @@ func TestWithSeedCourseBookingsAddsTheCoursesOnce(t *testing.T) {
 
 	offerings := map[string]int64{"ogs-kurz": 1, "mittagessen": 2, "ag-fussball": 5, "ag-theater": 6, "ferienbetreuung": 4}
 	selected := []int64{1, 2}
-	assert.Equal(t, []int64{1, 2, 5, 6, 4}, withSeedCourseBookings(offerings, "Clara", "Neumann", selected))
+	assert.Equal(t, []int64{1, 2, 5, 6}, withSeedCourseBookings(offerings, "Clara", "Neumann", selected))
 	assert.Equal(t, []int64{1, 2}, selected, "the selection stays untouched")
 	assert.Equal(t, []int64{1, 6, 2}, withSeedCourseBookings(offerings, "Zeynep", "Çelik", []int64{1, 6, 2}),
 		"a course the form already selects is not added twice")

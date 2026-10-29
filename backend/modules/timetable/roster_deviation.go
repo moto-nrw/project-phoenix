@@ -303,11 +303,13 @@ func rosterDeviationCandidates(roster TemplateFutureRoster, planned map[rosterSl
 }
 
 // bookedSlotsByOffering groups the bookings of the Regeltermin's cohort per
-// offering into the child-weekdays it runs.
+// offering into the child-weekdays it runs. Offerings of a holiday phase
+// (Ferienbetreuung) never stand behind a roster (#5139): they run when no
+// Regeltermin does, so they are neither suggested nor combined.
 func bookedSlotsByOffering(roster TemplateFutureRoster, bookings []OfferingWeekdayBooking) map[int64]*deviationCandidate {
 	byOffering := make(map[int64]*deviationCandidate)
 	for _, booking := range bookings {
-		if !roster.OfferingKind.admits(booking) || !bookingInTargetCohort(roster, booking) {
+		if booking.HolidayPhase || !roster.OfferingKind.admits(booking) || !bookingInTargetCohort(roster, booking) {
 			continue
 		}
 		candidate := byOffering[booking.OfferingID]

@@ -601,3 +601,76 @@ func TestDetectRosterDeviationMissingData(t *testing.T) {
 		assert.Nil(t, timetable.SuggestOfferingSource(roster, bookings))
 	})
 }
+
+// TestSuggestOfferingSourceSkipsHolidayPhases (#5139): an offering of an
+// enrollment phase of the kind Ferienbetreuung is never suggested, neither
+// as the best offering, nor to complete a combination, nor as an equal
+// alternative. The seed books "Ferienbetreuung Herbst" Monday to Friday for
+// children of the class, like Ganztag. The dialog still lists it by hand.
+// Ganztag with holiday care sits in a school-year phase and stays suggested;
+// its IncludesHolidayCare flag does not reach the rule.
+func TestSuggestOfferingSourceSkipsHolidayPhases(t *testing.T) {
+	t.Parallel()
+	const ferienID = int64(304)
+	class := studentRange(1001, 10)
+	ferien := func(studentID int64, weekdays ...int) timetable.OfferingWeekdayBooking {
+		entry := booking(ferienID, "Ferienbetreuung Herbst", studentID, "1b", weekdays...)
+		entry.CountsAsCare, entry.HolidayPhase, entry.PhaseID = true, true, 9
+		return entry
+	}
+	care := func(offeringID int64, name string, studentID int64, weekdays ...int) timetable.OfferingWeekdayBooking {
+		entry := booking(offeringID, name, studentID, "1b", weekdays...)
+		entry.CountsAsCare, entry.PhaseID = true, 7
+		return entry
+	}
+	roster := classRoster([]int{1, 2, 3, 4, 5}, class, "1b")
+	roster.OfferingKind = timetable.RosterOfferingCare
+
+	t.Run("not as the best offering", func(t *testing.T) {
+		t.Parallel()
+		bookings := []timetable.OfferingWeekdayBooking{}
+		for _, studentID := range class {
+			bookings = append(bookings, ferien(studentID, 1, 2, 3, 4, 5))
+		}
+		assert.Nil(t, timetable.SuggestOfferingSource(roster, bookings))
+		assert.Nil(t, timetable.DetectRosterDeviation(roster, bookings))
+	})
+
+	// The holiday care books every child of the class, Ganztag seven: the
+	// holiday care would win and Ganztag, of another phase, could not join.
+	t.Run("Ganztag stays suggested when the holiday care books more children", func(t *testing.T) {
+		t.Parallel()
+		bookings := []timetable.OfferingWeekdayBooking{}
+		for _, studentID := range class[:7] {
+			bookings = append(bookings, care(ganztagID, "Ganztag", studentID, 1, 2, 3, 4, 5))
+		}
+		for _, studentID := range class {
+			bookings = append(bookings, ferien(studentID, 1, 2, 3, 4, 5))
+		}
+
+		deviation := timetable.DetectRosterDeviation(roster, bookings)
+
+		require.NotNil(t, deviation)
+		assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}}, deviation.Offerings)
+		assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}}, deviation.Candidates)
+		assert.Equal(t, 3, deviation.UnbookedCount, "the children booking only the holiday care have no fitting booking")
+		assert.False(t, deviation.Ambiguous)
+	})
+
+	t.Run("not as an equal alternative", func(t *testing.T) {
+		t.Parallel()
+		bookings := []timetable.OfferingWeekdayBooking{}
+		for _, studentID := range class {
+			bookings = append(bookings,
+				care(ganztagID, "Ganztag", studentID, 1, 2, 3, 4, 5),
+				ferien(studentID, 1, 2, 3, 4, 5))
+		}
+
+		suggestion := timetable.SuggestOfferingSource(roster, bookings)
+
+		require.NotNil(t, suggestion)
+		assert.False(t, suggestion.Ambiguous, "the holiday care is no choice next to Ganztag")
+		assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}}, suggestion.Offerings)
+		assert.Empty(t, suggestion.Combinations)
+	})
+}

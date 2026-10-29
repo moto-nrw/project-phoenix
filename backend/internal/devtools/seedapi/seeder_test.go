@@ -188,6 +188,8 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	t.Parallel()
 
 	type offeringPayload struct {
+		PhaseID       int64             `json:"phase_id"`
+		HolidayCare   bool              `json:"includes_holiday_care"`
 		Name          string            `json:"name"`
 		AvailableDays []string          `json:"available_days"`
 		CountsAsCare  bool              `json:"counts_as_care"`
@@ -204,7 +206,7 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	defer srv.Close()
 
 	step := parentEnrollmentSeedStep{}
-	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, 1)
+	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, 1, 2)
 	require.NoError(t, err)
 	require.Len(t, received, 6)
 
@@ -215,6 +217,14 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	for _, offering := range received {
 		expectedTime, ok := expectedTimes[offering.Name]
 		require.True(t, ok, offering.Name)
+		// The holiday care lives in the holiday phase (#5139).
+		holiday := offering.Name == "Ferienbetreuung Herbst"
+		assert.Equal(t, holiday, offering.HolidayCare, offering.Name)
+		if holiday {
+			assert.Equal(t, int64(2), offering.PhaseID, offering.Name)
+		} else {
+			assert.Equal(t, int64(1), offering.PhaseID, offering.Name)
+		}
 		countsAsCare := expectedTime != ""
 		assert.Equal(t, countsAsCare, offering.CountsAsCare, offering.Name)
 		if !countsAsCare {
