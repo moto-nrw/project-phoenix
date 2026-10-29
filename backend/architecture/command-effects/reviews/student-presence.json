@@ -14259,7 +14259,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
-      "reason": "Reviewed read: the root binding roots/owners.StatisticsPlannedCareDays maps Care Plan's planned care days for the occupancy by time of day (#4764). Target modules/careplan.CareDayQuery.ResolvePlannedForRange; modules/careplan/care_days.go. No owned-row mutation or locking read.",
+      "reason": "Reviewed read: the root binding roots/owners.StatisticsPlannedCareDays maps Care Plan's planned care days for the occupancy by time of day (#4764) and, since #4774, also states whether a day has no plan or was cancelled for Soll und Ist (ADR 0136). Target modules/careplan.CareDayQuery.ResolvePlannedForRange; modules/careplan/care_days.go. No owned-row mutation or locking read.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
       "target_owner": "care-plan"
@@ -14269,7 +14269,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
-      "reason": "Reviewed value method: CareDayStatus.Expected is a pure derivation on the returned verdict (modules/careplan/care_days.go). No persistent, lock or scope effect (#4764).",
+      "reason": "Reviewed value method: CareDayStatus.Expected is a pure derivation on the returned verdict (modules/careplan/care_days.go); the binding also compares the verdict with CareDayUnknown and CareDayCancelled for Soll und Ist (#4774, ADR 0136). No persistent, lock or scope effect (#4764).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayStatus.Expected",
       "target_owner": "care-plan"

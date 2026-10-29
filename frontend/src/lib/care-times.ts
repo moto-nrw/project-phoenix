@@ -144,7 +144,7 @@ export const CARE_TIME_DAY_LABELS: Record<
   { label: string; tone: CareTimeTone }
 > = {
   within_plan: { label: "Wie gebucht", tone: "green" },
-  overrun: { label: "Länger als gebucht", tone: "orange" },
+  overrun: { label: "Außerhalb der Buchung", tone: "orange" },
   unbooked: { label: "Da ohne Buchung", tone: "orange" },
   absent: { label: "Nicht da", tone: "gray" },
   sick: { label: "Krank", tone: "red" },

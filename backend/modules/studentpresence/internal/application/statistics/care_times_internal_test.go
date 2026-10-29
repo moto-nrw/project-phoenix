@@ -234,3 +234,25 @@ func TestCareTimeOverrunsFollowsTheClassFilter(t *testing.T) {
 	require.Len(t, result.Students, 1)
 	assert.Equal(t, int64(8), result.Students[0].StudentID)
 }
+
+// Today is not over: a booked child who has not checked in yet is no
+// shortfall, and a booked day without any times cannot be compared.
+func TestStudentCareTimesWaitsForTodayAndNeedsBookedTimes(t *testing.T) {
+	t.Parallel()
+	cfg, from, to := careTimeWeek()
+	rows := cfg.AttendanceIntervals.(*attendanceRowsStub)
+	rows.rows = rows.rows[:len(rows.rows)-1] // no check-in today yet
+	planned := cfg.PlannedCareDays.(plannedStub)
+	planned[7][from] = ports.PlannedCareDay{Expected: true}
+
+	result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to)
+	require.NoError(t, err)
+
+	kinds := map[calendar.Date]studentpresence.CareTimeDayKind{}
+	for _, day := range result.Days {
+		kinds[day.Date] = day.Kind
+	}
+	assert.NotContains(t, kinds, to, "today without a check-in is not decided yet")
+	assert.Equal(t, studentpresence.CareTimeDayNoPlan, kinds[from], "attended, but the booking names no times")
+	assert.Equal(t, 1, result.Summary.AbsentDays, "only Thursday is a shortfall")
+}

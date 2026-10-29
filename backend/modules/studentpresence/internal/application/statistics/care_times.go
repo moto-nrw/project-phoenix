@@ -193,7 +193,8 @@ func compareStudentDays(student *ports.StatisticsStudent, inputs careTimeInputs,
 			attended = &span
 		}
 		day, listed := classifyCareTimeDay(date, inputs.planned[student.ID][date], attended, inputs.status[key], inputs.careDays[date])
-		if !listed {
+		// Today is not over: a child who has not checked in yet may still come.
+		if !listed || (date == today && day.Kind == studentpresence.CareTimeDayAbsent) {
 			continue
 		}
 		compared.days = append(compared.days, day)
@@ -285,7 +286,9 @@ func classifyCareTimeDay(date calendar.Date, planned studentpresence.PlannedCare
 		day.ActualMinutes = spanMinutes(day.ActualStart, day.ActualEnd)
 	}
 	switch {
-	case planned.NoPlan:
+	case planned.NoPlan, planned.Expected && planned.Arrival == nil && planned.Pickup == nil && present:
+		// Nothing to compare against: no plan at all, or a booking that
+		// names neither an arrival nor a pickup time.
 		day.Kind = studentpresence.CareTimeDayNoPlan
 		return day, present
 	case planned.Expected:

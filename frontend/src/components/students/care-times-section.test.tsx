@@ -131,7 +131,7 @@ describe("Soll und Ist je Kind (#4774)", () => {
 
     // Der Telefonstapel wiederholt die Zeilen; geprüft wird die Tabelle.
     const table = within(await screen.findByRole("table"));
-    expect(await table.findByText("Länger als gebucht")).toBeInTheDocument();
+    expect(await table.findByText("Außerhalb der Buchung")).toBeInTheDocument();
     expect(
       table.getByText("30 Min. früher gekommen, 20 Min. später gegangen"),
     ).toBeInTheDocument();

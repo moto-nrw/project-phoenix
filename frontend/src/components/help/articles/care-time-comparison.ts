@@ -40,12 +40,14 @@ export function careTimeComparisonTopic(): HelpTopic {
       },
     ],
     result:
-      "Überschreitungen sind orange markiert und tragen den Text `Länger als gebucht` oder `Da ohne Buchung`.",
+      "Überschreitungen sind orange markiert und tragen den Text `Außerhalb der Buchung` oder `Da ohne Buchung`.",
     notes: [
       "`Gebucht` ist die Betreuungszeit, die in moto hinterlegt ist: Ankunft bis Abholung laut Wochenplan, mit Ausnahmen für einzelne Tage.",
       "`Tatsächlich` reicht von der ersten Anmeldung bis zur letzten Abmeldung des Tages.",
       "Eine Überschreitung ist mehr als 15 Minuten früher oder später als gebucht, oder ein Tag ohne Buchung.",
       "Krank, entschuldigt, abgemeldet, Schließtage und Feiertage zählen nicht als zu kurz.",
+      "War das Kind an einem abgemeldeten Tag doch da, steht dort `Da ohne Buchung`.",
+      "Der heutige Tag zählt erst, wenn das Kind angemeldet ist.",
     ],
     differences: [
       "Steht `Keine Zeiten hinterlegt`? Für das Kind ist kein Wochenplan eingetragen. Dann gibt es nichts zu vergleichen.",

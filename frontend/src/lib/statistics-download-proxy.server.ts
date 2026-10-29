@@ -9,10 +9,10 @@ import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 const logger = createLogger({ component: "StatisticsDownloadProxy" });
 
 /**
- * Query of a Statistik download: the single-valued keys plus every
+ * Query of a Statistik request: the single-valued keys plus every
  * group_id and school_class, which the backend reads as repeatable filters.
  */
-function statisticsDownloadQuery(
+export function statisticsQuery(
   request: NextRequest,
   keys: readonly string[],
 ): string {
@@ -83,7 +83,7 @@ export async function proxyStatisticsDownload(
       return problemResponse(401, "Unauthorized", request);
     }
 
-    const query = statisticsDownloadQuery(request, keys);
+    const query = statisticsQuery(request, keys);
     const response = await proxyDownload(
       request,
       backendPath,

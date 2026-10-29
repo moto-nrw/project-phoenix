@@ -70,8 +70,11 @@ func (rs *Resource) exportCareTimeOverruns(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	format, err := parseFormat(r)
-	if err != nil || format == formatDOCX {
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unsupported export format %q", format)))
+	if err == nil && format == formatDOCX {
+		err = fmt.Errorf("unsupported export format %q", format)
+	}
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	result, err := rs.Service.CareTimeOverrunsForExport(r.Context(), filters, rs.Runtime.Actor(r), string(format))
