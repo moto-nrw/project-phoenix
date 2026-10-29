@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -482,61 +483,140 @@ func TestStaffPersonMergeDoesNotBlockOtherSchoolsPersonWrites(t *testing.T) {
 	}
 }
 
+// heldStaffMerge stops a merge request in its audit write, inside the
+// transaction that holds the school's exclusive staff-person-merge lock.
+type heldStaffMerge struct {
+	status       chan int
+	reachedAudit chan struct{}
+	releaseAudit chan struct{}
+	releaseOnce  sync.Once
+	running      sync.WaitGroup
+}
+
+func newHeldStaffMerge(t *testing.T) *heldStaffMerge {
+	t.Helper()
+	m := &heldStaffMerge{status: make(chan int, 1), reachedAudit: make(chan struct{}), releaseAudit: make(chan struct{})}
+	// Failure paths release the merge and end every goroutine before the test returns.
+	t.Cleanup(func() {
+		m.release()
+		m.running.Wait()
+	})
+	return m
+}
+
+func (m *heldStaffMerge) release() { m.releaseOnce.Do(func() { close(m.releaseAudit) }) }
+
+// router serves the merge workflow with an audit that waits for release.
+func (m *heldStaffMerge) router(t *testing.T, db *bun.DB) chi.Router {
+	t.Helper()
+	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: db})
+	require.NoError(t, err)
+	workflow, err := mergeCompose.New(peopleCompose.NewStaffPersonMerge(), membershipCompose.NewStaffPersonMerge(), staffPersonMergeAudit{create: func(ctx context.Context, entry *auditRecords.OperatorAuditEntry) error {
+		close(m.reachedAudit)
+		<-m.releaseAudit
+		return audit.OperatorAuditLog.Create(ctx, entry)
+	}}, operatorIDFromSession)
+	require.NoError(t, err)
+	router := chi.NewRouter()
+	router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
+	return router
+}
+
+// start sends the merge and returns once it waits in its audit.
+func (m *heldStaffMerge) start(t *testing.T, h staffMergeHarness, input staffpersonmerge.Request) {
+	t.Helper()
+	m.running.Go(func() { m.status <- h.request(t, http.MethodPost, h.schoolID, input).Code })
+	select {
+	case <-m.reachedAudit:
+	case code := <-m.status:
+		t.Fatalf("merge finished with %d before reaching its audit", code)
+	}
+}
+
+// staffMergeLockWriter is a same-school creation started while the merge holds
+// its lock. queries records only this writer's statements.
+type staffMergeLockWriter struct {
+	name    string
+	queries *testpkg.QueryCounter
+	done    chan error
+}
+
+func (m *heldStaffMerge) startWriter(t *testing.T, h staffMergeHarness, name string, write func(context.Context) error) staffMergeLockWriter {
+	t.Helper()
+	writer := staffMergeLockWriter{name: name, queries: testpkg.CaptureQueriesForContext(t, h.db), done: make(chan error, 1)}
+	ctx := writer.queries.Context(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), h.schoolID))
+	m.running.Go(func() { writer.done <- write(ctx) })
+	return writer
+}
+
+// awaitStaffMergeLockWaiters returns once PostgreSQL reports every writer
+// waiting for the school's staff-person-merge advisory key, blocked by the
+// merge that holds it, and each writer's latest statement is its shared lock
+// request. A backend the merge blocks at any other lock, or a writer that
+// finishes first, fails the test. Only the go test timeout bounds a writer
+// that never queues; no local deadline decides the result.
+func awaitStaffMergeLockWaiters(t *testing.T, h staffMergeHarness, writers ...staffMergeLockWriter) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	poll := time.NewTicker(10 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		var waits struct {
+			AtMergeLock int    `bun:"at_merge_lock"`
+			Elsewhere   string `bun:"elsewhere"`
+		}
+		require.NoError(t, h.db.NewRaw(`WITH merge_lock AS (
+  SELECT l.pid, l.database, l.classid, l.objid FROM pg_locks l, (SELECT hashtextextended(?, 0) AS v) k
+  WHERE l.locktype = 'advisory' AND l.objsubid = 1 AND l.granted AND l.mode = 'ExclusiveLock'
+    AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+    AND l.classid::bigint = (k.v >> 32) & 4294967295 AND l.objid::bigint = k.v & 4294967295)
+SELECT count(*) FILTER (WHERE w.locktype = 'advisory' AND w.objsubid = 1 AND w.mode = 'ShareLock'
+         AND w.database = m.database AND w.classid = m.classid AND w.objid = m.objid) AS at_merge_lock,
+       coalesce(string_agg(w.locktype || ' ' || w.mode, ', ') FILTER (WHERE NOT (w.locktype = 'advisory'
+         AND w.objsubid = 1 AND w.database = m.database AND w.classid = m.classid AND w.objid = m.objid)), '') AS elsewhere
+FROM pg_locks w JOIN merge_lock m ON m.pid = ANY(pg_blocking_pids(w.pid))
+WHERE NOT w.granted`, peopledirectory.StaffPersonMergeLockKey(h.schoolID)).Scan(ctx, &waits))
+		require.Empty(t, waits.Elsewhere, "the merge must block same-school writers only at its staff-person-merge lock")
+		if waits.AtMergeLock == len(writers) {
+			for _, writer := range writers {
+				queries := writer.queries.Queries()
+				require.NotEmpty(t, queries, writer.name)
+				assert.Contains(t, queries[len(queries)-1], "pg_advisory_xact_lock_shared(hashtextextended(", "%s must wait at the staff-person-merge lock", writer.name)
+			}
+			return
+		}
+		require.Less(t, waits.AtMergeLock, len(writers), "only this test's writers may wait for its school's merge lock")
+		for _, writer := range writers {
+			select {
+			case err := <-writer.done:
+				t.Fatalf("%s completed while the merge held its exclusive lock: %v", writer.name, err)
+			default:
+			}
+		}
+		<-poll.C
+	}
+}
+
 func TestStaffPersonMergeWaitsForSameSchoolPersonCreation(t *testing.T) {
 	t.Parallel()
 	h := newStaffMergeHarness(t)
 	h.pair(t, "Gleichzeitig")
 	input := mergeSelection(h.preview(t))
-	reachedAudit := make(chan struct{})
-	releaseAudit := make(chan struct{})
-	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: h.db})
-	require.NoError(t, err)
-	workflow, err := mergeCompose.New(peopleCompose.NewStaffPersonMerge(), membershipCompose.NewStaffPersonMerge(), staffPersonMergeAudit{create: func(ctx context.Context, entry *auditRecords.OperatorAuditEntry) error {
-		close(reachedAudit)
-		<-releaseAudit
-		return audit.OperatorAuditLog.Create(ctx, entry)
-	}}, operatorIDFromSession)
-	require.NoError(t, err)
-	h.router = chi.NewRouter()
-	h.router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
-
-	mergeStatus := make(chan int, 1)
-	go func() {
-		mergeStatus <- h.request(t, http.MethodPost, h.schoolID, input).Code
-	}()
-	select {
-	case <-reachedAudit:
-	case <-time.After(time.Second):
-		t.Fatal("merge did not reach the audit while holding its locks")
-	}
+	merge := newHeldStaffMerge(t)
+	h.router = merge.router(t, h.db)
+	merge.start(t, h, input)
 
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{DB: h.db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(peopleCompose.Observation) {}}, nil)
 	require.NoError(t, err)
-	created := make(chan error, 1)
-	go func() {
-		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), h.schoolID)
+	created := merge.startWriter(t, h, "person creation", func(ctx context.Context) error {
 		_, err := directory.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Gleichzeitig", LastName: "Doppelsatz"})
-		created <- err
-	}()
-	select {
-	case err := <-created:
-		t.Fatalf("person creation completed while the merge held its exclusive lock: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
+		return err
+	})
+	awaitStaffMergeLockWaiters(t, h, created)
 
-	close(releaseAudit)
-	select {
-	case code := <-mergeStatus:
-		assert.Equal(t, http.StatusOK, code)
-	case <-time.After(time.Second):
-		t.Fatal("merge did not complete after its audit was released")
-	}
-	select {
-	case err := <-created:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("person creation did not complete after the merge committed")
-	}
+	merge.release()
+	assert.Equal(t, http.StatusOK, <-merge.status)
+	require.NoError(t, <-created.done, "person creation must complete after the merge committed")
 }
 
 func TestStaffPersonMergeWaitsForSameSchoolStaffCreation(t *testing.T) {
@@ -545,72 +625,25 @@ func TestStaffPersonMergeWaitsForSameSchoolStaffCreation(t *testing.T) {
 	h.pair(t, "Mitgliedschaft")
 	other := testpkg.CreateTestPerson(t, h.db, "Andere", "Mitarbeit")
 	input := mergeSelection(h.preview(t))
-	reachedAudit := make(chan struct{})
-	releaseAudit := make(chan struct{})
-	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: h.db})
-	require.NoError(t, err)
-	workflow, err := mergeCompose.New(peopleCompose.NewStaffPersonMerge(), membershipCompose.NewStaffPersonMerge(), staffPersonMergeAudit{create: func(ctx context.Context, entry *auditRecords.OperatorAuditEntry) error {
-		close(reachedAudit)
-		<-releaseAudit
-		return audit.OperatorAuditLog.Create(ctx, entry)
-	}}, operatorIDFromSession)
-	require.NoError(t, err)
-	h.router = chi.NewRouter()
-	h.router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
-
-	mergeStatus := make(chan int, 1)
-	go func() {
-		mergeStatus <- h.request(t, http.MethodPost, h.schoolID, input).Code
-	}()
-	select {
-	case <-reachedAudit:
-	case <-time.After(time.Second):
-		t.Fatal("merge did not reach the audit while holding its locks")
-	}
+	merge := newHeldStaffMerge(t)
+	h.router = merge.router(t, h.db)
+	merge.start(t, h, input)
 
 	membership := owners.MustNewSchoolMembership(testpkg.NewDatabase(t, h.db))
-	created := make(chan error, 1)
-	go func() {
-		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), h.schoolID)
-		_, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: other.ID}})
-		created <- err
-	}()
-	retiredDonor := make(chan error, 1)
-	go func() {
-		ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), h.schoolID)
-		_, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: input.Cases[0].DonorID}})
-		retiredDonor <- err
-	}()
-	select {
-	case err := <-created:
-		t.Fatalf("staff creation completed while the merge held its exclusive lock: %v", err)
-	case <-time.After(100 * time.Millisecond):
+	createStaff := func(personID int64) func(context.Context) error {
+		return func(ctx context.Context) error {
+			_, err := membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: personID}})
+			return err
+		}
 	}
-	select {
-	case err := <-retiredDonor:
-		t.Fatalf("donor staff creation completed while the merge held its exclusive lock: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
+	created := merge.startWriter(t, h, "staff creation", createStaff(other.ID))
+	retiredDonor := merge.startWriter(t, h, "donor staff creation", createStaff(input.Cases[0].DonorID))
+	awaitStaffMergeLockWaiters(t, h, created, retiredDonor)
 
-	close(releaseAudit)
-	select {
-	case code := <-mergeStatus:
-		assert.Equal(t, http.StatusOK, code)
-	case <-time.After(time.Second):
-		t.Fatal("merge did not complete after its audit was released")
-	}
-	select {
-	case err := <-created:
-		require.NoError(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("staff creation did not complete after the merge committed")
-	}
-	select {
-	case err := <-retiredDonor:
-		require.Error(t, err)
-	case <-time.After(time.Second):
-		t.Fatal("donor staff creation did not complete after the merge committed")
-	}
+	merge.release()
+	assert.Equal(t, http.StatusOK, <-merge.status)
+	require.NoError(t, <-created.done, "staff creation must complete after the merge committed")
+	require.Error(t, <-retiredDonor.done, "donor staff creation must fail after the merge retired the donor")
 	var donorMemberships int
 	require.NoError(t, h.db.NewRaw(`SELECT count(*) FROM users.staff_school_memberships WHERE tenant_id = ? AND person_id = ? AND deleted_at IS NULL`, h.schoolID, input.Cases[0].DonorID).Scan(testpkg.Ctx(t), &donorMemberships))
 	assert.Zero(t, donorMemberships)
