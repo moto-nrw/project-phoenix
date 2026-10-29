@@ -166,15 +166,19 @@ func TestBuildOccupancy_PlanStopsAtStatusDayRetention(t *testing.T) {
 	mon2 := calendar.NewDate(2026, 8, 17)
 	plan := ports.PlannedCareDay{Expected: true, Arrival: clock(t, 8, 0), Pickup: clock(t, 15, 0)}
 	out := buildOccupancy(occupancyInputs{
-		students:   []*ports.StatisticsStudent{occupancyStudent(1, "")},
-		careDays:   map[calendar.Date]bool{mon1: true, mon2: true},
-		planned:    map[int64]map[calendar.Date]ports.PlannedCareDay{1: {mon1: plan, mon2: plan}},
+		students: []*ports.StatisticsStudent{occupancyStudent(1, "")},
+		careDays: map[calendar.Date]bool{mon1: true, mon2: true},
+		planned: map[int64]map[calendar.Date]ports.PlannedCareDay{1: {
+			mon1: {Expected: true, Arrival: clock(t, 8, 0)},
+			mon2: plan,
+		}},
 		planFrom:   calendar.NewDate(2026, 8, 15),
 		actualFrom: calendar.NewDate(2026, 8, 25),
 		today:      calendar.NewDate(2026, 8, 25),
 	})
 	monday := out.Weekdays[0]
 	assert.Equal(t, 1, monday.PlanDays)
+	assert.Zero(t, out.UntimedPlanDays, "a day before plan retention does not contribute an untimed-plan warning")
 	assert.Equal(t, 0, monday.ActualDays)
 	assert.InDelta(t, 1.0, *slotAt(t, monday, 9, 0).PlannedAverage, 0.001)
 	assert.Nil(t, slotAt(t, monday, 9, 0).ActualAverage, "no attendance kept for these days")

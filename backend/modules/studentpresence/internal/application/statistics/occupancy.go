@@ -212,8 +212,8 @@ func (in occupancyInputs) countsActual(day calendar.Date) bool {
 	return day.Before(in.today) || in.singleDay
 }
 
-// plannedSlotsByDay counts the planned children per care day and the child
-// days the plan expects without a usable time pair.
+// plannedSlotsByDay counts the planned children per retained care day and the
+// child days the plan expects without a usable time pair.
 func plannedSlotsByDay(in occupancyInputs) (map[calendar.Date]daySlots, int) {
 	absent := make(map[dayKey]bool, len(in.statusDays))
 	for key, status := range classifyStatusDays(in.statusDays) {
@@ -223,6 +223,10 @@ func plannedSlotsByDay(in occupancyInputs) (map[calendar.Date]daySlots, int) {
 	untimed := 0
 	for day := range in.careDays {
 		var slots daySlots
+		if day.Before(in.planFrom) {
+			out[day] = slots
+			continue
+		}
 		for _, st := range in.students {
 			if st == nil || st.EnrolledOn == nil || !st.EnrolledOn(day, in.today) || absent[dayKey{st.ID, day}] {
 				continue

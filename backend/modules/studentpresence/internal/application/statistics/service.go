@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -702,7 +703,7 @@ func accessMetadata(filters studentpresence.StatisticsFilters, action string) ma
 	if len(filters.SchoolClasses) > 0 {
 		classes := append([]string(nil), filters.SchoolClasses...)
 		sort.Strings(classes)
-		meta["school_classes"] = strings.Join(classes, ",")
+		meta["school_classes"] = encodeMetadataStrings(classes)
 	}
 	if len(filters.GroupIDs) > 0 {
 		groupIDs := append([]int64(nil), filters.GroupIDs...)
@@ -710,6 +711,19 @@ func accessMetadata(filters studentpresence.StatisticsFilters, action string) ma
 		meta["group_ids"] = strings.Trim(strings.Join(strings.Fields(fmt.Sprint(groupIDs)), ","), "[]")
 	}
 	return meta
+}
+
+// encodeMetadataStrings keeps sorted, user-provided filter values unambiguous
+// for audit deduplication. A separator alone would collide with that separator
+// inside a class name.
+func encodeMetadataStrings(values []string) string {
+	var encoded strings.Builder
+	for _, value := range values {
+		encoded.WriteString(strconv.Itoa(len(value)))
+		encoded.WriteByte(':')
+		encoded.WriteString(value)
+	}
+	return encoded.String()
 }
 
 // visitWindows uses the owner's eligibility answer for every report date.
