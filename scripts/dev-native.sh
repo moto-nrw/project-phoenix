@@ -122,19 +122,51 @@ require_tools() {
   done
 }
 
-kill_tree() {
+tree_pids() {
   local pid=$1 child
-  for child in $(pgrep -P "$pid" 2>/dev/null); do kill_tree "$child"; done
-  kill "$pid" 2>/dev/null || true
+  for child in $(pgrep -P "$pid" 2>/dev/null); do tree_pids "$child"; done
+  echo "$pid"
+}
+
+kill_tree() {
+  local pid
+  for pid in $(tree_pids "$1"); do kill "$pid" 2>/dev/null || true; done
 }
 
 stop_native() {
-  local name pidfile
+  local name pidfile pid pids='' pending state deadline i
+  local names=() roots=()
+  require_tools pgrep ps
+  # Snapshot both trees before TERM: children can outlive their launcher, and
+  # the old supervisor may remove PID files as soon as a launcher exits.
   for name in backend frontend; do
     pidfile="$STATE/$name.pid"
     [ -f "$pidfile" ] || continue
-    kill_tree "$(cat "$pidfile")"
-    rm -f "$pidfile"
+    pid=$(cat "$pidfile")
+    [[ $pid =~ ^[1-9][0-9]*$ ]] || die "invalid PID in $pidfile"
+    names+=("$name")
+    roots+=("$pid")
+    pids="$pids $(tree_pids "$pid")"
+  done
+  for pid in $pids; do kill "$pid" 2>/dev/null || true; done
+  deadline=$((SECONDS + 10))
+  while true; do
+    pending=''
+    for pid in $pids; do
+      kill -0 "$pid" 2>/dev/null || continue
+      # Zombies have exited and cannot write; their parent still has to reap
+      # them. A failed ps lookup is inconclusive, so keep waiting in that case.
+      state=$(ps -o stat= -p "$pid" 2>/dev/null) || state='unknown'
+      [[ $state == *Z* ]] || pending="$pending $pid"
+    done
+    [ -n "$pending" ] || break
+    [ "$SECONDS" -lt "$deadline" ] || die "timed out waiting for native processes to stop (PIDs:$pending); PID files retained"
+    sleep 0.1
+  done
+  for i in "${!names[@]}"; do
+    name=${names[$i]}
+    pidfile="$STATE/$name.pid"
+    [ "$(cat "$pidfile" 2>/dev/null || true)" != "${roots[$i]}" ] || rm -f "$pidfile"
     echo "stopped $name"
   done
 }

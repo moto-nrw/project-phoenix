@@ -46,7 +46,10 @@ not establish which state the browser shows.
    - With `scripts/dev-native.sh up [backend|frontend]`, retain the original
      selection. Every `up` replaces **both** managed apps and stops the Compose
      app containers. Use it only when all affected apps belong to this task.
-     `down` also stops both apps, not just the frontend.
+     `down` also stops both apps, not just the frontend. It waits for the
+     captured process trees to exit after TERM, with a ten-second limit. A
+     timeout returns an error, so the `&&` chain below leaves the cache intact
+     and skips the restart. No separate wait is needed after a successful `down`.
      From the repository root, after the ownership/listener checks:
      ```bash
      scripts/dev-native.sh down &&

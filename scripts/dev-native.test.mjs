@@ -14,7 +14,7 @@ function fixture(t, { tools = ['go', 'air', 'node'], env = {}, occupiedPort = ''
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, 'bin');
   mkdirSync(bin);
-  for (const command of ['bash', 'mkdir', 'rm', 'cat', 'tee', 'sed', 'pgrep', 'tail', 'awk', 'head', 'tr', 'sleep']) {
+  for (const command of ['bash', 'mkdir', 'rm', 'cat', 'tee', 'sed', 'pgrep', 'ps', 'tail', 'awk', 'head', 'tr', 'sleep']) {
     const host = process.env.PATH.split(':').map(directory => join(directory, command)).find(existsSync);
     assert.ok(host, `Missing host utility ${command}`);
     symlinkSync(host, join(bin, command));
@@ -30,7 +30,7 @@ function fixture(t, { tools = ['go', 'air', 'node'], env = {}, occupiedPort = ''
   ].join('\n'));
   const calls = join(root, 'calls');
   const environment = {
-    PATH: bin, FIXTURE_ROOT: root, FIXTURE_CALLS: calls, FIXTURE_OCCUPIED_PORT: occupiedPort, ...env,
+    PATH: bin, FIXTURE_ROOT: root, FIXTURE_CALLS: calls, FIXTURE_OCCUPIED_PORT: occupiedPort, FIXTURE_NODE: process.execPath, ...env,
   };
   const tool = (name, body) => writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, { mode: 0o755 });
   const log = name => `printf '${name}|%s|GOFLAGS=%s|GOMAXPROCS=%s|PORT=%s|API_URL=%s|DB_DSN=%s\\n' "$*" "\${GOFLAGS-<unset>}" "\${GOMAXPROCS-<unset>}" "\${PORT-}" "\${API_URL-}" "\${DB_DSN-}" >> "$FIXTURE_CALLS"`;
@@ -85,7 +85,16 @@ exec sleep 30`);
     }));
     return { child, ready, closed, output: () => output };
   };
-  return { root, run, start, lines };
+  const resetCache = (shell = '/bin/bash') => new Promise(resolve => {
+    const child = spawn(shell, ['-c', '"$BASH" scripts/dev-native.sh down && rm -rf -- frontend/.next && printf restarted > restarted'], {
+      cwd: root, env: environment,
+    });
+    let output = '';
+    child.stdout.on('data', data => { output += data; });
+    child.stderr.on('data', data => { output += data; });
+    child.on('close', (code, signal) => resolve({ code, signal, output }));
+  });
+  return { root, bin, run, start, lines, tool, resetCache };
 }
 
 async function stop(runner) {
@@ -94,6 +103,59 @@ async function stop(runner) {
   assert.equal(result.code, 130, result.output);
   return result;
 }
+
+// The launcher exits on TERM, but its child can keep writing during shutdown.
+// Use real processes and a private cache; no application or network is involved.
+function delayedFrontend(f, { ignoreTerm = false } = {}) {
+  mkdirSync(join(f.root, 'frontend/.next'));
+  writeFileSync(join(f.root, 'frontend/.next/original'), 'keep on timeout');
+  writeFileSync(join(f.root, 'dummy.mjs'), `
+import { spawn } from 'node:child_process';
+spawn(process.execPath, ['-e', ${JSON.stringify(`
+const { writeFileSync } = require('node:fs');
+process.on('SIGTERM', () => {
+  ${ignoreTerm ? '' : `setTimeout(() => {
+    writeFileSync(process.env.FIXTURE_ROOT + '/frontend/.next/late-write', 'shutdown');
+    writeFileSync(process.env.FIXTURE_ROOT + '/child-ended', 'done');
+    process.exit(0);
+  }, 400);`}
+});
+setInterval(() => {}, 1000);
+console.log('fixture-ready:node');
+`)}], { stdio: 'inherit' });
+${ignoreTerm ? "process.on('SIGTERM', () => {});" : ''}
+`);
+  f.tool('node', 'exec "$FIXTURE_NODE" "$FIXTURE_ROOT/dummy.mjs"');
+}
+
+for (const shell of ['/bin/bash', 'bash']) {
+  test(`down waits for orphaned children before cache deletion and restart (${shell})`, { timeout: 10000 }, async t => {
+    const f = fixture(t, { tools: ['node'] });
+    delayedFrontend(f);
+    const runner = f.start(['up', 'frontend'], ['node']);
+    await runner.ready;
+    const result = await f.resetCache(shell === 'bash' ? join(f.bin, 'bash') : shell);
+    assert.equal(result.code, 0, result.output);
+    assert.equal(existsSync(join(f.root, 'child-ended')), true, 'down must wait for the child, not just the launcher');
+    assert.equal(existsSync(join(f.root, 'frontend/.next')), false);
+    assert.equal(readFileSync(join(f.root, 'restarted'), 'utf8'), 'restarted');
+    assert.equal(existsSync(join(f.root, 'tmp/dev-native/frontend.pid')), false);
+    await runner.closed;
+  });
+}
+
+test('down timeout preserves the cache and PID file and prevents restart', { timeout: 20000 }, async t => {
+  const f = fixture(t, { tools: ['node'] });
+  delayedFrontend(f, { ignoreTerm: true });
+  const runner = f.start(['up', 'frontend'], ['node']);
+  await runner.ready;
+  const result = await f.resetCache();
+  assert.equal(result.code, 1, result.output);
+  assert.match(result.output, /timed out.*stop/i);
+  assert.equal(readFileSync(join(f.root, 'frontend/.next/original'), 'utf8'), 'keep on timeout');
+  assert.equal(existsSync(join(f.root, 'restarted')), false);
+  assert.equal(existsSync(join(f.root, 'tmp/dev-native/frontend.pid')), true);
+});
 
 test('default up starts both services, bounds Go children and cleans up on termination', { timeout: 10000 }, async t => {
   const f = fixture(t);
