@@ -53,7 +53,7 @@ type PresenceReports struct {
 func BuildPresenceReports(
 	db transactionruntime.Database, env RootEnvironment, presence PresenceOwner, carePlanRows CarePlanRows, carePlan careplan.Capability,
 	users peoplePorts.PersonDirectory, owner TimetableOwner, rooms facilitiesModule.Catalog, calendar schoolcalendar.Days,
-	people PeopleRows, audit AuditOwner, settings settingsCompose.SettingsService,
+	people PeopleRows, audit AuditOwner, settings settingsCompose.SettingsService, careDays careplan.CareDayQuery,
 ) PresenceReports {
 	return PresenceReports{
 		ActiveCleanup:   BuildPresenceCleanup(env, presence, audit, settings),
@@ -61,7 +61,7 @@ func BuildPresenceReports(
 		StudentHistory: presenceservice.NewStudentHistory(presence.Presence, historyRoomNames(rooms),
 			NewDataAccessAudit(audit.Persistence.DataAccessLog), NewHistorySlots(owner.Repositories.InstanceStudent.Reads),
 			NewAttendanceStaffNames(people.Staff)),
-		Statistics: newStatisticsReports(db, carePlan, calendar, people.Students, rooms, env.Logger, env.Now)(audit.Persistence.DataAccessLog, settings),
+		Statistics: newStatisticsReports(db, carePlan, careDays, calendar, people.Students, rooms, env.Logger, env.Now)(audit.Persistence.DataAccessLog, settings),
 	}
 }
 

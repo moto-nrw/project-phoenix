@@ -17,8 +17,10 @@ function exportQuery(request: NextRequest): string {
     const value = request.nextUrl.searchParams.get(key);
     if (value) params.set(key, value);
   }
-  for (const groupId of request.nextUrl.searchParams.getAll("group_id")) {
-    if (groupId) params.append("group_id", groupId);
+  for (const key of ["group_id", "school_class"] as const) {
+    for (const value of request.nextUrl.searchParams.getAll(key)) {
+      if (value) params.append(key, value);
+    }
   }
   const query = params.toString();
   return query ? `?${query}` : "";

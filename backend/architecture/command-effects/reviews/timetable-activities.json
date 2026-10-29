@@ -61,6 +61,36 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareDayQueries.ResolvePlannedForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/internal/application.CareDayQueries.ResolvePlannedForRange; modules/careplan/internal/application/care_days.go:53. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareDayQueries.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolvePlannedForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/internal/application.careDayService.ResolvePlannedForRange; modules/careplan/internal/application/care_day_facts.go:72. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDayQuery.ResolvePlannedForRange; modules/careplan/care_days.go:18. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/planexport.service.ExportBetreuungsplan",
       "classification": "query",
       "effect": "query",
