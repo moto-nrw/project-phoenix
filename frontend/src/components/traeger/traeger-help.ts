@@ -9,6 +9,9 @@ import { HELP_TOPICS, type HelpTopicId } from "~/lib/help-topics";
 /** `/ferien/{id}/anmeldungen` and its registrations (#4663). */
 const HOLIDAY_REGISTRATIONS_PAGE = /^\/ferien\/[^/]+\/anmeldungen(?:\/|$)/;
 
+/** `/ferien/{id}/formular`, the form of a holiday period (#5198). */
+const HOLIDAY_FORM_PAGE = /^\/ferien\/[^/]+\/formular$/;
+
 function onPage(page: string, path: string): boolean {
   return page === path || page.startsWith(`${path}/`);
 }
@@ -24,6 +27,7 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   if (onPage(page, "/briefkopf")) return HELP_TOPICS.traegerBriefkopf;
   if (onPage(page, "/beitraege")) return HELP_TOPICS.traegerHolidayContribution;
   if (onPage(page, "/abrechnung")) return HELP_TOPICS.traegerBillingRun;
+  if (HOLIDAY_FORM_PAGE.test(page)) return HELP_TOPICS.traegerHolidayForm;
   if (HOLIDAY_REGISTRATIONS_PAGE.test(page)) {
     return HELP_TOPICS.traegerHolidayRegistrationReview;
   }

@@ -349,15 +349,16 @@ export function formatDate(
   const date = ISO_DATE_RE.test(dateString)
     ? parseISODate(dateString)
     : new Date(dateString);
+  const dateLocale = locale === "en" ? "en-GB" : locale;
   if (includeWeekday) {
-    return date.toLocaleDateString(locale, {
+    return date.toLocaleDateString(dateLocale, {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
   }
-  return date.toLocaleDateString(locale, {
+  return date.toLocaleDateString(dateLocale, {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

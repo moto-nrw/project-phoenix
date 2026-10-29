@@ -9,6 +9,7 @@ const { mockUseSession, mockUseSSE, mockMutate, capturedOptions } = vi.hoisted(
   () => {
     const capturedOptions: {
       onMessage?: (event: unknown) => void;
+      onError?: (event: Event) => void;
       enabled?: boolean;
       reconnectKey?: string | number;
     } = {};
@@ -64,6 +65,8 @@ vi.mock("swr", () => ({
 }));
 
 import { useGlobalSSE } from "./use-global-sse";
+import { onSessionTenantMismatch } from "~/lib/api-error";
+import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
 import type { SSEEvent } from "~/lib/sse-types";
 
 // ---------------------------------------------------------------------------
@@ -947,5 +950,140 @@ describe("useGlobalSSE — companion announcements", () => {
     } finally {
       window.removeEventListener("phoenix:care-schedule-stale", listener);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Session of another school refuses the stream (#5157)
+// ---------------------------------------------------------------------------
+
+describe("useGlobalSSE — stream refused for another school's session", () => {
+  const refusal = () =>
+    Response.json(
+      { status: 409, code: "identity.session_tenant_mismatch" },
+      { status: 409 },
+    );
+  const fetchMock = vi.fn<typeof fetch>();
+  const mismatch = vi.fn();
+  let restoreObserver: () => void = () => undefined;
+  let unsubscribe: () => void = () => undefined;
+
+  /** The error EventSource fires; CLOSED (2) when the server answered. */
+  function streamError(readyState: 0 | 2) {
+    const event = new Event("error");
+    Object.defineProperty(event, "target", { value: { readyState } });
+    act(() => {
+      capturedOptions.onError?.(event);
+    });
+  }
+
+  beforeEach(() => {
+    fetchMock.mockReset();
+    mismatch.mockReset();
+    vi.stubGlobal("fetch", fetchMock);
+    // TenantGuard installs the observer in the app; here it wraps the stub.
+    restoreObserver = installSessionTenantMismatchObserver();
+    unsubscribe = onSessionTenantMismatch(mismatch);
+  });
+
+  afterEach(() => {
+    unsubscribe();
+    restoreObserver();
+    vi.unstubAllGlobals();
+  });
+
+  it("reports the refusal to TenantGuard while the provider still names this school", async () => {
+    // Provider: school t1. Cookie and server: another school, so the BFF
+    // refuses the reconnect with 409 before the stream starts.
+    fetchMock.mockResolvedValue(refusal());
+    renderHook(() => useGlobalSSE());
+
+    streamError(2);
+
+    await vi.waitFor(() => expect(mismatch).toHaveBeenCalledTimes(1));
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sse/events",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("reconnects with each session the provider names during the switch back", async () => {
+    fetchMock.mockResolvedValue(refusal());
+    const { rerender } = renderHook(() => useGlobalSSE());
+    streamError(2);
+    await vi.waitFor(() => expect(mismatch).toHaveBeenCalledTimes(1));
+
+    // The provider learns the cookie's school, TenantGuard switches back.
+    mockUseSession.mockReturnValue(authenticatedSession("t2"));
+    rerender();
+    expect(capturedOptions.reconnectKey).toBe("t2");
+    mockUseSession.mockReturnValue(authenticatedSession("t1"));
+    rerender();
+
+    expect(capturedOptions.reconnectKey).toBe("t1");
+    expect(capturedOptions.enabled).toBe(true);
+  });
+
+  it.each([
+    ["503", () => new Response(null, { status: 503 })],
+    ["401", () => new Response(null, { status: 401 })],
+    [
+      "another 409",
+      () => Response.json({ code: "general.conflict" }, { status: 409 }),
+    ],
+  ])("starts no switch back after a %s answer", async (_status, answer) => {
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementation(async (_input, init) => {
+      signal = init?.signal ?? undefined;
+      return answer();
+    });
+    renderHook(() => useGlobalSSE());
+
+    streamError(2);
+
+    // The check aborts itself only after the observer read the answer.
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true));
+    expect(mismatch).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing when the stream dropped without an answer", () => {
+    renderHook(() => useGlobalSSE());
+
+    streamError(0);
+
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mismatch).not.toHaveBeenCalled();
+  });
+
+  it("starts no second check while one runs and drops it on unmount", () => {
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementation((_input, init) => {
+      signal = init?.signal ?? undefined;
+      return new Promise<Response>(() => undefined);
+    });
+    const { unmount } = renderHook(() => useGlobalSSE());
+
+    streamError(2);
+    streamError(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    unmount();
+    expect(signal?.aborted).toBe(true);
+  });
+
+  it("closes the stream when the check finds no refusal", async () => {
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementation(async (_input, init) => {
+      signal = init?.signal ?? undefined;
+      return new Response("", { status: 200 });
+    });
+    renderHook(() => useGlobalSSE());
+
+    streamError(2);
+
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true));
+    expect(mismatch).not.toHaveBeenCalled();
+    streamError(2);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

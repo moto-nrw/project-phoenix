@@ -35,7 +35,7 @@ export function enrollmentReviewTopic(): HelpTopic {
       "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
       "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
       // #5137
-      "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Ein Entfernen würde dort nicht halten.",
+      "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Entfernen hilft dort nicht: Bei der nächsten Planung steht das Kind wieder im Plan.",
       "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
       "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
       "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",

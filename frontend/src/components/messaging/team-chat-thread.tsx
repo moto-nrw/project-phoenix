@@ -15,6 +15,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { BackLink } from "~/components/ui/back-link";
+import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { formErrorMessage, type FormError } from "~/components/ui/form-error";
 import {
@@ -25,6 +26,10 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { TeamThreadSkeleton } from "~/components/messaging/team-chat-skeletons";
+import {
+  GroupMembersPanel,
+  GroupReadReceipt,
+} from "~/components/messaging/team-group-parts";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -32,6 +37,7 @@ import {
   type StaffMessage,
   type StaffThreadDetail,
   isCounterpartUnavailable,
+  isGroupThread,
   isStaffMessagingDisabled,
   staffRoleKindLabel,
 } from "~/lib/staff-messages-api";
@@ -66,6 +72,13 @@ export interface TeamChatThreadParts {
   readonly roleLabel: string | null;
   /** Statuszeile aus echten Zahlen: Nachrichten und wer sie sieht. */
   readonly stats: string;
+  /** Eine Zeile unter dem Titel: wer die Nachrichten sieht. */
+  readonly audience: string;
+  /**
+   * Kopfaktion; bei einer Gruppe (#4776) der Wechsel zwischen Verlauf und
+   * Mitgliedern, sonst `null`.
+   */
+  readonly actions: ReactNode | null;
   readonly statsLoading: boolean;
   /**
    * `ready`: Verlauf (oder sein Skelett) steht in `body`.
@@ -164,6 +177,10 @@ export function TeamChatThread({
   const [counterpartGone, setCounterpartGone] = useState(false);
 
   const messages: StaffMessage[] = thread?.messages ?? [];
+  // Gruppenchat (#4776): Mitglieder statt eines Gegenübers.
+  const group = thread ? isGroupThread(thread) : false;
+  const [view, setView] = useState<"chat" | "members">("chat");
+  const showMembers = group && view === "members";
 
   // Reads are gated too: the service calls requireEnabled before loading a
   // thread, so a switched-off school gets a 403 here, not just on send. The
@@ -284,21 +301,55 @@ export function TeamChatThread({
     (!thread && isLoading && !loadError && !chatDisabled) ||
     (!thread && errorTextPending);
 
-  const roleLabel = staffRoleKindLabel(
-    thread?.counterpart_role_kind,
-    portal.kind,
-  );
+  const roleLabel = group
+    ? null
+    : staffRoleKindLabel(thread?.counterpart_role_kind, portal.kind);
+  const members = thread?.members ?? [];
 
   const state: TeamChatThreadParts["state"] =
     showSkeleton || thread ? "ready" : chatDisabled ? "disabled" : "error";
 
   // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten dieser
   // Unterhaltung und wer sie sehen kann.
-  const stats = `${messages.length} ${
+  const messageCount = `${messages.length} ${
     messages.length === 1 ? "Nachricht" : "Nachrichten"
-  } · nur Sie beide sehen sie`;
+  }`;
+  const stats = group
+    ? `${messageCount} · ${members.length} ${members.length === 1 ? "Mitglied" : "Mitglieder"}`
+    : `${messageCount} · nur Sie beide sehen sie`;
+  const audience = group
+    ? "Nur die Mitglieder sehen diese Nachrichten. Wer neu dazukommt, sieht sie ab dem Beitritt."
+    : "Nur Sie beide sehen diese Nachrichten.";
 
-  const body = (
+  const actions =
+    group && thread && !showSkeleton ? (
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={() => setView(showMembers ? "chat" : "members")}
+      >
+        {showMembers ? "Zum Verlauf" : `Mitglieder (${members.length})`}
+      </Button>
+    ) : null;
+
+  const membersPanel =
+    showMembers && thread ? (
+      // Innenabstand rundum: Knöpfe zeichnen ihren Rand als Ring außerhalb
+      // der Box, und der Scroll-Container schneidet sonst die linke Kante ab.
+      <div className="min-h-0 flex-1 overflow-y-auto p-1">
+        <GroupMembersPanel
+          api={api}
+          portal={portal.kind}
+          thread={thread}
+          myAccountId={myAccountId}
+          onChanged={(next) => void mutate(next, { revalidate: false })}
+          onLeft={() => portal.navigate(portal.inboxHref)}
+        />
+      </div>
+    ) : null;
+
+  const body = membersPanel ?? (
     <>
       {showSkeleton ? (
         <TeamThreadSkeleton />
@@ -312,18 +363,27 @@ export function TeamChatThread({
           )}
 
           {messages.length > 0 ? (
-            messages.map((message) => (
-              <ChatBubble
-                key={message.id}
-                body={message.body}
-                own={message.sender_account_id === myAccountId}
-                senderName={message.sender_name}
-                createdAt={message.created_at}
-                // One counterpart per conversation, so the viewer's own
-                // name on their own bubbles is pure noise.
-                showOwnSenderName={false}
-              />
-            ))
+            messages.map((message) => {
+              const own = message.sender_account_id === myAccountId;
+              return (
+                <div key={message.id} className="flex flex-col items-end">
+                  <div className="w-full">
+                    <ChatBubble
+                      body={message.body}
+                      own={own}
+                      senderName={message.sender_name}
+                      createdAt={message.created_at}
+                      // The viewer's own name on their own bubbles is pure
+                      // noise; in a group the others' names say who wrote.
+                      showOwnSenderName={false}
+                    />
+                  </div>
+                  {group && own && (
+                    <GroupReadReceipt message={message} members={members} />
+                  )}
+                </div>
+              );
+            })
           ) : threadLoadFailed ? (
             <LoadErrorAlert error={shownLoadError} />
           ) : (
@@ -363,9 +423,12 @@ export function TeamChatThread({
   );
 
   const parts: TeamChatThreadParts = {
-    title: thread?.counterpart_name ?? "Unterhaltung",
+    title:
+      (group ? thread?.group_name : thread?.counterpart_name) ?? "Unterhaltung",
     roleLabel: roleLabel ?? null,
     stats,
+    audience,
+    actions,
     statsLoading: showSkeleton,
     state,
     empty: {
@@ -401,6 +464,8 @@ function DefaultThreadFrame({
     back,
     containerRef,
     body,
+    audience,
+    actions,
   } = parts;
 
   if (state !== "ready") {
@@ -428,18 +493,19 @@ function DefaultThreadFrame({
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
         <BackLink href={back.href} label={back.label} className="mb-2" />
         {!loading && (
-          <div className="mb-4 min-w-0">
-            <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
-              {title}
-              {roleLabel && (
-                <span className="ml-2 text-sm font-normal text-gray-500">
-                  {roleLabel}
-                </span>
-              )}
-            </h1>
-            <p className="mt-0.5 text-sm text-gray-500">
-              Nur Sie beide sehen diese Nachrichten.
-            </p>
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
+                {title}
+                {roleLabel && (
+                  <span className="ml-2 text-sm font-normal text-gray-500">
+                    {roleLabel}
+                  </span>
+                )}
+              </h1>
+              <p className="mt-0.5 text-sm text-gray-500">{audience}</p>
+            </div>
+            {actions}
           </div>
         )}
         {body}

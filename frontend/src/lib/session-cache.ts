@@ -282,7 +282,7 @@ export async function sessionFetch(
       if (!hasSessionAccess(freshSession)) throw authenticationRequiredError();
       return transportFetch(url, mergedInit);
     }
-    // handleAuthFailure already signed out
+    // Expiry signed out, or an explicit tenant logout already owns the exit.
     throw authenticationRequiredError();
   }
 

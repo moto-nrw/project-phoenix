@@ -998,14 +998,16 @@ export function CareScheduleManager({
             // Speichern and Abbrechen at the bottom (Bauart 2 Regel 4).
             isEditingWeeklyView ? undefined : (
               <div className="flex items-center gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="md"
                   onClick={showCurrentWeek}
                   disabled={isCurrentWeek}
-                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
+                  className="disabled:hidden"
                 >
                   Heute
-                </button>
+                </Button>
                 {/* Labelled on purpose, on every layout: an unlabelled pencil
                   here was indistinguishable from the per-day pencils below,
                   which is the confusion issue #893 reports. The word
@@ -1048,13 +1050,15 @@ export function CareScheduleManager({
                 Aktuelle Woche
               </span>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="surface"
+                size="md"
                 onClick={showCurrentWeek}
-                className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
+                className="absolute left-1/2 hidden -translate-x-1/2 sm:inline-flex"
               >
                 Zurück zur aktuellen Woche
-              </button>
+              </Button>
             )}
             <div>
               <WeekNavButton

@@ -77,6 +77,7 @@ func demoRoleDefinitions() []demoRoleDefinition {
 				"groups:assign", "groups:create", "groups:delete", "groups:list", "groups:manage", "groups:read", "groups:update",
 				"guardians:financial",
 				"meals:manage", "meals:orders", "meals:read", "meals:register",
+				"parent_messages:leadership",
 				"rooms:create", "rooms:delete", "rooms:list", "rooms:manage", "rooms:read", "rooms:update",
 				"schedules:create", "schedules:delete", "schedules:list", "schedules:manage", "schedules:read", "schedules:update",
 				"staff:documents", "staff:financial", "staff:manage", "staff:stammdaten",
@@ -97,12 +98,13 @@ func demoRoleDefinitions() []demoRoleDefinition {
 
 // seedDemoRoles creates the reduced roles of the school with their
 // permission sets and remembers their ids next to the system roles.
-func (s *FixedSeeder) seedDemoRoles(_ context.Context) error {
+func (s *FixedSeeder) seedDemoRoles(_ context.Context, definitions ...demoRoleDefinition) error {
+	definitions = seedRoleDefinitionsOrDemo(definitions)
 	permissionIDs, err := s.fetchPermissionIDs()
 	if err != nil {
 		return err
 	}
-	for _, definition := range demoRoleDefinitions() {
+	for _, definition := range definitions {
 		ids := make([]string, 0, len(definition.Permissions))
 		for _, name := range definition.Permissions {
 			id, ok := permissionIDs[name]
@@ -134,9 +136,18 @@ func (s *FixedSeeder) seedDemoRoles(_ context.Context) error {
 		s.roleIDs[definition.Name] = role.Data.ID
 	}
 	if s.verbose {
-		fmt.Printf("  ✓ %d demo roles created\n", len(demoRoleDefinitions()))
+		fmt.Printf("  ✓ %d demo roles created\n", len(definitions))
 	}
 	return nil
+}
+
+// With no override, retain exactly the two public demo roles. The local
+// test account uses the same API path with its own separate definition.
+func seedRoleDefinitionsOrDemo(definitions []demoRoleDefinition) []demoRoleDefinition {
+	if len(definitions) == 0 {
+		return demoRoleDefinitions()
+	}
+	return definitions
 }
 
 // fetchPermissionIDs reads the permission catalog as "resource:action" -> id.

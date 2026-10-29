@@ -65,6 +65,7 @@
     }
   ],
   "data_objects": [
+    { "name": "enrollment.holiday_form_documents", "write_owner": "enrollment" },
     {
       "name": "enrollment.change_request_messages",
       "write_owner": "enrollment"
@@ -115,6 +116,10 @@
     },
     {
       "name": "enrollment.holiday_registration_contacts",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_proofs",
       "write_owner": "enrollment"
     },
     {
@@ -171,6 +176,10 @@
     },
     {
       "name": "enrollment.submission_rate_limits",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_period_forms",
       "write_owner": "enrollment"
     }
   ],

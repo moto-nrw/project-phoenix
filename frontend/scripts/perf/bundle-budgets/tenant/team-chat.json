@@ -7,8 +7,9 @@
       "maxBytes": 963803
     },
     "/[tenant]/team-chat/[threadID]": {
-      "referenceBytes": 948075,
-      "maxBytes": 967037
+      "referenceBytes": 967211,
+      "maxBytes": 986555,
+      "_reason": "#4776: Gruppenchats im Team-Chat mit Mitgliederverwaltung und Lesestatus. CI-Messung: 948075 auf 967211 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz."
     }
   }
 }

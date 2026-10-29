@@ -299,6 +299,9 @@ func (s *service) EndActiveGroupSession(ctx context.Context, id int64) error {
 	// repairs.
 	var broadcasts sessionEndSSEData
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.SchoolPresence.PrepareVisitWrites(txCtx, studentpresence.VisitWriteScope{GroupIDs: []int64{id}}); err != nil {
+			return err
+		}
 		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, id)
 		if err != nil || group == nil {
 			return &ActiveError{Op: "EndActiveGroupSession", Err: ErrActiveGroupNotFound}

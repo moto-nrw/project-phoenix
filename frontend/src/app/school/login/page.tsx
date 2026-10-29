@@ -6,13 +6,14 @@
 // der das Konto eine Schul-Portal-Rolle hält.
 
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
   authPrimaryButtonClassName,
+  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -33,7 +34,7 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { requestSchoolPasswordReset } from "~/lib/auth-api";
 import { schoolPath } from "~/lib/school-url";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import { login as loginApi, type MFATokenResponse } from "~/lib/mfa-api";
+import { login as loginApi } from "~/lib/mfa-api";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
 
@@ -121,7 +122,11 @@ function LoginForm() {
 
       // The layout's server snapshot carries no token (#4991) and redirects
       // too; a stripped session (empty token) stays on the form.
-      if (status === "authenticated" && hasSessionAccess(session)) {
+      if (
+        status === "authenticated" &&
+        hasSessionAccess(session) &&
+        !enrollmentStep
+      ) {
         window.location.href = schoolPath("/school");
         return;
       }
@@ -132,7 +137,7 @@ function LoginForm() {
     };
 
     void checkAndRedirect();
-  }, [status, session]);
+  }, [status, session, enrollmentStep]);
 
   // Session-abgelaufen-Hinweis, außer nach bewusstem Logout.
   useEffect(() => {
@@ -155,31 +160,14 @@ function LoginForm() {
   const isCheckingAuth = checkingAuth || status === "loading";
   const isSubmitting = isLoading || awaitingRedirect;
 
-  // seedSessionWithTokens übergibt ein bereits gemintetes school-Token-Paar
-  // an NextAuth (internalRefresh-Pfad) — nach MFA-Verify/Enroll oder einem
-  // Login ohne zweite Stufe.
-  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+  const completeLogin = async () => {
     clearSessionErrorFromUrl();
-    const result = await signIn("school-credentials", {
-      redirect: false,
-      internalRefresh: "true",
-      token: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-    });
-    if (result?.error) {
-      logger.error("session_seed_failed", { error: result.error });
-      // Kein ApiError: der Weg zeigt den allgemeinen Text für die Anmeldung.
-      void formErrors.show(new Error(result.error), {
-        object: "die Anmeldung",
-      });
-      return;
-    }
     setAwaitingRedirect(true);
     window.location.href = schoolPath("/school");
   };
 
-  const handleMFASuccess = async (tokens: MFATokenResponse) => {
-    await seedSessionWithTokens(tokens);
+  const handleMFASuccess = async () => {
+    await completeLogin();
     setMfaStep(null);
   };
 
@@ -215,10 +203,7 @@ function LoginForm() {
         return;
       }
 
-      await seedSessionWithTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
+      await completeLogin();
     } catch (err) {
       // Konto ohne Schul-Portal-Rolle: das Passwort war korrekt, die
       // Ablehnung kommt von der Rolle — die spezifische Meldung verrät
@@ -308,12 +293,9 @@ function LoginForm() {
                 clearFormError();
                 setPassword("");
               }}
-              onComplete={async (tokens) => {
+              onComplete={async () => {
                 setEnrollmentStep(null);
-                await seedSessionWithTokens({
-                  access_token: tokens.access_token,
-                  refresh_token: tokens.refresh_token,
-                });
+                await completeLogin();
               }}
             />
           ) : (
@@ -404,7 +386,7 @@ function LoginForm() {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setIsResetModalOpen(true)}
-                    className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                    className={authTextButtonClassName}
                   >
                     Passwort vergessen?
                   </button>

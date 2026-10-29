@@ -9,6 +9,8 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -142,8 +144,8 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 	router.Get("/events", tctx.resource.StaffEvents)
 
 	// Admin without staff record should reach the streaming path (not 403).
-	// Use a context timeout so the event loop exits cleanly.
-	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 100*time.Millisecond)
+	// Cancel after the connected event; the deadline is only a hang guard.
+	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	claims := testutil.AdminTestClaims(int(account.ID))
@@ -153,11 +155,12 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 	req := testutil.NewRequest("GET", "/events", nil)
 	req = req.WithContext(claimsCtx)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := &connectedRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
+	router.ServeHTTP(rr, req)
 
-	// Admin should reach the streaming path (200), not be rejected (403)
-	assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code,
-		"Expected streaming to start (200) or context timeout (500), got %d", rr.Code)
+	// Admin must start streaming despite having no staff record.
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.True(t, rr.connected, "connected event must be flushed")
 }
 
 func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
@@ -169,8 +172,8 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 	router.Get("/events", tctx.resource.StaffEvents)
 
 	// Default claims have IsAdmin=true, so after the admin SSE fix they reach
-	// the streaming path. Use a context timeout so the event loop exits cleanly.
-	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 100*time.Millisecond)
+	// the streaming path. Cancel after the connected event; the deadline is only a hang guard.
+	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
 
 	claims := testutil.DefaultTestClaims()
@@ -180,49 +183,92 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 	req := testutil.NewRequest("GET", "/events", nil)
 	req = req.WithContext(claimsCtx)
 
-	rr := testutil.ExecuteRequest(router, req)
+	rr := &connectedRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
+	router.ServeHTTP(rr, req)
 
-	// Admin without staff record reaches streaming path (200) or context timeout (500)
-	assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code,
-		"Expected streaming to start (200) or context timeout (500), got %d", rr.Code)
+	// Default admin claims must start streaming.
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.True(t, rr.connected, "connected event must be flushed")
 }
 
 // =============================================================================
-// STREAMING PATH TESTS (with context timeout)
+// STREAMING PATH TESTS (cancel after connected)
 // =============================================================================
+
+// gatedSubscriptionResolver holds subscription resolution until the test releases
+// it. The handler must keep the valid request alive through this setup phase.
+type gatedSubscriptionResolver struct {
+	SubscriptionResolver
+	started chan struct{}
+	release chan struct{}
+}
+
+func (g gatedSubscriptionResolver) ResolveSSETopics(ctx context.Context) (int64, []string, []string, []string, error) {
+	close(g.started)
+	select {
+	case <-g.release:
+		return g.SubscriptionResolver.ResolveSSETopics(ctx)
+	case <-ctx.Done():
+		return 0, nil, nil, nil, ctx.Err()
+	}
+}
+
+type connectedRecorder struct {
+	*httptest.ResponseRecorder
+	cancel    context.CancelFunc
+	connected bool
+}
+
+func (w *connectedRecorder) Flush() {
+	w.ResponseRecorder.Flush()
+	if strings.Contains(w.Body.String(), "event: connected\n") && strings.HasSuffix(w.Body.String(), "\n\n") {
+		w.connected = true
+		w.cancel()
+	}
+}
 
 func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 	t.Parallel()
 
 	tctx := setupEventsModule(t)
-
-	// Create a teacher with account (has staff record)
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Stream", "Test")
+	resolver := gatedSubscriptionResolver{SubscriptionResolver: tctx.resource.userCtx, started: make(chan struct{}), release: make(chan struct{})}
+	tctx.resource.userCtx = resolver
 
-	// Mount handler directly
-	router := chi.NewRouter()
-	router.Get("/events", tctx.resource.StaffEvents)
-
-	// Create request with timeout context FIRST, then add claims on top
-	// This ensures the claims are in the context that will timeout
-	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 100*time.Millisecond)
+	// Five seconds is only a hang guard, not the expected stream lifetime.
+	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
-
-	// Add claims to the timeout context
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	claimsCtx := testutil.WithAuthenticatedContext(baseCtx, claims, nil)
-	claimsCtx = withValidSSEToken(t, claimsCtx)
+	claimsCtx := withValidSSEToken(t, testutil.WithAuthenticatedContext(baseCtx, claims, nil))
+	req := testutil.NewRequest("GET", "/events", nil).WithContext(claimsCtx)
+	rr := &connectedRecorder{ResponseRecorder: httptest.NewRecorder(), cancel: cancel}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		tctx.resource.StaffEvents(rr, req)
+	}()
+	defer func() { cancel(); <-done }()
 
-	req := testutil.NewRequest("GET", "/events", nil)
-	req = req.WithContext(claimsCtx)
-
-	rr := testutil.ExecuteRequest(router, req)
-
-	// Valid staff member should reach the streaming path
-	// The response might be partial due to context cancellation, but shouldn't be an error
-	// Status 200 means we started streaming, or the context was cancelled during streaming
-	assert.Contains(t, []int{http.StatusOK, http.StatusInternalServerError}, rr.Code,
-		"Expected streaming to start (200) or context timeout (500), got %d", rr.Code)
+	select {
+	case <-resolver.started:
+	case <-baseCtx.Done():
+		t.Fatal("subscription resolution did not start")
+	}
+	// Deliberately exceed the former whole-request deadline while setup is
+	// blocked. Channels, not scheduler load, control the successful resolution.
+	delay := time.NewTimer(150 * time.Millisecond)
+	defer delay.Stop()
+	select {
+	case <-delay.C:
+		close(resolver.release)
+	case <-baseCtx.Done():
+		t.Fatal("request expired before releasing subscription resolution")
+	}
+	<-done
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.True(t, rr.connected, "a complete connected event must be flushed before cancellation")
+	assert.Contains(t, rr.Body.String(), "event: connected\n")
+	assert.True(t, rr.Flushed)
 }
 
 func TestSSEEvents_ResponseHeaders(t *testing.T) {

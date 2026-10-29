@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 )
 
 func projectionRelocationRepository(t *testing.T) (string, string, *Policy) {
@@ -19,7 +21,7 @@ func projectionRelocationRepository(t *testing.T) (string, string, *Policy) {
 	writeStudentProjectionPolicy(t, repo, p)
 	writeFile(t, filepath.Join(repo, "architecture/legacy.jsonl"), "")
 	writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "list.json"), queryBudgetFragment)
-	runGit(t, repo, "init", "-q")
+	gitfixture.Init(t, repo)
 	runGit(t, repo, "config", "user.email", "architecture-test@example.test")
 	runGit(t, repo, "config", "user.name", "Architecture Test")
 	runGit(t, repo, "config", "commit.gpgsign", "false")

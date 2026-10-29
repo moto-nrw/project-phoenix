@@ -25,7 +25,7 @@ const logger = createLogger({ component: "DemoEntryPage" });
 type EntryPhase = DemoEntryPhase | "choosing";
 
 /**
- * Redeems the token in the role and signs in with the issued token pair.
+ * Redeems the link in the role; the BFF installs the session cookie.
  * The banner reports the entry after the start page has loaded (#3467), or
  * the switch when the banner of the parents app sent the visitor (#3468).
  * The role parent is the parents app's: the link goes on to its entry page.

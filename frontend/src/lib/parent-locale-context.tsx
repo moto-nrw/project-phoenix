@@ -19,83 +19,10 @@ import type { AppLocale } from "~/i18n/locales";
 import { normalizeLocale, writeLocaleCookie } from "~/i18n/locales";
 import { fetchParentProfile, updateParentPortalLocale } from "~/lib/parent-api";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
-import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
-import { reloadForLocaleChange } from "~/lib/parent-locale-navigation";
 
 const logger = createLogger({ component: "ParentLocaleContext" });
 const UNSYNCED_LOCALE_STORAGE_KEY = "phoenix_parent_unsynced_locale";
-// A failed account save survives the reload that applies the new language,
-// so the parent reads the error instead of losing it with the old page.
-const LOCALE_SAVE_FAILURE_KEY = "phoenix_parent_locale_save_failure";
-
-interface StashedSaveFailure {
-  readonly locale: AppLocale;
-  readonly status?: number;
-  readonly code?: string;
-  readonly instance?: string;
-  readonly noResponse?: boolean;
-}
-
-function stashSaveFailure(locale: AppLocale, error: unknown): boolean {
-  if (typeof window === "undefined") return false;
-  const failure: StashedSaveFailure = {
-    locale,
-    status: error instanceof ApiError ? error.status : undefined,
-    code: error instanceof ApiError ? error.code : undefined,
-    instance: error instanceof ApiError ? error.requestId : undefined,
-    noResponse: error instanceof ApiError ? error.noResponse : undefined,
-  };
-  try {
-    window.sessionStorage.setItem(
-      LOCALE_SAVE_FAILURE_KEY,
-      JSON.stringify(failure),
-    );
-    return true;
-  } catch (storageError) {
-    logger.warn("parent_locale_save_failure_stash_failed", {
-      error:
-        storageError instanceof Error
-          ? storageError.message
-          : String(storageError),
-    });
-    return false;
-  }
-}
-
-function takeSaveFailure(): { locale: AppLocale; error: unknown } | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(LOCALE_SAVE_FAILURE_KEY);
-    if (!raw) return null;
-    window.sessionStorage.removeItem(LOCALE_SAVE_FAILURE_KEY);
-    const failure = JSON.parse(raw) as StashedSaveFailure;
-    return {
-      locale: normalizeLocale(failure.locale),
-      // Status, code and request ID travel: what the shared error path
-      // shows, including the Vorgangskennung to copy. A save that got no
-      // answer stays marked as such for the log (#2512).
-      error:
-        failure.status === undefined && failure.code === undefined
-          ? new Error("parent locale save failed")
-          : Object.assign(
-              new ApiError("parent locale save failed", failure.status, {
-                code: failure.code,
-                instance: failure.instance,
-              }),
-              failure.noResponse ? { noResponse: true } : {},
-            ),
-    };
-  } catch (storageError) {
-    logger.warn("parent_locale_save_failure_read_failed", {
-      error:
-        storageError instanceof Error
-          ? storageError.message
-          : String(storageError),
-    });
-    return null;
-  }
-}
 
 interface ParentLocaleContextValue {
   locale: AppLocale;
@@ -315,28 +242,24 @@ export function ParentLocaleProvider({
           // The cookie already switched the UI on this device, but the choice
           // never reached the account, so it won't follow the parent to another
           // browser. Tell them rather than letting a failed save look like a
-          // success. The reload below would wipe a toast, so the failure is
-          // stashed and shown after it, in the newly chosen language.
-          if (!stashSaveFailure(nextLocale, error)) {
-            // Without storage the reload would hide the error: stay on this
-            // page and show it now.
-            void showError(error, {
-              object: t("errorObject"),
-              messageSuffix: t("savedOnDevice"),
-              retry: () => void setLocaleRef.current(nextLocale),
-            });
-            return;
-          }
+          // success. The soft refresh below keeps the toast.
+          void showError(error, {
+            object: t("errorObject"),
+            messageSuffix: t("savedOnDevice"),
+            retry: () => void setLocaleRef.current(nextLocale),
+          });
         }
       }
-      // A document reload guarantees the server tree reads the new cookie.
+      // A soft refresh re-renders the server tree with the new cookie and
+      // keeps client state: a half-filled form survives the switch (#5327).
       if (localeChoiceSequenceRef.current === choiceSequence) {
-        reloadForLocaleChange();
+        router.refresh();
       }
     },
     [
       authenticated,
       persistParentLocale,
+      router,
       showError,
       t,
       unsyncedLocaleStorageKey,
@@ -346,18 +269,6 @@ export function ParentLocaleProvider({
   useLayoutEffect(() => {
     setLocaleRef.current = setLocale;
   });
-
-  // Show a save failure stashed before the last reload. Taking it removes it,
-  // so a re-run of this effect shows nothing twice.
-  useEffect(() => {
-    const failure = takeSaveFailure();
-    if (!failure) return;
-    void showError(failure.error, {
-      object: t("errorObject"),
-      messageSuffix: t("savedOnDevice"),
-      retry: () => void setLocaleRef.current(failure.locale),
-    });
-  }, [showError, t]);
 
   const value = useMemo(
     () => ({ locale, setLocale, authenticated }),

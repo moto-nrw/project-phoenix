@@ -21,7 +21,7 @@ export function traegerAccessLogTopic(): HelpTopic {
         title: "Protokoll ansehen",
         steps: [
           "Melden Sie sich im Träger-Portal an.",
-          "Wählen Sie in der Navigation `Zugriffsprotokoll`.",
+          "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Zugriffsprotokoll`.",
           "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
           "Wählen Sie bei Bedarf eine Schule und eine Person.",
           "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
@@ -42,9 +42,12 @@ export function traegerAccessLogTopic(): HelpTopic {
       "Jede Zeile zeigt Zeitpunkt, Person, Schule, Art und welche Daten es waren.",
     notes: [
       "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
+      "Auch Ferienanmeldungen stehen im Protokoll. Das ist jedes Öffnen einer Anmeldung oder eines Nachweises, jeder Export und jede Änderung. Bei Schule steht dann `Träger (keine Schule)`.",
+      "Löscht moto eine Ferienanmeldung, löscht es auch ihre Einträge im Protokoll. Nach dem Ende der Ferien löscht moto alle Einträge zu diesen Ferien.",
     ],
     differences: [
-      "Sie sehen in der Navigation kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
+      "Auf dem Handy steht `Zugriffsprotokoll` in der Leiste unten oder unter `Mehr`.",
+      "Sie sehen unter `Einstellungen` kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
       "Steht bei Person `Unbekannte Person`? Zu diesem Konto kennt moto an der Schule keinen Namen, zum Beispiel bei Eltern.",
     ],
     troubleshootingDetails: [

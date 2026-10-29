@@ -18,5 +18,11 @@
   "survey_not_draft": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "survey_anonymous": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "class_letter_class_not_reachable": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
-  "class_letter_read_only": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "class_letter_read_only": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "leadership_messages_unavailable": "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
+  "staff_group_create_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "staff_group_manage_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "staff_group_name_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "staff_group_members_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "staff_group_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
 }

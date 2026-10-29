@@ -16,7 +16,8 @@ export function traegerSettingsTopic(): HelpTopic {
     icon: "Settings",
     requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
     steps: [
-      "Wählen Sie in der Navigation `Einstellungen`.",
+      "Klicken Sie links unten in der Navigation auf `Einstellungen`.",
+      "Wählen Sie darunter noch einmal `Einstellungen`.",
       "Wählen Sie den Bereich, zum Beispiel `Anmeldung` oder `Betrieb`.",
       "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
     ],
@@ -30,6 +31,7 @@ export function traegerSettingsTopic(): HelpTopic {
       "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
     ],
     differences: [
+      "Auf dem Handy steht `Einstellungen` in der Leiste unten oder unter `Mehr`.",
       "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],

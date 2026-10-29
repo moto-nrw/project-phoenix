@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
+	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -413,6 +414,36 @@ func TestStaffListInboxQueryBudgetStaysFlat(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, inbox, 3)
 		testpkg.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Queries())
+		return err
+	})
+	require.NoError(t, err)
+}
+
+func TestStaffListInboxGroupQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+	anna, ben := twoColleagues(t, db)
+	_, cara := testpkg.CreateTestStaffWithAccount(t, db, "Cara", "Drittel")
+	_, dan := testpkg.CreateTestStaffWithAccount(t, db, "Dan", "Viertel")
+
+	groups := staffStore.NewStaffMessageThreadRepository(db)
+	for _, counterpartID := range []int64{ben, cara.ID, dan.ID} {
+		thread, err := testpkg.TenantQuery1(t, asAccount(t, anna), db, svc.OpenThread, counterpartID)
+		require.NoError(t, err)
+		_, err = testpkg.TenantQuery2(t, asAccount(t, anna), db, svc.PostMessage, thread.ThreadID, "Nachricht")
+		require.NoError(t, err)
+		_, err = testpkg.TenantQuery3(t, asAccount(t, anna), db, groups.CreateStaffGroupThread, "Absprachen", anna, []int64{counterpartID})
+		require.NoError(t, err)
+	}
+
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	err := testpkg.WithinTenantTransaction(asAccount(t, anna), db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		ctx := counter.Context(txCtx)
+		inbox, err := testpkg.TenantQuery1(t, ctx, db, svc.ListInbox, false)
+		require.NoError(t, err)
+		require.Len(t, inbox, 6)
+		testpkg.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox.group", counter.Queries())
 		return err
 	})
 	require.NoError(t, err)

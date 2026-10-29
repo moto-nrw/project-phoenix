@@ -17,6 +17,11 @@ import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { formatDate } from "~/lib/date-helpers";
+import {
+  type ConditionContext,
+  isFieldVisible,
+} from "~/lib/enrollment-field-visibility";
+import type { HolidayFormField } from "~/lib/holiday-form-field";
 import type {
   HolidayKnownChild,
   HolidayRegistrationOffer,
@@ -27,19 +32,22 @@ import {
   type ChildDraft,
   type ContactDraft,
   emptyContact,
+  type FieldError,
   hasRoomForKnownChild,
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
-
-/** Hint of a refused field, translated, or undefined. */
-export type FieldError = (name: string) => string | undefined;
+import { HolidayQuestions } from "./holiday-registration-questions";
 
 export function useWeekLabels() {
   const t = useTranslations("holidayRegistration");
   const locale = useLocale();
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const euro = new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "EUR",
+    });
+    return {
       range: (week: HolidayRegistrationWeek) =>
         t("weekRange", {
           starts: formatDate(week.startsOn, false, locale),
@@ -51,9 +59,17 @@ export function useWeekLabels() {
           startsAt: model.startsAt,
           endsAt: model.endsAt,
         }),
-    }),
-    [locale, t],
-  );
+      // The price per week at the choice: the base line the summary shows
+      // under "Beitrag", before any sibling discount or exemption (#5237).
+      pricedTimeModel: (model: HolidayRegistrationTimeModel) =>
+        t("timeModelPrice", {
+          name: model.name,
+          price: euro.format(model.priceCents / 100),
+          startsAt: model.startsAt,
+          endsAt: model.endsAt,
+        }),
+    };
+  }, [locale, t]);
 }
 
 export function ChildCard({
@@ -61,6 +77,8 @@ export function ChildCard({
   child,
   offer,
   removable,
+  questions,
+  questionContext,
   fieldError,
   onChange,
   onRemove,
@@ -69,6 +87,10 @@ export function ChildCard({
   child: ChildDraft;
   offer: HolidayRegistrationOffer;
   removable: boolean;
+  /** The Träger's questions per child (#5198). */
+  questions: readonly HolidayFormField[];
+  /** The answers the conditions of these questions read. */
+  questionContext: ConditionContext;
   fieldError: FieldError;
   onChange: (child: ChildDraft) => void;
   onRemove: () => void;
@@ -185,7 +207,9 @@ export function ChildCard({
             {t("weeksTitle")}
             <RequiredMark />
           </legend>
-          <p className="text-sm text-gray-600">{t("weeksText")}</p>
+          <p className="text-sm text-gray-600">
+            {`${t("weeksText")} ${t("weeksPriceText")}`}
+          </p>
           {offer.weeks.map((week) => (
             <div
               key={week.id}
@@ -202,6 +226,7 @@ export function ChildCard({
               </span>
               <CustomSelect
                 name={`${prefix}.bookings`}
+                wrapLabels
                 ariaLabelledBy={`${prefix}-week-${week.id}`}
                 value={child.bookings[week.id] ?? ""}
                 invalid={Boolean(bookingsError)}
@@ -212,7 +237,7 @@ export function ChildCard({
                   { value: "", label: t("notBooked") },
                   ...week.timeModels.map((model) => ({
                     value: model.id,
-                    label: labels.timeModel(model),
+                    label: labels.pricedTimeModel(model),
                   })),
                 ]}
                 onChange={(timeModelId) => {
@@ -258,6 +283,24 @@ export function ChildCard({
             onChange={(event) => set({ healthNotes: event.target.value })}
           />
         </fieldset>
+
+        {questions.some((field) => isFieldVisible(field, questionContext)) ? (
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-semibold text-gray-900">
+              {t("childQuestionsTitle")}
+            </legend>
+            <HolidayQuestions
+              fields={questions}
+              answers={child.answers}
+              context={questionContext}
+              prefix={`${prefix}.`}
+              fieldError={fieldError}
+              onChange={(key, value) =>
+                set({ answers: { ...child.answers, [key]: value } })
+              }
+            />
+          </fieldset>
+        ) : null}
       </div>
     </SectionCard>
   );

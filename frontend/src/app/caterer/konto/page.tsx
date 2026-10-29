@@ -50,8 +50,10 @@ export default function CatererAccountPage() {
         isOpen={showPasswordModal}
         onClose={() => setShowPasswordModal(false)}
         apiEndpoint="/api/caterer/account/password"
-        // The change ended every session of the account, this one too.
-        onSuccess={() => void logout()}
+        // The change ended every session of the account, this one too. If the
+        // logout request itself fails, the revoked session still opens
+        // nothing; its next request ends it (#5194).
+        onSuccess={() => void logout().catch(() => undefined)}
       />
     </div>
   );

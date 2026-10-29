@@ -356,6 +356,16 @@ export function useSWRAuth<T, E = Error>(
 }
 
 /**
+ * The cache key useSWRAuth reads for `key` under the session's scope; null
+ * while the session grants no access. For state the readers of one key
+ * share, e.g. a single refresh for all of them.
+ */
+export function useScopedSWRKey(key: string): string | null {
+  const { prefix } = useSWRScope();
+  return prefix === null ? null : scopedSWRKey(prefix, key);
+}
+
+/**
  * SWR hook for immutable/static data that rarely changes.
  *
  * Disables automatic revalidation to minimize unnecessary requests.

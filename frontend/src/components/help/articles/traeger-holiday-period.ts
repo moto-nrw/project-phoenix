@@ -52,7 +52,7 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
     notes: [
       "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
       "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
-      "Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
+      "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
     ],
     differences: [
       "Sie sehen in der Navigation kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
@@ -61,6 +61,10 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
       "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
       "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
     ],
-    related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerHolidayContribution],
+    related: [
+      HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerHolidayForm,
+      HELP_TOPICS.traegerHolidayContribution,
+    ],
   };
 }

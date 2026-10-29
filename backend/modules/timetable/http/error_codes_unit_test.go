@@ -289,6 +289,7 @@ func TestOperationErrorCodes(t *testing.T) {
 		timetable.CodeReopenStaffBusy)
 	notCheckedIn := timetable.WithCode(timetable.ErrTimetableOperationNotFound, timetable.CodeStudentNotCheckedIn)
 	assertCodeCases(t, []codeCase{
+		{"visit cohort changed", operationErrorRenderer(fmt.Errorf("prepare visits: %w", studentpresence.ErrVisitWriteConflict)), http.StatusConflict, "timetable.operation_stale", "", nil},
 		{"start too early", operationErrorRenderer(timetable.ErrInstanceStartTooEarly), http.StatusConflict, "timetable.start_too_early", "", nil},
 		{"start expired", operationErrorRenderer(timetable.ErrInstanceStartExpired), http.StatusConflict, "timetable.start_window_expired", "", nil},
 		{"complete early", operationErrorRenderer(timetable.ErrInstanceCompleteEarly), http.StatusConflict, "timetable.complete_too_early", "", nil},

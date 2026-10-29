@@ -23,6 +23,7 @@ import {
   type GroupThreadDetail,
   closeGroupThread,
   familyReadLabel,
+  groupRecipientsLabel,
   fetchGroupThread,
   postGroupMessage,
 } from "~/lib/parent-group-threads-api";
@@ -179,7 +180,8 @@ function GroupMessageContent() {
             />
           ))}
         </div>
-        <p className="mt-4 text-sm text-gray-500">
+        <p className="mt-4 text-sm text-gray-500" data-testid="group-readers">
+          {data?.readers ? `${groupRecipientsLabel(data.readers)} ` : null}
           Eltern antworten nur der OGS. Ihre Antworten finden Sie in der
           Unterhaltung mit der Familie.
         </p>

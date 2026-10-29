@@ -2,6 +2,7 @@ package compose_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -125,21 +126,50 @@ func TestVisitRevisionStaysInsideTheSchool(t *testing.T) {
 	require.Error(t, err)
 }
 
+// lockScenarioDB gives a test that holds transactions open its own pool on
+// the package clone (#5269). Its actors, the lock diagnostics and the reads
+// in between take connections from this pool, so concurrent lock scenarios
+// cannot exhaust the shared pool and wait for each other's connections.
+func lockScenarioDB(t *testing.T) *bun.DB {
+	t.Helper()
+	db := testpkg.SetupClosableTestDB(t)
+	t.Cleanup(func() { assert.NoError(t, db.Close()) })
+	return db
+}
+
 // txActor runs one tenant transaction in its own goroutine, so a test can
 // hold it open, let it block on a lock, and decide when it commits.
 type txActor struct {
-	pid   int
-	tx    bun.Tx
-	steps chan func(context.Context) error
-	done  chan error
+	pid     int
+	tx      bun.Tx
+	steps   chan func(context.Context) error
+	done    chan error
+	release sync.Once
 }
 
 func startTx(t *testing.T, ctx context.Context, db *bun.DB) *txActor {
 	t.Helper()
+	txCtx, cancel := context.WithCancel(ctx)
 	actor := &txActor{steps: make(chan func(context.Context) error), done: make(chan error, 1)}
+	// A failed assertion leaves the actor open: end it, cancelling a step
+	// that still waits on a lock, so the pool can close.
+	t.Cleanup(func() {
+		actor.finish()
+		cancel()
+		if actor.ended(time.Second) {
+			return
+		}
+		cancelCtx, stop := context.WithTimeout(context.Background(), 5*time.Second)
+		_, err := db.ExecContext(cancelCtx, "SELECT pg_cancel_backend(?)", actor.pid)
+		stop()
+		assert.NoError(t, err)
+		if !actor.ended(10 * time.Second) {
+			t.Error("transaction did not end during cleanup")
+		}
+	})
 	ready := make(chan int, 1)
 	go func() {
-		actor.done <- testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		err := testpkg.WithTenantTx(t, txCtx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 			var pid int
 			if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &pid); err != nil {
 				return err
@@ -147,15 +177,14 @@ func startTx(t *testing.T, ctx context.Context, db *bun.DB) *txActor {
 			actor.tx = tx
 			ready <- pid
 			for step := range actor.steps {
-				if step == nil {
-					return nil
-				}
 				if err := step(txCtx); err != nil {
 					return err
 				}
 			}
 			return nil
 		})
+		actor.done <- err
+		close(actor.done)
 	}()
 	select {
 	case actor.pid = <-ready:
@@ -163,6 +192,52 @@ func startTx(t *testing.T, ctx context.Context, db *bun.DB) *txActor {
 		t.Fatalf("transaction did not start: %v", err)
 	}
 	return actor
+}
+
+// finish lets the actor's transaction commit once its current step returns.
+func (a *txActor) finish() {
+	a.release.Do(func() { close(a.steps) })
+}
+
+// ended reports whether the actor's transaction finished within the wait.
+func (a *txActor) ended(wait time.Duration) bool {
+	select {
+	case <-a.done:
+		return true
+	case <-time.After(wait):
+		return false
+	}
+}
+
+// TestTxActorCleanupEndsAnOpenTransaction pins the actor cleanup of #5269: an
+// actor left open by a failed test, even one waiting on a lock, ends with
+// its test, so the lock scenario's pool can close.
+func TestTxActorCleanupEndsAnOpenTransaction(t *testing.T) {
+	t.Parallel()
+	db := lockScenarioDB(t)
+	ctx := testpkg.Ctx(t)
+	group := newSession(t, db, "Actor cleanup")
+	var holder, waiter *txActor
+	t.Run("without commit", func(t *testing.T) {
+		holder = startTx(t, ctx, db)
+		waiter = startTx(t, ctx, db)
+		awaitStep(t, holder.run(func(txCtx context.Context) error {
+			_, err := holder.tx.NewRaw("SELECT id FROM active.groups WHERE id = ? FOR UPDATE", group.ID).Exec(txCtx)
+			return err
+		}))
+		waiter.run(func(txCtx context.Context) error {
+			_, err := waiter.tx.NewRaw("SELECT id FROM active.groups WHERE id = ? FOR UPDATE", group.ID).Exec(txCtx)
+			return err
+		})
+		awaitBlockedBy(t, db, waiter, holder)
+	})
+	for _, actor := range []*txActor{holder, waiter} {
+		select {
+		case <-actor.done:
+		default:
+			t.Fatal("cleanup left an actor's transaction open")
+		}
+	}
 }
 
 // run hands a step to the transaction and returns its result channel
@@ -179,7 +254,7 @@ func (a *txActor) run(step func(context.Context) error) <-chan error {
 
 func (a *txActor) commit(t *testing.T) {
 	t.Helper()
-	a.steps <- nil
+	a.finish()
 	select {
 	case err := <-a.done:
 		require.NoError(t, err)
@@ -205,7 +280,10 @@ func awaitBlockedBy(t *testing.T, db *bun.DB, waiter, holder *txActor) {
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		var blocked bool
-		require.NoError(t, db.NewRaw("SELECT ?::int = ANY (pg_blocking_pids(?::int))", holder.pid, waiter.pid).Scan(context.Background(), &blocked))
+		queryCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		err := db.NewRaw("SELECT ?::int = ANY (pg_blocking_pids(?::int))", holder.pid, waiter.pid).Scan(queryCtx, &blocked)
+		cancel()
+		require.NoError(t, err)
 		if blocked {
 			return
 		}
@@ -221,7 +299,7 @@ func awaitBlockedBy(t *testing.T, db *bun.DB, waiter, holder *txActor) {
 // the scan's count and revision.
 func TestVisitRevisionOrdersAPollBeforeTheScanCommitted(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	activity := testpkg.CreateTestActivityGroup(t, db, "Race activity")
@@ -270,7 +348,7 @@ func newSession(t *testing.T, db *bun.DB, name string) *testpkg.ActiveGroupRow {
 // and two check-ins into one session do not wait for each other.
 func TestVisitWritesTakeNoSessionLock(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	group := newSession(t, db, "No lock")
@@ -326,7 +404,7 @@ func TestVisitWritesTakeNoSessionLock(t *testing.T) {
 // read after both commits carries both changes with a higher revision.
 func TestConcurrentWritersOfOneSessionMeetOnTheNextRead(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	group := newSession(t, db, "Overlap")
@@ -367,7 +445,7 @@ func TestConcurrentWritersOfOneSessionMeetOnTheNextRead(t *testing.T) {
 // while the compaction runs.
 func TestNightlyCloseCompactsEventsWithoutChangingRevisions(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	ended := newSession(t, db, "Compact ended")
@@ -457,7 +535,7 @@ func TestNightlyCloseCompactsEventsWithNoOpenGroups(t *testing.T) {
 // lock and insert).
 func TestOppositeScansDoNotDeadlock(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	first := newSession(t, db, "Opposite first")
@@ -497,7 +575,7 @@ func TestOppositeScansDoNotDeadlock(t *testing.T) {
 // session end holds the session and then closes its visits.
 func TestCheckoutAndSessionEndDoNotDeadlock(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	group := newSession(t, db, "Checkout end")
@@ -530,7 +608,7 @@ func TestCheckoutAndSessionEndDoNotDeadlock(t *testing.T) {
 // the session and waits for the visit.
 func TestCareExitAndSessionEndDoNotDeadlock(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	group := newSession(t, db, "Care exit")
@@ -569,7 +647,7 @@ func TestCareExitAndSessionEndDoNotDeadlock(t *testing.T) {
 // visit, and a session end of the target waits for it.
 func TestAdminTransferWaitingCheckoutAndSessionEndDoNotDeadlock(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	source := newSession(t, db, "Transfer source")
@@ -618,7 +696,7 @@ func TestAdminTransferWaitingCheckoutAndSessionEndDoNotDeadlock(t *testing.T) {
 // another room's session.
 func TestReattachAndScanDoNotDeadlock(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	device := testpkg.CreateTestDevice(t, db, "reattach-device")

@@ -835,7 +835,7 @@ func checkTimetableConflictWiring(t *testing.T, graph *goldenRuntime) {
 	// The mounted routes reach it too: an unwired conflict probe answers 500.
 	db := testpkg.SetupTestDB(t)
 	_, staff := testpkg.CreateTestTeacherWithAccount(t, db, "Conflict", "Probe")
-	token := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
+	token := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
 	probe := checkpointRequest(graph, checkpointScenario{
 		Method: http.MethodGet, Path: "/api/timetable/exception-conflicts?date=2099-01-05", Authenticated: true,
 	}, token)

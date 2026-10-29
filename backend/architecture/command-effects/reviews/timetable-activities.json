@@ -61,6 +61,36 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareDayQueries.ResolvePlannedForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/internal/application.CareDayQueries.ResolvePlannedForRange; modules/careplan/internal/application/care_days.go:53. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareDayQueries.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolvePlannedForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/internal/application.careDayService.ResolvePlannedForRange; modules/careplan/internal/application/care_day_facts.go:72. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDayQuery.ResolvePlannedForRange; modules/careplan/care_days.go:18. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/planexport.service.ExportBetreuungsplan",
       "classification": "query",
       "effect": "query",
@@ -2195,6 +2225,36 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision; modules/studentpresence.Capability (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountStudentVisitsForDeletion",
       "classification": "query",
       "effect": "query",
@@ -4182,6 +4242,39 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.QueryGroupSupervisions",
       "classification": "leaf",
       "effect": "lock",
@@ -5975,6 +6068,26 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision; modules/studentpresence/internal/application/visit_locations.go:51. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountStudentVisitsForDeletion",
       "classification": "query",
       "effect": "query",
@@ -7380,6 +7493,28 @@
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence.Owner.PatchSessionAttendance; modules/studentpresence.Owner (supplied contract method).  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PatchSessionAttendance",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PrepareVisitWrites",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
       "target_owner": "student-presence"
     },
     {
@@ -10383,7 +10518,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings",
       "target_owner": "care-plan"
@@ -10393,7 +10528,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.OfferingWeekdayBookings",
       "target_owner": "care-plan"
@@ -10403,7 +10538,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings",
       "target_owner": "care-plan"
@@ -10413,7 +10548,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.TemplateRosterMaintenance",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.BookingMaterializationCapability.TemplateRosterMaintenanceFeeds; modules/careplan.BookingMaterializationCapability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.BookingMaterializationCapability.TemplateRosterMaintenanceFeeds; modules/careplan.BookingMaterializationCapability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #5140 also passes the effective direct offering links (LinkedOfferingIDs) through unchanged; still read-only.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.TemplateRosterMaintenanceFeeds",
       "target_owner": "care-plan"
@@ -10423,7 +10558,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.TemplateRosterMaintenance",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareOfferingCapability.TemplateRosterMaintenanceFeeds; modules/careplan.CareOfferingCapability (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareOfferingCapability.TemplateRosterMaintenanceFeeds; modules/careplan.CareOfferingCapability (supplied contract method). May-bind method surface, not a production-call/liveness claim. #5140 also passes the effective direct offering links (LinkedOfferingIDs) through unchanged; still read-only.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.TemplateRosterMaintenanceFeeds",
       "target_owner": "care-plan"
@@ -10433,7 +10568,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.TemplateRosterMaintenance",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.DeriveTemplateRosterMaintenance; modules/careplan/roster_maintenance.go:101. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.DeriveTemplateRosterMaintenance; modules/careplan/roster_maintenance.go:101. May-bind method surface, not a production-call/liveness claim. #5140 also passes the effective direct offering links (LinkedOfferingIDs) through unchanged; still read-only.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.DeriveTemplateRosterMaintenance",
       "target_owner": "care-plan"
@@ -10443,9 +10578,20 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.TemplateRosterMaintenance",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.OfferingSourceEditor.TemplateRosterMaintenanceFeeds; modules/careplan/booking_materialization.go:89. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.OfferingSourceEditor.TemplateRosterMaintenanceFeeds; modules/careplan/booking_materialization.go:89. May-bind method surface, not a production-call/liveness claim. #5140 also passes the effective direct offering links (LinkedOfferingIDs) through unchanged; still read-only.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.TemplateRosterMaintenanceFeeds",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DecideOfferingTemplateGap",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingTemplateGapDecision.DecideOfferingTemplateGap",
+      "reason": "Guarded target record command (#5140): Care Plan alone writes the planning-period entry of enrollment.care_offerings.template_gap_acks of one offering in the route's tenant transaction; Timetable only computes the classes and writes nothing. Preserve ambient scope, target validation and not-found propagation. Target modules/careplan.CareOfferingCapability.DecideOfferingTemplateGap; modules/careplan/offering_template_gaps.go:31. ",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.DecideOfferingTemplateGap",
       "target_owner": "care-plan"
     },
     {
@@ -18991,6 +19137,17 @@
       "reason": "Owner-provided conditional locking read: ForUpdate=true requires an ambient transaction and executes SELECT FOR UPDATE; otherwise read-only. Classify the complete method surface as lock, not query. Target modules/studentpresence.Owner.ListVisits; modules/studentpresence/internal/application/visit.go:57; modules/studentpresence/internal/adapters/postgres/visit.go:75. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListVisits",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.LifecyclePresence.PrepareVisitWrites",
+      "reason": "Student Presence enforces its own existing visit/session/room-advisory order in the ambient tenant transaction (ADR 0138, #5280). No foreign rows, separate commit, source-defined SQL protocol or new coordinator exception. Timetable retains its existing lifecycle orchestration and delegates this owner-local guard.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
       "target_owner": "student-presence"
     },
     {

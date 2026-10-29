@@ -45,7 +45,7 @@ export function traegerHolidayContributionTopic(): HelpTopic {
       },
     ],
     result:
-      "Eltern sehen den Beitrag vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
+      "Eltern sehen den Preis jedes Zeitmodells schon bei der Wahl der Wochen. Den Beitrag sehen sie vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
     notes: [
       "Geschwister sind Kinder derselben Ferienanmeldung. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
       "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",

@@ -51,7 +51,9 @@ export function ConnectOfferingModal({
   /** After a successful save; the caller refreshes plan and lists. */
   onConnected: () => void | Promise<void>;
 }>) {
-  const [offeringId, setOfferingId] = useState(deviation.offering.id);
+  // Several offerings fit equally (#5138): the school picks, none is set.
+  const initialOfferingId = deviation.ambiguous ? "" : deviation.offering.id;
+  const [offeringId, setOfferingId] = useState(initialOfferingId);
   const [saving, setSaving] = useState(false);
   const formErrors = useApiFormError();
   const { clear: clearFormError } = formErrors;
@@ -61,13 +63,13 @@ export function ConnectOfferingModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setOfferingId(deviation.offering.id);
+    setOfferingId(initialOfferingId);
     clearFormError();
-  }, [isOpen, deviation.offering.id, clearFormError]);
+  }, [isOpen, initialOfferingId, clearFormError]);
 
   const selection: OfferingSelection = useMemo(
     () => ({
-      offeringIds: [offeringId],
+      offeringIds: offeringId ? [offeringId] : [],
       gradeLevels: deviation.gradeLevels,
       schoolClasses: deviation.schoolClasses,
     }),
@@ -78,13 +80,13 @@ export function ConnectOfferingModal({
     loading,
     error: previewError,
   } = useOfferingPreview(isOpen ? deviation.templateId : undefined, selection);
-  const offeringName =
-    deviation.candidates.find((candidate) => candidate.id === offeringId)
-      ?.name ?? deviation.offering.name;
   const candidates =
     deviation.candidates.length > 0
       ? deviation.candidates
       : [deviation.offering];
+  const offeringName = candidates.find(
+    (candidate) => candidate.id === offeringId,
+  )?.name;
   const segmentSentence = preview ? laterSegmentSentence(preview) : null;
 
   const handleSave = async () => {
@@ -139,9 +141,11 @@ export function ConnectOfferingModal({
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-gray-700">
-          {preview
-            ? `Ab ${formatDate(preview.from)} kommen nur noch die für „${offeringName}“ angemeldeten Kinder. An- und Abmeldungen werden danach automatisch übernommen.`
-            : `„${templateName}“ bekommt seine Kinder dann aus dem Angebot „${offeringName}“.`}
+          {offeringName === undefined
+            ? "Mehrere Angebote passen zur Kinderliste. Wählen Sie das Angebot, dessen angemeldete Kinder kommen sollen."
+            : preview
+              ? `Ab ${formatDate(preview.from)} kommen nur noch die für „${offeringName}“ angemeldeten Kinder. An- und Abmeldungen werden danach automatisch übernommen.`
+              : `„${templateName}“ bekommt seine Kinder dann aus dem Angebot „${offeringName}“.`}
         </p>
         <div className="flex flex-col gap-1">
           <span
@@ -156,6 +160,7 @@ export function ConnectOfferingModal({
               labelId={offeringLabelId}
               ariaLabelledBy={offeringLabelId}
               disabled={saving}
+              placeholder="Angebot wählen"
               options={candidates.map((candidate) => ({
                 value: candidate.id,
                 label: candidate.name,
@@ -172,23 +177,27 @@ export function ConnectOfferingModal({
             {describeSelectionFilter(selection)}
           </span>
         </div>
-        <div className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-gray-700">
-            Das ändert sich
-          </span>
-          {loading ? (
-            <p className="text-sm text-gray-600">Die Vorschau wird geladen.</p>
-          ) : null}
-          <LoadErrorAlert error={previewError} />
-          {preview && !loading ? (
-            <>
-              {segmentSentence ? (
-                <p className="text-sm text-gray-700">{segmentSentence}</p>
-              ) : null}
-              <OfferingPreviewList preview={preview} />
-            </>
-          ) : null}
-        </div>
+        {offeringName === undefined ? null : (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-gray-700">
+              Das ändert sich
+            </span>
+            {loading ? (
+              <p className="text-sm text-gray-600">
+                Die Vorschau wird geladen.
+              </p>
+            ) : null}
+            <LoadErrorAlert error={previewError} />
+            {preview && !loading ? (
+              <>
+                {segmentSentence ? (
+                  <p className="text-sm text-gray-700">{segmentSentence}</p>
+                ) : null}
+                <OfferingPreviewList preview={preview} />
+              </>
+            ) : null}
+          </div>
+        )}
       </div>
     </FormModal>
   );

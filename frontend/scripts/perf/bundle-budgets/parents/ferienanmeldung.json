@@ -3,8 +3,9 @@
   "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
   "routes": {
     "/parents/ferienanmeldung/[token]": {
-      "referenceBytes": 812227,
-      "maxBytes": 828472
+      "referenceBytes": 933362,
+      "maxBytes": 952029,
+      "_reason": "#5199: Neue Rechtstexte mit gemeinsamem Markdown-Renderer, PDF-Aktionen und Bestätigungen. Die kalte Messung steigt von 874288 auf 933362 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz. Nachgeladene Chunks zählen vollständig mit."
     }
   }
 }

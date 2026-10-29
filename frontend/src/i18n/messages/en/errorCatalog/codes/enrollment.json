@@ -82,6 +82,7 @@
   "legal_block_required_not_allowed": "{object} could not be saved. Please check your entries.",
   "legal_document_invalid": "{object} could not be saved. Please check your entries.",
   "form_field_file_options_invalid": "Please check the file question. Choose at least one file type and a size from 1 to 10 MB.",
+  "upload_content_mismatch": "The contents of “{filename}” do not match its file type. Please choose another file. Renaming it is not enough.",
   "upload_invalid": "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
   "upload_expired": "An uploaded file has expired. Please upload it again.",
   "upload_rate_limited": "Too many files were uploaded. Please try again later.",
@@ -133,5 +134,7 @@
   "holiday_week_booked": "This week already has registrations. That is why the week and its booked time models cannot be removed.",
   "hosted_holiday_week_not_found": "There is no participant list for this week any more. It is only available until the last day of the week.",
   "holiday_guest_not_found": "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
-  "holiday_guest_group_invalid": "This group no longer exists. Please choose another group."
+  "holiday_guest_group_invalid": "This group no longer exists. Please choose another group.",
+  "holiday_form_field_not_allowed": "{object} could not be saved. Please check your entries.",
+  "holiday_registration_form_changed": "The provider has just changed the form. Please check your entries and send the registration again."
 }

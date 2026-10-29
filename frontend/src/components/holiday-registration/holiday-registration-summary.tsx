@@ -4,18 +4,30 @@
 // Beitrag aus den Regeln des Trägers (#4664).
 
 import { useLocale, useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback } from "react";
+import {
+  EnrollmentUploadScope,
+  useEnrollmentUploadTarget,
+} from "~/components/enrollment/enrollment-file-upload";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
-import type { HolidayRegistrationOffer } from "~/lib/holiday-registration-api";
+import type { HolidayFormField } from "~/lib/holiday-form-field";
+import type { NewUploadValue } from "~/lib/enrollment-uploads";
+import {
+  type HolidayRegistrationOffer,
+  uploadHolidayProof,
+} from "~/lib/holiday-registration-api";
 import {
   bookedWeeks,
   type ContactDraft,
   hasSecondGuardian,
+  isAnswered,
   OTHER_SCHOOL,
   type RegistrationDraft,
+  visibleChildQuestions,
+  visibleFamilyQuestions,
 } from "./holiday-registration-model";
 import { HolidayRegistrationContribution } from "./holiday-registration-contribution";
 import { useWeekLabels } from "./holiday-registration-sections";
@@ -25,6 +37,44 @@ function contactLine(contact: ContactDraft): string {
     .map((part) => part.trim())
     .filter(Boolean)
     .join(" · ");
+}
+
+/** The answers to the Träger's questions as data fields (#5198). */
+function AnswerFields({
+  questions,
+  answers,
+}: Readonly<{
+  questions: readonly HolidayFormField[];
+  answers: Readonly<Record<string, unknown>>;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  const tr = useTranslations("enrollmentForm");
+  const locale = useLocale();
+  const text = (field: HolidayFormField): string => {
+    const value = answers[field.key];
+    if (!isAnswered(field, value)) return t("none");
+    if (field.type === "boolean") {
+      return value === true ? tr("structured.yes") : tr("structured.no");
+    }
+    const answer = String(value).trim();
+    if (field.type === "select") {
+      return (
+        field.options?.find((option) => option.value === answer)?.label ??
+        answer
+      );
+    }
+    if (field.type === "date") return formatDate(answer, false, locale);
+    return answer;
+  };
+  return questions.map((field) => (
+    <DataField
+      key={field.key}
+      label={field.label}
+      fullWidth={field.type === "textarea"}
+    >
+      {text(field)}
+    </DataField>
+  ));
 }
 
 export function HolidayRegistrationSummary({
@@ -37,6 +87,7 @@ export function HolidayRegistrationSummary({
   onBack,
   onSubmit,
   onBenefitsDeclaredChange,
+  onBenefitsProofsChange,
 }: Readonly<{
   token: string;
   draft: RegistrationDraft;
@@ -48,9 +99,24 @@ export function HolidayRegistrationSummary({
   onBack: () => void;
   onSubmit: () => void;
   onBenefitsDeclaredChange: (declared: boolean) => void;
+  onBenefitsProofsChange: (proofs: NewUploadValue[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
+  const uploadText = useTranslations("enrollmentForm");
   const locale = useLocale();
+  // A proof of benefits uploads through the public link (#5238); the send
+  // button waits until every chosen file has arrived.
+  const upload = useCallback(
+    (file: File, signal: AbortSignal) =>
+      uploadHolidayProof(token, file, signal),
+    [token],
+  );
+  const { pendingUploads, uploadTarget } = useEnrollmentUploadTarget({
+    tenantSlug: "",
+    upload,
+    locale,
+    previewMode: false,
+  });
   const labels = useWeekLabels();
   const none = t("none");
   const schoolName = (school: string, guestSchoolName: string) =>
@@ -100,6 +166,10 @@ export function HolidayRegistrationSummary({
             <DataField label={t("healthNotes")}>
               {child.healthNotes.trim() || none}
             </DataField>
+            <AnswerFields
+              questions={visibleChildQuestions(draft, child, offer.form)}
+              answers={child.answers}
+            />
           </DataGrid>
         </SectionCard>
       ))}
@@ -121,6 +191,10 @@ export function HolidayRegistrationSummary({
           <DataField label={t("pickupTitle")}>
             {draft.pickupPersons.map(contactLine).join("; ") || t("noPickup")}
           </DataField>
+          <AnswerFields
+            questions={visibleFamilyQuestions(draft, offer.form)}
+            answers={draft.answers}
+          />
         </DataGrid>
       </SectionCard>
 
@@ -140,12 +214,38 @@ export function HolidayRegistrationSummary({
         </SectionCard>
       ) : null}
 
-      <HolidayRegistrationContribution
-        token={token}
-        draft={draft}
-        offer={offer}
-        onBenefitsDeclaredChange={onBenefitsDeclaredChange}
-      />
+      {(offer.form.legalBlocks ?? []).some((b) => b.enabled) ? (
+        <SectionCard title={t("legalTitle")}>
+          <DataGrid>
+            {offer.form.legalBlocks
+              ?.filter((b) => b.enabled)
+              .map((block) => (
+                <DataField key={block.key} label={block.title}>
+                  {block.kind === "notice" && !block.required
+                    ? block.label
+                    : draft.legalAcceptances?.[block.key]
+                      ? t("legalAccepted")
+                      : t("legalNotAccepted")}
+                </DataField>
+              ))}
+          </DataGrid>
+        </SectionCard>
+      ) : null}
+      <EnrollmentUploadScope target={uploadTarget}>
+        <HolidayRegistrationContribution
+          token={token}
+          draft={draft}
+          offer={offer}
+          onBenefitsDeclaredChange={onBenefitsDeclaredChange}
+          onBenefitsProofsChange={onBenefitsProofsChange}
+        />
+      </EnrollmentUploadScope>
+
+      {pendingUploads > 0 ? (
+        <p className="text-sm text-gray-700" role="status">
+          {uploadText("upload.pendingSubmit")}
+        </p>
+      ) : null}
 
       {/* The security check sits in the row of the send button: one step,
           no gap below the contribution. */}
@@ -165,7 +265,7 @@ export function HolidayRegistrationSummary({
             type="button"
             variant="primary"
             size="md"
-            disabled={submitting || !canSubmit}
+            disabled={submitting || !canSubmit || pendingUploads > 0}
             onClick={onSubmit}
           >
             {submitting

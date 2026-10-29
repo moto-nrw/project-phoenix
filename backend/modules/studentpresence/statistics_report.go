@@ -40,6 +40,8 @@ type StatisticsFilters struct {
 	From     calendar.Date
 	To       calendar.Date
 	GroupIDs []int64
+	// SchoolClasses restricts the children to these classes; empty means all.
+	SchoolClasses []string
 	// Sections limits what is computed. Empty means the whole report — the
 	// screen loads every section at once so switching tabs costs no request.
 	Sections []StatisticsSection
@@ -184,6 +186,9 @@ type StatisticsReport struct {
 	// behind CourseDataFrom.
 	CourseDataDays int
 	CourseDataFrom calendar.Date
+	// Occupancy is the occupancy by time of day (#4764); nil when the section
+	// was not asked for.
+	Occupancy *StatisticsOccupancy
 }
 
 // StatisticsReports is the statistics use case.

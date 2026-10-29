@@ -57,6 +57,7 @@ export function parentGroupMessageTopic(): HelpTopic {
       "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
       "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
       "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",
+      "Über dem Schreibfeld steht bei `Ging an:`, an wen die Nachricht ging und wie viele Familien sie bekommen haben.",
     ],
     related: [HELP_TOPICS.parentMessage, HELP_TOPICS.leadParentAnnouncement],
   };

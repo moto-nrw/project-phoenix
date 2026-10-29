@@ -453,6 +453,12 @@
       "legacy": "enrollment.guardian_phone_required"
     },
     {
+      "code": "enrollment.holiday_form_field_not_allowed",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_form_field_not_allowed"
+    },
+    {
       "code": "enrollment.holiday_host_school_outside_traeger",
       "class": "input",
       "parameters": [],
@@ -487,6 +493,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_registration_entry_not_found"
+    },
+    {
+      "code": "enrollment.holiday_registration_form_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_registration_form_changed"
     },
     {
       "code": "enrollment.hosted_holiday_week_not_found",
@@ -771,6 +783,14 @@
       "class": "input",
       "parameters": [],
       "legacy": "enrollment.upload_expired"
+    },
+    {
+      "code": "enrollment.upload_content_mismatch",
+      "class": "input",
+      "parameters": [
+        "filename"
+      ],
+      "legacy": "enrollment.upload_content_mismatch"
     },
     {
       "code": "enrollment.upload_invalid",

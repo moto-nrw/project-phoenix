@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -26,6 +27,13 @@ func (r StaffStudentReads) ReadsAllStudents(ctx context.Context, permissions []s
 // CanReadStudent reports whether the caller may read one child.
 func (r StaffStudentReads) CanReadStudent(ctx context.Context, permissions []string, student interface{ IsAuthorizationStudent() bool }) bool {
 	return securityruntime.CanReadStudent(ctx, permissions, student, r.Caller)
+}
+
+// ReadsLeadershipMessages reports whether the caller reads the conversations
+// parents address to the leadership only (#5200): parent_messages:leadership
+// through a role, or admin:*.
+func (r StaffStudentReads) ReadsLeadershipMessages(_ context.Context, perms []string) bool {
+	return securityruntime.HasPermission(permissions.ParentMessagesLeadership, perms)
 }
 
 // MyGroupIDs are the caller's OGS groups.

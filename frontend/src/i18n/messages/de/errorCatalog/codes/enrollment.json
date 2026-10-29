@@ -82,6 +82,7 @@
   "legal_block_required_not_allowed": "Hinweise und Einwilligungen dürfen keine Pflicht sein. Bitte nehmen Sie den Haken bei Pflicht heraus.",
   "legal_document_invalid": "Bitte wählen Sie eine PDF-Datei mit höchstens {max_mb} MB.",
   "form_field_file_options_invalid": "Bitte prüfen Sie die Dateifrage. Wählen Sie mindestens eine Dateiart und eine Größe von 1 bis 10 MB.",
+  "upload_content_mismatch": "Der Inhalt von „{filename}“ passt nicht zur Dateiart. Bitte wählen Sie eine andere Datei. Umbenennen reicht nicht.",
   "upload_invalid": "Diese Datei passt nicht. Bitte wählen Sie eine erlaubte Dateiart mit höchstens {max_mb} MB.",
   "upload_expired": "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
   "upload_rate_limited": "Es wurden zu viele Dateien hochgeladen. Bitte versuchen Sie es später noch einmal.",
@@ -133,5 +134,7 @@
   "holiday_week_booked": "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
   "hosted_holiday_week_not_found": "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
   "holiday_guest_not_found": "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
-  "holiday_guest_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe."
+  "holiday_guest_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
+  "holiday_form_field_not_allowed": "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
+  "holiday_registration_form_changed": "Der Träger hat das Formular gerade geändert. Bitte prüfen Sie Ihre Angaben und senden Sie die Anmeldung noch einmal."
 }

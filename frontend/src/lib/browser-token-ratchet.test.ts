@@ -311,6 +311,109 @@ function findBrowserTokenReads(fileName: string, source: string): Finding[] {
   return findings.sort((a, b) => a.line - b.line);
 }
 
+/** Public signIn accepts login credentials/proofs, never session seeds.
+ * Fail closed on opaque/spread options so an imported object cannot hide tokens.
+ */
+function findBrowserSessionSeeds(fileName: string, source: string): Finding[] {
+  const file = ts.createSourceFile(
+    fileName,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const signIns = new Set(["signIn"]);
+  const collect = (node: ts.Node) => {
+    if (
+      ts.isImportSpecifier(node) &&
+      (node.propertyName ?? node.name).text === "signIn"
+    )
+      signIns.add(node.name.text);
+    ts.forEachChild(node, collect);
+  };
+  collect(file);
+  // Local function aliases must not bypass the boundary.
+  for (let changed = true; changed;) {
+    changed = false;
+    const aliases = (node: ts.Node) => {
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isIdentifier(node.name) &&
+        node.initializer
+      ) {
+        const value = strip(node.initializer);
+        const name = ts.isIdentifier(value)
+          ? value.text
+          : ts.isPropertyAccessExpression(value)
+            ? value.name.text
+            : undefined;
+        if (name && signIns.has(name) && !signIns.has(node.name.text)) {
+          signIns.add(node.name.text);
+          changed = true;
+        }
+      }
+      if (
+        ts.isVariableDeclaration(node) &&
+        ts.isObjectBindingPattern(node.name)
+      ) {
+        for (const binding of node.name.elements) {
+          if (
+            stringKey(binding.propertyName ?? binding.name) === "signIn" &&
+            ts.isIdentifier(binding.name) &&
+            !signIns.has(binding.name.text)
+          ) {
+            signIns.add(binding.name.text);
+            changed = true;
+          }
+        }
+      }
+      ts.forEachChild(node, aliases);
+    };
+    aliases(file);
+  }
+  const allowed = new Set([
+    "email",
+    "password",
+    "tenantSlug",
+    "redirect",
+    "redirectTo",
+    "callbackUrl",
+    "traegerHandoff",
+  ]);
+  const findings: Finding[] = [];
+  const walk = (node: ts.Node) => {
+    if (ts.isCallExpression(node)) {
+      const callee = strip(node.expression);
+      const name = ts.isElementAccessExpression(callee)
+        ? stringKey(callee.argumentExpression, false)
+        : calleeName(node);
+      if (name && signIns.has(name)) {
+        const options = node.arguments[1]
+          ? strip(node.arguments[1])
+          : undefined;
+        const safe =
+          !options ||
+          (ts.isIdentifier(options) && options.text === "undefined") ||
+          (ts.isObjectLiteralExpression(options) &&
+            options.properties.every(
+              (property) =>
+                (ts.isPropertyAssignment(property) ||
+                  ts.isShorthandPropertyAssignment(property)) &&
+                allowed.has(stringKey(property.name) ?? ""),
+            ));
+        if (!safe || node.arguments.length > 2)
+          findings.push({
+            line:
+              file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1,
+            rule: "browser session seed",
+          });
+      }
+    }
+    ts.forEachChild(node, walk);
+  };
+  walk(file);
+  return findings;
+}
+
 function isServerOnly(relative: string): boolean {
   return (
     relative.startsWith("server/") ||
@@ -384,10 +487,11 @@ describe("browser token ratchet (#5005)", () => {
   it.each(modules)(
     "keeps every token out of $relative",
     ({ file, relative }) => {
-      const violations = findBrowserTokenReads(
-        file,
-        readFileSync(file, "utf8"),
-      ).map(({ line, rule }) => `${relative}:${line} ${rule}`);
+      const source = readFileSync(file, "utf8");
+      const violations = [
+        ...findBrowserTokenReads(file, source),
+        ...findBrowserSessionSeeds(file, source),
+      ].map(({ line, rule }) => `${relative}:${line} ${rule}`);
 
       expect(violations).toEqual([]);
     },
@@ -512,4 +616,109 @@ describe("browser token ratchet (#5005)", () => {
         const value = record[field];`),
     ).toEqual([]);
   });
+});
+
+// #5118 stage 1: these already-authenticated transitions no longer transport
+// fresh bearer credentials. Other login seeders are migrated in stages 2–4.
+describe("server-only switch and preview transitions", () => {
+  it.each(["lib/tenant-api.ts", "lib/staff-preview-api.ts"])(
+    "%s cannot handle fresh session credentials",
+    (relativePath) => {
+      const fileName = path.join(SRC_ROOT, relativePath);
+      const source = ts.createSourceFile(
+        fileName,
+        readFileSync(fileName, "utf8"),
+        ts.ScriptTarget.Latest,
+        true,
+      );
+      const forbidden = new Set([
+        ...TOKEN_FIELDS,
+        "internalRefresh",
+        "previewStart",
+        "signIn",
+      ]);
+      const findings: string[] = [];
+      function visit(node: ts.Node) {
+        if (
+          (ts.isIdentifier(node) || ts.isStringLiteral(node)) &&
+          forbidden.has(node.text)
+        )
+          findings.push(node.text);
+        ts.forEachChild(node, visit);
+      }
+      visit(source);
+      expect(findings).toEqual([]);
+    },
+  );
+});
+
+// #5118 stage 2: enrollment's limited access_token proof remains allowed;
+// Stufe 3 extends this boundary to the other portals, invitations and demo.
+it.each([
+  "app/[tenant]/page.tsx",
+  "app/operator/login/page.tsx",
+  "app/school/login/page.tsx",
+  "app/traeger/login/page.tsx",
+  "app/caterer/login/page.tsx",
+  "app/traeger/invite/page.tsx",
+  "app/caterer/einladung/[schoolId]/[token]/page.tsx",
+  "lib/demo-access.ts",
+  "lib/mfa-api.ts",
+  "lib/passkey-api.ts",
+])("%s cannot seed a session from browser JavaScript", (relativePath) => {
+  const fileName = path.join(SRC_ROOT, relativePath);
+  const source = ts.createSourceFile(
+    fileName,
+    readFileSync(fileName, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const forbidden = new Set([
+    "signIn",
+    "internalRefresh",
+    "refresh_token",
+    "refreshToken",
+    "seedSessionWithTokens",
+  ]);
+  const findings: string[] = [];
+  function visit(node: ts.Node) {
+    if (
+      (ts.isIdentifier(node) || ts.isStringLiteral(node)) &&
+      forbidden.has(node.text)
+    )
+      findings.push(node.text);
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  expect(findings).toEqual([]);
+});
+
+describe("global browser session-seed boundary (#5118)", () => {
+  it.each([
+    'signIn("credentials", {internalRefresh: "true", token: pair.access_token, refreshToken: pair.refresh_token})',
+    'signIn("parent-credentials", {token: "access", refreshToken: "refresh"})',
+    'import {signIn as login} from "next-auth/react"; login("credentials", {token: pair.access_token})',
+    'auth.signIn("credentials", {token})',
+    'auth["signIn"]("credentials", {["token"]: token})',
+    'const seed = signIn; seed("credentials", {refreshToken})',
+    'const {signIn: seed} = auth; seed("credentials", {token})',
+    'const options = {token}; signIn("credentials", options)',
+    'signIn("credentials", {...options})',
+    'signIn("credentials", {email, password}, {access_token})',
+  ])("rejects token-bearing or opaque signIn options: %s", (source) => {
+    expect(findBrowserSessionSeeds("fixture.ts", source)).toEqual([
+      { line: 1, rule: "browser session seed" },
+    ]);
+  });
+  it.each([
+    'signIn("parent-credentials", {email, password, redirect: false})',
+    'signIn("credentials", {redirect: false, traegerHandoff: proof})',
+    'signIn("discord")',
+    'import {signIn as login} from "next-auth/react"; login("parent-credentials", {email, password})',
+  ])(
+    "preserves password, OAuth and one-time handoff proof calls: %s",
+    (source) => {
+      expect(findBrowserSessionSeeds("fixture.ts", source)).toEqual([]);
+    },
+  );
 });

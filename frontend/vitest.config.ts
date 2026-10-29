@@ -2,8 +2,8 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import path from "node:path";
 import { availableParallelism } from "node:os";
-import { nodeLogicTestFiles } from "./src/test/node-test-files";
-import { phosphorPerIconImports } from "./src/test/phosphor-imports-plugin";
+import { nodeLogicTestFiles } from "./src/test/node-test-files.ts";
+import { phosphorPerIconImports } from "./src/test/phosphor-imports-plugin.ts";
 
 const apiTestFiles = ["src/app/api/**/*.{test,spec}.ts"];
 const baseTestExcludes = ["**/node_modules/**", "**/e2e/**"];

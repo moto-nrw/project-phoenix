@@ -1,2 +1,4 @@
 GET /traeger/holiday-registrations/{token} -> basis
+GET /traeger/holiday-registrations/{token}/documents/{documentId} -> basis
 POST /traeger/holiday-registrations/{token} -> basis
+POST /traeger/holiday-registrations/{token}/uploads -> basis

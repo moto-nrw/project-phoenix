@@ -51,9 +51,11 @@ import {
   fetchThread,
   markThreadUnread,
   postMessage,
+  readersLabel,
   relationshipLabel,
 } from "~/lib/parent-messages-api";
 import {
+  LEADERSHIP_AUDIENCE_LABEL,
   pickupRequestRef,
   requestPillCoveredByReview,
   staffRequestStatusLabel,
@@ -141,6 +143,7 @@ function MessageThreadContent() {
           student_name: row.student_name,
           guardian_name: row.guardian_name,
           relationship_type: row.relationship_type,
+          audience: row.audience,
           messages: [],
         };
         const targetKey = cacheKey(messageKeys.messageThread(threadId));
@@ -422,8 +425,9 @@ function MessageThreadContent() {
 
   // Statuszeile unter dem Titel: Beziehung, Kind und die Zahl der geladenen
   // Nachrichten.
+  // Eine Leitungs-Unterhaltung trägt das vorne in der Statuszeile (#5200).
   const statusLine = thread
-    ? `${relationshipLabel(thread.relationship_type)} von ${thread.student_name} · ${
+    ? `${thread.audience === "leadership" ? `${LEADERSHIP_AUDIENCE_LABEL} · ` : ""}${relationshipLabel(thread.relationship_type)} von ${thread.student_name} · ${
         messagesLoading
           ? "Nachrichten werden geladen"
           : `${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"}`
@@ -555,7 +559,17 @@ function MessageThreadContent() {
 
           <FormErrorAlert message={sendError.error} className="mt-3" />
 
+          {/* Wer mitliest, steht direkt über dem Schreibfeld (#5200). Die
+              Angabe kommt vom Backend, das Frontend rät sie nie. */}
           <div className="mt-4">
+            {thread?.readers ? (
+              <p
+                className="mb-2 text-sm text-gray-500"
+                data-testid="thread-readers"
+              >
+                {readersLabel(thread.readers)}
+              </p>
+            ) : null}
             {messagingEnabled ? (
               <MessageComposer
                 value={draft}

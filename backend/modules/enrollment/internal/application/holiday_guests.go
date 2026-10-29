@@ -387,7 +387,7 @@ func guestRecord(guest enrollment.HolidayGuest, source enrollment.HolidayGuestSo
 	guest.StartsOn, guest.EndsOn = week.StartsOn, week.EndsOn
 	guest.HomeSchoolID, guest.GuestSchoolName = source.HomeSchoolID, source.GuestSchoolName
 	guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds = source.TimeModelName, source.TimeModelStarts, source.TimeModelEnds
-	guest.Emergency, guest.Pickup = source.Emergency, source.Pickup
+	guest.Emergency, guest.Pickup, guest.Answers = source.Emergency, source.Pickup, source.Answers
 	return guest
 }
 
@@ -422,13 +422,16 @@ func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrol
 		StudentID: guest.StudentID, WeekID: guest.WeekID, StartsOn: guest.StartsOn, EndsOn: guest.EndsOn,
 		TimeModelName: guest.TimeModelName, TimeModelStarts: guest.TimeModelStarts, TimeModelEnds: guest.TimeModelEnds,
 		HomeSchoolID: guest.HomeSchoolID, GuestSchoolName: guest.GuestSchoolName,
-		Emergency: guest.Emergency, Pickup: guest.Pickup, ReadOnly: guest.EndsOn.Before(today),
+		Emergency: guest.Emergency, Pickup: guest.Pickup, Answers: guest.Answers, ReadOnly: guest.EndsOn.Before(today),
 	}
 	if sheet.Emergency == nil {
 		sheet.Emergency = []enrollment.HolidayGuestContact{}
 	}
 	if sheet.Pickup == nil {
 		sheet.Pickup = []enrollment.HolidayGuestContact{}
+	}
+	if sheet.Answers == nil {
+		sheet.Answers = []enrollment.HolidayHostAnswer{}
 	}
 	return sheet
 }
