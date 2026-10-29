@@ -57,13 +57,22 @@ test("source/configuration identity, not commit identity, selects a reusable obs
 test("different real commits with identical frontend trees reuse one key", () =>
   inDirectory((directory) => {
     const git = (...args) =>
-      execFileSync("git", args, {
-        cwd: directory,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      }).trim();
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "core.hooksPath=/dev/null",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        {
+          cwd: directory,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      ).trim();
     git("init");
-    git("config", "commit.gpgsign", "false");
     git("config", "user.name", "Bundle fixture");
     git("config", "user.email", "bundle@example.org");
     mkdirSync(join(directory, "frontend"));

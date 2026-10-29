@@ -23,11 +23,21 @@ function fixture(run) {
     writeFileSync(join(frontend, "source.txt"), "committed base source");
     writeFileSync(join(frontend, ".gitignore"), "perf-results/\n.env.local\n");
     const git = (...args) =>
-      execFileSync("git", args, {
-        cwd: directory,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      }).trim();
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "core.hooksPath=/dev/null",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        {
+          cwd: directory,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      ).trim();
     git("init");
     git("add", ".");
     git(
