@@ -11,14 +11,20 @@ import "server-only";
 import NextAuth from "next-auth";
 
 import { operatorAuthConfig } from "./operator-config";
+import { createSessionWriter } from "./session-writer";
 import { createResponseAwareAuth } from "./route-handler";
 
-const { auth: rawOperatorAuth, handlers: operatorHandlers } =
-  NextAuth(operatorAuthConfig);
+const {
+  auth: rawOperatorAuth,
+  handlers: operatorHandlers,
+  signIn,
+} = NextAuth(operatorAuthConfig);
 const {
   auth: operatorAuth,
   uncachedAuth: uncachedOperatorAuth,
   withAuthResponse: withOperatorAuth,
+  withSessionResponse: withOperatorSessionResponse,
+  mutateSession,
 } = createResponseAwareAuth(rawOperatorAuth, "operator");
 
 export {
@@ -27,3 +33,10 @@ export {
   operatorHandlers,
   withOperatorAuth,
 };
+
+export const setOperatorSession = createSessionWriter(
+  mutateSession,
+  signIn,
+  "operator-credentials",
+);
+export { withOperatorSessionResponse };

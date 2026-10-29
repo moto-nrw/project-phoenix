@@ -164,8 +164,7 @@ describe("DemoBanner", () => {
     const user = userEvent.setup();
     fetchMock.mockReturnValueOnce(
       json(200, {
-        access_token: "access",
-        refresh_token: "refresh",
+        session_created: true,
         demo: { access_id: "4711", role: "lead", src: "messe" },
       }),
     );
@@ -194,12 +193,7 @@ describe("DemoBanner", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("/api/demo/access/sessions");
     expect(init.body).toBe(JSON.stringify({ role: "lead" }));
-    expect(signIn).toHaveBeenCalledWith("credentials", {
-      redirect: false,
-      internalRefresh: true,
-      token: "access",
-      refreshToken: "refresh",
-    });
+    expect(signIn).not.toHaveBeenCalled();
     expect(JSON.parse(localStorage.getItem("moto-demo-visit") ?? "")).toEqual({
       accessId: "4711",
       role: "lead",
@@ -228,8 +222,7 @@ describe("DemoBanner", () => {
     const user = userEvent.setup();
     fetchMock.mockReturnValueOnce(
       json(200, {
-        access_token: "access",
-        refresh_token: "refresh",
+        session_created: true,
         demo: { access_id: "4711", role: "all" },
       }),
     );

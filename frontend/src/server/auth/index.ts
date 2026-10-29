@@ -9,6 +9,7 @@
 import "server-only";
 import NextAuth from "next-auth";
 
+import { createSessionWriter } from "./session-writer";
 import { tenantAuthConfig } from "./tenant-config";
 import { createResponseAwareAuth } from "./route-handler";
 import { sessionTenantMismatchResponse } from "./tenant-host-check";
@@ -48,24 +49,11 @@ export {
 };
 
 /** Tokens never cross the BFF response boundary. Auth.js still validates them. */
-export async function setTenantSession(
-  accessToken: string,
-  refreshToken: string,
-) {
-  await mutateSession(
-    () =>
-      signIn("credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: accessToken,
-        refreshToken,
-      }),
-    // Auth.js server signIn throws on refused Credentials. Its return value
-    // is the callback URL, which may legitimately contain an `error` query
-    // inherited from the referring page; that is not an auth failure.
-    (result) => typeof result === "string",
-  );
-}
+export const setTenantSession = createSessionWriter(
+  mutateSession,
+  signIn,
+  "credentials",
+);
 
 export async function setStaffPreviewSession(preview: {
   accessToken: string;
