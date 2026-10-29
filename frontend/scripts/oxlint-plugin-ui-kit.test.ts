@@ -220,52 +220,49 @@ describe("ui-kit/no-tenant-kicker", () => {
     expect(output.match(/ui-kit\(no-tenant-kicker\)/g)).toHaveLength(1);
   });
 
-  it("leaves the other portals and test files alone", () => {
-    for (const path of [
-      "src/components/parent/probe.tsx",
-      "src/app/parents/probe/page.tsx",
-      "src/components/school/probe.tsx",
-      "src/app/operator/probe/page.tsx",
-      "src/app/[tenant]/(protected)/rooms/page.test.tsx",
-    ]) {
-      const result = lintSource(kickerSource, path);
-      const output = `${result.stdout}${result.stderr}`;
+  // Each CLI startup gets its own test budget, also on busy runners.
+  it.each([
+    "src/components/parent/probe.tsx",
+    "src/app/parents/probe/page.tsx",
+    "src/components/school/probe.tsx",
+    "src/app/operator/probe/page.tsx",
+    "src/app/[tenant]/(protected)/rooms/page.test.tsx",
+  ])("leaves %s alone", (path) => {
+    const result = lintSource(kickerSource, path);
+    const output = `${result.stdout}${result.stderr}`;
 
-      expect(result.status, `${path}\n${output}`).toBe(0);
-      expect(output).not.toContain("no-tenant-kicker");
-    }
+    expect(result.status, `${path}\n${output}`).toBe(0);
+    expect(output).not.toContain("no-tenant-kicker");
   });
 });
 
 describe("ui-kit/no-hand-rolled-page-card", () => {
-  it("reports the kit card chain spelled out in a tenant or Träger page or loading file", () => {
-    for (const path of [
-      "src/app/[tenant]/(protected)/page.tsx",
-      "src/app/[tenant]/(protected)/loading.tsx",
-      "src/app/[tenant]/(protected)/rooms/page.tsx",
-      "src/app/[tenant]/(protected)/rooms/[id]/loading.tsx",
-      // Das Träger-Portal rendert dasselbe Gerüst (#5146).
-      "src/app/traeger/page.tsx",
-      "src/app/traeger/ferien/[id]/page.tsx",
-    ]) {
-      const result = lintSource(
-        `function Probe({ wide }: { wide: boolean }) {
+  it.each([
+    "src/app/[tenant]/(protected)/page.tsx",
+    "src/app/[tenant]/(protected)/loading.tsx",
+    "src/app/[tenant]/(protected)/rooms/page.tsx",
+    "src/app/[tenant]/(protected)/rooms/[id]/loading.tsx",
+    // Das Träger-Portal rendert dasselbe Gerüst (#5146).
+    "src/app/traeger/page.tsx",
+    "src/app/traeger/ferien/[id]/page.tsx",
+  ])("reports the kit card chain spelled out in %s", (path) => {
+    const result = lintSource(
+      `function Probe({ wide }: { wide: boolean }) {
           return <>
             <div className="moto-content-surface rounded-2xl border p-6" />
             <div className={\`rounded-2xl border p-4 moto-content-surface \${wide ? "w-full" : ""}\`} />
           </>;
         }
         void Probe;`,
-        path,
-      );
-      const output = `${result.stdout}${result.stderr}`;
+      path,
+    );
+    const output = `${result.stdout}${result.stderr}`;
 
-      expect(result.status, path).toBe(1);
-      expect(
-        output.match(/ui-kit\(no-hand-rolled-page-card\)/g),
-        path,
-      ).toHaveLength(2);
-    }
+    expect(result.status, path).toBe(1);
+    expect(
+      output.match(/ui-kit\(no-hand-rolled-page-card\)/g),
+      path,
+    ).toHaveLength(2);
   });
 
   it("reports a card surface composed from className arguments or branches", () => {
