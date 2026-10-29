@@ -109,6 +109,16 @@ func (s *StudentDocuments) writePermission(category string) string {
 	return s.categoryPermission(category)
 }
 
+// requirePlainUpload refuses the accident category on the plain upload: a
+// report is recorded with its fields and carries its paper copy on its own
+// route, so a loose file there would have no status and no lock.
+func requirePlainUpload(category string) error {
+	if careplan.IsAccidentStudentDocumentCategory(category) {
+		return fmt.Errorf("%w: accident reports are recorded, not uploaded", careplan.ErrStudentDocumentInvalid)
+	}
+	return nil
+}
+
 func (s *StudentDocuments) requireWritePermission(category string, actor careplan.StudentDocumentActor) error {
 	if err := s.requireCategoryPermission(category, actor); err != nil {
 		return err
@@ -179,6 +189,9 @@ func (s *StudentDocuments) AuthorizeStudentDocumentUpload(ctx context.Context, s
 	if !careplan.IsValidStudentDocumentCategory(category) {
 		return fmt.Errorf("%w: unknown category", careplan.ErrStudentDocumentInvalid)
 	}
+	if err := requirePlainUpload(category); err != nil {
+		return err
+	}
 	if err := s.requireWritePermission(category, actor); err != nil {
 		return err
 	}
@@ -193,6 +206,9 @@ func (s *StudentDocuments) CreateStudentDocument(ctx context.Context, input care
 	}
 	if !careplan.IsValidStudentDocumentCategory(input.Category) {
 		return careplan.CareDocument{}, fmt.Errorf("%w: unknown category", careplan.ErrStudentDocumentInvalid)
+	}
+	if err := requirePlainUpload(input.Category); err != nil {
+		return careplan.CareDocument{}, err
 	}
 	if err := s.requireWritePermission(input.Category, actor); err != nil {
 		return careplan.CareDocument{}, err
@@ -243,6 +259,11 @@ func (s *StudentDocuments) ResolveStudentDocumentDownload(ctx context.Context, s
 		}
 		if err := s.requireCategoryPermission(found.Category, actor); err != nil {
 			return err
+		}
+		// An accident report without a paper copy has no file; its PDF comes
+		// from the report route. Nothing is served, so nothing is logged.
+		if found.FilenameStored == "" {
+			return careplan.ErrCareDocumentNotFound
 		}
 		if err := s.recordSensitiveDownload(txCtx, studentID, actor, found); err != nil {
 			return err

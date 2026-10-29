@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator routes are not tenant-scoped
 import { redirect, useRouter } from "next/navigation";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -26,7 +26,7 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { operatorPath } from "~/lib/operator-url";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
-import { login as loginApi, type MFATokenResponse } from "~/lib/mfa-api";
+import { login as loginApi } from "~/lib/mfa-api";
 import {
   isPasskeySupported,
   isPasskeyCeremonyIncompleteError,
@@ -65,7 +65,7 @@ export default function OperatorLoginPage() {
     useState<MFAEnrollmentStep | null>(null);
   const [passkeySupported, setPasskeySupported] = useState(false);
   const router = useRouter();
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   // Ref prevents re-triggering signOut (not in effect deps → no loop).
   // Separate state controls the loading spinner for the UI.
   const cleanupStartedRef = useRef(false);
@@ -120,6 +120,7 @@ export default function OperatorLoginPage() {
   // carries an error and is cleared above instead of redirected.
   if (
     status === "authenticated" &&
+    !enrollmentStep &&
     session?.user?.scope === "platform" &&
     hasSessionAccess(session)
   ) {
@@ -139,31 +140,15 @@ export default function OperatorLoginPage() {
     );
   }
 
-  // seedSessionWithTokens hands the already-minted access/refresh pair to
-  // NextAuth via the internalRefresh credential path (the same provider
-  // development uses for password login, just bypassing the credential
-  // check because MFA/verify already authenticated the operator).
-  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
-    const result = await signIn("operator-credentials", {
-      redirect: false,
-      internalRefresh: "true",
-      token: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-    });
-    if (result?.error) {
-      logger.error("operator_session_seed_failed", { error: result.error });
-      // Kein ApiError: der Weg zeigt den allgemeinen Text für die Anmeldung.
-      void showLoginError(new Error(result.error), {
-        object: "die Anmeldung",
-      });
-      return;
-    }
+  // The BFF has installed the cookie. Refresh only the safe provider snapshot.
+  const completeLogin = async () => {
+    await update();
     router.push(operatorPath("/operator/organizations"));
   };
 
-  const handleMFASuccess = async (tokens: MFATokenResponse) => {
+  const handleMFASuccess = async () => {
+    await completeLogin();
     setMfaStep(null);
-    await seedSessionWithTokens(tokens);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -197,10 +182,7 @@ export default function OperatorLoginPage() {
         return;
       }
 
-      await seedSessionWithTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
+      await completeLogin();
     } catch (err) {
       logger.warn("operator_login_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -219,11 +201,8 @@ export default function OperatorLoginPage() {
     clearLoginError();
     setSessionExpired(false);
     try {
-      const response = await loginWithPasskey("operator");
-      await seedSessionWithTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
+      await loginWithPasskey("operator");
+      await completeLogin();
     } catch (err) {
       if (isPasskeyCeremonyIncompleteError(err)) {
         logger.info("operator_passkey_login_not_completed", {
@@ -275,15 +254,11 @@ export default function OperatorLoginPage() {
             clearLoginError();
             setPassword("");
           }}
-          onComplete={async (tokens) => {
-            // Post-#1430: confirm() returns a fresh access/refresh pair.
-            // The enrollment-scoped token never had session privileges,
-            // so dropping the enrollment step is the only cleanup needed.
+          onComplete={async () => {
+            // The BFF has installed the session; discard the limited proof
+            // only after the browser-safe session read succeeds.
+            await completeLogin();
             setEnrollmentStep(null);
-            await seedSessionWithTokens({
-              access_token: tokens.access_token,
-              refresh_token: tokens.refresh_token,
-            });
           }}
         />
       ) : (

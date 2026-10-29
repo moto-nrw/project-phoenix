@@ -53,6 +53,9 @@ type AccidentReport struct {
 const (
 	AccidentReportShortTextMax   = 500
 	AccidentReportDescriptionMax = 5000
+	// AccidentReportClockSkew is how far a device clock may run ahead: an
+	// accident later than that has not happened yet.
+	AccidentReportClockSkew = 10 * time.Minute
 )
 
 // AccidentReport statuses as the Dokumente tab shows them.
@@ -109,26 +112,27 @@ func NormalizeAccidentReport(report AccidentReport) (AccidentReport, error) {
 		at := report.ParentsNotifiedAt.UTC()
 		report.ParentsNotifiedAt = &at
 	}
-	required := map[string]string{
-		"location": report.Location, "description": report.Description,
-		"injury_kind": report.InjuryKind, "supervisor": report.Supervisor,
+	if report.OccurredAt.After(time.Now().Add(AccidentReportClockSkew)) {
+		return AccidentReport{}, fmt.Errorf("%w: occurred_at lies in the future", ErrAccidentReportInvalid)
 	}
-	for field, value := range required {
-		if value == "" {
-			return AccidentReport{}, fmt.Errorf("%w: %s is required", ErrAccidentReportInvalid, field)
+	for _, field := range []struct{ name, value string }{
+		{"location", report.Location}, {"description", report.Description},
+		{"injury_kind", report.InjuryKind}, {"supervisor", report.Supervisor},
+	} {
+		if field.value == "" {
+			return AccidentReport{}, fmt.Errorf("%w: %s is required", ErrAccidentReportInvalid, field.name)
 		}
 	}
 	if report.DoctorVisited && report.Doctor == "" {
 		return AccidentReport{}, fmt.Errorf("%w: doctor is required when a doctor treated the child", ErrAccidentReportInvalid)
 	}
-	short := map[string]string{
-		"location": report.Location, "injured_body_parts": report.InjuredBodyParts, "injury_kind": report.InjuryKind,
-		"witnesses": report.Witnesses, "first_aid": report.FirstAid, "doctor": report.Doctor,
-		"parents_notified": report.ParentsNotified, "supervisor": report.Supervisor,
-	}
-	for field, value := range short {
-		if utf8.RuneCountInString(value) > AccidentReportShortTextMax {
-			return AccidentReport{}, fmt.Errorf("%w: %s exceeds %d characters", ErrAccidentReportInvalid, field, AccidentReportShortTextMax)
+	for _, field := range []struct{ name, value string }{
+		{"location", report.Location}, {"injured_body_parts", report.InjuredBodyParts}, {"injury_kind", report.InjuryKind},
+		{"witnesses", report.Witnesses}, {"first_aid", report.FirstAid}, {"doctor", report.Doctor},
+		{"parents_notified", report.ParentsNotified}, {"supervisor", report.Supervisor},
+	} {
+		if utf8.RuneCountInString(field.value) > AccidentReportShortTextMax {
+			return AccidentReport{}, fmt.Errorf("%w: %s exceeds %d characters", ErrAccidentReportInvalid, field.name, AccidentReportShortTextMax)
 		}
 	}
 	if utf8.RuneCountInString(report.Description) > AccidentReportDescriptionMax {

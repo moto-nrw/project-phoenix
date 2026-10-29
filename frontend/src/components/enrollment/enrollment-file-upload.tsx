@@ -29,6 +29,7 @@ import {
   uploadValueKey,
   type EnrollmentFileType,
   type FileFieldOptions,
+  type NewUploadValue,
   type UploadValue,
 } from "~/lib/enrollment-uploads";
 
@@ -39,7 +40,9 @@ type Translate = (
 
 /**
  * Where a file field uploads to. The enrollment form provides it; without a
- * phase (editor preview) the control shows itself but uploads nothing.
+ * phase (editor preview) the control shows itself but uploads nothing. A form
+ * outside a school, like the holiday registration of a Träger (#5238), brings
+ * its own `upload` instead of a phase.
  */
 interface EnrollmentUploadTarget {
   readonly tenantSlug: string;
@@ -47,6 +50,10 @@ interface EnrollmentUploadTarget {
   readonly lateInviteToken?: string;
   readonly statusToken?: string;
   readonly uploadEndpoint?: string;
+  readonly upload?: (
+    file: File,
+    signal: AbortSignal,
+  ) => Promise<NewUploadValue>;
   readonly locale: string;
   /** Called with +1 when an upload starts and -1 when it settles. */
   readonly onPendingChange: (delta: number) => void;
@@ -66,6 +73,7 @@ export function useEnrollmentUploadTarget(params: {
   lateInviteToken?: string;
   statusToken?: string;
   uploadEndpoint?: string;
+  upload?: EnrollmentUploadTarget["upload"];
   locale: string;
   previewMode: boolean;
 }): { pendingUploads: number; uploadTarget: EnrollmentUploadTarget } {
@@ -80,6 +88,7 @@ export function useEnrollmentUploadTarget(params: {
     lateInviteToken,
     statusToken,
     uploadEndpoint,
+    upload,
     locale,
     previewMode,
   } = params;
@@ -90,6 +99,7 @@ export function useEnrollmentUploadTarget(params: {
       lateInviteToken,
       statusToken,
       uploadEndpoint,
+      upload: previewMode ? undefined : upload,
       locale,
       onPendingChange,
     }),
@@ -99,6 +109,7 @@ export function useEnrollmentUploadTarget(params: {
       lateInviteToken,
       statusToken,
       uploadEndpoint,
+      upload,
       previewMode,
       locale,
       onPendingChange,
@@ -222,29 +233,31 @@ export function FileUploadInput({
   const typeList = options.allowed_types
     .map((type) => FILE_TYPE_LABEL[type])
     .join(", ");
-  const canUpload = Boolean(target?.phaseId);
+  const canUpload = Boolean(target?.upload ?? target?.phaseId);
   const remaining = maxFiles - files.length - pending.length;
   const hintId = `${inputName}-hint`;
   const errorId = `${inputName}-error`;
 
   const uploadOne = async (file: File) => {
-    if (!target?.phaseId) return;
+    if (!target || !canUpload) return;
     const id = nextPendingId.current++;
     const controller = new AbortController();
     controllers.current.add(controller);
     setPending((prev) => [...prev, { id, name: file.name }]);
     target.onPendingChange(1);
     try {
-      const uploaded = await uploadEnrollmentFile({
-        tenantSlug: target.tenantSlug,
-        phaseId: target.phaseId,
-        fieldKey: field.key,
-        file,
-        lateInviteToken: target.lateInviteToken,
-        statusToken: target.statusToken,
-        uploadEndpoint: target.uploadEndpoint,
-        signal: controller.signal,
-      });
+      const uploaded = target.upload
+        ? await target.upload(file, controller.signal)
+        : await uploadEnrollmentFile({
+            tenantSlug: target.tenantSlug,
+            phaseId: target.phaseId ?? "",
+            fieldKey: field.key,
+            file,
+            lateInviteToken: target.lateInviteToken,
+            statusToken: target.statusToken,
+            uploadEndpoint: target.uploadEndpoint,
+            signal: controller.signal,
+          });
       const next = [...latest.current, uploaded];
       latest.current = next;
       onChange(next);

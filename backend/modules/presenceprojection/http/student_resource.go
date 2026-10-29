@@ -1,6 +1,7 @@
 package presenceprojectionhttp
 
 import (
+	"context"
 	slog "log/slog"
 	time "time"
 
@@ -13,6 +14,12 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
+
+// PrivacyConsentReader is the projection's tenant-scoped read port. The root
+// binds Student Presence's public capability, never its persistence adapter.
+type PrivacyConsentReader interface {
+	ListPrivacyConsents(context.Context, int64) ([]studentpresence.PrivacyConsent, error)
+}
 
 type ResourceConfig struct {
 	AbsenceOverview         studentpresence.StatusDayOverviews
@@ -31,6 +38,7 @@ type ResourceConfig struct {
 	Now                     func() time.Time
 	OfferingDayRoster       careplan.OfferingDayRoster
 	PeopleDirectory         peopleModule.Capability
+	PrivacyConsents         PrivacyConsentReader
 	Persons                 PersonRecords
 	PickupScheduleService   careplan.PickupScheduleService
 	SchoolGroups            SchoolGroups

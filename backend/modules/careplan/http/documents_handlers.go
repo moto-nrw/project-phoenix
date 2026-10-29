@@ -496,7 +496,8 @@ func (rs *Resource) deleteStudentDocument(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	if doc.FileDeletedAt == nil {
+	// An accident report without a paper copy has no object to remove.
+	if doc.FileDeletedAt == nil && doc.FilenameStored != "" {
 		tenantID := tenant.FromContext(r.Context())
 		documentID, storedName := doc.ID, doc.FilenameStored
 		cleanupCtx := context.WithoutCancel(tenant.ContextWithoutTransaction(r.Context()))

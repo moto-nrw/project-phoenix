@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 )
 
 func TestPassthroughChecksCommittedBaseInventory(t *testing.T) {
@@ -34,15 +36,12 @@ func TestPassthroughChecksCommittedBaseInventory(t *testing.T) {
 		put(t, root, "architecture/passthrough.json", output.String())
 	}
 	writeRegistry()
+	gitfixture.Init(t, repo)
 	for _, args := range [][]string{
-		{"init", "--quiet"},
 		{"add", "."},
-		// Host hooks may require project files this synthetic repository does not have.
-		{"-c", "core.hooksPath=" + os.DevNull, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Record base inventory"},
+		{"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Record base inventory"},
 	} {
-		if _, err := git(repo, args...); err != nil {
-			t.Fatal(err)
-		}
+		gitfixture.Run(t, repo, args...)
 	}
 	if err := Check(root, "HEAD"); err != nil {
 		t.Fatalf("unchanged committed inventory must not require a new ADR: %v", err)

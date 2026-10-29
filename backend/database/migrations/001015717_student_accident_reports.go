@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	studentAccidentReportsVersion     = "1.15.716"
+	studentAccidentReportsVersion     = "1.15.717"
 	studentAccidentReportsDescription = "Unfallanzeige: Unfall am Kind erfassen, als PDF ablegen und unterschreiben, Rechte student_accidents:read und :manage (#4771)"
 
 	studentAccidentsReadPermissionName   = "student_accidents:read"
@@ -21,9 +21,9 @@ func init() {
 		Version:     studentAccidentReportsVersion,
 		Description: studentAccidentReportsDescription,
 		DependsOn: []string{
-			parentMessageLeadershipVersion, // the last migration before this one
-			studentDocumentsVersion,        // the document table this extends
-			signaturesVersion,              // the signature store a digital signature lands in
+			holidayRegistrationProofsVersion, // the last migration before this one
+			studentDocumentsVersion,          // the document table this extends
+			signaturesVersion,                // the signature store a digital signature lands in
 		},
 	})
 	Migrations.MustRegister(studentAccidentReportsUp, studentAccidentReportsDown)
@@ -104,6 +104,9 @@ const studentAccidentReportsUpSQL = `
 				OR NEW.accident_signature_id IS DISTINCT FROM OLD.accident_signature_id
 				OR NEW.accident_supersedes_id IS DISTINCT FROM OLD.accident_supersedes_id
 				OR NEW.filename_stored IS DISTINCT FROM OLD.filename_stored
+				OR NEW.filename_display IS DISTINCT FROM OLD.filename_display
+				OR NEW.content_type IS DISTINCT FROM OLD.content_type
+				OR NEW.size_bytes IS DISTINCT FROM OLD.size_bytes
 				OR NEW.deleted_at IS DISTINCT FROM OLD.deleted_at
 			) THEN
 				RAISE EXCEPTION 'signed accident report % cannot be changed', OLD.id

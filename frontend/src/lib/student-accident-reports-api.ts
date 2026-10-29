@@ -37,7 +37,6 @@ export interface AccidentReportDetails extends AccidentReportFields {
   supersededById: string | null;
   signedAt: string | null;
   signedDigitally: boolean;
-  hasPaperCopy: boolean;
 }
 
 export interface BackendAccidentReport {
@@ -47,7 +46,6 @@ export interface BackendAccidentReport {
   superseded_by_id?: string;
   signed_at?: string;
   signed_digitally: boolean;
-  has_paper_copy: boolean;
   occurred_at: string;
   location: string;
   description: string;
@@ -72,7 +70,6 @@ export function mapAccidentReport(
     supersededById: data.superseded_by_id ?? null,
     signedAt: data.signed_at ?? null,
     signedDigitally: data.signed_digitally,
-    hasPaperCopy: data.has_paper_copy,
     occurredAt: data.occurred_at,
     location: data.location,
     description: data.description,
@@ -113,6 +110,11 @@ async function reportId(response: Response, fallback: string): Promise<string> {
   }
   const json = (await response.json()) as { data: { id: number } };
   return json.data.id.toString();
+}
+
+/** The page of one accident report in the tenant portal. */
+export function accidentReportPath(studentId: string, reportId: string) {
+  return `/students/${studentId}/unfallanzeigen/${reportId}`;
 }
 
 class StudentAccidentReportsService {

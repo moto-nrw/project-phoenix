@@ -15,15 +15,9 @@ import { getCachedSession } from "./session-cache";
 
 export type PasskeyScope = "tenant" | "operator";
 
-interface PasskeyTokenResponse {
+interface PasskeyLoginResponse {
   status: "authenticated";
-  access_token: string;
-  refresh_token: string;
 }
-
-type PasskeyLoginResponse<Scope extends PasskeyScope> = Scope extends "tenant"
-  ? { status: "authenticated" }
-  : PasskeyTokenResponse;
 
 export interface PasskeyCredentialSummary {
   id: string;
@@ -118,10 +112,10 @@ export function isPasskeySupported(): boolean {
   return browserSupportsWebAuthn();
 }
 
-export async function loginWithPasskey<Scope extends PasskeyScope>(
-  scope: Scope,
+export async function loginWithPasskey(
+  scope: PasskeyScope,
   params: { tenantSlug?: string } = {},
-): Promise<PasskeyLoginResponse<Scope>> {
+): Promise<PasskeyLoginResponse> {
   const start = await requestJson<
     CeremonyResponse<PublicKeyCredentialRequestOptionsJSON>
   >(`${basePath(scope)}/login/options`, {
@@ -133,18 +127,15 @@ export async function loginWithPasskey<Scope extends PasskeyScope>(
   return finishPasskeyLogin(scope, start.session_id, assertion);
 }
 
-async function finishPasskeyLogin<Scope extends PasskeyScope>(
-  scope: Scope,
+async function finishPasskeyLogin(
+  scope: PasskeyScope,
   sessionID: string,
   response: AuthenticationResponseJSON,
-): Promise<PasskeyLoginResponse<Scope>> {
-  return requestJson<PasskeyLoginResponse<Scope>>(
-    `${basePath(scope)}/login/verify`,
-    {
-      session_id: sessionID,
-      response,
-    },
-  );
+): Promise<PasskeyLoginResponse> {
+  return requestJson<PasskeyLoginResponse>(`${basePath(scope)}/login/verify`, {
+    session_id: sessionID,
+    response,
+  });
 }
 
 export async function startPasskeyEnrollment(

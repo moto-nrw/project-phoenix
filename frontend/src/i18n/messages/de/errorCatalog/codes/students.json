@@ -1,6 +1,6 @@
 {
   "absence_read_required": "Für {object} brauchen Sie zusätzlich das Recht „Kinder sehen“. Bitte fragen Sie die Schulleitung.",
-  "accident_report_forbidden": "Sie dürfen Unfallanzeigen nicht bearbeiten. Bitte wenden Sie sich an die Leitung.",
+  "accident_report_forbidden": "Für Unfallanzeigen fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung.",
   "accident_report_invalid": "Die Unfallanzeige ist unvollständig. Bitte füllen Sie alle Pflichtfelder aus.",
   "accident_report_not_found": "Diese Unfallanzeige gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "accident_report_not_signed": "Die Unfallanzeige ist noch nicht unterschrieben. Sie können sie direkt ändern.",

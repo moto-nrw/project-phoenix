@@ -122,6 +122,15 @@ export interface HolidayRegistrationEvent {
   readonly after: readonly HolidayBookingChange[];
 }
 
+/** A proof of benefits the parents uploaded with the registration (#5238). */
+interface HolidayRegistrationProof {
+  readonly id: string;
+  readonly filename: string;
+  readonly sizeBytes: number;
+  readonly contentType: string;
+  readonly uploadedAt: string;
+}
+
 export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
   readonly secondGuardian: {
     readonly firstName: string;
@@ -134,6 +143,8 @@ export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
   readonly privacyConsentAt: string;
   readonly healthConsentAt: string | null;
   readonly bindingConfirmedAt: string | null;
+  /** Only the detail names the proofs; list and export never do. */
+  readonly benefitsProofs: readonly HolidayRegistrationProof[];
   readonly history: readonly HolidayRegistrationEvent[];
   /**
    * The form version the parents answered (#5198); its labels name the
@@ -212,6 +223,15 @@ interface BackendDetail extends BackendSummary {
   privacy_consent_at: string;
   health_consent_at: string | null;
   binding_confirmed_at: string | null;
+  benefits_proofs?:
+    | {
+        id: number;
+        filename: string;
+        size_bytes: number;
+        content_type: string;
+        uploaded_at: string;
+      }[]
+    | null;
   history?:
     | {
         action: HolidayRegistrationEventAction;
@@ -303,6 +323,13 @@ function detailFromBackend(
     privacyConsentAt: registration.privacy_consent_at,
     healthConsentAt: registration.health_consent_at,
     bindingConfirmedAt: registration.binding_confirmed_at,
+    benefitsProofs: (registration.benefits_proofs ?? []).map((proof) => ({
+      id: String(proof.id),
+      filename: proof.filename,
+      sizeBytes: proof.size_bytes,
+      contentType: proof.content_type,
+      uploadedAt: proof.uploaded_at,
+    })),
     history: (registration.history ?? []).map((event) => ({
       action: event.action,
       occurredAt: event.occurred_at,
@@ -332,6 +359,15 @@ const registrationsPath = (periodId: string) =>
 
 const registrationPath = (periodId: string, registrationId: string) =>
   `${registrationsPath(periodId)}/${encodeURIComponent(registrationId)}`;
+
+/** Address of the proxy that opens one proof of benefits (#5238). */
+export function holidayProofHref(
+  periodId: string,
+  registrationId: string,
+  proofId: string,
+): string {
+  return `${registrationPath(periodId, registrationId)}/proofs/${encodeURIComponent(proofId)}`;
+}
 
 /** The query string of a filter, empty values left out. */
 function holidayRegistrationQuery(

@@ -115,7 +115,6 @@ describe("StudentDokumenteTab", () => {
             supersededById: null,
             signedAt: null,
             signedDigitally: false,
-            hasPaperCopy: false,
             occurredAt: "2026-09-08T08:40:00Z",
             location: "Schulhof",
             description: "Gestürzt",

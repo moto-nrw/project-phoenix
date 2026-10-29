@@ -233,6 +233,7 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.holiday_registration_bookings":              parent("enrollment.holiday_registration_children"),
 	"enrollment.holiday_registration_children":              parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_registration_contacts":              parent("enrollment.holiday_registrations"),
+	"enrollment.holiday_registration_proofs":                own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteUnclaimedHolidayProofs (unclaimed after 24 hours, #5238); claimed proofs go with their registration, period or Träger"),
 	"enrollment.holiday_registration_rate_limits":           own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteHolidayRegistrationsEndedBefore, and each count of the Träger (24 hours after window_start, #4661)"),
 	"enrollment.holiday_registrations":                      own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteHolidayRegistrationsEndedBefore (92 days after the last week of the period, spec #4611 user story 121, #4661)"),
 	"enrollment.holiday_week_time_models":                   notPersonal("time model of a Träger holiday week (#4659): name, times and price, no person"),

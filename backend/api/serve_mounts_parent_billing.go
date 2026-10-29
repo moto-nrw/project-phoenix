@@ -198,8 +198,7 @@ func (b parentBillingLetterheads) Letterhead(ctx context.Context, reviewer paren
 // registrations.
 func NewParentBillingHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) (*parentBillingHTTP.RuleResource, *parentBillingHTTP.HolidayResource) {
 	registrations := parentBillingHolidayRegistrations{
-		links: enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
-			holidayTraegerMail{delivery: delivery}, logger.With("service", "parent-billing-holiday-registrations")),
+		links:  newHolidayRegistrations(organizations, delivery, logger.With("service", "parent-billing-holiday-registrations")),
 		review: enrollmentCompose.NewHolidayRegistrationReview(),
 	}
 	rules := parentBillingHTTP.NewRuleResource(parentBillingCompose.NewContributionRules(),

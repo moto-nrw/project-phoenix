@@ -96,7 +96,6 @@ type AccidentReportResponse struct {
 	SupersededByID    *string    `json:"superseded_by_id,omitempty"`
 	SignedAt          *time.Time `json:"signed_at,omitempty"`
 	SignedDigitally   bool       `json:"signed_digitally"`
-	HasPaperCopy      bool       `json:"has_paper_copy"`
 	OccurredAt        time.Time  `json:"occurred_at"`
 	Location          string     `json:"location"`
 	Description       string     `json:"description"`
@@ -120,8 +119,7 @@ func newAccidentReportResponse(doc careplan.CareDocument, version int, supersede
 		Status: careplan.AccidentReportStatus(doc), Version: version,
 		SupersedesID: idString(doc.AccidentSupersedesID), SupersededByID: idString(supersededBy),
 		SignedAt: doc.AccidentSignedAt, SignedDigitally: doc.AccidentSignatureID != nil,
-		HasPaperCopy: doc.AccidentSignatureID == nil && doc.FilenameStored != "",
-		OccurredAt:   report.OccurredAt, Location: report.Location, Description: report.Description,
+		OccurredAt: report.OccurredAt, Location: report.Location, Description: report.Description,
 		InjuredBodyParts: report.InjuredBodyParts, InjuryKind: report.InjuryKind, Witnesses: report.Witnesses,
 		FirstAid: report.FirstAid, DoctorVisited: report.DoctorVisited, Doctor: report.Doctor,
 		ParentsNotified: report.ParentsNotified, ParentsNotifiedAt: report.ParentsNotifiedAt, Supervisor: report.Supervisor,

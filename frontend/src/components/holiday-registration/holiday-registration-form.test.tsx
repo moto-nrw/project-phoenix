@@ -15,9 +15,10 @@ import type {
   HolidayRegistrationOffer,
 } from "~/lib/holiday-registration-api";
 
-const { mockSubmit, mockQuote } = vi.hoisted(() => ({
+const { mockSubmit, mockQuote, mockUpload } = vi.hoisted(() => ({
   mockSubmit: vi.fn(),
   mockQuote: vi.fn(),
+  mockUpload: vi.fn(),
 }));
 
 vi.mock("~/lib/holiday-registration-api", () => ({
@@ -28,6 +29,8 @@ vi.mock("~/lib/holiday-registration-api", () => ({
     children: unknown,
     benefitsDeclared: boolean,
   ) => mockQuote(token, children, benefitsDeclared),
+  uploadHolidayProof: (token: string, file: File, signal: AbortSignal) =>
+    mockUpload(token, file, signal),
 }));
 
 /** The contribution of Ben's one week, with or without the exemption. */
@@ -369,6 +372,115 @@ describe("HolidayRegistrationForm", () => {
     expect(mockSubmit).toHaveBeenCalledWith(
       "link-key",
       expect.objectContaining({ benefits_declared: true }),
+    );
+  });
+
+  it("uploads a proof of benefits in the summary and sends its token (#5238)", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    mockQuote.mockImplementation((_token, _children, declared: boolean) =>
+      Promise.resolve(quoted(declared)),
+    );
+    let finishUpload: (value: unknown) => void = () => undefined;
+    mockUpload.mockReturnValue(
+      new Promise((resolve) => {
+        finishUpload = resolve;
+      }),
+    );
+    await renderFilledForm();
+    const benefits = await screen.findByRole("checkbox", {
+      name: /Wir bekommen Leistungen, zum Beispiel Bürgergeld/,
+    });
+    expect(benefits).not.toBeChecked();
+    expect(
+      screen.queryByText("Nachweis über die Leistungen"),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(benefits);
+    expect(
+      screen.getByText(/Freiwillig\. Laden Sie hier zum Beispiel/),
+    ).toBeInTheDocument();
+    const file = new File(["%PDF-1.4"], "bescheid.pdf", {
+      type: "application/pdf",
+    });
+    fireEvent.change(screen.getByLabelText("Nachweis über die Leistungen"), {
+      target: { files: [file] },
+    });
+    expect(mockUpload).toHaveBeenCalledWith(
+      "link-key",
+      file,
+      expect.any(AbortSignal),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    // The send button waits until the file has arrived.
+    expect(
+      screen.getByText("Bitte warten Sie, bis alle Dateien hochgeladen sind."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    ).toBeDisabled();
+    finishUpload({
+      token: "proof-token",
+      filename: "bescheid.pdf",
+      size_bytes: 2048,
+      content_type: "application/pdf",
+    });
+    expect(
+      await screen.findByRole("button", { name: "bescheid.pdf entfernen" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({
+        benefits_declared: true,
+        benefits_proof_tokens: ["proof-token"],
+      }),
+    );
+  });
+
+  it("sends no proof once the statement on benefits is taken back (#5238)", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    mockQuote.mockImplementation((_token, _children, declared: boolean) =>
+      Promise.resolve(quoted(declared)),
+    );
+    mockUpload.mockResolvedValue({
+      token: "proof-token",
+      filename: "bescheid.pdf",
+      size_bytes: 2048,
+      content_type: "application/pdf",
+    });
+    await renderFilledForm();
+    const benefits = await screen.findByRole("checkbox", {
+      name: /Wir bekommen Leistungen, zum Beispiel Bürgergeld/,
+    });
+    fireEvent.click(benefits);
+    fireEvent.change(screen.getByLabelText("Nachweis über die Leistungen"), {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "bescheid.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    expect(
+      await screen.findByRole("button", { name: "bescheid.pdf entfernen" }),
+    ).toBeInTheDocument();
+    fireEvent.click(benefits);
+
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({
+        benefits_declared: false,
+        benefits_proof_tokens: [],
+      }),
     );
   });
 

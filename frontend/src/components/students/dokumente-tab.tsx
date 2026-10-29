@@ -24,7 +24,10 @@ import {
 import { formatDate, formatTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { formatFileSize } from "~/lib/staff-documents-api";
-import { studentAccidentReportsService } from "~/lib/student-accident-reports-api";
+import {
+  accidentReportPath,
+  studentAccidentReportsService,
+} from "~/lib/student-accident-reports-api";
 import {
   studentDocumentsService,
   type StudentDocument,
@@ -46,11 +49,6 @@ const ACCEPTED_FILE_TYPES = ".pdf,.docx,.png,.jpg,.jpeg";
 // their paper copy on their own page, so the plain upload leaves them out.
 const ACCIDENT_CATEGORY = "unfallanzeige";
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
-
-/** The page of one accident report. */
-export function accidentReportPath(studentId: string, reportId: string) {
-  return `/students/${studentId}/unfallanzeigen/${reportId}`;
-}
 
 function accidentReportTitle(doc: StudentDocument): string {
   const occurredAt = doc.accidentReport?.occurredAt;

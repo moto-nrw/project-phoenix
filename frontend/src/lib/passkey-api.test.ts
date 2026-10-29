@@ -155,12 +155,12 @@ describe("passkey-api", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           status: "authenticated",
-          access_token: "operator-access",
-          refresh_token: "operator-refresh",
         }),
       );
 
-    await loginWithPasskey("operator");
+    await expect(loginWithPasskey("operator")).resolves.toEqual({
+      status: "authenticated",
+    });
 
     expect(mockStartAuthentication).toHaveBeenCalledWith({
       optionsJSON: { challenge: "operator-challenge" },

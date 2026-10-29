@@ -129,6 +129,7 @@ export const HOLIDAY_REGISTRATION: HolidayRegistrationDetail = {
   privacyConsentAt: "2026-09-03T08:00:00Z",
   healthConsentAt: "2026-09-03T08:00:00Z",
   bindingConfirmedAt: "2026-09-03T08:00:00Z",
+  benefitsProofs: [],
   history: [],
   form: { version: 1, fields: [] },
   answers: {},

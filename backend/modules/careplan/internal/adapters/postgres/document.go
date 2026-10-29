@@ -71,7 +71,8 @@ func (s *Store) FindCareDocument(ctx context.Context, studentID, documentID int6
 	if err != nil || !found {
 		return domain.CareDocument{}, found, stats, err
 	}
-	return careDocumentToDomain(*row), true, stats, nil
+	value, err := careDocumentToDomain(*row)
+	return value, err == nil, stats, err
 }
 
 func (s *Store) ListCareDocuments(ctx context.Context, studentID int64, categories []string) ([]domain.CareDocument, domain.OperationStats, error) {
@@ -129,7 +130,11 @@ func (s *Store) listCareDocuments(ctx context.Context, studentID int64, categori
 	}
 	result := make([]domain.CareDocument, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, careDocumentToDomain(row))
+		value, err := careDocumentToDomain(row)
+		if err != nil {
+			return nil, stats, err
+		}
+		result = append(result, value)
 	}
 	stats.Rows = int64(len(result))
 	return result, stats, nil
@@ -181,7 +186,8 @@ func (s *Store) CreateCareDocument(ctx context.Context, value domain.CareDocumen
 	if err != nil {
 		return domain.CareDocument{}, stats, err
 	}
-	return careDocumentToDomain(row), stats, nil
+	value, decodeErr := careDocumentToDomain(row)
+	return value, stats, decodeErr
 }
 
 // UpdateOpenCareAccidentReport writes the report, signature and paper copy of
@@ -213,7 +219,8 @@ func (s *Store) UpdateOpenCareAccidentReport(ctx context.Context, value domain.C
 	if err != nil {
 		return domain.CareDocument{}, stats, err
 	}
-	return careDocumentToDomain(row), stats, nil
+	value, decodeErr := careDocumentToDomain(row)
+	return value, stats, decodeErr
 }
 
 func (s *Store) SoftDeleteCareDocument(ctx context.Context, documentID, deletedBy int64) (time.Time, domain.OperationStats, error) {
@@ -315,17 +322,19 @@ func careDocumentFromDomain(value domain.CareDocument) (careDocumentRow, error) 
 	return row, nil
 }
 
-func careDocumentToDomain(row careDocumentRow) domain.CareDocument {
+// careDocumentToDomain fails on a report column it cannot read: a broken
+// report must surface as an error, not as a document without a report.
+func careDocumentToDomain(row careDocumentRow) (domain.CareDocument, error) {
 	value := domain.CareDocument{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Category: row.Category, FilenameDisplay: row.FilenameDisplay, FilenameStored: row.FilenameStored, SizeBytes: row.SizeBytes, ContentType: row.ContentType, UploadedBy: row.UploadedBy, DeletedAt: row.DeletedAt, DeletedBy: row.DeletedBy, FileDeletedAt: row.FileDeletedAt,
 		AccidentSupersedesID: row.AccidentSupersedesID, AccidentSignatureID: row.AccidentSignatureID, AccidentSignedAt: row.AccidentSignedAt, AccidentSignedBy: row.AccidentSignedBy}
 	if len(row.AccidentReport) > 0 {
-		// The column only ever holds what careDocumentFromDomain encoded.
 		report := new(careplan.AccidentReport)
-		if err := json.Unmarshal(row.AccidentReport, report); err == nil {
-			value.AccidentReport = report
+		if err := json.Unmarshal(row.AccidentReport, report); err != nil {
+			return domain.CareDocument{}, fmt.Errorf("care plan postgres: decode accident report of document %d: %w", row.ID, err)
 		}
+		value.AccidentReport = report
 	}
-	return value
+	return value, nil
 }
 
 func careDocumentCleanupFromDomain(value domain.CareDocumentCleanup) careDocumentCleanupRow {

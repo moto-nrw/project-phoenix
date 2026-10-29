@@ -11,9 +11,8 @@ import {
   fieldsFromDraft,
   type AccidentReportDraft,
 } from "~/components/students/accident-report-form";
-import { accidentReportPath } from "~/components/students/dokumente-tab";
 import { Alert } from "~/components/ui/alert";
-import { Button, ButtonLink } from "~/components/ui/button";
+import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -29,6 +28,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { formatDate, formatTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
+  accidentReportPath,
   studentAccidentReportsService,
   type AccidentReportDetails,
 } from "~/lib/student-accident-reports-api";
@@ -38,7 +38,6 @@ import {
   type StudentDocumentList,
 } from "~/lib/student-documents-api";
 import { useSWRAuth } from "~/lib/swr";
-import { useTenantRouter } from "~/lib/tenant-router";
 
 // Unfallanzeige (#4771): one accident report of a child. The page shows what
 // was recorded, lets the leadership sign it (drawn signature or the signed
@@ -60,7 +59,6 @@ export default function AccidentReportPage() {
   const params = useParams();
   const studentId = params.id as string;
   const reportId = params.reportId as string;
-  const router = useTenantRouter();
   const { data: session } = useSession();
   const canManage = hasPermission(session, "student_accidents:manage");
 
@@ -120,13 +118,16 @@ export default function AccidentReportPage() {
       }
       actions={
         report ? (
+          // A download, not a page: a plain anchor in the kit's button look.
           <a
             href={studentAccidentReportsService.pdfUrl(studentId, reportId)}
-            className="inline-flex"
+            className={buttonClassName({
+              variant: "secondary",
+              size: "md",
+              className: "",
+            })}
           >
-            <Button type="button" variant="secondary" size="md" tabIndex={-1}>
-              PDF herunterladen
-            </Button>
+            PDF herunterladen
           </a>
         ) : undefined
       }
@@ -138,11 +139,11 @@ export default function AccidentReportPage() {
             studentId={studentId}
             correctsReportId={reportId}
             initialDraft={draftFromReport(report)}
-            onCreated={(id) => {
+            onCreated={() => {
               setCorrecting(false);
               void mutate();
-              router.push(accidentReportPath(studentId, id));
             }}
+            openCreated
           />
         ) : undefined
       }

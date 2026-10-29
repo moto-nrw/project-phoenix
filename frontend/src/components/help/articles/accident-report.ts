@@ -16,7 +16,7 @@ export function accidentReportTopic(): HelpTopic {
     audience: "lead",
     icon: "FirstAid",
     requirements: [
-      "Das Recht `Unfälle von Kindern erfassen`. Die Leitung hat es immer.",
+      "Das Recht `Unfälle von Kindern erfassen, Unfallanzeigen ändern, unterschreiben und korrigieren`. Die Leitung hat es immer.",
     ],
     steps: [],
     instructionGroups: [
@@ -51,7 +51,7 @@ export function accidentReportTopic(): HelpTopic {
       "Die Unfallanzeige liegt unterschrieben beim Kind unter `Dokumente`. Das PDF geben Sie selbst an die Unfallkasse weiter.",
     notes: [
       "Felder, die moto nicht kennt, etwa die Unternehmensnummer, ergänzen Sie auf dem Ausdruck.",
-      "Jedes Erfassen, Ändern, Unterschreiben und Herunterladen steht im Änderungsprotokoll.",
+      "Jedes Erfassen, Ändern und Unterschreiben steht im Änderungsprotokoll des Kindes. Jedes Herunterladen hält moto im Zugriffsprotokoll fest.",
     ],
     differences: [
       "Ist die Unfallanzeige schon unterschrieben, fehlt `Ändern`. Wählen Sie `Korrektur anlegen`. Die alte Fassung bleibt erhalten, die Korrektur wird neu unterschrieben.",

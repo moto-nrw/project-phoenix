@@ -5,7 +5,10 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { studentAccidentReportsService } from "~/lib/student-accident-reports-api";
+import {
+  accidentReportPath,
+  studentAccidentReportsService,
+} from "~/lib/student-accident-reports-api";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   AccidentReportFormFields,
@@ -75,7 +78,7 @@ export function AccidentReportCreateModal({
       setDraft(emptyAccidentReportDraft());
       onCreated(id);
       if (openCreated) {
-        router.push(`/students/${studentId}/unfallanzeigen/${id}`);
+        router.push(accidentReportPath(studentId, id));
       }
     } catch (err) {
       logger.error("accident_report_create_failed", {

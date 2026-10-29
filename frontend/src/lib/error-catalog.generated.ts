@@ -892,7 +892,7 @@ export const ERROR_CATALOG = {
       "students.absence_read_required":
         "Für {object} brauchen Sie zusätzlich das Recht „Kinder sehen“. Bitte fragen Sie die Schulleitung.",
       "students.accident_report_forbidden":
-        "Sie dürfen Unfallanzeigen nicht bearbeiten. Bitte wenden Sie sich an die Leitung.",
+        "Für Unfallanzeigen fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung.",
       "students.accident_report_invalid":
         "Die Unfallanzeige ist unvollständig. Bitte füllen Sie alle Pflichtfelder aus.",
       "students.accident_report_not_found":

@@ -214,3 +214,29 @@ func TestStudentAccidentReports_TenantIsolation(t *testing.T) {
 	_, err = reports.UpdateStudentAccidentReport(otherCtx, s.studentID, report.ID, sampleAccidentReport(), leader)
 	require.Error(t, err)
 }
+
+// A report is recorded, never uploaded as a loose file, and a report
+// without a paper copy has no file the document download could serve or log.
+func TestStudentAccidentReports_StayOffThePlainDocumentPaths(t *testing.T) {
+	t.Parallel()
+
+	s := newStudentDocumentScenario(t)
+	reports := newAccidentReports(t, s.db)
+	leader := s.actor("student_accidents:read", "student_accidents:manage")
+
+	require.ErrorIs(t, s.svc.AuthorizeStudentDocumentUpload(s.ctx, s.studentID, careplan.StudentDocumentCategoryUnfallanzeige, leader),
+		careplan.ErrStudentDocumentInvalid)
+	_, err := s.svc.CreateStudentDocument(s.ctx, s.input(careplan.StudentDocumentCategoryUnfallanzeige), leader)
+	require.ErrorIs(t, err, careplan.ErrStudentDocumentInvalid)
+
+	report, err := reports.CreateStudentAccidentReport(s.ctx, s.studentID, sampleAccidentReport(), leader)
+	require.NoError(t, err)
+	_, err = s.svc.ResolveStudentDocumentDownload(s.ctx, s.studentID, report.ID, leader)
+	require.ErrorIs(t, err, careplan.ErrCareDocumentNotFound)
+	assert.Empty(t, s.accessLogRows(t), "nothing served, nothing logged")
+
+	future := sampleAccidentReport()
+	future.OccurredAt = time.Now().Add(time.Hour)
+	_, err = reports.CreateStudentAccidentReport(s.ctx, s.studentID, future, leader)
+	require.ErrorIs(t, err, careplan.ErrAccidentReportInvalid)
+}

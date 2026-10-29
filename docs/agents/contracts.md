@@ -444,9 +444,25 @@ type imports included, outside `server/`, `app/api/` and `*.server.ts`, and
 the auth modules carry `import "server-only"`; `src/lib/browser-token-ratchet.test.ts`
 pins the types and walks the syntax tree of those browser modules for
 credential reads on session values (casts, renames, type aliases,
-intermediate variables included). Open: login, MFA, passkey login, tenant switch, Träger Absprung
-and staff-preview start still hand freshly minted tokens through browser
-JavaScript into Auth.js (`signIn`/`update`).
+intermediate variables included). It also rejects browser `signIn` calls with
+session-token fields or opaque/spread options (#5118).
+
+Completed login, MFA/passkey, tenant-switch, preview and demo session tokens
+stay in the BFF. Each portal's session writer installs them through Auth.js
+inside `withServerSessionMutation` (`src/server/auth/session-mutation.ts`).
+Every Credentials provider rejects `internalRefresh` outside that in-process
+context, even with valid CSRF and valid backend tokens; request fields or
+headers cannot establish it. Server-side seeding still validates portal scope
+and the live access/refresh family with the backend. HTTP request wrappers must
+not enter this context around arbitrary handlers.
+
+The browser may submit passwords, the Träger handoff's one-time proof, MFA
+challenge proofs and limited enrollment tokens. These are not completed session
+pairs. Public login routes that install cookies enforce Same-Origin before
+calling the backend; failed installation revokes the freshly minted family.
+The regular parent Credentials login and Träger handoff continue to redeem
+credentials/proofs server-side. The internal Next.js cookie adapter remains
+pinned and protected by the cookie-order/chunk-deletion integration tests.
 
 ### Login, refresh, and MFA
 

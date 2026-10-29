@@ -508,7 +508,7 @@ export const accidentReportTopic = function accidentReportTopic(): HelpTopic {
     audience: "lead",
     icon: "FirstAid",
     requirements: [
-      "Das Recht `Unfälle von Kindern erfassen`. Die Leitung hat es immer.",
+      "Das Recht `Unfälle von Kindern erfassen, Unfallanzeigen ändern, unterschreiben und korrigieren`. Die Leitung hat es immer.",
     ],
     steps: [],
     instructionGroups: [
@@ -543,7 +543,7 @@ export const accidentReportTopic = function accidentReportTopic(): HelpTopic {
       "Die Unfallanzeige liegt unterschrieben beim Kind unter `Dokumente`. Das PDF geben Sie selbst an die Unfallkasse weiter.",
     notes: [
       "Felder, die moto nicht kennt, etwa die Unternehmensnummer, ergänzen Sie auf dem Ausdruck.",
-      "Jedes Erfassen, Ändern, Unterschreiben und Herunterladen steht im Änderungsprotokoll.",
+      "Jedes Erfassen, Ändern und Unterschreiben steht im Änderungsprotokoll des Kindes. Jedes Herunterladen hält moto im Zugriffsprotokoll fest.",
     ],
     differences: [
       "Ist die Unfallanzeige schon unterschrieben, fehlt `Ändern`. Wählen Sie `Korrektur anlegen`. Die alte Fassung bleibt erhalten, die Korrektur wird neu unterschrieben.",
@@ -2390,7 +2390,7 @@ export const enrollmentReviewTopic =
         "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
         "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
         // #5137
-        "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Ein Entfernen würde dort nicht halten.",
+        "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Entfernen hilft dort nicht: Bei der nächsten Planung steht das Kind wieder im Plan.",
         "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
         "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
         "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
@@ -5885,6 +5885,7 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie `Weiter zur Zusammenfassung`.",
         "Prüfen Sie alles. Unter `Beitrag` steht, was die Ferienbetreuung kostet.",
         "Bekommen Sie Leistungen wie Bürgergeld, Wohngeld oder Kinderzuschlag? Dann setzen Sie den Haken unter `Beitrag`, wenn er angeboten wird.",
+        "Sie können den Nachweis gleich darunter hochladen. Wählen Sie bei `Nachweis über die Leistungen` den Knopf `Datei auswählen`. Erlaubt sind PDF, JPG und PNG.",
         "Wählen Sie dann `Anmeldung absenden`.",
       ],
       result:
@@ -5897,6 +5898,7 @@ export const parentHolidayRegistrationTopic =
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
         "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
+        "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
       ],
       differences: [
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
@@ -9714,7 +9716,7 @@ export const traegerHolidayRegistrationReviewTopic =
             "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
-            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
             "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
           ],
@@ -9750,6 +9752,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
+        "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
         "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
       ],
