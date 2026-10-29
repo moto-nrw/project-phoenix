@@ -287,6 +287,7 @@ guards=(
   src/components/ui/plan-design-guards.test.ts
   src/components/settings/settings-filter.test.ts
   src/components/school-setup/setup-tour-targets.test.ts
+  src/proxy.test.ts
 )
 # Validate against real source files, not only the mirrored fixture list.
 node "$repo_root/scripts/test-frontend-changed.mjs" --check-guards

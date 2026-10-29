@@ -591,6 +591,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:                 notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/resend"}:                       notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/verify"}:                       notCaptured,
+	{http.MethodPost, "/traeger/auth/password-reset"}:                   notCaptured,
+	{http.MethodPost, "/traeger/auth/password-reset/confirm"}:           notCaptured,
 	{http.MethodPost, "/traeger/accounts/invitations"}:                  notCaptured,
 	{http.MethodDelete, "/traeger/accounts/invitations/{invitationId}"}: notCaptured,
 	{http.MethodPut, "/traeger/accounts/{accountId}/roles"}:             notCaptured,
