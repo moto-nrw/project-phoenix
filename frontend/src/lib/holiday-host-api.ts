@@ -52,14 +52,14 @@ export interface HolidayHostAnswer {
 }
 
 /** Eine freigegebene Frage der Liste: eine Spalte. */
-export interface HolidayHostQuestion {
+interface HolidayHostQuestion {
   readonly key: string;
   readonly label: string;
   readonly type: string;
 }
 
 /** Die zweite sorgeberechtigte Person: Name und Telefon, keine E-Mail. */
-export interface HolidayHostGuardian {
+interface HolidayHostGuardian {
   readonly name: string;
   readonly phone: string;
 }
