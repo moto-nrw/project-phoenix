@@ -1,4 +1,16 @@
 {
+  "api/students/[id]/accident-reports": [
+    "POST tenant /api/students/id%2F1/accident-reports"
+  ],
+  "api/students/[id]/accident-reports/[documentId]": [
+    "PUT tenant /api/students/id%2F1/accident-reports/documentId%2F1"
+  ],
+  "api/students/[id]/accident-reports/[documentId]/corrections": [
+    "POST tenant /api/students/id%2F1/accident-reports/documentId%2F1/corrections"
+  ],
+  "api/students/[id]/accident-reports/[documentId]/signature": [
+    "POST tenant /api/students/id%2F1/accident-reports/documentId%2F1/signature"
+  ],
   "api/students/[id]/arrival-exceptions": [
     "POST tenant /api/students/id%2F1/arrival-exceptions"
   ],
