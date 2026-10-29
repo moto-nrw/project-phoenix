@@ -70,6 +70,9 @@ type careOfferingRow struct {
 	SelectionRule       string            `bun:"selection_rule,notnull"`
 	PickupTimes         map[string]string `bun:"pickup_times,type:jsonb"`
 	Translations        json.RawMessage   `bun:"translations,type:jsonb,notnull"`
+	// TemplateGapAcks is written only by SetCareOfferingTemplateGapAck
+	// (#5140): planning period id -> classes; NULL means no decision.
+	TemplateGapAcks map[string][]string `bun:"template_gap_acks,type:jsonb,nullzero"`
 }
 
 type autoTriggerRow struct {
@@ -617,7 +620,7 @@ func careOfferingToDomain(row careOfferingRow) careplan.CareOffering {
 		Capacity: row.Capacity, PriceCents: row.PriceCents, IsActive: row.IsActive, IsRequired: row.IsRequired,
 		CountsAsCare: row.CountsAsCare, AutoAddGradeLevels: row.AutoAddGradeLevels, AvailabilityRule: row.AvailabilityRule,
 		SortOrder: row.SortOrder, SelectionGroup: row.SelectionGroup, SelectionRule: row.SelectionRule, PickupTimes: row.PickupTimes,
-		Translations: row.Translations,
+		Translations: row.Translations, TemplateGapAcks: templateGapAcksToDomain(row.TemplateGapAcks),
 	}
 }
 

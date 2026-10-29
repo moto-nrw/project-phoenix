@@ -6487,6 +6487,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0133",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Kiosk room count revision read of #5205 through the module's observer, approved by ADR 0133; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountStudentVisitsForDeletion",
       "classification": "unresolved",
@@ -7249,6 +7261,18 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PatchSessionAttendance",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0138",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "reason": "ADR 0138 approves this exact observation callback boundary for PrepareVisitWrites. The existing owner observation function remains unresolved by binding-flow analysis; this is not a query or approved cross-owner mutation. Target: studentpresence/internal/application.Service.observe. A changed closure requires fresh evidence.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""
@@ -8029,6 +8053,18 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoom",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0133",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Kiosk room count revision read of #5205 through the module's observer, approved by ADR 0133; a changed value or closure needs a fresh approval ADR.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""
@@ -8845,6 +8881,18 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PatchSessionAttendance",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0138",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PrepareVisitWrites",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "reason": "ADR 0138 approves this exact observation callback boundary for PrepareVisitWrites. The existing owner observation function remains unresolved by binding-flow analysis; this is not a query or approved cross-owner mutation. Target: studentpresence/internal/application.Service.observe. A changed closure requires fresh evidence.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""
@@ -12987,6 +13035,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0138",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentPresence.PrepareVisitWrites",
+      "reason": "ADR 0138 approves this exact observation callback boundary for PrepareVisitWrites. The existing owner observation function remains unresolved by binding-flow analysis; this is not a query or approved cross-owner mutation. Target: studentpresence/internal/application.Service.observe. A changed closure requires fresh evidence.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "classification": "unresolved",
@@ -13943,6 +14003,16 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.ListAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.AttendanceIntervals.ListAttendance",
+      "reason": "Read-only target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.ListAttendance for the occupancy by time of day (#4764). The statistics call never sets ForUpdate; no persistent, lock or scope effect.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCareDayLocker.LockExceptionDay",
       "classification": "leaf",
@@ -14155,6 +14225,26 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsPlannedCareDays.PlannedCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
+      "reason": "Reviewed read: the root binding roots/owners.StatisticsPlannedCareDays maps Care Plan's planned care days for the occupancy by time of day (#4764). Target modules/careplan.CareDayQuery.ResolvePlannedForRange; modules/careplan/care_days.go. No owned-row mutation or locking read.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsPlannedCareDays.PlannedCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
+      "reason": "Reviewed value method: CareDayStatus.Expected is a pure derivation on the returned verdict (modules/careplan/care_days.go). No persistent, lock or scope effect (#4764).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayStatus.Expected",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/transactionruntime.RecordErrors.MissingRecordError",
       "classification": "query",
       "effect": "query",
@@ -14260,6 +14350,16 @@
       "target_owner": "audit-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.AttendanceRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.AttendanceRetentionDays",
+      "reason": "Read-only target: student-presence reaches modules/settings.StatisticsRetention.AttendanceRetentionDays (settings-platform), which resolves gdpr.attendance_retention_days for the occupancy by time of day (#4764). No persistent, lock or scope effect.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.AttendanceRetentionDays",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.CourseRetentionDays",
       "classification": "query",
       "effect": "query",
@@ -14277,6 +14377,16 @@
       "reason": "Read-only newly exposed target: student-presence reaches modules/settings.StatisticsRetention.RoomRetentionDays (settings-platform) through modules/settings.StatisticsRetention.RoomRetentionDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.RoomRetentionDays",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.StatusDayRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.StatusDayRetentionDays",
+      "reason": "Read-only target: student-presence reaches modules/settings.StatisticsRetention.StatusDayRetentionDays (settings-platform), which resolves gdpr.status_day_retention_days for the occupancy by time of day (#4764). No persistent, lock or scope effect.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.StatusDayRetentionDays",
       "target_owner": "settings-platform"
     },
     {
@@ -14585,6 +14695,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.CountOpenVisitsInRoom",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.CountOpenVisitsInRoom. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.CountOpenVisitsInRoomWithRevision",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.CountOpenVisitsInRoomWithRevision",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.CountOpenVisitsInRoomWithRevision. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"
@@ -15260,6 +15380,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.PrepareVisitWrites",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.PrepareVisitWrites",
+      "reason": "PrepareVisitWrites resolves the existing ambient tenant transaction through CurrentTenantTransaction. That target only reads context, without taking a lock or changing scope; the owner-private visit/session locks are not foreign writes.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.QueryGroupSupervisions",
       "classification": "query",
       "effect": "query",
@@ -15848,6 +15978,28 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Query.ListStaff",
       "target_owner": "school-membership"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "classification": "platform",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Hub.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Hub.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "classification": "platform",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Broadcaster.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform"
     },
     {
       "adr": "0098",

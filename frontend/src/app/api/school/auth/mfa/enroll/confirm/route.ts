@@ -1,9 +1,3 @@
-import type { NextRequest } from "next/server";
-import { forwardJsonPost } from "~/lib/auth-proxy.server";
-import { withPrivateNoStore } from "~/lib/private-no-store";
+import { createPortalLoginRoute } from "~/lib/portal-login-route.server";
 
-async function POSTHandler(request: NextRequest) {
-  return forwardJsonPost(request, "/school/auth/mfa/enroll/confirm");
-}
-
-export const POST = withPrivateNoStore(POSTHandler);
+export const POST = createPortalLoginRoute("school", "mfa/enroll/confirm");

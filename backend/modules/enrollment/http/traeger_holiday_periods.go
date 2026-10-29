@@ -51,6 +51,11 @@ func (rs *HolidayPeriodResource) TraegerRouter(protectedTraegerRoutes func(chi.R
 		manage.Get("/{id}", rs.get)
 		manage.Put("/{id}", rs.update)
 		manage.Post("/{id}/publish", rs.publish)
+		manage.Get("/{id}/form", rs.getForm)
+		manage.Put("/{id}/form", rs.saveForm)
+		manage.Post("/{id}/form/documents", rs.uploadFormDocument)
+		manage.Get("/{id}/form/documents/{documentId}", rs.getFormDocument)
+		manage.Delete("/{id}/form/documents/{documentId}", rs.deleteFormDocument)
 		rs.registrationRoutes(r, withTx)
 	})
 	return r

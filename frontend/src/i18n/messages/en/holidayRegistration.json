@@ -33,6 +33,8 @@
   "notBooked": "Not registered",
   "weekRange": "{starts} to {ends}",
   "timeModel": "{name} ({startsAt} to {endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt} to {endsAt})",
+  "weeksPriceText": "The price is per week and child, without any discount or exemption. You can see your fee in the summary.",
   "healthTitle": "Health (optional)",
   "healthText": "Only the care staff can see this information.",
   "allergies": "Allergies and intolerances",
@@ -55,7 +57,7 @@
   "addPickup": "Add person",
   "remove": "Remove",
   "consentTitle": "Consent",
-  "privacyConsent": "I agree that the provider uses this information for the holiday care. It deletes it three months after the holidays.",
+  "privacyConsent": "I agree that the provider uses this information for the holiday care. It deletes it three months after the holidays. The OGS that cares for my child in a holiday week sees the name and phone number of the second legal guardian. It also sees the answers the provider shares with it. It does not see health information. The OGS sees this before the holiday week already, so it can prepare. It sees the list of children until the last day of the week. After that, it can read the name, phone number and answers for 7 more days at most. Then they are deleted.",
   "healthConsent": "I agree that the care staff can see my children's health information.",
   "bindingConfirmed": "I understand that the registration is binding.",
   "captchaMissing": "The security check is missing. Please reload the page.",
@@ -74,6 +76,8 @@
   "contributionTotal": "Total",
   "benefitsLabel": "We receive benefits, for example Bürgergeld, housing benefit (Wohngeld) or child supplement (Kinderzuschlag).",
   "benefitsHint": "Then holiday care is free. The provider needs proof of this.",
+  "benefitsProofLabel": "Proof of benefits",
+  "benefitsProofHint": "Optional. Upload the Bürgergeld notice here, for example. You can also hand it to the provider later.",
   "guest": "Holiday guest",
   "none": "Not given",
   "back": "Back and change",
@@ -91,6 +95,13 @@
     "weeks": "Please choose at least one week.",
     "privacy": "Please agree. Otherwise the provider cannot process the registration.",
     "health": "Please agree or delete the health information.",
-    "binding": "Please confirm that the registration is binding."
-  }
+    "binding": "Please confirm that the registration is binding.",
+    "yesNo": "Please choose yes or no.",
+    "choose": "Please choose an answer."
+  },
+  "childQuestionsTitle": "More details",
+  "familyQuestionsTitle": "More details about your family",
+  "legalTitle": "Notices and consent",
+  "legalAccepted": "Confirmed",
+  "legalNotAccepted": "Not confirmed"
 }

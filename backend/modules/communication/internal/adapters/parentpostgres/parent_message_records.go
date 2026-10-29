@@ -181,13 +181,13 @@ func (r *threadRepository) FindByID(ctx context.Context, id int64) (*communicati
 	return threadModel(value), err
 }
 
-func (r *threadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {
-	value, err := r.store.FindByStudentGuardian(ctx, studentID, guardianAccountID)
+func (r *threadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error) {
+	value, err := r.store.FindByStudentGuardian(ctx, studentID, guardianAccountID, audience)
 	return threadModel(value), err
 }
 
-func (r *threadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {
-	value, err := r.store.GetOrCreate(ctx, tenantID, studentID, guardianAccountID)
+func (r *threadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error) {
+	value, err := r.store.GetOrCreate(ctx, tenantID, studentID, guardianAccountID, audience)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +220,7 @@ func threadValue(thread *communication.PortalParentMessageThread) *domain.Parent
 	}
 	return &domain.ParentMessageThread{
 		ID: thread.ID, TenantID: thread.TenantID, StudentID: thread.StudentID,
-		GuardianAccountID: thread.GuardianAccountID, LastMessageAt: thread.LastMessageAt,
+		GuardianAccountID: thread.GuardianAccountID, Audience: thread.Audience, LastMessageAt: thread.LastMessageAt,
 		LastMessageID: thread.LastMessageID, LastSenderKind: thread.LastSenderKind,
 		LastMessageBody: thread.LastMessageBody, StaffHandledUpToAt: thread.StaffHandledUpToAt,
 		StaffHandledUpToMessageID:      thread.StaffHandledUpToMessageID,
@@ -236,7 +236,7 @@ func threadModel(value *domain.ParentMessageThread) *communication.PortalParentM
 		return nil
 	}
 	thread := &communication.PortalParentMessageThread{
-		StudentID: value.StudentID, GuardianAccountID: value.GuardianAccountID,
+		StudentID: value.StudentID, GuardianAccountID: value.GuardianAccountID, Audience: value.Audience,
 		LastMessageAt: value.LastMessageAt, LastMessageID: value.LastMessageID,
 		LastSenderKind: value.LastSenderKind, LastMessageBody: value.LastMessageBody,
 		StaffHandledUpToAt:             value.StaffHandledUpToAt,

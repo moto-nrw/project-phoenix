@@ -63,6 +63,79 @@ type ThreadSummaryResponse struct {
 	LastMessagePayload     map[string]json.RawMessage `json:"last_message_payload,omitempty"`
 	LastMessageReadByStaff bool                       `json:"last_message_read_by_staff"`
 	Unread                 int                        `json:"unread"`
+	// Audience is "team" or "leadership" (#5200); a child can have one
+	// conversation of each. Readers names the school side by kind only; the
+	// leadership names come with the conversation itself.
+	Audience string                `json:"audience"`
+	Readers  ParentReadersResponse `json:"readers"`
+}
+
+// ParentReadersResponse says who can read a conversation (#5200). guardian
+// is the caller, the only guardian who reads it; other guardians of the child
+// do not. school.kind is "all_staff" (every staff member of the OGS) or
+// "leadership" (only the leadership persons in school.names, short names
+// such as "Swantje M."). Absent guardian on list rows.
+type ParentReadersResponse struct {
+	Guardian *ParentGuardianReaderResponse `json:"guardian,omitempty"`
+	School   ParentSchoolReadersResponse   `json:"school"`
+}
+
+type ParentGuardianReaderResponse struct {
+	Name string `json:"name"`
+}
+
+type ParentSchoolReadersResponse struct {
+	Kind         string   `json:"kind"`
+	Names        []string `json:"names"`
+	UnnamedCount int      `json:"unnamed_count"`
+}
+
+// LeadershipOptionResponse tells the compose box whether the guardian may
+// start a conversation with the leadership only, and who the leadership is.
+// available is false while the school has the choice off or nobody holds the
+// leadership permission; an existing leadership conversation stays open.
+type LeadershipOptionResponse struct {
+	Available    bool     `json:"available"`
+	Names        []string `json:"names"`
+	UnnamedCount int      `json:"unnamed_count"`
+}
+
+// Parent-facing school reader kinds (#5200).
+const (
+	readersAllStaff   = "all_staff"
+	readersLeadership = "leadership"
+)
+
+// schoolReaders names the school side of a conversation of the audience.
+func schoolReaders(audience string, leadershipNames []string) ParentSchoolReadersResponse {
+	if audience == parentService.MessageAudienceLeadership {
+		names, unnamed := splitLeaderNames(leadershipNames)
+		return ParentSchoolReadersResponse{Kind: readersLeadership, Names: names, UnnamedCount: unnamed}
+	}
+	return ParentSchoolReadersResponse{Kind: readersAllStaff, Names: []string{}}
+}
+
+// splitLeaderNames separates the named leaders from the leadership accounts
+// without a person name, which arrive as empty entries. The client names
+// those in the parent's language instead of a German label (#5200).
+func splitLeaderNames(all []string) (names []string, unnamed int) {
+	names = make([]string, 0, len(all))
+	for _, name := range all {
+		if name == "" {
+			unnamed++
+			continue
+		}
+		names = append(names, name)
+	}
+	return names, unnamed
+}
+
+// threadAudience keeps a row without an audience on the team conversation.
+func threadAudience(audience string) string {
+	if audience == "" {
+		return parentService.MessageAudienceTeam
+	}
+	return audience
 }
 
 // toThreadSummary maps a projected inbox thread to the parent-facing summary,
@@ -86,18 +159,26 @@ func toThreadSummary(t *parentService.InboxThread) ThreadSummaryResponse {
 		LastMessagePayload:     t.LastMessagePayload,
 		LastMessageReadByStaff: t.LastMessageReadByStaff,
 		Unread:                 t.UnreadCount,
+		Audience:               threadAudience(t.Audience),
+		Readers:                ParentReadersResponse{School: schoolReaders(threadAudience(t.Audience), nil)},
 	}
 }
 
 // ThreadViewResponse is the full conversation for one child. thread_id is empty
 // when no conversation exists yet (created on the first message).
 type ThreadViewResponse struct {
-	ThreadID        string            `json:"thread_id"`
-	StudentID       string            `json:"student_id"`
-	StudentName     string            `json:"student_name"`
-	SchoolName      string            `json:"school_name"`
-	CounterpartName string            `json:"counterpart_name"`
-	Messages        []MessageResponse `json:"messages"`
+	ThreadID        string `json:"thread_id"`
+	StudentID       string `json:"student_id"`
+	StudentName     string `json:"student_name"`
+	SchoolName      string `json:"school_name"`
+	CounterpartName string `json:"counterpart_name"`
+	// Audience, Readers and LeadershipOption describe the conversation and
+	// the compose choice (#5200). They are filled also while no conversation
+	// exists yet (thread_id empty), as the preview of who would read it.
+	Audience         string                   `json:"audience"`
+	Readers          ParentReadersResponse    `json:"readers"`
+	LeadershipOption LeadershipOptionResponse `json:"leadership_option"`
+	Messages         []MessageResponse        `json:"messages"`
 }
 
 // PostMessageRequest is the wire shape for POST .../children/{studentId}.
@@ -105,6 +186,9 @@ type PostMessageRequest struct {
 	Body string `json:"body"`
 	// GroupThreadID names the group thread this message answers (#4784).
 	GroupThreadID string `json:"group_thread_id,omitempty"`
+	// Audience is "team" (default) or "leadership" (#5200). An answer to a
+	// group thread always goes to the team.
+	Audience string `json:"audience,omitempty"`
 }
 
 // ogsLabel is the parent-facing name of the OGS counterpart for a school.
@@ -185,14 +269,31 @@ func toThreadView(v *parentService.MessageThreadView) ThreadViewResponse {
 	if v.ThreadID > 0 {
 		threadID = strconv.FormatInt(v.ThreadID, 10)
 	}
+	audience := threadAudience(v.Audience)
 	return ThreadViewResponse{
 		ThreadID:        threadID,
 		StudentID:       strconv.FormatInt(v.StudentID, 10),
 		StudentName:     v.StudentName,
 		SchoolName:      v.SchoolName,
 		CounterpartName: counterpart,
-		Messages:        toMessageResponses(v.Messages, counterpart),
+		Audience:        audience,
+		Readers: ParentReadersResponse{
+			Guardian: &ParentGuardianReaderResponse{Name: v.GuardianName},
+			School:   schoolReaders(audience, v.LeadershipReaders),
+		},
+		LeadershipOption: leadershipOption(v.Leadership),
+		Messages:         toMessageResponses(v.Messages, counterpart),
 	}
+}
+
+// leadershipOption names the leadership persons only while the choice is
+// offered.
+func leadershipOption(option parentService.LeadershipOption) LeadershipOptionResponse {
+	if !option.Available() {
+		return LeadershipOptionResponse{Names: []string{}}
+	}
+	names, unnamed := splitLeaderNames(option.Names)
+	return LeadershipOptionResponse{Available: true, Names: names, UnnamedCount: unnamed}
 }
 
 func parseStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
@@ -269,7 +370,7 @@ func (rs *Resource) getChildConversation(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	view, err := rs.ParentService.GetChildConversation(r.Context(), accountID, studentID)
+	view, err := rs.ParentService.GetChildConversation(r.Context(), accountID, studentID, r.URL.Query().Get("audience"))
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
@@ -298,7 +399,7 @@ func (rs *Resource) postChildMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	view, err := rs.ParentService.PostChildReply(r.Context(), accountID, studentID, req.Body, groupThreadID)
+	view, err := rs.ParentService.PostChildReply(r.Context(), accountID, studentID, req.Body, groupThreadID, req.Audience)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return

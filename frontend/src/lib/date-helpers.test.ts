@@ -315,6 +315,15 @@ describe("formatDate", () => {
     expect(result).toContain("10. Juni 2026");
   });
 
+  it("uses day-first dates for English holiday registration", () => {
+    expect(formatDate("2026-10-29", false, "en")).toBe("29/10/2026");
+    expect(formatDate("2026-11-09", false, "en")).toBe("09/11/2026");
+    expect(formatDate("2026-11-09", true, "en")).toBe(
+      "Monday, 9 November 2026",
+    );
+    expect(formatDate("2026-11-09", false, "de")).toBe("09.11.2026");
+  });
+
   it("uses the requested locale for parent-facing dates", () => {
     expect(formatDate("2026-06-10", false, "en-US")).toBe("06/10/2026");
     expect(formatDate("2026-06-10", true, "en-US")).toContain(

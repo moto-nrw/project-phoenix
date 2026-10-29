@@ -151,7 +151,7 @@ type fakeTimetableData struct {
 	FindBlockParticipantFn         func(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error)
 	LockBlockAttendanceFn          func(ctx context.Context, instanceID int64) error
 	PatchSlotAttendanceFn          func(ctx context.Context, participantID int64, patch timetable.AttendancePatch) error
-	ListTemplateEntriesForPeriodFn func(ctx context.Context, periodID *int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error)
+	ListTemplateEntriesForPeriodFn func(ctx context.Context, periodID *int64, childrenPerStaffRatio int, window *timetable.TemplateScheduleWindow) ([]timetable.TemplateListEntry, error)
 	ListTemplateWeekdayRosterFn    func(ctx context.Context, templateID, calendarPeriodID *int64) ([]timetable.TemplateWeekdayRosterRow, error)
 	SpontaneousRoomExistsFn        func(ctx context.Context, roomID int64) (bool, error)
 	LockSpontaneousStartRoomFn     func(ctx context.Context, roomID int64) error
@@ -187,11 +187,11 @@ func (f *fakeTimetableData) PatchSlotAttendance(ctx context.Context, participant
 	return f.PatchSlotAttendanceFn(ctx, participantID, patch)
 }
 
-func (f *fakeTimetableData) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {
+func (f *fakeTimetableData) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int, window *timetable.TemplateScheduleWindow) ([]timetable.TemplateListEntry, error) {
 	if f.ListTemplateEntriesForPeriodFn == nil {
-		return f.TimetableDataCapability.ListTemplateEntriesForPeriod(ctx, periodID, childrenPerStaffRatio)
+		return f.TimetableDataCapability.ListTemplateEntriesForPeriod(ctx, periodID, childrenPerStaffRatio, window)
 	}
-	return f.ListTemplateEntriesForPeriodFn(ctx, periodID, childrenPerStaffRatio)
+	return f.ListTemplateEntriesForPeriodFn(ctx, periodID, childrenPerStaffRatio, window)
 }
 
 func (f *fakeTimetableData) ListTemplateWeekdayRoster(ctx context.Context, templateID, calendarPeriodID *int64) ([]timetable.TemplateWeekdayRosterRow, error) {

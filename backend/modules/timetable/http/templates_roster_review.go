@@ -28,6 +28,8 @@ type rosterDeviationResponse struct {
 	UnbookedCount int                                         `json:"unbooked_count"`
 	MissingCount  int                                         `json:"missing_count"`
 	Candidates    []templateRosterMaintenanceOfferingResponse `json:"candidates"`
+	// Ambiguous: several candidates fit fully; the school picks one.
+	Ambiguous bool `json:"ambiguous"`
 }
 
 type rosterDeviationsResponse struct {
@@ -65,7 +67,7 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 		return result, nil
 	}
 	ratio := rs.childrenPerStaffRatio(ctx)
-	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &periodID, ratio)
+	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &periodID, ratio, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -133,6 +135,7 @@ func rosterDeviationResponseFrom(templateID int64, deviation *timetable.RosterDe
 		UnbookedCount: deviation.UnbookedCount,
 		MissingCount:  deviation.MissingCount,
 		Candidates:    rosterMaintenanceOfferings(deviation.Candidates),
+		Ambiguous:     deviation.Ambiguous,
 	}
 }
 

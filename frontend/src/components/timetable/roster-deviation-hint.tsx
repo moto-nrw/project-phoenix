@@ -11,7 +11,8 @@ import {
  * The warning a Regeltermin carries when its hand-kept children list does
  * not match the bookings of a care offering (#5103). It replaces the grey
  * „Manuell“ badge. Planners decide here: connect the series to the offering
- * or keep the list by hand. Readers without planning rights only see it.
+ * or keep the list by hand, two equal ways with the same kit button.
+ * Readers without planning rights only see it.
  */
 export function RosterDeviationHint({
   deviation,
@@ -44,7 +45,7 @@ export function RosterDeviationHint({
         {onKeepManual ? (
           <Button
             type="button"
-            variant="ghost"
+            variant="surface"
             size="compact"
             onClick={onKeepManual}
             disabled={busy}

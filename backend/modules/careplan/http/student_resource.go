@@ -23,6 +23,7 @@ type ResourceConfig struct {
 	ArrivalScheduleService       careplan.ArrivalScheduleService
 	Broadcaster                  realtime.Broadcaster
 	CareResumption               CareResumption
+	CareExitRestoration          CareExitRestoration
 	CareLifecycleService         careplan.CareLifecycle
 	CareRequestReviews           careplan.CareScheduleReviewQuery
 	CareRequestService           carerequests.Decisions

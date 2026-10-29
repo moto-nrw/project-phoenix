@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { gitTestEnvironment, initGitFixture } from "./test-helpers/git-fixture.mjs";
 
 const runner = readFileSync(new URL("./test-frontend-changed.mjs", import.meta.url), "utf8");
 
@@ -30,24 +31,21 @@ else
   printf '%s\\n' "$@" > '${root}/args'
 fi
 `, 0o755);
+  const env = gitTestEnvironment({ ...process.env, PATH: `${root}/bin:${process.env.PATH}` });
   function git(...args) {
-    const result = spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    const result = spawnSync("git", args, { cwd: root, env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.trim();
   }
   write(".gitignore", "frontend/node_modules\n");
-  git("init", "-q");
-  git("config", "user.name", "selection-fixture");
-  git("config", "user.email", "selection-fixture@example.invalid");
-  git("config", "commit.gpgSign", "false");
-  git("config", "core.hooksPath", "/dev/null");
+  initGitFixture(git);
   write("frontend/src/lib/product.ts", "export {};\n");
   git("add", ".");
   git("commit", "-qm", "baseline");
   write("frontend/src/lib/product.ts", "export const changed = true;\n");
   return {
-    root, write, git,
-    run: (...args) => spawnSync(process.execPath, [join(root, "scripts/test-frontend-changed.mjs"), ...args], { encoding: "utf8", env: { ...process.env, PATH: `${root}/bin:${process.env.PATH}` } }),
+    root, write, git, env,
+    run: (...args) => spawnSync(process.execPath, [join(root, "scripts/test-frontend-changed.mjs"), ...args], { encoding: "utf8", env }),
   };
 }
 
@@ -94,7 +92,7 @@ else
 fi
 `, 0o755);
   const result = spawnSync(process.execPath, [join(f.root, "scripts/test-frontend-changed.mjs"), "HEAD", "--project", "logic-node"], {
-    encoding: "utf8", env: { ...process.env, PATH: `${f.root}/bin:${process.env.PATH}` },
+    encoding: "utf8", env: f.env,
   });
   assert.equal(result.status, 0, result.stderr);
   const args = readFileSync(join(f.root, "args"), "utf8").trim().split("\n");

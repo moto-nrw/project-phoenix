@@ -3,7 +3,7 @@
 
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { useState, useEffect, useLayoutEffect, useRef, Suspense } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -25,6 +25,7 @@ import {
   AuthShell,
   MotoBrand,
   authPrimaryButtonClassName,
+  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
 import { MFAEnrollmentScreen } from "~/components/auth/mfa-enrollment-screen";
@@ -38,7 +39,7 @@ import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { isSchoolPortalHandoffPath } from "~/lib/redirect-utils";
 import { hasSessionAccess } from "~/lib/session-access";
 import { DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
-import { login as loginApi, type MFATokenResponse } from "~/lib/mfa-api";
+import { login as loginApi } from "~/lib/mfa-api";
 import {
   isPasskeySupported,
   isPasskeyCeremonyIncompleteError,
@@ -122,7 +123,7 @@ interface MFAEnrollmentStep {
   // enrollmentToken is the narrow-scope JWT issued by login when MFA is
   // required and the user has no credential yet. It only authorizes
   // /auth/mfa/enroll/* — a full session pair is minted by the confirm
-  // endpoint and seeded via seedSessionWithTokens once enrollment succeeds.
+  // endpoint and installed server-side once enrollment succeeds.
   enrollmentToken: string;
   email: string;
 }
@@ -153,7 +154,7 @@ function LoginForm() {
   const router = useTenantRouter();
   const { tenantSlug, tenant } = useTenant();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
+  const { data: session, status, update } = useSession();
   const loginTitle = tenant?.name?.trim() ? tenant.name : "Willkommen bei moto";
   const tenantLoginImageUrl = tenant?.settings?.loginImageUrl;
   const hasTenantLoginLogo = Boolean(tenantLoginImageUrl);
@@ -202,7 +203,11 @@ function LoginForm() {
 
       // A session without an error grants access; the browser never sees
       // its tokens (#5005), and the JWT callback renews them server-side.
-      if (status === "authenticated" && hasSessionAccess(session)) {
+      if (
+        status === "authenticated" &&
+        hasSessionAccess(session) &&
+        !enrollmentStep
+      ) {
         logger.debug("valid session found, preparing smart redirect");
         setAwaitingRedirect(true);
         setCheckingAuth(false);
@@ -216,7 +221,7 @@ function LoginForm() {
     };
 
     void checkAndRedirect();
-  }, [status, session]);
+  }, [status, session, enrollmentStep]);
 
   // Check for session errors in URL, but suppress after a deliberate logout.
   // NextAuth's useSession({ required: true }) races the logout navigation and
@@ -246,29 +251,13 @@ function LoginForm() {
     awaitingRedirect && status === "authenticated" && hasSessionAccess(session);
   const isSubmitting = isLoading || awaitingRedirect;
 
-  // seedSessionWithTokens hands an already-minted access/refresh pair to
-  // NextAuth via the internalRefresh credential path. Used after a
-  // successful MFA verify/enroll OR a non-MFA login — in all cases the
-  // backend has already authenticated the account, so we only seed the
-  // session.
-  const seedSessionWithTokens = async (tokens: MFATokenResponse) => {
+  // The BFF has already set the httpOnly session cookie. Read only the
+  // browser-safe session to update the provider before SmartRedirect runs.
+  const completeLogin = async () => {
     clearSessionErrorFromUrl();
-    const result = await signIn("credentials", {
-      redirect: false,
-      internalRefresh: "true",
-      token: tokens.access_token,
-      refreshToken: tokens.refresh_token,
-    });
-    if (result?.error) {
-      logger.error("session_seed_failed", { error: result.error });
-      trackLoginEvent("login_failed", { reason: "error" });
-      // Kein ApiError: der Weg zeigt den allgemeinen Text für die Anmeldung.
-      void formErrors.show(new Error(result.error), {
-        object: "die Anmeldung",
-      });
-      return;
-    }
-    // login_success comes from the backend once it mints the session (#3602).
+    const current = await update();
+    if (!hasSessionAccess(current))
+      throw new Error("Session was not established");
     setAwaitingRedirect(true);
     router.refresh();
   };
@@ -318,8 +307,8 @@ function LoginForm() {
     return true;
   };
 
-  const handleMFASuccess = async (tokens: MFATokenResponse) => {
-    await seedSessionWithTokens(tokens);
+  const handleMFASuccess = async () => {
+    await completeLogin();
     setMfaStep(null);
   };
 
@@ -357,10 +346,7 @@ function LoginForm() {
         return;
       }
 
-      await seedSessionWithTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
+      await completeLogin();
     } catch (err) {
       // Wrong portal at the staff login. The backend accepted the password
       // and refused on role, so being specific leaks nothing — and the
@@ -411,11 +397,8 @@ function LoginForm() {
     setSessionExpired(false);
     setWrongPortalHint(null);
     try {
-      const response = await loginWithPasskey("tenant", { tenantSlug });
-      await seedSessionWithTokens({
-        access_token: response.access_token,
-        refresh_token: response.refresh_token,
-      });
+      await loginWithPasskey("tenant", { tenantSlug });
+      await completeLogin();
     } catch (err) {
       if (isPasskeyCeremonyIncompleteError(err)) {
         logger.info("passkey login not completed", {
@@ -529,12 +512,9 @@ function LoginForm() {
                 clearFormError();
                 setPassword("");
               }}
-              onComplete={async (tokens) => {
+              onComplete={async () => {
+                await completeLogin();
                 setEnrollmentStep(null);
-                await seedSessionWithTokens({
-                  access_token: tokens.access_token,
-                  refresh_token: tokens.refresh_token,
-                });
               }}
             />
           ) : (
@@ -635,7 +615,7 @@ function LoginForm() {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setIsResetModalOpen(true)}
-                    className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                    className={authTextButtonClassName}
                   >
                     Passwort vergessen?
                   </button>

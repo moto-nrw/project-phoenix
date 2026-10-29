@@ -32,6 +32,7 @@ const deviation: RosterDeviation = {
   unbookedCount: 1,
   missingCount: 0,
   candidates: [],
+  ambiguous: false,
 };
 
 describe("useRosterDeviations deep links", () => {

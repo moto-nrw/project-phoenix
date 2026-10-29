@@ -303,6 +303,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *Service) CountOpenVisitsInRoomWithRevision(ctx context.Context, id int64) (count int, revision int64, err error) {\n\terr = s.runWrite(ctx, \"count_open_visits_in_room_with_revision\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif id \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid room ID\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tcount, revision, stats, err = s.store.CountOpenVisitsInRoomWithRevision(ctx, id)\n\t\treturn stats, err\n\t})\n\treturn count, revision, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/studentpresence/internal/application/Service.CountOpenVisitsInRoomWithRevision",
+      "owner": "modules/studentpresence"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *Service) CountStudentVisitsForDeletion(ctx context.Context, studentID int64) (result int, err error) {\n\terr = s.runWrite(ctx, \"count_student_visits_for_deletion\", func(ctx context.Context) (ports.Stats, error) {\n\t\tif studentID \u003c= 0 {\n\t\t\treturn ports.Stats{}, errors.New(\"student presence: invalid student ID\")\n\t\t}\n\t\tvar stats ports.Stats\n\t\tresult, stats, err = s.store.CountStudentVisitsForDeletion(ctx, studentID)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/studentpresence/internal/application/Service.CountStudentVisitsForDeletion",

@@ -15,10 +15,8 @@ import { getCachedSession } from "./session-cache";
 
 export type PasskeyScope = "tenant" | "operator";
 
-export interface PasskeyTokenResponse {
+interface PasskeyLoginResponse {
   status: "authenticated";
-  access_token: string;
-  refresh_token: string;
 }
 
 export interface PasskeyCredentialSummary {
@@ -117,7 +115,7 @@ export function isPasskeySupported(): boolean {
 export async function loginWithPasskey(
   scope: PasskeyScope,
   params: { tenantSlug?: string } = {},
-): Promise<PasskeyTokenResponse> {
+): Promise<PasskeyLoginResponse> {
   const start = await requestJson<
     CeremonyResponse<PublicKeyCredentialRequestOptionsJSON>
   >(`${basePath(scope)}/login/options`, {
@@ -133,8 +131,8 @@ async function finishPasskeyLogin(
   scope: PasskeyScope,
   sessionID: string,
   response: AuthenticationResponseJSON,
-): Promise<PasskeyTokenResponse> {
-  return requestJson<PasskeyTokenResponse>(`${basePath(scope)}/login/verify`, {
+): Promise<PasskeyLoginResponse> {
+  return requestJson<PasskeyLoginResponse>(`${basePath(scope)}/login/verify`, {
     session_id: sessionID,
     response,
   });

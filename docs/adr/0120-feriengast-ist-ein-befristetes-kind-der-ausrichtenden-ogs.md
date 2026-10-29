@@ -146,3 +146,35 @@ die `tenant_id` der ausrichtenden Schule (D4).
 - `GET /api/active/cross-tenant-students` (ADR 0084 Abschnitt 6) bleibt
   bestehen, bis Gruppen und Kiosk keine Besuche fremder Kinder mehr
   brauchen; ein eigenes Ticket entfernt ihn.
+
+## Nachtrag 2026-10-28: Zweite sorgeberechtigte Person und freigegebene Antworten (#5202)
+
+Mit der Entscheidung des Nutzers vom 28.10.2026 für Option B
+([#5202](https://github.com/moto-nrw/project-phoenix/issues/5202), Nachtrag
+zu ADR 0116) gilt Punkt 4 mit dieser Erweiterung:
+
+- **Zweite Person als Notfallkontakt.** `enrollment.holiday_host_guest_contacts`
+  liefert die zweite sorgeberechtigte Person (#5197) als Notfallkontakt
+  „Eltern“ mit Name und Telefon, direkt nach der anmeldenden Person.
+- **Freigegebene Antworten.** Die Kopie übernimmt die Antworten der
+  freigegebenen Fragen ohne Gesundheitsangabe, so wie die Teilnehmerliste sie
+  liefert, in `enrollment.holiday_guests.answers` (JSONB). Das Blatt
+  `GET /api/holiday-guests/{studentId}` zeigt sie unter „Angaben aus der
+  Ferienanmeldung“.
+- Weiter gilt: keine Gesundheitsangaben, keine Einwilligungen, keine
+  E-Mail-Adresse, keine Anschrift.
+- **Löschung wie bei den Kontakten.** Die Antworten folgen Punkt 5: sieben
+  Tage nach der Woche nur lesbar, dann löscht der Abgleich sie mit den
+  Kontakten. Eine Stornierung oder Umbuchung löscht sie beim nächsten
+  Abgleich.
+- **Prüfung beim Lesen.** Die Kopie liest ihre Antworten nur über
+  `enrollment.holiday_guest_shared_answers`. Die Funktion prüft jede Antwort
+  noch einmal gegen alle Formularversionen des Zeitraums, mit denselben Regeln
+  wie die Teilnehmerliste. Stuft der Träger eine Frage später als
+  Gesundheitsangabe ein, ist die kopierte Antwort sofort verborgen, auch in den
+  sieben Tagen nur lesend, in denen kein Abgleich die Kopie mehr erneuert.
+- **Register.** Migration `1.15.712` ergänzt die Spalte und ersetzt die
+  Funktion; der Down-Pfad stellt die alte Signatur wieder her. Migration
+  `1.15.713` ergänzt die Prüfung beim Lesen. Der Eintrag
+  `enrollment.holiday_guests` im Datenkatalog nennt die Antworten. Keine neue
+  Tabelle, kein neuer `data_objects`-Eintrag.

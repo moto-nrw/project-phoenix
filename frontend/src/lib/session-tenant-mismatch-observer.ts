@@ -38,8 +38,9 @@ let restoreFetch: (() => void) | null = null;
  * Reports every refusal of this tab's BFF (#5130), whichever client sent the
  * request: many read only `response.ok` and never build an ApiError, so the
  * report in apiErrorFromBody misses them. Axios runs on XHR; its errors reach
- * apiErrorFromBody. The event stream cannot read a status. Installing twice
- * keeps one observer; returns the function that removes it.
+ * apiErrorFromBody. EventSource cannot read a status; useGlobalSSE fetches
+ * the refused stream's route once so this observer sees it (#5157).
+ * Installing twice keeps one observer; returns the function that removes it.
  */
 export function installSessionTenantMismatchObserver(): () => void {
   if (typeof window === "undefined") return () => {};

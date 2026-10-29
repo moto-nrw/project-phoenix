@@ -379,7 +379,7 @@ func composeServeRoot(
 		},
 		func() error {
 			reports = owners.BuildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
-				people, audit, settings.Service)
+				people, audit, settings.Service, schedules.CareDay)
 			return nil
 		},
 		func() (err error) {
@@ -416,7 +416,7 @@ func composeServeRoot(
 		},
 		func() error {
 			chat = owners.BuildCommunicationMessaging(db, env, hub, settings.Service, messaging, services.Users, owners.StaffStudentReads{Caller: caller.Caller()},
-				notifications, delivery.Outbox, people, owners.SchoolNameDirectory{Schools: organizations}, CommunicationSession{})
+				notifications, delivery.Outbox, people, owners.SchoolNameDirectory{Schools: organizations}, CommunicationSession{}, identity)
 			calendarApp = owners.BuildCalendarApp(db, env, people, structure, portalReads, timetableRows, rooms, workTime, organizations,
 				identity, caller.Caller(), appointments, calendar, delivery, notifications, settings.Service, persons)
 			return nil
@@ -510,7 +510,7 @@ func composeServeRoot(
 	}
 	registerRuntimeStatsProviders(hub, deliveryDevices.PWAUsage)
 	router := chi.NewRouter()
-	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity, identity)
+	sessionAuth, err := mountServeMiddleware(router, unit, env.Logger, config, tracer, metrics, tracker, settings.Service, analyticsCollectionPolicy(IsDemoEnvironment(env.Config.AppEnv), settings.Service, identity, organizations), identity, identity, identity)
 	if err != nil {
 		return nil, nil, err
 	}

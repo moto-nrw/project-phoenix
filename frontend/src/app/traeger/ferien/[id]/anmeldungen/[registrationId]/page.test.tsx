@@ -18,7 +18,10 @@ vi.mock("~/lib/traeger-api", () => ({
   fetchTraegerSchools: () => Promise.resolve(HOLIDAY_SCHOOLS),
 }));
 const { mockRegistration } = vi.hoisted(() => ({ mockRegistration: vi.fn() }));
-vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
+vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("~/lib/traeger-holiday-registrations-api")
+  >()),
   fetchHolidayRegistration: () => mockRegistration(),
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
@@ -62,6 +65,79 @@ describe("TraegerHolidayRegistrationPage", () => {
       screen.getByRole("link", { name: /Zurück zu den Anmeldungen/ }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");
   });
+  it("opens the uploaded proofs of benefits from their own card (#5238)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      benefitsDeclared: true,
+      benefitsProofs: [
+        {
+          id: "91",
+          filename: "Bescheid Bürgergeld.pdf",
+          sizeBytes: 250_000,
+          contentType: "application/pdf",
+          uploadedAt: "2026-09-03T08:00:00Z",
+        },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Nachweis für den Leistungsbezug",
+    });
+    const card = within(heading.closest("section")!);
+    expect(card.getByText("Bescheid Bürgergeld.pdf")).toBeInTheDocument();
+    expect(card.getByText("244 KB")).toBeInTheDocument();
+    const open = card.getByRole("link", {
+      name: "Bescheid Bürgergeld.pdf",
+    });
+    expect(open).toHaveAttribute(
+      "href",
+      "/api/traeger/holiday-periods/5/registrations/7/proofs/91?inline=1",
+    );
+    expect(open).toHaveAttribute("target", "_blank");
+    expect(open).toHaveAttribute("rel", "noopener");
+    expect(open).toHaveAttribute("title", "In neuem Tab öffnen");
+  });
+
+  it("asks the office to collect a proof the parents did not upload (#5238)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      benefitsDeclared: true,
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Nachweis für den Leistungsbezug",
+    });
+    expect(
+      within(heading.closest("section")!).getByText(
+        /Die Eltern haben keinen Nachweis hochgeladen/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no proof card without the statement on benefits (#5238)", async () => {
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Eltern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: "Nachweis für den Leistungsbezug",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the second guardian only in its own contact card", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,
@@ -87,5 +163,149 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(
       screen.getByRole("heading", { name: "Anmeldung von Eva Muster" }),
     ).toBeInTheDocument();
+  });
+
+  it("shows the answers with the labels of the form version the parents answered (#5198)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      form: {
+        version: 2,
+        fields: [
+          {
+            key: "quelle",
+            label: "Wie haben Sie von den Ferien erfahren?",
+            type: "text",
+            sort_order: 0,
+          },
+          {
+            key: "tetanus",
+            label: "Tetanus-Impfschutz",
+            type: "select",
+            applies_to_child: true,
+            health: true,
+            sort_order: 1,
+            options: [{ label: "weiß nicht", value: "weiss_nicht" }],
+          },
+          {
+            key: "ausfluege",
+            label: "Darf an Ausflügen teilnehmen",
+            type: "boolean",
+            applies_to_child: true,
+            sort_order: 2,
+          },
+        ],
+      },
+      answers: { quelle: "Elternbrief" },
+      childAnswers: { "9": { tetanus: "weiss_nicht", ausfluege: false } },
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "Antworten auf die Fragen des Formulars, Version 2. Antworten zu einem Kind stehen beim Kind.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Wie haben Sie von den Ferien erfahren?"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Elternbrief")).toBeInTheDocument();
+    // A health answer carries its marker; the label comes from version 2.
+    expect(
+      screen.getByText("Tetanus-Impfschutz (Gesundheit)"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("weiß nicht")).toBeInTheDocument();
+    expect(
+      screen.getByText("Darf an Ausflügen teilnehmen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nein")).toBeInTheDocument();
+    // Ben answered nothing: only Lia's card lists answers.
+    expect(screen.getAllByText("Weitere Angaben")).toHaveLength(1);
+    expect(screen.getByText("Weitere Angaben zur Familie")).toBeInTheDocument();
+  });
+  it("shows pinned legal acknowledgements with Berlin time and German PDF actions", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      form: {
+        version: 2,
+        fields: [],
+        legalBlocks: [
+          {
+            key: "hinweis",
+            kind: "terms",
+            source: "custom",
+            enabled: true,
+            required: true,
+            title: "Damals gültiger Ferienbrief",
+            label: "Gelesen",
+            text: "Der **historische Ferienbrief** bleibt verbindlich.",
+            sort_order: 0,
+            attachments: [{ label: "Ferienbrief", document_url: "81" }],
+          },
+          {
+            key: "foto",
+            kind: "consent",
+            source: "custom",
+            enabled: true,
+            required: false,
+            title: "Fotos",
+            label: "Fotos erlaubt",
+            text: "",
+            sort_order: 1,
+          },
+          {
+            key: "info",
+            kind: "notice",
+            source: "custom",
+            enabled: true,
+            required: false,
+            title: "Trinkflaschen",
+            label: "Bitte eine Trinkflasche mitgeben.",
+            text: "",
+            sort_order: 2,
+            attachments: [{ label: "Packliste", document_url: "82" }],
+          },
+        ],
+      },
+      legalAcceptances: { hinweis: "2026-11-03T10:12:00Z" },
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const title = await screen.findByRole("heading", {
+      name: "Hinweise und Einwilligungen",
+    });
+    const evidence = within(title.closest("section")!);
+    expect(
+      evidence.getByText("Damals gültiger Ferienbrief"),
+    ).toBeInTheDocument();
+    expect(evidence.getByText("Gelesen")).toBeInTheDocument();
+    expect(evidence.getByText("historische Ferienbrief")).toHaveProperty(
+      "tagName",
+      "STRONG",
+    );
+    expect(
+      evidence.getByText("Zugestimmt am 03.11.2026, 11:12 Uhr"),
+    ).toBeInTheDocument();
+    expect(evidence.getAllByText("Nicht zugestimmt")).toHaveLength(1);
+    // Anker: the information-only notice and its PDF remain visible.
+    const notice = within(
+      evidence.getByRole("heading", { name: "Trinkflaschen" }).parentElement!,
+    );
+    expect(
+      notice.getByRole("button", { name: "Packliste öffnen" }),
+    ).toBeInTheDocument();
+    expect(notice.queryByText("Nicht zugestimmt")).not.toBeInTheDocument();
+    expect(
+      evidence.getByRole("button", { name: "Ferienbrief öffnen" }),
+    ).toHaveTextContent("Öffnen");
+    expect(
+      evidence.getByRole("button", { name: "Ferienbrief herunterladen" }),
+    ).toHaveTextContent("Herunterladen");
   });
 });

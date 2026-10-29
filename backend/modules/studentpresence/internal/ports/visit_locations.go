@@ -27,5 +27,6 @@ type VisitLocationStore interface {
 	CountOpenVisitsInGroup(context.Context, int64) (int, Stats, error)
 	CountOpenVisitsInGroupWithRevision(context.Context, int64) (int, int64, Stats, error)
 	CountOpenVisitsInRoom(context.Context, int64) (int, Stats, error)
+	CountOpenVisitsInRoomWithRevision(context.Context, int64) (int, int64, Stats, error)
 	ListOpenVisitRooms(context.Context, int64) ([]studentpresence.OpenVisitRoom, Stats, error)
 }

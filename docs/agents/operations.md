@@ -98,6 +98,13 @@ previously managed native app processes, then starts only the selected apps.
 All modes keep Postgres and Mailpit; frontend-only mode skips Go and migrations
 and expects a separately running backend for API calls. Backend children default
 to `GOFLAGS=-p=4` and `GOMAXPROCS=4`, preserving explicit caller values.
+`down` captures both managed process trees before sending TERM and waits up to
+ten seconds for them to exit, including children whose launcher exits first.
+On timeout it returns an error without forcing KILL. A persisted shutdown
+snapshot tracks surviving children across retries, even if the supervisor
+removes the launcher PID files; start times guard against reused PIDs.
+Chain cache cleanup or a restart with `&&` so a failed stop blocks both.
+The same stop gate runs before `up` replaces apps or `docker` starts Compose apps.
 After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
@@ -105,13 +112,160 @@ machines run one at a time ([low-memory machines](../development-environment.md#
 
 ### Worktrees
 
-`wt add <issue|branch>` creates a worktree with copied local files (`.env`,
-`backend/dev.env`, `frontend/.env.local`, `docker-compose.yml`, the Postgres
-certificates), rewritten host ports, an isolated Compose project, and the
-frozen frontend dependencies; see `.wtconfig`. `wt doctor` inside a worktree
-lists ignored files the worktree lacks and leased ports that the shell or
-`.envrc` shadows. `wt remove` tears down the worktree's Compose project and
-its `project-phoenix-testdb-<port>` test server, including volumes.
+#### New managed worktree
+
+Run `wt add <issue|branch>` from a configured source checkout. With `.wtconfig`,
+it copies `.env`, `backend/dev.env`, `frontend/.env.local`, `docker-compose.yml`
+and `config/ssl/postgres/certs/` from that checkout, leases host ports, writes
+`COMPOSE_PROJECT_NAME` and `.wt.env`, and runs `devbox run bootstrap`.
+Bootstrap installs frozen frontend dependencies and generates route types;
+it does not create runtime configuration or certificates. If the source lacks
+these, initialize it first using `scripts/setup-dev.sh` (interactive, prints
+credentials; keep its output private). That script preserves existing files
+but does not isolate worktree ports or networks.
+
+`wt doctor` checks **managed** worktrees for missing ignored files, blocked
+direnv activation and leased ports shadowed by the shell or `.envrc`. It
+reports problems; it neither repairs configuration nor adopts another tool's
+worktree. `devbox run doctor` checks development tools and dependencies, not
+worktree isolation. Keep machine-wide env files free of ports and URLs that
+override the worktree's values; check the effective shell with `wt doctor`.
+
+**Before starting services:** `wt` copies the local Compose file, including
+any explicit `networks.*.ipam.config[].subnet`, fixed network name or external
+network. A separate project name does not isolate an explicit subnet. For a
+new, unused target, use `cp docker-compose.example.yml docker-compose.yml`
+inside that target to select the tracked template's project-scoped networks
+and Docker-assigned subnets. This discards copied Compose customizations only
+in the target; review any needed changes before reapplying them. Do not copy
+the source's fixed subnet back. Keep the source configuration and network intact.
+`docker compose config --quiet` validates the target without printing env
+contents; it does not prove that published ports are free or networks can start.
+
+If Docker reports `all predefined address pools have been fully subnetted`,
+the automatic address pool is exhausted. This differs from an overlapping
+copied subnet: changing the project name or removing fixed IPAM does not free
+address space. First check for [your own orphaned networks](#orphaned-worktree-networks);
+leave networks with uncertain ownership intact. Inspect allocated subnets
+without env contents:
+
+```bash
+docker network inspect $(docker network ls -q) \
+  --format '{{range .IPAM.Config}}{{println .Subnet}}{{end}}'
+```
+
+Also check host/VPN routes (`netstat -rn` on macOS, `ip route` on Linux).
+Choose an unused private subnet that overlaps neither those routes nor any
+Docker subnet, including the source's. Add it only to the new target's
+`docker-compose.yml`, for example the following **after checking the example
+range is free**:
+
+```yaml
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.253.231.0/24
+```
+
+Validate with `docker compose config --quiet`, then
+`docker compose create --pull never postgres` to check network creation
+without starting the database (requires the template's Postgres image locally;
+this also creates the target's container and volume). If allocation fails,
+check the chosen range again; do not remove other projects' networks. This
+explicit range belongs to this target only, not to a reusable source config.
+
+#### Existing T3 or agent worktree without configuration
+
+`wt 0.4.0` has no import/adopt command. `wt doctor` rejects an unmanaged
+worktree, and `wt add` cannot check out a branch already used there. Preserve
+that worktree and continue in a new managed sibling:
+
+1. In the existing worktree, inspect `git status --short --branch`. Commit
+   only the work intended for the sibling, then create a free branch at that
+   commit: `git branch work/5303-managed-setup HEAD` (choose your own name).
+   Uncommitted and untracked files stay in the original, are not copied by
+   `wt`, and must be transferred deliberately if needed. Do not reset, clean
+   or delete the original worktree.
+2. Change to a configured source checkout, normally the main checkout, and
+   run `wt add --no-bootstrap work/5303-managed-setup`. Use the path it prints.
+   The existing branch carries the saved commits; the source supplies local
+   configuration, not code. `--no-bootstrap` postpones dependency setup, not
+   the copy or port allocation. It starts no app services.
+   If `wt` requires command trust, review `.wtconfig`'s bootstrap and teardown
+   before running `wt trust --yes` in the source and retrying.
+3. In the new target, before any start, run
+   `cp docker-compose.example.yml docker-compose.yml`, then
+   `docker compose config --quiet`. This is the subnet-free alternative above,
+   including when the source uses a fixed subnet and remains running. Keep
+   the copied env files, certificates and generated `.wt.env`; do not replace
+   them with the source's ports or Compose identity. If default address pools
+   are exhausted, use the checked target-only subnet fallback above.
+4. Run `devbox run bootstrap`, `devbox run doctor` and `wt doctor` in the
+   target. Resolve reported missing files or shadowed ports before starting
+   the smallest [native mode](#native-dev-loop) needed. No production API
+   request is part of setup. Reopen the editor/agent at the new path; the
+   original T3 thread remains bound to its original checkout.
+
+Keep the original worktree, its changes, services and persistent data until
+their owner decides otherwise. `wt remove` runs `.wtconfig` teardown, which
+deletes the managed target's Compose and test-server volumes; it is not an
+adoption or harmless handoff step. Never prune or remove another worktree's
+networks or volumes to make setup succeed.
+
+For **tests only**, no app setup or sibling is needed: supply `TEST_DB_DSN`
+through a private process environment, pointing to a local test server, then
+run the relevant tests through `scripts/run-go-toolchain.sh`. Do not write the
+DSN into tracked files or print it. The test lifecycle uses the tracked
+`docker-compose.example.yml` and derives its project and port from that DSN;
+it does not need a copied `.env` or `docker-compose.yml`. Starting a new test
+server still needs Docker address space. Use only a test server, never the app
+database; servers on the same port are shared, not owned by one worktree.
+
+#### Local env and Compose drift
+
+Ignored local files do not update when their templates change. `wt` copies
+that drift too, and `scripts/setup-dev.sh` skips existing files. Missing env
+keys, stale service wiring and healthchecks are configuration drift, not proof
+of either subnet overlap or pool exhaustion. Native mode still starts Compose
+infrastructure, so it does not bypass either network failure.
+
+Compare required key names with the matching templates in the
+[env-sync inventory](../../.claude/rules/env-docker-sync.md#file-inventory),
+and reconcile missing keys privately without replacing existing secrets or
+leased ports. For a new, unused target, select the tracked Compose template as
+above; preserve customizations and persistent data in an already-used checkout.
+`docker compose config --quiet` checks syntax and interpolation, not template
+parity or network availability. Do not print env values, full resolved Compose
+configuration or secret-bearing diffs into logs or PR evidence.
+
+#### Orphaned worktree networks
+
+An empty network alone does not prove it is disposable. Confirm that the
+project belongs to your completed task and no other session or worktree needs
+it. Inspect only network metadata and container identities, not container
+environments. Filter by the exact network **name**, not its ID: never-started
+`Created` containers can have an empty `NetworkID` and be absent from both
+the ID-filtered container list and the network's endpoint map.
+
+```bash
+docker network ls --filter label=com.docker.compose.project
+# Set network_id to one confirmed task-owned candidate from the list.
+network_name=$(docker network inspect "$network_id" --format '{{.Name}}')
+docker network inspect "$network_id" \
+  --format '{{.Name}} {{json .Labels}} {{json .IPAM.Config}} {{json .Containers}}'
+docker ps -a --filter "network=$network_name" --format '{{.ID}} {{.Names}} {{.Status}}'
+```
+
+If that task still has containers, stop and remove only its disposable
+containers using its recorded project/configuration; preserve volumes and
+databases. Repeat the name-based `docker ps -a` check above, including
+`Created` and `Exited` containers. Only when it returns no containers, remove
+that one network with `docker network rm "$network_id"`. Verify its absence and
+that other projects remain available. Do not disconnect foreign containers,
+use blanket `docker network prune`/`docker system prune`, or delete volumes.
+If ownership or use is uncertain, keep it and use the checked target-only
+subnet fallback above instead.
 
 The seeder is **dev-only**. Staging/production infrastructure belongs in data
 migrations or the admin UI, never the seeder. The one deployed exception is the
@@ -122,6 +276,20 @@ in the dev tools binary `cmd/devtools` (ADR 0060): run them with
 `go run ./cmd/devtools <cmd>`. The production image does not contain it; only
 the demo image does. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
+
+Local `vollbetrieb` seeds against localhost also create the separate role and
+account `nachbearbeitung-ohne-planung` (#5300). Find its login in
+`backend/.seed-state.json`, under
+`profiles.vollbetrieb.credentials.accounts.local` (key
+`nachbearbeitung-ohne-planung`); do not publish that credential file. It reuses
+the existing staff seed password, including `--staff-password`. The account can
+open enrollment follow-up work, correct offerings, and read the care plan
+(`config:manage`, `schedules:list`, `schedules:read`), but has no planning writes
+or wildcard permissions. After an offering correction, check both a manually
+maintained list and a class/year/group-based recurring activity: the impact
+remains readable, while “Mit Angebot verbinden” and manual removal are absent.
+The standing/visitor demo seeds and remote targets create neither this account
+nor its role; the public demo role switch and its two reduced roles stay unchanged.
 
 Seed and simulation commands keep refresh sessions in `.seed-sessions/` in
 their working directory (normally `backend/`, gitignored, private files).

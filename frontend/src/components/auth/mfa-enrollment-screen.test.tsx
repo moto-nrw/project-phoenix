@@ -105,13 +105,10 @@ describe("MFAEnrollmentScreen", () => {
   });
 
   it("auto-submits enroll/confirm when 6 digits are entered and shows the success screen", async () => {
-    // Post-#1430: confirm now returns a full session token pair (instead
-    // of 204). The screen stashes them and hands them to onComplete so
-    // the caller can seed NextAuth.
+    // Tenant confirmation installs the session in the BFF and returns status.
     const startMock = mockResponse(204, null);
     const confirmMock = mockResponse(200, {
-      access_token: "enroll-access",
-      refresh_token: "enroll-refresh",
+      status: "authenticated",
     });
     let callCount = 0;
     global.fetch = vi.fn(
@@ -161,10 +158,38 @@ describe("MFAEnrollmentScreen", () => {
     );
     await waitFor(() => {
       expect(onComplete).toHaveBeenCalledWith({
-        access_token: "enroll-access",
-        refresh_token: "enroll-refresh",
+        status: "authenticated",
       });
     });
+  });
+
+  it("keeps a failed final session read visible and allows Continue to retry", async () => {
+    global.fetch = vi.fn(async (url) =>
+      String(url).endsWith("/start")
+        ? new Response(null, { status: 204 })
+        : Response.json({ status: "authenticated" }),
+    );
+    const onComplete = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("metadata unavailable"))
+      .mockResolvedValueOnce(undefined);
+    render(<MFAEnrollmentScreen {...props} onComplete={onComplete} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Code an meine E-Mail senden" }),
+    );
+    fireEvent.change(await screen.findByLabelText("Stelle 1"), {
+      target: { value: "123456" },
+    });
+    await screen.findByRole("heading", { name: "2FA erfolgreich aktiviert" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zum Dashboard" }),
+    );
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(onComplete).toHaveBeenCalledWith({ status: "authenticated" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zum Dashboard" }),
+    );
+    await waitFor(() => expect(onComplete).toHaveBeenCalledTimes(2));
   });
 
   it("keeps a refused confirmation code in the form", async () => {

@@ -7,7 +7,7 @@ const { signOut, mutate, clearSessionCache, unsubscribePushSilently } =
     clearSessionCache: vi.fn(),
     unsubscribePushSilently: vi.fn(),
   }));
-vi.mock("next-auth/react", () => ({ signOut }));
+vi.mock("~/lib/tenant-session-cookie", () => ({ signOutTenant: signOut }));
 vi.mock("~/lib/swr", () => ({ mutate }));
 vi.mock("~/lib/session-cache", () => ({
   clearSessionCache,
@@ -76,9 +76,12 @@ describe("target-school reauthentication", () => {
     expect(signOut).not.toHaveBeenCalled();
     revoke(new Response("{}"));
     await vi.waitFor(() =>
-      expect(signOut).toHaveBeenCalledWith({
-        callbackUrl: "http://school-b.mfa.localhost:13845/",
-      }),
+      expect(signOut).toHaveBeenCalledWith(
+        {
+          callbackUrl: "http://school-b.mfa.localhost:13845/",
+        },
+        expect.any(AbortSignal),
+      ),
     );
     expect(window.location.href).toBe(
       "http://school-a.mfa.localhost:13845/home",
@@ -158,9 +161,12 @@ describe("target-school reauthentication", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
     mutate.mockRejectedValueOnce(new Error("cache cleanup failed"));
     await reloginAtTenant("school-b");
-    expect(signOut).toHaveBeenCalledWith({
-      callbackUrl: "http://school-b.mfa.localhost:13845/",
-    });
+    expect(signOut).toHaveBeenCalledWith(
+      {
+        callbackUrl: "http://school-b.mfa.localhost:13845/",
+      },
+      expect.any(AbortSignal),
+    );
     expect(window.location.href).toBe("http://school-b.mfa.localhost:13845/");
   });
 });

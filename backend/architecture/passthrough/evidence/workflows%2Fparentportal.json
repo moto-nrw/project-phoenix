@@ -37,7 +37,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p *Portal) GetChildConversation(ctx context.Context, accountID, studentID int64) (*MessageThreadView, error) {\n\treturn p.MessagingFlows.GetChildConversation(ctx, accountID, studentID)\n}",
+      "evidence": "func (p *Portal) GetChildConversation(ctx context.Context, accountID, studentID int64, audience ...string) (*MessageThreadView, error) {\n\treturn p.MessagingFlows.GetChildConversation(ctx, accountID, studentID, audience...)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/Portal.GetChildConversation",
       "owner": "workflows/parentportal"
@@ -114,15 +114,15 @@
     },
     {
       "build": "production",
-      "evidence": "func (p *Portal) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {\n\treturn p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body, 0)\n}",
-      "form": "unclassified-evidence",
+      "evidence": "func (p *Portal) PostChildMessage(ctx context.Context, accountID, studentID int64, body string) (*MessageThreadView, error) {\n\treturn p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body)\n}",
+      "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/Portal.PostChildMessage",
       "owner": "workflows/parentportal"
     },
     {
       "build": "production",
-      "evidence": "func (p *Portal) PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64) (*MessageThreadView, error) {\n\treturn p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body, groupThreadID)\n}",
-      "form": "unchanged-forward-evidence",
+      "evidence": "func (p *Portal) PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64, audience ...string) (*MessageThreadView, error) {\n\ttarget := MessageTarget{GroupThreadID: groupThreadID}\n\tif len(audience) \u003e 0 {\n\t\ttarget.Audience = audience[0]\n\t}\n\treturn p.MessagingFlows.PostChildMessage(ctx, accountID, studentID, body, target)\n}",
+      "form": "unclassified-evidence",
       "id": "workflows/parentportal/Portal.PostChildReply",
       "owner": "workflows/parentportal"
     },
@@ -387,14 +387,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (p conversationCoreBinding) Broadcast(tenantID int64, guardianAccountID int64, threadID int64, studentID int64) {\n\tp.callbacks.Broadcast(tenantID, guardianAccountID, threadID, studentID)\n}",
+      "evidence": "func (p conversationCoreBinding) Broadcast(tenantID int64, guardianAccountID int64, threadID int64, studentID int64, audience string) {\n\tp.callbacks.Broadcast(tenantID, guardianAccountID, threadID, studentID, audience)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/conversationCoreBinding.Broadcast",
       "owner": "workflows/parentportal"
     },
     {
       "build": "production",
-      "evidence": "func (p conversationCoreBinding) BroadcastRead(tenantID int64, guardianAccountID int64, threadID int64, studentID int64) {\n\tp.callbacks.BroadcastRead(tenantID, guardianAccountID, threadID, studentID)\n}",
+      "evidence": "func (p conversationCoreBinding) BroadcastRead(tenantID int64, guardianAccountID int64, threadID int64, studentID int64, audience string) {\n\tp.callbacks.BroadcastRead(tenantID, guardianAccountID, threadID, studentID, audience)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/conversationCoreBinding.BroadcastRead",
       "owner": "workflows/parentportal"
@@ -404,6 +404,13 @@
       "evidence": "func (p conversationCoreBinding) DecorateReadReceipts(ctx context.Context, threadID int64, otherAccountID int64, messages []*messaging.ParentMessage) {\n\tp.callbacks.DecorateReadReceipts(ctx, threadID, otherAccountID, messages)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/conversationCoreBinding.DecorateReadReceipts",
+      "owner": "workflows/parentportal"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p conversationCoreBinding) LeadershipOption(ctx context.Context, namesWhenOff bool) (messaging.LeadershipOption, error) {\n\tif p.callbacks.LeadershipOption == nil {\n\t\treturn messaging.LeadershipOption{}, nil\n\t}\n\treturn p.callbacks.LeadershipOption(ctx, namesWhenOff)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "workflows/parentportal/conversationCoreBinding.LeadershipOption",
       "owner": "workflows/parentportal"
     },
     {
@@ -898,14 +905,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (p messageThreadAccessBinding) FindByStudentGuardian(ctx context.Context, studentID int64, guardianAccountID int64) (*messaging.ParentMessageThread, error) {\n\treturn p.callbacks.FindByStudentGuardian(ctx, studentID, guardianAccountID)\n}",
+      "evidence": "func (p messageThreadAccessBinding) FindByStudentGuardian(ctx context.Context, studentID int64, guardianAccountID int64, audience string) (*messaging.ParentMessageThread, error) {\n\treturn p.callbacks.FindByStudentGuardian(ctx, studentID, guardianAccountID, audience)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/messageThreadAccessBinding.FindByStudentGuardian",
       "owner": "workflows/parentportal"
     },
     {
       "build": "production",
-      "evidence": "func (p messageThreadAccessBinding) GetOrCreate(ctx context.Context, tenantID int64, studentID int64, guardianAccountID int64) (*messaging.ParentMessageThread, error) {\n\treturn p.callbacks.GetOrCreate(ctx, tenantID, studentID, guardianAccountID)\n}",
+      "evidence": "func (p messageThreadAccessBinding) GetOrCreate(ctx context.Context, tenantID int64, studentID int64, guardianAccountID int64, audience string) (*messaging.ParentMessageThread, error) {\n\treturn p.callbacks.GetOrCreate(ctx, tenantID, studentID, guardianAccountID, audience)\n}",
       "form": "unchanged-forward-evidence",
       "id": "workflows/parentportal/messageThreadAccessBinding.GetOrCreate",
       "owner": "workflows/parentportal"

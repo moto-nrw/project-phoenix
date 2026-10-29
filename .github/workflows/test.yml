@@ -30,6 +30,10 @@ on:
       full-backend-suite:
         type: boolean
         required: true
+      backend-race:
+        description: Instrument backend tests for the nightly full race run
+        type: boolean
+        default: false
       full-frontend-suite:
         type: boolean
         required: true
@@ -100,7 +104,7 @@ jobs:
           printf '%s\n' "$matrix" | jq '.include | map({shard, runner, packages: (.packages | split("\n") | map(select(length > 0)) | length)})'
 
   test-backend:
-    name: Backend tests (${{ matrix.shard }})
+    name: Backend tests${{ inputs.backend-race && ' with race detector' || '' }} (${{ matrix.shard }})
     needs: plan-backend
     if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
     strategy:
@@ -110,6 +114,9 @@ jobs:
       # budgets, without mixing architecture/migrations into application work.
       matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}') }}
     runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
+    # Instrumented builds and tests need more headroom than ordinary runs.
+    # Keep the default Actions limit unchanged for non-race callers.
+    timeout-minutes: ${{ inputs.backend-race && 60 || 360 }}
     env:
       # Keep sibling package clones in one run, as the local test wrappers do.
       # Generation GC must not collect them while this shard is still running.
@@ -178,7 +185,7 @@ jobs:
       - name: Compute backend build cache key
         id: build-cache-key
         env:
-          BACKEND_CACHE_PREFIX: backend-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ matrix.shard }}-${{ hashFiles('backend/go.sum', 'scripts/backend-architecture/go.sum') }}-
+          BACKEND_CACHE_PREFIX: backend-build${{ inputs.backend-race && '-race' || '' }}-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ matrix.shard }}-${{ hashFiles('backend/go.sum', 'scripts/backend-architecture/go.sum') }}-
           BACKEND_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'scripts/backend-architecture/**/*.go', 'scripts/backend-test-matrix.sh') }}
         run: |
           echo "prefix=$BACKEND_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
@@ -306,6 +313,7 @@ jobs:
           PACKAGE_WORKERS: ${{ matrix.workers || 6 }}
           FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
           SHARD_INDEX: ${{ matrix.shard }}
+          BACKEND_RACE: ${{ inputs.backend-race }}
         run: |
           if [ "$FULL_SUITE" = true ]; then
             # Known full runs start immediately, without a planning runner.
@@ -323,17 +331,45 @@ jobs:
           fi
           echo "Running ${#packages[@]} selected Go packages"
 
+          race_flags=()
+          measure=()
+          if [ "$BACKEND_RACE" = true ]; then
+            export CGO_ENABLED=1
+            "$(go env CC)" --version
+            race_flags=(-race -timeout=20m)
+            # Race instrumentation increases memory per package. Retain the
+            # existing four shards and parallel tests, but limit each runner
+            # to two package builds/binaries and their package-owned DB clones.
+            PACKAGE_WORKERS=2
+            measure=(/usr/bin/time -v -o "$RUNNER_TEMP/backend-race-resources.txt")
+            nproc
+            free -m
+          fi
+
           # Single pass produces junit.xml. No retries: flaky tests should fail
-          # loudly, not be hidden.
-          go tool gotestsum --format pkgname-and-test-fails \
-            --junitfile junit.xml -- -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+          # loudly, not be hidden. gotestsum propagates race/test failures.
+          "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
+            --junitfile junit.xml -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+
+      - name: Summarize race test resources
+        if: ${{ always() && inputs.backend-race }}
+        run: |
+          if [ -f "$RUNNER_TEMP/backend-race-resources.txt" ]; then
+            {
+              echo '### Backend race run (shard ${{ matrix.shard }})'
+              echo 'GNU time maximum RSS is the largest process, not aggregate runner memory.'
+              echo '```text'
+              cat "$RUNNER_TEMP/backend-race-resources.txt"
+              echo '```'
+            } | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Publish backend test results
         uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
         if: ${{ always() && hashFiles('backend/junit.xml') != '' }}
         with:
           report_paths: backend/junit.xml
-          check_name: Backend Test Results (${{ matrix.shard }})
+          check_name: Backend Test Results${{ inputs.backend-race && ' with race detector' || '' }} (${{ matrix.shard }})
           include_passed: false
           detailed_summary: true
 

@@ -20,5 +20,19 @@
   "emptyThreadDescription": "Напишите первое сообщение в продлёнку.",
   "errorObjectConversation": "переписка",
   "errorObjectMessage": "сообщение",
-  "errorObjectList": "список переписок"
+  "errorObjectList": "список переписок",
+  "ogsLeadership": "Руководство OGS {school}",
+  "audienceLabel": "Кому вы пишете?",
+  "audienceTeam": "Вся команда OGS",
+  "audienceTeamUnread": "Вся команда OGS ({count} новых)",
+  "audienceLeadership": "Только руководство",
+  "audienceLeadershipUnread": "Только руководство ({count} новых)",
+  "readersTeam": "Читать могут: вы и все сотрудники OGS.",
+  "readersLeadership": "Читать могут: вы и руководство: {names}",
+  "readersLeadershipUnnamed": "Читать могут: вы и руководство OGS.",
+  "composerPlaceholderLeadership": "Написать сообщение руководству",
+  "emptyLeadershipDescription": "Напишите первое сообщение руководству. Другие сотрудники его не видят.",
+  "leadershipUnstaffed": "Сейчас никто из руководства это не читает. Пожалуйста, напишите всей команде OGS.",
+  "leadershipUnavailable": "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
+  "readersUnnamedLeader": "администрация школы"
 }

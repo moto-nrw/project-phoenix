@@ -20,6 +20,7 @@ const deviation: RosterDeviation = {
   unbookedCount: 8,
   missingCount: 0,
   candidates: [{ id: "3", name: "Randstunde" }],
+  ambiguous: false,
 };
 
 describe("describeRosterDeviation", () => {
@@ -49,6 +50,22 @@ describe("describeRosterDeviation", () => {
       "Weicht von Anmeldungen ab: 2 angemeldete Kinder fehlen · passt zu „Randstunde“",
     );
   });
+
+  it("names every fitting offering and no count when several fit equally (#5138)", () => {
+    expect(
+      describeRosterDeviation({
+        ...deviation,
+        candidates: [
+          { id: "4", name: "Ganztag" },
+          { id: "3", name: "Randstunde" },
+          { id: "5", name: "Spätbetreuung" },
+        ],
+        ambiguous: true,
+      }),
+    ).toBe(
+      "Weicht von Anmeldungen ab: passt zu „Ganztag“, „Randstunde“ oder „Spätbetreuung“",
+    );
+  });
 });
 
 describe("mapRosterDeviations", () => {
@@ -68,6 +85,21 @@ describe("mapRosterDeviations", () => {
         ],
       }),
     ).toEqual([deviation]);
+    expect(
+      mapRosterDeviations({
+        deviations: [
+          {
+            template_id: 7,
+            offering: { id: 3, name: "Randstunde" },
+            school_classes: ["1a"],
+            unbooked_count: 8,
+            missing_count: 0,
+            candidates: [{ id: 3, name: "Randstunde" }],
+            ambiguous: true,
+          },
+        ],
+      })[0]?.ambiguous,
+    ).toBe(true);
     expect(mapRosterDeviations({ deviations: null })).toEqual([]);
   });
 });

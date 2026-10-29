@@ -14,14 +14,21 @@ function render(ui: React.ReactElement) {
 }
 
 // Mock dependencies
-const { mockPush, mockRedirect, mockSignIn, mockSignOut, mockUseSession } =
-  vi.hoisted(() => ({
-    mockPush: vi.fn(),
-    mockRedirect: vi.fn(),
-    mockSignIn: vi.fn(),
-    mockSignOut: vi.fn(),
-    mockUseSession: vi.fn(),
-  }));
+const {
+  mockPush,
+  mockRedirect,
+  mockSignIn,
+  mockSignOut,
+  mockUseSession,
+  mockUpdate,
+} = vi.hoisted(() => ({
+  mockUpdate: vi.fn(),
+  mockPush: vi.fn(),
+  mockRedirect: vi.fn(),
+  mockSignIn: vi.fn(),
+  mockSignOut: vi.fn(),
+  mockUseSession: vi.fn(),
+}));
 
 const originalFetch = global.fetch;
 
@@ -42,8 +49,6 @@ function mockAuthenticatedResponse(): typeof global.fetch {
     status: "success",
     data: {
       status: "authenticated",
-      access_token: "access-token",
-      refresh_token: "refresh-token",
     },
     message: "Login successful",
   });
@@ -97,7 +102,9 @@ describe("OperatorLoginPage", () => {
     mockUseSession.mockReturnValue({
       status: "unauthenticated",
       data: null,
+      update: mockUpdate,
     });
+    mockUpdate.mockResolvedValue(undefined);
     global.fetch = mockAuthenticatedResponse();
   });
 
@@ -142,12 +149,8 @@ describe("OperatorLoginPage", () => {
       );
     });
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith("operator-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access-token",
-        refreshToken: "refresh-token",
-      });
+      expect(mockPush).toHaveBeenCalledWith("/operator/organizations");
+      expect(mockSignIn).not.toHaveBeenCalled();
     });
   });
 
@@ -184,11 +187,11 @@ describe("OperatorLoginPage", () => {
   });
 
   it("shows loading state during authentication", async () => {
-    let resolveSignIn: (value: { error: null }) => void = () => undefined;
-    mockSignIn.mockImplementation(
+    let resolveUpdate: (value: { error: null }) => void = () => undefined;
+    mockUpdate.mockImplementation(
       () =>
         new Promise((resolve) => {
-          resolveSignIn = resolve;
+          resolveUpdate = resolve;
         }),
     );
 
@@ -207,7 +210,7 @@ describe("OperatorLoginPage", () => {
     });
 
     await act(async () => {
-      resolveSignIn({ error: null });
+      resolveUpdate({ error: null });
     });
 
     await waitFor(() => {
@@ -280,6 +283,7 @@ describe("OperatorLoginPage", () => {
     mockUseSession.mockReturnValue({
       status: "loading",
       data: null,
+      update: mockUpdate,
     });
 
     render(<OperatorLoginPage />);
@@ -314,12 +318,8 @@ describe("OperatorLoginPage", () => {
       );
     });
     await waitFor(() => {
-      expect(mockSignIn).toHaveBeenCalledWith("operator-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access-token",
-        refreshToken: "refresh-token",
-      });
+      expect(mockPush).toHaveBeenCalledWith("/operator/organizations");
+      expect(mockSignIn).not.toHaveBeenCalled();
     });
   });
 
@@ -395,8 +395,8 @@ describe("OperatorLoginPage", () => {
     });
   });
 
-  it("shows a failed session seed on the shared path", async () => {
-    mockSignIn.mockResolvedValue({ error: "CredentialsSignin" });
+  it("shows a failed BFF session creation on the shared path", async () => {
+    global.fetch = mockOperatorFetchResponse(500, { code: "general.server" });
 
     render(<OperatorLoginPage />);
     fireEvent.click(screen.getByRole("button", { name: /Anmelden/i }));
@@ -407,6 +407,49 @@ describe("OperatorLoginPage", () => {
       );
     });
     expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("keeps the MFA form visible if the safe session refresh fails after confirmation", async () => {
+    global.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: {
+              status: "mfa_required",
+              challenge_token: "challenge",
+              masked_email: "a***@example.test",
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            status: "success",
+            data: { status: "authenticated" },
+          }),
+          { status: 200 },
+        ),
+      );
+    mockUpdate.mockRejectedValueOnce(new Error("safe session read failed"));
+    render(<OperatorLoginPage />);
+    fireEvent.click(screen.getByRole("button", { name: /Anmelden/i }));
+    expect(
+      await screen.findByRole("heading", { name: "Code-Eingabe" }),
+    ).toBeInTheDocument();
+    const inputs = screen.getAllByRole("textbox");
+    fireEvent.change(inputs[0]!, { target: { value: "123456" } });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.server", "die Prüfung des Codes"),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Code-Eingabe" }),
+    ).toBeInTheDocument();
+    expect(mockPush).not.toHaveBeenCalled();
+    expect(mockSignIn).not.toHaveBeenCalled();
   });
 
   it("explains an expired session from the URL", () => {

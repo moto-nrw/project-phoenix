@@ -105,7 +105,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group's `<legend>` ends in `RequiredMark`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
 | Checkbox | `Checkbox` — brand-green (`#83CD2D`) checked state; wrap in your own `<label>` for the row | `~/components/ui/checkbox` |
 | Consent or confirmation a person ticks (Einwilligung, „verbindlich“) | `ConsentCheckbox` — `required`, `error`, `action` for the legal text button; both public Anmeldungen use it | `~/components/ui/consent-checkbox` |
-| Inline alert / banner | `Alert` (`type`, `message`) | `~/components/ui/alert` |
+| Inline alert / banner (one notice) | `Alert` (`type`, `message`); several notices of the same kind follow [Several notices of the same kind](#several-notices-of-the-same-kind) | `~/components/ui/alert` |
+| Rows with their own actions in a desktop column | `ResponsiveActionList` | `~/components/ui/responsive-action-list` |
 | Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
 | Modal dialog | `Modal`, `ConfirmationModal` | `~/components/ui/modal` |
 | Form inside a modal | `FormModal` | `~/components/ui/form-modal` |
@@ -142,6 +143,23 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
 
 If none fits, see **Kit gaps** below — extend the kit, don't inline a one-off.
+
+## Several notices of the same kind
+
+Use when one screen shows two or more notices of the same kind, each about its own object (offerings without a Regeltermin, Regeltermine the system did not adjust). One notice stays an `Alert`; notices of different kinds keep their own block.
+
+Build it from existing kit parts, as Tristan Heitger and Florian (`fl0r14n28`) set them up; add no wrapper component:
+
+1. **One neutral section.** A `SectionCard` holds all entries as rows in `ResponsiveActionList` (`divide-y divide-gray-100`). Colour stays on the icon (`leading`) and on a count that names a fact („3 offen“); the rows are white, never one coloured `Alert` per entry.
+2. **Actions in one flush column.** From `sm` on, every row's actions start at the same place (rows take `sm:col-span-2 sm:grid sm:grid-cols-subgrid`); below `sm` they sit under the text, side by side from 480 px and one per line below. Actions of equal rank look the same: `Button` or, for navigation, `ButtonLink`, both `variant="surface" size="compact"`, with an `aria-label` naming the row's object. A text link next to a button is no equal-rank action.
+3. **Shared text once.** A hint that applies to several rows stands once above the list, also when only one row needs it, never repeated per row.
+4. **Only concrete labels.** Show what OGS staff can act on (name, children, days). Skip markers or badges that carry no concrete information.
+5. **Long lists fold.** More than 5 open rows: show the first 5 and a `ghost` button „N weitere anzeigen“ / „Weniger anzeigen“ with `aria-expanded`. Decided or done entries go into a second `SectionCard` with `collapsible defaultCollapsed`.
+6. **Load error stays small.** `LoadErrorAlert` with `actionLayout="responsive"` puts „Wiederholen“ right of the message from `sm` on and under it on a phone; never an empty list instead of the error. Exceptions in [`form-error-alert.tsx`](../../frontend/src/components/ui/form-error-alert.tsx): an error with a request ID stays `stacked` (retry and ID under the message), a retry shows only when the error carries one, and a module the school did not book shows its explanation without a retry.
+
+Reference implementations: [`offering-gap-hints.tsx`](../../frontend/src/components/timetable/offering-gap-hints.tsx) (#5181, all six points) and [`care-plan-impact.tsx`](../../frontend/src/components/students/care-plan-impact.tsx) (#5298, shared hint above the list, equal `surface compact` buttons).
+
+Review check: with two or more entries that carry actions, the screen shows one card, no `Alert` per entry, a flush action column from `sm` on, actions under the text below `sm`, and no repeated hint text. The before/after pairs for desktop and phone follow [Before/After Screenshots](../../frontend/CLAUDE.md#beforeafter-screenshots-for-ui-changes-mandatory).
 
 ## Canonical values
 

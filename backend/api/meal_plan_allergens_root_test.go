@@ -23,7 +23,7 @@ func checkMealPlanAllergens(t *testing.T, api *goldenRuntime) {
 	tenantID := testpkg.Tenant(t)
 	testpkg.SetTestTenantSetting(t, db, tenantID, "operations.meal_plan_enabled", "true")
 	_, admin := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Küche", "Leitung")
-	adminToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(admin.ID), tenantID))
+	adminToken := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(admin.ID), tenantID))
 	send := func(token, method, path, body string) (int, string) {
 		response := checkpointRequest(api, checkpointScenario{Method: method, Path: path, Authenticated: true, Body: body}, token)
 		return response.Code, response.Body.String()
@@ -59,7 +59,7 @@ func checkMealPlanAllergens(t *testing.T, api *goldenRuntime) {
 		_, guest := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Gast", "Konto")
 		claims := testutil.TenantUserTestClaims(int(guest.ID), tenantID, granted...)
 		claims.Roles = []string{identityaccess.GuestRoleName}
-		status, body := send(testutil.MintTestJWT(t, claims), http.MethodPut, day, `{"dishes":[{"dish":"Suppe","allergens":["celery"]}]}`)
+		status, body := send(testpkg.MintLiveSessionJWT(t, db, claims), http.MethodPut, day, `{"dishes":[{"dish":"Suppe","allergens":["celery"]}]}`)
 		require.Equal(t, http.StatusForbidden, status, body)
 		assert.Contains(t, body, `"code":"general.`, "the refusal carries a registered code")
 	})
@@ -68,7 +68,7 @@ func checkMealPlanAllergens(t *testing.T, api *goldenRuntime) {
 		other := testpkg.NewTenantScope(t, db).TenantID
 		testpkg.SetTestTenantSetting(t, db, other, "operations.meal_plan_enabled", "true")
 		_, otherAdmin := testpkg.CreateTestStaffWithAccountForTenant(t, db, other, "Andere", "Schule")
-		otherToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(otherAdmin.ID), other))
+		otherToken := testpkg.MintLiveSessionJWT(t, db, testutil.AdminTestClaimsForTenant(int(otherAdmin.ID), other))
 		status, body := send(otherToken, http.MethodGet, week, "")
 		require.Equal(t, http.StatusOK, status, body)
 		assert.NotContains(t, body, "Fischstäbchen")

@@ -84,6 +84,8 @@ type Seeder struct {
 	statePath  string
 	profile    string
 	definition demoProfileDefinition
+
+	localCarePlanAccount *AccountCredentials
 }
 
 // SeedResult contains counts of created entities
@@ -565,6 +567,9 @@ func makeBootstrapSeedState(bootstrap *bootstrapSeedState) SeedStateBootstrap {
 }
 
 func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
+	if s.localCarePlanAccount != nil {
+		state.Accounts.Local = append(state.Accounts.Local, *s.localCarePlanAccount)
+	}
 	groupKeys := []string{
 		"sternengruppe", "bärengruppe", "sonnengruppe", "mondgruppe",
 		"regenbogengruppe", "blumengruppe", "schmetterlingsgruppe",

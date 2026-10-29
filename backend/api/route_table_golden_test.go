@@ -402,12 +402,14 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		require.NotNil(t, runtime.worker)
 		handler, ok := runtime.Handler().(*serveHandler)
 		require.True(t, ok)
+		testpkg.AdoptPrivatePool(t, runtime.db.Pool()) // before any request or Worker uses the pool
 		api := &goldenRuntime{handler: handler, router: handler.router, db: runtime.db}
 		if *runtimeCheckpointOutput != "" {
 			measureRuntimeCheckpoint(t, runtime)
 		}
 		// Wait for parallel contract subtests before WithRuntime closes its resources.
 		t.Run("contracts", func(t *testing.T) {
+			t.Run("student detail read budget", func(t *testing.T) { checkStudentDetailReadBudget(t, api) })
 			t.Run("readiness", func(t *testing.T) {
 				rec := httptest.NewRecorder()
 				api.router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))

@@ -5,11 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type liveGroupRow struct {
@@ -71,6 +73,12 @@ func (s *Store) EndGroupSession(ctx context.Context, groupID int64, at time.Time
 	started := time.Now()
 	defer func() { stats.StatementDuration = time.Since(started) }()
 
+	plan, prepared, err := s.prepareVisitWritePlan(ctx, studentpresence.VisitWriteScope{GroupIDs: []int64{groupID}})
+	stats.Queries += prepared.Queries
+	if err != nil {
+		return result, stats, err
+	}
+
 	stats.Queries++
 	if err = lockOpenGroupLifecycle(ctx, db, tenantID, groupID); err != nil {
 		return result, stats, err
@@ -81,7 +89,7 @@ func (s *Store) EndGroupSession(ctx context.Context, groupID int64, at time.Time
 	err = db.NewUpdate().Model((*visitRow)(nil)).ModelTableExpr(`active.visits AS "visit"`).
 		Set("exit_time = ?", at).Set("updated_at = ?", at).
 		Where(`"visit".tenant_id = ?`, tenantID).Where(`"visit".active_group_id = ?`, groupID).
-		Where(`"visit".exit_time IS NULL`).Returning("*").Scan(ctx, &visits)
+		Where(`"visit".exit_time IS NULL`).Where(`"visit".id IN (?)`, bun.List(visitWriteIDs(plan.visits))).Returning("*").Scan(ctx, &visits)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return result, stats, fmt.Errorf("end group session: close visits: %w", err)
 	}
@@ -159,7 +167,12 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	}
 	started := time.Now()
 	defer func() { stats.StatementDuration = time.Since(started) }()
-	result, stats, err = endOpenGroupSessions(ctx, db, tenantID, groupIDs, at, endDate)
+	plan, prepared, err := s.prepareVisitWritePlan(ctx, studentpresence.VisitWriteScope{GroupIDs: groupIDs})
+	if err != nil {
+		return result, prepared, err
+	}
+	result, stats, err = endOpenGroupSessions(ctx, db, tenantID, groupIDs, visitWriteIDs(plan.visits), at, endDate)
+	stats.Queries += prepared.Queries
 	// Successful empty batches still maintain revisions for sessions ended
 	// manually or deleted since the last nightly run.
 	if err == nil {
@@ -168,7 +181,7 @@ func (s *Store) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 	return result, stats, err
 }
 
-func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, at time.Time, endDate ports.Date) (result studentpresence.EndedGroupSessions, stats ports.Stats, err error) {
+func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, groupIDs, visitIDs []int64, at time.Time, endDate ports.Date) (result studentpresence.EndedGroupSessions, stats ports.Stats, err error) {
 	if len(groupIDs) == 0 {
 		return result, stats, nil
 	}
@@ -187,7 +200,7 @@ func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, group
 	stats.Queries++
 	visits, err := db.NewUpdate().Table("active.visits").
 		Set("exit_time = GREATEST(?, entry_time)", at).Set("updated_at = ?", at).
-		Where("tenant_id = ?", tenantID).Where("active_group_id IN (?)", bun.List(open)).Where("exit_time IS NULL").Exec(ctx)
+		Where("tenant_id = ?", tenantID).Where("active_group_id IN (?)", bun.List(open)).Where("exit_time IS NULL").Where("id IN (?)", bun.List(visitIDs)).Exec(ctx)
 	if err != nil {
 		return result, stats, fmt.Errorf("end group sessions: close visits: %w", err)
 	}
@@ -221,33 +234,177 @@ func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, group
 }
 
 func compactVisitRevisions(ctx context.Context, db bun.IDB, tenantID int64, stats *ports.Stats) error {
+	// Take the lock in a separate statement so a waiting compaction gets a
+	// fresh READ COMMITTED snapshot after its predecessor commits. Otherwise
+	// it can consume a deleted session's events while missing the predecessor's
+	// replacement entry rows, losing the session's contribution to the room.
 	stats.Queries++
-	if _, err := db.NewRaw(compactVisitRevisionEvents, tenantID, tenantID, tenantID, tenantID).Exec(ctx); err != nil {
+	key := fmt.Sprintf("active-visit-revision-compaction:%d", tenantID)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key); err != nil {
+		return fmt.Errorf("end group sessions: lock visit revision compaction: %w", err)
+	}
+	settled, err := lockSettledSessions(ctx, db, tenantID, stats)
+	if err != nil {
+		return err
+	}
+	stats.Queries++
+	if _, err := db.NewRaw(compactVisitRevisionEvents, compactVisitRevisionArgs(tenantID, settled)...).Exec(ctx); err != nil {
 		return fmt.Errorf("end group sessions: compact visit revision events: %w", err)
 	}
 	return nil
 }
 
-// compactVisitRevisionEvents keeps the change events of ended sessions small
-// (#5128): it replaces all events of such a session with one row carrying
-// their sum, so the session's revision does not change, and it drops the
-// events of deleted sessions, whose ids never return. A concurrent writer's
-// events are not in this statement's snapshot and stay as they are. The
-// DELETE returns only rows this statement deleted, so a second compaction
-// running at the same time cannot count a row twice.
-const compactVisitRevisionEvents = `WITH compacted AS (
+// lockSettledSessions locks the ended sessions the compaction folds into
+// their rooms (#5273, ADR 0133): those still in a room's set whose session
+// row and visits no other transaction holds. A writer that holds one of them
+// keeps its session in the set until the next compaction. A writer that
+// comes later waits for this transaction: a visit inserted into or moved
+// into the session needs a key-share lock on its row, every other visit
+// change a lock on the visit. Every event of a settled session therefore
+// commits before the compaction's snapshot or after its commit, and a late
+// one changes no room count while the session stays ended. SKIP LOCKED never
+// waits, so the compaction adds no lock edge to a writer.
+func lockSettledSessions(ctx context.Context, db bun.IDB, tenantID int64, stats *ports.Stats) ([]int64, error) {
+	ended := []int64{}
+	stats.Queries++
+	err := db.NewRaw(`SELECT g.id FROM active.groups AS g
+		WHERE g.tenant_id = ? AND g.end_time IS NOT NULL AND g.id IN (
+			SELECT e.entered_group_id FROM active.visit_revision_events AS e
+			WHERE e.tenant_id = ? AND e.entered_group_id IS NOT NULL)
+		ORDER BY g.id FOR UPDATE OF g SKIP LOCKED`, tenantID, tenantID).Scan(ctx, &ended)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("end group sessions: lock settled sessions: %w", err)
+	}
+	if len(ended) == 0 {
+		return ended, nil
+	}
+	locked := []int64{}
+	stats.Queries++
+	err = db.NewRaw(`SELECT v.active_group_id FROM active.visits AS v
+		WHERE v.tenant_id = ? AND v.active_group_id = ANY(?) FOR SHARE SKIP LOCKED`,
+		tenantID, pgdialect.Array(ended)).Scan(ctx, &locked)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("end group sessions: lock visits of settled sessions: %w", err)
+	}
+	var visits []struct {
+		GroupID int64 `bun:"group_id"`
+		Visits  int   `bun:"visits"`
+	}
+	stats.Queries++
+	err = db.NewRaw(`SELECT v.active_group_id AS group_id, count(*) AS visits FROM active.visits AS v
+		WHERE v.tenant_id = ? AND v.active_group_id = ANY(?) GROUP BY v.active_group_id`,
+		tenantID, pgdialect.Array(ended)).Scan(ctx, &visits)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("end group sessions: count visits of settled sessions: %w", err)
+	}
+	// A session settles when this transaction locked every visit it has.
+	unlocked := make(map[int64]int, len(visits))
+	for _, row := range visits {
+		unlocked[row.GroupID] = row.Visits
+	}
+	for _, groupID := range locked {
+		unlocked[groupID]--
+	}
+	settled := ended[:0]
+	for _, groupID := range ended {
+		if unlocked[groupID] == 0 {
+			settled = append(settled, groupID)
+		}
+	}
+	return settled, nil
+}
+
+// compactVisitRevisionArgs binds the settled sessions to the first
+// placeholder of compactVisitRevisionEvents and the school to every other.
+func compactVisitRevisionArgs(tenantID int64, settled []int64) []any {
+	args := make([]any, strings.Count(compactVisitRevisionEvents, "?"))
+	args[0] = pgdialect.Array(settled)
+	for i := 1; i < len(args); i++ {
+		args[i] = tenantID
+	}
+	return args
+}
+
+// compactVisitRevisionEvents keeps the change events small (#5128, #5205)
+// and a room's read independent of its history (#5273) without changing a
+// session or room revision:
+//
+//   - The events of a deleted session (its session rows and its entry rows)
+//     become one room row per room it entered, carrying the session's sum
+//     plus that room's entry sum. A deleted session receives no event after
+//     its deletion commits, so the fold is exact; its id never returns.
+//   - The entry rows of a settled session (lockSettledSessions, the first
+//     placeholder) fold the same way, but its session rows stay: the session
+//     revision keeps them, and a reopening enters the session into its room
+//     again. No event of a settled session commits between this statement's
+//     snapshot and its commit, so the fold is exact as well.
+//   - The session rows of each ended session, the entry rows of each
+//     session and room, and the room rows of each room collapse into one row
+//     with their sum.
+//
+// A concurrent writer's events are not in this statement's snapshot and stay
+// as they are. Compactions serialize per tenant before taking this statement's
+// snapshot, so replaced entry rows remain visible to the next compaction when
+// it folds a session deleted in between.
+const compactVisitRevisionEvents = `WITH settled AS (
+		SELECT unnest(?::bigint[]) AS group_id
+	), gone AS (
+		SELECT k.group_id FROM (
+			SELECT e.active_group_id AS group_id FROM active.visit_revision_events AS e
+			WHERE e.tenant_id = ? AND e.active_group_id IS NOT NULL
+			UNION
+			SELECT e.entered_group_id FROM active.visit_revision_events AS e
+			WHERE e.tenant_id = ? AND e.entered_group_id IS NOT NULL
+		) AS k
+		LEFT JOIN active.groups AS g ON g.tenant_id = ? AND g.id = k.group_id
+		WHERE g.id IS NULL
+	), folded AS (
 		DELETE FROM active.visit_revision_events AS e
-		WHERE e.tenant_id = ? AND e.active_group_id IN (
-			SELECT x.active_group_id FROM active.visit_revision_events AS x
-			LEFT JOIN active.groups AS g ON g.tenant_id = x.tenant_id AND g.id = x.active_group_id
-			WHERE x.tenant_id = ? AND (g.id IS NULL OR g.end_time IS NOT NULL)
-			GROUP BY x.active_group_id, g.id HAVING g.id IS NULL OR count(*) > 1)
-		RETURNING e.active_group_id, e.changes
+		WHERE e.tenant_id = ? AND (e.active_group_id IN (SELECT group_id FROM gone)
+			OR e.entered_group_id IN (SELECT group_id FROM gone)
+			OR e.entered_group_id IN (SELECT group_id FROM settled))
+		RETURNING e.active_group_id, e.entered_group_id, e.room_id, e.changes
+	), folded_sessions AS (
+		SELECT s.group_id, sum(s.changes) AS changes FROM (
+			SELECT f.active_group_id AS group_id, f.changes FROM folded AS f
+			WHERE f.active_group_id IS NOT NULL
+			UNION ALL
+			SELECT e.active_group_id, e.changes FROM active.visit_revision_events AS e
+			WHERE e.tenant_id = ? AND e.active_group_id IN (SELECT group_id FROM settled)
+		) AS s GROUP BY s.group_id
+	), folded_rooms AS (
+		SELECT f.room_id, sum(f.changes + COALESCE(fs.changes, 0)) AS changes
+		FROM (SELECT entered_group_id, room_id, sum(changes) AS changes FROM folded
+			WHERE entered_group_id IS NOT NULL GROUP BY entered_group_id, room_id) AS f
+		LEFT JOIN folded_sessions AS fs ON fs.group_id = f.entered_group_id
+		GROUP BY f.room_id
+	), candidates AS (
+		SELECT e.id, e.active_group_id, e.entered_group_id, e.room_id,
+			COALESCE(e.active_group_id, 0) AS group_key, COALESCE(e.entered_group_id, 0) AS entry_key,
+			COALESCE(e.room_id, 0) AS room_key
+		FROM active.visit_revision_events AS e
+		LEFT JOIN active.groups AS g ON g.tenant_id = e.tenant_id AND g.id = e.active_group_id
+		LEFT JOIN active.groups AS h ON h.tenant_id = e.tenant_id AND h.id = e.entered_group_id
+		WHERE e.tenant_id = ? AND (
+			(e.active_group_id IS NOT NULL AND g.end_time IS NOT NULL)
+			OR (e.room_id IS NOT NULL AND e.entered_group_id IS NULL)
+			OR h.id IS NOT NULL)
+			AND (e.entered_group_id IS NULL OR e.entered_group_id NOT IN (SELECT group_id FROM settled))
+	), targets AS (
+		SELECT c.* FROM candidates AS c
+		JOIN (SELECT group_key, entry_key, room_key FROM candidates GROUP BY group_key, entry_key, room_key
+			HAVING count(*) > 1) AS k
+			ON k.group_key = c.group_key AND k.entry_key = c.entry_key AND k.room_key = c.room_key
+	), collapsed AS (
+		DELETE FROM active.visit_revision_events AS e
+		WHERE e.tenant_id = ? AND e.id IN (SELECT id FROM targets)
+		RETURNING e.active_group_id, e.entered_group_id, e.room_id, e.changes
 	)
-	INSERT INTO active.visit_revision_events (tenant_id, active_group_id, changes)
-	SELECT ?, c.active_group_id, sum(c.changes) FROM compacted AS c
-	WHERE EXISTS (SELECT 1 FROM active.groups AS g WHERE g.tenant_id = ? AND g.id = c.active_group_id)
-	GROUP BY c.active_group_id`
+	INSERT INTO active.visit_revision_events (tenant_id, active_group_id, entered_group_id, room_id, changes)
+	SELECT ?, NULL, NULL, r.room_id, r.changes FROM folded_rooms AS r
+	UNION ALL
+	SELECT ?, c.active_group_id, c.entered_group_id, c.room_id, sum(c.changes) FROM collapsed AS c
+	GROUP BY c.active_group_id, c.entered_group_id, c.room_id`
 
 // EndGroup stamps the end time of one still-open group and touches nothing
 // else. The lifecycle lock distinguishes a missing group from an ended one so

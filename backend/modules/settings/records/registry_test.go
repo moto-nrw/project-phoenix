@@ -165,6 +165,35 @@ func TestDefinitionValidate_SelectWithOptions(t *testing.T) {
 	assert.NoError(t, def.Validate())
 }
 
+func colorDefinition(presets ...SelectOption) Definition {
+	pattern := `^#[0-9A-Fa-f]{6}$`
+	return Definition{
+		Key:        "test.color",
+		Type:       FieldColor,
+		Default:    "#111827",
+		Tab:        "general",
+		Category:   "test",
+		Validation: &ValidationRules{Pattern: &pattern},
+		Options:    &SelectOptions{Static: presets},
+	}
+}
+
+func TestDefinitionValidate_ColorPresets(t *testing.T) {
+	t.Parallel()
+
+	valid := colorDefinition(SelectOption{Label: "Schwarz", Value: "#111827"})
+	assert.NoError(t, valid.Validate())
+
+	for name, def := range map[string]Definition{
+		"empty":            colorDefinition(),
+		"no label":         colorDefinition(SelectOption{Value: "#111827"}),
+		"not a string":     colorDefinition(SelectOption{Label: "Schwarz", Value: 17}),
+		"pattern mismatch": colorDefinition(SelectOption{Label: "Rot", Value: "red"}),
+	} {
+		assert.Error(t, def.Validate(), name)
+	}
+}
+
 func TestNewRegistryIsEmpty(t *testing.T) {
 	t.Parallel()
 	registry := setup(t)

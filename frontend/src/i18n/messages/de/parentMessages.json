@@ -20,5 +20,19 @@
   "emptyThreadDescription": "Schreiben Sie die erste Nachricht an die OGS.",
   "errorObjectConversation": "die Unterhaltung",
   "errorObjectMessage": "die Nachricht",
-  "errorObjectList": "die Liste der Unterhaltungen"
+  "errorObjectList": "die Liste der Unterhaltungen",
+  "ogsLeadership": "OGS-Leitung der {school}",
+  "audienceLabel": "An wen schreiben Sie?",
+  "audienceTeam": "Ganzes OGS-Team",
+  "audienceTeamUnread": "Ganzes OGS-Team ({count} neu)",
+  "audienceLeadership": "Nur die Leitung",
+  "audienceLeadershipUnread": "Nur die Leitung ({count} neu)",
+  "readersTeam": "Lesen können: Sie und alle Mitarbeitenden der OGS.",
+  "readersLeadership": "Lesen können: Sie und die Leitung: {names}",
+  "readersLeadershipUnnamed": "Lesen können: Sie und die Leitung der OGS.",
+  "composerPlaceholderLeadership": "Nachricht an die Leitung schreiben",
+  "emptyLeadershipDescription": "Schreiben Sie die erste Nachricht an die Leitung. Die anderen Mitarbeitenden sehen sie nicht.",
+  "leadershipUnstaffed": "Zurzeit liest niemand aus der Leitung mit. Bitte schreiben Sie an das ganze OGS-Team.",
+  "leadershipUnavailable": "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
+  "readersUnnamedLeader": "Schulverwaltung"
 }

@@ -15,6 +15,7 @@ import (
 // admin POST /active/visits route must answer 409 like the IoT checkin path,
 // not 400.
 var errorRules = []common.ErrorRule{
+	{Target: studentpresence.ErrVisitWriteConflict, Render: common.ErrorConflict},
 	{Target: studentpresence.ErrGroupNotFound, Render: common.ErrorNotFound},
 	{Target: studentpresence.ErrVisitNotFound, Render: common.ErrorNotFound},
 	{Target: studentpresence.ErrGroupSupervisorNotFound, Render: common.ErrorNotFound},

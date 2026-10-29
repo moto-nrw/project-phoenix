@@ -25,6 +25,7 @@ type Service interface {
 	DeleteVisit(ctx context.Context, id int64) error
 	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
+	LockStudent(ctx context.Context, studentID int64) error
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
 	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*VisitWithRoom, error)
 	GetStudentsCurrentVisits(ctx context.Context, studentIDs []int64) (map[int64]*studentpresence.Visit, error)

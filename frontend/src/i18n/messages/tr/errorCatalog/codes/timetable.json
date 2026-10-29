@@ -59,6 +59,7 @@
   "move_other_day": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "move_same_instance": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "no_staff_profile": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "offering_gap_period_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "offering_source_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "offering_source_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "offering_source_mixed_phases": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

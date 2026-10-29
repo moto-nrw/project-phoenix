@@ -46,6 +46,8 @@ import { isOwnAttendanceEvent } from "~/lib/sse-optimistic-mutations";
 
 const logger = createLogger({ component: "GlobalSSE" });
 
+const SSE_ENDPOINT = "/api/sse/events";
+
 export const DEBOUNCE_MS = 500;
 // Bounded random jitter added on top of the debounce (#2057). Every client of
 // a tenant receives the same broadcast at the same instant; without jitter all
@@ -1274,8 +1276,39 @@ export function useGlobalSSE(): SSEHookState {
     groupAccessRevision === 0
       ? tenantID
       : `${tenantID ?? ""}:${groupAccessRevision}`;
-  const sseState = useSSE("/api/sse/events", {
+  // A session of another school than this subdomain makes the BFF refuse
+  // the stream with 409 (#5130), but EventSource shows neither status nor
+  // body. After an answer that was no stream, one fetch of the same route
+  // lets the fetch observer report a refusal to TenantGuard (#5157); other
+  // answers (401, 503, offline) start no switch. One check at a time; an
+  // answer that is a stream is closed at once.
+  const streamCheckRef = useRef<AbortController | null>(null);
+  const handleSSEError = useCallback((event: Event) => {
+    const source = event.target as EventSource | null;
+    // 2 = EventSource.CLOSED, as in useSSE.
+    if (source?.readyState !== 2 || streamCheckRef.current) return;
+    const check = new AbortController();
+    streamCheckRef.current = check;
+    void fetch(SSE_ENDPOINT, { cache: "no-store", signal: check.signal })
+      // The stream's own backoff stays the visible result; the check only
+      // feeds the observer.
+      .catch(() => undefined)
+      .finally(() => {
+        check.abort();
+        if (streamCheckRef.current === check) streamCheckRef.current = null;
+      });
+  }, []);
+  useEffect(
+    () => () => {
+      streamCheckRef.current?.abort();
+      streamCheckRef.current = null;
+    },
+    [],
+  );
+
+  const sseState = useSSE(SSE_ENDPOINT, {
     onMessage: handleSSEEvent,
+    onError: handleSSEError,
     enabled: isAuthenticated,
     reconnectKey,
   });

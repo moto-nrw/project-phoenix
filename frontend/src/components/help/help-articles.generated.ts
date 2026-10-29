@@ -312,6 +312,8 @@ import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./
 
 import type { traegerHolidayContributionTopic as authored_traegerHolidayContributionTopic } from "./articles/traeger-holiday-contribution";
 
+import type { traegerHolidayFormTopic as authored_traegerHolidayFormTopic } from "./articles/traeger-holiday-form";
+
 import type { traegerHolidayPeriodTopic as authored_traegerHolidayPeriodTopic } from "./articles/traeger-holiday-period";
 
 import type { traegerHolidayRegistrationReviewTopic as authored_traegerHolidayRegistrationReviewTopic } from "./articles/traeger-holiday-registration-review";
@@ -2326,7 +2328,7 @@ export const enrollmentReviewTopic =
         "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
         "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
         // #5137
-        "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Ein Entfernen würde dort nicht halten.",
+        "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Entfernen hilft dort nicht: Bei der nächsten Planung steht das Kind wieder im Plan.",
         "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
         "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
         "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
@@ -2864,7 +2866,7 @@ export const holidayGuestGroupTopic =
         "Wählen Sie `Feriengäste übernehmen`.",
       ],
       result:
-        "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall und Abholung.",
+        "Ab dem ersten Tag der Woche stehen die Feriengäste in der Gruppe und im Check-in. Ihr Team sieht bei jedem Feriengast Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt.",
       notes: [
         "Feriengäste sind Kinder anderer Schulen Ihres Trägers und Kinder ohne Schule beim Träger. Kinder Ihrer OGS bleiben in ihrer Gruppe.",
         "Bestätigt der Träger später weitere Kinder, kommen sie innerhalb einer Stunde in die Gruppe. Storniert er, gehen sie innerhalb einer Stunde.",
@@ -2883,7 +2885,7 @@ export const holidayGuestGroupTopic =
 /**
  * Feriengäste im Alltag (#4666): Kinder anderer Schulen in der Feriengruppe
  * der ausrichtenden OGS. Die Kindakte zeigt nur Betreuung, Notfall und
- * Abholung.
+ * Abholung und die Antworten, die der Träger freigibt (#5202).
  */
 export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
   return {
@@ -2895,6 +2897,9 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
     group: "gruppen",
     audience: ["caregiver", "lead"],
     icon: "SunHorizon",
+    image: "/help/screens/feriengast-angaben-aus-der-anmeldung.webp",
+    imageAlt:
+      "Notfall, Abholung und Angaben aus der Ferienanmeldung bei einem Feriengast.",
     requirements: [
       "Ihre OGS richtet eine Ferienwoche für den Träger aus.",
       "Die Leitung hat unter `Ferienwochen` eine Feriengruppe gewählt.",
@@ -2906,17 +2911,19 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
       "Öffnen Sie die Karte eines Feriengasts.",
       "Lesen Sie unter `Betreuung` die Woche und die gebuchte Zeit.",
       "Unter `Notfall` stehen die Eltern und weitere Kontakte. Unter `Abholung` steht, wer das Kind außer den Eltern abholen darf.",
+      "Unter `Angaben aus der Ferienanmeldung` steht zum Beispiel, ob das Kind allein nach Hause gehen darf.",
     ],
     result:
       "Sie wissen, wann das Kind gehen darf und wen Sie im Notfall anrufen.",
     notes: [
-      "Mehr als Betreuung, Notfall und Abholung sehen Sie von einem Feriengast nicht. Die übrigen Angaben bleiben beim Träger.",
+      "Mehr als Betreuung, Notfall, Abholung und die freigegebenen Angaben sehen Sie von einem Feriengast nicht. Gesundheitsangaben und die übrigen Angaben bleiben beim Träger.",
       "Jeder Blick auf Notfall und Abholung steht im Zugriffsprotokoll Ihrer OGS.",
     ],
     differences: [
       "Nach dem letzten Tag der Woche steht der Feriengast nicht mehr in der Gruppe und nicht mehr im Check-in. Seine Angaben bleiben noch 7 Tage zum Nachlesen.",
     ],
     troubleshootingDetails: [
+      "Fehlt `Angaben aus der Ferienanmeldung`? Dann gibt der Träger keine Frage frei.",
       "Fehlt ein Feriengast? Anmeldungen bestätigt der Träger. Neu bestätigte Kinder kommen innerhalb einer Stunde in die Gruppe.",
       "Sehen Sie `Notfall` und `Abholung` nicht? Dafür brauchen Sie das Recht, die Angaben der Kinder zu lesen. Fragen Sie Ihre Leitung.",
     ],
@@ -2926,7 +2933,8 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
 
 /**
  * `/ferienwochen` (#4665): die bestätigten Kinder der Ferienwochen, die die
- * OGS für ihren Träger ausrichtet, nur bis zum letzten Tag der Woche.
+ * OGS für ihren Träger ausrichtet, nur bis zum letzten Tag der Woche. Dazu
+ * die freigegebenen Antworten und die zweite sorgeberechtigte Person (#5202).
  */
 export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
   return {
@@ -2938,6 +2946,9 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
     group: "auswertung",
     audience: "lead",
     icon: "SunHorizon",
+    image: "/help/screens/ferienwochen-freigegebene-antworten.webp",
+    imageAlt:
+      "Die Liste der Kinder mit der zweiten sorgeberechtigten Person und den Antworten, die der Träger freigibt.",
     requirements: [
       "Der Träger hat Ihre OGS für eine Ferienwoche eingetragen.",
       "Der Träger hat Anmeldungen für diese Woche bestätigt.",
@@ -2948,12 +2959,16 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Lesen Sie unter `Je Zeitmodell` und `Je Heimatschule` die Zahlen.",
       "Unter `Kinder` steht jedes Kind mit Geburtsdatum, Heimatschule und Zeitmodell.",
+      "Gibt der Träger Fragen frei, steht jede in einer eigenen Spalte. Zum Beispiel `Darf allein nach Hause gehen`.",
+      "Unter `Zweite sorgeberechtigte Person` stehen Name und Telefon, wenn die Eltern eine zweite Person angegeben haben.",
     ],
     result:
       "Sie wissen, wie viele Kinder in welcher Zeit kommen und woher sie kommen.",
     notes: [
       "Über das Menü mit den drei Punkten laden Sie die Liste `Als Excel herunterladen` oder `Als CSV herunterladen`.",
       "Ein `Feriengast` geht auf keine Schule Ihres Trägers. In Klammern steht die Schule, die die Eltern genannt haben.",
+      "Steht in einer Spalte `–`, haben die Eltern die Frage nicht beantwortet.",
+      "Gesundheitsangaben und E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
       "Jeder Abruf und jede Datei wird im Zugriffsprotokoll Ihrer OGS vermerkt.",
     ],
     differences: [
@@ -3484,7 +3499,7 @@ export const leadCarePlanTopic = function leadCarePlanTopic(): HelpTopic {
       "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
       // #5104: was die Zielgruppe wirklich bedeutet.
       "Die `Zielgruppe` `Klasse`, `Jahrgang` oder `Gruppe` bringt alle Kinder dieser Klasse, Jahrgangsstufe oder Gruppe. Ob sie angemeldet sind, spielt keine Rolle. Spätere An- und Abmeldungen kommen dort nicht an.",
-      "Sollen nur angemeldete Kinder kommen? Passt Ihre Auswahl zu einem Angebot, schlägt moto es im Schritt `Personal und Kinder` vor. Wählen Sie `Angebot übernehmen`. Die Vorschau zeigt pro Wochentag, wer dazukommt und wer wegfällt.",
+      "Sollen nur angemeldete Kinder kommen? Passt Ihre Auswahl zu einem Angebot, schlägt moto es im Schritt `Personal und Kinder` vor. Wählen Sie `Angebot übernehmen`. Passen mehrere Angebote, wählt moto keins vor. Dann wählen Sie das passende, etwa `„Randstunde“ übernehmen`. Die Vorschau zeigt pro Wochentag, wer dazukommt und wer wegfällt.",
       "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",
       "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       // #4766: Filter Gruppe und Person in Tag, Woche und Monat.
@@ -3596,12 +3611,17 @@ export const leadRosterDeviationTopic =
         "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
         "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
-        "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot.",
+        "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot. Passen mehrere Angebote, wählen Sie eins davon aus.",
+        "Haben Kinder ein Angebot gebucht, aber kein Regeltermin übernimmt sie? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
+        "Brauchen diese Kinder bewusst keinen eigenen Regeltermin? Wählen Sie `Kein Regeltermin nötig`. Das gilt für den gewählten Zeitraum. Der Hinweis kommt wieder, sobald Kinder einer anderen Klasse betroffen sind. Das gilt auch für Ferienangebote.",
+        "Diesen Hinweis holen Sie zurück: Klappen Sie `Ohne eigenen Regeltermin` auf und wählen Sie `Hinweis wieder zeigen`.",
         // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
         "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Findet moto kein passendes Angebot, öffnet sich der Regeltermin zum Bearbeiten. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
       ],
       differences: [
         "Hat der Regeltermin mehrere Abschnitte, etwa nach einer Änderung `Ab jetzt dauerhaft`? `Mit Angebot verbinden` stellt alle Termine ab dem nächsten Termin um. Das Bearbeiten ändert nur einen Abschnitt; die Vorschau nennt dann die Tage, die gleich bleiben.",
+        // #5138: Bei Klasse oder Jahrgang passen oft mehrere Angebote gleich gut.
+        "Nennt der Hinweis mehrere Angebote und keine Zahl? Dann passen mehrere Angebote gleich gut, oft bei einer ganzen Klasse oder Jahrgangsstufe. moto wählt keins vor. Wählen Sie in `Mit Angebot verbinden` unter `Angebot` das passende aus.",
         "Sie sehen keine Knöpfe am Hinweis? Dann dürfen Sie den Plan nur ansehen.",
       ],
       related: [HELP_TOPICS.leadCarePlan, HELP_TOPICS.leadEnrollmentSetup],
@@ -5650,6 +5670,7 @@ export const parentGroupMessageTopic =
         "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
         "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
         "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",
+        "Über dem Schreibfeld steht bei `Ging an:`, an wen die Nachricht ging und wie viele Familien sie bekommen haben.",
       ],
       related: [HELP_TOPICS.parentMessage, HELP_TOPICS.leadParentAnnouncement],
     };
@@ -5681,6 +5702,7 @@ export const parentGroupMessagesTopic =
       notes: [
         "Sie sehen nicht, welche anderen Eltern die Nachricht bekommen.",
         "Haben mehrere Ihrer Kinder die Nachricht bekommen? Dann wählen Sie vor dem Senden das Kind.",
+        "Unter `Antwort an die OGS` steht, wer Ihre Antwort lesen kann.",
       ],
       differences: [
         "Steht dort `Diese Gruppennachricht ist geschlossen`? Dann können Sie nicht mehr antworten. Schreiben Sie der OGS im Chat zu Ihrem Kind.",
@@ -5794,7 +5816,7 @@ export const parentHolidayRegistrationTopic =
         "Öffnen Sie den Link.",
         "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
         "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
-        "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt.",
+        "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche.",
         "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
         "Tragen Sie `Ihre Angaben` und die `Notfallkontakte` ein.",
         "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
@@ -5803,6 +5825,7 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie `Weiter zur Zusammenfassung`.",
         "Prüfen Sie alles. Unter `Beitrag` steht, was die Ferienbetreuung kostet.",
         "Bekommen Sie Leistungen wie Bürgergeld, Wohngeld oder Kinderzuschlag? Dann setzen Sie den Haken unter `Beitrag`, wenn er angeboten wird.",
+        "Sie können den Nachweis gleich darunter hochladen. Wählen Sie bei `Nachweis über die Leistungen` den Knopf `Datei auswählen`. Erlaubt sind PDF, JPG und PNG.",
         "Wählen Sie dann `Anmeldung absenden`.",
       ],
       result:
@@ -5810,8 +5833,12 @@ export const parentHolidayRegistrationTopic =
       notes: [
         "Ein Elternkonto brauchen Sie nicht.",
         "Gesundheitsangaben sind freiwillig. Nur die Betreuung sieht sie.",
+        "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf. Gesundheitsangaben sieht sie nicht.",
+        "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht.",
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
+        "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
+        "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
       ],
       differences: [
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
@@ -6054,6 +6081,17 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eine Unterhaltung nur für die Leitung beginnen",
+        description:
+          "Das geht nur mit dem Recht `Vertrauliche Elternnachrichten lesen` und wenn die Schule `Nachrichten nur an die Leitung (Eltern)` eingeschaltet hat.",
+        steps: [
+          "Wählen Sie unter `Nachrichten` den Knopf `Neue Nachricht`.",
+          "Wählen Sie das Kind und dann `Weiter`.",
+          "Wählen Sie bei `Wer liest auf Ihrer Seite mit?` den Punkt `Nur Leitung`.",
+          "Wählen Sie die Bezugsperson.",
+        ],
+      },
+      {
         title: "Auf eine Nachricht antworten",
         steps: [
           "Öffnen Sie die Unterhaltung im Posteingang.",
@@ -6102,8 +6140,11 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
       "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
+      "Steht bei einer Unterhaltung `Nur Leitung`? Dann lesen sie nur die Bezugsperson und die Leitung. Begonnen hat sie die Bezugsperson oder jemand aus der Leitung. Ohne das Recht `Vertrauliche Elternnachrichten lesen` sehen Sie solche Unterhaltungen nicht.",
+      "Eltern können nur an die Leitung schreiben, wenn unter `Einstellungen` der Schalter `Nachrichten nur an die Leitung (Eltern)` an ist und jemand das Recht `Vertrauliche Elternnachrichten lesen` hat. Das Recht vergeben Sie unter `Rollen`.",
     ],
     notes: [
+      "Über dem Schreibfeld steht, wer die Unterhaltung lesen kann: die eine Bezugsperson und alle Mitarbeitenden oder nur die Leitung. Andere Bezugspersonen des Kindes lesen nicht mit.",
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
       "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",
@@ -6134,10 +6175,13 @@ export const parentMessagesTopic = function parentMessagesTopic(): HelpTopic {
     result: "Die OGS bekommt Ihre Nachricht sofort.",
     notes: [
       "Jedes Kind hat eine eigene Unterhaltung. Oben steht, für welches Kind sie gilt.",
+      "Oben und über dem Schreibfeld steht, wer mitliest, zum Beispiel `Lesen können: Sie und alle Mitarbeitenden der OGS.` Andere Bezugspersonen Ihres Kindes lesen Ihre Unterhaltung nicht.",
       "Unter Ihrer Nachricht steht `Gesendet` und später `Von der OGS gelesen`.",
     ],
     differences: [
       "Bei einem Kind steht `Für dieses Kind können Sie nicht schreiben`? Dann dürfen Sie den Verlauf nur lesen.",
+      "Sehen Sie oben `Ganzes OGS-Team` und `Nur die Leitung`? Dann bietet Ihre OGS das an. Tippen Sie auf `Nur die Leitung`, wenn nur die Leitung Ihre Nachricht lesen soll. Darunter stehen die Namen der Leitung.",
+      "Steht in der Unterhaltung mit der Leitung `Zurzeit liest niemand aus der Leitung mit`? Dann schreiben Sie an `Ganzes OGS-Team`. Den Verlauf können Sie weiter lesen.",
     ],
     troubleshootingDetails: [
       "moto sagt, Ihre Sitzung sei abgelaufen? Melden Sie sich neu an und schicken Sie die Nachricht erneut.",
@@ -7396,13 +7440,16 @@ export const statisticsTopic = function statisticsTopic(): HelpTopic {
     steps: [
       "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
       "Öffnen Sie `Statistik`.",
-      "Wählen Sie oben den Bereich: `Gruppen`, `Kinder`, `Räume` oder `Kurse`.",
+      "Wählen Sie oben den Bereich: `Gruppen`, `Kinder`, `Räume`, `Kurse` oder `Uhrzeit`.",
       "Wählen Sie den Zeitraum.",
       "Lesen Sie die Zahlen der Tabelle.",
     ],
     result: "Die Zahlen gelten für den gewählten Bereich und Zeitraum.",
     notes: [
       "Bei `Kurse` wählen Sie zusätzlich zwischen `Je Kurs` und `Je Kind`.",
+      "`Uhrzeit` zeigt, wie viele Kinder in jeder halben Stunde da sind: `Geplant` und `Da`. Für einen Tag sehen Sie die Zahlen dieses Tages. Für einen Zeitraum wählen Sie den Wochentag und sehen Durchschnitt und Höchstwert.",
+      "Bei `Geplant` zählen kranke und entschuldigte Kinder nicht mit, Kinder mit „Kommt heute nicht“ auch nicht.",
+      "Mit `Alle Klassen` und `Alle Gruppen` grenzen Sie die Kinder ein.",
       "Über das Menü mit den drei Punkten geht `Exportieren` als `PDF`, `Excel` oder `Word`.",
       "Die Pfeile schieben den Zeitraum um seine eigene Länge weiter.",
     ],
@@ -7411,6 +7458,7 @@ export const statisticsTopic = function statisticsTopic(): HelpTopic {
       "Ohne `Anwesenheitsprotokoll` fehlt dort auch das Menü zum Exportieren.",
       "Ist die Raumhistorie ausgeschaltet? Ihre Administration kann das `Anwesenheitsprotokoll` einschalten. Die Einstellung steht unter `Einstellungen` und `Datenschutz`.",
       "`Kurse` zeigt nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
+      "`Geplant` und `Da` fehlen für Tage, deren Krankmeldungen oder Anwesenheiten nicht mehr gespeichert sind. Die Seite nennt das Datum, ab dem es Zahlen gibt.",
     ],
     troubleshootingDetails: [
       "Fehlt `Statistik` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
@@ -8553,6 +8601,7 @@ export const teacherMessagesTopic = function teacherMessagesTopic(): HelpTopic {
     notes: [
       "Vor Ihrer eigenen Nachricht steht `Sie:`.",
       "Hier melden Sie, was die OGS wissen muss, zum Beispiel eine falsche Abholzeit.",
+      "Die OGS kann Sie in einen Gruppenchat aufnehmen. Er steht dann mit seinem Namen in Ihrer Liste. Mit `Mitglieder` und `Gruppenchat verlassen` gehen Sie wieder heraus.",
     ],
     differences: [
       "Fehlt `Nachrichten` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
@@ -8924,24 +8973,58 @@ export const teamChatTopic = function teamChatTopic(): HelpTopic {
     title: "Den Team-Chat nutzen",
     question: "Wie nutze ich den Team-Chat?",
     summary:
-      "Schreiben Sie einer Betreuungskraft oder Lehrkraft Ihrer Schule eine Nachricht.",
+      "Schreiben Sie einer Person oder mehreren Personen Ihrer Schule, auch Lehrkräften.",
     group: "team",
     audience: ["caregiver", "lead"],
     icon: "ChatsCircle",
-    steps: [
-      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Team-Chat`.",
-      "Wählen Sie `Neue Nachricht`.",
-      "Suchen Sie die Person und wählen Sie sie aus.",
-      "Schreiben Sie Ihre Nachricht.",
-      "Wählen Sie `Senden`.",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Einer Person schreiben",
+        ordered: true,
+        steps: [
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Team-Chat`.",
+          "Wählen Sie `Neue Nachricht`.",
+          "Suchen Sie die Person und wählen Sie sie aus.",
+          "Schreiben Sie Ihre Nachricht.",
+          "Wählen Sie `Senden`.",
+        ],
+      },
+      {
+        title: "Einen Gruppenchat anlegen",
+        description:
+          "Ein Gruppenchat hat einen Namen und mehrere Mitglieder, auch Lehrkräfte.",
+        ordered: true,
+        steps: [
+          "Öffnen Sie `Team-Chat`.",
+          "Wählen Sie `Neuer Gruppenchat`.",
+          "Geben Sie einen Namen ein, zum Beispiel `Frühbetreuung`.",
+          "Kreuzen Sie die Personen an. Sie selbst sind automatisch dabei.",
+          "Wählen Sie `Gruppenchat anlegen`.",
+        ],
+      },
+      {
+        title: "Mitglieder ändern oder den Gruppenchat verlassen",
+        description:
+          "Mitglieder und Namen ändern die Person, die den Gruppenchat angelegt hat, und die OGS-Leitung, wenn sie Mitglied ist.",
+        ordered: true,
+        steps: [
+          "Öffnen Sie den Gruppenchat.",
+          "Wählen Sie oben `Mitglieder`.",
+          "Ändern Sie den Namen, wählen Sie `Personen hinzufügen` oder entfernen Sie eine Person über das Menü neben ihrem Namen.",
+          "Mit `Gruppenchat verlassen` gehen Sie selbst aus dem Gruppenchat.",
+        ],
+      },
     ],
     result:
-      "Die Nachricht erscheint in Ihrer Unterhaltung mit dieser Person. Lehrkräfte lesen sie in moto schule.",
+      "Die Nachricht erscheint in der Unterhaltung. Lehrkräfte lesen sie in moto schule.",
     differences: [
       "Nachrichten im Team-Chat können nicht nachträglich geändert oder gelöscht werden.",
       "Der Bereich fehlt? Dann hat Ihre OGS den Team-Chat nicht eingeschaltet.",
+      "Neue Mitglieder eines Gruppenchats sehen die Nachrichten ab ihrem Beitritt, nicht die älteren.",
     ],
     notes: [
+      "Unter Ihrer Nachricht in einem Gruppenchat steht, wie viele sie gelesen haben. Tippen Sie darauf, dann sehen Sie die Namen.",
       "Eltern können den Team-Chat nicht sehen. Für Eltern nutzen Sie `Nachrichten` im Bereich `Eltern`.",
       "Mit `Nur ungelesen` sehen Sie nur Unterhaltungen mit neuen Nachrichten.",
     ],
@@ -9047,6 +9130,8 @@ export const traegerAccessLogTopic =
         "Jede Zeile zeigt Zeitpunkt, Person, Schule, Art und welche Daten es waren.",
       notes: [
         "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
+        "Auch Ferienanmeldungen stehen im Protokoll. Das ist jedes Öffnen einer Anmeldung oder eines Nachweises, jeder Export und jede Änderung. Bei Schule steht dann `Träger (keine Schule)`.",
+        "Löscht moto eine Ferienanmeldung, löscht es auch ihre Einträge im Protokoll. Nach dem Ende der Ferien löscht moto alle Einträge zu diesen Ferien.",
       ],
       differences: [
         "Auf dem Handy steht `Zugriffsprotokoll` in der Leiste unten oder unter `Mehr`.",
@@ -9265,7 +9350,8 @@ export const traegerBriefkopfTopic =
           title: "Absender, Farbe und Fußzeile eintragen",
           steps: [
             "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein, jede Angabe in eine eigene Zeile.",
-            "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf den farbigen Kreis und wählen Sie eine Farbe. Oder tragen Sie den Farbcode Ihres Trägers in das Feld daneben ein: eine Raute und sechs Zeichen, so wie er im Logo-Entwurf steht.",
+            "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf eine der Farben.",
+            "Passt keine Farbe, wählen Sie `Eigene Farbe`. Klicken Sie dann auf den farbigen Kreis und wählen Sie Ihre Farbe. Steht im Logo-Entwurf ein Farbcode, tragen Sie ihn in das Feld daneben ein: eine Raute und sechs Zeichen.",
             "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein.",
             "moto speichert jedes Feld von selbst.",
           ],
@@ -9353,7 +9439,7 @@ export const traegerHolidayContributionTopic =
         },
       ],
       result:
-        "Eltern sehen den Beitrag vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
+        "Eltern sehen den Preis jedes Zeitmodells schon bei der Wahl der Wochen. Den Beitrag sehen sie vor dem Absenden der Ferienanmeldung. Beim Bestätigen hält moto den Beitrag fest.",
       notes: [
         "Geschwister sind Kinder derselben Ferienanmeldung. Das Kind mit dem höchsten Preis ist das erste Kind und zahlt voll.",
         "Es gelten die Regeln vom ersten gebuchten Tag der Anmeldung.",
@@ -9373,6 +9459,99 @@ export const traegerHolidayContributionTopic =
       ],
     };
   } satisfies typeof authored_traegerHolidayContributionTopic;
+
+export const traegerHolidayFormTopic =
+  function traegerHolidayFormTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerHolidayForm,
+      title: "Anmeldeformular der Ferien",
+      question: "Wie lege ich eigene Fragen für die Ferienanmeldung fest?",
+      summary:
+        "Jeder Ferienzeitraum hat ein eigenes Formular. Sie wählen, welche Fragen Eltern zusätzlich beantworten.",
+      image: "/help/screens/ferienformular-hinweise.webp",
+      imageAlt:
+        "Eigene Hinweise mit PDF und Pflichtbestätigung im Ferienformular.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "NotePencil",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Hinweise und Einwilligungen ergänzen",
+          steps: [
+            "Wählen Sie unter `Hinweise und Einwilligungen` die Aktion `Eigene Zustimmung hinzufügen`.",
+            "Tragen Sie `Titel` und `Text neben dem Häkchen oder Hinweis` ein.",
+            "Ergänzen Sie den Text unter `Rechtstext / Erklärung`.",
+            "Für ein PDF wählen Sie `PDFs hinzufügen`. Höchstens 10 MB je Datei.",
+            "Tragen Sie unter `Bezeichnung für Eltern` einen passenden Namen ein.",
+            "Müssen Eltern den Hinweis bestätigen? Wählen Sie `Muss bestätigt werden`.",
+            "Eine freiwillige Einwilligung lassen Sie ohne diese Pflicht.",
+            "Wählen Sie `Als neue Version speichern`.",
+          ],
+        },
+        {
+          title: "Fragen festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Ferien`.",
+            "Öffnen Sie den Ferienzeitraum.",
+            "Wählen Sie den Reiter `Formular`.",
+            "Wählen Sie `Frage hinzufügen` oder `Infotext hinzufügen`.",
+            "Schreiben Sie die Frage und wählen Sie den `Typ`, zum Beispiel `Ja/Nein` oder `Auswahl`.",
+            "Soll jede Familie antworten oder jedes Kind? Für Fragen zum Kind wählen Sie `Pro Kind abfragen`.",
+            "Muss die Frage beantwortet werden? Wählen Sie `Pflichtfrage`.",
+            "Geht es um die Gesundheit des Kindes? Wählen Sie `Gesundheitsangabe`.",
+            "Soll die OGS der Ferienwoche die Antwort sehen? Wählen Sie `OGS sieht die Antwort`. Das geht nur ohne `Gesundheitsangabe`.",
+            "Mit den Pfeilen ändern Sie die Reihenfolge.",
+            "Wählen Sie `Als neue Version speichern`.",
+          ],
+        },
+        {
+          title: "Standardvorlage einfügen",
+          steps: [
+            "Wählen Sie `Standardvorlage einfügen`.",
+            "moto fügt die Fragen der Vorlage ein, die im Formular fehlen. Zum Beispiel Lebensmittelunverträglichkeiten, Tetanus-Impfschutz und Ausflüge.",
+            "Ändern oder entfernen Sie Fragen, die Sie nicht brauchen.",
+            "Wählen Sie `Als neue Version speichern`.",
+          ],
+        },
+        {
+          title: "Frage nur unter einer Bedingung zeigen",
+          steps: [
+            "Legen Sie zuerst eine Frage mit `Ja/Nein` oder `Auswahl` an.",
+            "Wählen Sie bei der anderen Frage `Nur unter einer Bedingung anzeigen`.",
+            "Wählen Sie die Frage und die Antwort, bei der sie erscheinen soll.",
+          ],
+        },
+      ],
+      result:
+        "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
+      notes: [
+        "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
+        "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Die OGS sieht dort die Antworten zu `Darf allein nach Hause gehen` und `Darf an Ausflügen teilnehmen`.",
+        "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
+        "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
+        "Mit `Änderungen verwerfen` holen Sie die gespeicherten Fragen zurück. Das gilt auch für Auswahloptionen.",
+        "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nur in der Anmeldung, nicht in Liste und Export.",
+        "Antworten ohne Gesundheitsangabe stehen im Export in eigenen Spalten.",
+        "Die ausrichtende OGS sieht nur Antworten mit `OGS sieht die Antwort`. Sie stehen in ihrer Liste unter `Ferienwochen` und beim Feriengast. Gesundheitsangaben sieht sie nie.",
+        "`OGS sieht die Antwort` gilt ab der Version, in der Sie es speichern. Ältere Anmeldungen bleiben ohne Freigabe.",
+        "Die OGS sieht auch Name und Telefon der zweiten sorgeberechtigten Person, keine E-Mail-Adresse.",
+      ],
+      troubleshootingDetails: [
+        "`OGS sieht die Antwort` lässt sich nicht wählen? Die Frage ist eine `Gesundheitsangabe`. Gesundheitsangaben bleiben beim Träger.",
+        "`Nur unter einer Bedingung anzeigen` lässt sich nicht wählen? Es gibt noch keine Frage mit `Ja/Nein` oder `Auswahl`. Eine Frage zur Familie kann nicht von einer Frage zum Kind abhängen.",
+        "`Standardvorlage einfügen` lässt sich nicht wählen? Alle Fragen der Vorlage sind schon im Formular.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerHolidayRegistration,
+        HELP_TOPICS.traegerHolidayRegistrationReview,
+      ],
+    };
+  } satisfies typeof authored_traegerHolidayFormTopic;
 
 /** `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen. */
 export const traegerHolidayPeriodTopic =
@@ -9426,7 +9605,7 @@ export const traegerHolidayPeriodTopic =
       notes: [
         "Ein gespeicherter Ferienzeitraum ist zuerst ein Entwurf. Ein Entwurf ist nicht für die Anmeldung freigegeben.",
         "Ein veröffentlichter Ferienzeitraum wird nicht wieder zum Entwurf.",
-        "Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
+        "Eltern sehen den Preis jedes Zeitmodells bei der Wahl der Wochen. Aus den Preisen rechnet moto den Beitrag der Familien. Geschwister und Befreiung legt die Abrechnung unter `Beiträge` fest.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Ferien`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
@@ -9437,6 +9616,7 @@ export const traegerHolidayPeriodTopic =
       ],
       related: [
         HELP_TOPICS.traegerLogin,
+        HELP_TOPICS.traegerHolidayForm,
         HELP_TOPICS.traegerHolidayContribution,
       ],
     };
@@ -9475,9 +9655,10 @@ export const traegerHolidayRegistrationReviewTopic =
         {
           title: "Bestätigen oder stornieren",
           steps: [
-            "Prüfen Sie die Angaben der Eltern und der Kinder.",
+            "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
+            "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
-            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
             "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
           ],
@@ -9511,9 +9692,10 @@ export const traegerHolidayRegistrationReviewTopic =
       notes: [
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
-        "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin.",
+        "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
-        "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
+        "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
+        "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
       ],
       differences: [
@@ -9556,6 +9738,7 @@ export const traegerHolidayRegistrationTopic =
       result:
         "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
       notes: [
+        "Unter `Hinweise und Einwilligungen` öffnen Sie die PDFs. Setzen Sie die nötigen Häkchen. Die Zusammenfassung zeigt Ihre Bestätigungen.",
         "Eltern brauchen kein Elternkonto.",
         "Eltern können eine `Zweite sorgeberechtigte Person` angeben. Die Bestätigung geht nur an die anmeldende Person.",
         "Ein Kind ohne Schule Ihres Trägers melden Eltern als Feriengast an. Es wird dadurch kein Schulkind einer OGS.",
@@ -9623,6 +9806,7 @@ export const traegerInvitationTopic =
 /**
  * `/traeger/login` (#4649): eigene Adresse, danach die Liste der Schulen.
  * Der Code per E-Mail ist Pflicht, beim ersten Mal mit Einrichtung (#4651).
+ * „Passwort vergessen?“ schickt den Link auf den Träger-Host (#5149).
  */
 export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
   return {
@@ -9649,7 +9833,10 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
     ],
     result: "moto öffnet die Seite `Schulen` mit allen Schulen Ihres Trägers.",
-    notes: ["Legen Sie sich die Adresse als Lesezeichen an."],
+    notes: [
+      "Legen Sie sich die Adresse als Lesezeichen an.",
+      "Ein neues Passwort gilt auch für Ihr Konto in der OGS.",
+    ],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
@@ -9666,6 +9853,8 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
+      "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`. Öffnen Sie den Link aus der E-Mail und legen Sie ein neues Passwort fest.",
+      "Keine E-Mail zum Zurücksetzen? Schauen Sie im Spam-Ordner nach. Kommt keine, gehört Ihr Konto nicht zum Träger-Büro. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.errorMessages],
   };

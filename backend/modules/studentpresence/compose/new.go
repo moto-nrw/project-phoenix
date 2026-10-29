@@ -53,17 +53,14 @@ func NewPresenceHistory(deps Dependencies) studentpresence.PresenceHistory {
 func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {
 	var roster ports.PlannedRoster
 	var carePlan ports.CarePlanDirectory
-	var careDays ports.CareDayLocker
 	if deps.Roster != nil {
 		roster = application.NewPlannedRoster(deps.Roster)
 	}
 	if deps.CarePlan != nil {
 		carePlan = application.NewCarePlanDirectory(deps.CarePlan)
 	}
-	if deps.CareDays != nil {
-		careDays = deps.CareDays
-	}
-	return ports.AttendanceRulePorts{Roster: roster, CarePlan: carePlan, CareDays: careDays}
+	// A nil locker converts to a nil port, so it needs no guard.
+	return ports.AttendanceRulePorts{Roster: roster, CarePlan: carePlan, CareDays: deps.CareDays}
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database { return tenant.CurrentTenantTransaction[bun.IDB] }

@@ -23,16 +23,25 @@ import (
 // resolved Träger.
 type HolidayRegistrationResource struct {
 	registrations capability.HolidayRegistrations
+	proofs        HolidayProofUploads
 	captcha       capability.CaptchaVerifier
 }
 
+// HolidayProofUploads stores a proof of benefits of the public link
+// (#5238). The root opens the Träger units of each call: the upload counts
+// in a unit of its own, so a refused upload still counts, like the uploads
+// of the online registration (#4783).
+type HolidayProofUploads interface {
+	UploadHolidayProof(ctx context.Context, link capability.HolidayRegistrationLink, remoteIP string, upload capability.HolidayProofUpload) (capability.HolidayProofReceipt, error)
+}
+
 // NewHolidayRegistrationResource builds the resource. captcha is always
-// required for the public link.
-func NewHolidayRegistrationResource(registrations capability.HolidayRegistrations, captcha capability.CaptchaVerifier) *HolidayRegistrationResource {
-	if registrations == nil || captcha == nil {
-		panic("enrollment http: the holiday registrations and the captcha are required")
+// required for the public link; proofs stores the proofs of benefits.
+func NewHolidayRegistrationResource(registrations capability.HolidayRegistrations, proofs HolidayProofUploads, captcha capability.CaptchaVerifier) *HolidayRegistrationResource {
+	if registrations == nil || proofs == nil || captcha == nil {
+		panic("enrollment http: the holiday registrations, the proof uploads and the captcha are required")
 	}
-	return &HolidayRegistrationResource{registrations: registrations, captcha: captcha}
+	return &HolidayRegistrationResource{registrations: registrations, proofs: proofs, captcha: captcha}
 }
 
 // Router returns the public routes mounted at /traeger/holiday-registrations.
@@ -40,7 +49,9 @@ func (rs *HolidayRegistrationResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	r.Get("/{token}", rs.offer)
+	r.Get("/{token}/documents/{documentId}", rs.document)
 	r.Post("/{token}", rs.submit)
+	r.Post("/{token}/uploads", rs.uploadProof)
 	return r
 }
 
@@ -50,14 +61,16 @@ type HolidayRegistrationSchool struct {
 	Name string `json:"name"`
 }
 
-// HolidayRegistrationTimeModel is a bookable care time of a week. Its price
-// reaches the parents only as part of the contribution the Elternabrechnung
-// computes for the summary (#4664).
+// HolidayRegistrationTimeModel is a bookable care time of a week with its
+// price per week (#5237). The price is the base line the Elternabrechnung
+// writes for this booking in the summary (#4664); sibling and exemption
+// rules apply only there.
 type HolidayRegistrationTimeModel struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	StartsAt string `json:"starts_at"`
-	EndsAt   string `json:"ends_at"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	StartsAt   string `json:"starts_at"`
+	EndsAt     string `json:"ends_at"`
+	PriceCents int64  `json:"price_cents"`
 }
 
 // HolidayRegistrationWeek is a bookable week with the name of its host school.
@@ -82,6 +95,15 @@ type HolidayRegistrationOfferResponse struct {
 	Weeks                []HolidayRegistrationWeek   `json:"weeks"`
 	Schools              []HolidayRegistrationSchool `json:"schools"`
 	CaptchaSiteKey       string                      `json:"captcha_site_key"`
+	Form                 HolidayRegistrationForm     `json:"form"`
+}
+
+// HolidayRegistrationForm is the current version of the period's form for
+// parents (#5198): its questions, without who saved it when.
+type HolidayRegistrationForm struct {
+	Version     int                           `json:"version"`
+	Fields      []capability.HolidayFormField `json:"fields"`
+	LegalBlocks []capability.FormLegalBlock   `json:"legal_blocks"`
 }
 
 type holidayGuardianRequest struct {
@@ -97,15 +119,16 @@ type holidayBookingRequest struct {
 }
 
 type holidayChildRequest struct {
-	FirstName       string                  `json:"first_name"`
-	LastName        string                  `json:"last_name"`
-	BirthDate       calendar.Date           `json:"birth_date"`
-	HomeSchoolID    int64                   `json:"home_school_id"`
-	GuestSchoolName string                  `json:"guest_school_name"`
-	Allergies       string                  `json:"allergies"`
-	Medication      string                  `json:"medication"`
-	HealthNotes     string                  `json:"health_notes"`
-	Bookings        []holidayBookingRequest `json:"bookings"`
+	FirstName       string                    `json:"first_name"`
+	LastName        string                    `json:"last_name"`
+	BirthDate       calendar.Date             `json:"birth_date"`
+	HomeSchoolID    int64                     `json:"home_school_id"`
+	GuestSchoolName string                    `json:"guest_school_name"`
+	Allergies       string                    `json:"allergies"`
+	Medication      string                    `json:"medication"`
+	HealthNotes     string                    `json:"health_notes"`
+	Bookings        []holidayBookingRequest   `json:"bookings"`
+	CustomData      capability.HolidayAnswers `json:"custom_data"`
 }
 
 type holidayContactRequest struct {
@@ -116,18 +139,25 @@ type holidayContactRequest struct {
 
 // HolidayRegistrationRequest is the body of POST
 // /traeger/holiday-registrations/{token}. home_school_id 0 makes a child a holiday
-// guest.
+// guest. form_version names the version of the form the parent filled in;
+// custom_data holds the answers per family, children[].custom_data those
+// per child (#5198). benefits_proof_tokens name the uploaded proofs of the
+// benefits (#5238).
 type HolidayRegistrationRequest struct {
-	Guardian          holidayGuardianRequest  `json:"guardian"`
-	SecondGuardian    *holidayGuardianRequest `json:"second_guardian"`
-	Children          []holidayChildRequest   `json:"children"`
-	EmergencyContacts []holidayContactRequest `json:"emergency_contacts"`
-	PickupPersons     []holidayContactRequest `json:"pickup_persons"`
-	PrivacyConsent    bool                    `json:"privacy_consent"`
-	HealthConsent     bool                    `json:"health_consent"`
-	BindingConfirmed  bool                    `json:"binding_confirmed"`
-	BenefitsDeclared  bool                    `json:"benefits_declared"`
-	CaptchaToken      string                  `json:"captcha_token"`
+	Guardian          holidayGuardianRequest    `json:"guardian"`
+	SecondGuardian    *holidayGuardianRequest   `json:"second_guardian"`
+	Children          []holidayChildRequest     `json:"children"`
+	EmergencyContacts []holidayContactRequest   `json:"emergency_contacts"`
+	PickupPersons     []holidayContactRequest   `json:"pickup_persons"`
+	PrivacyConsent    bool                      `json:"privacy_consent"`
+	HealthConsent     bool                      `json:"health_consent"`
+	BindingConfirmed  bool                      `json:"binding_confirmed"`
+	BenefitsDeclared  bool                      `json:"benefits_declared"`
+	BenefitsProofs    []string                  `json:"benefits_proof_tokens"`
+	CaptchaToken      string                    `json:"captcha_token"`
+	FormVersion       int                       `json:"form_version"`
+	CustomData        capability.HolidayAnswers `json:"custom_data"`
+	LegalAcceptances  map[string]bool           `json:"legal_acceptances"`
 }
 
 // Bind accepts the body; the Owner validates the registration as a whole.
@@ -143,7 +173,7 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		children[i] = capability.HolidayChildInput{
 			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
 			HomeSchoolID: child.HomeSchoolID, GuestSchoolName: child.GuestSchoolName, Allergies: child.Allergies,
-			Medication: child.Medication, HealthNotes: child.HealthNotes, Bookings: bookings,
+			Medication: child.Medication, HealthNotes: child.HealthNotes, Bookings: bookings, CustomData: child.CustomData,
 		}
 	}
 	var secondGuardian *capability.HolidayGuardianInput
@@ -158,7 +188,8 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		EmergencyContacts: holidayContacts(req.EmergencyContacts),
 		PickupPersons:     holidayContacts(req.PickupPersons),
 		PrivacyConsent:    req.PrivacyConsent, HealthConsent: req.HealthConsent, BindingConfirmed: req.BindingConfirmed,
-		BenefitsDeclared: req.BenefitsDeclared,
+		LegalAcceptances: req.LegalAcceptances, BenefitsDeclared: req.BenefitsDeclared, BenefitsProofTokens: req.BenefitsProofs,
+		FormVersion: req.FormVersion, CustomData: req.CustomData,
 	}
 }
 
@@ -223,7 +254,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 	for _, week := range offer.Weeks {
 		models := make([]HolidayRegistrationTimeModel, 0, len(week.TimeModels))
 		for _, model := range week.TimeModels {
-			models = append(models, HolidayRegistrationTimeModel{ID: model.ID, Name: model.Name, StartsAt: model.StartsAt, EndsAt: model.EndsAt})
+			models = append(models, HolidayRegistrationTimeModel(model))
 		}
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
@@ -233,7 +264,15 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 		TraegerName: link.Traeger.Name, Name: offer.Name, RegistrationOpensOn: offer.RegistrationOpensOn,
 		RegistrationClosesOn: offer.RegistrationClosesOn, Binding: offer.Binding, Notes: offer.Notes, Open: offer.Open,
 		Weeks: weeks, Schools: schools, CaptchaSiteKey: siteKey,
+		Form: HolidayRegistrationForm{Version: offer.Form.Version, Fields: holidayFormFields(offer.Form.Fields), LegalBlocks: publicHolidayLegalBlocks(offer.Form.LegalBlocks)},
 	}
+}
+
+func holidayFormFields(fields []capability.HolidayFormField) []capability.HolidayFormField {
+	if fields == nil {
+		return []capability.HolidayFormField{}
+	}
+	return fields
 }
 
 // submit counts the attempt, checks the captcha and stores the registration
@@ -288,16 +327,30 @@ func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organiz
 	return limitErr
 }
 
-// renderHolidayRegistrationError answers a refused public registration.
+// renderHolidayRegistrationError answers a refused public registration or
+// proof upload.
 func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	var rejection *capability.UploadRejection
 	switch {
+	case common.HasInputRejection(err):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.As(err, &rejection):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
+			map[string]any{"max_mb": rejection.MaxMB, "allowed_types": rejection.AllowedTypes}))
+	case errors.Is(err, capability.ErrUploadRateLimited):
+		w.Header().Set("Retry-After", "3600")
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
+	case errors.Is(err, capability.ErrHolidayProofExpired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayRegistrationNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayRegistrationNotFound))
 	case errors.Is(err, capability.ErrHolidayRegistrationClosed):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationClosed))
+	case errors.Is(err, capability.ErrHolidayRegistrationFormChanged):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationFormChanged))
 	case errors.Is(err, capability.ErrRateLimited):
 		// The same hint as the online registration: no exact remaining time.
 		w.Header().Set("Retry-After", "3600")
@@ -309,4 +362,15 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 	default:
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
+}
+
+// Disabled blocks belong only to the Träger editor, not the public offer.
+func publicHolidayLegalBlocks(blocks []capability.FormLegalBlock) []capability.FormLegalBlock {
+	visible := make([]capability.FormLegalBlock, 0, len(blocks))
+	for _, block := range blocks {
+		if block.Enabled {
+			visible = append(visible, block)
+		}
+	}
+	return visible
 }
