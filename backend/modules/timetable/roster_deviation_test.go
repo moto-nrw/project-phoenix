@@ -1,6 +1,7 @@
 package timetable_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -11,6 +12,7 @@ import (
 const (
 	randstundeID = int64(301)
 	ganztagID    = int64(302)
+	spaetID      = int64(303)
 )
 
 // classRoster plans the given children on every weekday of the template.
@@ -334,6 +336,27 @@ func TestSuggestOfferingSourceAmbiguousForCohortTargets(t *testing.T) {
 		assert.False(t, suggestion.Ambiguous)
 		assert.Equal(t, timetable.OfferingRef{ID: randstundeID, Name: "Randstunde"}, suggestion.Offering)
 		assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, suggestion.Candidates)
+	})
+
+	// A third offering passes the rule with less than full coverage: it is
+	// no equal alternative and stays out of the choice.
+	t.Run("Klasse mit schwächerem Angebot", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2, 3}, cohort, "3a")
+		roster.OfferingKind = timetable.RosterOfferingCare
+		bookings := cohortBookings()
+		for _, studentID := range append(slices.Clone(cohort[:5]), 7001) {
+			entry := booking(spaetID, "Spätbetreuung", studentID, "3a", 1, 2, 3)
+			entry.GradeLevel = &grade
+			entry.CountsAsCare = true
+			bookings = append(bookings, entry)
+		}
+
+		suggestion := timetable.SuggestOfferingSource(roster, bookings)
+
+		require.NotNil(t, suggestion)
+		assert.True(t, suggestion.Ambiguous)
+		assert.Equal(t, both, suggestion.Candidates, "Spätbetreuung covers 5 of 6 and is not offered")
 	})
 
 	// Hand-picked children: Randstunde covers them fully, Ganztag only for

@@ -74,7 +74,8 @@ type RosterDeviation struct {
 	// MissingCount counts children booked on a weekday without being
 	// planned that weekday.
 	MissingCount int
-	// Candidates are every offering passing the rule, best first.
+	// Candidates are every offering passing the rule, best first; when
+	// Ambiguous, only the ones that cover the roster fully.
 	Candidates []OfferingRef
 	// Ambiguous is set when several candidates cover the roster fully
 	// (#5138). A Klasse or Jahrgang target plans every child of the cohort,
@@ -119,8 +120,14 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 	}
 	best := candidates[0]
 	unbooked, missing := distinctSlotStudents(planned, best.booked), distinctSlotStudents(best.booked, planned)
+	ambiguous := len(candidates) > 1 && candidates[1].coverage == 1
 	refs := make([]OfferingRef, 0, len(candidates))
 	for _, candidate := range candidates {
+		// An ambiguous choice offers only the offerings that fit fully; a
+		// weaker one would look like an equal alternative.
+		if ambiguous && candidate.coverage < 1 {
+			break
+		}
 		refs = append(refs, candidate.offering)
 	}
 	return &RosterDeviation{
@@ -130,7 +137,7 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 		UnbookedCount: unbooked,
 		MissingCount:  missing,
 		Candidates:    refs,
-		Ambiguous:     len(candidates) > 1 && candidates[1].coverage == 1,
+		Ambiguous:     ambiguous,
 	}
 }
 
