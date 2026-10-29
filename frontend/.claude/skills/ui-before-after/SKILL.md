@@ -3,85 +3,122 @@ name: ui-before-after
 description: Use when a UI change needs before/after screenshot pairs for a PR or review. Triggers on "vorher/nachher", "before/after screenshots", visual comparison of a frontend refactor, or verifying that a migration did not change the look.
 metadata:
   author: moto-nrw
-  version: "1.0.0"
+  version: "1.1.0"
 ---
 
 # Before/After UI Screenshot Pairs
 
-Produce matched before/after screenshots of frontend changes by hot-swapping
-`frontend/src` between two git states on a RUNNING dev server, capturing the
-same interactions twice with agent-browser, and compositing pairs side by side.
-
-Core idea: the dev server (Turbopack) hot-reloads mounted sources, so you never
-rebuild or restart anything between the two states — only the source tree flips.
+Capture the same interactions against two pinned source states, verify the
+rendered state before each screenshot, and composite matched pairs.
+Turbopack can serve stale modules after a source switch. Hot reload alone does
+not establish which state the browser shows.
 
 ## Prerequisites
 
-- Working tree is CLEAN (changes committed). Verify: `git status --short` is empty.
-- Local stack running: backend/postgres/mailpit via `docker compose up -d`.
-- Frontend: **prefer local `pnpm dev`** (`PORT=<port> pnpm dev` in `frontend/`,
-  with `frontend/.env.local` pointing `API_URL`/`NEXT_PUBLIC_API_URL` at the
-  compose server port). The dockerized dev frontend reproducibly crash-loops
-  compiling `[tenant]` pages (known Turbopack trap) — do not fight it.
-- Seeded data + login: slug and credentials come from `backend/.seed-state.json`
-  (fallback password `Test1234%`). Operator login needs an email MFA code —
-  fetch it from Mailpit: `curl localhost:<MAILPIT_PORT>/api/v1/messages`.
-- Use a dedicated agent-browser session: `agent-browser --session <name> ...`
-  (the default session is shared across concurrent Claude sessions).
+- Start from a clean working tree with the UI changes committed. Record the
+  original branch/commit and pin the baseline to a commit with `git rev-parse`.
+  Keep unrelated changes and untracked files intact; if they overlap the paths
+  to switch, use a separate prepared checkout instead of overwriting them.
+- Read [native dev loop](../../../../docs/agents/operations.md#native-dev-loop).
+  Record the actual frontend start command, mode, port, working directory and
+  process ownership before switching sources. Use the existing mode throughout.
+  Bootstrap only the services the shot list needs; preserve the database.
+- Use local seeded credentials from the seed state, without copying them into
+  documentation, logs or screenshots. Complete any MFA through local Mailpit.
+- Use a dedicated `agent-browser --session <name>` session. Set its viewport
+  once, for example `agent-browser --session s set viewport 1440 900`.
+
+## Source-state gate (every switch, including final restoration)
+
+1. **Restart the responsible frontend** after the target sources are on disk.
+   Use a controlled stop/start in the recorded mode. Stop only task-owned
+   processes after checking their command and checkout; confirm the old listener
+   has exited before starting its replacement on the same port.
+   - With `scripts/dev-native.sh up [backend|frontend]`, retain the original
+     selection. Every `up` replaces **both** managed apps and stops the Compose
+     app containers. Use it only when all affected apps belong to this task.
+     `down` also stops both apps, not just the frontend.
+   - For a task-owned foreground frontend launched through
+     `scripts/dev-native.sh frontend <command...>`, stop that command gracefully
+     and repeat the exact command with the same port and environment. This
+     command wrapper does not need an `up`/`down` cycle.
+   - If a shared server cannot be restarted without disrupting another task,
+     use an isolated task-owned frontend with its own port and cache directory.
+     Never kill a listener just because it occupies the desired port.
+   A cache reset may replace a restart only if its effectiveness is demonstrated
+   by the rendered-state check below. Never delete shared caches or data.
+2. **Check the rendered target, not just server readiness.** Open the URL, wait
+   for the expected page/interaction state, then take a fresh snapshot. For a
+   visible change, assert the target-specific text, styling or element and the
+   absence of the other state's distinguishing feature. Inspect the image when
+   appearance, rather than text, is the distinction.
+   For claimed visual equality, use an explicit target-specific rendered marker
+   tied to the pinned commit (a temporary verification-only label outside the
+   comparison region, recorded separately). Remove it during final restoration;
+   never commit it as product code. A startup message, fixed sleep, browser
+   reload, successful HTTP response or clean Git status alone is not proof.
+3. **Record evidence**: expected ref/commit, switched paths, restart/reset command,
+   old/new process identity, URL, rendered assertion and screenshot filename.
+   Apply the rendered check before **each** screenshot, after reproducing its
+   interactions. If the expected state cannot be established, stop capturing
+   and investigate; do not label the image as before/after.
 
 ## Workflow
 
-1. **Plan the shot list first.** One entry per changed surface: URL, the exact
-   interaction (open menu X, search gibberish for the empty state), and the
-   state needed (own post for owner-only menus, seeded rows for badges).
-   Create any needed data ONCE before starting — it must exist in both passes.
-2. **BEFORE pass** — flip sources to the baseline:
+1. **Plan the shot list.** List URLs, exact interactions and required data for
+   each surface. Choose a rendered-state assertion for each target before
+   switching. Create needed data once; use the same data, viewport and
+   interactions throughout both passes.
+2. **BEFORE:** restore only the comparison paths from the pinned baseline into
+   the working tree, leaving the index at the branch state:
    ```bash
-   git checkout origin/development -- frontend/src   # or any base ref
+   git restore --source=<baseline-sha> --worktree -- frontend/src
    ```
-   Wait for recompile on first page hit (~2-3s), then walk the shot list:
+   Inspect added/deleted paths too: branch-only files must not leak into the
+   baseline. If dependencies or configuration differ, include those inputs in
+   the plan or use isolated checkouts; swapping `src` alone is not equivalent.
+   Run the source-state gate, then walk the shot list:
    ```bash
    agent-browser --session s open <url>
-   agent-browser --session s snapshot -i -c   # fresh refs EVERY page/state change
-   agent-browser --session s click @eN        # e.g. open the kebab menu
+   agent-browser --session s snapshot -i -c
+   agent-browser --session s click @eN
+   # Re-snapshot and verify the target-specific rendered assertion here.
    agent-browser --session s screenshot shots/before/<nn>-<name>.png
    ```
-3. **AFTER pass** — restore and repeat the identical list:
+3. **AFTER:** restore the comparison paths from the recorded branch commit:
    ```bash
-   git checkout HEAD -- frontend/src
+   git restore --source=<branch-sha> --worktree -- frontend/src
    ```
-   Same URLs, same interactions, same filenames under `shots/after/`.
-4. **Composite pairs** (ImageMagick, left=before right=after):
+   Run the source-state gate again. Repeat the same URLs and interactions,
+   verifying the branch assertion before each image. Use identical filenames
+   under `shots/after/`.
+4. **Composite pairs** with ImageMagick, left=before and right=after. Use a
+   task-owned output directory and unique temporary filenames:
    ```bash
-   for f in before/*.png; do n=$(basename "$f")
-     magick "$f" -resize 50% -bordercolor gray -border 1 /tmp/b.png
-     magick "after/$n" -resize 50% -bordercolor gray -border 1 /tmp/a.png
-     magick /tmp/b.png /tmp/a.png +append "pair-$n"
+   for f in shots/before/*.png; do
+     n=$(basename "$f")
+     magick "$f" -resize 50% -bordercolor gray -border 1 "shots/b-$n"
+     magick "shots/after/$n" -resize 50% -bordercolor gray -border 1 "shots/a-$n"
+     magick "shots/b-$n" "shots/a-$n" +append "shots/pair-$n"
    done
    ```
-5. **Verify sources are restored**: `git status --short` must be empty again.
-6. Deliver: Read the `pair-*.png` files to show them inline, then post them on
-   the PR with `gh pr comment <NR> --attach pair-<name>.png ...` (rules:
-   [docs/agents/operations.md](../../../../docs/agents/operations.md#pr-screenshots-and-qa-evidence)).
+5. **Restore even after failure.** Remove only task-created verification markers
+   and restore all switched paths to the original branch commit. Run the same
+   source-state gate one last time and verify the original UI is rendered and
+   temporary markers are absent. Check `git status --short` against the initial
+   state as a separate source check. Then close the dedicated browser session
+   and stop task-owned services no longer needed. Preserve pre-existing
+   services, databases, volumes and caches; record anything left running.
+6. **Deliver** the inspected pairs with the ref/restart/rendered evidence. Post
+   native PR attachments as described in
+   [PR screenshots and QA evidence](../../../../docs/agents/operations.md#pr-screenshots-and-qa-evidence).
 
-## Gotchas (all hit in practice)
+## Interaction notes
 
-- **Refs go stale after every hot-reload/re-render** — re-run `snapshot -i -c`
-  before each interaction; a `fill` on a stale ref reports success but does
-  nothing. If a page renders empty after the source flip, `reload` once.
-- **Same viewport both passes**: set `agent-browser set viewport 1440 900` once
-  at the start; a viewport mismatch makes pairs useless.
-- **Identical data both passes**: never create/delete records between the
-  passes; timestamps ("vor X Minuten") will differ — that is acceptable.
-- **Menus/popovers**: screenshot with the menu OPEN, then `press Escape`
-  before navigating on.
-- **`git checkout <ref> -- frontend/src` only replaces tracked files** — new
-  files added by your branch remain on disk during the BEFORE pass. That is
-  fine (they are unimported in the old state), but do not delete them.
-- Empty states are usually reachable by searching gibberish (`xyznichts`).
-
-## Scope
-
-Screenshot comparison only. For stack bootstrap (ports, certs, seeding) see
-the worktree-setup memory/docs; for general browser driving see the
-`agent-browser` skill.
+- Browser element refs go stale after navigation or re-render. Take a fresh
+  `snapshot -i -c` before interacting; a reported successful fill is not proof
+  the expected state was reached.
+- Capture menus/popovers open, then press Escape before navigating onward.
+- Empty states are often reachable by searching gibberish (`xyznichts`).
+- Keep data unchanged between passes. Relative timestamps may differ; record
+  that limitation rather than altering records to make the images match.
