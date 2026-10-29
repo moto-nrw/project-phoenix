@@ -49,7 +49,7 @@ func parseHolidayProof(w http.ResponseWriter, r *http.Request) (capability.Holid
 	}
 	defer common.CloseFile(uploaded.File)
 	if !extensionMatchesContent(uploaded.Filename, uploaded.ContentType) {
-		return capability.HolidayProofUpload{}, &capability.UploadRejection{MaxMB: capability.MaxFileFieldSizeMB}
+		return capability.HolidayProofUpload{}, &uploadContentMismatch{filename: uploaded.Filename}
 	}
 	content, err := io.ReadAll(io.LimitReader(uploaded.File, maxEnrollmentUploadSize+1))
 	if err != nil || int64(len(content)) > maxEnrollmentUploadSize {

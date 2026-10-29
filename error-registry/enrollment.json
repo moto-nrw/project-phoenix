@@ -785,6 +785,14 @@
       "legacy": "enrollment.upload_expired"
     },
     {
+      "code": "enrollment.upload_content_mismatch",
+      "class": "input",
+      "parameters": [
+        "filename"
+      ],
+      "legacy": "enrollment.upload_content_mismatch"
+    },
+    {
       "code": "enrollment.upload_invalid",
       "class": "input",
       "parameters": [

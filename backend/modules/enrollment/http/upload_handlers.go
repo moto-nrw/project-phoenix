@@ -139,7 +139,11 @@ func parseEnrollmentUpload(w http.ResponseWriter, r *http.Request) (*common.Uplo
 		return nil, capability.UploadInput{}, errors.New("cannot measure upload")
 	}
 	phaseID, phaseErr := strconv.ParseInt(strings.TrimSpace(r.FormValue("phase_id")), 10, 64)
-	if !extensionMatchesContent(uploaded.Filename, uploaded.ContentType) || phaseErr != nil || phaseID <= 0 {
+	if !extensionMatchesContent(uploaded.Filename, uploaded.ContentType) {
+		common.CloseFile(uploaded.File)
+		return nil, capability.UploadInput{}, &uploadContentMismatch{filename: uploaded.Filename}
+	}
+	if phaseErr != nil || phaseID <= 0 {
 		common.CloseFile(uploaded.File)
 		return nil, capability.UploadInput{}, &capability.UploadRejection{MaxMB: capability.MaxFileFieldSizeMB}
 	}
@@ -174,9 +178,30 @@ func normalizeUploadContentType(contentType string) string {
 	return contentType
 }
 
+type uploadContentMismatch struct{ filename string }
+
+func (e *uploadContentMismatch) Error() string { return "file content does not match its extension" }
+
 // renderUploadRefusal answers a file the transport refused with the field's
 // upload code and the general size limit.
 func renderUploadRefusal(w http.ResponseWriter, r *http.Request, err error) {
+	var mismatch *uploadContentMismatch
+	if common.IsUploadTypeNotAllowed(err) && r.MultipartForm != nil {
+		for _, header := range r.MultipartForm.File["file"] {
+			switch strings.ToLower(filepath.Ext(header.Filename)) {
+			case ".pdf", ".png", ".jpg", ".jpeg":
+				mismatch = &uploadContentMismatch{filename: header.Filename}
+			}
+			break
+		}
+	} else {
+		errors.As(err, &mismatch)
+	}
+	if mismatch != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadContentMismatch,
+			map[string]any{"filename": mismatch.filename}))
+		return
+	}
 	common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
 		map[string]any{"max_mb": capability.MaxFileFieldSizeMB}))
 }
