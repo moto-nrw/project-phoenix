@@ -19,7 +19,7 @@ import {
   enrollConfirm,
   enrollStart,
   type LoginScope,
-  type MFATokenResponse,
+  type MFAResult,
 } from "~/lib/mfa-api";
 import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
 
@@ -36,35 +36,36 @@ const STEP_INDEX: Record<Step, number> = {
   success: 2,
 };
 
-interface MFAEnrollmentScreenProps {
-  readonly scope: LoginScope;
+interface MFAEnrollmentScreenProps<Scope extends LoginScope> {
+  readonly scope: Scope;
   /**
    * Enrollment-scoped JWT issued at login for accounts on an mfa-required
    * tenant with no credential yet. Only authorizes /auth/mfa/enroll/*.
    * After successful confirmation the backend returns a full session
-   * pair, which is handed to onComplete — this token is discarded.
+   * pair, installed by the BFF for tenants. Other portals still hand the
+   * pair to onComplete until their migration. This proof is discarded.
    */
   readonly bearerToken: string;
   readonly userEmail: string;
   /**
    * Called after the user successfully confirms their enrollment. Receives
-   * the freshly-minted access/refresh tokens returned by the confirm
-   * endpoint so the caller can seed the real NextAuth session.
+   * a token-free confirmation for tenants; other portals receive their
+   * token pair until stage 3 of the BFF migration.
    */
-  readonly onComplete: (tokens: MFATokenResponse) => void | Promise<void>;
+  readonly onComplete: (result: MFAResult<Scope>) => void | Promise<void>;
   readonly onExit?: () => void;
   /** The Träger the Träger-Portal login resolved (#4651). */
   readonly organizationId?: string;
 }
 
-export function MFAEnrollmentScreen({
+export function MFAEnrollmentScreen<Scope extends LoginScope>({
   scope,
   bearerToken,
   userEmail,
   onComplete,
   onExit,
   organizationId,
-}: MFAEnrollmentScreenProps) {
+}: MFAEnrollmentScreenProps<Scope>) {
   const [step, setStep] = useState<Step>("intro");
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
   // Formular (MFA_STEP_REFUSALS); ein 401 ohne diesen Code heißt, dass die
@@ -75,11 +76,9 @@ export function MFAEnrollmentScreen({
   const latestStartRef = useRef<() => void>(() => undefined);
   const [isStarting, setIsStarting] = useState(false);
   const [isConfirming, setIsConfirming] = useState(false);
-  // tokensRef holds the access/refresh pair returned by /enroll/confirm.
-  // We stash them in a ref instead of state to avoid an extra render
-  // between confirm success and the success-screen render; the success
-  // button passes them through to onComplete.
-  const tokensRef = useRef<MFATokenResponse | null>(null);
+  // Keep the completion result until the explicit Continue action. For
+  // tenants it contains status only; other portals still receive tokens.
+  const tokensRef = useRef<MFAResult<Scope> | null>(null);
   // The school enroll flow binds the confirm to the exact challenge that
   // enroll/start minted; tenant/operator return no token here (null).
   const challengeTokenRef = useRef<string | null>(null);
@@ -238,7 +237,14 @@ export function MFAEnrollmentScreen({
                 );
                 return;
               }
-              void onComplete(tokens);
+              void Promise.resolve()
+                .then(() => onComplete(tokens))
+                .catch((error: unknown) => {
+                  // The BFF may have installed the session while the following
+                  // browser-safe session read failed. Keep Continue available
+                  // and show the failure in this screen instead of dropping it.
+                  void showError(error, { object: "die Anmeldung" });
+                });
             }}
           >
             Weiter zum Dashboard

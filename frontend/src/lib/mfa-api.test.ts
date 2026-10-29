@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { ApiError } from "./api-error";
-import { login } from "./mfa-api";
+import { login, verifyMFA, enrollConfirm } from "./mfa-api";
 
 describe("login error bodies", () => {
   const originalFetch = global.fetch;
@@ -75,4 +75,19 @@ describe("login error bodies", () => {
       login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
     ).rejects.toMatchObject({ status: 503, code: "general.unavailable" });
   });
+});
+
+it("tenant API types cannot expose completed session tokens; other portals keep their stage-3 contract", () => {
+  expectTypeOf<
+    Awaited<ReturnType<typeof verifyMFA<"tenant">>>
+  >().not.toHaveProperty("access_token");
+  expectTypeOf<
+    Awaited<ReturnType<typeof enrollConfirm<"tenant">>>
+  >().not.toHaveProperty("refresh_token");
+  expectTypeOf<
+    Awaited<ReturnType<typeof verifyMFA<"operator">>>
+  >().toHaveProperty("access_token");
+  expectTypeOf<
+    Awaited<ReturnType<typeof enrollConfirm<"school">>>
+  >().toHaveProperty("refresh_token");
 });

@@ -547,3 +547,33 @@ describe("server-only switch and preview transitions", () => {
     },
   );
 });
+
+// #5118 stage 2: enrollment's limited access_token proof remains allowed;
+// no completed tenant login may seed a session with a token pair anymore.
+it("tenant login cannot seed a session from browser JavaScript", () => {
+  const fileName = path.join(SRC_ROOT, "app/[tenant]/page.tsx");
+  const source = ts.createSourceFile(
+    fileName,
+    readFileSync(fileName, "utf8"),
+    ts.ScriptTarget.Latest,
+    true,
+  );
+  const forbidden = new Set([
+    "signIn",
+    "internalRefresh",
+    "refresh_token",
+    "refreshToken",
+    "seedSessionWithTokens",
+  ]);
+  const findings: string[] = [];
+  function visit(node: ts.Node) {
+    if (
+      (ts.isIdentifier(node) || ts.isStringLiteral(node)) &&
+      forbidden.has(node.text)
+    )
+      findings.push(node.text);
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  expect(findings).toEqual([]);
+});
