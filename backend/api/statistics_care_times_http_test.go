@@ -143,6 +143,67 @@ func TestCareTimeOverruns_ListsAndExportsChildrenWithOverruns(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, authExec(t, tc, req, claims, reportPermissions).Code)
 }
 
+// TestCareTimesQueryBudgets keeps the three comparison reads flat: the child
+// view must not add a query for each listed day, and the list and export must
+// not add one for each child.
+func TestCareTimesQueryBudgets(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	tc := setupStatisticsRoute(t)
+	staff, account := testpkg.CreateTestStaffWithAccountForTenant(t, tc.db, testpkg.Tenant(t), "Budget", "Leitung")
+	claims := claimsFor(t, account.ID)
+	childID := careTimeChild(t, tc, staff.ID)
+
+	counter := testpkg.CaptureQueries(t, tc.db)
+	type measurement struct {
+		statements []string
+		body       []byte
+	}
+	run := func(path string) measurement {
+		counter.Reset()
+		rec := authExec(t, tc, httptest.NewRequest(http.MethodGet, path, nil), claims, reportPermissions)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return measurement{statements: counter.Queries(), body: rec.Body.Bytes()}
+	}
+
+	budgetWindow := "from=2026-06-08&to=2026-06-30"
+	studentPath := "/students/" + strconv.FormatInt(childID, 10) + "/care-times?" + budgetWindow
+	studentOne := run(studentPath)
+	overrunsOne := run("/care-time-overruns?" + budgetWindow)
+	exportOne := run("/care-time-overruns/export?" + budgetWindow + "&format=xlsx")
+	var studentPayload studentCareTimesPayload
+	require.NoError(t, json.Unmarshal(studentOne.body, &studentPayload))
+	require.Len(t, studentPayload.Data.Days, 3)
+	var overrunPayload careTimeOverrunsPayload
+	require.NoError(t, json.Unmarshal(overrunsOne.body, &overrunPayload))
+	require.Len(t, overrunPayload.Data.Students, 1)
+	require.NotEmpty(t, exportOne.body)
+
+	device := testpkg.CreateTestDevice(t, tc.db, "care-time-budget-device")
+	for _, date := range []calendar.Date{calendar.NewDate(2026, 6, 22), calendar.NewDate(2026, 6, 23), calendar.NewDate(2026, 6, 29)} {
+		insertAttendanceSpan(t, tc.db, testpkg.Tenant(t), childID, device.ID, date, 8*time.Hour, 14*time.Hour)
+	}
+
+	for i := 0; i < 3; i++ {
+		careTimeChild(t, tc, staff.ID)
+	}
+	studentMany := run(studentPath)
+	overrunsMany := run("/care-time-overruns?" + budgetWindow)
+	exportMany := run("/care-time-overruns/export?" + budgetWindow + "&format=xlsx")
+	require.NoError(t, json.Unmarshal(studentMany.body, &studentPayload))
+	require.Len(t, studentPayload.Data.Days, 6)
+	require.NoError(t, json.Unmarshal(overrunsMany.body, &overrunPayload))
+	require.Len(t, overrunPayload.Data.Students, 4)
+	require.NotEmpty(t, exportMany.body)
+
+	assert.Len(t, studentMany.statements, len(studentOne.statements), "the child view must batch its day inputs")
+	assert.Len(t, overrunsMany.statements, len(overrunsOne.statements), "the overrun list must batch its children")
+	assert.Len(t, exportMany.statements, len(exportOne.statements), "the export must reuse the batched overrun list")
+	testpkg.AssertQueryBudget(t, "api.statistics.student_care_times", studentMany.statements)
+	testpkg.AssertQueryBudget(t, "api.statistics.care_time_overruns", overrunsMany.statements)
+	testpkg.AssertQueryBudget(t, "api.statistics.care_time_overruns_export", exportMany.statements)
+}
+
 func TestCareTimes_RejectMissingRightsWithARegisteredCode(t *testing.T) {
 	t.Parallel()
 	tc := setupStatisticsRoute(t)

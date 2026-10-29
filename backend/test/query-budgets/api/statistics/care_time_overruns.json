@@ -1,0 +1,6 @@
+{
+  "scenario": "api.statistics.care_time_overruns",
+  "max": 30,
+  "exact": false,
+  "description": "GET /statistics/care-time-overruns: fixed tenant and comparison batches without per-child SQL. TestCareTimesQueryBudgets compares one with four children."
+}

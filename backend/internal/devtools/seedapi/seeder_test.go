@@ -127,7 +127,9 @@ func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
+		"/api/students/101/pickup-exceptions",
 		"/api/students/101/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/iot/attendance/toggle",
 		"/api/students/102/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
 		"/api/students/103/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
 		"/api/iot/session/end",
@@ -176,6 +178,7 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "end statistics demo session")
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
+		"/api/students/101/pickup-exceptions",
 		"/api/students/101/rfid",
 		"/api/iot/session/end",
 		"/auth/login",

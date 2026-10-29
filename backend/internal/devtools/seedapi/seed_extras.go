@@ -141,11 +141,25 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) (err error) {
 		}
 		err = errors.Join(err, cleanupErr)
 	}()
+	today := todaySeedDate()
+	pickupTime := time.Now().In(seedBerlinLocation()).Add(-30 * time.Minute).Format("15:04")
 	seeded := 0
 	for i := 0; i < 3 && i < len(DemoStudents); i++ {
 		studentID, ok := rt.FixedSeeder.studentIDByIndex[i]
 		if !ok {
 			return fmt.Errorf("student ID not available for statistics demo index %d", i)
+		}
+		// The first completed attendance intentionally runs past its dated
+		// pickup time. It makes the Soll-und-Ist list useful immediately after
+		// seeding, while the other records remain checked in for live views.
+		if i == 0 {
+			if _, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/pickup-exceptions", studentID), map[string]any{
+				"exception_date": today.String(),
+				"pickup_time":    pickupTime,
+				"reason":         "Späte Abholung",
+			}); err != nil {
+				return fmt.Errorf("create statistics demo pickup exception: %w", err)
+			}
 		}
 		// RFID identifiers must be hexadecimal.
 		rfid := fmt.Sprintf("57A7%08X", studentID)
@@ -157,6 +171,11 @@ func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) (err error) {
 		}
 		if _, err := rt.Client.DevicePost("/api/iot/checkin", map[string]any{"student_rfid": rfid, "action": "checkin", "room_id": roomID}, deviceKey, rt.StaffPIN); err != nil {
 			return fmt.Errorf("record statistics demo room visit: %w", err)
+		}
+		if i == 0 {
+			if _, err := rt.Client.DevicePost("/api/iot/attendance/toggle", map[string]string{"rfid": rfid, "action": "confirm"}, deviceKey, rt.StaffPIN); err != nil {
+				return fmt.Errorf("complete statistics demo overrun attendance: %w", err)
+			}
 		}
 		seeded++
 	}
