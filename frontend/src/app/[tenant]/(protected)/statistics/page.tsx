@@ -116,6 +116,14 @@ function addDays(d: Date, days: number): Date {
   return r;
 }
 
+function retainAvailableValues(
+  selected: string[],
+  available: ReadonlySet<string>,
+): string[] {
+  const retained = selected.filter((value) => available.has(value));
+  return retained.length === selected.length ? selected : retained;
+}
+
 export default function StatisticsPage() {
   const tenantPath = useTenantAwarePath();
   const todayISO = berlinTodayISO();
@@ -151,6 +159,36 @@ export default function StatisticsPage() {
   const [exporting, setExporting] = useState<string | null>(null);
   const { show: showExportError } = useApiErrorDisplay();
   const retryExportRef = useRef<() => void>(() => undefined);
+  // Der ungefilterte Katalog gehört immer zu genau einem Zeitraum. So löst
+  // eine Auswahländerung keine zweite, identische Katalogabfrage aus.
+  const filterCatalogRangeRef = useRef<string | null>(null);
+
+  const updateFilterCatalog = useCallback(
+    (report: StatisticsReport, rangeKey: string) => {
+      const classes = [
+        ...new Set(
+          report.students
+            .map((student) => student.school_class)
+            .filter(Boolean),
+        ),
+      ];
+      const availableGroupIDs = new Set(
+        report.groups.map((group) => group.group_id),
+      );
+      const availableClasses = new Set(classes);
+
+      filterCatalogRangeRef.current = rangeKey;
+      setAvailableGroups(report.groups);
+      setAvailableClasses(classes);
+      setGroupIds((selected) =>
+        retainAvailableValues(selected, availableGroupIDs),
+      );
+      setSchoolClasses((selected) =>
+        retainAvailableValues(selected, availableClasses),
+      );
+    },
+    [],
+  );
 
   const groupOptions = useMemo(
     () =>
@@ -189,15 +227,11 @@ export default function StatisticsPage() {
       .then((report) => {
         if (cancelled) return;
         setData(report);
-        // Die Auswahl der Filter kommt aus dem ungefilterten Bericht. Klassen
-        // stammen aus den Kindern; Kinder ohne Klasse haben keinen Eintrag.
+        // Bei leerer Auswahl ist dies zugleich der ungefilterte
+        // Filterkatalog. Klassen stammen aus den Kindern; Kinder ohne Klasse
+        // haben keinen Eintrag.
         if (groupIds.length === 0 && schoolClasses.length === 0) {
-          setAvailableGroups(report.groups);
-          setAvailableClasses([
-            ...new Set(
-              report.students.map((st) => st.school_class).filter(Boolean),
-            ),
-          ]);
+          updateFilterCatalog(report, `${fromISO}-${toISO}`);
         }
       })
       .catch((error: unknown) => {
@@ -233,6 +267,44 @@ export default function StatisticsPage() {
     reloadKey,
     showLoadError,
     clearLoadError,
+    updateFilterCatalog,
+  ]);
+
+  // Mit aktivem Filter enthält der sichtbare Bericht nur dessen Population.
+  // Nach einem Zeitraumwechsel braucht die Auswahl deshalb ihren eigenen,
+  // ungefilterten Bericht. Der Abschnitt attendance liefert Gruppen und
+  // Klassen, ohne Räume, Kurse oder die aufwendige Belegung zu berechnen.
+  useEffect(() => {
+    if (!fromISO || !toISO) return;
+    if (groupIds.length === 0 && schoolClasses.length === 0) return;
+
+    const rangeKey = `${fromISO}-${toISO}`;
+    if (filterCatalogRangeRef.current === rangeKey) return;
+
+    let cancelled = false;
+    fetchStatisticsReport(fromISO, toISO, {}, ["attendance"])
+      .then((report) => {
+        if (!cancelled) updateFilterCatalog(report, rangeKey);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        // Der sichtbare Bericht bleibt nutzbar; die nächste Zeitraumänderung
+        // versucht den Katalog erneut.
+        logger.error("statistics_filter_catalog_fetch_failed", {
+          from: fromISO,
+          to: toISO,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    fromISO,
+    toISO,
+    groupIds.length,
+    schoolClasses.length,
+    updateFilterCatalog,
   ]);
 
   // Belegung nach Uhrzeit: eigene Anfrage, nur bei offenem Reiter.
