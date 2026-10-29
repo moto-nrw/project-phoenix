@@ -555,12 +555,14 @@ func (s *Service) roomNameForResponse(ctx context.Context, currentVisit *ports.C
 }
 
 // activeStudentCount is the kiosk counter of a scan. A session count carries
-// its session and visit revision (#5128); a room-wide count carries neither,
-// because no single revision orders the sessions of a room.
+// its session and visit revision (#5128); a room-wide count carries its room
+// and the room's visit revision (#5205). The two scopes never mix.
 type activeStudentCount struct {
-	count     *int
-	sessionID *int64
-	revision  *int64
+	count        *int
+	sessionID    *int64
+	revision     *int64
+	roomID       *int64
+	roomRevision *int64
 }
 
 // resolveActiveStudentCount refreshes the heartbeat of the device session
@@ -579,7 +581,7 @@ func (s *Service) resolveActiveStudentCount(ctx context.Context, checkin *checki
 	if sessionID != nil {
 		return s.activeStudentCountForSession(ctx, *sessionID), nil
 	}
-	return activeStudentCount{count: s.activeStudentCountForRoom(ctx, *roomID)}, nil
+	return s.activeStudentCountForRoom(ctx, *roomID), nil
 }
 
 // touchScanSession refreshes the device session after a scan that named a
@@ -606,16 +608,19 @@ func (s *Service) touchScanSession(ctx context.Context, checkin *checkinResult, 
 	return inRoom, err
 }
 
-func (s *Service) activeStudentCountForRoom(ctx context.Context, roomID int64) *int {
-	count, err := s.presence.CountOpenVisitsInRoom(ctx, roomID)
+// activeStudentCountForRoom reads the room-wide count with the room's
+// revision (#5205). Inside the scan's transaction it includes the scan's own
+// change and its events.
+func (s *Service) activeStudentCountForRoom(ctx context.Context, roomID int64) activeStudentCount {
+	count, revision, err := s.presence.CountOpenVisitsInRoomWithRevision(ctx, roomID)
 	if err != nil {
 		s.logger.WarnContext(ctx, "failed to count active students for room",
 			slog.Int64("room_id", roomID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return activeStudentCount{}
 	}
-	return &count
+	return activeStudentCount{count: &count, roomID: &roomID, roomRevision: &revision}
 }
 
 // activeStudentCountForSession reads the session count with its revision.

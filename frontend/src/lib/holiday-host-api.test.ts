@@ -6,6 +6,7 @@ import {
   fetchHolidayGuestSheet,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
+  formatHolidayHostAnswer,
 } from "./holiday-host-api";
 
 const { downloadBlobMock } = vi.hoisted(() => ({ downloadBlobMock: vi.fn() }));
@@ -109,7 +110,79 @@ describe("holiday host api", () => {
       homeSchoolId: null,
       homeSchoolName: "Feriengast (Grundschule Melle)",
       timeModelId: "61",
+      secondGuardian: null,
+      answers: [],
     });
+    expect(list.questions).toEqual([]);
+  });
+
+  it("maps the shared answers and the second guardian of a participant (#5202)", async () => {
+    const answers = [
+      {
+        key: "darf_allein_nach_hause",
+        label: "Darf allein nach Hause gehen",
+        type: "boolean",
+        value: true,
+      },
+      { key: "ausflug_ab", label: "Ausflug ab", type: "date", value: null },
+    ];
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        status: "success",
+        data: {
+          week: BACKEND_WEEK,
+          time_models: [],
+          home_schools: [],
+          questions: answers.map(({ key, label, type }) => ({
+            key,
+            label,
+            type,
+          })),
+          participants: [
+            {
+              child_id: 9,
+              first_name: "Ida",
+              last_name: "Sommer",
+              birth_date: "2018-03-01",
+              home_school_id: 31,
+              home_school_name: "OGS Süd",
+              time_model_id: 61,
+              second_guardian: { name: "Tom Zweit", phone: "0170 2222222" },
+              answers,
+            },
+          ],
+        },
+      }),
+    );
+
+    const list = await fetchHolidayParticipants("51");
+
+    expect(list.questions.map((question) => question.key)).toEqual([
+      "darf_allein_nach_hause",
+      "ausflug_ab",
+    ]);
+    expect(list.participants[0]?.secondGuardian).toEqual({
+      name: "Tom Zweit",
+      phone: "0170 2222222",
+    });
+    expect(list.participants[0]?.answers).toEqual(answers);
+  });
+
+  it("writes a shared answer as the school reads it", () => {
+    expect(formatHolidayHostAnswer({ type: "boolean", value: true })).toBe(
+      "Ja",
+    );
+    expect(formatHolidayHostAnswer({ type: "boolean", value: false })).toBe(
+      "Nein",
+    );
+    expect(formatHolidayHostAnswer({ type: "date", value: "2026-09-15" })).toBe(
+      "15.09.2026",
+    );
+    expect(
+      formatHolidayHostAnswer({ type: "select", value: "Mit dem Bus" }),
+    ).toBe("Mit dem Bus");
+    expect(formatHolidayHostAnswer({ type: "text", value: null })).toBe("–");
+    expect(formatHolidayHostAnswer(undefined)).toBe("–");
   });
 
   it("keeps the error code of an ended week", async () => {
@@ -244,6 +317,7 @@ describe("holiday host api", () => {
         { name: "Eva Muster", phone: "0151 2345678", relationship: "Eltern" },
       ],
       pickupContacts: [],
+      answers: [],
       readOnly: false,
     });
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/holiday-guests/91");

@@ -159,6 +159,7 @@ describe("HolidayFormEditor (#5198)", () => {
         sort_order: 0,
         applies_to_child: true,
         health: false,
+        share_with_host: false,
       },
       {
         key: "forderbedarf",
@@ -169,6 +170,7 @@ describe("HolidayFormEditor (#5198)", () => {
         sort_order: 1,
         applies_to_child: true,
         health: true,
+        share_with_host: false,
         visible_when: {
           source: "field",
           field: "geht_allein_nach_hause",
@@ -178,6 +180,56 @@ describe("HolidayFormEditor (#5198)", () => {
       },
     ]);
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+  });
+
+  it("shares a question without health information with the hosting OGS (#5202)", async () => {
+    const saved = form([]);
+    mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
+      Promise.resolve({ ...saved, version: 2, fields }),
+    );
+    renderEditor();
+    const add = screen.getByRole("button", { name: /Frage hinzufügen/ });
+    fireEvent.click(add);
+    fireEvent.change(questionInputs()[0]!, {
+      target: { value: "Taschengeld" },
+    });
+    fireEvent.click(add);
+    fireEvent.change(questionInputs()[1]!, {
+      target: { value: "Förderbedarf" },
+    });
+
+    fireEvent.click(choice(/^OGS sieht die Antwort/));
+    fireEvent.click(choice(/^OGS sieht die Antwort/, 1));
+    expect(choice(/^OGS sieht die Antwort/, 1)).toBeChecked();
+    // A health question stays with the Träger: the share goes off and
+    // cannot be chosen, and the row says why.
+    fireEvent.click(choice(/^Gesundheitsangabe/, 1));
+    const blocked = choice(/^OGS sieht die Antwort/, 1);
+    expect(blocked).not.toBeChecked();
+    expect(blocked).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Nicht bei Gesundheitsangaben. Diese bleiben beim Träger.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("OGS sieht es")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+
+    await waitFor(() => expect(mockSave).toHaveBeenCalledTimes(1));
+    const [, fields] = mockSave.mock.calls[0] as [string, HolidayFormField[]];
+    expect(
+      fields.map(({ key, health, share_with_host }) => ({
+        key,
+        health,
+        share_with_host,
+      })),
+    ).toEqual([
+      { key: "taschengeld", health: false, share_with_host: true },
+      { key: "forderbedarf", health: true, share_with_host: false },
+    ]);
   });
 
   it("marks a question without text instead of saving", async () => {

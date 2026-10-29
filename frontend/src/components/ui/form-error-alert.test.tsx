@@ -127,4 +127,49 @@ describe("FormErrorAlert", () => {
       "Diese Seite gehört zum Modul Zeiterfassung. Ihre Schule hat es nicht gebucht. Für eine Buchung wenden Sie sich an das moto-Team.",
     );
   });
+
+  it("puts a retry beside the message only without a request ID", () => {
+    const retry = { label: "Wiederholen", onClick: vi.fn() };
+    const { rerender } = render(
+      <LoadErrorAlert
+        error={{ message: "Laden fehlgeschlagen", retry, attempt: 1 }}
+        actionLayout="responsive"
+      />,
+    );
+    // Beside the message from sm on.
+    expect(
+      screen
+        .getByRole("button", { name: "Wiederholen" })
+        .closest("[class*='sm:basis-auto']"),
+    ).not.toBeNull();
+
+    rerender(
+      <LoadErrorAlert
+        error={{
+          message: "Laden fehlgeschlagen",
+          retry,
+          requestId: {
+            value: "8c3f2a1e-5b7d-4e9a-a6c2-1f0d9b3e7a54",
+            label: "Vorgangskennung: {requestId}",
+            copyLabel: "Vorgangskennung kopieren",
+            copiedLabel: "Kopiert",
+            copyFailedLabel: "Nicht kopiert",
+          },
+          attempt: 1,
+        }}
+        actionLayout="responsive"
+      />,
+    );
+    // The long ID would squeeze the message: under it, as by default.
+    expect(
+      screen
+        .getByRole("button", { name: "Wiederholen" })
+        .closest("[class*='sm:basis-auto']"),
+    ).toBeNull();
+    expect(
+      screen
+        .getByRole("button", { name: "Wiederholen" })
+        .closest("[class*='basis-full']"),
+    ).not.toBeNull();
+  });
 });

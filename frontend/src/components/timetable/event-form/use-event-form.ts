@@ -77,6 +77,7 @@ import {
   rosterForWeekday,
   rosterSeedForWeekday,
   seedWeekdayRosters,
+  withSourcePrefill,
   withWeekdayStudentIds,
   shiftCoverageWarningText,
   sortPeople,
@@ -93,6 +94,7 @@ import type {
   EventFormState,
   PersonOption,
   RepeatMode,
+  SeriesSourcePrefill,
   SourceFilterMode,
   WeekdayRosterState,
 } from "./form-model";
@@ -303,6 +305,13 @@ function mondayOfWeekISO(dateISO: string): string {
   return toISODate(date);
 }
 
+function newForm(
+  form: EventFormState,
+  source: SeriesSourcePrefill | null,
+): EventFormState {
+  return source ? withSourcePrefill(form, source) : form;
+}
+
 export interface UseEventFormParams {
   isOpen: boolean;
   onClose: () => void;
@@ -330,6 +339,8 @@ export interface UseEventFormParams {
   variant: "full" | "quick";
   defaultStartTime?: string;
   defaultEndTime?: string;
+  /** Prefills a new Regeltermin with an offering as its source. */
+  defaultSource?: SeriesSourcePrefill | null;
   canCheckShiftCoverage: boolean;
   closingDayRanges?: readonly ClosingDayRange[];
 }
@@ -359,6 +370,7 @@ export function useEventForm({
   variant,
   defaultStartTime,
   defaultEndTime,
+  defaultSource = null,
   canCheckShiftCoverage,
   closingDayRanges,
 }: UseEventFormParams) {
@@ -810,12 +822,15 @@ export function useEventForm({
         ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
         : initialInstance
           ? formFromInstance(initialInstance, defaultCalendarPeriodId)
-          : emptyForm(
-              defaultDate,
-              defaultCalendarPeriodId,
-              defaultRepeat,
-              defaultStartTime,
-              defaultEndTime,
+          : newForm(
+              emptyForm(
+                defaultDate,
+                defaultCalendarPeriodId,
+                defaultRepeat,
+                defaultStartTime,
+                defaultEndTime,
+              ),
+              defaultSource,
             );
     setInitialStudentIDsSnapshot([...nextForm.studentIds]);
     setInitialStaffIDsSnapshot([...nextForm.staffIds]);
@@ -864,6 +879,7 @@ export function useEventForm({
     defaultDate,
     defaultEndTime,
     defaultRepeat,
+    defaultSource,
     defaultStartTime,
     initialInstance,
     initialSeries,

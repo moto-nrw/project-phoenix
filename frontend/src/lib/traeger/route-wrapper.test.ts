@@ -441,6 +441,38 @@ describe("Träger upload proxy (#4653)", () => {
     );
   }
 
+  it("uploads a period PDF with POST and encoded route parameters", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ data: { id: "81" } }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const form = new FormData();
+    form.append(
+      "document",
+      new Blob(["%PDF-1.4"], { type: "application/pdf" }),
+      "Hinweis.pdf",
+    );
+    const request = new NextRequest(
+      "http://localhost:3000/api/traeger/holiday-periods/5/form/documents",
+      { method: "POST", body: form },
+    );
+    const response = await proxyUpload(
+      (params) =>
+        `/traeger/holiday-periods/${encodeURIComponent(String(params.id))}/form/documents`,
+      1024,
+      { method: "POST", tooLargeCode: "enrollment.legal_document_invalid" },
+    )(request, { params: Promise.resolve({ id: "5/1" }) });
+    expect(response.status).toBe(201);
+    expect(mockFetch).toHaveBeenCalledWith(
+      "http://localhost:8080/traeger/holiday-periods/5%2F1/form/documents",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer org-token" }),
+      }),
+    );
+  });
   it("forwards the multipart body once more after a refreshed session", async () => {
     const form = new FormData();
     form.append("logo", new File(["png"], "logo.png", { type: "image/png" }));

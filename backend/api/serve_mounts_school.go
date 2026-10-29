@@ -173,6 +173,7 @@ func newTimetableResource(
 		UserContextService:      caller,
 		SettingsService:         settings,
 		OfferingSourceOptions:   NewTimetableOfferingSources(careOfferings),
+		OfferingGapDecisions:    careOfferings,
 		SupervisionSheets:       NewTimetableSupervisionSheets(classDay.ClassDay),
 		HomeworkFeedback:        timetableOwner,
 		PlanExportService:       planExport,
