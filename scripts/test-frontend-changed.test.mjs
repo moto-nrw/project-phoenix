@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { gitTestEnvironment, initGitFixture } from "./test-helpers/git-fixture.mjs";
 
+const env = gitTestEnvironment();
 const runner = readFileSync(new URL("./test-frontend-changed.mjs", import.meta.url), "utf8");
 
 function fixture(t) {
@@ -200,8 +201,7 @@ for (const input of [
   "frontend/tools/zz-probe/reader.test.ts", "frontend/src/test/node-test-files.ts",
   "frontend/src/test/phosphor-imports-plugin.ts", "frontend/public/sw.js",
   "frontend/scripts/plugin.mjs", "frontend/.oxlintrc.json", "frontend/new.config.ts",
-  "frontend/README.md", "frontend/src/lib/new.json", "frontend/src/lib/new.unknown",
-  "frontend/src/lib/product.test.ts", "frontend/src/lib/product.spec.tsx",
+  "frontend/src/lib/new.json", "frontend/src/lib/new.unknown", "frontend/guide.mdx",
   "frontend/src/types/new.d.ts", "frontend/src/new-area/module.ts",
   "frontend/src/sentry.config.ts",
 ]) {
@@ -236,7 +236,7 @@ test("untracked, staged, committed, deleted and renamed inputs use the same fall
   }
 });
 
-test("only product modules stay incremental; backend-only changes run guards without list", t => {
+test("allowed source changes stay incremental; backend-only changes run guards without list", t => {
   const f = fixture(t);
   assert.equal(f.run("--mode", "HEAD").stdout, "incremental\n");
   f.git("checkout", "--", "frontend/src/lib/product.ts");
@@ -250,4 +250,77 @@ printf '%s\\n' "$@" > '${f.root}/args'
 `, 0o755);
   assert.equal(f.run("HEAD").status, 0);
   assert.match(readFileSync(join(f.root, "args"), "utf8"), /permission-labels\.test\.ts/);
+});
+
+test("tests and declarations in every allowed source directory stay incremental", t => {
+  const f = fixture(t);
+  f.git("checkout", "--", "frontend/src/lib/product.ts");
+  const paths = ["app", "components", "contexts", "hooks", "i18n", "lib", "server"].flatMap(directory =>
+    ["ts", "test.ts", "spec.tsx", "d.ts"].map(suffix => `frontend/src/${directory}/probe.${suffix}`));
+  for (const path of paths) f.write(path, "export {};\n");
+  assert.equal(f.run("--mode", "HEAD").stdout, "incremental\n");
+  const result = spawnSync(process.execPath, [join(f.root, "scripts/test-frontend-changed.mjs"), "--mode-files"], {
+    input: JSON.stringify(paths), encoding: "utf8", env,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(result.stdout, "incremental\n");
+});
+
+test("documentation is excluded but unknown Markdown-like inputs still fail closed", t => {
+  const f = fixture(t);
+  f.git("checkout", "--", "frontend/src/lib/product.ts");
+  for (const path of ["frontend/README.md", "frontend/scripts/input.md", "frontend/src/lib/input.md"]) f.write(path, "docs");
+  assert.equal(f.run("--mode", "HEAD").stdout, "none\n");
+  f.write("frontend/new.mdx", "input");
+  assert.equal(f.run("--mode", "HEAD").stdout, "full\n");
+});
+
+test("CI JSON classification uses the same fail-closed decision, including both rename paths", t => {
+  const f = fixture(t);
+  for (const [paths, mode] of [
+    [[], "none"], [["frontend/README.md"], "none"],
+    [["frontend/public/sw.js"], "full"],
+    [["frontend/unknown.input", "frontend/src/lib/moved.ts"], "full"],
+    [["backend/catalog.json"], "guards"],
+    [[".github/workflows/lint.yml"], "guards"],
+    [["scripts/test-changed.sh"], "full"],
+    [["frontend/src/test/config.ts"], "full"],
+  ]) {
+    const result = spawnSync(process.execPath, [join(f.root, "scripts/test-frontend-changed.mjs"), "--mode-files"], {
+      input: JSON.stringify(paths), encoding: "utf8", env,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, mode + "\n", JSON.stringify(paths));
+  }
+  for (const input of ["null", "{}", '["frontend/src/lib/a.ts", 42]', "bad json"]) {
+    const result = spawnSync(process.execPath, [join(f.root, "scripts/test-frontend-changed.mjs"), "--mode-files"], { input, encoding: "utf8", env });
+    assert.equal(result.status, 1);
+    assert.equal(result.stdout, "", "invalid inputs must not produce a successful selection");
+  }
+});
+
+for (const transitive of [false, true]) {
+  test(`resolved imports outside frontend require guards (transitive=${transitive})`, t => {
+    const f = fixture(t);
+    f.write("backend/catalog.json", "{}");
+    f.write("frontend/src/probe.test.ts", transitive
+      ? 'import "./helper";'
+      : 'import catalog from "../../backend/catalog.json";');
+    if (transitive) f.write("frontend/src/helper.ts", 'export { default } from "../../backend/catalog.json";');
+    const result = f.run("--check-guards");
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /src\/probe\.test\.ts/);
+  });
+}
+
+test("CI shards full DOM runs using the shared classifier and excludes documentation from lint/build", () => {
+  const workflow = readFileSync(new URL("../.github/workflows/main.yml", import.meta.url), "utf8");
+  assert.match(workflow, /full-frontend-suite:.*steps\.frontend-mode\.outputs\.mode == 'full'/);
+  assert.match(workflow, /node scripts\/test-frontend-changed\.mjs --mode-files/);
+  assert.match(workflow, /frontend:\n\s+- 'frontend\/\*\*'\n\s+- '!frontend\/\*\*\/\*\.md'/);
+  assert.match(workflow, /run-frontend-lint:.*frontend-catalog-inputs/);
+  assert.match(workflow, /run-frontend:.*workflow-lint/);
+  const testWorkflow = readFileSync(new URL("../.github/workflows/test.yml", import.meta.url), "utf8");
+  assert.match(testWorkflow, /inputs.full-frontend-suite.*'\["node","dom-1","dom-2"\]'/);
+  assert.match(testWorkflow, /dom-1\|dom-2\) test_args\+=\(--shard/);
 });

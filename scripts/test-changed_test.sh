@@ -436,7 +436,11 @@ for input in backend/auth/authorize/permissions/catalog.json \
     (cd "$fixture" && PATH="$fixture/fake-bin:$PATH" TEST_CHANGED_CALL_LOG="$call_log" \
       scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
     if [[ "$input" = frontend/* ]]; then
-      assert_calls $'pnpm:install --frozen-lockfile\npnpm:exec vitest run'
+      if [[ "$input" = *.md && "$change" != rename ]]; then
+        assert_calls ""
+      else
+        assert_calls $'pnpm:install --frozen-lockfile\npnpm:exec vitest run'
+      fi
     else
       assert_calls "$frontend_calls"
     fi
