@@ -18,9 +18,13 @@ the old ones along.
 1. `timetable.OfferingRosterResyncInput` and `careplan.OfferingRosterResync`
    carry `StoredOfferingIDs`, the template's source ids before the save. The
    template update and the split ("Dieser und alle folgenden") set them; create,
-   connect and the template end leave them empty and stay strict. The root's
-   adapter `timetableOfferingRosterResync` forwards the field; it decides
-   nothing.
+   connect and the template end leave them empty and stay strict. A split with
+   a future cut also resyncs the capped predecessor from today with its stored
+   ids when the guard refuses them as a fresh selection, so an inactive
+   source leaves before the cut as on every save; a predecessor whose stored
+   sources still pass, or are refused even with them, keeps its rows. The
+   root's adapter `timetableOfferingRosterResync` forwards the field; it
+   decides nothing.
 2. Care Plan keeps the rule: an inactive offering among the stored ids is
    skipped while another source stays valid; every other refusal, a newly
    selected inactive offering and a template without a valid source keep

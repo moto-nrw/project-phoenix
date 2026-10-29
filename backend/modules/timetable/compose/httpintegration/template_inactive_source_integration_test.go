@@ -218,3 +218,77 @@ func TestTemplateOfferingSource_SplitSkipsStoredInactiveSource(t *testing.T) {
 	assert.Empty(t, successorRows.rowsOf(t, f.s.students[0]), "the inactive source plans its child no more")
 	assert.Len(t, successorRows.rowsOf(t, f.s.students[1]), 1, "the valid source plans its child on the successor")
 }
+
+// A split with a future cut saves the predecessor as well: from today up to
+// the cut it plans only what the valid source books, as every save does. A's
+// child leaves the predecessor and its purely planned occurrence before the
+// cut; recorded attendance and B's child stay (#5313 review).
+func TestTemplateOfferingSource_FutureSplitReconcilesPredecessorFromToday(t *testing.T) {
+	t.Parallel()
+	f := setupInactiveSourceTemplate(t)
+	planned, recorded, cut := futureMonday(1), futureMonday(2), futureMonday(3)
+	plannedInstance := f.materializeOn(t, planned)
+	recordedInstance := f.materializeOn(t, recorded)
+	attendance := f.participant(t, recordedInstance, f.s.students[0])
+	checkedIn := time.Date(2030, 9, 9, 12, 5, 0, 0, time.UTC)
+	testpkg.UpdateSessionAttendance(t, f.s.ctx, f.s.db, attendance.ID, map[string]any{
+		"status": testpkg.ScheduleAttendanceStatusPresent, "checked_in_at": checkedIn,
+	})
+	bPlanned := f.participant(t, plannedInstance, f.s.students[1])
+	f.deactivate(t, f.a)
+
+	split, err := f.s.timetableData.Templates.SplitTemplate(f.s.ctx, timetable.SplitTemplateCommand{
+		TemplateID:       f.update.TemplateID,
+		EffectiveDate:    cut,
+		Name:             f.update.Fields.Name,
+		Type:             activityContract.GroupTypeCare,
+		Weekdays:         []int{activityContract.WeekdayMonday},
+		StartTime:        time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:          time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:           f.s.roomID,
+		CategoryID:       f.s.categoryID,
+		CalendarPeriodID: &f.s.period.ID,
+		TargetGroupType:  activityContract.TargetGroupTypeAngebot,
+		GradeLevelMax:    testpkg.MaxSchoolGradeLevel,
+	})
+	require.NoError(t, err)
+	registerSourcedTemplateCleanup(t, f.s, split.NewTemplateID)
+
+	assert.Empty(t, f.rowsOf(t, f.s.students[0]), "the inactive source plans its child on the predecessor no more")
+	kept := f.rowsOf(t, f.s.students[1])
+	if assert.Len(t, kept, 1, "the valid source keeps its child on the predecessor") && assert.NotNil(t, kept[0].ValidUntil) {
+		assert.Equal(t, cut.String(), string(*kept[0].ValidUntil), "the predecessor ends at the cut")
+	}
+	_, stillPlanned := f.participants(t, plannedInstance)[f.s.students[0]]
+	assert.False(t, stillPlanned, "the purely planned occurrence before the cut drops the inactive source's child")
+	assert.Equal(t, bPlanned.ID, f.participant(t, plannedInstance, f.s.students[1]).ID, "the valid source's child keeps the occurrence")
+	kept0 := f.participant(t, recordedInstance, f.s.students[0])
+	assert.Equal(t, attendance.ID, kept0.ID, "recorded attendance stays")
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusPresent, kept0.Status)
+}
+
+func (f inactiveSourceTemplate) materializeOn(t *testing.T, date calendar.Date) int64 {
+	t.Helper()
+	_, err := f.s.materialization.MaterializeForTenant(f.s.ctx, date, date, timetable.MaterializationSourceManual)
+	require.NoError(t, err)
+	instances := testpkg.ActivityInstancesWhere(t, f.s.ctx, f.s.db,
+		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ?`, f.update.TemplateID, date)
+	require.Len(t, instances, 1, "the template has one occurrence on %s", date)
+	return instances[0].ID
+}
+
+func (f inactiveSourceTemplate) participants(t *testing.T, instanceID int64) map[int64]*testpkg.InstanceStudent {
+	t.Helper()
+	byStudent := map[int64]*testpkg.InstanceStudent{}
+	for _, row := range testpkg.InstanceStudentsWhere(t, f.s.ctx, f.s.db, `"instance_student".instance_id = ?`, instanceID) {
+		byStudent[row.StudentID] = row
+	}
+	return byStudent
+}
+
+func (f inactiveSourceTemplate) participant(t *testing.T, instanceID, studentID int64) *testpkg.InstanceStudent {
+	t.Helper()
+	row, ok := f.participants(t, instanceID)[studentID]
+	require.True(t, ok, "student %d is on occurrence %d", studentID, instanceID)
+	return row
+}

@@ -238,6 +238,52 @@ func (s *TemplateSplitService) resyncSuccessorOfferingSource(
 	return nil
 }
 
+// resyncSplitPredecessorFromToday reconciles the capped predecessor from
+// today up to a future cut when one of its stored sources turned inactive
+// (#5313 review): such a source contributes nothing from today on, as on every
+// template save, so its children leave the predecessor's rows and purely
+// planned occurrences before the cut, while recorded and hand-decided
+// attendance and history stay (Care Plan's resync). The successor's own
+// resync starts at the cut. Predecessors whose stored sources still pass the
+// guard as a fresh selection keep their rows untouched, as before. A
+// predecessor whose remaining sources are refused too (every source inactive,
+// another drift) keeps its rows as well.
+func (s *TemplateSplitService) resyncSplitPredecessorFromToday(ctx context.Context, old *activityContract.Group, in TemplateSplitInput) error {
+	today := s.deps.Today()
+	if len(old.SourceCareOfferingIDs) == 0 || !in.EffectiveDate.After(today) || s.deps.CareOfferings.ValidateOfferingSource == nil {
+		return nil
+	}
+	const op = "split template: resync predecessor offering source"
+	if err := s.deps.CareOfferings.ValidateOfferingSource(ctx, old.SourceCareOfferingIDs, nil, old.CalendarPeriodID); err == nil {
+		return nil
+	} else if !errors.Is(err, timetable.ErrOfferingSourceInvalid) {
+		return &ports.ScheduleError{Op: op, Err: err}
+	}
+	if s.deps.ResyncOfferingRoster == nil {
+		return &ports.ScheduleError{Op: op, Err: errors.New("offering roster resync is not configured")}
+	}
+	err := s.deps.ResyncOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
+		TemplateID:        old.ID,
+		OfferingIDs:       append([]int64(nil), old.SourceCareOfferingIDs...),
+		GradeLevels:       append([]int(nil), old.SourceGradeLevels...),
+		SchoolClasses:     append([]string(nil), old.SourceSchoolClasses...),
+		CalendarPeriodID:  cloneOptionalInt64(old.CalendarPeriodID),
+		EffectiveFrom:     today,
+		StoredOfferingIDs: append([]int64(nil), old.SourceCareOfferingIDs...),
+	})
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, timetable.ErrOfferingSourceInvalid) {
+		return &ports.ScheduleError{Op: op, Err: err}
+	}
+	s.getLogger().Warn("split template: predecessor keeps its rows, its stored sources are refused",
+		slog.Int64("template_id", old.ID),
+		slog.String("error", err.Error()),
+	)
+	return nil
+}
+
 // offeringRosterFeedChanged reports whether the successor's offering feed
 // differs from what the roster carry-over copied: source added, removed,
 // switched, or its Jahrgangsfilter changed. The filter comparison is
@@ -446,6 +492,9 @@ func (s *TemplateSplitService) writeSplitSuccessor(
 		return nil, nil, nil, err
 	}
 	if err := s.resyncSuccessorOfferingSource(ctx, old, newGroup, *in); err != nil {
+		return nil, nil, nil, err
+	}
+	if err := s.resyncSplitPredecessorFromToday(ctx, old, *in); err != nil {
 		return nil, nil, nil, err
 	}
 	if err := s.validateCareOfferingSeries(ctx, newGroup.ID); err != nil {
