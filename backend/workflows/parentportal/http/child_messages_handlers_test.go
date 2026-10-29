@@ -33,7 +33,7 @@ func TestThreadSummaryResponseIncludesStaffReadStatus(t *testing.T) {
 		"last_message_payload":{"effective_from":"2026-09-01"},
 		"unread":0,
 		"audience":"team",
-		"readers":{"school":{"kind":"all_staff","names":[]}}
+		"readers":{"school":{"kind":"all_staff","names":[],"unnamed_count":0}}
 	}`, string(body))
 }
 
@@ -74,8 +74,8 @@ func TestThreadViewReadersAndLeadershipOption(t *testing.T) {
 	t.Parallel()
 	view := toThreadView(&parentService.MessageThreadView{
 		StudentID: 82, SchoolName: "Schule am Berg", Audience: parentService.MessageAudienceLeadership,
-		GuardianName: "Sabine Schneider", LeadershipReaders: []string{"Swantje M."},
-		Leadership: parentService.LeadershipOption{Enabled: true, Names: []string{"Swantje M."}},
+		GuardianName: "Sabine Schneider", LeadershipReaders: []string{"Swantje M.", ""},
+		Leadership: parentService.LeadershipOption{Enabled: true, Names: []string{"Swantje M.", ""}},
 	})
 	body, err := json.Marshal(struct {
 		Audience         string                   `json:"audience"`
@@ -84,8 +84,8 @@ func TestThreadViewReadersAndLeadershipOption(t *testing.T) {
 	}{view.Audience, view.Readers, view.LeadershipOption})
 	require.NoError(t, err)
 	assert.JSONEq(t, `{"audience":"leadership",
-		"readers":{"guardian":{"name":"Sabine Schneider"},"school":{"kind":"leadership","names":["Swantje M."]}},
-		"leadership_option":{"available":true,"names":["Swantje M."]}}`, string(body))
+		"readers":{"guardian":{"name":"Sabine Schneider"},"school":{"kind":"leadership","names":["Swantje M."],"unnamed_count":1}},
+		"leadership_option":{"available":true,"names":["Swantje M."],"unnamed_count":1}}`, string(body))
 
 	off := toThreadView(&parentService.MessageThreadView{
 		StudentID: 82, Leadership: parentService.LeadershipOption{Enabled: false, Names: []string{"Swantje M."}},

@@ -85,8 +85,9 @@ type ParentGuardianReaderResponse struct {
 }
 
 type ParentSchoolReadersResponse struct {
-	Kind  string   `json:"kind"`
-	Names []string `json:"names"`
+	Kind         string   `json:"kind"`
+	Names        []string `json:"names"`
+	UnnamedCount int      `json:"unnamed_count"`
 }
 
 // LeadershipOptionResponse tells the compose box whether the guardian may
@@ -94,8 +95,9 @@ type ParentSchoolReadersResponse struct {
 // available is false while the school has the choice off or nobody holds the
 // leadership permission; an existing leadership conversation stays open.
 type LeadershipOptionResponse struct {
-	Available bool     `json:"available"`
-	Names     []string `json:"names"`
+	Available    bool     `json:"available"`
+	Names        []string `json:"names"`
+	UnnamedCount int      `json:"unnamed_count"`
 }
 
 // Parent-facing school reader kinds (#5200).
@@ -107,16 +109,25 @@ const (
 // schoolReaders names the school side of a conversation of the audience.
 func schoolReaders(audience string, leadershipNames []string) ParentSchoolReadersResponse {
 	if audience == parentService.MessageAudienceLeadership {
-		return ParentSchoolReadersResponse{Kind: readersLeadership, Names: nonNilNames(leadershipNames)}
+		names, unnamed := splitLeaderNames(leadershipNames)
+		return ParentSchoolReadersResponse{Kind: readersLeadership, Names: names, UnnamedCount: unnamed}
 	}
 	return ParentSchoolReadersResponse{Kind: readersAllStaff, Names: []string{}}
 }
 
-func nonNilNames(names []string) []string {
-	if names == nil {
-		return []string{}
+// splitLeaderNames separates the named leaders from the leadership accounts
+// without a person name, which arrive as empty entries. The client names
+// those in the parent's language instead of a German label (#5200).
+func splitLeaderNames(all []string) (names []string, unnamed int) {
+	names = make([]string, 0, len(all))
+	for _, name := range all {
+		if name == "" {
+			unnamed++
+			continue
+		}
+		names = append(names, name)
 	}
-	return names
+	return names, unnamed
 }
 
 // threadAudience keeps a row without an audience on the team conversation.
@@ -270,21 +281,19 @@ func toThreadView(v *parentService.MessageThreadView) ThreadViewResponse {
 			Guardian: &ParentGuardianReaderResponse{Name: v.GuardianName},
 			School:   schoolReaders(audience, v.LeadershipReaders),
 		},
-		LeadershipOption: LeadershipOptionResponse{
-			Available: v.Leadership.Available(),
-			Names:     leadershipOptionNames(v.Leadership),
-		},
-		Messages: toMessageResponses(v.Messages, counterpart),
+		LeadershipOption: leadershipOption(v.Leadership),
+		Messages:         toMessageResponses(v.Messages, counterpart),
 	}
 }
 
-// leadershipOptionNames names the leadership persons only while the choice
-// is offered.
-func leadershipOptionNames(option parentService.LeadershipOption) []string {
+// leadershipOption names the leadership persons only while the choice is
+// offered.
+func leadershipOption(option parentService.LeadershipOption) LeadershipOptionResponse {
 	if !option.Available() {
-		return []string{}
+		return LeadershipOptionResponse{Names: []string{}}
 	}
-	return nonNilNames(option.Names)
+	names, unnamed := splitLeaderNames(option.Names)
+	return LeadershipOptionResponse{Available: true, Names: names, UnnamedCount: unnamed}
 }
 
 func parseStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {

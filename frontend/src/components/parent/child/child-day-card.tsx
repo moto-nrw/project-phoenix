@@ -10,6 +10,7 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { Skeleton } from "~/components/ui/skeleton";
 import type { ChildFeatures, ChildToday } from "~/lib/parent-api";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
+import { childConversationPath } from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
 import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -441,7 +442,7 @@ function ChildDayActions({
 
       {features.notes_enabled && (
         <ButtonLink
-          href={parentPath(`/parents/messages/${studentId}`)}
+          href={parentPath(childConversationPath(studentId))}
           variant="surface"
           size="touch"
           className={`${actionClassName} ${

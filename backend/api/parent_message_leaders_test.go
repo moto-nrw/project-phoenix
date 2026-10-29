@@ -63,8 +63,8 @@ func TestParentMessageLeaders_RoleGrantAndAdminWildcard(t *testing.T) {
 	assert.NotContains(t, accounts, bystanderAccount.ID)
 	assert.NotContains(t, accounts, strayAccount.ID)
 	assert.NotContains(t, accounts, leadershipOnlyAccount.ID, "leadership permission alone cannot open messages")
-	assert.Equal(t, []string{"Anton A.", "Swantje M.", communication.ParentMessageUnnamedLeaderLabel}, communication.ParentMessageLeaderShortNames(listed),
-		"named persons by name, the administration account under a neutral label")
+	assert.Equal(t, []string{"Anton A.", "Swantje M.", ""}, communication.ParentMessageLeaderShortNames(listed),
+		"named persons by name, the administration account as an empty entry the clients name")
 
 	ids, err := testpkg.TenantQuery0(t, ctx, db, leaders.LeadershipAccountIDs)
 	require.NoError(t, err)

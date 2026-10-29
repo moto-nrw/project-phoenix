@@ -1025,7 +1025,7 @@ function mkThreadView(overrides: Partial<ThreadView> = {}): ThreadView {
 // --- listMessageThreads -------------------------------------------------------
 
 describe("listMessageThreads", () => {
-  it("keeps only team conversations until navigation and replies support audiences", async () => {
+  it("returns team and leadership conversations; links and replies carry the audience", async () => {
     const team = mkThreadSummary({ audience: "team" });
     const legacy = mkThreadSummary({ thread_id: "legacy", student_id: "43" });
     const leadership = mkThreadSummary({
@@ -1036,7 +1036,7 @@ describe("listMessageThreads", () => {
     });
     mockFetch(async () => jsonResponse({ data: [team, legacy, leadership] }));
 
-    expect(await listMessageThreads()).toEqual([team, legacy]);
+    expect(await listMessageThreads()).toEqual([team, legacy, leadership]);
   });
 
   it("GETs /api/parent/me/messages and returns the data array", async () => {
@@ -1069,7 +1069,7 @@ describe("listMessageThreads", () => {
 // --- fetchMessagesUnreadCount -------------------------------------------------
 
 describe("fetchMessagesUnreadCount", () => {
-  it("counts unread team and group conversations, excluding leadership", async () => {
+  it("counts unread team, leadership and group conversations, as the inbox shows them", async () => {
     const seenURLs: string[] = [];
     mockFetch(async (input) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -1086,7 +1086,7 @@ describe("fetchMessagesUnreadCount", () => {
         ],
       });
     });
-    expect(await fetchMessagesUnreadCount()).toBe(3);
+    expect(await fetchMessagesUnreadCount()).toBe(4);
     expect(seenURLs).toEqual(
       expect.arrayContaining([
         expect.stringContaining("/api/parent/me/messages"),

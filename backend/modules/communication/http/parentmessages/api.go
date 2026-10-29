@@ -101,16 +101,17 @@ type GuardianReaderResponse struct {
 	RelationshipType string `json:"relationship_type,omitempty"`
 }
 
+// SchoolReadersResponse names the school side. names carries only the
+// leadership persons with a name; unnamed_count counts the leadership
+// accounts without one, which the client names in its own language (#5200).
 type SchoolReadersResponse struct {
-	Kind  string   `json:"kind"`
-	Names []string `json:"names"`
+	Kind         string   `json:"kind"`
+	Names        []string `json:"names"`
+	UnnamedCount int      `json:"unnamed_count"`
 }
 
 func toReadersResponse(readers communication.ParentMessageReaders) ReadersResponse {
-	names := readers.School.Names
-	if names == nil {
-		names = []string{}
-	}
+	names, unnamed := communication.SplitParentMessageLeaderNames(readers.School.Names)
 	accountID := ""
 	if readers.Guardian.AccountID > 0 {
 		accountID = strconv.FormatInt(readers.Guardian.AccountID, 10)
@@ -119,7 +120,7 @@ func toReadersResponse(readers communication.ParentMessageReaders) ReadersRespon
 		Guardian: GuardianReaderResponse{
 			AccountID: accountID, Name: readers.Guardian.Name, RelationshipType: readers.Guardian.RelationshipType,
 		},
-		School: SchoolReadersResponse{Kind: readers.School.Kind, Names: names},
+		School: SchoolReadersResponse{Kind: readers.School.Kind, Names: names, UnnamedCount: unnamed},
 	}
 }
 

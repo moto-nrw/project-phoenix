@@ -20,5 +20,19 @@
   "emptyThreadDescription": "Proszę napisać pierwszą wiadomość do OGS.",
   "errorObjectConversation": "rozmowa",
   "errorObjectMessage": "wiadomość",
-  "errorObjectList": "lista rozmów"
+  "errorObjectList": "lista rozmów",
+  "ogsLeadership": "Kierownictwo OGS {school}",
+  "audienceLabel": "Do kogo piszesz?",
+  "audienceTeam": "Cały zespół OGS",
+  "audienceTeamUnread": "Cały zespół OGS ({count} nowe)",
+  "audienceLeadership": "Tylko kierownictwo",
+  "audienceLeadershipUnread": "Tylko kierownictwo ({count} nowe)",
+  "readersTeam": "Czytać mogą: Ty i wszyscy pracownicy OGS.",
+  "readersLeadership": "Czytać mogą: Ty i kierownictwo: {names}",
+  "readersLeadershipUnnamed": "Czytać mogą: Ty i kierownictwo OGS.",
+  "composerPlaceholderLeadership": "Napisz wiadomość do kierownictwa",
+  "emptyLeadershipDescription": "Napisz pierwszą wiadomość do kierownictwa. Pozostali pracownicy jej nie widzą.",
+  "leadershipUnstaffed": "Obecnie nikt z kierownictwa tego nie czyta. Prosimy napisać do całego zespołu OGS.",
+  "leadershipUnavailable": "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
+  "readersUnnamedLeader": "administracja szkoły"
 }

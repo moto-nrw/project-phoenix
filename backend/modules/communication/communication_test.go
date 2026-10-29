@@ -118,8 +118,16 @@ func TestParentMessageLeaderShortNameAndChoice(t *testing.T) {
 		}
 	}
 	unnamed := []ParentMessageLeader{{AccountID: 1, FirstName: "Swantje", LastName: "Meier"}, {AccountID: 2}, {AccountID: 3}}
-	if got := ParentMessageLeaderShortNames(unnamed); len(got) != 2 || got[1] != ParentMessageUnnamedLeaderLabel {
-		t.Errorf("unnamed readers appear once under the neutral label, got %v", got)
+	got := ParentMessageLeaderShortNames(unnamed)
+	if len(got) != 3 || got[0] != "Swantje M." || got[1] != "" || got[2] != "" {
+		t.Errorf("one entry per reader, unnamed accounts empty and never a German label, got %v", got)
+	}
+	names, count := SplitParentMessageLeaderNames(got)
+	if len(names) != 1 || names[0] != "Swantje M." || count != 2 {
+		t.Errorf("split keeps the named leaders and counts the unnamed ones, got %v %d", names, count)
+	}
+	if names, count := SplitParentMessageLeaderNames(nil); names == nil || len(names) != 0 || count != 0 {
+		t.Errorf("an empty list splits into an empty, non-nil list, got %v %d", names, count)
 	}
 	if audience, ok := NormalizeParentMessageAudience(""); !ok || audience != ParentMessageAudienceTeam {
 		t.Error("an empty audience stays the team conversation")

@@ -73,7 +73,9 @@ describe("getSchoolHolidays", () => {
           data: {
             federal_state: "DE-NW",
             federal_state_name: "Nordrhein-Westfalen",
-            holidays: [{ date: "2026-10-03", name: "Tag der Deutschen Einheit" }],
+            holidays: [
+              { date: "2026-10-03", name: "Tag der Deutschen Einheit" },
+            ],
           },
         }),
       )
