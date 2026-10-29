@@ -35,6 +35,8 @@ import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { Skeleton } from "~/components/ui/skeleton";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import {
@@ -61,23 +63,37 @@ import {
   type StatisticsCourseStudentRow,
   type StatisticsExportFormat,
   type StatisticsExportSection,
+  type StatisticsFilter,
   type StatisticsGroupRow,
+  type StatisticsOccupancy,
   type StatisticsReport,
+  type StatisticsReportSection,
   type StatisticsRoomRow,
   type StatisticsStudentRow,
 } from "~/lib/statistics-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { OccupancySection } from "~/components/statistics/occupancy-section";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "StatisticsPage" });
 
-type StatisticsView = "groups" | "students" | "rooms" | "courses";
+type StatisticsView = "groups" | "students" | "rooms" | "courses" | "occupancy";
 
 const VIEW_ITEMS: readonly { value: StatisticsView; label: string }[] = [
   { value: "groups", label: "Gruppen" },
   { value: "students", label: "Kinder" },
   { value: "rooms", label: "Räume" },
   { value: "courses", label: "Kurse" },
+  { value: "occupancy", label: "Uhrzeit" },
+];
+
+// Die Belegung nach Uhrzeit liest Betreuungszeiten und Anwesenheiten jedes
+// Tages und ist deshalb teurer als der Rest. Sie lädt erst, wenn ihr Reiter
+// offen ist; alle anderen Bereiche kommen in einer Anfrage.
+const MAIN_SECTIONS: readonly StatisticsReportSection[] = [
+  "attendance",
+  "rooms",
+  "courses",
 ];
 
 // Der Kursbereich hat zwei Sichten auf dieselben Zahlen. Sie stehen als
@@ -112,6 +128,16 @@ export default function StatisticsPage() {
   const [availableGroups, setAvailableGroups] = useState<
     readonly StatisticsGroupRow[]
   >([]);
+  const [schoolClasses, setSchoolClasses] = useState<string[]>([]);
+  const [availableClasses, setAvailableClasses] = useState<readonly string[]>(
+    [],
+  );
+  const [occupancy, setOccupancy] = useState<StatisticsOccupancy | null>(null);
+  const [occupancyLoading, setOccupancyLoading] = useState(false);
+  const occupancyLoad = useApiLoadError();
+  const { show: showOccupancyError, clear: clearOccupancyError } =
+    occupancyLoad;
+  const [occupancyReloadKey, setOccupancyReloadKey] = useState(0);
   const [view, setView] = useState<StatisticsView>("groups");
   const [courseView, setCourseView] = useState<CourseView>("by-course");
   const [data, setData] = useState<StatisticsReport | null>(null);
@@ -134,8 +160,23 @@ export default function StatisticsPage() {
     [availableGroups],
   );
 
+  const classOptions = useMemo(
+    () =>
+      availableClasses
+        .map((name) => ({ value: name, label: name }))
+        .sort((a, b) =>
+          a.label.localeCompare(b.label, "de", { numeric: true }),
+        ),
+    [availableClasses],
+  );
+
   const fromISO = range?.from ? toISODate(range.from) : null;
   const toISO = range?.to ? toISODate(range.to) : null;
+  const filter: StatisticsFilter = useMemo(
+    () => ({ groupIds, schoolClasses }),
+    [groupIds, schoolClasses],
+  );
+  const filterKey = `${fromISO}-${toISO}-${groupIds.join(",")}-${schoolClasses.join(",")}`;
 
   useEffect(() => {
     if (!fromISO || !toISO) return;
@@ -144,11 +185,20 @@ export default function StatisticsPage() {
     setForbidden(false);
     setFailed(false);
     clearLoadError();
-    fetchStatisticsReport(fromISO, toISO, groupIds)
+    fetchStatisticsReport(fromISO, toISO, filter, MAIN_SECTIONS)
       .then((report) => {
         if (cancelled) return;
         setData(report);
-        if (groupIds.length === 0) setAvailableGroups(report.groups);
+        if (groupIds.length === 0 && schoolClasses.length === 0)
+          setAvailableGroups(report.groups);
+        // Klassen kommen aus den Kindern des ungefilterten Berichts; Kinder
+        // ohne Klasse haben keinen Eintrag.
+        if (groupIds.length === 0 && schoolClasses.length === 0)
+          setAvailableClasses([
+            ...new Set(
+              report.students.map((st) => st.school_class).filter(Boolean),
+            ),
+          ]);
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -174,7 +224,53 @@ export default function StatisticsPage() {
     return () => {
       cancelled = true;
     };
-  }, [fromISO, toISO, groupIds, reloadKey, showLoadError, clearLoadError]);
+  }, [
+    fromISO,
+    toISO,
+    filter,
+    groupIds.length,
+    schoolClasses.length,
+    reloadKey,
+    showLoadError,
+    clearLoadError,
+  ]);
+
+  // Belegung nach Uhrzeit: eigene Anfrage, nur bei offenem Reiter.
+  useEffect(() => {
+    if (view !== "occupancy" || !fromISO || !toISO) return;
+    let cancelled = false;
+    setOccupancyLoading(true);
+    clearOccupancyError();
+    fetchStatisticsReport(fromISO, toISO, filter, ["occupancy"])
+      .then((report) => {
+        if (!cancelled) setOccupancy(report.occupancy ?? null);
+      })
+      .catch((error: unknown) => {
+        if (cancelled) return;
+        setOccupancy(null);
+        logger.error("statistics_occupancy_fetch_failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+        void showOccupancyError(error, {
+          object: "die Zahlen nach Uhrzeit",
+          retry: () => setOccupancyReloadKey((key) => key + 1),
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setOccupancyLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    view,
+    fromISO,
+    toISO,
+    filter,
+    occupancyReloadKey,
+    showOccupancyError,
+    clearOccupancyError,
+  ]);
 
   const downloadExport = useCallback(
     async (
@@ -185,7 +281,7 @@ export default function StatisticsPage() {
       setExporting(`${section}-${format}`);
       try {
         const res = await transportFetch(
-          statisticsExportUrl(fromISO, toISO, format, groupIds, section),
+          statisticsExportUrl(fromISO, toISO, format, filter, section),
         );
         if (!res.ok) {
           throw await apiErrorFromResponse(res, "statistics export failed");
@@ -208,7 +304,7 @@ export default function StatisticsPage() {
         setExporting(null);
       }
     },
-    [fromISO, toISO, groupIds, showExportError],
+    [fromISO, toISO, filter, showExportError],
   );
 
   // Anchor 365 days back: the backend allows at most 366 days inclusive,
@@ -658,6 +754,10 @@ export default function StatisticsPage() {
           ? "Eine Zeile je Kurs. Offen sind Termine, die noch nicht abgeschlossen wurden; sie verändern die Quote nicht. Nur zur Information, hier wird nichts geändert."
           : "Eine Zeile je Kind und Kurs. Offen sind Termine, die noch nicht abgeschlossen wurden. Ein Klick auf den Namen öffnet die Detailseite des Kindes.",
     },
+    occupancy: {
+      title: "Kinder nach Uhrzeit",
+      hint: "So viele Kinder sind in jeder halben Stunde da, auch wenn nur kurz. Bei „Geplant“ zählen kranke, entschuldigte Kinder und „Kommt heute nicht“ nicht mit.",
+    },
     rooms: {
       title: "Räume",
       hint:
@@ -691,51 +791,52 @@ export default function StatisticsPage() {
     rate: string;
     values: readonly (readonly [string, number, boolean])[];
     footnote: ReactNode;
-  }> | null = data
-    ? view === "courses"
-      ? {
-          rate: formatRate(data.course_totals.participation_rate) || "–",
-          values: [
-            ["Termine", data.course_totals.held_instances, false],
-            ["Abgesagt", data.course_totals.cancelled_instances, false],
-            // Hervorgehoben, sobald Termine offen sind: die Zahl ist die
-            // einzige auf dem Schirm, der jemand nachgehen muss.
-            [
-              "Offen",
-              data.course_totals.open_days,
-              data.course_totals.open_days > 0,
+  }> | null =
+    data && view !== "occupancy"
+      ? view === "courses"
+        ? {
+            rate: formatRate(data.course_totals.participation_rate) || "–",
+            values: [
+              ["Termine", data.course_totals.held_instances, false],
+              ["Abgesagt", data.course_totals.cancelled_instances, false],
+              // Hervorgehoben, sobald Termine offen sind: die Zahl ist die
+              // einzige auf dem Schirm, der jemand nachgehen muss.
+              [
+                "Offen",
+                data.course_totals.open_days,
+                data.course_totals.open_days > 0,
+              ],
             ],
-          ],
-          footnote: (
-            <>
-              {formatDate(data.from)} bis {formatDate(data.to)} · gezählt werden
-              nur Termine, die stattgefunden haben
-            </>
-          ),
-        }
-      : {
-          rate: formatRate(data.totals.attendance_rate),
-          values: [
-            ["Krank", data.totals.sick_days, false],
-            ["Entschuldigt", data.totals.excused_days, false],
-            // Hervorgehoben, sobald es offene Fälle gibt: die Zahl ist die
-            // einzige auf dem Schirm, der jemand nachgehen muss.
-            [
-              "Ohne Meldung",
-              data.totals.unexplained_days,
-              data.totals.unexplained_days > 0,
+            footnote: (
+              <>
+                {formatDate(data.from)} bis {formatDate(data.to)} · gezählt
+                werden nur Termine, die stattgefunden haben
+              </>
+            ),
+          }
+        : {
+            rate: formatRate(data.totals.attendance_rate),
+            values: [
+              ["Krank", data.totals.sick_days, false],
+              ["Entschuldigt", data.totals.excused_days, false],
+              // Hervorgehoben, sobald es offene Fälle gibt: die Zahl ist die
+              // einzige auf dem Schirm, der jemand nachgehen muss.
+              [
+                "Ohne Meldung",
+                data.totals.unexplained_days,
+                data.totals.unexplained_days > 0,
+              ],
             ],
-          ],
-          footnote: (
-            <>
-              {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
-              {data.excluded_days.public_holidays} Feiertage,{" "}
-              {data.excluded_days.closing_days} Schließtage,{" "}
-              {data.excluded_days.holiday_periods} Ferientage
-            </>
-          ),
-        }
-    : null;
+            footnote: (
+              <>
+                {formatDate(data.from)} bis {formatDate(data.to)} · abgezogen:{" "}
+                {data.excluded_days.public_holidays} Feiertage,{" "}
+                {data.excluded_days.closing_days} Schließtage,{" "}
+                {data.excluded_days.holiday_periods} Ferientage
+              </>
+            ),
+          }
+      : null;
 
   // Aktionen der Tabellenkarte: Räume und Kurse haben eigene Exporte, der
   // Kursbereich zusätzlich den Wechsel zwischen Kurs- und Kind-Sicht. Das ist
@@ -751,6 +852,13 @@ export default function StatisticsPage() {
       <OverflowMenu
         items={exportMenuItems("rooms")}
         ariaLabel="Raumtabelle exportieren"
+      />
+    );
+  } else if (view === "occupancy" && occupancy) {
+    sectionActions = (
+      <OverflowMenu
+        items={exportMenuItems("occupancy")}
+        ariaLabel="Zahlen nach Uhrzeit exportieren"
       />
     );
   } else if (view === "courses" && !courseDataAllBeforeWindow) {
@@ -831,16 +939,28 @@ export default function StatisticsPage() {
           onToday={isOnDefaultWindow ? undefined : resetWindow}
           todayLabel="Letzte 30 Tage"
           actions={
-            <MultiSelect
-              ariaLabel="Gruppen"
-              value={groupIds}
-              options={groupOptions}
-              onChange={setGroupIds}
-              placeholder="Alle Gruppen"
-              summaryLabel={(count) => `${count} Gruppen`}
-              className="w-full md:w-56"
-              triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
-            />
+            <div className="flex w-full flex-col gap-2 md:w-auto md:flex-row">
+              <MultiSelect
+                ariaLabel="Klassen"
+                value={schoolClasses}
+                options={classOptions}
+                onChange={setSchoolClasses}
+                placeholder="Alle Klassen"
+                summaryLabel={(count) => `${count} Klassen`}
+                className="w-full md:w-44"
+                triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
+              />
+              <MultiSelect
+                ariaLabel="Gruppen"
+                value={groupIds}
+                options={groupOptions}
+                onChange={setGroupIds}
+                placeholder="Alle Gruppen"
+                summaryLabel={(count) => `${count} Gruppen`}
+                className="w-full md:w-56"
+                triggerClassName="moto-content-surface h-9 w-full hover:border-gray-300"
+              />
+            </div>
           }
         >
           {/* Kontextzeile: nur was NICHT schon in der Statuszeile steht.
@@ -853,7 +973,7 @@ export default function StatisticsPage() {
         </PlanningContextBar>
       }
     >
-      {data && headline && (
+      {data && (
         <>
           {/* Kennzahlen des Zeitraums als eigene Karte; die Tabelle darunter
               ist ihre eigene. Karten stapeln sich nicht ineinander. */}
@@ -862,34 +982,36 @@ export default function StatisticsPage() {
               Betreuungstage und Kinderzahl stehen schon in der Statuszeile
               der Kopfkarte, die abgezogenen Tage im Satz darunter — die
               frühere Kachelreihe hat drei ihrer sieben Werte dupliziert. */}
-          <SectionCard>
-            <div className="space-y-4">
-              <DataGrid columns={4}>
-                <DataField label="Quote gesamt">
-                  <span className="text-2xl leading-tight font-semibold tabular-nums">
-                    {headline.rate}
-                  </span>
-                </DataField>
-                {headline.values.map(([label, value, highlight]) => (
-                  <DataField key={label} label={label}>
-                    <span
-                      className="text-lg leading-tight font-semibold tabular-nums"
-                      style={{
-                        color: highlight
-                          ? getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD)
-                          : undefined,
-                      }}
-                    >
-                      {value}
+          {headline && (
+            <SectionCard>
+              <div className="space-y-4">
+                <DataGrid columns={4}>
+                  <DataField label="Quote gesamt">
+                    <span className="text-2xl leading-tight font-semibold tabular-nums">
+                      {headline.rate}
                     </span>
                   </DataField>
-                ))}
-              </DataGrid>
-              <p className="text-sm leading-6 text-gray-600">
-                {headline.footnote}
-              </p>
-            </div>
-          </SectionCard>
+                  {headline.values.map(([label, value, highlight]) => (
+                    <DataField key={label} label={label}>
+                      <span
+                        className="text-lg leading-tight font-semibold tabular-nums"
+                        style={{
+                          color: highlight
+                            ? getAccessibleTextColor(LOCATION_COLORS.SCHOOLYARD)
+                            : undefined,
+                        }}
+                      >
+                        {value}
+                      </span>
+                    </DataField>
+                  ))}
+                </DataGrid>
+                <p className="text-sm leading-6 text-gray-600">
+                  {headline.footnote}
+                </p>
+              </div>
+            </SectionCard>
+          )}
 
           {/* Der sichtbare Unterabschnitt mit seiner Tabelle. */}
           <SectionCard
@@ -897,6 +1019,20 @@ export default function StatisticsPage() {
             description={sectionHeading.hint}
             actions={sectionActions}
           >
+            {view === "occupancy" &&
+              (occupancyLoading ||
+              (occupancyLoad.error === null && !occupancy) ? (
+                <Skeleton className="h-64 w-full rounded-xl" />
+              ) : occupancyLoad.error !== null ? (
+                <LoadErrorAlert error={occupancyLoad.error} />
+              ) : occupancy && fromISO && toISO ? (
+                <OccupancySection
+                  occupancy={occupancy}
+                  fromISO={fromISO}
+                  toISO={toISO}
+                />
+              ) : null)}
+
             {view === "groups" && (
               <DataTable
                 columns={groupColumns}
@@ -919,7 +1055,7 @@ export default function StatisticsPage() {
                 getRowKey={(row) => row.student_id}
                 defaultSortKey="name"
                 pageSize={25}
-                paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                paginationResetKey={filterKey}
                 emptyState={
                   <EmptyState
                     title="Keine Kinder im Zeitraum"
@@ -952,7 +1088,7 @@ export default function StatisticsPage() {
                       getRowKey={(row) => row.course_id}
                       defaultSortKey="name"
                       pageSize={25}
-                      paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                      paginationResetKey={filterKey}
                       emptyState={
                         <EmptyState
                           title="Keine Kurse im Zeitraum"
@@ -967,7 +1103,7 @@ export default function StatisticsPage() {
                       getRowKey={(row) => `${row.student_id}-${row.course_id}`}
                       defaultSortKey="name"
                       pageSize={25}
-                      paginationResetKey={`${fromISO}-${toISO}-${groupIds.join(",")}`}
+                      paginationResetKey={filterKey}
                       emptyState={
                         <EmptyState
                           title="Keine Teilnahme im Zeitraum"

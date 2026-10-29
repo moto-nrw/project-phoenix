@@ -101,7 +101,7 @@ func occupancyExportFilters(occupancy *studentpresence.StatisticsOccupancy) []st
 		fmt.Sprintf("Anwesenheiten werden %d Tage aufbewahrt (ab %s). Für ältere Tage fehlt die Spalte „Da“.", occupancy.ActualDataDays, occupancy.ActualDataFrom.Format("02.01.2006")),
 	}
 	if occupancy.UntimedPlanDays > 0 {
-		lines = append(lines, fmt.Sprintf("%d Betreuungstage ohne geplante Uhrzeit sind in „Geplant“ nicht enthalten.", occupancy.UntimedPlanDays))
+		lines = append(lines, fmt.Sprintf("%d-mal fehlte bei einem Kind die geplante Ankunft oder Abholung. Dann zählt das Kind nicht bei „Geplant“.", occupancy.UntimedPlanDays))
 	}
 	return lines
 }

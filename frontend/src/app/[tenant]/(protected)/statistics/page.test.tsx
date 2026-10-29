@@ -284,7 +284,8 @@ describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
           expect(mockFetchReport).toHaveBeenLastCalledWith(
             "2026-07-12",
             "2026-08-10",
-            [],
+            { groupIds: [], schoolClasses: [] },
+            ["attendance", "rooms", "courses"],
           ),
         );
       }
@@ -328,5 +329,105 @@ describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
     expect(
       screen.queryByText("Raumhistorie ist ausgeschaltet"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("Statistik — Kinder nach Uhrzeit (#4764)", () => {
+  const occupancy = {
+    slot_minutes: 30,
+    untimed_plan_days: 0,
+    actual_data_days: 365,
+    actual_data_from: "2025-09-09",
+    weekdays: [
+      {
+        weekday: 1,
+        plan_days: 4,
+        actual_days: 4,
+        slots: [
+          {
+            start: "07:30",
+            planned_average: 7.5,
+            planned_max: 9,
+            actual_average: 6,
+            actual_max: 8,
+          },
+        ],
+      },
+    ],
+  };
+
+  beforeEach(() => {
+    mockFetchReport.mockReset();
+    mockFetchReport.mockImplementation(
+      (_from: string, _to: string, _filter: unknown, sections: string[]) =>
+        Promise.resolve(
+          sections.includes("occupancy")
+            ? report({ occupancy })
+            : report({
+                students: [
+                  {
+                    student_id: "1",
+                    first_name: "Ali",
+                    last_name: "Arslan",
+                    school_class: "2a",
+                    group_name: "",
+                    present_days: 1,
+                    sick_days: 0,
+                    excused_days: 0,
+                    unexplained_days: 0,
+                    attendance_rate: 100,
+                  },
+                ],
+              }),
+        ),
+    );
+  });
+
+  it("lädt die Zahlen nach Uhrzeit erst, wenn der Reiter offen ist", async () => {
+    render(<StatisticsPage />);
+    await waitFor(() => expect(mockFetchReport).toHaveBeenCalledTimes(1));
+    expect(mockFetchReport.mock.calls[0]?.[3]).toEqual([
+      "attendance",
+      "rooms",
+      "courses",
+    ]);
+
+    fireEvent.click(await screen.findByRole("tab", { name: "Uhrzeit" }));
+
+    expect(await screen.findByText("07:30–08:00")).toBeVisible();
+    expect(mockFetchReport).toHaveBeenLastCalledWith(
+      expect.any(String),
+      expect.any(String),
+      { groupIds: [], schoolClasses: [] },
+      ["occupancy"],
+    );
+    expect(screen.getByText("Kinder nach Uhrzeit")).toBeVisible();
+    expect(
+      screen.getByText("Montag: Durchschnitt aus 4 Betreuungstagen"),
+    ).toBeVisible();
+    expect(screen.getByText("7,5")).toBeVisible();
+    // Die Kennzahlenkarte der Anwesenheit gehört nicht zu diesem Bereich.
+    expect(screen.queryByText("Quote gesamt")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Zahlen nach Uhrzeit exportieren" }),
+    ).toBeVisible();
+  });
+
+  it("filtert nach Klasse und schickt die Klasse mit", async () => {
+    render(<StatisticsPage />);
+    fireEvent.click(await screen.findByRole("button", { name: "Klassen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "2a" }));
+
+    await waitFor(() =>
+      expect(mockFetchReport).toHaveBeenLastCalledWith(
+        expect.any(String),
+        expect.any(String),
+        { groupIds: [], schoolClasses: ["2a"] },
+        ["attendance", "rooms", "courses"],
+      ),
+    );
+    expect(screen.getByRole("button", { name: "Klassen" })).toHaveTextContent(
+      "2a",
+    );
   });
 });

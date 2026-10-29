@@ -71,6 +71,33 @@ export interface StatisticsCourseStudentRow {
   participation_rate: number | null;
 }
 
+/** Eine halbe Stunde der Belegung nach Uhrzeit (#4764). */
+export interface StatisticsOccupancySlot {
+  /** Beginn als "HH:MM" (Berliner Zeit). */
+  start: string;
+  planned_average: number;
+  planned_max: number;
+  /** null, wenn für diesen Wochentag keine Anwesenheiten mehr gespeichert sind. */
+  actual_average: number | null;
+  actual_max: number | null;
+}
+
+export interface StatisticsOccupancyWeekday {
+  /** ISO: 1 = Montag … 7 = Sonntag. */
+  weekday: number;
+  plan_days: number;
+  actual_days: number;
+  slots: StatisticsOccupancySlot[];
+}
+
+export interface StatisticsOccupancy {
+  slot_minutes: number;
+  weekdays: StatisticsOccupancyWeekday[];
+  untimed_plan_days: number;
+  actual_data_days: number;
+  actual_data_from: string;
+}
+
 export interface StatisticsReport {
   from: string;
   to: string;
@@ -93,6 +120,17 @@ export interface StatisticsReport {
   course_totals: StatisticsCourseRow;
   course_data_days: number;
   course_data_from: string;
+  /** Nur vorhanden, wenn der Abschnitt "occupancy" angefragt wurde. */
+  occupancy?: StatisticsOccupancy;
+}
+
+/** Abschnitte, die der Bericht berechnen soll; leer = alle. */
+export type StatisticsReportSection =
+  "attendance" | "rooms" | "courses" | "occupancy";
+
+export interface StatisticsFilter {
+  groupIds?: readonly string[];
+  schoolClasses?: readonly string[];
 }
 
 export type StatisticsExportFormat = "pdf" | "xlsx" | "docx";
@@ -102,7 +140,7 @@ export type StatisticsExportFormat = "pdf" | "xlsx" | "docx";
  * section. Each is its own document with its own columns.
  */
 export type StatisticsExportSection =
-  "attendance" | "rooms" | "courses" | "course-students";
+  "attendance" | "rooms" | "courses" | "course-students" | "occupancy";
 
 /** Dateiname-Stamm je Bereich, falls der Server keinen Namen mitschickt. */
 export const EXPORT_FILENAME_STEM: Record<StatisticsExportSection, string> = {
@@ -110,24 +148,29 @@ export const EXPORT_FILENAME_STEM: Record<StatisticsExportSection, string> = {
   rooms: "raumauslastung",
   courses: "kurse",
   "course-students": "kurse-je-kind",
+  occupancy: "belegung-nach-uhrzeit",
 };
 
 function buildParams(
   fromISO: string,
   toISO: string,
-  groupIds: readonly string[],
+  filter: StatisticsFilter,
 ): URLSearchParams {
   const params = new URLSearchParams({ from: fromISO, to: toISO });
-  for (const id of groupIds) params.append("group_id", id);
+  for (const id of filter.groupIds ?? []) params.append("group_id", id);
+  for (const name of filter.schoolClasses ?? [])
+    params.append("school_class", name);
   return params;
 }
 
 export async function fetchStatisticsReport(
   fromISO: string,
   toISO: string,
-  groupIds: readonly string[] = [],
+  filter: StatisticsFilter = {},
+  sections: readonly StatisticsReportSection[] = [],
 ): Promise<StatisticsReport> {
-  const params = buildParams(fromISO, toISO, groupIds);
+  const params = buildParams(fromISO, toISO, filter);
+  for (const section of sections) params.append("section", section);
   const response = await transportFetch(
     `/api/statistics/report?${params.toString()}`,
     { cache: "no-store" },
@@ -146,10 +189,10 @@ export function statisticsExportUrl(
   fromISO: string,
   toISO: string,
   format: StatisticsExportFormat,
-  groupIds: readonly string[] = [],
+  filter: StatisticsFilter = {},
   section: StatisticsExportSection = "attendance",
 ): string {
-  const params = buildParams(fromISO, toISO, groupIds);
+  const params = buildParams(fromISO, toISO, filter);
   params.set("format", format);
   params.set("section", section);
   return `/api/statistics/export?${params.toString()}`;
