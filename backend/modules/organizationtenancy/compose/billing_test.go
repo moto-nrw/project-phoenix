@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -181,6 +182,54 @@ func TestBillingSeedCaptureWritesOneCurrentDaySnapshot(t *testing.T) {
 	written, err = billing.SeedBillingKeyDateCounts(ctx, berlinTime(2099, time.September, 3, 10, 0))
 	require.NoError(t, err)
 	assert.Zero(t, written, "the synthetic demo snapshot is immutable too")
+}
+
+// heldBillingCounts holds the first capture after it has listed the schools,
+// until the test releases it. The other captures answer at once.
+type heldBillingCounts struct {
+	listed  chan struct{}
+	release chan struct{}
+	called  atomic.Bool
+}
+
+func (h *heldBillingCounts) CountActiveStudentsByTenant(context.Context, time.Time) (map[int64]int, error) {
+	if !h.called.Swap(true) {
+		close(h.listed)
+		<-h.release
+	}
+	return nil, nil
+}
+
+func (h *heldBillingCounts) CountActiveTerminalsByTenant(context.Context) (map[int64]int, error) {
+	return nil, nil
+}
+
+// TestBillingSeedCapturesSideBySide pins #5151: the demo process seeds
+// several schools at once, and each seed captures the snapshot of every
+// school still missing one. A capture that listed a school before another
+// capture wrote that school's row skips the row instead of failing, which
+// would rebuild the demo school.
+func TestBillingSeedCapturesSideBySide(t *testing.T) {
+	t.Parallel()
+	counts := &heldBillingCounts{listed: make(chan struct{}), release: make(chan struct{})}
+	db := testpkg.SetupIsolatedTestDB(t)
+	testpkg.CreateTestTenant(t, db)
+	billing, err := NewBilling(BillingDependencies{Counts: counts, Now: time.Now})
+	require.NoError(t, err)
+	ctx := adminCtx(t, db)
+	now := berlinTime(2099, time.October, 27, 23, 23)
+
+	held := make(chan error, 1)
+	go func() {
+		_, err := billing.SeedBillingKeyDateCounts(ctx, now)
+		held <- err
+	}()
+	<-counts.listed
+	written, err := billing.SeedBillingKeyDateCounts(ctx, now)
+	close(counts.release)
+	require.NoError(t, err)
+	assert.Positive(t, written)
+	require.NoError(t, <-held, "the held capture finds the rows the other one wrote")
 }
 
 // TestBillingCaptureWritesNothingWhenACountFails pins that a failing owner

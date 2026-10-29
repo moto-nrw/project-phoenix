@@ -13,6 +13,9 @@ type BillingStore interface {
 	// UseRepeatableReadSnapshot makes the capture's school and owner reads see
 	// one database snapshot before any of those reads begin.
 	UseRepeatableReadSnapshot(context.Context) error
+	// UseReadCommitted makes the capture skip a row another capture committed
+	// after this one listed the schools, instead of failing on it.
+	UseReadCommitted(context.Context) error
 	BillingSettings(context.Context) (domain.BillingSettings, error)
 	UpdateBillingKeyDay(ctx context.Context, keyDay int, operatorID int64) (domain.BillingSettings, error)
 	// SchoolsMissingBillingPeriod lists the non-deleted schools that existed

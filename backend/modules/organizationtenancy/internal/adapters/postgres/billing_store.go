@@ -27,6 +27,8 @@ func NewBillingStore(database Database) *BillingStore {
 
 const setRepeatableReadSnapshotSQL = `SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`
 
+const setReadCommittedSQL = `SET TRANSACTION ISOLATION LEVEL READ COMMITTED`
+
 const selectBillingSettingsSQL = `SELECT key_day, updated_at, updated_by_operator_id
 FROM platform.billing_settings WHERE id = 1`
 
@@ -76,6 +78,20 @@ func (s *BillingStore) UseRepeatableReadSnapshot(ctx context.Context) error {
 	}
 	if _, err := db.NewRaw(setRepeatableReadSnapshotSQL).Exec(ctx); err != nil {
 		return fmt.Errorf("organization tenancy postgres: set billing capture snapshot: %w", err)
+	}
+	return nil
+}
+
+// UseReadCommitted lets a capture skip the rows another capture committed
+// after this one listed the schools. It must be the first operation in the
+// transaction.
+func (s *BillingStore) UseReadCommitted(ctx context.Context) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := db.NewRaw(setReadCommittedSQL).Exec(ctx); err != nil {
+		return fmt.Errorf("organization tenancy postgres: set billing capture isolation: %w", err)
 	}
 	return nil
 }
