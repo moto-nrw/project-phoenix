@@ -1,10 +1,10 @@
 "use client";
 
-import { useId, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useSession } from "next-auth/react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
-import NavigationLink from "~/components/ui/navigation-link";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
@@ -41,7 +41,6 @@ export function CarePlanImpact({
   studentId,
   childName,
 }: CarePlanImpactProps) {
-  const headingId = useId();
   const { data: session } = useSession();
   const canManage = hasPermission(session, "schedules:manage");
   const canRemove = studentId !== undefined && canManage;
@@ -105,22 +104,27 @@ export function CarePlanImpact({
   };
 
   return (
-    <section
-      aria-labelledby={headingId}
-      className="flex flex-col gap-3 border-t border-gray-100 pt-3"
+    <SectionCard
+      title={`Auswirkung auf den Betreuungsplan${childName ? ` für ${childName}` : ""} ab ${stichtag}`}
+      headingLevel={4}
+      namedRegion
+      titleClassName="text-sm"
+      bodyClassName="mt-3 flex flex-col gap-5"
     >
-      <h4 id={headingId} className="text-sm font-semibold text-gray-900">
-        Auswirkung auf den Betreuungsplan{childName ? ` für ${childName}` : ""}{" "}
-        ab {stichtag}
-      </h4>
       {impact.adjusted.length > 0 ? (
-        <div>
-          <h5 className="text-xs font-medium text-gray-500">
-            Automatisch angepasst
-          </h5>
-          <ul className="mt-1 flex flex-col gap-1 text-sm text-gray-700">
+        <SectionCard
+          title="Automatisch angepasst"
+          headingLevel={5}
+          titleClassName="text-sm font-medium text-gray-600"
+          bare
+          className="space-y-2"
+        >
+          <ul className="divide-y divide-gray-100 text-sm text-gray-700">
             {impact.adjusted.map((template) => (
-              <li key={template.templateId}>
+              <li
+                key={template.templateId}
+                className="py-2 first:pt-0 last:pb-0"
+              >
                 <span className="font-medium text-gray-900">
                   {template.name}
                 </span>
@@ -128,18 +132,18 @@ export function CarePlanImpact({
               </li>
             ))}
           </ul>
-        </div>
+        </SectionCard>
       ) : null}
       {impact.notAdjusted.length > 0 ? (
-        <div>
-          <h5 className="text-xs font-medium text-gray-500">
-            Nicht angepasst, weil von Hand gepflegt
-          </h5>
-          <p className="mt-1 text-sm text-gray-600">
-            Hier steht das Kind weiter im Plan. Prüfen Sie, ob das so bleiben
-            soll.
-          </p>
-          <ul className="mt-2 flex flex-col divide-y divide-gray-100">
+        <SectionCard
+          title="Nicht angepasst, weil von Hand gepflegt"
+          description="Hier steht das Kind weiter im Plan. Prüfen Sie, ob das so bleiben soll."
+          headingLevel={5}
+          titleClassName="text-sm font-medium text-gray-600"
+          bare
+          className="space-y-3"
+        >
+          <ManualTemplateList>
             {impact.notAdjusted.map((template) => (
               <ManualTemplateEntry
                 key={template.templateId}
@@ -152,13 +156,13 @@ export function CarePlanImpact({
                 connectLink={connectLink(template.templateId)}
               />
             ))}
-          </ul>
+          </ManualTemplateList>
           {actionMissing ? (
-            <p className="mt-2 text-xs text-gray-500">
+            <p className="text-xs text-gray-500">
               Ändern kann nur, wer den Betreuungsplan bearbeiten darf.
             </p>
           ) : null}
-        </div>
+        </SectionCard>
       ) : null}
       <ConfirmDeleteModal
         isOpen={target !== null}
@@ -182,10 +186,29 @@ export function CarePlanImpact({
         loading={removing}
         error={errors.error}
       />
-    </section>
+    </SectionCard>
   );
 }
 
+/**
+ * The Regeltermine with a dividing line between them, as in the list of
+ * offerings without a Regeltermin (#5181). From `sm` on the actions sit in
+ * one column of their own (the rows share it through `subgrid`), so every
+ * row's buttons start at the same place. Below `sm` each row stacks.
+ */
+function ManualTemplateList({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <ul className="divide-y divide-gray-100 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4">
+      {children}
+    </ul>
+  );
+}
+
+/**
+ * One Regeltermin and its actions. Every action is the same kit button,
+ * none the lesser one; its accessible name starts with the visible label
+ * and adds the Regeltermin, so a screen reader's list tells the rows apart.
+ */
 function ManualTemplateEntry({
   template,
   removed,
@@ -203,44 +226,60 @@ function ManualTemplateEntry({
   planLink: string;
   connectLink: string;
 }>) {
+  const about = `„${template.name}“`;
   return (
-    <li className="flex flex-col gap-1.5 py-2 text-sm text-gray-700 first:pt-0 last:pb-0">
-      <span>
-        <span className="font-medium text-gray-900">{template.name}</span>,{" "}
-        {formatWeekdayAdverbs(template.weekdays)}:{" "}
-        {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
-      </span>
-      {template.viaTarget ? (
-        <span className="text-gray-600">
-          Plant alle Kinder der Zielgruppe. Ein Entfernen hält hier nicht.
-        </span>
-      ) : null}
-      <span className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <li className="flex flex-col gap-2 py-3 text-sm text-gray-700 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+      <div className="min-w-0">
+        <p>
+          <span className="font-medium text-gray-900">{template.name}</span>,{" "}
+          {formatWeekdayAdverbs(template.weekdays)}:{" "}
+          {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
+        </p>
+        {template.viaTarget ? (
+          <p className="mt-0.5 text-gray-600">
+            Dieser Regeltermin plant alle Kinder einer Klasse, eines Jahrgangs
+            oder einer Gruppe. Bei der nächsten Planung steht das Kind wieder im
+            Plan.
+            {canConnect ? " Verbinden Sie ihn deshalb mit dem Angebot." : null}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row min-[480px]:items-center sm:justify-end">
         {removed ? (
-          <StatusBadge tone="green" label="Entfernt" />
+          <span className="flex">
+            <StatusBadge tone="green" label="Entfernt" />
+          </span>
         ) : template.viaTarget ? (
           canConnect ? (
-            <ButtonLink href={connectLink} variant="outline" size="compact">
+            <ButtonLink
+              href={connectLink}
+              variant="surface"
+              size="compact"
+              aria-label={`Mit Angebot verbinden: ${about}`}
+            >
               Mit Angebot verbinden
             </ButtonLink>
           ) : null
         ) : canRemove ? (
           <Button
             type="button"
-            variant="outline"
+            variant="surface"
             size="compact"
+            aria-label={`Dort auch entfernen: ${about}`}
             onClick={() => onRemove(template)}
           >
             Dort auch entfernen
           </Button>
         ) : null}
-        <NavigationLink
+        <ButtonLink
           href={planLink}
-          className="text-sm font-medium text-gray-700 underline underline-offset-2 hover:text-gray-900"
+          variant="surface"
+          size="compact"
+          aria-label={`Im Betreuungsplan ansehen: ${about}`}
         >
           Im Betreuungsplan ansehen
-        </NavigationLink>
-      </span>
+        </ButtonLink>
+      </div>
     </li>
   );
 }
