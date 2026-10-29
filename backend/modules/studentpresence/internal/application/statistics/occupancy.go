@@ -78,7 +78,7 @@ type occupancyInputs struct {
 	singleDay bool
 }
 
-func (s *service) fillOccupancySection(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, students []*ports.StatisticsStudent, inputs attendanceInputs) error {
+func (s *service) fillOccupancySection(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, now time.Time, students []*ports.StatisticsStudent, inputs attendanceInputs) error {
 	if s.cfg.PlannedCareDays == nil || s.cfg.AttendanceIntervals == nil || s.cfg.Retention == nil {
 		return fmt.Errorf("statistics occupancy: planned care days, attendance and retention are required")
 	}
@@ -93,7 +93,7 @@ func (s *service) fillOccupancySection(ctx context.Context, report *studentprese
 		planFrom:   today.AddDays(-planDays),
 		actualFrom: today.AddDays(-actualDays),
 		today:      today,
-		now:        s.cfg.Now(),
+		now:        now,
 		singleDay:  filters.From == filters.To,
 	}
 	ids := make([]int64, 0, len(students))

@@ -329,3 +329,47 @@ func TestBuildOccupancy_PeriodLeavesTodayOutOfActual(t *testing.T) {
 	assert.Equal(t, 1, *slotAt(t, day, 9, 30).ActualMax)
 	assert.Equal(t, 0, *slotAt(t, day, 14, 0).ActualMax)
 }
+
+// The report takes one instant as its definition of "today". An occupancy
+// calculation that reads the clock again after midnight must still use that
+// instant, otherwise it extends an open attendance row to the end of the
+// previous day.
+func TestReport_OccupancyKeepsCapturedClockAcrossMidnight(t *testing.T) {
+	t.Parallel()
+	day := calendar.NewDate(2026, 8, 24) // Monday
+	attendance := &attendanceRowsStub{rows: []*ports.Attendance{{
+		StudentID:   1,
+		Date:        day,
+		CheckInTime: berlinAt(day, 8, 0),
+	}}}
+	clockCalls := 0
+	svc := &service{cfg: Config{
+		Students:   occupancyStudents{occupancyStudent(1, "1a")},
+		Attendance: attendance,
+		StatusDays: noStatusDays{},
+		PlannedCareDays: plannedStub{1: {day: {
+			Expected: true,
+			Arrival:  clock(t, 8, 0),
+			Pickup:   clock(t, 23, 59),
+		}}},
+		AttendanceIntervals: attendance,
+		Retention:           reportRetention{},
+		Now: func() time.Time {
+			clockCalls++
+			if clockCalls == 1 {
+				return berlinAt(day, 23, 30)
+			}
+			return berlinAt(day.AddDays(1), 0, 1)
+		},
+	}}
+
+	report, err := svc.compute(context.Background(), studentpresence.StatisticsFilters{
+		From: day, To: day,
+		Sections: []studentpresence.StatisticsSection{studentpresence.StatisticsSectionOccupancy},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, report.Occupancy)
+
+	assert.Equal(t, 0, *slotAt(t, report.Occupancy.Weekdays[0], 23, 30).ActualMax)
+	assert.Equal(t, 1, clockCalls, "the report must capture the clock once")
+}

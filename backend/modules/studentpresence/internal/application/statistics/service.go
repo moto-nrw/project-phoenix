@@ -106,10 +106,6 @@ func (s *service) ReportForExport(ctx context.Context, filters studentpresence.S
 	return report, nil
 }
 
-func (s *service) today() calendar.Date {
-	return calendar.DateFromTime(s.cfg.Now())
-}
-
 func (s *service) validate(filters studentpresence.StatisticsFilters, today calendar.Date) error {
 	if filters.From.IsZero() || filters.To.IsZero() {
 		return fmt.Errorf("%w: from and to are required", studentpresence.ErrInvalidStatisticsRange)
@@ -130,7 +126,8 @@ func (s *service) compute(ctx context.Context, filters studentpresence.Statistic
 	// One clock read for the whole report: enrollment eligibility, the room
 	// clamp and the retention cutoff must all agree on "today" even when the
 	// request spans Berlin midnight (see users.EnrolledOn).
-	today := s.today()
+	now := s.cfg.Now()
+	today := calendar.DateFromTime(now)
 	if err := s.validate(filters, today); err != nil {
 		return nil, err
 	}
@@ -168,7 +165,7 @@ func (s *service) compute(ctx context.Context, filters studentpresence.Statistic
 		report.Groups = buildGroupRows(studentRows)
 		report.Totals = buildTotals(studentRows)
 	}
-	if err := s.fillOptionalSections(ctx, report, filters, today, students, studentRows, inputs); err != nil {
+	if err := s.fillOptionalSections(ctx, report, filters, today, now, students, studentRows, inputs); err != nil {
 		return nil, err
 	}
 	return report, nil
@@ -176,7 +173,7 @@ func (s *service) compute(ctx context.Context, filters studentpresence.Statistic
 
 // fillOptionalSections computes the rooms, courses and occupancy sections
 // that were asked for, over the shared population.
-func (s *service) fillOptionalSections(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, students []*ports.StatisticsStudent, studentRows []studentpresence.StatisticsStudentRow, inputs attendanceInputs) error {
+func (s *service) fillOptionalSections(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, now time.Time, students []*ports.StatisticsStudent, studentRows []studentpresence.StatisticsStudentRow, inputs attendanceInputs) error {
 	if filters.Wants(studentpresence.StatisticsSectionRooms) {
 		if err := s.fillRoomSection(ctx, report, filters, today, students, studentRows); err != nil {
 			return err
@@ -188,7 +185,7 @@ func (s *service) fillOptionalSections(ctx context.Context, report *studentprese
 		}
 	}
 	if filters.Wants(studentpresence.StatisticsSectionOccupancy) {
-		return s.fillOccupancySection(ctx, report, filters, today, students, inputs)
+		return s.fillOccupancySection(ctx, report, filters, today, now, students, inputs)
 	}
 	return nil
 }
