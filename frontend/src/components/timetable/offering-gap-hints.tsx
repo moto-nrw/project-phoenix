@@ -155,18 +155,26 @@ export function OfferingGapHints({
               <OfferingGapRow key={gap.offering.id} gap={gap}>
                 {canManage ? (
                   <>
-                    <GapButton
-                      label="Regeltermin anlegen"
-                      gap={gap}
+                    <Button
+                      type="button"
+                      variant="surface"
+                      size="compact"
+                      aria-label={`Regeltermin anlegen: „${gap.offering.name}“`}
                       onClick={() => onCreateSeries(gap)}
-                      busy={busyOfferingId === gap.offering.id}
-                    />
-                    <GapButton
-                      label="Kein Regeltermin nötig"
-                      gap={gap}
+                      disabled={busyOfferingId === gap.offering.id}
+                    >
+                      Regeltermin anlegen
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="surface"
+                      size="compact"
+                      aria-label={`Kein Regeltermin nötig: „${gap.offering.name}“`}
                       onClick={() => void decide(gap, true)}
-                      busy={busyOfferingId === gap.offering.id}
-                    />
+                      disabled={busyOfferingId === gap.offering.id}
+                    >
+                      Kein Regeltermin nötig
+                    </Button>
                   </>
                 ) : null}
               </OfferingGapRow>
@@ -208,12 +216,16 @@ export function OfferingGapHints({
           <OfferingGapList>
             {decided.map((gap) => (
               <OfferingGapRow key={gap.offering.id} gap={gap}>
-                <GapButton
-                  label="Hinweis wieder zeigen"
-                  gap={gap}
+                <Button
+                  type="button"
+                  variant="surface"
+                  size="compact"
+                  aria-label={`Hinweis wieder zeigen: „${gap.offering.name}“`}
                   onClick={() => void decide(gap, false)}
-                  busy={busyOfferingId === gap.offering.id}
-                />
+                  disabled={busyOfferingId === gap.offering.id}
+                >
+                  Hinweis wieder zeigen
+                </Button>
               </OfferingGapRow>
             ))}
           </OfferingGapList>
@@ -227,7 +239,10 @@ export function OfferingGapHints({
  * The rows with a dividing line between them. From `sm` on the actions sit
  * in one column of their own (the rows share it through `subgrid`), so every
  * row's buttons start at the same place, however long its text is. Below
- * `sm` each row stacks: text above, buttons below.
+ * `sm` each row stacks: text above, buttons below. Every decision is the
+ * same kit button, neither way the lesser one; its accessible name starts
+ * with the visible label and adds the offering, so a screen reader's button
+ * list tells the rows apart.
  */
 function OfferingGapList({
   id,
@@ -278,35 +293,5 @@ function OfferingGapRow({
         </div>
       ) : null}
     </li>
-  );
-}
-
-/**
- * One decision of a row. All of them are the same kit button: neither way
- * is the lesser one. The accessible name starts with the visible label and
- * adds the offering, so a screen reader's button list tells the rows apart.
- */
-function GapButton({
-  label,
-  gap,
-  onClick,
-  busy,
-}: Readonly<{
-  label: string;
-  gap: OfferingGap;
-  onClick: () => void;
-  busy: boolean;
-}>) {
-  return (
-    <Button
-      type="button"
-      variant="surface"
-      size="compact"
-      aria-label={`${label}: „${gap.offering.name}“`}
-      onClick={onClick}
-      disabled={busy}
-    >
-      {label}
-    </Button>
   );
 }
