@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
@@ -83,11 +84,7 @@ func (f multiSourceCorrection) singleRowOf(t *testing.T, step string, studentID 
 	t.Helper()
 	rows := f.rowsOf(t, studentID)
 	require.Len(t, rows, 1, "%s: student %d keeps exactly one row on the template", step, studentID)
-	if f.wantPeriodID == nil {
-		assert.Nil(t, rows[0].CalendarPeriodID, "%s: schedules without one shared period plan a row without one", step)
-	} else if assert.NotNil(t, rows[0].CalendarPeriodID, "%s", step) {
-		assert.Equal(t, *f.wantPeriodID, *rows[0].CalendarPeriodID, "%s: the row carries the schedules' shared period", step)
-	}
+	f.requirePeriod(t, step, rows[0])
 	return rows[0]
 }
 
@@ -289,13 +286,15 @@ func TestDatedCorrection_MultiSourceAllSourcesDroppedCapsRow(t *testing.T) {
 	}
 }
 
-// A template the union resync rejects (here a source turned inactive behind
-// the catalog's guard) is not rebuilt by the resync. The dated correction
-// then caps the child's row itself, as before #5234, so the weekday the
-// correction removed does not stay planned. The fallback never touches the
-// other child, keeps a hand decision with its participant row, and a repeated
-// correction changes nothing.
-func TestDatedCorrection_MultiSourceRejectedTemplateCapsRow(t *testing.T) {
+// A template the union resync rejects (here every source turned inactive
+// behind the catalog's guard, so no valid source is left to plan on, #5305)
+// is not rebuilt by the resync. The dated correction then caps the child's
+// row itself, as before #5234, so the weekday the correction removed does not
+// stay planned. The fallback never touches the other child, keeps a hand
+// decision with its participant row, and a repeated correction changes
+// nothing. The student and tenant-wide resyncs skip the template and keep
+// its planning.
+func TestDatedCorrection_MultiSourceAllSourcesInactiveCapsRow(t *testing.T) {
 	t.Parallel()
 	f := setupMultiSourceCorrection(t, "mehrquellen-abgelehnt@example.com", divergingPeriodCase{})
 	f.correctFrom(t, nil,
@@ -316,9 +315,7 @@ func TestDatedCorrection_MultiSourceRejectedTemplateCapsRow(t *testing.T) {
 		"status": studentpresence.SessionAttendanceAbsent, "manual_status_at": time.Now(),
 	})
 
-	_, err := f.env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = false WHERE id = ? AND tenant_id = ?`,
-		f.first.ID, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
-	require.NoError(t, err)
+	f.deactivate(t, f.first.ID, f.second.ID)
 	f.correctAtSwitch(t, monday(f.second))
 
 	capped := f.singleRowOf(t, "rejected template", f.studentID)
@@ -329,7 +326,8 @@ func TestDatedCorrection_MultiSourceRejectedTemplateCapsRow(t *testing.T) {
 	}
 	assert.NotContains(t, f.participants(t, wednesday), f.studentID, "the removed Wednesday must not stay planned")
 	requireUnchanged(t, "rejected template (other child)", neighbour, f.singleRowOf(t, "rejected template", f.neighbourID))
-	f.requireParticipant(t, "rejected template (other child)", mondayOccurrence, f.neighbourID, neighbourParticipant)
+	assert.Equal(t, neighbourParticipant, f.participants(t, mondayOccurrence)[f.neighbourID],
+		"rejected template: the other child's participant row stays untouched")
 	kept := f.requireParticipant(t, "rejected template (hand decision)", decidedWednesday, f.studentID, decided)
 	assert.Equal(t, studentpresence.SessionAttendanceAbsent, kept.Status, "the hand decision keeps its status")
 	assert.NotNil(t, kept.ManualStatusAt, "the hand decision keeps its marker")
@@ -340,15 +338,49 @@ func TestDatedCorrection_MultiSourceRejectedTemplateCapsRow(t *testing.T) {
 		planned[instanceID] = f.participants(t, instanceID)
 	}
 	f.correctAtSwitch(t, monday(f.second))
+	f.requireUnchangedSince(t, "repeated correction on a rejected template", rows, planned)
+	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), f.env.db, f.env.bookings.ResyncStudentSourcedRosters,
+		[]int64{f.studentID, f.neighbourID}, decisionTestToday))
+	f.requireUnchangedSince(t, "student resync skips a template without a valid source", rows, planned)
+	f.resyncTenant(t)
+	f.requireUnchangedSince(t, "tenant-wide resync skips a template without a valid source", rows, planned)
+}
+
+// requireUnchangedSince asserts that a step kept every row and participant
+// row of the snapshot, ids included.
+func (f multiSourceCorrection) requireUnchangedSince(
+	t *testing.T, step string, rows map[int64][]timetable.StudentEnrollment, planned map[int64]map[int64]testpkg.InstanceStudent,
+) {
+	t.Helper()
 	for studentID, before := range rows {
 		after := f.rowsOf(t, studentID)
-		require.Len(t, after, len(before), "repeated correction on a rejected template: student %d keeps its rows", studentID)
+		require.Len(t, after, len(before), "%s: student %d keeps its rows", step, studentID)
 		for i := range before {
-			requireUnchanged(t, "repeated correction on a rejected template", before[i], after[i])
+			requireUnchanged(t, step, before[i], after[i])
 		}
 	}
 	for instanceID, before := range planned {
-		f.requireSameParticipants(t, "repeated correction on a rejected template", instanceID, before)
+		f.requireSameParticipants(t, step, instanceID, before)
+	}
+}
+
+// deactivate turns offerings inactive behind the catalog's guard, the drift
+// #5305 is about.
+func (f multiSourceCorrection) deactivate(t *testing.T, offeringIDs ...int64) {
+	t.Helper()
+	_, err := f.env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = false WHERE id IN (?) AND tenant_id = ?`,
+		bun.List(offeringIDs), testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+}
+
+// requirePeriod checks that a row carries the period the template's
+// instances materialize under.
+func (f multiSourceCorrection) requirePeriod(t *testing.T, step string, row timetable.StudentEnrollment) {
+	t.Helper()
+	if f.wantPeriodID == nil {
+		assert.Nil(t, row.CalendarPeriodID, "%s: schedules without one shared period plan a row without one", step)
+	} else if assert.NotNil(t, row.CalendarPeriodID, "%s", step) {
+		assert.Equal(t, *f.wantPeriodID, *row.CalendarPeriodID, "%s: the row carries the schedules' shared period", step)
 	}
 }
 
