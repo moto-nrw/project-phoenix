@@ -27,7 +27,7 @@ func checkGuestRoutePermissions(t *testing.T, api *goldenRuntime) {
 	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Gast", "Konto")
 	claims := testutil.TenantUserTestClaims(int(account.ID), tenantID, granted...)
 	claims.Roles = []string{identityaccess.GuestRoleName}
-	token := testutil.MintTestJWT(t, claims)
+	token := testpkg.MintLiveSessionJWT(t, db, claims)
 
 	child := testpkg.CreateTestStudent(t, db, "Mila", "Kind", "2a")
 	testpkg.SetTestTenantSetting(t, db, tenantID, "operations.student_photos_enabled", "true")
