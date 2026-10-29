@@ -49,6 +49,8 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 		rs.runtime.MarkRollback(r.Context())
 		status, message := http.StatusInternalServerError, "failed to end activity session"
 		switch failure {
+		case EndConflict:
+			status, message = http.StatusConflict, ""
 		case EndNotFound:
 			status, message = http.StatusNotFound, ""
 		case EndAlreadyEnded:

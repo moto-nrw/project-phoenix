@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -43,19 +42,6 @@ type reattachScanFixture struct {
 	scanned    int64
 	scannedV   int64
 	takenOver  int64
-}
-
-// reattachKiosk composes the check-in route on a pool of the test's own
-// (#5269): the row holder, the scan and session start requests and the lock
-// diagnostics hold connections at the same time, so they must not compete
-// with parallel tests for the shared package pool.
-func reattachKiosk(t *testing.T) *kiosk {
-	t.Helper()
-	db := testpkg.SetupClosableTestDB(t)
-	t.Cleanup(func() { assert.NoError(t, db.Close()) })
-	module, err := api.NewCheckinTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-	require.NoError(t, err)
-	return &kiosk{db: db, resource: checkinAPI.NewResource(module.DeviceScan, testRuntime(), nil), rosters: module.Rosters}
 }
 
 func newReattachScanFixture(t *testing.T) reattachScanFixture {

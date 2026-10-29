@@ -145,6 +145,9 @@ func (s *Store) ReviseVisit(ctx context.Context, row *studentpresence.Visit) (po
 	result, err := db.NewUpdate().Model(visitRowFromRecord(row)).ModelTableExpr(`active.visits AS "visit"`).
 		WherePK().Where("visit.tenant_id = ?", tenantID).Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if isUniqueViolationOn(err, openVisitPerStudentIndex) {
+		return stats, fmt.Errorf("revise visit: %w", errors.Join(ports.ErrOpenVisitExists, err))
+	}
 	if err != nil {
 		return stats, fmt.Errorf("revise visit: %w", err)
 	}

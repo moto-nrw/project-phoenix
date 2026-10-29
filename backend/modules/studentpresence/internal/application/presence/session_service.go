@@ -82,6 +82,9 @@ func getDeviceIDString(deviceID *int64) string {
 func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) error {
 	var broadcasts sessionEndSSEData
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.SchoolPresence.PrepareVisitWrites(txCtx, studentpresence.VisitWriteScope{GroupIDs: []int64{activeGroupID}}); err != nil {
+			return err
+		}
 		group, err := s.GroupRepo.FindByIDForUpdate(txCtx, activeGroupID)
 		if err != nil || group == nil {
 			return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupNotFound}

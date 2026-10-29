@@ -1156,6 +1156,28 @@
     },
     {
       "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.PrepareOpenRoomMove",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "reason": "ADR 0138 lock order. Owner-local child, attendance, visit and session lock preparation in the existing ambient tenant transaction. Requires that transaction and propagates validation/conflict failures; no source-owned coordination or foreign write. Exposed native Presence contract, bound by open-room-move through its consumer-owned Moves port.",
+      "source_owner": "facilities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.PrepareOpenRoomMove",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "reason": "ADR 0138 lock order. Owner-local child, attendance, visit and session lock preparation in the existing ambient tenant transaction. Requires that transaction and propagates validation/conflict failures; no source-owned coordination or foreign write. Exposed native Presence contract, bound by open-room-move through its consumer-owned Moves port.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.ProcessSchoolCheckinBatch",
       "classification": "leaf",
       "effect": "mutation",
