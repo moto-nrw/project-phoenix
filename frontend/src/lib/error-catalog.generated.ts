@@ -222,9 +222,9 @@ export const ERROR_CATALOG = {
       "communication.staff_group_members_required":
         "Bitte wählen Sie mindestens eine Person aus, die noch nicht in der Gruppe ist.",
       "communication.staff_group_name_invalid":
-        "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens 80 Zeichen.",
+        "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens {max_characters} Zeichen.",
       "communication.staff_group_too_large":
-        "Ein Gruppenchat hat höchstens 100 Mitglieder.",
+        "Ein Gruppenchat hat höchstens {max_members} Mitglieder.",
       "communication.staff_messaging_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
@@ -1641,9 +1641,9 @@ export const ERROR_CATALOG = {
       "communication.staff_group_members_required":
         "Please choose at least one person who is not in the group yet.",
       "communication.staff_group_name_invalid":
-        "Please give the group chat a name of at most 80 characters.",
+        "Please give the group chat a name of at most {max_characters} characters.",
       "communication.staff_group_too_large":
-        "A group chat has at most 100 members.",
+        "A group chat has at most {max_members} members.",
       "communication.survey_already_answered":
         "You have already taken part in this survey. Your answer cannot be changed.",
       "communication.survey_not_open": "This survey no longer accepts answers.",

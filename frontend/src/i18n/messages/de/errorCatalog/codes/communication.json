@@ -21,7 +21,7 @@
   "class_letter_read_only": "Diesen Elternbrief hat eine Lehrkraft geschrieben. Nur sie kann ihn ändern, senden oder löschen.",
   "staff_group_create_forbidden": "Lehrkräfte können keinen Gruppenchat anlegen. Bitten Sie die OGS darum.",
   "staff_group_manage_forbidden": "Nur wer den Gruppenchat angelegt hat und die OGS-Leitung können ihn ändern.",
-  "staff_group_name_invalid": "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens 80 Zeichen.",
+  "staff_group_name_invalid": "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens {max_characters} Zeichen.",
   "staff_group_members_required": "Bitte wählen Sie mindestens eine Person aus, die noch nicht in der Gruppe ist.",
-  "staff_group_too_large": "Ein Gruppenchat hat höchstens 100 Mitglieder."
+  "staff_group_too_large": "Ein Gruppenchat hat höchstens {max_members} Mitglieder."
 }

@@ -117,7 +117,9 @@
     {
       "code": "communication.staff_group_name_invalid",
       "class": "input",
-      "parameters": [],
+      "parameters": [
+        "max_characters"
+      ],
       "legacy": "communication.staff_group_name_invalid"
     },
     {
@@ -129,7 +131,9 @@
     {
       "code": "communication.staff_group_too_large",
       "class": "input",
-      "parameters": [],
+      "parameters": [
+        "max_members"
+      ],
       "legacy": "communication.staff_group_too_large"
     },
     {

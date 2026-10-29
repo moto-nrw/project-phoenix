@@ -21,7 +21,7 @@
   "class_letter_read_only": "A teacher wrote this parent letter. Only that teacher can change, send or delete it.",
   "staff_group_create_forbidden": "Teachers cannot start a group chat. Please ask the after-school team.",
   "staff_group_manage_forbidden": "Only the person who started the group chat and the leadership can change it.",
-  "staff_group_name_invalid": "Please give the group chat a name of at most 80 characters.",
+  "staff_group_name_invalid": "Please give the group chat a name of at most {max_characters} characters.",
   "staff_group_members_required": "Please choose at least one person who is not in the group yet.",
-  "staff_group_too_large": "A group chat has at most 100 members."
+  "staff_group_too_large": "A group chat has at most {max_members} members."
 }

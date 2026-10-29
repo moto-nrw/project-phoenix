@@ -7,6 +7,13 @@ import (
 	"time"
 )
 
+const (
+	// MaxStaffGroupNameRunes caps a group-chat name in Unicode code points.
+	MaxStaffGroupNameRunes = 80
+	// MaxStaffGroupMembers caps a group including its creator.
+	MaxStaffGroupMembers = 100
+)
+
 var (
 	ErrParentMessagingForbidden             = errors.New("messaging: forbidden")
 	ErrParentMessageThreadNotFound          = errors.New("messaging: thread not found")

@@ -1,6 +1,7 @@
 package staffmessaging
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -70,13 +71,21 @@ var staffMessagingErrorRules = []common.ErrorRule{
 		return common.ErrorForbiddenMessageWithCode("Sie dürfen diesen Gruppenchat nicht ändern.", common.CodeCommunicationStaffGroupManageForbidden)
 	}},
 	{Target: communication.ErrStaffMessageGroupNameInvalid, Render: func(_ error) render.Renderer {
-		return common.ErrorInvalidRequestMessageWithCode("Der Gruppenchat braucht einen Namen mit höchstens 80 Zeichen.", common.CodeCommunicationStaffGroupNameInvalid)
+		return common.ErrorInvalidRequestMessageWithCodeAndDetails(
+			fmt.Sprintf("Der Gruppenchat braucht einen Namen mit höchstens %d Zeichen.", communication.MaxStaffGroupNameRunes),
+			common.CodeCommunicationStaffGroupNameInvalid,
+			map[string]any{"max_characters": communication.MaxStaffGroupNameRunes},
+		)
 	}},
 	{Target: communication.ErrStaffMessageGroupMembersRequired, Render: func(_ error) render.Renderer {
 		return common.ErrorInvalidRequestMessageWithCode("Bitte wählen Sie mindestens eine neue Person aus.", common.CodeCommunicationStaffGroupMembersRequired)
 	}},
 	{Target: communication.ErrStaffMessageGroupTooLarge, Render: func(_ error) render.Renderer {
-		return common.ErrorInvalidRequestMessageWithCode("Ein Gruppenchat hat höchstens 100 Mitglieder.", common.CodeCommunicationStaffGroupTooLarge)
+		return common.ErrorInvalidRequestMessageWithCodeAndDetails(
+			fmt.Sprintf("Ein Gruppenchat hat höchstens %d Mitglieder.", communication.MaxStaffGroupMembers),
+			common.CodeCommunicationStaffGroupTooLarge,
+			map[string]any{"max_members": communication.MaxStaffGroupMembers},
+		)
 	}},
 	{Target: communication.ErrStaffMessagingNoActor, Render: func(_ error) render.Renderer {
 		return common.ErrorForbiddenMessage("Bitte melden Sie sich erneut an.")
