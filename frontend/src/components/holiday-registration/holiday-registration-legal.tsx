@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { AttachmentList } from "~/components/enrollment/attachment-list";
 import {
   EnrollmentConsent,
-  LegalDetailsButton,
+  EmailContactNotice,
   LegalMarkdown,
 } from "~/components/enrollment/enrollment-form-consent";
 import { Modal } from "~/components/ui/modal";
@@ -45,19 +45,13 @@ export function HolidayRegistrationLegal({
               {block.title}
             </h3>
             {block.kind === "notice" && !block.required ? (
-              <div className="text-sm text-gray-700">
-                <p>{block.label}</p>
-                {block.text.trim() ? (
-                  <LegalDetailsButton
-                    title={block.title}
-                    label={tr("actions.details")}
-                    ariaLabel={tr("actions.detailsAria", {
-                      title: block.title,
-                    })}
-                    onClick={() => setOpen(block)}
-                  />
-                ) : null}
-              </div>
+              <EmailContactNotice
+                block={block}
+                onViewLegal={
+                  block.text.trim() ? () => setOpen(block) : undefined
+                }
+                tr={tr}
+              />
             ) : (
               <EnrollmentConsent
                 name={`legal_acceptances.${block.key}`}

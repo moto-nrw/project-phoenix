@@ -22,16 +22,17 @@ func (seedHolidayLegalStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	path := fmt.Sprintf("/traeger/holiday-periods/%d/form", period)
-	if err := seedHolidayLegalForm(rt, auth, path); err != nil {
-		return err
-	}
-	return seedHolidayLegalRegistration(rt)
-}
-
-func seedHolidayLegalForm(rt *Runtime, auth AuthRef, path string) error {
-	raw, err := rt.Client.GetWithAuth(auth, path)
+	version, err := seedHolidayLegalForm(rt, auth, path)
 	if err != nil {
 		return err
+	}
+	return seedHolidayLegalRegistration(rt, version)
+}
+
+func seedHolidayLegalForm(rt *Runtime, auth AuthRef, path string) (int, error) {
+	raw, err := rt.Client.GetWithAuth(auth, path)
+	if err != nil {
+		return 0, err
 	}
 	var form struct {
 		Data struct {
@@ -39,19 +40,33 @@ func seedHolidayLegalForm(rt *Runtime, auth AuthRef, path string) error {
 		} `json:"data"`
 	}
 	if err = json.Unmarshal(raw, &form); err != nil {
-		return err
+		return 0, err
 	}
 	blocks := []map[string]any{}
 	for i, title := range []string{"Hinweise zur Ferienbetreuung", "Hinweise zu Ausflügen"} {
 		id, err := seedHolidayLegalPDF(rt, auth, path, i+1, title)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		blocks = append(blocks, map[string]any{"key": fmt.Sprintf("hinweis_%d", i+1), "kind": "terms", "source": "custom", "title": title, "label": "Ich habe die Hinweise gelesen und zur Kenntnis genommen.", "enabled": true, "required": true, "display_mode": "pdf", "attachments": []map[string]string{{"label": title, "document_id": id}}})
 	}
 	blocks = append(blocks, map[string]any{"key": "fotos_ferien", "kind": "consent", "source": "custom", "title": "Fotos in der Ferienbetreuung", "label": "Mein Kind darf auf Erinnerungsfotos zu sehen sein.", "text": "Die Fotos bleiben in der OGS.", "enabled": true})
-	_, err = rt.Client.PutWithAuth(auth, path, map[string]any{"fields": form.Data.Fields, "legal_blocks": blocks})
-	return err
+	raw, err = rt.Client.PutWithAuth(auth, path, map[string]any{"fields": form.Data.Fields, "legal_blocks": blocks})
+	if err != nil {
+		return 0, err
+	}
+	var saved struct {
+		Data struct {
+			Version int `json:"version"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(raw, &saved); err != nil {
+		return 0, err
+	}
+	if saved.Data.Version <= 0 {
+		return 0, fmt.Errorf("the saved holiday form has no version")
+	}
+	return saved.Data.Version, nil
 }
 
 func seedHolidayLegalPDF(rt *Runtime, auth AuthRef, path string, position int, title string) (string, error) {
@@ -76,7 +91,7 @@ func seedHolidayLegalPDF(rt *Runtime, auth AuthRef, path string, position int, t
 
 // Older registrations retain version 1 without legal blocks. This later
 // registration demonstrates the evidence display of the new version.
-func seedHolidayLegalRegistration(rt *Runtime) error {
+func seedHolidayLegalRegistration(rt *Runtime, version int) error {
 	if rt.Values[seedHolidayRegistrationsSkippedKey] == true {
 		return nil
 	}
@@ -90,6 +105,7 @@ func seedHolidayLegalRegistration(rt *Runtime) error {
 	}
 	body["guardian"].(map[string]any)["email"] = "hinweise.ferien@example.org"
 	body["legal_acceptances"] = map[string]bool{"hinweis_1": true, "hinweis_2": true, "fotos_ferien": false}
+	body["form_version"] = version
 	_, err = rt.Client.PostPublic("/traeger/holiday-registrations/"+token, body)
 	return err
 }

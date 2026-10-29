@@ -1084,6 +1084,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"version":1,"fields":[]}}`)
 			return
 		}
+		if r.Method == seedHTTPMethodPut && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"version":2,"fields":[]}}`)
+			return
+		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/enrollment/legal-documents" {
 			// Handle this multipart response before the profile mocks decode JSON.
 			idCounter++
