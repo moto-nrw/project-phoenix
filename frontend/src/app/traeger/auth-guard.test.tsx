@@ -1,5 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "~/contexts/ToastContext";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
 const { mockUseSession, mockRedirect, mockFetchOrganization } = vi.hoisted(
@@ -64,6 +65,7 @@ describe("TraegerAuthGuard", () => {
       <TraegerAuthGuard>
         <p>Schulen</p>
       </TraegerAuthGuard>,
+      { wrapper: ToastProvider },
     );
 
     expect(screen.getByTestId("shell")).toHaveTextContent("Schulen");
@@ -77,6 +79,7 @@ describe("TraegerAuthGuard", () => {
       <TraegerAuthGuard>
         <p>Schulen</p>
       </TraegerAuthGuard>,
+      { wrapper: ToastProvider },
     );
 
     expect(screen.getByTestId("shell")).toHaveTextContent("Schulen");
@@ -97,6 +100,7 @@ describe("TraegerAuthGuard", () => {
       <TraegerAuthGuard>
         <p>Schulen</p>
       </TraegerAuthGuard>,
+      { wrapper: ToastProvider },
     );
 
     expect(mockRedirect).toHaveBeenCalledWith("/traeger/login");
@@ -115,6 +119,7 @@ describe("TraegerAuthGuard", () => {
       <TraegerAuthGuard>
         <p>Schulen</p>
       </TraegerAuthGuard>,
+      { wrapper: ToastProvider },
     );
 
     await waitFor(() =>
@@ -131,6 +136,7 @@ describe("TraegerAuthGuard", () => {
       <TraegerAuthGuard>
         <p>Schulen</p>
       </TraegerAuthGuard>,
+      { wrapper: ToastProvider },
     );
 
     await waitFor(() => expect(mockFetchOrganization).toHaveBeenCalled());
