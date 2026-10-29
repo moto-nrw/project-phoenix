@@ -23,7 +23,7 @@ interface LoginOptions {
 /** A failed handoff never exposes its freshly minted credentials. */
 export async function revokeMintedSession(
   request: NextRequest,
-  refreshToken: string,
+  token: string,
   path = "/auth/logout",
 ) {
   try {
@@ -31,7 +31,7 @@ export async function revokeMintedSession(
       method: "POST",
       headers: {
         ...getClientForwardHeaders(request),
-        Authorization: `Bearer ${refreshToken}`,
+        Authorization: `Bearer ${token}`,
       },
       signal: AbortSignal.timeout(5000),
     });
@@ -60,7 +60,12 @@ export async function installLoginSession(
   try {
     await setSession(data.access_token, data.refresh_token);
   } catch {
-    await revokeMintedSession(request, data.refresh_token, rollbackPath);
+    // Operator logout authenticates the access token; /auth/logout uses refresh.
+    const rollbackToken =
+      rollbackPath === "/operator/auth/logout"
+        ? data.access_token
+        : data.refresh_token;
+    await revokeMintedSession(request, rollbackToken, rollbackPath);
     return problemResponse(500, "Session creation failed", request);
   }
   return null;

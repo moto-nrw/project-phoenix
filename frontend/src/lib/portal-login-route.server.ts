@@ -22,7 +22,6 @@ const bindings = {
     withResponse: withOperatorSessionResponse,
     setSession: setOperatorSession,
     rollbackPath: "/operator/auth/logout",
-    envelope: true,
   },
   school: {
     withResponse: withSchoolSessionResponse,
@@ -36,7 +35,6 @@ const bindings = {
   caterer: {
     withResponse: withCatererSessionResponse,
     setSession: setCatererSession,
-    envelope: true,
   },
 };
 export function createPortalLoginRoute(
@@ -49,6 +47,10 @@ export function createPortalLoginRoute(
       : `/${portal}/auth/${step}`;
   return createLoginRoute(path, {
     ...bindings[portal],
+    // Operator passkey verification returns a plain LoginResponse.
+    envelope:
+      portal === "caterer" ||
+      (portal === "operator" && step !== "passkeys/login/verify"),
     challenges: step === "login",
   });
 }

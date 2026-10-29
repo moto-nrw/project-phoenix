@@ -146,13 +146,19 @@ describe.each(portals)(
     it.each(steps)(
       "%s installs only its own encrypted httpOnly cookie",
       async (step) => {
+        // Operator passkey verification returns LoginResponse without an envelope.
+        const wrapStep =
+          step === "passkeys/login/verify" ? (data: unknown) => data : wrap;
         backend
           .mockResolvedValueOnce(
-            Response.json(wrap({ ...pair(), extra_token: "must-not-leak" }), {
-              headers: {
-                "Set-Cookie": "trusted_device=proof; Path=/; HttpOnly",
+            Response.json(
+              wrapStep({ ...pair(), extra_token: "must-not-leak" }),
+              {
+                headers: {
+                  "Set-Cookie": "trusted_device=proof; Path=/; HttpOnly",
+                },
               },
-            }),
+            ),
           )
           .mockResolvedValueOnce(Response.json(claims(scope)));
         const response = await createPortalLoginRoute(
@@ -168,7 +174,7 @@ describe.each(portals)(
         );
         expect(response.status).toBe(200);
         expect(await response.json()).toEqual(
-          wrap({ status: "authenticated" }),
+          wrapStep({ status: "authenticated" }),
         );
         expect(backend.mock.calls[0]?.[0]).toBe(
           `http://server:8080/${portal}/auth/${step}`,
@@ -264,7 +270,7 @@ describe.each(portals)(
         `http://server:8080/${portal === "operator" ? "operator/" : ""}auth/logout`,
       );
       expect(backend.mock.calls[2]?.[1].headers.Authorization).toBe(
-        `Bearer ${pair().refresh_token}`,
+        `Bearer ${portal === "operator" ? pair().access_token : pair().refresh_token}`,
       );
       expect(response.headers.getSetCookie().join(";")).not.toContain(
         `${portal}.session-token=`,
