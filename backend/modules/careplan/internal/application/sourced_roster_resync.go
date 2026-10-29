@@ -127,7 +127,7 @@ func (m *BookingMaterialization) wantedSourcedRoster(
 	if len(in.OfferingIDs) == 0 {
 		return nil, wanted, nil
 	}
-	sources, err := m.catalog.LoadOfferingSources(ctx, in.OfferingIDs, in.CalendarPeriodID, in.TolerateDriftedSources)
+	sources, err := m.catalog.LoadOfferingSources(ctx, in.OfferingIDs, in.CalendarPeriodID, sourceDriftOf(in))
 	if err != nil {
 		return nil, nil, err
 	}
@@ -139,6 +139,15 @@ func (m *BookingMaterialization) wantedSourcedRoster(
 		m.deps.Logger.Warn("offering roster resync: ignoring vanished source offerings",
 			slog.Int64("template_id", in.TemplateID),
 			slog.Any("care_offering_ids", sources.Dropped),
+		)
+	}
+	if len(sources.Inactive) > 0 {
+		// A stored source turned inactive behind the catalog's guard. It
+		// contributes nothing; the remaining valid sources keep planning
+		// their booked days (#5305).
+		m.deps.Logger.Warn("offering roster resync: ignoring inactive source offerings",
+			slog.Int64("template_id", in.TemplateID),
+			slog.Any("care_offering_ids", sources.Inactive),
 		)
 	}
 	if len(sources.Offerings) == 0 {

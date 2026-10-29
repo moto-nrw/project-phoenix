@@ -236,7 +236,8 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	if err != nil {
 		return err
 	}
-	if err := m.excludeInvalidAdjustedUnionTemplates(ctx, multiSource); err != nil {
+	inactiveSourced, err := m.excludeInvalidAdjustedUnionTemplates(ctx, multiSource)
+	if err != nil {
 		return err
 	}
 	existing, err := m.deps.Rosters.StudentEnrollments(ctx, adjusted.studentID)
@@ -272,25 +273,62 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	// keeps through ANOTHER of the template's source offerings after leaving
 	// this one. Scoped to this child: a dated switch must not reconcile other
 	// children's rows as a side effect.
-	return m.resyncMultiSourceTemplates(ctx, multiSource, boundary, []int64{adjusted.requestChildID})
+	return m.resyncAdjustedUnionTemplates(ctx, multiSource, inactiveSourced, boundary, adjusted.requestChildID)
 }
 
-// excludeInvalidAdjustedUnionTemplates leaves only templates whose sources
-// the union resync accepts. A rejected resync is best effort and writes nothing;
-// deferring an old row to it would retain weekdays the correction removed.
-// Invalid templates instead use the ordinary cap/delete and instance reconcile
-// path. Do not bypass source guards to create replacement coverage.
-func (m *BookingMaterialization) excludeInvalidAdjustedUnionTemplates(ctx context.Context, templates map[int64]ports.SourcedTemplate) error {
+// resyncAdjustedUnionTemplates runs the child's union resync from the switch
+// boundary. A template with a source that turned inactive is resynced from
+// today instead: that source contributes nothing from today on (#5305), as
+// every later student or tenant-wide resync applies it, so the correction
+// already leaves the state those resyncs keep. The resync reads the child's
+// links as they stand, so before the switch the remaining sources still plan
+// the old selection; only the inactive source's contribution leaves earlier.
+func (m *BookingMaterialization) resyncAdjustedUnionTemplates(
+	ctx context.Context,
+	templates map[int64]ports.SourcedTemplate,
+	inactiveSourced map[int64]bool,
+	boundary calendar.Date,
+	requestChildID int64,
+) error {
+	fromToday := make(map[int64]ports.SourcedTemplate)
 	for id, tmpl := range templates {
-		if _, err := m.catalog.LoadOfferingSources(ctx, tmpl.SourceCareOfferingIDs, tmpl.CalendarPeriodID, false); err != nil {
-			if !m.catalog.deps.SourceRules.IsRejection(err) {
-				return fmt.Errorf("decision: validate adjusted union template %d: %w", id, err)
-			}
-			m.logSkippedSourcedTemplate(id, tmpl.SourceCareOfferingIDs, "dated adjustment: multi-source template invalid", err)
+		if inactiveSourced[id] {
+			fromToday[id] = tmpl
 			delete(templates, id)
 		}
 	}
-	return nil
+	scope := []int64{requestChildID}
+	if err := m.resyncMultiSourceTemplates(ctx, templates, boundary, scope); err != nil {
+		return err
+	}
+	return m.resyncMultiSourceTemplates(ctx, fromToday, m.todayDate(), scope)
+}
+
+// excludeInvalidAdjustedUnionTemplates leaves only templates whose sources
+// the union resync accepts, under the same policy the resync below loads
+// them with: a stored source that turned inactive is skipped while another
+// stays valid (#5305). A rejected resync is best effort and writes nothing;
+// deferring an old row to it would retain weekdays the correction removed.
+// Invalid templates instead use the ordinary cap/delete and instance reconcile
+// path. Do not bypass the remaining source guards to create replacement
+// coverage. The kept templates with a skipped inactive source are returned.
+func (m *BookingMaterialization) excludeInvalidAdjustedUnionTemplates(ctx context.Context, templates map[int64]ports.SourcedTemplate) (map[int64]bool, error) {
+	inactiveSourced := make(map[int64]bool)
+	for id, tmpl := range templates {
+		sources, err := m.catalog.LoadOfferingSources(ctx, tmpl.SourceCareOfferingIDs, tmpl.CalendarPeriodID, skipInactiveSources)
+		if err != nil {
+			if !m.catalog.deps.SourceRules.IsRejection(err) {
+				return nil, fmt.Errorf("decision: validate adjusted union template %d: %w", id, err)
+			}
+			m.logSkippedSourcedTemplate(id, tmpl.SourceCareOfferingIDs, "dated adjustment: multi-source template invalid", err)
+			delete(templates, id)
+			continue
+		}
+		if len(sources.Inactive) > 0 {
+			inactiveSourced[id] = true
+		}
+	}
+	return inactiveSourced, nil
 }
 
 // deferredToUnionResync reports whether the union resync below, not the
