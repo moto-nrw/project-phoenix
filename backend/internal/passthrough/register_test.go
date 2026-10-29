@@ -37,7 +37,8 @@ func TestPassthroughChecksCommittedBaseInventory(t *testing.T) {
 	for _, args := range [][]string{
 		{"init", "--quiet"},
 		{"add", "."},
-		{"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Record base inventory"},
+		// The fixture commit must not run hooks inherited from the host.
+		{"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "-c", "core.hooksPath=" + os.DevNull, "commit", "--quiet", "-m", "Record base inventory"},
 	} {
 		if _, err := git(repo, args...); err != nil {
 			t.Fatal(err)
