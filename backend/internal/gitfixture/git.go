@@ -1,3 +1,5 @@
+//go:build testhooks
+
 // Package gitfixture isolates temporary test repositories from caller Git state.
 package gitfixture
 

@@ -2,9 +2,9 @@
 # Source only in standalone fixture-test processes, never in production hooks.
 # Git child processes (including the script under test) inherit this isolation.
 # https://git-scm.com/docs/git#Documentation/git.txt-GITCONFIGGLOBAL
-while IFS= read -r git_fixture_variable; do
+for git_fixture_variable in "${!GIT_@}"; do
   unset "$git_fixture_variable"
-done < <(compgen -v GIT_)
+done
 unset git_fixture_variable
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
