@@ -44,7 +44,7 @@ interface MFAEnrollmentRequiredLoginResponse {
   mfa_enrollment_required: true;
 }
 
-export interface AuthenticatedSessionResponse {
+interface AuthenticatedSessionResponse {
   status: "authenticated";
 }
 

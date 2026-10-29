@@ -15,7 +15,7 @@ import { getCachedSession } from "./session-cache";
 
 export type PasskeyScope = "tenant" | "operator";
 
-export interface PasskeyTokenResponse {
+interface PasskeyTokenResponse {
   status: "authenticated";
   access_token: string;
   refresh_token: string;
