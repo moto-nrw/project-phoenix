@@ -22,6 +22,9 @@ const (
 	personWithoutAccount = "Ohne Person (automatisch)"
 	personUnknown        = "Unbekannte Person"
 	traegerBueroSuffix   = " (Träger-Büro)"
+	// withoutSchool stands in the school column of an entry of the
+	// Träger's own data, such as its holiday registrations (#5326).
+	withoutSchool = "Träger (keine Schule)"
 )
 
 // window is the instant range of a filter: the Berlin day From from
@@ -127,18 +130,15 @@ func (o *Overview) AccessLogPeople(ctx context.Context, viewer traegerview.Viewe
 	people := []traegerview.AccessLogPerson{}
 	shown := map[int64]int{}
 	err = o.read(ctx, viewer.OrganizationID, func(adminCtx context.Context, schools []int64) error {
-		if len(schools) == 0 {
-			return nil
-		}
-		actors, err := o.trail.ListAccessTrailActors(adminCtx, schools, span.from, span.to)
-		if err != nil {
+		actors, err := o.trailActors(adminCtx, viewer, schools, span)
+		if err != nil || len(actors) == 0 {
 			return err
 		}
-		accounts, staffIDs := make([]int64, 0, len(actors)), make([]int64, 0, len(actors))
-		for _, actor := range actors {
-			accounts, staffIDs = append(accounts, actor.AccountID), append(staffIDs, actor.StaffID)
+		refs := make([]actorRef, 0, len(actors))
+		for _, trailActor := range actors {
+			refs = append(refs, trailActorRef(trailActor))
 		}
-		names, err := o.actorIndex(adminCtx, viewer.OrganizationID, schools, accounts, staffIDs)
+		names, err := o.actorIndex(adminCtx, viewer.OrganizationID, schools, refs)
 		if err != nil {
 			return err
 		}
@@ -154,6 +154,20 @@ func (o *Overview) AccessLogPeople(ctx context.Context, viewer traegerview.Viewe
 	return people, nil
 }
 
+// trailActors lists who acted in the window: at the schools shown, then in
+// the Träger's holiday trail.
+func (o *Overview) trailActors(adminCtx context.Context, viewer traegerview.Viewer, schools []int64, span window) ([]traegerview.AccessTrailActor, error) {
+	actors, err := o.holiday.ListHolidayTrailActors(adminCtx, viewer.OrganizationID, span.from, span.to)
+	if err != nil || len(schools) == 0 {
+		return actors, err
+	}
+	schoolActors, err := o.trail.ListAccessTrailActors(adminCtx, schools, span.from, span.to)
+	if err != nil {
+		return nil, err
+	}
+	return append(schoolActors, actors...), nil
+}
+
 // distinctPeople keeps one entry per account, named after the first school
 // that knows a person for it, ordered by name. A staff member is listed under
 // the account of its person; one without an account cannot be chosen as a
@@ -163,8 +177,7 @@ func distinctPeople(actors []traegerview.AccessTrailActor, names actorIndex) ([]
 	shown := map[int64]int{}
 	for _, trailActor := range actors {
 		shown[trailActor.SchoolID]++
-		account, staff := positiveID(trailActor.AccountID), positiveID(trailActor.StaffID)
-		resolved := names.resolve(trailActor.SchoolID, account, staff, trailActor.ActorNameSnapshot)
+		resolved := names.resolve(trailActorRef(trailActor))
 		if resolved.account == nil {
 			continue
 		}
@@ -192,11 +205,53 @@ func distinctPeople(actors []traegerview.AccessTrailActor, names actorIndex) ([]
 	return people, shown
 }
 
-// entries reads the trail of the filter at the Träger's schools and names
-// its schools and people. A school outside the Träger reads nothing.
+// entries reads the trail of the filter at the Träger's schools and the
+// Träger's holiday trail, merges them, and names their schools and people.
+// A school outside the Träger reads nothing.
 func (o *Overview) entries(adminCtx context.Context, viewer traegerview.Viewer, schools []int64, filter traegerview.AccessLogFilter, span window, limit, offset int) ([]traegerview.AccessLogEntry, error) {
-	if len(schools) == 0 || (filter.SchoolID != 0 && !slices.Contains(schools, filter.SchoolID)) {
+	holiday, err := o.holidayTrail(adminCtx, viewer, filter, span, offset+limit)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := o.schoolTrail(adminCtx, schools, filter, span, limit, offset, len(holiday) > 0)
+	if err != nil {
+		return nil, err
+	}
+	if len(holiday) > 0 {
+		rows = mergedPage(rows, holiday, limit, offset)
+	}
+	if len(rows) == 0 {
 		return []traegerview.AccessLogEntry{}, nil
+	}
+	schoolNames, err := o.schoolNames(adminCtx, schools)
+	if err != nil {
+		return nil, err
+	}
+	refs := make([]actorRef, 0, len(rows))
+	for _, row := range rows {
+		refs = append(refs, actorRef{school: row.SchoolID, account: row.AccountID, staff: row.StaffID, snapshot: row.ActorNameSnapshot})
+	}
+	names, err := o.actorIndex(adminCtx, viewer.OrganizationID, schools, refs)
+	if err != nil {
+		return nil, err
+	}
+	entries := make([]traegerview.AccessLogEntry, 0, len(rows))
+	for i, row := range rows {
+		resolved := names.resolve(refs[i])
+		entries = append(entries, traegerview.AccessLogEntry{
+			ID: fmt.Sprintf("%s-%s-%d", row.Kind, row.Data, row.ID), OccurredAt: row.OccurredAt, SchoolID: row.SchoolID, SchoolName: schoolName(schoolNames, row.SchoolID),
+			AccountID: resolved.account, Person: resolved.name, Kind: row.Kind, Data: row.Data, DataLabel: dataLabel(row.Data),
+		})
+	}
+	return entries, nil
+}
+
+// schoolTrail reads the trail of the filter at the Träger's schools. A
+// school outside the Träger reads nothing. To be merged with the holiday
+// trail, it reads the newest offset+limit entries instead of the page.
+func (o *Overview) schoolTrail(adminCtx context.Context, schools []int64, filter traegerview.AccessLogFilter, span window, limit, offset int, merged bool) ([]traegerview.AccessTrailEntry, error) {
+	if len(schools) == 0 || (filter.SchoolID != 0 && !slices.Contains(schools, filter.SchoolID)) {
+		return nil, nil
 	}
 	var staffIDs []int64
 	if filter.AccountID != 0 {
@@ -205,35 +260,20 @@ func (o *Overview) entries(adminCtx context.Context, viewer traegerview.Viewer, 
 			return nil, err
 		}
 	}
-	rows, err := o.trail.ListAccessTrail(adminCtx, traegerview.AccessTrailQuery{
+	if merged {
+		limit, offset = offset+limit, 0
+	}
+	return o.trail.ListAccessTrail(adminCtx, traegerview.AccessTrailQuery{
 		Schools: schools, From: span.from, To: span.to, SchoolID: filter.SchoolID,
 		AccountID: filter.AccountID, StaffIDs: staffIDs, Kind: filter.Kind, Limit: limit, Offset: offset,
 	})
-	if err != nil || len(rows) == 0 {
-		return []traegerview.AccessLogEntry{}, err
-	}
-	schoolNames, err := o.schoolNames(adminCtx, schools)
-	if err != nil {
-		return nil, err
-	}
-	accounts, staff := rowActors(rows)
-	names, err := o.actorIndex(adminCtx, viewer.OrganizationID, schools, accounts, staff)
-	if err != nil {
-		return nil, err
-	}
-	entries := make([]traegerview.AccessLogEntry, 0, len(rows))
-	for _, row := range rows {
-		resolved := names.resolve(row.SchoolID, row.AccountID, row.StaffID, row.ActorNameSnapshot)
-		entries = append(entries, traegerview.AccessLogEntry{
-			ID: fmt.Sprintf("%s-%s-%d", row.Kind, row.Data, row.ID), OccurredAt: row.OccurredAt, SchoolID: row.SchoolID, SchoolName: schoolNames[row.SchoolID],
-			AccountID: resolved.account, Person: resolved.name, Kind: row.Kind, Data: row.Data, DataLabel: dataLabel(row.Data),
-		})
-	}
-	return entries, nil
 }
 
 // schoolNames names the schools of the set.
 func (o *Overview) schoolNames(adminCtx context.Context, schools []int64) (map[int64]string, error) {
+	if len(schools) == 0 {
+		return map[int64]string{}, nil
+	}
 	rows, err := o.rows.Schools(adminCtx, schools)
 	if err != nil {
 		return nil, err
@@ -245,19 +285,6 @@ func (o *Overview) schoolNames(adminCtx context.Context, schools []int64) (map[i
 	return names, nil
 }
 
-// rowActors collects the accounts and staff IDs the entries name.
-func rowActors(rows []traegerview.AccessTrailEntry) (accounts, staff []int64) {
-	for _, row := range rows {
-		if row.AccountID != nil {
-			accounts = append(accounts, *row.AccountID)
-		}
-		if row.StaffID != nil {
-			staff = append(staff, *row.StaffID)
-		}
-	}
-	return accounts, staff
-}
-
 func entrySchools(entries []traegerview.AccessLogEntry) map[int64]int {
 	counts := map[int64]int{}
 	for _, entry := range entries {
@@ -267,11 +294,14 @@ func entrySchools(entries []traegerview.AccessLogEntry) map[int64]int {
 }
 
 // record writes the read to the access log of every school it showed, with
-// the number of rows it showed there.
+// the number of rows it showed there. Entries without a school are the
+// Träger's own data and have no school access log (ADR 0114 point 6).
 func (o *Overview) record(ctx context.Context, viewer traegerview.Viewer, resourceType string, span window, shown map[int64]int, view string, page int) error {
 	schools := make([]int64, 0, len(shown))
 	for school := range shown {
-		schools = append(schools, school)
+		if school > 0 {
+			schools = append(schools, school)
+		}
 	}
 	slices.Sort(schools)
 	for _, school := range schools {

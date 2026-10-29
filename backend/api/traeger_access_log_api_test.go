@@ -365,3 +365,118 @@ func TestTraegerAccessLogShowsTheSystemActorWithoutAnAccount(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, []accessLogPerson{{AccountID: f.staff, Name: "Frieda Fachkraft"}}, decodeSchoolPortalData[[]accessLogPerson](t, rec.Body.Bytes()))
 }
+
+// recordHolidayAccess writes one entry of the audit trail of the holiday
+// registrations of a Träger, as the review writes it (#5326).
+func recordHolidayAccess(t *testing.T, db *bun.DB, organization, period int64, registration *int64, action string, account int64, at time.Time) {
+	t.Helper()
+	_, err := db.ExecContext(context.Background(), `INSERT INTO enrollment.holiday_registration_audit
+		(organization_id, holiday_period_id, holiday_registration_id, action, actor_account_id, occurred_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		organization, period, registration, action, account, at)
+	require.NoError(t, err)
+}
+
+func traegerOfficeAccount(t *testing.T, db *bun.DB, organization int64) (int64, string) {
+	t.Helper()
+	var row struct {
+		ID    int64  `bun:"id"`
+		Email string `bun:"email"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT account.id, account.email FROM platform.organization_accounts AS member
+		JOIN auth.accounts AS account ON account.id = member.account_id WHERE member.organization_id = ?`, organization).
+		Scan(context.Background(), &row))
+	return row.ID, row.Email
+}
+
+// Opening a holiday registration, opening its proof, exporting the
+// registrations and changing one belong to the Träger, not to a school; the
+// access log shows them with the Träger-Büro person, and never those of
+// another Träger (#5326).
+func TestTraegerAccessLogShowsTheHolidayRegistrationTrailOfTheOwnTraeger(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Protokoll Ferien")
+	foreign := newTraegerOffice(t, f.db, f.traeger, "Träger Fremd Ferien", identityaccess.TraegerRoleAdministration)
+	foreignPeriod := createHolidayPeriod(t, f.traeger, foreign, januaryHolidays(foreign))
+	member, email := traegerOfficeAccount(t, f.db, f.office.organization)
+	foreignMember, _ := traegerOfficeAccount(t, f.db, foreign.organization)
+	registration := f.siblings
+	recordHolidayAccess(t, f.db, f.office.organization, f.period.ID, &registration, "read", member, accessLogAt(9))
+	recordHolidayAccess(t, f.db, f.office.organization, f.period.ID, &registration, "proof", member, accessLogAt(10))
+	recordHolidayAccess(t, f.db, f.office.organization, f.period.ID, nil, "export", member, accessLogAt(11))
+	recordHolidayAccess(t, f.db, f.office.organization, f.period.ID, &registration, "confirm", member, accessLogAt(12))
+	recordHolidayAccess(t, f.db, foreign.organization, foreignPeriod.ID, nil, "list", foreignMember, accessLogAt(13))
+
+	page := listAccessLog(t, f.traeger, f.office.token, nil)
+	require.Len(t, page.Entries, 4, "the Träger's own holiday trail only: %+v", page.Entries)
+	person := email + " (Träger-Büro)"
+	for i, want := range []struct{ kind, data, label string }{
+		{"change", "holiday_registration_confirm", "Ferienanmeldung bestätigt"},
+		{"read", "holiday_registration_export", "Ferienanmeldungen (Export)"},
+		{"read", "holiday_registration_proof", "Nachweis aus einer Ferienanmeldung"},
+		{"read", "holiday_registration_read", "Ferienanmeldung"},
+	} {
+		entry := page.Entries[i]
+		assert.Equal(t, want.kind, entry.Kind, "entry %d", i)
+		assert.Equal(t, want.data, entry.Data, "entry %d", i)
+		assert.Equal(t, want.label, entry.DataLabel, "entry %d", i)
+		assert.Equal(t, person, entry.Person, "entry %d", i)
+		require.NotNil(t, entry.AccountID)
+		assert.Equal(t, member, *entry.AccountID)
+		assert.Zero(t, entry.SchoolID, "a holiday registration belongs to the Träger, not to a school")
+		assert.Equal(t, "Träger (keine Schule)", entry.SchoolName)
+	}
+
+	assert.Len(t, listAccessLog(t, f.traeger, f.office.token, map[string]string{"kind": "read"}).Entries, 3)
+	assert.Len(t, listAccessLog(t, f.traeger, f.office.token, map[string]string{"account_id": fmt.Sprint(member)}).Entries, 4)
+	assert.Empty(t, listAccessLog(t, f.traeger, f.office.token, map[string]string{"school_id": fmt.Sprint(f.office.schools[0])}).Entries,
+		"a school filter shows the school's entries only")
+
+	rec := accessLogRequest(t, f.traeger, f.office.token, "/traeger/access-log/people", accessLogWindow(nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, []accessLogPerson{{AccountID: member, Name: person}}, decodeSchoolPortalData[[]accessLogPerson](t, rec.Body.Bytes()))
+
+	rec = accessLogRequest(t, f.traeger, f.office.token, "/traeger/access-log/export", accessLogWindow(nil))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	reader := csv.NewReader(strings.NewReader(strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")))
+	reader.Comma = ';'
+	rows, err := reader.ReadAll()
+	require.NoError(t, err)
+	require.Len(t, rows, 5)
+	assert.Equal(t, []string{"20.10.2026", "10:00:00", "Träger (keine Schule)", person, "Gelesen", "Nachweis aus einer Ferienanmeldung"}, rows[3])
+}
+
+// The pages merge the school trail and the holiday trail by time: no entry
+// is lost or listed twice across the page boundary (#5326).
+func TestTraegerAccessLogPagesMergeTheSchoolAndTheHolidayTrail(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Protokoll Seiten")
+	member, _ := traegerOfficeAccount(t, f.db, f.office.organization)
+	school := f.office.schools[0]
+	start := accessLogAt(6)
+	for i := 0; i < 30; i++ {
+		at := start.Add(time.Duration(2*i) * time.Minute)
+		recordAccessLogRead(t, f.db, school, member, "attendance_history", at)
+		recordHolidayAccess(t, f.db, f.office.organization, f.period.ID, nil, "list", member, at.Add(time.Minute))
+	}
+
+	first := listAccessLog(t, f.traeger, f.office.token, nil)
+	require.Len(t, first.Entries, 50)
+	assert.True(t, first.HasMore)
+	second := listAccessLog(t, f.traeger, f.office.token, map[string]string{"page": "2", "as_of": first.AsOf.Format(time.RFC3339Nano)})
+	require.Len(t, second.Entries, 10)
+	assert.False(t, second.HasMore)
+
+	entries := append(first.Entries, second.Entries...)
+	seen := map[string]bool{}
+	for i, entry := range entries {
+		key := fmt.Sprint(entry.SchoolID, "/", entry.ID)
+		assert.False(t, seen[key], "entry %s is listed twice", key)
+		seen[key] = true
+		if i > 0 {
+			assert.False(t, entry.OccurredAt.After(entries[i-1].OccurredAt), "entry %d is newer than the one before", i)
+		}
+		wantHoliday := i%2 == 0
+		assert.Equal(t, wantHoliday, entry.SchoolID == 0, "entry %d alternates between the trails", i)
+	}
+	assert.Len(t, seen, 60)
+}

@@ -13,6 +13,16 @@ import (
 
 type accountSchool struct{ account, school int64 }
 
+// actorRef is who acted in one entry as the trail records it: an account or
+// a staff member (or neither) at a school, 0 for the Träger's own data, and
+// the name a ledger stored.
+type actorRef struct {
+	school   int64
+	account  *int64
+	staff    *int64
+	snapshot string
+}
+
 // actor is the account and the shown name of who acted in one entry.
 type actor struct {
 	account *int64
@@ -27,21 +37,18 @@ type actorIndex struct {
 	bureau  map[int64]string
 }
 
-// actorIndex resolves the given accounts and staff IDs of the Träger's
-// schools in the projection's administrative unit.
-func (o *Overview) actorIndex(adminCtx context.Context, organizationID int64, schools, accounts, staffIDs []int64) (actorIndex, error) {
+// actorIndex resolves the actors of the entries in the projection's
+// administrative unit. It reads the Träger-Büro addresses only for accounts
+// that neither a person at the entry's school nor a stored name names.
+func (o *Overview) actorIndex(adminCtx context.Context, organizationID int64, schools []int64, refs []actorRef) (actorIndex, error) {
 	index := actorIndex{persons: map[accountSchool]string{}, staff: map[int64]traegerview.Person{}, bureau: map[int64]string{}}
-	if staffIDs = distinctIDs(staffIDs); len(staffIDs) > 0 {
+	accounts, staffIDs := refIDs(refs)
+	if len(staffIDs) > 0 {
 		staffPersons, err := o.staffPersons(adminCtx, schools, staffIDs)
 		if err != nil {
 			return index, err
 		}
-		for staffID, person := range staffPersons {
-			index.staff[staffID] = person
-			if person.AccountID != nil {
-				accounts = append(accounts, *person.AccountID)
-			}
-		}
+		accounts = append(accounts, index.addStaff(staffPersons)...)
 	}
 	if accounts = distinctIDs(accounts); len(accounts) == 0 {
 		return index, nil
@@ -50,12 +57,12 @@ func (o *Overview) actorIndex(adminCtx context.Context, organizationID int64, sc
 	if err != nil {
 		return index, err
 	}
-	for _, person := range persons {
-		if person.AccountID != nil {
-			index.persons[accountSchool{account: *person.AccountID, school: person.SchoolID}] = person.Name
-		}
+	index.addPersons(persons)
+	unnamed := index.unnamed(refs)
+	if len(unnamed) == 0 {
+		return index, nil
 	}
-	addresses, err := o.bureau.BureauAddresses(adminCtx, organizationID, accounts)
+	addresses, err := o.bureau.BureauAddresses(adminCtx, organizationID, unnamed)
 	if err != nil {
 		return index, err
 	}
@@ -63,6 +70,51 @@ func (o *Overview) actorIndex(adminCtx context.Context, organizationID int64, sc
 		index.bureau[address.AccountID] = address.Name
 	}
 	return index, nil
+}
+
+// refIDs lists the accounts and the distinct staff IDs of the entries.
+func refIDs(refs []actorRef) (accounts, staffIDs []int64) {
+	for _, ref := range refs {
+		if ref.account != nil {
+			accounts = append(accounts, *ref.account)
+		}
+		if ref.staff != nil {
+			staffIDs = append(staffIDs, *ref.staff)
+		}
+	}
+	return accounts, distinctIDs(staffIDs)
+}
+
+// addStaff keeps the persons behind staff IDs and returns their accounts.
+func (i actorIndex) addStaff(staffPersons map[int64]traegerview.Person) []int64 {
+	accounts := []int64{}
+	for staffID, person := range staffPersons {
+		i.staff[staffID] = person
+		if person.AccountID != nil {
+			accounts = append(accounts, *person.AccountID)
+		}
+	}
+	return accounts
+}
+
+func (i actorIndex) addPersons(persons []traegerview.Person) {
+	for _, person := range persons {
+		if person.AccountID != nil {
+			i.persons[accountSchool{account: *person.AccountID, school: person.SchoolID}] = person.Name
+		}
+	}
+}
+
+// unnamed lists the accounts that neither a person at the entry's school nor
+// a stored name names.
+func (i actorIndex) unnamed(refs []actorRef) []int64 {
+	accounts := []int64{}
+	for _, ref := range refs {
+		if ref.account != nil && ref.snapshot == "" && i.persons[accountSchool{account: *ref.account, school: ref.school}] == "" {
+			accounts = append(accounts, *ref.account)
+		}
+	}
+	return distinctIDs(accounts)
 }
 
 // staffPersons maps staff IDs of the Träger's schools to their persons at
@@ -124,7 +176,8 @@ func (o *Overview) staffOfAccount(adminCtx context.Context, schools []int64, acc
 // resolve names the actor of an entry: a staff member by its person, an
 // account by its person at the entry's school, else by the name the ledger
 // stored, else by its address in the Träger-Büro.
-func (i actorIndex) resolve(school int64, account, staff *int64, snapshot string) actor {
+func (i actorIndex) resolve(ref actorRef) actor {
+	school, account, staff, snapshot := ref.school, ref.account, ref.staff, ref.snapshot
 	if account == nil && staff != nil {
 		if person, ok := i.staff[*staff]; ok && person.Name != "" {
 			return actor{account: person.AccountID, name: person.Name}
@@ -151,6 +204,12 @@ func knownOr(name, fallback string) string {
 		return name
 	}
 	return fallback
+}
+
+// trailActorRef is who acted as the trail's actor list records it.
+func trailActorRef(trailActor traegerview.AccessTrailActor) actorRef {
+	return actorRef{school: trailActor.SchoolID, account: positiveID(trailActor.AccountID),
+		staff: positiveID(trailActor.StaffID), snapshot: trailActor.ActorNameSnapshot}
 }
 
 func positiveID(id int64) *int64 {

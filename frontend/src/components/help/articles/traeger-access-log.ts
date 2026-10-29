@@ -42,6 +42,7 @@ export function traegerAccessLogTopic(): HelpTopic {
       "Jede Zeile zeigt Zeitpunkt, Person, Schule, Art und welche Daten es waren.",
     notes: [
       "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
+      "Auch Ferienanmeldungen stehen im Protokoll: jedes Öffnen, jeder Nachweis, jeder Export und jede Änderung. Bei Schule steht dann `Träger (keine Schule)`.",
     ],
     differences: [
       "Auf dem Handy steht `Zugriffsprotokoll` in der Leiste unten oder unter `Mehr`.",
