@@ -55,7 +55,7 @@
   "addPickup": "Dodaj osobę",
   "remove": "Usuń",
   "consentTitle": "Zgoda",
-  "privacyConsent": "Zgadzam się, aby organizator używał tych danych do opieki w ferie. Usunie je trzy miesiące po feriach.",
+  "privacyConsent": "Zgadzam się, aby organizator używał tych danych do opieki w ferie. Usunie je trzy miesiące po feriach. OGS, która opiekuje się moim dzieckiem w tygodniu ferii, widzi imię, nazwisko i telefon drugiego opiekuna prawnego. Widzi też odpowiedzi, które organizator jej udostępni. Widzi to tylko w tym tygodniu i usuwa najpóźniej 7 dni później. Nie widzi informacji o zdrowiu.",
   "healthConsent": "Zgadzam się, aby opieka widziała informacje o zdrowiu moich dzieci.",
   "bindingConfirmed": "Wiem, że zgłoszenie jest wiążące.",
   "captchaMissing": "Brakuje kontroli bezpieczeństwa. Załaduj stronę ponownie.",

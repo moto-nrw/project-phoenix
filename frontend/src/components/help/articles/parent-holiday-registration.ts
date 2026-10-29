@@ -35,7 +35,7 @@ export function parentHolidayRegistrationTopic(): HelpTopic {
     notes: [
       "Ein Elternkonto brauchen Sie nicht.",
       "Gesundheitsangaben sind freiwillig. Nur die Betreuung sieht sie.",
-      "Die OGS der Ferienwoche sieht Name und Telefon der zweiten Person. Sie sieht auch einige Antworten, zum Beispiel ob Ihr Kind allein nach Hause gehen darf. Gesundheitsangaben sieht sie nicht.",
+      "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf. Sie sieht das nur für diese Woche und löscht es spätestens 7 Tage danach. Gesundheitsangaben sieht sie nicht.",
       "Ein Kind von einer anderen Schule kommt als Feriengast.",
       "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
     ],

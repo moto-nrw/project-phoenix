@@ -55,7 +55,7 @@
   "addPickup": "Add person",
   "remove": "Remove",
   "consentTitle": "Consent",
-  "privacyConsent": "I agree that the provider uses this information for the holiday care. It deletes it three months after the holidays.",
+  "privacyConsent": "I agree that the provider uses this information for the holiday care. It deletes it three months after the holidays. The OGS that cares for my child in a holiday week sees the name and phone number of the second legal guardian. It also sees the answers the provider shares with it. It sees this only for that week and deletes it no later than 7 days afterwards. It does not see health information.",
   "healthConsent": "I agree that the care staff can see my children's health information.",
   "bindingConfirmed": "I understand that the registration is binding.",
   "captchaMissing": "The security check is missing. Please reload the page.",
