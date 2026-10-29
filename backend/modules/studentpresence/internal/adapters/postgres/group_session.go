@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -221,33 +222,99 @@ func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, group
 }
 
 func compactVisitRevisions(ctx context.Context, db bun.IDB, tenantID int64, stats *ports.Stats) error {
+	// Take the lock in a separate statement so a waiting compaction gets a
+	// fresh READ COMMITTED snapshot after its predecessor commits. Otherwise
+	// it can consume a deleted session's events while missing the predecessor's
+	// replacement entry rows, losing the session's contribution to the room.
 	stats.Queries++
-	if _, err := db.NewRaw(compactVisitRevisionEvents, tenantID, tenantID, tenantID, tenantID).Exec(ctx); err != nil {
+	key := fmt.Sprintf("active-visit-revision-compaction:%d", tenantID)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key); err != nil {
+		return fmt.Errorf("end group sessions: lock visit revision compaction: %w", err)
+	}
+	stats.Queries++
+	if _, err := db.NewRaw(compactVisitRevisionEvents, compactVisitRevisionArgs(tenantID)...).Exec(ctx); err != nil {
 		return fmt.Errorf("end group sessions: compact visit revision events: %w", err)
 	}
 	return nil
 }
 
-// compactVisitRevisionEvents keeps the change events of ended sessions small
-// (#5128): it replaces all events of such a session with one row carrying
-// their sum, so the session's revision does not change, and it drops the
-// events of deleted sessions, whose ids never return. A concurrent writer's
-// events are not in this statement's snapshot and stay as they are. The
-// DELETE returns only rows this statement deleted, so a second compaction
-// running at the same time cannot count a row twice.
-const compactVisitRevisionEvents = `WITH compacted AS (
+// compactVisitRevisionArgs binds the school to every placeholder of
+// compactVisitRevisionEvents.
+func compactVisitRevisionArgs(tenantID int64) []any {
+	args := make([]any, strings.Count(compactVisitRevisionEvents, "?"))
+	for i := range args {
+		args[i] = tenantID
+	}
+	return args
+}
+
+// compactVisitRevisionEvents keeps the change events small (#5128, #5205)
+// without changing a session or room revision:
+//
+//   - The events of a deleted session (its session rows and its entry rows)
+//     become one room row per room it entered, carrying the session's sum
+//     plus that room's entry sum. A deleted session receives no event after
+//     its deletion commits, so the fold is exact; its id never returns.
+//   - The session rows of each ended session, the entry rows of each
+//     session and room, and the room rows of each room collapse into one row
+//     with their sum. Entry rows of existing sessions are never removed, so
+//     a room keeps every session it held, also an ended one that receives a
+//     late event.
+//
+// A concurrent writer's events are not in this statement's snapshot and stay
+// as they are. Compactions serialize per tenant before taking this statement's
+// snapshot, so replaced entry rows remain visible to the next compaction when
+// it folds a session deleted in between.
+const compactVisitRevisionEvents = `WITH gone AS (
+		SELECT k.group_id FROM (
+			SELECT e.active_group_id AS group_id FROM active.visit_revision_events AS e
+			WHERE e.tenant_id = ? AND e.active_group_id IS NOT NULL
+			UNION
+			SELECT e.entered_group_id FROM active.visit_revision_events AS e
+			WHERE e.tenant_id = ? AND e.entered_group_id IS NOT NULL
+		) AS k
+		LEFT JOIN active.groups AS g ON g.tenant_id = ? AND g.id = k.group_id
+		WHERE g.id IS NULL
+	), folded AS (
 		DELETE FROM active.visit_revision_events AS e
-		WHERE e.tenant_id = ? AND e.active_group_id IN (
-			SELECT x.active_group_id FROM active.visit_revision_events AS x
-			LEFT JOIN active.groups AS g ON g.tenant_id = x.tenant_id AND g.id = x.active_group_id
-			WHERE x.tenant_id = ? AND (g.id IS NULL OR g.end_time IS NOT NULL)
-			GROUP BY x.active_group_id, g.id HAVING g.id IS NULL OR count(*) > 1)
-		RETURNING e.active_group_id, e.changes
+		WHERE e.tenant_id = ? AND (e.active_group_id IN (SELECT group_id FROM gone)
+			OR e.entered_group_id IN (SELECT group_id FROM gone))
+		RETURNING e.active_group_id, e.entered_group_id, e.room_id, e.changes
+	), folded_sessions AS (
+		SELECT f.active_group_id AS group_id, sum(f.changes) AS changes FROM folded AS f
+		WHERE f.active_group_id IS NOT NULL GROUP BY f.active_group_id
+	), folded_rooms AS (
+		SELECT f.room_id, sum(f.changes + COALESCE(fs.changes, 0)) AS changes
+		FROM (SELECT entered_group_id, room_id, sum(changes) AS changes FROM folded
+			WHERE entered_group_id IS NOT NULL GROUP BY entered_group_id, room_id) AS f
+		LEFT JOIN folded_sessions AS fs ON fs.group_id = f.entered_group_id
+		GROUP BY f.room_id
+	), candidates AS (
+		SELECT e.id, e.active_group_id, e.entered_group_id, e.room_id,
+			COALESCE(e.active_group_id, 0) AS group_key, COALESCE(e.entered_group_id, 0) AS entry_key,
+			COALESCE(e.room_id, 0) AS room_key
+		FROM active.visit_revision_events AS e
+		LEFT JOIN active.groups AS g ON g.tenant_id = e.tenant_id AND g.id = e.active_group_id
+		LEFT JOIN active.groups AS h ON h.tenant_id = e.tenant_id AND h.id = e.entered_group_id
+		WHERE e.tenant_id = ? AND (
+			(e.active_group_id IS NOT NULL AND g.end_time IS NOT NULL)
+			OR (e.room_id IS NOT NULL AND e.entered_group_id IS NULL)
+			OR h.id IS NOT NULL)
+	), targets AS (
+		SELECT c.* FROM candidates AS c
+		JOIN (SELECT group_key, entry_key, room_key FROM candidates GROUP BY group_key, entry_key, room_key
+			HAVING count(*) > 1) AS k
+			ON k.group_key = c.group_key AND k.entry_key = c.entry_key AND k.room_key = c.room_key
+	), collapsed AS (
+		DELETE FROM active.visit_revision_events AS e
+		WHERE e.tenant_id = ? AND e.id IN (SELECT id FROM targets)
+		RETURNING e.active_group_id, e.entered_group_id, e.room_id, e.changes
 	)
-	INSERT INTO active.visit_revision_events (tenant_id, active_group_id, changes)
-	SELECT ?, c.active_group_id, sum(c.changes) FROM compacted AS c
-	WHERE EXISTS (SELECT 1 FROM active.groups AS g WHERE g.tenant_id = ? AND g.id = c.active_group_id)
-	GROUP BY c.active_group_id`
+	INSERT INTO active.visit_revision_events (tenant_id, active_group_id, entered_group_id, room_id, changes)
+	SELECT ?, NULL, NULL, r.room_id, r.changes FROM folded_rooms AS r
+	UNION ALL
+	SELECT ?, c.active_group_id, c.entered_group_id, c.room_id, sum(c.changes) FROM collapsed AS c
+	GROUP BY c.active_group_id, c.entered_group_id, c.room_id`
 
 // EndGroup stamps the end time of one still-open group and touches nothing
 // else. The lifecycle lock distinguishes a missing group from an ended one so
