@@ -105,13 +105,102 @@ machines run one at a time ([low-memory machines](../development-environment.md#
 
 ### Worktrees
 
-`wt add <issue|branch>` creates a worktree with copied local files (`.env`,
-`backend/dev.env`, `frontend/.env.local`, `docker-compose.yml`, the Postgres
-certificates), rewritten host ports, an isolated Compose project, and the
-frozen frontend dependencies; see `.wtconfig`. `wt doctor` inside a worktree
-lists ignored files the worktree lacks and leased ports that the shell or
-`.envrc` shadows. `wt remove` tears down the worktree's Compose project and
-its `project-phoenix-testdb-<port>` test server, including volumes.
+#### New managed worktree
+
+Run `wt add <issue|branch>` from a configured source checkout. With `.wtconfig`,
+it copies `.env`, `backend/dev.env`, `frontend/.env.local`, `docker-compose.yml`
+and `config/ssl/postgres/certs/` from that checkout, leases host ports, writes
+`COMPOSE_PROJECT_NAME` and `.wt.env`, and runs `devbox run bootstrap`.
+Bootstrap installs frozen frontend dependencies and generates route types;
+it does not create runtime configuration or certificates. If the source lacks
+these, initialize it first using `scripts/setup-dev.sh` (interactive, prints
+credentials; keep its output private). That script preserves existing files
+but does not isolate worktree ports or networks.
+
+`wt doctor` checks **managed** worktrees for missing ignored files, blocked
+direnv activation and leased ports shadowed by the shell or `.envrc`. It
+reports problems; it neither repairs configuration nor adopts another tool's
+worktree. `devbox run doctor` checks development tools and dependencies, not
+worktree isolation. Keep machine-wide env files free of ports and URLs that
+override the worktree's values; check the effective shell with `wt doctor`.
+
+**Before starting services:** `wt` copies the local Compose file, including
+any explicit `networks.*.ipam.config[].subnet`, fixed network name or external
+network. A separate project name does not isolate an explicit subnet. For a
+new, unused target, use `cp docker-compose.example.yml docker-compose.yml`
+inside that target to select the tracked template's project-scoped networks
+and Docker-assigned subnets. This discards copied Compose customizations only
+in the target; review any needed changes before reapplying them. Do not copy
+the source's fixed subnet back. Keep the source configuration and network intact.
+`docker compose config --quiet` validates the target without printing env
+contents; it does not prove that published ports are free or networks can start.
+
+If Docker reports `all predefined address pools have been fully subnetted`,
+leave existing networks alone. Inspect allocated subnets without env contents:
+
+```bash
+docker network inspect $(docker network ls -q) \
+  --format '{{range .IPAM.Config}}{{println .Subnet}}{{end}}'
+```
+
+Also check host/VPN routes (`netstat -rn` on macOS, `ip route` on Linux).
+Choose an unused private subnet that overlaps neither those routes nor any
+Docker subnet, including the source's. Add it only to the new target's
+`docker-compose.yml`, for example the following **after checking the example
+range is free**:
+
+```yaml
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 10.253.231.0/24
+```
+
+Validate with `docker compose config --quiet`, then
+`docker compose create --pull never postgres` to check network creation
+without starting the database (requires the template's Postgres image locally;
+this also creates the target's container and volume). If allocation fails,
+check the chosen range again; do not remove other projects' networks. This
+explicit range belongs to this target only, not to a reusable source config.
+
+#### Existing T3 or agent worktree without configuration
+
+`wt 0.4.0` has no import/adopt command. `wt doctor` rejects an unmanaged
+worktree, and `wt add` cannot check out a branch already used there. Preserve
+that worktree and continue in a new managed sibling:
+
+1. In the existing worktree, inspect `git status --short --branch`. Commit
+   only the work intended for the sibling, then create a free branch at that
+   commit: `git branch work/5303-managed-setup HEAD` (choose your own name).
+   Uncommitted and untracked files stay in the original, are not copied by
+   `wt`, and must be transferred deliberately if needed. Do not reset, clean
+   or delete the original worktree.
+2. Change to a configured source checkout, normally the main checkout, and
+   run `wt add --no-bootstrap work/5303-managed-setup`. Use the path it prints.
+   The existing branch carries the saved commits; the source supplies local
+   configuration, not code. `--no-bootstrap` postpones dependency setup, not
+   the copy or port allocation. It starts no app services.
+   If `wt` requires command trust, review `.wtconfig`'s bootstrap and teardown
+   before running `wt trust --yes` in the source and retrying.
+3. In the new target, before any start, run
+   `cp docker-compose.example.yml docker-compose.yml`, then
+   `docker compose config --quiet`. This is the subnet-free alternative above,
+   including when the source uses a fixed subnet and remains running. Keep
+   the copied env files, certificates and generated `.wt.env`; do not replace
+   them with the source's ports or Compose identity. If default address pools
+   are exhausted, use the checked target-only subnet fallback above.
+4. Run `devbox run bootstrap`, `devbox run doctor` and `wt doctor` in the
+   target. Resolve reported missing files or shadowed ports before starting
+   the smallest [native mode](#native-dev-loop) needed. No production API
+   request is part of setup. Reopen the editor/agent at the new path; the
+   original T3 thread remains bound to its original checkout.
+
+Keep the original worktree, its changes, services and persistent data until
+their owner decides otherwise. `wt remove` runs `.wtconfig` teardown, which
+deletes the managed target's Compose and test-server volumes; it is not an
+adoption or harmless handoff step. Never prune or remove another worktree's
+networks or volumes to make setup succeed.
 
 The seeder is **dev-only**. Staging/production infrastructure belongs in data
 migrations or the admin UI, never the seeder. The one deployed exception is the
