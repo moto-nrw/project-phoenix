@@ -132,7 +132,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 		careStudentsHTTP.ResourceConfig{
 			ArrivalScheduleService: live.ArrivalSchedule,
 			Broadcaster:            broadcaster,
-			CareLifecycleService:   lifecycle, CareResumption: resumption,
+			CareLifecycleService:   lifecycle, CareResumption: resumption, CareExitRestoration: lifecycle,
 			CareRequestReviews:       careReviews,
 			CareRequestService:       svc.CareRequests,
 			CompanionService:         NewStudentHTTPTestCompanions(students, repoFactory.Student, peopleServices.PeopleDirectory, peopleServices.StudentAudit),
