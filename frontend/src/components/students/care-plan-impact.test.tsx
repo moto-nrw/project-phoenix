@@ -46,6 +46,20 @@ const classImpact: RosterImpact = {
   ],
 };
 
+// Zwei Zielgruppen-Regeltermine und eine Hand-Liste: der Hinweis steht einmal.
+const twoClassesImpact: RosterImpact = {
+  effectiveFrom: "2027-05-31",
+  adjusted: [],
+  notAdjusted: [
+    { templateId: "9", name: "RDST 1b", weekdays: [5], viaTarget: false },
+    { templateId: "11", name: "Klasse 2a", weekdays: [3], viaTarget: true },
+    { templateId: "12", name: "Jahrgang 1", weekdays: [3], viaTarget: true },
+  ],
+};
+
+const SHARED_HINT =
+  "Regeltermine mit „Klasse, Jahrgang oder Gruppe“ planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.";
+
 function renderImpact(
   value: RosterImpact = impact,
   studentId: string | undefined = "42",
@@ -152,7 +166,7 @@ describe("CarePlanImpact", () => {
 
     expect(
       screen.getByText(
-        "Plant alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe. Bei der nächsten Planung steht das Kind wieder im Plan. Verbinden Sie den Regeltermin mit dem Angebot.",
+        "Regeltermine mit „Klasse, Jahrgang oder Gruppe“ planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan. Verbinden Sie den Regeltermin mit dem Angebot.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -165,6 +179,59 @@ describe("CarePlanImpact", () => {
     );
     expect(
       screen.queryByRole("button", { name: /^Dort auch entfernen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("states the class hint once above the list and marks each class row", () => {
+    renderImpact(twoClassesImpact);
+
+    expect(
+      screen.getAllByText(
+        `${SHARED_HINT} Verbinden Sie den Regeltermin mit dem Angebot.`,
+      ),
+    ).toHaveLength(1);
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    const [manualRow, classRow, yearRow] = rows as [
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+    ];
+    // Die Marke verbindet die Zeile mit dem Hinweis; die Hand-Liste trägt sie nicht.
+    expect(
+      within(classRow).getByText("Klasse, Jahrgang oder Gruppe"),
+    ).toBeInTheDocument();
+    expect(
+      within(yearRow).getByText("Klasse, Jahrgang oder Gruppe"),
+    ).toBeInTheDocument();
+    // Anker: die Hand-Liste ist gerendert und bietet ihr Entfernen an.
+    expect(
+      within(manualRow).getByRole("button", {
+        name: "Dort auch entfernen: „RDST 1b“",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(manualRow).queryByText("Klasse, Jahrgang oder Gruppe"),
+    ).not.toBeInTheDocument();
+    // Anker: der Hinweis oben ist gerendert (erste Prüfung); in keiner Zeile.
+    for (const row of rows) {
+      expect(within(row).queryByText(/Bei der nächsten Planung/)).toBeNull();
+    }
+    expect(
+      screen.getByRole("link", { name: "Mit Angebot verbinden: „Jahrgang 1“" }),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the call to connect from the shared hint without plan rights", () => {
+    grantPlanEditing(false);
+    renderImpact(twoClassesImpact);
+
+    // Anker: der gemeinsame Hinweis steht, nur ohne den letzten Satz.
+    expect(screen.getAllByText(SHARED_HINT)).toHaveLength(1);
+    expect(screen.queryByText(/Verbinden Sie/)).not.toBeInTheDocument();
+    expect(screen.getAllByText("Klasse, Jahrgang oder Gruppe")).toHaveLength(2);
+    expect(
+      screen.queryByRole("link", { name: /^Mit Angebot verbinden/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -186,7 +253,7 @@ describe("CarePlanImpact", () => {
     // Person nicht gehen kann.
     expect(
       screen.getByText(
-        "Plant alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe. Bei der nächsten Planung steht das Kind wieder im Plan.",
+        "Regeltermine mit „Klasse, Jahrgang oder Gruppe“ planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.",
       ),
     ).toBeInTheDocument();
     expect(

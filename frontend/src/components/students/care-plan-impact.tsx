@@ -22,6 +22,9 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "CarePlanImpact" });
 
+/** Marks the rows the shared hint above the list talks about. */
+const VIA_TARGET_LABEL = "Klasse, Jahrgang oder Gruppe";
+
 interface CarePlanImpactProps {
   readonly impact: RosterImpact;
   /** Ohne Kind-ID gibt es nichts zu entfernen; die Liste bleibt sichtbar. */
@@ -35,7 +38,8 @@ interface CarePlanImpactProps {
  * was moto automatisch angepasst hat und welche von Hand gepflegten
  * Regeltermine das Kind an weggefallenen Tagen weiter einplanen. Plant ein
  * Regeltermin über Klasse, Jahrgang oder Gruppe, hält ein Entfernen nicht;
- * dort führt der Hinweis zu „Mit Angebot verbinden“ (#5137).
+ * dort führt der Hinweis zu „Mit Angebot verbinden“ (#5137). Der Hinweis
+ * steht einmal über der Liste, die betroffenen Zeilen tragen seine Marke.
  */
 export function CarePlanImpact({
   impact,
@@ -66,6 +70,9 @@ export function CarePlanImpact({
   );
   const connectLink = (templateId: string) =>
     `${planLink}&verbinden=${encodeURIComponent(templateId)}`;
+  const anyViaTarget = impact.notAdjusted.some(
+    (template) => template.viaTarget,
+  );
   // Ohne Recht fehlt an einem Eintrag eine Aktion, die andere sehen würden.
   const actionMissing =
     !canManage &&
@@ -144,6 +151,17 @@ export function CarePlanImpact({
           bare
           className="space-y-3"
         >
+          {anyViaTarget ? (
+            // Einmal über der Liste, auch bei nur einer solchen Zeile: Die
+            // Zeilen tragen dieselbe Marke, der Hinweis steht immer hier.
+            <p className="mb-3 text-sm text-gray-600">
+              Regeltermine mit „{VIA_TARGET_LABEL}“ planen alle Kinder darin
+              ein. Bei der nächsten Planung steht das Kind wieder im Plan.
+              {canManage
+                ? " Verbinden Sie den Regeltermin mit dem Angebot."
+                : null}
+            </p>
+          ) : null}
           <ResponsiveActionList>
             {impact.notAdjusted.map((template) => (
               <ManualTemplateEntry
@@ -223,13 +241,9 @@ function ManualTemplateEntry({
           {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
         </p>
         {template.viaTarget ? (
-          <p className="mt-0.5 text-gray-600">
-            Plant alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe.
-            Bei der nächsten Planung steht das Kind wieder im Plan.
-            {canConnect
-              ? " Verbinden Sie den Regeltermin mit dem Angebot."
-              : null}
-          </p>
+          <div className="mt-1">
+            <StatusBadge tone="gray" label={VIA_TARGET_LABEL} compact />
+          </div>
         ) : null}
       </div>
       <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row min-[480px]:items-center sm:justify-end">
