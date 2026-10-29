@@ -619,9 +619,11 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/master-data/bank-accounts"}:                                                      notCaptured,
 	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:                                                  notCaptured,
 	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}:                                               notCaptured,
-	// The public holiday registration of a Träger (#4661) has no session
-	// and no school, so no collection policy admits it yet.
-	{http.MethodPost, "/traeger/holiday-registrations/{token}"}: notCaptured,
+	// The public holiday registration of a Träger (#4661) and the upload of
+	// its proof of benefits (#5238) have no session and no school, so no
+	// collection policy admits them yet.
+	{http.MethodPost, "/traeger/holiday-registrations/{token}"}:         notCaptured,
+	{http.MethodPost, "/traeger/holiday-registrations/{token}/uploads"}: notCaptured,
 	// The Elternabrechnung (#4664, ADR 0115) belongs to the Träger: its
 	// rules, the confirmation that freezes a contribution and the public
 	// contribution of the form have no school to count them for.

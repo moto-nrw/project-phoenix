@@ -60,11 +60,16 @@ type HolidayRegistrationDependencies struct {
 	Registrations HolidayRegistrationStore
 	Periods       HolidayPeriodStore
 	Forms         HolidayFormStore
+	Proofs        HolidayProofStore
 	Traeger       enrollment.HolidayTraegerDirectory
 	Mail          enrollment.TraegerMailOutbox
 	// Today is the calendar day the registration window is checked against.
-	Today  func() calendar.Date
-	Logger *slog.Logger
+	Today func() calendar.Date
+	// Random fills the token of an uploaded proof and Fingerprint names it
+	// in the store (#5238); without them no proof is uploaded.
+	Random      func([]byte) error
+	Fingerprint func([]byte) string
+	Logger      *slog.Logger
 }
 
 // HolidayRegistrations serves enrollment.HolidayRegistrations.
@@ -76,8 +81,8 @@ var _ enrollment.HolidayRegistrations = (*HolidayRegistrations)(nil)
 
 // NewHolidayRegistrations builds the public registration over deps.
 func NewHolidayRegistrations(deps HolidayRegistrationDependencies) *HolidayRegistrations {
-	if deps.Registrations == nil || deps.Periods == nil || deps.Forms == nil || deps.Traeger == nil || deps.Mail == nil {
-		panic("enrollment: the holiday registration store, periods, forms, Träger directory and mail outbox are required")
+	if deps.Registrations == nil || deps.Periods == nil || deps.Forms == nil || deps.Proofs == nil || deps.Traeger == nil || deps.Mail == nil {
+		panic("enrollment: the holiday registration store, periods, forms, proofs, Träger directory and mail outbox are required")
 	}
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
@@ -216,6 +221,7 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	input = normalizeHolidayRegistration(input)
+	input.BenefitsProofTokens = normalizeHolidayProofTokens(input.BenefitsProofTokens)
 	answers := sanitizeHolidayAnswers(form, decodeHolidayAnswers(input))
 	if err := validateHolidayRegistration(input, period, form, answers, link.Traeger.Schools, today); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
@@ -229,6 +235,9 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input)
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment: store holiday registration: %w", err)
+	}
+	if err := h.claimHolidayProofs(ctx, link, receipt.ID, input.BenefitsProofTokens); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	if err := h.enqueueReceipt(ctx, link, period, input, receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
@@ -381,6 +390,7 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 		errs["pickup_persons"] = contactErrs
 	}
 	validateHolidayConsents(input, period, form, answers, errs)
+	validateHolidayProofTokens(input, errs)
 	if len(errs) == 0 {
 		return nil
 	}
@@ -547,12 +557,16 @@ type HolidayRegistrationRetentionStore interface {
 	// DeleteExpiredHolidayRegistrationDeletions deletes the rows of the
 	// deletion log older than years.
 	DeleteExpiredHolidayRegistrationDeletions(ctx context.Context, years int) (int, error)
+	// DeleteUnclaimedHolidayProofs deletes the proofs no registration
+	// claimed that were uploaded before createdBefore (#5238).
+	DeleteUnclaimedHolidayProofs(ctx context.Context, createdBefore time.Time) (int, error)
 }
 
 // HolidayRegistrationRetention serves enrollment.HolidayRegistrationRetention.
 type HolidayRegistrationRetention struct {
 	store HolidayRegistrationRetentionStore
 	today func() calendar.Date
+	now   func() time.Time
 }
 
 // NewHolidayRegistrationRetention builds the retention over store; a nil
@@ -564,13 +578,14 @@ func NewHolidayRegistrationRetention(store HolidayRegistrationRetentionStore, to
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayRegistrationRetention{store: store, today: today}
+	return &HolidayRegistrationRetention{store: store, today: today, now: time.Now}
 }
 
 // DeleteExpiredHolidayRegistrations deletes the registrations of every
 // period whose last week ended more than the retention window ago, with an
-// entry in the deletion log of its Träger, and the expired entries of that
-// log.
+// entry in the deletion log of its Träger, the expired entries of that log
+// and the proofs no registration claimed within a day (#5238). The claimed
+// proofs go with their registration.
 func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error) {
 	cutoff := r.today().AddDays(-enrollment.HolidayRegistrationRetentionDays)
 	deleted, err := r.store.DeleteHolidayRegistrationsEndedBefore(ctx, cutoff)
@@ -581,5 +596,9 @@ func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx con
 	if err != nil {
 		return 0, fmt.Errorf("enrollment: delete expired holiday registration deletion log: %w", err)
 	}
-	return deleted + logged, nil
+	proofs, err := r.store.DeleteUnclaimedHolidayProofs(ctx, r.now().Add(-enrollment.UnclaimedUploadLifetime))
+	if err != nil {
+		return 0, fmt.Errorf("enrollment: delete unclaimed holiday proofs: %w", err)
+	}
+	return deleted + logged + proofs, nil
 }

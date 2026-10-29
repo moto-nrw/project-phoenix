@@ -40,6 +40,12 @@ type HolidayReviewStore interface {
 	// registration (#5198).
 	ReadHolidayAnswers(ctx context.Context, organizationID, periodID, registrationID int64) (map[int64]enrollment.HolidayRegistrationAnswers, error)
 	ReadHolidayHistory(ctx context.Context, organizationID, registrationID int64) ([]enrollment.HolidayRegistrationEvent, error)
+	// ReadHolidayProofs reads the claimed proofs of a registration without
+	// their bytes, oldest first (#5238).
+	ReadHolidayProofs(ctx context.Context, organizationID, registrationID int64) ([]enrollment.HolidayRegistrationProof, error)
+	// ReadHolidayProof reads one claimed proof of a registration of the
+	// period with its bytes.
+	ReadHolidayProof(ctx context.Context, organizationID, periodID, registrationID, proofID int64) (enrollment.HolidayProofFile, bool, error)
 	// LockHolidayRegistration reads the status and the freeze override of
 	// a registration and holds its row.
 	LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (status, override string, found bool, err error)
@@ -210,6 +216,32 @@ func (h *HolidayRegistrationReview) HolidayRegistration(ctx context.Context, rev
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
 	return detail, nil
+}
+
+// OpenHolidayRegistrationProof returns one proof of benefits of a
+// registration of the period (#5238) and records the read in the same
+// transaction; without the entry no byte is answered.
+func (h *HolidayRegistrationReview) OpenHolidayRegistrationProof(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID, proofID int64) (enrollment.HolidayProofFile, error) {
+	if err := holidayReviewKey(reviewer, periodID, registrationID); err != nil {
+		return enrollment.HolidayProofFile{}, err
+	}
+	if proofID <= 0 {
+		return enrollment.HolidayProofFile{}, enrollment.ErrHolidayProofNotFound
+	}
+	if _, err := h.period(ctx, reviewer.OrganizationID, periodID, false); err != nil {
+		return enrollment.HolidayProofFile{}, err
+	}
+	file, found, err := h.store.ReadHolidayProof(ctx, reviewer.OrganizationID, periodID, registrationID, proofID)
+	if err != nil {
+		return enrollment.HolidayProofFile{}, fmt.Errorf("enrollment: read holiday registration proof: %w", err)
+	}
+	if !found {
+		return enrollment.HolidayProofFile{}, enrollment.ErrHolidayProofNotFound
+	}
+	if err := h.audit(ctx, reviewer, periodID, registrationID, enrollment.HolidayAuditProof, map[string]any{"proof_id": proofID}); err != nil {
+		return enrollment.HolidayProofFile{}, err
+	}
+	return file, nil
 }
 
 // ChangeHolidayRegistration confirms, cancels, freezes or reopens a
@@ -421,6 +453,9 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	}
 	if detail.History, err = h.store.ReadHolidayHistory(ctx, reviewer.OrganizationID, registrationID); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration history: %w", err)
+	}
+	if detail.BenefitsProofs, err = h.store.ReadHolidayProofs(ctx, reviewer.OrganizationID, registrationID); err != nil {
+		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration proofs: %w", err)
 	}
 	if detail.Health == nil {
 		detail.Health = []enrollment.HolidayRegistrationHealth{}

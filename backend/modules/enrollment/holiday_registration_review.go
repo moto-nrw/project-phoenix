@@ -40,6 +40,9 @@ const (
 	HolidayAuditRebook  = "rebook"
 	HolidayAuditFreeze  = "freeze"
 	HolidayAuditReopen  = "reopen"
+	// HolidayAuditProof records a proof of benefits the Träger-Büro opened
+	// (#5238).
+	HolidayAuditProof = "proof"
 )
 
 var (
@@ -186,7 +189,8 @@ type HolidayRegistrationAnswers struct {
 // entered, its consents and its history. Form is the version of the
 // period's form the registration was submitted with; CustomData and
 // ChildCustomData are the answers to its questions, health information
-// included (#5198).
+// included (#5198). BenefitsProofs are the proofs of benefits the parents
+// attached (#5238); only the detail names them.
 type HolidayRegistrationDetail struct {
 	HolidayRegistrationSummary
 	LegalAcceptances   map[string]time.Time         `json:"legal_acceptances"`
@@ -199,6 +203,7 @@ type HolidayRegistrationDetail struct {
 	PrivacyConsentAt   time.Time                    `json:"privacy_consent_at"`
 	HealthConsentAt    *time.Time                   `json:"health_consent_at"`
 	BindingConfirmedAt *time.Time                   `json:"binding_confirmed_at"`
+	BenefitsProofs     []HolidayRegistrationProof   `json:"benefits_proofs"`
 	History            []HolidayRegistrationEvent   `json:"history"`
 }
 
@@ -249,6 +254,9 @@ type HolidayRegistrationReview interface {
 	// RebookHolidayChild replaces the bookings of one child: one time model
 	// per week, at least one week.
 	RebookHolidayChild(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, childID int64, bookings []HolidayBookingInput) (HolidayRegistrationDetail, error)
+	// OpenHolidayRegistrationProof returns one proof of benefits of a
+	// registration with its bytes (#5238).
+	OpenHolidayRegistrationProof(ctx context.Context, reviewer HolidayReviewer, periodID, registrationID, proofID int64) (HolidayProofFile, error)
 }
 
 // HolidaySchoolNames names the schools of a Träger for the export of the

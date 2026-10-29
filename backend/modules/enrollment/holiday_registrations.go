@@ -134,7 +134,9 @@ type HolidayContactInput struct {
 // PrivacyConsent is always required, HealthConsent whenever a child carries
 // health information and BindingConfirmed when the period is binding.
 // BenefitsDeclared states that the family receives benefits (#4664); the
-// Träger-Büro checks it before it applies an exemption. FormVersion names
+// Träger-Büro checks it before it applies an exemption. BenefitsProofTokens
+// name the uploaded proofs of the benefits (#5238), which the registration
+// claims; they need BenefitsDeclared. FormVersion names
 // the version of the period's form the parent filled in (0 when the client
 // does not say); CustomData are the answers per family (#5198).
 type HolidayRegistrationInput struct {
@@ -147,9 +149,11 @@ type HolidayRegistrationInput struct {
 	HealthConsent     bool
 	BindingConfirmed  bool
 	BenefitsDeclared  bool
-	FormVersion       int
-	CustomData        HolidayAnswers
-	LegalAcceptances  map[string]bool
+	// BenefitsProofTokens are the single-use tokens of the uploaded proofs.
+	BenefitsProofTokens []string
+	FormVersion         int
+	CustomData          HolidayAnswers
+	LegalAcceptances    map[string]bool
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -170,6 +174,13 @@ type HolidayRegistrations interface {
 	// per e-mail address and refuses with ErrRateLimited past the limit.
 	CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, remoteIP, email string) error
 	SubmitHolidayRegistration(ctx context.Context, link HolidayRegistrationLink, input HolidayRegistrationInput) (HolidayRegistrationReceipt, error)
+	// CountHolidayProofUpload counts one upload per IP address and refuses
+	// with ErrUploadRateLimited past the limit (#5238).
+	CountHolidayProofUpload(ctx context.Context, organizationID int64, remoteIP string) error
+	// UploadHolidayProof stores an unclaimed proof of benefits for the
+	// period of the link while its registration window is open, and returns
+	// the token the submission claims it with (#5238).
+	UploadHolidayProof(ctx context.Context, link HolidayRegistrationLink, upload HolidayProofUpload) (HolidayProofReceipt, error)
 }
 
 // HolidayRegistrationMailKind is the Delivery outbox kind of the receipt
