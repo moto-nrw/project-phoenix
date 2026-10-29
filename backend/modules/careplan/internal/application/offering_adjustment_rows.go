@@ -236,6 +236,9 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	if err != nil {
 		return err
 	}
+	if err := m.excludeInvalidAdjustedUnionTemplates(ctx, multiSource); err != nil {
+		return err
+	}
 	existing, err := m.deps.Rosters.StudentEnrollments(ctx, adjusted.studentID)
 	if err != nil {
 		return fmt.Errorf("decision: list enrollments for dated adjustment: %w", err)
@@ -272,9 +275,27 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	return m.resyncMultiSourceTemplates(ctx, multiSource, boundary, []int64{adjusted.requestChildID})
 }
 
+// excludeInvalidAdjustedUnionTemplates leaves only templates whose sources
+// the union resync accepts. A rejected resync is best effort and writes nothing;
+// deferring an old row to it would retain weekdays the correction removed.
+// Invalid templates instead use the ordinary cap/delete and instance reconcile
+// path. Do not bypass source guards to create replacement coverage.
+func (m *BookingMaterialization) excludeInvalidAdjustedUnionTemplates(ctx context.Context, templates map[int64]ports.SourcedTemplate) error {
+	for id, tmpl := range templates {
+		if _, err := m.catalog.LoadOfferingSources(ctx, tmpl.SourceCareOfferingIDs, tmpl.CalendarPeriodID, false); err != nil {
+			if !m.catalog.deps.SourceRules.IsRejection(err) {
+				return fmt.Errorf("decision: validate adjusted union template %d: %w", id, err)
+			}
+			m.logSkippedSourcedTemplate(id, tmpl.SourceCareOfferingIDs, "dated adjustment: multi-source template invalid", err)
+			delete(templates, id)
+		}
+	}
+	return nil
+}
+
 // deferredToUnionResync reports whether the union resync below, not the
 // per-link drafts, decides about the row: its template sources several
-// offerings, the new selection still feeds it, and no legacy link drafted
+// valid offerings, the new selection still feeds it, and no legacy link drafted
 // it. Such a template is never drafted (see addSourcedTemplateDrafts), so
 // the missing draft says nothing about whether the child still wants the
 // row; capping it here would replace an unchanged union row (#5234). A

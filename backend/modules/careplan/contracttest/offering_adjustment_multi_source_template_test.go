@@ -288,3 +288,49 @@ func TestDatedCorrection_MultiSourceAllSourcesDroppedCapsRow(t *testing.T) {
 		assert.Equal(t, neighbourParticipant.ID, after[f.neighbourID].ID, "the other child keeps its participant row")
 	}
 }
+
+// Invalid templates cannot rebuild the union. A dated correction must still
+// retire the child's old coverage rather than leave removed weekdays planned.
+func TestDatedCorrection_MultiSourceInactiveSourceCapsRow(t *testing.T) {
+	t.Parallel()
+	f := setupMultiSourceCorrection(t, "mehrquellen-inaktiv@example.com", divergingPeriodCase{})
+	f.correctFrom(t, nil,
+		enrollmentTest.OfferingAdjustmentSelection{OfferingID: f.first.ID, SelectedDays: []string{"mon", "wed"}},
+		monday(f.second))
+	running := f.singleRowOf(t, "before source drift", f.studentID)
+	require.Equal(t, []int{1, 3}, running.SelectedWeekdays)
+	neighbour := f.singleRowOf(t, "before source drift", f.neighbourID)
+	mondayOccurrence := f.materialize(t, 0)
+	neighbourParticipant := f.participants(t, mondayOccurrence)[f.neighbourID]
+	require.NotZero(t, neighbourParticipant.ID)
+	occurrence := f.materialize(t, 2)
+	before := f.participants(t, occurrence)
+	require.Contains(t, before, f.studentID)
+	decidedOccurrence := f.materialize(t, 9)
+	decided := f.participants(t, decidedOccurrence)[f.studentID]
+	require.NotZero(t, decided.ID)
+	testpkg.UpdateSessionAttendance(t, testpkg.Ctx(t), f.env.db, decided.ID, map[string]any{
+		"status": studentpresence.SessionAttendanceAbsent, "manual_status_at": time.Now(),
+	})
+
+	// Simulate stored source drift, bypassing the catalog's deactivation guard.
+	_, err := f.env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = false WHERE id = ? AND tenant_id = ?`,
+		f.first.ID, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+	f.correctAtSwitch(t, monday(f.second))
+
+	capped := f.singleRowOf(t, "invalid union fallback", f.studentID)
+	assert.Equal(t, running.ID, capped.ID)
+	assert.Equal(t, running.ValidFrom, capped.ValidFrom)
+	require.NotNil(t, capped.ValidUntil)
+	assert.Equal(t, string(f.switchDate), *capped.ValidUntil)
+	assert.NotContains(t, f.participants(t, occurrence), f.studentID, "removed Wednesday must not remain planned")
+	assert.Equal(t, neighbourParticipant, f.participants(t, mondayOccurrence)[f.neighbourID])
+	requireUnchanged(t, "invalid union fallback (other child)", neighbour, f.singleRowOf(t, "after correction", f.neighbourID))
+	assert.Equal(t, decided.ID, f.participants(t, decidedOccurrence)[f.studentID].ID, "manual attendance survives")
+	assert.Equal(t, studentpresence.SessionAttendanceAbsent, f.participants(t, decidedOccurrence)[f.studentID].Status)
+
+	f.correctAtSwitch(t, monday(f.second))
+	requireUnchanged(t, "repeated correction on invalid union", capped, f.singleRowOf(t, "repeated correction", f.studentID))
+	assert.NotContains(t, f.participants(t, occurrence), f.studentID)
+}
