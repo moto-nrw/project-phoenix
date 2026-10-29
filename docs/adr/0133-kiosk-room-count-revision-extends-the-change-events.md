@@ -61,7 +61,9 @@ rooms: the session counts in the room it left and in the room it entered
 (the finding of PR #5232: a checkout racing a room change left the new room
 at its revision while its count fell from 2 to 1). Events are never updated,
 entry rows of existing sessions are never removed, and the compaction keeps
-every sum, so no revision falls.
+every sum, so no revision falls. (Amended by #5273: the set only grows
+until the nightly close folds a settled session's entries into room rows
+with its whole revision, see the addendum.)
 
 Path by path (tests in `modules/studentpresence/compose/room_visit_revision_test.go`):
 
@@ -72,7 +74,7 @@ Path by path (tests in `modules/studentpresence/compose/room_visit_revision_test
 | Group transfer (`TransferOpenVisits`, `ReviseVisit`) | session events of both sessions | racing a room change of the target |
 | Session end, reopening | room row; entry row on reopening | checkout racing the end; check-in racing the reopening |
 | Session deletion | session events of its cascaded visits; no trigger | sequential (FK serializes visit inserts) |
-| Nightly compaction | none; folds and collapses | late checkout of an ended session during the compaction |
+| Nightly compaction | none; folds and collapses | late checkout of an ended session during the compaction; since #5273 late checkout, check-in and visit revision racing the fold (`room_revision_fold_test.go`) |
 
 - **No new lock edge on the write paths.** The triggers only insert. `room_id` and
   `entered_group_id` have no foreign key, so no key-share lock reaches a room
@@ -105,13 +107,14 @@ Path by path (tests in `modules/studentpresence/compose/room_visit_revision_test
   session rows of each ended session, the entry rows of each session and
   room, and the room rows of each room into one row each. It never removes
   an entry row of an existing session: an ended session can still receive a
-  late event, which then counts for every room it held.
+  late event, which then counts for every room it held. (Amended by #5273:
+  the entry rows of a settled session fold as well, see the addendum.)
 - **Read cost.** A room keeps every session it ever held until that session
   is deleted; `active.groups` has no retention. The read sums the room's
   rows through `idx_visit_revision_events_room` and one compacted session
   row per held session through the session index, so its cost grows with the sessions a room held, not with
-  visits. It runs only for a room-wide kiosk count. Since #5273 the session
-  index carries the changes (addendum below).
+  visits. It runs only for a room-wide kiosk count. Since #5273 the nightly
+  close bounds it (addendum below).
 - **Tenant boundary.** The trigger function runs as its owner with a fixed
   `search_path` and takes the school from the changed session row; the read
   filters every subquery by the ambient school and RLS applies. The school
@@ -155,38 +158,64 @@ replaces its count statement one for one.
 
 After this ADR enters the base it cannot approve another diagnostic.
 
-## Addendum (#5273): the session index carries the changes
 
-Decision of 2026-10-29. The read model stays: a room's revision still sums
-the revision of every session it held, and its cost still grows with those
-sessions. A room base in the compaction or a read limited to uncompacted
-sessions (options A and B of #5273) would need new proofs for late events,
-reopening and overlapping compactions; at the measured cost of a few
-milliseconds per room-wide count that is not worth it, and no monitoring is
-set up (option C). The issue is closed with this change; a measured
-bottleneck reopens the question.
+## Addendum (#5273): the nightly close folds settled sessions
 
-Migration 1.15.718 adds `changes` to the session index
-(`idx_visit_revision_events_session`, key unchanged, no predicate), so the
-read takes each session revision from the index instead of visiting the
-table for every held session, whether PostgreSQL probes per held session or
-makes one pass over the school's index entries. This holds for table pages
-vacuum has marked all-visible; rows written since the last vacuum still cost
-a table visit. The session revision and the school erasure keep using the
-same index, and an event insert still maintains one index for its session
-scope. No invariant, runtime lock or statement changes; the migration builds
-the index in one transaction, so event inserts wait for that build.
+Decision of 2026-10-29. A room kept every session it ever held, so the read
+summed one session revision per held session and its cost grew with the
+room's history (synthetic history on PostgreSQL 17: 4.7–5.7 ms for 3,650
+sessions in one room, 12–13.5 ms for 20 such rooms, 17–19 ms for 36,500
+sessions in one room). The nightly
+close now folds every **settled** session into its rooms: its entry rows
+become one room row per room it entered, carrying that room's entry sum
+plus the session revision, exactly like the fold of a deleted session. Its
+session rows stay, because the session revision keeps them. A read then sums
+the sessions since the last nightly close; on the same synthetic history it
+takes 0.15–0.19 ms whatever the history. The read, the triggers and the wire
+stay as they are; no migration is needed.
 
-Synthetic history on PostgreSQL 17 after compaction (one session row and one
-entry row per session, vacuumed), median of seven warm runs per round,
-three rounds:
+A session is settled when the compaction transaction holds it and every
+visit it has:
 
-| Sessions per room | Rooms in the school | Before | After |
-|---|---|---|---|
-| 3,650 | 1 | 4.7–5.7 ms, 14,659 buffers | 1.4–1.5 ms, 77 buffers |
-| 3,650 | 20 | 12.1–13.5 ms, 2,118 buffers | 6.1–7.8 ms, 418 buffers |
-| 36,500 | 1 | 16.8–19.0 ms, 1,248 buffers | 12.5–13.7 ms, 611 buffers |
+1. After the advisory lock it locks the ended sessions that still have an
+   entry row `FOR UPDATE OF g SKIP LOCKED`. A visit inserted into or moved
+   into a session takes a key-share lock on its row, a reopening, room change
+   or deletion a stronger one, so each of them either holds the row already
+   (the session is skipped) or waits for the nightly close to commit.
+2. It locks the visits of those sessions `FOR SHARE SKIP LOCKED` and counts
+   them in a later statement. A session settles only if every visit it has
+   was locked. Every other visit change (checkout, `ReviseVisit`/`UpdateVisit`
+   reopening a closed visit, transfer out) needs a lock on the visit, so
+   again it either holds one (the session is skipped) or waits.
 
-Ordering the room index by `entered_group_id` saved the sort only for the
-largest room and made the planner choose worse plans for the others, so it
-stays as 1.15.710 created it.
+So every event of a settled session commits before the compaction
+statement's snapshot, which folds it, or after the nightly close commits.
+A later event cannot change any room count while the session stays ended,
+because a room's count holds only running sessions; a reopening writes a
+new entry row, and the session's whole revision counts for the room again.
+No revision falls. A skipped session stays in its rooms and settles on a
+later night. Overlapping compactions still serialize on the advisory lock,
+and a settled session that is deleted later leaves only session rows, which
+the fold of deleted sessions removes without a room row: the rooms already
+carry its sum.
+
+**Locks.** Both new statements use `SKIP LOCKED` and never wait, and after
+them the holder waits for no row a writer holds, as before. A writer of an
+ended session can now wait for the nightly close's commit; that is an edge
+in one direction only and closes no cycle with the scan, checkout, transfer
+or reattach paths (#5206). Writers of running sessions meet none of these
+locks.
+
+**Tests** (`modules/studentpresence/compose/room_revision_fold_test.go`): the
+fold keeps every room revision through end, second compaction, late write,
+deletion and reopening, and leaves no held session once all ended. A late
+checkout, a check-in into the ended session and a closed visit revised open
+each race the fold both ways: holding the session or visit during the fold
+(skipped, folded the next night, no revision falls) and arriving after the
+fold's locks (waits, then changes no room count). Without the visit locks
+the first and third race lower a revision a read already saw; without the
+session lock the second does.
+
+**Cost of the first night.** The first nightly close after the deploy folds
+the whole history at once. With 73,000 ended sessions and 30,000 visits in
+one school it took 0.55 s; the next nightly compaction 0.12 s.

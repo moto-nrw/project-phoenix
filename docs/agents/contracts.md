@@ -216,7 +216,8 @@ order of its requests. All fields are additive; an older kiosk ignores them.
   one for each session whose count it changed (migration 1.15.705). A room's
   revision sums its entry rows (a session started, moved or reopened there)
   and room rows (a session left or ended there) plus the session revision of
-  every session the room ever held (migration 1.15.710). The read, not the
+  every session the room held since the last nightly close (migration
+  1.15.710, #5273). The read, not the
   writer, decides which sessions a room held, so a visit write racing a room
   change raises both rooms. Every committed change of a count raises the
   revision of its scope; events are never updated, so neither revision
@@ -234,8 +235,11 @@ order of its requests. All fields are additive; an older kiosk ignores them.
 - **No session lock.** The triggers only insert and the event table has no
   key to a session or room row; visit and session writers take the same locks
   as before #5128. The nightly close collapses the rows of each scope without
-  changing a revision and folds a deleted session's events into room rows of
-  the rooms it entered.
+  changing a revision and folds a deleted session's events, and the entries
+  of every settled session, into room rows of the rooms it entered. Settling
+  locks ended sessions and their visits with `SKIP LOCKED`, so a writer of an
+  ended session may wait for the nightly close; writers of running sessions
+  do not (ADR 0133, addendum #5273).
 - **Restarts and processes.** The events live in the database. Neither a
   backend restart nor several backend processes reset or fork a revision.
 - **Kiosk rule.** Within one scope (activity, room, session), accept a count
