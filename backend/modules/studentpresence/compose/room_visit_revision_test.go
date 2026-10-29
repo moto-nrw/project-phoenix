@@ -518,3 +518,41 @@ func roomNightlyCloseKeepsRevisions(t *testing.T, ctx context.Context, db *bun.D
 	assert.Equal(t, 2, countEventRows(t, db, ended.ID), "the ended session's compacted row and the concurrent writer's event")
 	assert.Zero(t, countEventRows(t, db, deleted.ID), "a deleted session's events are folded away")
 }
+
+func TestRoomRevisionSurvivesOverlappingCompactionsAndSessionDeletion(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	module := newRevisionModule(t, db)
+	room := testpkg.CreateTestRoom(t, db, "Room overlapping compactions")
+	other := testpkg.CreateTestRoom(t, db, "Room overlapping compactions other")
+	group := sessionInRoom(t, db, room.ID, "Room overlapping compactions")
+	openVisit(t, ctx, module, db, group.ID, "Present")
+	moveSessionToRoom(t, ctx, module, db, group.ID, other.ID)
+	moveSessionToRoom(t, ctx, module, db, group.ID, room.ID)
+
+	first := startTx(t, ctx, db)
+	awaitStep(t, first.run(func(txCtx context.Context) error {
+		_, err := module.EndGroupSessions(txCtx, nil, time.Now())
+		return err
+	}))
+	// The first compaction replaced duplicate entry rows but has not committed.
+	// Deletion leaves session events that the next compaction must fold into
+	// every room, including the first compaction's still-invisible replacement.
+	require.NoError(t, module.DeleteGroup(ctx, group.ID))
+	roomBefore := readRoomSnapshot(t, ctx, module, room.ID)
+	otherBefore := readRoomSnapshot(t, ctx, module, other.ID)
+
+	second := startTx(t, ctx, db)
+	compacted := second.run(func(txCtx context.Context) error {
+		_, err := module.EndGroupSessions(txCtx, nil, time.Now())
+		return err
+	})
+	awaitBlockedBy(t, db, second, first)
+	first.commit(t)
+	awaitStep(t, compacted)
+	second.commit(t)
+
+	assert.Equal(t, roomBefore, readRoomSnapshot(t, ctx, module, room.ID), "overlapping compactions must preserve the room revision")
+	assert.Equal(t, otherBefore, readRoomSnapshot(t, ctx, module, other.ID), "the deleted session contributes to every room it entered")
+}

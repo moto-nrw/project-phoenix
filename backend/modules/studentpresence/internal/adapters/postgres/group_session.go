@@ -222,6 +222,15 @@ func endOpenGroupSessions(ctx context.Context, db bun.IDB, tenantID int64, group
 }
 
 func compactVisitRevisions(ctx context.Context, db bun.IDB, tenantID int64, stats *ports.Stats) error {
+	// Take the lock in a separate statement so a waiting compaction gets a
+	// fresh READ COMMITTED snapshot after its predecessor commits. Otherwise
+	// it can consume a deleted session's events while missing the predecessor's
+	// replacement entry rows, losing the session's contribution to the room.
+	stats.Queries++
+	key := fmt.Sprintf("active-visit-revision-compaction:%d", tenantID)
+	if _, err := db.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key); err != nil {
+		return fmt.Errorf("end group sessions: lock visit revision compaction: %w", err)
+	}
 	stats.Queries++
 	if _, err := db.NewRaw(compactVisitRevisionEvents, compactVisitRevisionArgs(tenantID)...).Exec(ctx); err != nil {
 		return fmt.Errorf("end group sessions: compact visit revision events: %w", err)
@@ -253,8 +262,9 @@ func compactVisitRevisionArgs(tenantID int64) []any {
 //     late event.
 //
 // A concurrent writer's events are not in this statement's snapshot and stay
-// as they are. Each DELETE returns only rows this statement deleted, so a
-// second compaction running at the same time cannot count a row twice.
+// as they are. Compactions serialize per tenant before taking this statement's
+// snapshot, so replaced entry rows remain visible to the next compaction when
+// it folds a session deleted in between.
 const compactVisitRevisionEvents = `WITH gone AS (
 		SELECT k.group_id FROM (
 			SELECT e.active_group_id AS group_id FROM active.visit_revision_events AS e
