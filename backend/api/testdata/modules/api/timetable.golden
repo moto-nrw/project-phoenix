@@ -17,6 +17,7 @@ GET /api/timetable/instances/{id}/guardian-notice -> basis
 GET /api/timetable/instances/{id}/participants -> basis
 GET /api/timetable/instances/{id}/staff-pool -> basis
 GET /api/timetable/instances/{instance_id}/students/{student_id}/corrections -> basis
+GET /api/timetable/offering-gaps -> basis
 GET /api/timetable/offering-sources -> basis
 GET /api/timetable/offering-sources/combined-counts -> basis
 GET /api/timetable/offering-sources/preview -> basis
@@ -78,6 +79,7 @@ POST /api/timetable/templates/{id}/students/{studentId}/remove-days -> basis
 PUT /api/timetable/closing-days/{id} -> basis
 PUT /api/timetable/conflict-acks/{fingerprint} -> basis
 PUT /api/timetable/instances/{id} -> basis
+PUT /api/timetable/offering-gaps/{offeringId}/acknowledgement -> basis
 PUT /api/timetable/operations/instances/{id}/students/{student_id}/homework-feedback -> basis
 PUT /api/timetable/periods/{id} -> basis
 PUT /api/timetable/planning-tracks/order -> basis

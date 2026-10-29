@@ -220,7 +220,7 @@ type ActivityGroupQuery interface {
 type TemplateRowQuery interface {
 	ListTemplateRows(context.Context, *int64) ([]TemplateListRow, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64) ([]TemplateListRow, error)
-	ListTemplateRowsForPeriod(context.Context, *int64) ([]TemplateListRow, error)
+	ListTemplateRowsForPeriod(context.Context, *int64, *TemplateScheduleWindow) ([]TemplateListRow, error)
 	ListTemplateWeekdayRoster(context.Context, *int64, *int64) ([]TemplateWeekdayRosterRow, error)
 	ListTemplateCapacityOccurrences(context.Context, *int64, []int64, []TemplateCapacityPeriod) ([]TemplateCapacityOccurrence, error)
 }
