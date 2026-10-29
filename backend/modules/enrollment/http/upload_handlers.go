@@ -141,7 +141,7 @@ func parseEnrollmentUpload(w http.ResponseWriter, r *http.Request) (*common.Uplo
 	phaseID, phaseErr := strconv.ParseInt(strings.TrimSpace(r.FormValue("phase_id")), 10, 64)
 	if !extensionMatchesContent(uploaded.Filename, uploaded.ContentType) {
 		common.CloseFile(uploaded.File)
-		return nil, capability.UploadInput{}, &uploadContentMismatch{filename: uploaded.Filename}
+		return nil, capability.UploadInput{}, enrollmentUploadContentError(uploaded.Filename)
 	}
 	if phaseErr != nil || phaseID <= 0 {
 		common.CloseFile(uploaded.File)
@@ -182,21 +182,26 @@ type uploadContentMismatch struct{ filename string }
 
 func (e *uploadContentMismatch) Error() string { return "file content does not match its extension" }
 
+// A valid but unsupported document is a format refusal, not a content mismatch.
+func enrollmentUploadContentError(filename string) error {
+	switch strings.ToLower(filepath.Ext(filename)) {
+	case ".pdf", ".png", ".jpg", ".jpeg":
+		return &uploadContentMismatch{filename: filename}
+	default:
+		return &capability.UploadRejection{MaxMB: capability.MaxFileFieldSizeMB}
+	}
+}
+
 // renderUploadRefusal answers a file the transport refused with the field's
 // upload code and the general size limit.
 func renderUploadRefusal(w http.ResponseWriter, r *http.Request, err error) {
-	var mismatch *uploadContentMismatch
 	if common.IsUploadTypeNotAllowed(err) && r.MultipartForm != nil {
-		for _, header := range r.MultipartForm.File["file"] {
-			switch strings.ToLower(filepath.Ext(header.Filename)) {
-			case ".pdf", ".png", ".jpg", ".jpeg":
-				mismatch = &uploadContentMismatch{filename: header.Filename}
-			}
-			break
+		if headers := r.MultipartForm.File["file"]; len(headers) > 0 {
+			err = enrollmentUploadContentError(headers[0].Filename)
 		}
-	} else {
-		errors.As(err, &mismatch)
 	}
+	var mismatch *uploadContentMismatch
+	errors.As(err, &mismatch)
 	if mismatch != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadContentMismatch,
 			map[string]any{"filename": mismatch.filename}))
