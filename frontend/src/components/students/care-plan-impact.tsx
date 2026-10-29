@@ -237,10 +237,11 @@ function ManualTemplateEntry({
         </p>
         {template.viaTarget ? (
           <p className="mt-0.5 text-gray-600">
-            Dieser Regeltermin plant alle Kinder einer Klasse, eines Jahrgangs
-            oder einer Gruppe. Bei der nächsten Planung steht das Kind wieder im
-            Plan.
-            {canConnect ? " Verbinden Sie ihn deshalb mit dem Angebot." : null}
+            Plant alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe.
+            Bei der nächsten Planung steht das Kind wieder im Plan.
+            {canConnect
+              ? " Verbinden Sie den Regeltermin mit dem Angebot."
+              : null}
           </p>
         ) : null}
       </div>

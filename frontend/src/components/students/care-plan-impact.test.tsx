@@ -152,7 +152,7 @@ describe("CarePlanImpact", () => {
 
     expect(
       screen.getByText(
-        "Dieser Regeltermin plant alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe. Bei der nächsten Planung steht das Kind wieder im Plan. Verbinden Sie ihn deshalb mit dem Angebot.",
+        "Plant alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe. Bei der nächsten Planung steht das Kind wieder im Plan. Verbinden Sie den Regeltermin mit dem Angebot.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -186,7 +186,7 @@ describe("CarePlanImpact", () => {
     // Person nicht gehen kann.
     expect(
       screen.getByText(
-        "Dieser Regeltermin plant alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe. Bei der nächsten Planung steht das Kind wieder im Plan.",
+        "Plant alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe. Bei der nächsten Planung steht das Kind wieder im Plan.",
       ),
     ).toBeInTheDocument();
     expect(
