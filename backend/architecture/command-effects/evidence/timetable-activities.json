@@ -1673,6 +1673,30 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "binding_digest": "b50b2f93b2fb1d57b36f5c3665b5fd85",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "binding_digest": "62652cb55e9027bd33a655a0c9761022",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "binding_digest": "62652cb55e9027bd33a655a0c9761022",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountOpenVisitsInRoomWithRevision",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountStudentVisitsForDeletion",
       "binding_digest": "b7ad117082264766cd2d8bf53cb5f52d",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.CountStudentVisitsForDeletion",
@@ -4510,6 +4534,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoom",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoom",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision",
+      "binding_digest": "55c62db202f47d4d6f266fec19f776a8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.CountOpenVisitsInRoomWithRevision",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "binding_digest": "62652cb55e9027bd33a655a0c9761022",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.CountOpenVisitsInRoomWithRevision",
       "target_owner": "student-presence"
     },
     {

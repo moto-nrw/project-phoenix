@@ -149,6 +149,7 @@ type HolidayRegistrationInput struct {
 	BenefitsDeclared  bool
 	FormVersion       int
 	CustomData        HolidayAnswers
+	LegalAcceptances  map[string]bool
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -162,6 +163,7 @@ type HolidayRegistrationReceipt struct {
 // ResolveHolidayRegistrationLink runs in the administrative transaction,
 // every other operation in the Träger transaction of the link's Träger.
 type HolidayRegistrations interface {
+	PublicHolidayFormDocument(context.Context, HolidayRegistrationLink, string) (HolidayFormDocument, error)
 	ResolveHolidayRegistrationLink(ctx context.Context, token string) (HolidayRegistrationLink, error)
 	HolidayRegistrationOffer(ctx context.Context, link HolidayRegistrationLink) (HolidayRegistrationOffer, error)
 	// CountHolidayRegistrationAttempt counts one attempt per IP address and

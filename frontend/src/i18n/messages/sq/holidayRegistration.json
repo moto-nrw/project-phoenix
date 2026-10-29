@@ -33,6 +33,8 @@
   "notBooked": "Pa regjistrim",
   "weekRange": "{starts} deri më {ends}",
   "timeModel": "{name} ({startsAt} deri {endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt} deri {endsAt})",
+  "weeksPriceText": "Çmimi vlen për një javë dhe një fëmijë, pa zbritje ose përjashtim. Pagesën tuaj e shihni te përmbledhja.",
   "healthTitle": "Shëndeti (sipas dëshirës)",
   "healthText": "Vetëm stafi i kujdesit i sheh këto të dhëna.",
   "allergies": "Alergji dhe intoleranca",
@@ -55,7 +57,7 @@
   "addPickup": "Shto person",
   "remove": "Hiq",
   "consentTitle": "Pëlqimi",
-  "privacyConsent": "Jam dakord që organizatori t'i përdorë këto të dhëna për kujdesin gjatë pushimeve. Ai i fshin ato tre muaj pas pushimeve.",
+  "privacyConsent": "Jam dakord që organizatori t'i përdorë këto të dhëna për kujdesin gjatë pushimeve. Ai i fshin ato tre muaj pas pushimeve. OGS-ja që kujdeset për fëmijën tim në një javë pushimesh sheh emrin dhe telefonin e kujdestarit të dytë ligjor. Ajo sheh edhe përgjigjet që organizatori ndan me të. Të dhënat shëndetësore nuk i sheh. OGS-ja i sheh këto që para javës së pushimeve, që të përgatitet. Listën e fëmijëve e sheh deri në ditën e fundit të javës. Pas kësaj, emrin, telefonin dhe përgjigjet mund t'i lexojë edhe jo më shumë se 7 ditë. Pastaj ato fshihen.",
   "healthConsent": "Jam dakord që stafi i kujdesit të shohë të dhënat shëndetësore të fëmijëve të mi.",
   "bindingConfirmed": "E di që regjistrimi është detyrues.",
   "captchaMissing": "Mungon kontrolli i sigurisë. Ju lutemi ringarkoni faqen.",
@@ -96,5 +98,8 @@
     "choose": "Ju lutemi zgjidhni një përgjigje."
   },
   "childQuestionsTitle": "Të dhëna të tjera",
-  "familyQuestionsTitle": "Të dhëna të tjera për familjen"
+  "familyQuestionsTitle": "Të dhëna të tjera për familjen",
+  "legalTitle": "Njoftime dhe pëlqime",
+  "legalAccepted": "Konfirmuar",
+  "legalNotAccepted": "Jo e konfirmuar"
 }

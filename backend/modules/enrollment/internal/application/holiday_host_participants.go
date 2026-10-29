@@ -104,10 +104,16 @@ func (h *HolidayHostParticipants) read(ctx context.Context, host enrollment.Holi
 }
 
 // holidayParticipantList counts the children per time model, in the order
-// of the week's time models, and per home school, the holiday guests last.
+// of the week's time models, and per home school, the holiday guests last,
+// and names the shared questions of its children.
 func holidayParticipantList(week enrollment.HostedHolidayWeek, models []enrollment.HolidayTimeModelCount, participants []enrollment.HolidayParticipant) enrollment.HolidayParticipantList {
 	if participants == nil {
 		participants = []enrollment.HolidayParticipant{}
+	}
+	for i := range participants {
+		if participants[i].Answers == nil {
+			participants[i].Answers = []enrollment.HolidayHostAnswer{}
+		}
 	}
 	week.Participants = len(participants)
 	perModel := map[int64]int{}
@@ -142,5 +148,25 @@ func holidayParticipantList(week enrollment.HostedHolidayWeek, models []enrollme
 	if guests > 0 {
 		schools = append(schools, enrollment.HolidayHomeSchoolCount{Count: guests})
 	}
-	return enrollment.HolidayParticipantList{Week: week, TimeModels: counted, HomeSchools: schools, Participants: participants}
+	return enrollment.HolidayParticipantList{
+		Week: week, TimeModels: counted, HomeSchools: schools, Questions: hostQuestions(participants), Participants: participants,
+	}
+}
+
+// hostQuestions lists each shared question once, in the order the children
+// bring them; a later form version adds its new questions after the
+// earlier ones, and the first label of a key names its column.
+func hostQuestions(participants []enrollment.HolidayParticipant) []enrollment.HolidayHostQuestion {
+	questions := []enrollment.HolidayHostQuestion{}
+	seen := map[string]bool{}
+	for _, participant := range participants {
+		for _, answer := range participant.Answers {
+			if seen[answer.Key] {
+				continue
+			}
+			seen[answer.Key] = true
+			questions = append(questions, enrollment.HolidayHostQuestion{Key: answer.Key, Label: answer.Label, Type: answer.Type})
+		}
+	}
+	return questions
 }

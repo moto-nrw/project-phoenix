@@ -98,10 +98,11 @@ const (
 			(organization_id, holiday_period_id, guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
 			 privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
-			form_version, custom_data)
+			form_version, custom_data, legal_acceptances)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
 			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END, ?,
-			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb)
+			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb,
+			(SELECT COALESCE(jsonb_object_agg(key, statement_timestamp()), '{}'::jsonb) FROM unnest(?::text[]) AS accepted(key)))
 		RETURNING id, submitted_at`
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
 			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id)
@@ -175,7 +176,7 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	}
 	if err := db.NewRaw(insertHolidayRegistrationQuery, organizationID, periodID, guardian.FirstName, guardian.LastName,
 		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.BenefitsDeclared,
-		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers).Scan(ctx, &receipt); err != nil {
+		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers, pgdialect.Array(acceptedHolidayKeys(input.LegalAcceptances))).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
 	}
 	var childIDs, weekIDs, modelIDs []int64
@@ -354,4 +355,14 @@ func affectedRows(result sql.Result, err error) (int, error) {
 	}
 	rows, err := result.RowsAffected()
 	return int(rows), err
+}
+
+func acceptedHolidayKeys(acceptances map[string]bool) []string {
+	keys := []string{}
+	for key, accepted := range acceptances {
+		if accepted {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }

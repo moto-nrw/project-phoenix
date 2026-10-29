@@ -203,10 +203,18 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
+	// Consent evidence must name its exact form; only legacy submissions
+	// without acknowledgements may default to the current version.
+	if len(input.LegalAcceptances) > 0 && input.FormVersion != form.Version {
+		return enrollment.HolidayRegistrationReceipt{}, enrollment.InvalidInput(enrollment.CodeHolidayRegistrationFormChanged, "form_version", enrollment.ErrHolidayRegistrationFormChanged)
+	}
 	if input.FormVersion != 0 && input.FormVersion != form.Version {
 		return enrollment.HolidayRegistrationReceipt{}, enrollment.ErrHolidayRegistrationFormChanged
 	}
 	input.FormVersion = form.Version
+	if err := validateHolidayLegalAcceptances(form, input.LegalAcceptances); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
 	input = normalizeHolidayRegistration(input)
 	answers := sanitizeHolidayAnswers(form, decodeHolidayAnswers(input))
 	if err := validateHolidayRegistration(input, period, form, answers, link.Traeger.Schools, today); err != nil {

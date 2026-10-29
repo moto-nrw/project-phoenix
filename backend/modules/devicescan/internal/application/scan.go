@@ -339,14 +339,15 @@ func (s *Service) scanVisit(ctx context.Context, device *devicescan.PrincipalDev
 	return result, nil
 }
 
-// applyActiveStudentCount sets the kiosk counter with its session and
-// revision (#5128) and refreshes the device session's heartbeat.
+// applyActiveStudentCount sets the kiosk counter with its session or room
+// and revision (#5128, #5205) and refreshes the device session's heartbeat.
 func (s *Service) applyActiveStudentCount(ctx context.Context, result *devicescan.ScanResult, checkin *checkinResult, roomID *int64, deviceID int64) error {
 	counter, err := s.resolveActiveStudentCount(ctx, checkin, roomID, deviceID)
 	if err != nil {
 		return err
 	}
 	result.ActiveStudents, result.ActiveStudentsSessionID, result.ActiveStudentsRevision = counter.count, counter.sessionID, counter.revision
+	result.ActiveStudentsRoomID, result.ActiveStudentsRoomRevision = counter.roomID, counter.roomRevision
 	return nil
 }
 

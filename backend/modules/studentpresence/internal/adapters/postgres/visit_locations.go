@@ -95,6 +95,38 @@ func (s *Store) CountOpenVisitsInRoom(ctx context.Context, id int64) (int, ports
 	return int(count), ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}, err
 }
 
+// CountOpenVisitsInRoomWithRevision reads the open visit count of a room's
+// running sessions and the room's visit revision (#5205, ADR 0133) in one
+// statement, so both come from one snapshot. The revision is the sum of the
+// room's entry and room rows plus the session revision of every session that
+// ever entered the room. Which sessions count is decided here, on the
+// snapshot, so a visit write that raced its session's room change still
+// raises the room the session is in.
+func (s *Store) CountOpenVisitsInRoomWithRevision(ctx context.Context, id int64) (int, int64, ports.Stats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, 0, ports.Stats{}, err
+	}
+	var row struct {
+		OpenVisits    int   `bun:"open_visits"`
+		VisitRevision int64 `bun:"visit_revision"`
+	}
+	started := time.Now()
+	err = db.NewRaw(`SELECT
+		(SELECT COALESCE(sum(r.changes), 0) FROM active.visit_revision_events AS r
+			WHERE r.tenant_id = ? AND r.room_id = ?)
+		+ (SELECT COALESCE(sum(e.changes), 0) FROM active.visit_revision_events AS e
+			WHERE e.tenant_id = ? AND e.active_group_id IN (
+				SELECT m.entered_group_id FROM active.visit_revision_events AS m
+				WHERE m.tenant_id = ? AND m.room_id = ? AND m.entered_group_id IS NOT NULL)) AS visit_revision,
+		(SELECT count(*) FROM active.visits AS v
+			JOIN active.groups AS g ON g.id = v.active_group_id AND g.tenant_id = v.tenant_id
+			WHERE v.tenant_id = ? AND g.room_id = ? AND g.end_time IS NULL AND v.exit_time IS NULL) AS open_visits`,
+		tenantID, id, tenantID, tenantID, id, tenantID, id).Scan(ctx, &row)
+	stats := ports.Stats{Queries: 1, Rows: 1, StatementDuration: time.Since(started)}
+	return row.OpenVisits, row.VisitRevision, stats, err
+}
+
 func (s *Store) ListOpenVisitRooms(ctx context.Context, roomID int64) ([]studentpresence.OpenVisitRoom, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
