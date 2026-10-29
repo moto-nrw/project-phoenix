@@ -224,7 +224,11 @@ func TestBillingSeedCapturesSideBySide(t *testing.T) {
 		_, err := billing.SeedBillingKeyDateCounts(ctx, now)
 		held <- err
 	}()
-	<-counts.listed
+	select {
+	case <-counts.listed:
+	case err := <-held:
+		t.Fatalf("the first capture ended before it counted: %v", err)
+	}
 	written, err := billing.SeedBillingKeyDateCounts(ctx, now)
 	close(counts.release)
 	require.NoError(t, err)

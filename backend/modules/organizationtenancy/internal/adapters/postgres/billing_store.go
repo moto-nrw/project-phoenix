@@ -82,9 +82,9 @@ func (s *BillingStore) UseRepeatableReadSnapshot(ctx context.Context) error {
 	return nil
 }
 
-// UseReadCommitted lets a capture skip the rows another capture committed
-// after this one listed the schools. It must be the first operation in the
-// transaction.
+// UseReadCommitted states the capture's isolation explicitly, so a row
+// another capture committed meanwhile is skipped by ON CONFLICT DO NOTHING
+// instead of failing with 40001, whatever the server default is.
 func (s *BillingStore) UseReadCommitted(ctx context.Context) error {
 	db, err := s.database(ctx)
 	if err != nil {
