@@ -3,7 +3,7 @@ name: ui-before-after
 description: Use when a UI change needs before/after screenshot pairs for a PR or review. Triggers on "vorher/nachher", "before/after screenshots", visual comparison of a frontend refactor, or verifying that a migration did not change the look.
 metadata:
   author: moto-nrw
-  version: "1.1.0"
+  version: "1.2.0"
 ---
 
 # Before/After UI Screenshot Pairs
@@ -33,28 +33,45 @@ not establish which state the browser shows.
 
 ## Source-state gate (every switch, including final restoration)
 
-1. **Restart the responsible frontend** after the target sources are on disk.
-   Use a controlled stop/start in the recorded mode. Stop only task-owned
-   processes after checking their command and checkout; confirm the old listener
-   has exited before starting its replacement on the same port.
+1. **Stop, clear `.next`, then restart the responsible frontend** after the
+   target sources are on disk. Use the recorded mode after **every** switch:
+   baseline, branch and final restoration. Stop only task-owned processes after
+   checking their command and checkout; confirm the old listener has exited
+   before removing this checkout's task-owned `frontend/.next` and starting its
+   replacement on the same port. Verify `.next` is not a symlink or shared cache.
    - With `scripts/dev-native.sh up [backend|frontend]`, retain the original
      selection. Every `up` replaces **both** managed apps and stops the Compose
      app containers. Use it only when all affected apps belong to this task.
      `down` also stops both apps, not just the frontend.
+     From the repository root, after the ownership/listener checks:
+     ```bash
+     scripts/dev-native.sh down &&
+       test ! -L frontend/.next &&
+       rm -rf -- frontend/.next &&
+       scripts/dev-native.sh up frontend  # use `up` if both apps were selected
+     ```
    - For a task-owned foreground frontend launched through
      `scripts/dev-native.sh frontend <command...>`, stop that command gracefully
-     and repeat the exact command with the same port and environment. This
-     command wrapper does not need an `up`/`down` cycle.
+     (including its children), clear the same `.next` directory while stopped,
+     then repeat the exact command with the same port and environment, e.g.
+     `scripts/dev-native.sh frontend pnpm dev`. This command wrapper does not
+     need an `up`/`down` cycle and leaves independently managed apps alone.
    - If ownership has changed since preflight, return to the prerequisites and
      isolate the checkout before continuing. Never kill a listener just because
      it occupies the desired port.
-   A cache reset may replace a restart only if its effectiveness is demonstrated
-   by the rendered-state check below. Never delete shared caches or data.
+   Restart **and** fresh `.next` are required; hot reload or a browser reload
+   does not replace either step. Never delete shared caches or data.
 2. **Check the rendered target, not just server readiness.** Open the URL, wait
    for the expected page/interaction state, then take a fresh snapshot. For a
    visible change, assert the target-specific text, styling or element and the
    absence of the other state's distinguishing feature. Inspect the image when
    appearance, rather than text, is the distinction.
+   For example, adapt this DOM assertion to the shot's real selector and texts:
+   ```bash
+   agent-browser --session s wait --fn 'document.querySelector("h1")?.innerText === "Expected target heading" && !document.body.innerText.includes("Other state heading")'
+   ```
+   Require a successful assertion before running `screenshot`; a timeout or
+   mismatch blocks that shot. Record the assertion and observed value.
    For claimed visual equality, use an explicit target-specific rendered marker
    tied to the pinned commit (a temporary verification-only label outside the
    comparison region, recorded separately). Remove it during final restoration;
