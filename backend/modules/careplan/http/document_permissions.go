@@ -9,3 +9,9 @@ import "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 func StudentDocumentPermissions() (health, legal, fallback string) {
 	return permissions.StudentDocumentsHealth, permissions.StudentDocumentsLegal, permissions.UsersUpdate
 }
+
+// StudentAccidentPermissions are the permissions guarding the accident
+// reports (#4771): reading, and every write.
+func StudentAccidentPermissions() (read, manage string) {
+	return permissions.StudentAccidentsRead, permissions.StudentAccidentsManage
+}

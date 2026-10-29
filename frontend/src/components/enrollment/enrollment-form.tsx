@@ -17,7 +17,7 @@ import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
 import { Input } from "~/components/ui/input";
 import { useTenant } from "~/lib/tenant-context";
-import deMessages from "~/i18n/messages/de.generated";
+import germanEnrollmentFormMessages from "~/i18n/messages/de/enrollmentForm.json";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
 import {
   fetchMyEnrollmentProfile,
@@ -2894,7 +2894,7 @@ function draftConsentFlags(
   return out;
 }
 
-const GERMAN_ENROLLMENT_FORM_MESSAGES = deMessages.enrollmentForm as Record<
+const GERMAN_ENROLLMENT_FORM_MESSAGES = germanEnrollmentFormMessages as Record<
   string,
   unknown
 >;

@@ -1,5 +1,12 @@
 {
   "absence_read_required": "У вас немає доступу до: {object}. Зверніться до школи.",
+  "accident_report_forbidden": "У вас немає доступу до: {object}. Зверніться до школи.",
+  "accident_report_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "accident_report_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "accident_report_not_signed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "accident_report_signed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "accident_report_superseded": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "accident_signature_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "bulk_approval_ineligible": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_day_managed_by_booking": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "care_exception_raced": "Дані змінилися: {object}. Перевірте свої дані ще раз.",

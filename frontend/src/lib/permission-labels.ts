@@ -33,6 +33,7 @@ export const resourceLabels: Record<string, string> = {
   guardians: "Eltern",
   staff_documents: "Personalunterlagen",
   student_documents: "Unterlagen der Kinder",
+  student_accidents: "Unfallanzeigen",
   enrollment_uploads: "Nachweise aus Anmeldungen",
   staff_notices: "Tagesinformationen",
   surveys: "Umfragen",
@@ -255,6 +256,10 @@ const permissionDescriptions: Record<string, string> = {
     "Nachweise aus Anmeldungen ansehen, zum Beispiel Einkommensnachweise",
   "student_documents:legal":
     "Sorgerechtsnachweise von Kindern ansehen, hochladen und löschen",
+  "student_accidents:read":
+    "Unfallanzeigen von Kindern ansehen und als PDF herunterladen",
+  "student_accidents:manage":
+    "Unfälle von Kindern erfassen, Unfallanzeigen ändern, unterschreiben und korrigieren",
 
   // Schul-Portal (moto schule)
   "class_day:read": "Tagesansicht der eigenen Klassen ansehen",

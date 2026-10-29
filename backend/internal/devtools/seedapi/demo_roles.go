@@ -83,6 +83,7 @@ func demoRoleDefinitions() []demoRoleDefinition {
 				"staff:documents", "staff:financial", "staff:manage", "staff:stammdaten",
 				"staff_documents:health",
 				"staff_notices:read",
+				"student_accidents:manage", "student_accidents:read",
 				"student_documents:health", "student_documents:legal",
 				"substitutions:create", "substitutions:delete", "substitutions:list", "substitutions:manage", "substitutions:read", "substitutions:update",
 				"supervision:own",

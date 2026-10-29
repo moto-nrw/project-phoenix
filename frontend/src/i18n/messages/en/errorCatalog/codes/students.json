@@ -1,5 +1,12 @@
 {
   "absence_read_required": "You cannot access {object}. Please contact the school.",
+  "accident_report_forbidden": "You cannot access {object}. Please contact the school.",
+  "accident_report_invalid": "{object} could not be saved. Please check your entries.",
+  "accident_report_not_found": "{object} could not be changed. Please check its current status.",
+  "accident_report_not_signed": "{object} could not be changed. Please check its current status.",
+  "accident_report_signed": "{object} could not be changed. Please check its current status.",
+  "accident_report_superseded": "{object} could not be changed. Please check its current status.",
+  "accident_signature_invalid": "{object} could not be saved. Please check your entries.",
   "bulk_approval_ineligible": "{object} could not be changed. Please check its current status.",
   "care_day_managed_by_booking": "{object} could not be changed. Please check its current status.",
   "care_exception_raced": "{object} has been changed in the meantime. Please check your details again.",
