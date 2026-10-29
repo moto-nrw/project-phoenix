@@ -158,7 +158,7 @@ export function CarePlanImpact({
             ))}
           </ManualTemplateList>
           {actionMissing ? (
-            <p className="text-xs text-gray-500">
+            <p className="mt-3 text-xs text-gray-500">
               Ändern kann nur, wer den Betreuungsplan bearbeiten darf.
             </p>
           ) : null}
