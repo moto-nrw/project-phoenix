@@ -33,6 +33,7 @@ const PORTAL_PROXIES = ["proxyGet", "proxyPost", "proxyPut", "proxyPatch"];
  * `src/server/auth/portal-cache-control.test.ts`.
  */
 const POLICY_FACTORIES: Record<string, readonly string[]> = {
+  "~/lib/portal-login-route.server": ["createPortalLoginRoute"],
   "~/lib/tenant-login-route.server": ["createTenantLoginRoute"],
   "~/lib/private-no-store": [
     "withPrivateNoStore",

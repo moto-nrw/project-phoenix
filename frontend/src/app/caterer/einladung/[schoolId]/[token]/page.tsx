@@ -14,7 +14,6 @@ import {
 } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { signIn } from "next-auth/react";
 import { Check } from "lucide-react";
 import {
   AuthFieldError,
@@ -223,14 +222,7 @@ function AcceptForm({
     );
     let target = catererPath("/caterer");
     try {
-      const tokens = await loginCaterer(invitation.email, password);
-      const result = await signIn("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      });
-      if (result?.error) throw new Error(result.error);
+      await loginCaterer(invitation.email, password);
     } catch (cause) {
       // Accepted, only the automatic sign-in failed: the login page works.
       logger.warn("caterer_signin_after_accept_failed", {

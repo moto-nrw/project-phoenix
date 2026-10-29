@@ -2,13 +2,6 @@ import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
 export type LoginScope = "tenant" | "operator" | "school" | "traeger";
 
-interface AuthenticatedLoginResponse {
-  status: "authenticated";
-  access_token: string;
-  refresh_token: string;
-  mfa_enrollment_required?: boolean;
-}
-
 interface MFARequiredLoginResponse {
   status: "mfa_required";
   challenge_token: string;
@@ -44,25 +37,12 @@ interface MFAEnrollmentRequiredLoginResponse {
   mfa_enrollment_required: true;
 }
 
-interface AuthenticatedSessionResponse {
+export interface MFAResult {
   status: "authenticated";
 }
 
-export type MFAResult<Scope extends LoginScope> = Scope extends "tenant"
-  ? AuthenticatedSessionResponse
-  : MFATokenResponse;
-
-type LoginResponse<Scope extends LoginScope> =
-  | (Scope extends "tenant"
-      ? AuthenticatedSessionResponse
-      : AuthenticatedLoginResponse)
-  | MFARequiredLoginResponse
-  | MFAEnrollmentRequiredLoginResponse;
-
-export interface MFATokenResponse {
-  access_token: string;
-  refresh_token: string;
-}
+type LoginResponse =
+  MFAResult | MFARequiredLoginResponse | MFAEnrollmentRequiredLoginResponse;
 
 interface OperatorEnvelope<T> {
   status: string;
@@ -162,10 +142,10 @@ interface LoginParams {
   tenantSlug?: string;
 }
 
-export async function login<Scope extends LoginScope>(
-  scope: Scope,
+export async function login(
+  scope: LoginScope,
   params: LoginParams,
-): Promise<LoginResponse<Scope>> {
+): Promise<LoginResponse> {
   const url = loginUrl(scope);
   // Tenant login requires a tenant slug. School login accepts one only for
   // a handoff from the OGS portal, where it pins a multi-school Lehrkraft to
@@ -180,13 +160,13 @@ export async function login<Scope extends LoginScope>(
       : { email: params.email, password: params.password };
 
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<LoginResponse<Scope>>>(
+    const envelope = await postJson<OperatorEnvelope<LoginResponse>>(
       url,
       payload,
     );
     return envelope.data;
   }
-  return postJson<LoginResponse<Scope>>(url, payload);
+  return postJson<LoginResponse>(url, payload);
 }
 
 interface VerifyParams {
@@ -203,10 +183,10 @@ function organizationField(organizationId?: string) {
   return organizationId ? { organization_id: Number(organizationId) } : {};
 }
 
-export async function verifyMFA<Scope extends LoginScope>(
-  scope: Scope,
+export async function verifyMFA(
+  scope: LoginScope,
   params: VerifyParams,
-): Promise<MFAResult<Scope>> {
+): Promise<MFAResult> {
   const url = mfaUrl(scope, "verify");
   const payload = {
     challenge_token: params.challengeToken,
@@ -215,13 +195,10 @@ export async function verifyMFA<Scope extends LoginScope>(
     ...organizationField(params.organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFAResult<Scope>>>(
-      url,
-      payload,
-    );
+    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload);
     return envelope.data;
   }
-  return postJson<MFAResult<Scope>>(url, payload);
+  return postJson<MFAResult>(url, payload);
 }
 
 interface ResendParams {
@@ -294,14 +271,14 @@ export async function enrollStart(
  * `rememberDevice: true` additionally issues a trusted-device cookie so
  * the next login on this browser skips MFA.
  */
-export async function enrollConfirm<Scope extends LoginScope>(
-  scope: Scope,
+export async function enrollConfirm(
+  scope: LoginScope,
   bearerToken: string,
   code: string,
   rememberDevice = false,
   challengeToken?: string,
   organizationId?: string,
-): Promise<MFAResult<Scope>> {
+): Promise<MFAResult> {
   const url = mfaUrl(scope, "enroll/confirm");
   // The school confirm is bound to the exact challenge enroll/start minted
   // (see enrollStart); tenant/operator ignore the extra field.
@@ -312,14 +289,12 @@ export async function enrollConfirm<Scope extends LoginScope>(
     ...organizationField(organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFAResult<Scope>>>(
-      url,
-      payload,
-      { bearerToken },
-    );
+    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload, {
+      bearerToken,
+    });
     return envelope.data;
   }
-  return postJson<MFAResult<Scope>>(url, payload, { bearerToken });
+  return postJson<MFAResult>(url, payload, { bearerToken });
 }
 
 // ----- Self-service trusted devices (Tenant-only) -----

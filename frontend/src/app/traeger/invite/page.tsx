@@ -13,7 +13,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
   AuthFieldError,
@@ -65,17 +64,8 @@ async function signInAfterAcceptance(email: string, password: string) {
   try {
     const result = await traegerLogin({ email, password });
     if (result.status === "authenticated") {
-      const seeded = await signIn("traeger-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: result.accessToken,
-        refreshToken: result.refreshToken,
-      });
-      if (!seeded?.error) {
-        window.location.assign(traegerPath("/traeger"));
-        return;
-      }
-      logger.error("session_seed_failed", { error: seeded.error });
+      window.location.assign(traegerPath("/traeger"));
+      return;
     }
   } catch (err) {
     logger.warn("traeger_sign_in_after_acceptance_failed", {

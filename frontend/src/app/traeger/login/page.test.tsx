@@ -62,8 +62,12 @@ async function enterCode(code: string) {
 
 describe("TraegerLoginPage", () => {
   const fetchMock = vi.fn<typeof fetch>();
+  let navigate: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
+    navigate = vi
+      .spyOn(window.location, "href", "set")
+      .mockImplementation(() => undefined);
     mockLogin.mockReset();
     mockSignIn.mockReset();
     mockSearchParamsGet.mockReturnValue(null);
@@ -72,6 +76,7 @@ describe("TraegerLoginPage", () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
@@ -82,9 +87,7 @@ describe("TraegerLoginPage", () => {
       maskedEmail: "b***@traeger.example",
       organizationId: "7",
     });
-    fetchMock.mockResolvedValue(
-      jsonResponse({ access_token: "access", refresh_token: "refresh" }),
-    );
+    fetchMock.mockResolvedValue(jsonResponse({ status: "authenticated" }));
     mockSignIn.mockResolvedValue({ error: undefined });
     render(<TraegerLoginPage />);
 
@@ -108,14 +111,7 @@ describe("TraegerLoginPage", () => {
       remember_device: false,
       organization_id: 7,
     });
-    await waitFor(() =>
-      expect(mockSignIn).toHaveBeenCalledWith("traeger-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access",
-        refreshToken: "refresh",
-      }),
-    );
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/traeger"));
   });
 
   it("sets up the second factor before the first Träger session", async () => {
@@ -127,9 +123,7 @@ describe("TraegerLoginPage", () => {
     });
     fetchMock
       .mockResolvedValueOnce(jsonResponse({ challenge_token: "challenge" }))
-      .mockResolvedValueOnce(
-        jsonResponse({ access_token: "access", refresh_token: "refresh" }),
-      );
+      .mockResolvedValueOnce(jsonResponse({ status: "authenticated" }));
     mockSignIn.mockResolvedValue({ error: undefined });
     render(<TraegerLoginPage />);
 
@@ -160,11 +154,9 @@ describe("TraegerLoginPage", () => {
     });
   });
 
-  it("seeds the Träger session with the minted pair", async () => {
+  it("opens the BFF-created Träger session without browser token seeding", async () => {
     mockLogin.mockResolvedValue({
       status: "authenticated",
-      accessToken: "access",
-      refreshToken: "refresh",
     });
     mockSignIn.mockResolvedValue({ error: undefined });
     render(<TraegerLoginPage />);
@@ -174,14 +166,8 @@ describe("TraegerLoginPage", () => {
     ).toBeInTheDocument();
     submitCredentials();
 
-    await waitFor(() =>
-      expect(mockSignIn).toHaveBeenCalledWith("traeger-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access",
-        refreshToken: "refresh",
-      }),
-    );
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/traeger"));
+    expect(mockSignIn).not.toHaveBeenCalled();
     expect(mockLogin).toHaveBeenCalledWith({
       email: "buero@traeger.example",
       password: "secret",
@@ -200,8 +186,6 @@ describe("TraegerLoginPage", () => {
       })
       .mockResolvedValueOnce({
         status: "authenticated",
-        accessToken: "access",
-        refreshToken: "refresh",
       });
     mockSignIn.mockResolvedValue({ error: undefined });
     render(<TraegerLoginPage />);
@@ -220,7 +204,7 @@ describe("TraegerLoginPage", () => {
         organizationId: "9",
       }),
     );
-    await waitFor(() => expect(mockSignIn).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith("/traeger"));
   });
 
   it("explains a missing Träger-Portal access with the catalog text", async () => {

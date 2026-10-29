@@ -549,9 +549,20 @@ describe("server-only switch and preview transitions", () => {
 });
 
 // #5118 stage 2: enrollment's limited access_token proof remains allowed;
-// no completed tenant login may seed a session with a token pair anymore.
-it("tenant login cannot seed a session from browser JavaScript", () => {
-  const fileName = path.join(SRC_ROOT, "app/[tenant]/page.tsx");
+// Stufe 3 extends this boundary to the other portals, invitations and demo.
+it.each([
+  "app/[tenant]/page.tsx",
+  "app/operator/login/page.tsx",
+  "app/school/login/page.tsx",
+  "app/traeger/login/page.tsx",
+  "app/caterer/login/page.tsx",
+  "app/traeger/invite/page.tsx",
+  "app/caterer/einladung/[schoolId]/[token]/page.tsx",
+  "lib/demo-access.ts",
+  "lib/mfa-api.ts",
+  "lib/passkey-api.ts",
+])("%s cannot seed a session from browser JavaScript", (relativePath) => {
+  const fileName = path.join(SRC_ROOT, relativePath);
   const source = ts.createSourceFile(
     fileName,
     readFileSync(fileName, "utf8"),
