@@ -99,6 +99,7 @@ func collectOfferingWeekdayBookings(
 		result = append(result, careplan.OfferingWeekdayBooking{
 			OfferingID:    offering.ID,
 			OfferingName:  offering.Name,
+			PhaseID:       offering.PhaseID,
 			StudentID:     child.StudentID,
 			SchoolClass:   child.SchoolClass,
 			GradeLevel:    child.GradeLevel,

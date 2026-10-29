@@ -7,7 +7,7 @@ import { RosterDeviationHint } from "./roster-deviation-hint";
 
 const deviation: RosterDeviation = {
   templateId: "7",
-  offering: { id: "3", name: "Randstunde" },
+  offerings: [{ id: "3", name: "Randstunde" }],
   gradeLevels: [],
   schoolClasses: ["1a"],
   unbookedCount: 8,
@@ -30,7 +30,7 @@ describe("RosterDeviationHint", () => {
 
     expect(
       screen.getByText(
-        "Weicht von Anmeldungen ab: 8 Kinder ohne Buchung · passt zu „Randstunde“",
+        "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 8 Kinder sind dort nicht angemeldet",
       ),
     ).toBeInTheDocument();
     fireEvent.click(

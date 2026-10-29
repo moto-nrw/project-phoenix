@@ -7,7 +7,7 @@ import { SeriesRosterReview } from "./series-roster-review";
 
 const deviation: RosterDeviation = {
   templateId: "7",
-  offering: { id: "3", name: "Randstunde" },
+  offerings: [{ id: "3", name: "Randstunde" }],
   gradeLevels: [1],
   schoolClasses: [],
   unbookedCount: 3,
@@ -31,7 +31,7 @@ describe("SeriesRosterReview (#5103)", () => {
 
     expect(
       screen.getByText(
-        "Weicht von Anmeldungen ab: 3 Kinder ohne Buchung · 2 angemeldete Kinder fehlen · passt zu „Randstunde“",
+        "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 3 Kinder sind dort nicht angemeldet · 2 angemeldete Kinder fehlen",
       ),
     ).toBeInTheDocument();
     fireEvent.click(

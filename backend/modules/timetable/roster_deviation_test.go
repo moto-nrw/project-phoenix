@@ -62,7 +62,7 @@ func TestDetectRosterDeviationSchuleAmBerg(t *testing.T) {
 	deviation := timetable.DetectRosterDeviation(roster, bookings)
 
 	require.NotNil(t, deviation)
-	assert.Equal(t, timetable.OfferingRef{ID: randstundeID, Name: "Randstunde"}, deviation.Offering)
+	assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, deviation.Offerings)
 	assert.Equal(t, []string{"Klasse 1a"}, deviation.SchoolClasses)
 	assert.Empty(t, deviation.GradeLevels)
 	// class[12] is planned Tuesday to Friday without a booking; class[13:]
@@ -129,6 +129,8 @@ func TestDetectRosterDeviationThresholds(t *testing.T) {
 
 // TestDetectRosterDeviationPrefersClosestCandidate: two offerings cover the
 // roster fully; the one closer to the planned children wins, both are named.
+// Every Randstunde child also books Ganztag, so Randstunde explains no child
+// Ganztag does not: it is no equal alternative and does not join (#5139).
 func TestDetectRosterDeviationPrefersClosestCandidate(t *testing.T) {
 	t.Parallel()
 	roster := classRoster([]int{1, 2}, studentRange(1001, 10))
@@ -151,12 +153,12 @@ func TestDetectRosterDeviationPrefersClosestCandidate(t *testing.T) {
 	deviation := timetable.DetectRosterDeviation(roster, bookings)
 
 	require.NotNil(t, deviation)
-	assert.Equal(t, ganztagID, deviation.Offering.ID)
+	assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}}, deviation.Offerings)
 	assert.Equal(t, []int{1}, deviation.GradeLevels)
 	assert.Equal(t, 2, deviation.UnbookedCount)
 	assert.Zero(t, deviation.MissingCount)
 	assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}, {ID: randstundeID, Name: "Randstunde"}}, deviation.Candidates)
-	assert.True(t, deviation.Ambiguous, "both cover the Jahrgang fully, so the school picks (#5138)")
+	assert.False(t, deviation.Ambiguous, "Randstunde cannot replace Ganztag without losing four children")
 }
 
 func TestPreviewOfferingSource(t *testing.T) {
@@ -209,7 +211,7 @@ func TestDetectRosterDeviationOfferingKind(t *testing.T) {
 		deviation := timetable.DetectRosterDeviation(roster, bookings)
 
 		require.NotNil(t, deviation)
-		assert.Equal(t, randstundeID, deviation.Offering.ID)
+		assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Kurzbetreuung"}}, deviation.Offerings)
 		assert.Equal(t, 14, deviation.UnbookedCount)
 		assert.Len(t, deviation.Candidates, 1)
 	})
@@ -222,7 +224,7 @@ func TestDetectRosterDeviationOfferingKind(t *testing.T) {
 		deviation := timetable.DetectRosterDeviation(roster, bookings)
 
 		require.NotNil(t, deviation)
-		assert.Equal(t, lunchID, deviation.Offering.ID)
+		assert.Equal(t, []timetable.OfferingRef{{ID: lunchID, Name: "Mittagessen"}}, deviation.Offerings)
 		assert.Equal(t, 2, deviation.MissingCount)
 	})
 
@@ -248,7 +250,7 @@ func TestSuggestOfferingSource(t *testing.T) {
 	assert.Nil(t, timetable.DetectRosterDeviation(roster, bookings), "an exact match is no deviation")
 	suggestion := timetable.SuggestOfferingSource(roster, bookings)
 	require.NotNil(t, suggestion)
-	assert.Equal(t, timetable.OfferingRef{ID: randstundeID, Name: "Randstunde"}, suggestion.Offering)
+	assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, suggestion.Offerings)
 	assert.Equal(t, []string{"Klasse 1b"}, suggestion.SchoolClasses)
 	assert.Zero(t, suggestion.UnbookedCount)
 	assert.Zero(t, suggestion.MissingCount)
@@ -257,13 +259,14 @@ func TestSuggestOfferingSource(t *testing.T) {
 	assert.Nil(t, timetable.SuggestOfferingSource(small, bookings[:2]), "fewer than three children")
 }
 
-// TestSuggestOfferingSourceAmbiguousForCohortTargets (#5138): a Klasse or
-// Jahrgang Regeltermin plans every child of the cohort, and the bookings are
-// narrowed to that cohort. Every offering of it then covers the roster
-// fully, so the rule cannot tell Randstunde from Ganztag: the suggestion
-// names both and preselects neither. A Gruppe or hand-picked children keep
-// a clear suggestion when only one offering covers them fully.
-func TestSuggestOfferingSourceAmbiguousForCohortTargets(t *testing.T) {
+// TestSuggestOfferingSourceCombinesForCohortTargets (#5138, #5139): a Klasse
+// or Jahrgang Regeltermin plans every child of the cohort, and the bookings
+// are narrowed to that cohort. Every offering of it then covers the roster
+// fully, so coverage alone cannot tell Randstunde from Ganztag. Together they
+// explain the children: the suggestion names both, and connecting keeps
+// every child who books either. A Gruppe or hand-picked children keep a
+// single offering when the other one is booked mostly elsewhere.
+func TestSuggestOfferingSourceCombinesForCohortTargets(t *testing.T) {
 	t.Parallel()
 	grade := 3
 	cohort := studentRange(1001, 20)
@@ -295,12 +298,13 @@ func TestSuggestOfferingSourceAmbiguousForCohortTargets(t *testing.T) {
 		suggestion := timetable.SuggestOfferingSource(roster, cohortBookings())
 
 		require.NotNil(t, suggestion)
-		assert.True(t, suggestion.Ambiguous)
+		assert.False(t, suggestion.Ambiguous, "the combination is a clear suggestion")
+		assert.Equal(t, both, suggestion.Offerings)
 		assert.Equal(t, both, suggestion.Candidates)
 		assert.Equal(t, []string{"3a"}, suggestion.SchoolClasses)
-		deviation := timetable.DetectRosterDeviation(roster, cohortBookings())
-		require.NotNil(t, deviation, "the class list still deviates from every offering")
-		assert.True(t, deviation.Ambiguous)
+		assert.Zero(t, suggestion.UnbookedCount, "every child books one of the two")
+		assert.Nil(t, timetable.DetectRosterDeviation(roster, cohortBookings()),
+			"the class list matches both offerings together")
 	})
 
 	t.Run("Jahrgang", func(t *testing.T) {
@@ -312,13 +316,14 @@ func TestSuggestOfferingSourceAmbiguousForCohortTargets(t *testing.T) {
 		suggestion := timetable.SuggestOfferingSource(roster, cohortBookings())
 
 		require.NotNil(t, suggestion)
-		assert.True(t, suggestion.Ambiguous)
-		assert.Equal(t, both, suggestion.Candidates)
+		assert.False(t, suggestion.Ambiguous)
+		assert.Equal(t, both, suggestion.Offerings)
 		assert.Equal(t, []int{3}, suggestion.GradeLevels)
 	})
 
 	// A Gruppe has no Klasse or Jahrgang filter: every booking of the school
-	// counts, so Ganztag, booked across classes, falls below the rule.
+	// counts, so Ganztag, booked across classes, falls below the rule and
+	// would bring too many children to join.
 	t.Run("Gruppe", func(t *testing.T) {
 		t.Parallel()
 		roster := classRoster([]int{1, 2, 3}, cohort)
@@ -334,12 +339,14 @@ func TestSuggestOfferingSourceAmbiguousForCohortTargets(t *testing.T) {
 
 		require.NotNil(t, suggestion)
 		assert.False(t, suggestion.Ambiguous)
-		assert.Equal(t, timetable.OfferingRef{ID: randstundeID, Name: "Randstunde"}, suggestion.Offering)
+		assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, suggestion.Offerings)
 		assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, suggestion.Candidates)
+		assert.Equal(t, 12, suggestion.UnbookedCount)
 	})
 
-	// A third offering passes the rule with less than full coverage: it is
-	// no equal alternative and stays out of the choice.
+	// A third offering passes the rule with less than full coverage and
+	// explains no further child: it stays a choice, not part of the
+	// suggestion.
 	t.Run("Klasse mit schwächerem Angebot", func(t *testing.T) {
 		t.Parallel()
 		roster := classRoster([]int{1, 2, 3}, cohort, "3a")
@@ -355,12 +362,14 @@ func TestSuggestOfferingSourceAmbiguousForCohortTargets(t *testing.T) {
 		suggestion := timetable.SuggestOfferingSource(roster, bookings)
 
 		require.NotNil(t, suggestion)
-		assert.True(t, suggestion.Ambiguous)
-		assert.Equal(t, both, suggestion.Candidates, "Spätbetreuung covers 5 of 6 and is not offered")
+		assert.False(t, suggestion.Ambiguous)
+		assert.Equal(t, both, suggestion.Offerings, "Spätbetreuung covers 5 of 6 and adds no child")
+		assert.Equal(t, append(slices.Clone(both), timetable.OfferingRef{ID: spaetID, Name: "Spätbetreuung"}), suggestion.Candidates)
+		assert.Zero(t, suggestion.MissingCount, "child 7001 is booked only by Spätbetreuung")
 	})
 
-	// Hand-picked children: Randstunde covers them fully, Ganztag only for
-	// 9 of its 14 children.
+	// Hand-picked children: Randstunde covers them fully, Ganztag only 9 of
+	// its 14 children; together they would cover 45 of 60 child-weekdays.
 	t.Run("Einzelkind", func(t *testing.T) {
 		t.Parallel()
 		roster := classRoster([]int{1, 2, 3}, cohort[:15])
@@ -370,6 +379,211 @@ func TestSuggestOfferingSourceAmbiguousForCohortTargets(t *testing.T) {
 
 		require.NotNil(t, suggestion)
 		assert.False(t, suggestion.Ambiguous)
-		assert.Equal(t, timetable.OfferingRef{ID: randstundeID, Name: "Randstunde"}, suggestion.Offering)
+		assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, suggestion.Offerings)
+		assert.Equal(t, 7, suggestion.UnbookedCount)
+	})
+}
+
+// TestDetectRosterDeviationKlasseRandstundeMitGanztag is the acceptance case
+// of #5139: the Randstunde of class 1a runs Monday, Wednesday and Thursday
+// 11:45 to 12:45 and is kept by hand with the whole class. Some children
+// book the Randstunde (pickup 12:45), some Ganztag from 12:45 on, some both;
+// either way they are cared for in that hour. Three children book nothing.
+// The hint suggests Randstunde and Ganztag together, counts only the three
+// children without a fitting booking, and connecting both drops nobody else.
+func TestDetectRosterDeviationKlasseRandstundeMitGanztag(t *testing.T) {
+	t.Parallel()
+	weekdays := []int{1, 3, 4}
+	class := studentRange(1001, 20)
+	roster := classRoster(weekdays, class, "1a")
+	roster.OfferingKind = timetable.RosterOfferingKindFor(timetable.GroupTypeCare, nil)
+	care := func(offeringID int64, name string, studentID int64, days ...int) timetable.OfferingWeekdayBooking {
+		entry := booking(offeringID, name, studentID, "1a", days...)
+		entry.CountsAsCare = true
+		entry.PhaseID = 7
+		return entry
+	}
+	bookings := []timetable.OfferingWeekdayBooking{}
+	// Randstunde only: 1001-1006, both: 1007-1010, Ganztag only: 1011-1017.
+	for _, studentID := range class[:10] {
+		bookings = append(bookings, care(randstundeID, "Randstunde", studentID, 1, 3, 4))
+	}
+	for _, studentID := range class[6:17] {
+		bookings = append(bookings, care(ganztagID, "Ganztag", studentID, 1, 2, 3, 4, 5))
+	}
+	// 1017 books Ganztag only on Monday and Randstunde on Wednesday and
+	// Thursday: every planned day has a fitting booking.
+	bookings[len(bookings)-1].Weekdays = []int{1}
+	bookings = append(bookings, care(randstundeID, "Randstunde", class[16], 3, 4))
+	// The lunch is no care and explains nothing.
+	for _, studentID := range class {
+		lunch := booking(spaetID, "Mittagessen", studentID, "1a", 1, 2, 3, 4, 5)
+		lunch.IncludesLunch = true
+		lunch.PhaseID = 7
+		bookings = append(bookings, lunch)
+	}
+
+	deviation := timetable.DetectRosterDeviation(roster, bookings)
+
+	require.NotNil(t, deviation)
+	assert.False(t, deviation.Ambiguous)
+	assert.ElementsMatch(t, []timetable.OfferingRef{
+		{ID: randstundeID, Name: "Randstunde"},
+		{ID: ganztagID, Name: "Ganztag"},
+	}, deviation.Offerings)
+	assert.Equal(t, 3, deviation.UnbookedCount, "only 1018 to 1020 have no fitting booking")
+	assert.Zero(t, deviation.MissingCount)
+	assert.Equal(t, []string{"1a"}, deviation.SchoolClasses)
+
+	changes := timetable.PreviewOfferingSource(roster, timetable.OfferingSourceFilter{
+		OfferingIDs: []int64{randstundeID, ganztagID}, SchoolClasses: deviation.SchoolClasses,
+	}, bookings)
+	for _, change := range changes {
+		assert.Equal(t, []int64{1018, 1019, 1020}, change.Removed, "weekday %d", change.Weekday)
+		assert.Empty(t, change.Added, "weekday %d", change.Weekday)
+		assert.Equal(t, 17, change.KeptCount, "weekday %d", change.Weekday)
+	}
+}
+
+// TestSuggestOfferingSourceCombination covers the limits of a combination:
+// two Randstunde children of a Ganztag class join although Randstunde alone
+// is below the rule; an offering of another enrollment phase never joins; a
+// combination that would bring too many unplanned children stops; two
+// offerings booking the same children stay a choice (#5138).
+func TestSuggestOfferingSourceCombination(t *testing.T) {
+	t.Parallel()
+	class := studentRange(1001, 10)
+
+	t.Run("gap filler below the rule joins", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2}, class, "1a")
+		bookings := []timetable.OfferingWeekdayBooking{}
+		for _, studentID := range class[:8] {
+			bookings = append(bookings, booking(ganztagID, "Ganztag", studentID, "1a", 1, 2))
+		}
+		for _, studentID := range class[8:] {
+			bookings = append(bookings, booking(randstundeID, "Randstunde", studentID, "1a", 1, 2))
+		}
+
+		deviation := timetable.SuggestOfferingSource(roster, bookings)
+
+		require.NotNil(t, deviation)
+		assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}, {ID: randstundeID, Name: "Randstunde"}}, deviation.Offerings)
+		assert.Zero(t, deviation.UnbookedCount)
+		assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}, {ID: randstundeID, Name: "Randstunde"}}, deviation.Candidates)
+	})
+
+	t.Run("another enrollment phase does not join", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1}, class, "1a")
+		bookings := []timetable.OfferingWeekdayBooking{}
+		for _, studentID := range class[:8] {
+			entry := booking(ganztagID, "Ganztag", studentID, "1a", 1)
+			entry.PhaseID = 1
+			bookings = append(bookings, entry)
+		}
+		for _, studentID := range class[8:] {
+			entry := booking(randstundeID, "Randstunde Nachmeldung", studentID, "1a", 1)
+			entry.PhaseID = 2
+			bookings = append(bookings, entry)
+		}
+
+		deviation := timetable.DetectRosterDeviation(roster, bookings)
+
+		require.NotNil(t, deviation)
+		assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}}, deviation.Offerings)
+		assert.Equal(t, 2, deviation.UnbookedCount)
+	})
+
+	// Each offering passes alone with 80 %, but together they bring four
+	// unplanned children for ten planned ones: 10/14 is below the rule.
+	t.Run("combination keeps the rule", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1}, class)
+		bookings := []timetable.OfferingWeekdayBooking{}
+		for _, studentID := range append(slices.Clone(class[:8]), 2001, 2002) {
+			bookings = append(bookings, booking(ganztagID, "Ganztag", studentID, "", 1))
+		}
+		for _, studentID := range append(slices.Clone(class[2:]), 3001, 3002) {
+			bookings = append(bookings, booking(randstundeID, "Randstunde", studentID, "", 1))
+		}
+
+		deviation := timetable.DetectRosterDeviation(roster, bookings)
+
+		require.NotNil(t, deviation)
+		assert.Len(t, deviation.Offerings, 1)
+		assert.Equal(t, 2, deviation.UnbookedCount)
+		assert.Equal(t, 2, deviation.MissingCount)
+		assert.Len(t, deviation.Candidates, 2, "the other offering stays a choice")
+	})
+
+	t.Run("two offerings with the same children stay a choice", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1}, class, "1a")
+		bookings := []timetable.OfferingWeekdayBooking{}
+		for _, studentID := range class[:8] {
+			bookings = append(bookings,
+				booking(ganztagID, "Ganztag bis 14.30 Uhr", studentID, "1a", 1),
+				booking(spaetID, "Ganztag bis 16 Uhr", studentID, "1a", 1))
+		}
+		for _, studentID := range class[8:] {
+			bookings = append(bookings, booking(randstundeID, "Randstunde", studentID, "1a", 1))
+		}
+
+		deviation := timetable.SuggestOfferingSource(roster, bookings)
+
+		require.NotNil(t, deviation)
+		assert.True(t, deviation.Ambiguous)
+		assert.Equal(t, []timetable.OfferingRef{
+			{ID: ganztagID, Name: "Ganztag bis 14.30 Uhr"},
+			{ID: randstundeID, Name: "Randstunde"},
+		}, deviation.Offerings)
+		assert.Equal(t, []timetable.OfferingRef{
+			{ID: ganztagID, Name: "Ganztag bis 14.30 Uhr"},
+			{ID: randstundeID, Name: "Randstunde"},
+			{ID: spaetID, Name: "Ganztag bis 16 Uhr"},
+		}, deviation.Candidates)
+	})
+}
+
+// TestDetectRosterDeviationMissingData: schools without class data, without
+// weekdays on a booking or without any booking keep working; such bookings
+// explain nothing and the rule decides as before. The rule reads no pickup
+// times, so a booking without one counts like any other.
+func TestDetectRosterDeviationMissingData(t *testing.T) {
+	t.Parallel()
+	class := studentRange(1001, 6)
+
+	t.Run("no bookings", func(t *testing.T) {
+		t.Parallel()
+		assert.Nil(t, timetable.DetectRosterDeviation(classRoster([]int{1}, class, "1a"), nil))
+		assert.Nil(t, timetable.SuggestOfferingSource(classRoster([]int{1}, class, "1a"), nil))
+	})
+
+	t.Run("bookings without class or weekdays", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 3}, class, "1a")
+		bookings := []timetable.OfferingWeekdayBooking{}
+		for _, studentID := range class[:4] {
+			bookings = append(bookings, booking(randstundeID, "Randstunde", studentID, "1a", 1, 3))
+		}
+		// No class: outside the Klasse target. No weekdays: plans no day.
+		bookings = append(bookings,
+			booking(ganztagID, "Ganztag", class[4], "", 1, 3),
+			booking(ganztagID, "Ganztag", class[5], "1a"),
+		)
+
+		deviation := timetable.DetectRosterDeviation(roster, bookings)
+
+		require.NotNil(t, deviation)
+		assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, deviation.Offerings)
+		assert.Equal(t, 2, deviation.UnbookedCount)
+	})
+
+	t.Run("roster without planned children", func(t *testing.T) {
+		t.Parallel()
+		roster := timetable.TemplateFutureRoster{Weekdays: map[int][]int64{1: {}}}
+		bookings := []timetable.OfferingWeekdayBooking{booking(randstundeID, "Randstunde", 1001, "", 1)}
+		assert.Nil(t, timetable.SuggestOfferingSource(roster, bookings))
 	})
 }

@@ -10463,7 +10463,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings",
       "target_owner": "care-plan"
@@ -10473,7 +10473,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.OfferingWeekdayBookings",
       "target_owner": "care-plan"
@@ -10483,7 +10483,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings",
       "target_owner": "care-plan"

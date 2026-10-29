@@ -27,13 +27,15 @@ import (
 const maxDraftRosterChildren = 2000
 
 type offeringSuggestionResponse struct {
-	Offering      templateRosterMaintenanceOfferingResponse   `json:"offering"`
+	// Offerings is the suggested source; several offerings combine (#5139).
+	Offerings     []templateRosterMaintenanceOfferingResponse `json:"offerings"`
 	GradeLevels   []int                                       `json:"grade_levels"`
 	SchoolClasses []string                                    `json:"school_classes"`
 	UnbookedCount int                                         `json:"unbooked_count"`
 	MissingCount  int                                         `json:"missing_count"`
 	Candidates    []templateRosterMaintenanceOfferingResponse `json:"candidates"`
-	// Ambiguous: several candidates fit fully; the school picks one.
+	// Ambiguous: other offerings fit as well as suggested ones; the school
+	// picks.
 	Ambiguous bool `json:"ambiguous"`
 }
 
@@ -44,7 +46,7 @@ type offeringSuggestionEnvelope struct {
 }
 
 // suggestDraftOfferingSource handles GET /offering-sources/suggestion: the
-// offering whose bookings the planned children obviously follow, with the
+// offerings whose bookings the planned children obviously follow, with the
 // Klassen- or Jahrgangsfilter of the planned targets.
 func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Request) {
 	if rs.OfferingSourceOptions == nil {
@@ -85,7 +87,7 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 // withoutTemplate drops the template id a planned Regeltermin does not have.
 func (d rosterDeviationResponse) withoutTemplate() offeringSuggestionResponse {
 	return offeringSuggestionResponse{
-		Offering: d.Offering, GradeLevels: d.GradeLevels, SchoolClasses: d.SchoolClasses,
+		Offerings: d.Offerings, GradeLevels: d.GradeLevels, SchoolClasses: d.SchoolClasses,
 		UnbookedCount: d.UnbookedCount, MissingCount: d.MissingCount, Candidates: d.Candidates,
 		Ambiguous: d.Ambiguous,
 	}

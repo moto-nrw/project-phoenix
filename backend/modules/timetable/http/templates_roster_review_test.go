@@ -148,8 +148,9 @@ func rosterReviewBookings(offeringID int64, name, class string, studentIDs []int
 
 // TestTemplateRosterDeviationsSchuleAmBerg: the whole class 1a sits in a
 // Klasse Regeltermin by hand; "Randstunde" books four of its six children on
-// Monday and Wednesday, "Ganztag" one child. The hint names Randstunde with
-// the Klassenfilter and counts the two children without a booking. An
+// Monday and Wednesday, "Ganztag" one child. The hint names Randstunde and,
+// for that child, Ganztag (#5139) with the Klassenfilter and counts the one
+// child without a booking. An
 // automatic Regeltermin, a roster with too few booked children and a series
 // confirmed as hand-kept show no hint.
 func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
@@ -183,12 +184,14 @@ func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
 	require.Len(t, deviations, 1, "only the hand-kept Klasse Regeltermin deviates: %+v", deviations)
 	got := deviations[0]
 	assert.Equal(t, deviating, got.TemplateID)
-	assert.Equal(t, templateRosterMaintenanceOfferingResponse{ID: randstunde, Name: "Randstunde"}, got.Offering)
+	assert.Equal(t, []templateRosterMaintenanceOfferingResponse{
+		{ID: randstunde, Name: "Randstunde"}, {ID: randstunde + 1, Name: "Ganztag"},
+	}, got.Offerings)
 	assert.Equal(t, []string{"1a"}, got.SchoolClasses)
 	assert.Empty(t, got.GradeLevels)
-	assert.Equal(t, 2, got.UnbookedCount)
+	assert.Equal(t, 1, got.UnbookedCount, "class[4] books Ganztag; only class[5] books nothing")
 	assert.Zero(t, got.MissingCount)
-	assert.Equal(t, []templateRosterMaintenanceOfferingResponse{{ID: randstunde, Name: "Randstunde"}}, got.Candidates)
+	assert.Equal(t, got.Offerings, got.Candidates, "no other offering passes the rule")
 
 	// The list carries the decision; undoing it brings the hint back.
 	list := decodeTemplateData[listTemplatesResponse](t,

@@ -112,10 +112,13 @@ func ExplainEmptyOfferingRoster(
 type OfferingWeekdayBooking struct {
 	OfferingID   int64
 	OfferingName string
-	StudentID    int64
-	SchoolClass  string
-	GradeLevel   *int16
-	Weekdays     []int
+	// PhaseID is the offering's enrollment phase; a combined source must
+	// stay within one phase (#5139).
+	PhaseID     int64
+	StudentID   int64
+	SchoolClass string
+	GradeLevel  *int16
+	Weekdays    []int
 	// CountsAsCare and IncludesLunch are the offering's catalog flags; they
 	// tell care blocks, Mensa lists and courses apart.
 	CountsAsCare  bool

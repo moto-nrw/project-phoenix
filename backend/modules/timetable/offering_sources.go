@@ -48,8 +48,11 @@ type OfferingTemplateGapDecision interface {
 type OfferingWeekdayBooking struct {
 	OfferingID   int64
 	OfferingName string
-	StudentID    int64
-	SchoolClass  string
+	// PhaseID is the offering's enrollment phase; a combined source must
+	// stay within one phase (#5139).
+	PhaseID     int64
+	StudentID   int64
+	SchoolClass string
 	// GradeLevel is the Jahrgang derived from the school class; nil when
 	// the class carries none.
 	GradeLevel *int

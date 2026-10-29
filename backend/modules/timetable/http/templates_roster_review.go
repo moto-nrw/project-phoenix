@@ -21,14 +21,16 @@ import (
 )
 
 type rosterDeviationResponse struct {
-	TemplateID    int64                                       `json:"template_id"`
-	Offering      templateRosterMaintenanceOfferingResponse   `json:"offering"`
+	TemplateID int64 `json:"template_id"`
+	// Offerings is the suggested source; several offerings combine (#5139).
+	Offerings     []templateRosterMaintenanceOfferingResponse `json:"offerings"`
 	GradeLevels   []int                                       `json:"grade_levels"`
 	SchoolClasses []string                                    `json:"school_classes"`
 	UnbookedCount int                                         `json:"unbooked_count"`
 	MissingCount  int                                         `json:"missing_count"`
 	Candidates    []templateRosterMaintenanceOfferingResponse `json:"candidates"`
-	// Ambiguous: several candidates fit fully; the school picks one.
+	// Ambiguous: other offerings fit as well as suggested ones; the school
+	// picks.
 	Ambiguous bool `json:"ambiguous"`
 }
 
@@ -129,7 +131,7 @@ func rosterDeviationResponseFrom(templateID int64, deviation *timetable.RosterDe
 	}
 	return rosterDeviationResponse{
 		TemplateID:    templateID,
-		Offering:      templateRosterMaintenanceOfferingResponse{ID: deviation.Offering.ID, Name: deviation.Offering.Name},
+		Offerings:     rosterMaintenanceOfferings(deviation.Offerings),
 		GradeLevels:   gradeLevels,
 		SchoolClasses: schoolClasses,
 		UnbookedCount: deviation.UnbookedCount,

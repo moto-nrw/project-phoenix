@@ -95,7 +95,7 @@ describe("mapOfferingSuggestion", () => {
     expect(mapOfferingSuggestion({ suggestion: null })).toBeNull();
     const suggestion = mapOfferingSuggestion({
       suggestion: {
-        offering: { id: 7, name: "Randstunde" },
+        offerings: [{ id: 7, name: "Randstunde" }],
         school_classes: ["1b"],
         grade_levels: null,
         unbooked_count: 2,
@@ -104,7 +104,7 @@ describe("mapOfferingSuggestion", () => {
       },
     });
     expect(suggestion).toEqual({
-      offering: { id: "7", name: "Randstunde" },
+      offerings: [{ id: "7", name: "Randstunde" }],
       schoolClasses: ["1b"],
       gradeLevels: [],
       unbookedCount: 2,
@@ -115,7 +115,7 @@ describe("mapOfferingSuggestion", () => {
     expect(
       mapOfferingSuggestion({
         suggestion: {
-          offering: { id: 7, name: "Randstunde" },
+          offerings: [{ id: 7, name: "Randstunde" }],
           unbooked_count: 2,
           missing_count: 0,
           ambiguous: true,
@@ -127,6 +127,18 @@ describe("mapOfferingSuggestion", () => {
       gradeLevels: [],
       schoolClasses: ["1b"],
     });
+    const combined = mapOfferingSuggestion({
+      suggestion: {
+        offerings: [
+          { id: 7, name: "Randstunde" },
+          { id: 4, name: "Ganztag" },
+        ],
+        school_classes: ["1a"],
+        unbooked_count: 0,
+        missing_count: 0,
+      },
+    });
+    expect(suggestionSelection(combined!).offeringIds).toEqual(["7", "4"]);
   });
 });
 

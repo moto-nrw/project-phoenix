@@ -218,6 +218,7 @@ func TestOfferingWeekdayBookingsListsTheBookedWeekdays(t *testing.T) {
 	require.Len(t, bookings, 1)
 	assert.Equal(t, source.ID, bookings[0].OfferingID)
 	assert.Equal(t, source.Name, bookings[0].OfferingName)
+	assert.Equal(t, source.PhaseID, bookings[0].PhaseID, "a combined source stays within one phase (#5139)")
 	assert.Equal(t, studentID, bookings[0].StudentID)
 	assert.Equal(t, []int{1}, bookings[0].Weekdays, "the booking plans Monday")
 	assert.Equal(t, source.CountsAsCare, bookings[0].CountsAsCare, "the catalog flags travel with the booking")

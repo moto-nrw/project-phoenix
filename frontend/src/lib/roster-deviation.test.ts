@@ -14,7 +14,7 @@ import {
 
 const deviation: RosterDeviation = {
   templateId: "7",
-  offering: { id: "3", name: "Randstunde" },
+  offerings: [{ id: "3", name: "Randstunde" }],
   gradeLevels: [],
   schoolClasses: ["1a"],
   unbookedCount: 8,
@@ -24,9 +24,24 @@ const deviation: RosterDeviation = {
 };
 
 describe("describeRosterDeviation", () => {
-  it("names the children without booking and the matching offering", () => {
+  it("names the matching offering and the children not booked there", () => {
     expect(describeRosterDeviation(deviation)).toBe(
-      "Weicht von Anmeldungen ab: 8 Kinder ohne Buchung · passt zu „Randstunde“",
+      "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 8 Kinder sind dort nicht angemeldet",
+    );
+  });
+
+  it("names every offering of a combined suggestion and counts only children booked in none of them (#5139)", () => {
+    expect(
+      describeRosterDeviation({
+        ...deviation,
+        offerings: [
+          { id: "3", name: "Randstunde" },
+          { id: "4", name: "Ganztag" },
+        ],
+        unbookedCount: 3,
+      }),
+    ).toBe(
+      "Weicht von Anmeldungen ab: passt zu „Randstunde“ und „Ganztag“ · 3 Kinder sind dort nicht angemeldet",
     );
   });
 
@@ -38,7 +53,7 @@ describe("describeRosterDeviation", () => {
         missingCount: 1,
       }),
     ).toBe(
-      "Weicht von Anmeldungen ab: 1 Kind ohne Buchung · 1 angemeldetes Kind fehlt · passt zu „Randstunde“",
+      "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 1 Kind ist dort nicht angemeldet · 1 angemeldetes Kind fehlt",
     );
     expect(
       describeRosterDeviation({
@@ -47,7 +62,7 @@ describe("describeRosterDeviation", () => {
         missingCount: 2,
       }),
     ).toBe(
-      "Weicht von Anmeldungen ab: 2 angemeldete Kinder fehlen · passt zu „Randstunde“",
+      "Weicht von Anmeldungen ab: passt zu „Randstunde“ · 2 angemeldete Kinder fehlen",
     );
   });
 
@@ -75,7 +90,7 @@ describe("mapRosterDeviations", () => {
         deviations: [
           {
             template_id: 7,
-            offering: { id: 3, name: "Randstunde" },
+            offerings: [{ id: 3, name: "Randstunde" }],
             grade_levels: null,
             school_classes: ["1a"],
             unbooked_count: 8,
@@ -90,7 +105,7 @@ describe("mapRosterDeviations", () => {
         deviations: [
           {
             template_id: 7,
-            offering: { id: 3, name: "Randstunde" },
+            offerings: [{ id: 3, name: "Randstunde" }],
             school_classes: ["1a"],
             unbooked_count: 8,
             missing_count: 0,
@@ -149,6 +164,13 @@ describe("selection helpers", () => {
         schoolClasses: [],
       }),
     ).toBe("Alle angemeldeten Kinder des Angebots");
+    expect(
+      describeSelectionFilter({
+        offeringIds: ["3", "4"],
+        gradeLevels: [],
+        schoolClasses: [],
+      }),
+    ).toBe("Alle angemeldeten Kinder der Angebote");
   });
 
   it("builds the preview query and the connection body with numeric ids", () => {
