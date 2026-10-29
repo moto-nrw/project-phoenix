@@ -167,7 +167,8 @@ func mergeSuccessorOfferingSource(in *TemplateSplitInput, old *activityContract.
 
 // validateSuccessorOfferingSource rejects a split whose successor would carry
 // its (merged) offering-source rule (#2137) into a calendar period the
-// offering's phase does not fit, or point it at an unknown/inactive offering.
+// offering's phase does not fit, or point it at an unknown or newly selected
+// inactive offering (a stored one that turned inactive is skipped, #5313).
 // Create and update refuse those combinations (ErrOfferingSourceInvalid →
 // 400); a "this and following" edit must not be the back door that persists
 // them, leaving later approvals to skip the template with only a warning.
@@ -229,6 +230,8 @@ func (s *TemplateSplitService) resyncSuccessorOfferingSource(
 		SchoolClasses:    append([]string(nil), successor.SourceSchoolClasses...),
 		CalendarPeriodID: in.CalendarPeriodID,
 		EffectiveFrom:    in.EffectiveDate,
+		// The guard before the split checked the same ids against these.
+		StoredOfferingIDs: append([]int64(nil), old.SourceCareOfferingIDs...),
 	}); err != nil {
 		return &ports.ScheduleError{Op: "split template: resync offering source", Err: err}
 	}

@@ -22,7 +22,11 @@ const CodeEnrollmentCareOfferingPickupTimeInvalid = "enrollment.care_offering_pi
 const CodeEnrollmentCareOfferingPickupTimesRequired = "enrollment.care_offering_pickup_times_required"
 const CodeEnrollmentCareOfferingPriceInvalid = "enrollment.care_offering_price_invalid"
 const CodeEnrollmentCareOfferingSelectionInvalid = "enrollment.care_offering_selection_invalid"
+const CodeEnrollmentCareOfferingTemplateMixedPhases = "enrollment.care_offering_template_mixed_phases"
+const CodeEnrollmentCareOfferingTemplateNoActiveSource = "enrollment.care_offering_template_no_active_source"
+const CodeEnrollmentCareOfferingTemplateOutsidePeriod = "enrollment.care_offering_template_outside_period"
 const CodeEnrollmentCareOfferingTemplatePeriodMismatch = "enrollment.care_offering_template_period_mismatch"
+const CodeEnrollmentCareOfferingTemplateSourceInvalid = "enrollment.care_offering_template_source_invalid"
 const CodeEnrollmentCareOfferingUnavailable = "enrollment.care_offering_unavailable"
 const CodeEnrollmentCareOfferingsDisabled = "enrollment.care_offerings_disabled"
 const CodeEnrollmentChangeRequestChildLocked = "enrollment.change_request_child_locked"
@@ -161,7 +165,11 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentCareOfferingPickupTimesRequired, "input"},
 	{CodeEnrollmentCareOfferingPriceInvalid, "input"},
 	{CodeEnrollmentCareOfferingSelectionInvalid, "input"},
+	{CodeEnrollmentCareOfferingTemplateMixedPhases, "business_rejection"},
+	{CodeEnrollmentCareOfferingTemplateNoActiveSource, "business_rejection"},
+	{CodeEnrollmentCareOfferingTemplateOutsidePeriod, "business_rejection"},
 	{CodeEnrollmentCareOfferingTemplatePeriodMismatch, "input"},
+	{CodeEnrollmentCareOfferingTemplateSourceInvalid, "business_rejection"},
 	{CodeEnrollmentCareOfferingUnavailable, "business_rejection"},
 	{CodeEnrollmentCareOfferingsDisabled, "permission"},
 	{CodeEnrollmentChangeRequestChildLocked, "permission"},

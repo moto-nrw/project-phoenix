@@ -287,8 +287,16 @@ export const ERROR_CATALOG = {
         "Der Preis darf nicht kleiner als 0 sein.",
       "enrollment.care_offering_selection_invalid":
         "Bitte prüfen Sie die Auswahlregel. Alle Angebote einer Auswahlgruppe brauchen dieselbe Regel.",
+      "enrollment.care_offering_template_mixed_phases":
+        "Im Regeltermin „{template}“ gehören alle Angebote zur selben Anmeldephase. Behalten Sie die Anmeldephase von „{offering}“ bei. Oder entfernen Sie das Angebot zuerst im Regeltermin unter „Angebote als Quelle“.",
+      "enrollment.care_offering_template_no_active_source":
+        "Der Regeltermin „{template}“ hätte dann kein eingeschaltetes Angebot mehr. Schalten Sie „{offering}“ wieder ein. Oder ändern Sie zuerst im Regeltermin die „Angebote als Quelle“.",
+      "enrollment.care_offering_template_outside_period":
+        "Die Anmeldephase von „{offering}“ passt nicht in den Zeitraum des Regeltermins „{template}“. Wählen Sie eine passende Anmeldephase. Oder entfernen Sie das Angebot zuerst im Regeltermin unter „Angebote als Quelle“.",
       "enrollment.care_offering_template_period_mismatch":
         "Der Regeltermin muss den ganzen Betreuungszeitraum abdecken. Bitte wählen Sie einen passenden Regeltermin.",
+      "enrollment.care_offering_template_source_invalid":
+        "„{offering}“ passt nicht mehr zum Regeltermin „{template}“. Prüfen Sie im Regeltermin die „Angebote als Quelle“.",
       "enrollment.care_offering_unavailable":
         "Ein gewähltes Angebot gibt es nicht für die Klassenstufe des Kindes. Bitte prüfen Sie Klassenstufe und Auswahl.",
       "enrollment.care_offerings_disabled":
