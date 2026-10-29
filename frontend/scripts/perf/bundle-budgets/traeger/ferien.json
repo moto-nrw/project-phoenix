@@ -23,8 +23,9 @@
       "maxBytes": 878510
     },
     "/traeger/ferien/[id]/formular": {
-      "referenceBytes": 836329,
-      "maxBytes": 853056
+      "referenceBytes": 876825,
+      "maxBytes": 894362,
+      "_reason": "#5199: Neuer gemeinsamer Rechtsblock-Editor mit PDF-Upload und Vorschau. Die kalte Messung steigt von 836329 auf 876825 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz. Nachgeladene Chunks zählen vollständig mit."
     }
   }
 }
