@@ -12,7 +12,7 @@ import { Modal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import type { FormLegalBlock } from "~/lib/enrollment-form-schema-api";
 
-export function holidayPublicDocumentPath(token: string, id: string): string {
+function holidayPublicDocumentPath(token: string, id: string): string {
   return `/api/holiday-registrations/${encodeURIComponent(token)}/documents/${encodeURIComponent(id)}`;
 }
 

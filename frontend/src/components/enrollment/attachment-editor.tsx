@@ -28,7 +28,7 @@ export interface AttachmentUploadAdapter {
     options?: { keepalive?: boolean },
   ) => Promise<void>;
 }
-export const SCHOOL_ATTACHMENT_UPLOAD: AttachmentUploadAdapter = {
+const SCHOOL_ATTACHMENT_UPLOAD: AttachmentUploadAdapter = {
   upload: uploadEnrollmentLegalDocument,
   remove: deleteEnrollmentLegalDocument,
 };
