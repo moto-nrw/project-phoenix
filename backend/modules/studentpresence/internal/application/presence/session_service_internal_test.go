@@ -908,21 +908,45 @@ func TestActivityConflictDestination(t *testing.T) {
 		"copies in different rooms stay a conflict")
 }
 
-func TestMarkRollbackOnRoomCapacity(t *testing.T) {
+func TestMarkRollbackOnFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := tenant.WithRollbackMarker(context.Background())
 	capacityErr := &RoomCapacityError{RoomID: 30, RoomName: "Mensa", CurrentOccupancy: 43, MaxCapacity: 43}
 
-	returned := markRollbackOnRoomCapacity(ctx, capacityErr)
+	returned := markRollbackOnFailure(ctx, capacityErr)
 
 	require.ErrorIs(t, returned, ErrRoomCapacityExceeded)
 	assert.True(t, tenant.RollbackRequested(ctx))
 
 	otherCtx := tenant.WithRollbackMarker(context.Background())
 	otherErr := errors.New("other failure")
-	assert.ErrorIs(t, markRollbackOnRoomCapacity(otherCtx, otherErr), otherErr)
-	assert.False(t, tenant.RollbackRequested(otherCtx))
+	assert.ErrorIs(t, markRollbackOnFailure(otherCtx, otherErr), otherErr)
+	assert.True(t, tenant.RollbackRequested(otherCtx), "every failed start rolls back, a 4xx refusal included")
+
+	okCtx := tenant.WithRollbackMarker(context.Background())
+	assert.NoError(t, markRollbackOnFailure(okCtx, nil))
+	assert.False(t, tenant.RollbackRequested(okCtx))
+}
+
+func TestSessionStartErrorClassifiesConflicts(t *testing.T) {
+	t.Parallel()
+
+	for name, err := range map[string]error{
+		"joined stay ended twice": errJoinedSessionEnded,
+		"bare session conflict":   ErrSessionConflict,
+	} {
+		var activeErr *ActiveError
+		require.ErrorAs(t, sessionStartError("StartActivitySession", err), &activeErr, name)
+		assert.ErrorIs(t, activeErr.Err, ErrSessionConflict, name)
+		assert.NotErrorIs(t, activeErr, errJoinedSessionEnded, name)
+	}
+
+	wrapped := &ActiveError{Op: "StartActivitySession", Err: ErrRoomConflict}
+	assert.Same(t, wrapped, sessionStartError("StartActivitySession", wrapped))
+	other := errors.New("other failure")
+	assert.Same(t, other, sessionStartError("StartActivitySession", other))
+	assert.NoError(t, sessionStartError("StartActivitySession", nil))
 }
 
 func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing.T) {

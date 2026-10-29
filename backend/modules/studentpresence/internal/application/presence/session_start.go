@@ -125,14 +125,48 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 		if err := s.SchoolPresence.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
 			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}
 		}
-		if err := s.checkSessionStartConflicts(txCtx, activityID, deviceID, finalRoomID, operation); err != nil {
-			return err
-		}
-
-		_, err = createSession(txCtx, finalRoomID)
-		return err
+		return s.startInRoom(txCtx, activityID, deviceID, finalRoomID, operation, createSession)
 	})
-	return markRollbackOnRoomCapacity(ctx, err)
+	return markRollbackOnFailure(ctx, err)
+}
+
+// errJoinedSessionEnded reports that the room stay a start joins ended while
+// the start took over the device's visits.
+var errJoinedSessionEnded = errors.New("joined session ended during the takeover")
+
+// startInRoom checks the room's conflicts and creates or joins the session
+// under a savepoint. When the joined stay ended during the takeover
+// (#5206), the savepoint undoes the takeover and the start runs once more
+// against the room's new state, in which that stay is no longer joinable.
+func (s *service) startInRoom(ctx context.Context, activityID, deviceID, roomID int64, operation string, createSession func(context.Context, int64) (*ports.ActiveGroup, error)) error {
+	attempt := func() error {
+		return tenant.WithSavepoint(ctx, func(spCtx context.Context) error {
+			if err := s.checkSessionStartConflicts(spCtx, activityID, deviceID, roomID, operation); err != nil {
+				return err
+			}
+			_, err := createSession(spCtx, roomID)
+			return err
+		})
+	}
+	err := attempt()
+	if errors.Is(err, errJoinedSessionEnded) {
+		err = attempt()
+	}
+	return sessionStartError(operation, err)
+}
+
+// sessionStartError turns a start's session conflict into the operation
+// error the kiosk contract classifies as 409. A bare sentinel would leave the
+// IoT route without a classification and answer 500.
+func sessionStartError(operation string, err error) error {
+	var activeErr *ActiveError
+	if errors.As(err, &activeErr) {
+		return err
+	}
+	if errors.Is(err, errJoinedSessionEnded) || errors.Is(err, ErrSessionConflict) {
+		return &ActiveError{Op: operation, Err: ErrSessionConflict}
+	}
+	return err
 }
 
 // ensureDeviceHasNoSession rejects a start on a device that already runs a
@@ -344,8 +378,9 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 // locks the session it checks into and then the room row for its capacity
 // check; the join takes the same rows in the same order (#5206). It moves the
 // visits first and locks the session afterwards, read again because it may
-// have ended while the takeover waited; the device's room, whose foreign key
-// shares the room row, follows in finishSessionStart.
+// have ended while the takeover waited (startInRoom then undoes the takeover);
+// the device's room, whose foreign key shares the room row, follows in
+// finishSessionStart.
 func (s *service) joinOpenSession(ctx context.Context, existing *ports.ActiveGroup, deviceID, roomID int64) (*ports.ActiveGroup, int, error) {
 	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, existing.ID, deviceID)
 	if err != nil {
@@ -355,9 +390,7 @@ func (s *service) joinOpenSession(ctx context.Context, existing *ports.ActiveGro
 	if existing.DeviceID == nil && deviceID > 0 {
 		group, err = s.lockActiveGroupOpenForUpdate(ctx, existing.ID)
 		if errors.Is(err, ErrActiveGroupNotFound) {
-			// The session ended while the takeover waited; the start
-			// rolls back and may be repeated against the room's new state.
-			return nil, 0, ErrSessionConflict
+			return nil, 0, errJoinedSessionEnded
 		}
 		if err != nil {
 			return nil, 0, err

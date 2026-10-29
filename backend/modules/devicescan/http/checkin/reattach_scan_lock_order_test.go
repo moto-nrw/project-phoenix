@@ -32,6 +32,7 @@ type reattachScanFixture struct {
 	scanDevice testutil.RequestOption
 	scanStaff  testutil.RequestOption
 	device     int64
+	startKiosk testutil.RequestOption
 	supervisor int64
 	activity   int64
 	room       int64
@@ -65,6 +66,7 @@ func newReattachScanFixture(t *testing.T) reattachScanFixture {
 	// still holds two children.
 	device := testpkg.CreateTestDevice(t, k.db, "reattach-start-kiosk")
 	f.device = device.ID
+	f.startKiosk = testutil.WithDeviceContext(device)
 	_, _, ended := k.roomWithSession(t, "Reattach Mensa")
 	f.ended = ended
 	testpkg.LinkDeviceToActiveGroup(t, k.db, ended, device.ID)

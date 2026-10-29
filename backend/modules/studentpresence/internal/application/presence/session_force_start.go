@@ -2,7 +2,6 @@ package presence
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -70,7 +69,7 @@ func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, d
 		*newGroup = group
 		return nil
 	})
-	return markRollbackOnRoomCapacity(ctx, err)
+	return markRollbackOnFailure(ctx, err)
 }
 
 // lockForceStart takes the force start's locks in their fixed order: the
@@ -160,8 +159,12 @@ func (s *service) validateTransferredSupervisorLocks(ctx context.Context, groupI
 	return nil
 }
 
-func markRollbackOnRoomCapacity(ctx context.Context, err error) error {
-	if errors.Is(err, ErrRoomCapacityExceeded) {
+// markRollbackOnFailure rolls back the caller's request transaction on every
+// failed start. A start joins the handler's transaction; without the marker a
+// refusal answered with 4xx would commit what the start already wrote, such
+// as visits taken over into a session that ended meanwhile (#5206).
+func markRollbackOnFailure(ctx context.Context, err error) error {
+	if err != nil {
 		tenant.MarkRollback(ctx)
 	}
 	return err
