@@ -112,9 +112,7 @@ export function createResponseAwareAuth(
   ): Promise<T> => {
     const current = requestSession.getStore();
     if (!current)
-      throw new Error(
-        "Session mutation requires an authenticated response context",
-      );
+      throw new Error("Session mutation requires a response context");
     const result = await withServerSessionMutation(action);
     if (!accepts(result)) throw new Error("Session mutation was refused");
     const jar = await cookies();
@@ -173,34 +171,63 @@ export function createResponseAwareAuth(
         }
       }
 
-      // Auth.js appends the outer session cookie after the route callback.
-      // Append explicit retry cookies afterwards so the freshly rotated cookie
-      // wins when multiple Set-Cookie headers use the same cookie name.
-      for (const cookie of current.freshCookies) {
-        response.headers.append("Set-Cookie", cookie);
-      }
-      if (current.replacementCookies) {
-        // Discard ALL older writes of the replaced names, including chunks.
-        // A longer old rotation must not resurrect trailing session chunks.
-        const replacements = current.replacementCookies;
-        const names = replacements.map((cookie) =>
-          cookie.slice(0, cookie.indexOf("=")),
-        );
-        const bases = names.map((name) => name.replace(/\.\d+$/, ""));
-        const previous = response.headers.getSetCookie();
-        response.headers.delete("Set-Cookie");
-        for (const cookie of previous) {
-          const name = cookie.slice(0, cookie.indexOf("="));
-          if (!bases.includes(name.replace(/\.\d+$/, "")))
-            response.headers.append("Set-Cookie", cookie);
-        }
-        for (const cookie of replacements)
-          response.headers.append("Set-Cookie", cookie);
-      }
-      // Every authenticated BFF route of every portal leaves through here.
-      applyPrivateNoStore(response.headers);
-      return response;
+      return finishResponse(response, current);
     };
 
-  return { auth, uncachedAuth, withAuthResponse, mutateSession };
+  function finishResponse(
+    response: Response,
+    current: SessionContext,
+  ): Response {
+    // Auth.js appends the outer session cookie after the route callback.
+    // Append explicit retry cookies afterwards so the freshly rotated cookie
+    // wins when multiple Set-Cookie headers use the same cookie name.
+    for (const cookie of current.freshCookies) {
+      response.headers.append("Set-Cookie", cookie);
+    }
+    if (current.replacementCookies) {
+      // Discard ALL older writes of the replaced names, including chunks.
+      // A longer old rotation must not resurrect trailing session chunks.
+      const replacements = current.replacementCookies;
+      const names = replacements.map((cookie) =>
+        cookie.slice(0, cookie.indexOf("=")),
+      );
+      const bases = names.map((name) => name.replace(/\.\d+$/, ""));
+      const previous = response.headers.getSetCookie();
+      response.headers.delete("Set-Cookie");
+      for (const cookie of previous) {
+        const name = cookie.slice(0, cookie.indexOf("="));
+        if (!bases.includes(name.replace(/\.\d+$/, "")))
+          response.headers.append("Set-Cookie", cookie);
+      }
+      for (const cookie of replacements)
+        response.headers.append("Set-Cookie", cookie);
+    }
+    // Every authenticated BFF route of every portal leaves through here.
+    applyPrivateNoStore(response.headers);
+    return response;
+  }
+
+  /** Public session minting: capture server-action cookies without reading or
+   * renewing a previous session or applying its tenant-host mismatch guard. */
+  const withSessionResponse =
+    (handler: ResponseRouteHandler): ResponseRouteHandler =>
+    async (request, context) => {
+      const current: SessionContext = {
+        session: null,
+        request,
+        freshCookies: [],
+      };
+      const response = await requestSession.run(current, () =>
+        handler(request, context),
+      );
+      return finishResponse(response, current);
+    };
+
+  return {
+    auth,
+    uncachedAuth,
+    withAuthResponse,
+    mutateSession,
+    withSessionResponse,
+  };
 }

@@ -19,8 +19,13 @@ const {
   signIn,
   unstable_update,
 } = NextAuth(tenantAuthConfig);
-const { auth, uncachedAuth, withAuthResponse, mutateSession } =
-  createResponseAwareAuth(rawAuth, "tenant");
+const {
+  auth,
+  uncachedAuth,
+  withAuthResponse,
+  mutateSession,
+  withSessionResponse: withTenantSessionResponse,
+} = createResponseAwareAuth(rawAuth, "tenant");
 
 /**
  * Every tenant BFF route. A session of another school than the request's
@@ -33,7 +38,14 @@ const withTenantAuth: typeof withAuthResponse = (handler) =>
   });
 
 /** @public uncachedAuth — false positive in knip 6.x, used by route-wrapper.ts */
-export { auth, uncachedAuth, handlers, signIn, withTenantAuth };
+export {
+  auth,
+  uncachedAuth,
+  handlers,
+  signIn,
+  withTenantAuth,
+  withTenantSessionResponse,
+};
 
 /** Tokens never cross the BFF response boundary. Auth.js still validates them. */
 export async function setTenantSession(

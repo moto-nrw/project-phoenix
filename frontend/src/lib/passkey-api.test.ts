@@ -108,8 +108,6 @@ describe("passkey-api", () => {
       .mockResolvedValueOnce(
         jsonResponse(200, {
           status: "authenticated",
-          access_token: "access",
-          refresh_token: "refresh",
         }),
       );
 
@@ -119,8 +117,6 @@ describe("passkey-api", () => {
 
     expect(result).toEqual({
       status: "authenticated",
-      access_token: "access",
-      refresh_token: "refresh",
     });
     expect(mockStartAuthentication).toHaveBeenCalledWith({
       optionsJSON: { challenge: "tenant-challenge" },
