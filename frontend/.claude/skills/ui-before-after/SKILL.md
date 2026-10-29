@@ -21,8 +21,11 @@ not establish which state the browser shows.
   to switch, use a separate prepared checkout instead of overwriting them.
 - Read [native dev loop](../../../../docs/agents/operations.md#native-dev-loop).
   Record the actual frontend start command, mode, port, working directory and
-  process ownership before switching sources. Use the existing mode throughout.
-  Bootstrap only the services the shot list needs; preserve the database.
+  process ownership before switching sources. If another task uses this source
+  tree or the frontend cannot be restarted safely, move the comparison into a
+  separate prepared checkout with its own port and cache **before any switch**.
+  Use the existing mode throughout. Bootstrap only the services the shot list
+  needs; preserve the database.
 - Use local seeded credentials from the seed state, without copying them into
   documentation, logs or screenshots. Complete any MFA through local Mailpit.
 - Use a dedicated `agent-browser --session <name>` session. Set its viewport
@@ -42,9 +45,9 @@ not establish which state the browser shows.
      `scripts/dev-native.sh frontend <command...>`, stop that command gracefully
      and repeat the exact command with the same port and environment. This
      command wrapper does not need an `up`/`down` cycle.
-   - If a shared server cannot be restarted without disrupting another task,
-     use an isolated task-owned frontend with its own port and cache directory.
-     Never kill a listener just because it occupies the desired port.
+   - If ownership has changed since preflight, return to the prerequisites and
+     isolate the checkout before continuing. Never kill a listener just because
+     it occupies the desired port.
    A cache reset may replace a restart only if its effectiveness is demonstrated
    by the rendered-state check below. Never delete shared caches or data.
 2. **Check the rendered target, not just server readiness.** Open the URL, wait
