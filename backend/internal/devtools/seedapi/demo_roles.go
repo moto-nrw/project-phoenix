@@ -98,11 +98,8 @@ func demoRoleDefinitions() []demoRoleDefinition {
 
 // seedDemoRoles creates the reduced roles of the school with their
 // permission sets and remembers their ids next to the system roles.
-func (s *FixedSeeder) seedDemoRoles(_ context.Context) error {
-	return s.seedRoleDefinitions(demoRoleDefinitions())
-}
-
-func (s *FixedSeeder) seedRoleDefinitions(definitions []demoRoleDefinition) error {
+func (s *FixedSeeder) seedDemoRoles(_ context.Context, definitions ...demoRoleDefinition) error {
+	definitions = seedRoleDefinitionsOrDemo(definitions)
 	permissionIDs, err := s.fetchPermissionIDs()
 	if err != nil {
 		return err
@@ -142,6 +139,15 @@ func (s *FixedSeeder) seedRoleDefinitions(definitions []demoRoleDefinition) erro
 		fmt.Printf("  ✓ %d demo roles created\n", len(definitions))
 	}
 	return nil
+}
+
+// With no override, retain exactly the two public demo roles. The local
+// test account uses the same API path with its own separate definition.
+func seedRoleDefinitionsOrDemo(definitions []demoRoleDefinition) []demoRoleDefinition {
+	if len(definitions) == 0 {
+		return demoRoleDefinitions()
+	}
+	return definitions
 }
 
 // fetchPermissionIDs reads the permission catalog as "resource:action" -> id.

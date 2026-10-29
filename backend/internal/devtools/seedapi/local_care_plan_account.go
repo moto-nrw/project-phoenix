@@ -46,7 +46,7 @@ func (s seedLocalCarePlanAccountStep) enabled() bool {
 	return host == "localhost" || net.ParseIP(host).IsLoopback()
 }
 
-func (s seedLocalCarePlanAccountStep) Run(_ context.Context, rt *Runtime) error {
+func (s seedLocalCarePlanAccountStep) Run(ctx context.Context, rt *Runtime) error {
 	if !s.enabled() {
 		return nil
 	}
@@ -55,7 +55,7 @@ func (s seedLocalCarePlanAccountStep) Run(_ context.Context, rt *Runtime) error 
 		return fmt.Errorf("local care-plan account requires seeded staff credentials")
 	}
 	definition := localCarePlanRoleDefinition()
-	if err := fs.seedRoleDefinitions([]demoRoleDefinition{definition}); err != nil {
+	if err := fs.seedDemoRoles(ctx, definition); err != nil {
 		return err
 	}
 	// Reuse the existing seed credential, including --staff-password. No new
@@ -90,7 +90,7 @@ func (s seedLocalCarePlanAccountStep) Run(_ context.Context, rt *Runtime) error 
 	if account.Data.ID <= 0 || account.Data.SchoolIdentity == nil || account.Data.SchoolIdentity.StaffID <= 0 {
 		return fmt.Errorf("local care-plan account was created without a staff identity")
 	}
-	fs.localCarePlanAccount = &AccountCredentials{
+	s.seeder.localCarePlanAccount = &AccountCredentials{
 		Key: localCarePlanAccountKey, AccountID: account.Data.ID,
 		Email: email, Password: password, Name: "Testkonto Nachbearbeitung",
 		StaffID: account.Data.SchoolIdentity.StaffID,
