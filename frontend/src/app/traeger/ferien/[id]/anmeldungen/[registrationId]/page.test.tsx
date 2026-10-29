@@ -91,13 +91,15 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(card.getByText("Bescheid Bürgergeld.pdf")).toBeInTheDocument();
     expect(card.getByText("244 KB")).toBeInTheDocument();
     const open = card.getByRole("link", {
-      name: /Öffnen.*Bescheid Bürgergeld\.pdf in neuem Tab/,
+      name: "Bescheid Bürgergeld.pdf",
     });
     expect(open).toHaveAttribute(
       "href",
-      "/api/traeger/holiday-periods/5/registrations/7/proofs/91",
+      "/api/traeger/holiday-periods/5/registrations/7/proofs/91?inline=1",
     );
     expect(open).toHaveAttribute("target", "_blank");
+    expect(open).toHaveAttribute("rel", "noopener");
+    expect(open).toHaveAttribute("title", "In neuem Tab öffnen");
   });
 
   it("asks the office to collect a proof the parents did not upload (#5238)", async () => {
