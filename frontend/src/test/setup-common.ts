@@ -28,7 +28,8 @@ let fakeTimersInstalledBeforeTest = false;
 // stay shared within a file, never across files.
 const ProcessBroadcastChannel = globalThis.BroadcastChannel;
 if (ProcessBroadcastChannel) {
-  const testFile = process.env.VITEST_WORKER_ID ?? "";
+  // Vitest sets VITEST_WORKER_ID in every worker, unique per test file.
+  const testFile = process.env.VITEST_WORKER_ID;
   globalThis.BroadcastChannel = class extends ProcessBroadcastChannel {
     constructor(name: string) {
       super(`${testFile}:${name}`);
