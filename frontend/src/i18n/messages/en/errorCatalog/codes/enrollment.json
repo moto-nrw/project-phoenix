@@ -133,5 +133,7 @@
   "holiday_week_booked": "This week already has registrations. That is why the week and its booked time models cannot be removed.",
   "hosted_holiday_week_not_found": "There is no participant list for this week any more. It is only available until the last day of the week.",
   "holiday_guest_not_found": "The details of this holiday guest are no longer available. They are kept only until 7 days after the holiday week.",
-  "holiday_guest_group_invalid": "This group no longer exists. Please choose another group."
+  "holiday_guest_group_invalid": "This group no longer exists. Please choose another group.",
+  "holiday_form_field_not_allowed": "{object} could not be saved. Please check your entries.",
+  "holiday_registration_form_changed": "The provider has just changed the form. Please check your entries and send the registration again."
 }

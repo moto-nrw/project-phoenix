@@ -221,6 +221,7 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.change_request_messages":                    parent("enrollment.change_requests"),
 	"enrollment.change_requests":                            parent("enrollment.requests"),
 	"enrollment.form_schemas":                               notPersonal("enrollment form definitions"),
+	"enrollment.holiday_period_forms":                       notPersonal("form version of a Träger holiday period (#5198): the questions, no answers; goes with its period; created_by SET NULL on account delete"),
 	"enrollment.holiday_period_weeks":                       notPersonal("week of a Träger holiday period (#4659): dates and the host school ID, no person"),
 	"enrollment.holiday_periods":                            notPersonal("holiday period of a Träger (#4659): dates, hints and status, no person"),
 	"enrollment.holiday_guest_contacts":                     own("hourly holiday-guest-reconciliation -> HolidayGuestStore.PurgeContacts (7 days after the last day of the week) and EndGuest (cancelled guest, #4666, ADR 0120); otherwise with its guest"),

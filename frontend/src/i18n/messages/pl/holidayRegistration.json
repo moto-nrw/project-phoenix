@@ -91,6 +91,10 @@
     "weeks": "Wybierz co najmniej jeden tydzień.",
     "privacy": "Wyraź zgodę. Inaczej organizator nie może rozpatrzyć zgłoszenia.",
     "health": "Wyraź zgodę albo usuń informacje o zdrowiu.",
-    "binding": "Potwierdź, że zgłoszenie jest wiążące."
-  }
+    "binding": "Potwierdź, że zgłoszenie jest wiążące.",
+    "yesNo": "Wybierz tak lub nie.",
+    "choose": "Wybierz odpowiedź."
+  },
+  "childQuestionsTitle": "Dodatkowe informacje",
+  "familyQuestionsTitle": "Dodatkowe informacje o rodzinie"
 }

@@ -506,7 +506,9 @@ describe("TraegerBillingRunPage", () => {
     await screen.findAllByText("Muster, Eva");
     expect(screen.getByText("Abrechnungslauf")).toBeInTheDocument();
     expect(
-      screen.queryByText("Übersicht für die Kämmerei"),
+      screen.queryByRole("button", {
+        name: "Übersicht für die Kämmerei exportieren",
+      }),
     ).not.toBeInTheDocument();
   });
 
@@ -519,20 +521,22 @@ describe("TraegerBillingRunPage", () => {
     });
     renderPage();
 
-    expect(
-      await screen.findByText("Übersicht für die Kämmerei"),
-    ).toBeInTheDocument();
+    // Wie im Schul-Portal: das Menü mit den drei Punkten, Abschnitt
+    // „Exportieren“ (#5240).
+    const trigger = await screen.findByRole("button", {
+      name: "Übersicht für die Kämmerei exportieren",
+    });
     // The table renders a desktop row and a stacked phone row.
     expect(screen.getAllByText("FE-0001")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Muster, Eva")[0]).toBeInTheDocument();
     expect(screen.getAllByText("Lia, Ben")[0]).toBeInTheDocument();
 
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Übersicht für die Kämmerei herunterladen",
-      }),
-    );
-    fireEvent.click(await screen.findByRole("menuitem", { name: "CSV" }));
+    fireEvent.click(trigger);
+    expect(await screen.findByText("Exportieren")).toBeInTheDocument();
+    expect(
+      screen.getAllByRole("menuitem").map((item) => item.textContent),
+    ).toEqual(["PDF", "Excel", "CSV"]);
+    fireEvent.click(screen.getByRole("menuitem", { name: "CSV" }));
     await waitFor(() =>
       expect(downloadBlob).toHaveBeenCalledWith(
         blob,
@@ -550,11 +554,10 @@ describe("TraegerBillingRunPage", () => {
       }),
     );
     renderPage();
-    await screen.findByText("Übersicht für die Kämmerei");
 
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Übersicht für die Kämmerei herunterladen",
+      await screen.findByRole("button", {
+        name: "Übersicht für die Kämmerei exportieren",
       }),
     );
     fireEvent.click(await screen.findByRole("menuitem", { name: "PDF" }));

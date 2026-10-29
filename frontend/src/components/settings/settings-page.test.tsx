@@ -74,7 +74,11 @@ const mockPermissions = { value: [] as string[] };
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
-      user: { token: "test-token", permissions: mockPermissions.value },
+      user: {
+        id: "1",
+        token: "test-token",
+        permissions: mockPermissions.value,
+      },
       expires: "2099-01-01",
     },
     status: "authenticated",

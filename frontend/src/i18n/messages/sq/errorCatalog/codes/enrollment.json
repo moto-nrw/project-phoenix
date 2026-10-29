@@ -133,5 +133,7 @@
   "holiday_week_booked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "hosted_holiday_week_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "holiday_guest_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "holiday_guest_group_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+  "holiday_guest_group_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "holiday_form_field_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "holiday_registration_form_changed": "Organizatori sapo ndryshoi formularin. Ju lutemi kontrolloni të dhënat dhe dërgojeni regjistrimin përsëri."
 }

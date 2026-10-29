@@ -247,6 +247,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.traegerAccounts]: "traeger",
   [HELP_TOPICS.traegerHolidayPeriod]: "traeger",
   [HELP_TOPICS.traegerHolidayRegistration]: "traeger",
+  [HELP_TOPICS.traegerHolidayForm]: "traeger",
   [HELP_TOPICS.traegerHolidayRegistrationReview]: "traeger",
   [HELP_TOPICS.traegerHolidayContribution]: "traeger",
   [HELP_TOPICS.traegerBillingRun]: "traeger",

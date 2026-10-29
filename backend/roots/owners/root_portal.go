@@ -89,7 +89,7 @@ func BuildParentPortal(
 		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: messaging.ParentMessageThread, MessageRepo: messages, ReadRepo: messaging.ParentMessageRead,
 			Broadcaster: hub, Logger: env.Logger.With("service", "parent"),
-		}), BindParentLeadershipChoice(settings, ParentMessageLeadership{Staff: people.Staff, Admins: identity})),
+		}), BindParentLeadershipChoice(settings, BindParentMessageLeadership(people.Staff, identity))),
 		ParentMessageNotifier: bindParentMessageNotifier(notifications.StaffParentMessages), ArrivalSchedules: NewParentArrivalSchedules(schedules.Arrivals),
 		PickupSchedules: NewParentPickupSchedules(schedules.Pickups), CareRequests: requests.CareRequests, ExcusedRequests: NewParentExcusedAbsenceRequests(requests.Excused),
 		Emitter: BindParentChildEvents(emitter), MessagingEnabled: BindParentMessagingGate(settings, env.Logger.With("service", "parent")), AnnouncementRepo: BindParentAnnouncementAccess(messaging.ParentAnnouncement),

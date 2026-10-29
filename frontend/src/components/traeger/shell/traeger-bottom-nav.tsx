@@ -23,6 +23,7 @@ import { isTraegerNavActive } from "./traeger-nav-active";
 import {
   TRAEGER_HELP_NAV,
   traegerNavItemsFor,
+  traegerSettingsNavItemsFor,
   type TraegerNavItem,
 } from "./traeger-nav-items";
 
@@ -44,7 +45,8 @@ const HELP_ITEM: BottomNavItem = { ...TRAEGER_HELP_NAV, help: true };
 /**
  * Die mobile Hauptnavigation des Träger-Portals (#5145): die geteilte
  * `PortalBottomNav` des Schul-Portals mit den Zielen, die die Rechte der
- * Person öffnen.
+ * Person öffnen. Die Unterpunkte der Einstellungen, die die Seitenleiste
+ * unten einklappt (#5242), stehen hier hinter den Arbeitsbereichen.
  *
  * Wie im Schul-Portal trägt nur das aktive Ziel seinen Namen. Eine Person mit
  * allen Rechten hat acht Seiten und die Hilfe, das passt nicht in eine
@@ -58,6 +60,7 @@ export function TraegerBottomNav() {
 
   const items: readonly BottomNavItem[] = [
     ...traegerNavItemsFor(session ?? null),
+    ...traegerSettingsNavItemsFor(session ?? null),
     HELP_ITEM,
   ];
   const crowded = items.length > MAX_SLOTS;

@@ -33,7 +33,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
       {
         title: "Bestätigen oder stornieren",
         steps: [
-          "Prüfen Sie die Angaben der Eltern und der Kinder.",
+          "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
           "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
           "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
           "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
@@ -69,7 +69,7 @@ export function traegerHolidayRegistrationReviewTopic(): HelpTopic {
     notes: [
       "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
       "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
-      "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin.",
+      "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
       "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
       "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
       "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",

@@ -105,7 +105,7 @@ describe("useUserContext with the shell seed", () => {
 
     // Wie useTenantMutate(USER_CONTEXT_SWR_KEY) nach einer Einstellung.
     await act(async () => {
-      await mutate(`${tenantState.slug}:${USER_CONTEXT_SWR_KEY}`);
+      await mutate(`${tenantState.slug}:7:${USER_CONTEXT_SWR_KEY}`);
     });
 
     await waitFor(() =>

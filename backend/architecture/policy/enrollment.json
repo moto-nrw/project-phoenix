@@ -172,6 +172,10 @@
     {
       "name": "enrollment.submission_rate_limits",
       "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_period_forms",
+      "write_owner": "enrollment"
     }
   ],
   "rules": [
