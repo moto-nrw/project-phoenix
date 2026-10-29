@@ -178,8 +178,9 @@ func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRost
 		Sources: timetable.OfferingSourceFilter{
 			GradeLevels: feeds.GradeLevels, SchoolClasses: feeds.SchoolClasses,
 		},
-		HasOfferingSource: len(template.SourceCareOfferingIDs) > 0 || len(feeds.LinkedOfferingIDs) > 0 || len(feeds.Offerings) > 0,
-		Kind:              timetable.RosterOfferingKindFor(template.Type, template.ListKind),
+		HasOfferingSource: len(template.SourceCareOfferingIDs) > 0 || len(feeds.LinkedOfferingIDs) > 0 || len(feeds.Offerings) > 0 ||
+			len(feeds.InactiveOfferings) > 0 || len(feeds.InvalidOfferings) > 0,
+		Kind: timetable.RosterOfferingKindFor(template.Type, template.ListKind),
 	}
 	for _, date := range occurrences {
 		gapTemplate.Occurrences[date] = true

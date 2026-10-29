@@ -165,8 +165,8 @@ func (n offeringGapNeed) coveredBy(clocks []OccurrenceClock) bool {
 }
 
 // newSeriesPlansCovered reports whether a new Regeltermin started from the
-// gap would plan a booked child on a date that needs none: it takes the
-// offering's children of NewSeriesClasses (every child without a filter)
+// gap would duplicate existing planning or plan a child who needs none. It
+// takes the offering's children of NewSeriesClasses (every child without a filter)
 // on the gap's weekdays.
 func (p offeringGapPlan) newSeriesPlansCovered(gap OfferingGap, bookings []OfferingWeekdayBooking) bool {
 	filter := OfferingSourceFilter{OfferingIDs: []int64{gap.OfferingID}, SchoolClasses: gap.NewSeriesClasses}
@@ -177,9 +177,24 @@ func (p offeringGapPlan) newSeriesPlansCovered(gap OfferingGap, bookings []Offer
 		return slices.ContainsFunc(gap.Weekdays, func(weekday int) bool {
 			return slices.ContainsFunc(bookingWindows(booking), func(window OfferingBookingWindow) bool {
 				return window.bookedOpenDates(p.scope, weekday, func(date calendar.Date) bool {
-					return p.covers(booking, date)
+					return p.covers(booking, date) || p.plansDuringNeed(booking, date)
 				})
 			})
+		})
+	})
+}
+
+// plansDuringNeed keeps partial planning separate from full coverage: it
+// leaves the gap visible but prevents a second list over an existing part
+// of the care stretch. Unknown times and touching boundaries do not overlap.
+func (p offeringGapPlan) plansDuringNeed(booking OfferingWeekdayBooking, date calendar.Date) bool {
+	need, known := p.need(booking, date)
+	if !known || need.empty() {
+		return false
+	}
+	return slices.ContainsFunc(p.templates, func(t offeringGapIndexedTemplate) bool {
+		return t.plans(booking.StudentID, date, p.scope.PeriodID) && slices.ContainsFunc(t.Times[date], func(clock OccurrenceClock) bool {
+			return clock.StartMinute < clock.EndMinute && clock.StartMinute < need.until && clock.EndMinute > need.from
 		})
 	})
 }

@@ -485,3 +485,36 @@ func TestDetectOfferingGapsGaplessPerOccurrence(t *testing.T) {
 	}
 	assert.Empty(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings))
 }
+
+// Partial planning leaves the gap visible but must not offer a second list
+// over the same care stretch. Touching boundaries do not overlap.
+func TestDetectOfferingGapsNewSeriesPartialPlanning(t *testing.T) {
+	t.Parallel()
+	child := studentRange(730, 1)
+	arrivals := weeklyArrivals(map[string]map[int]int{"2a": {1: clock1145}})
+	cases := []struct {
+		name     string
+		template OfferingGapTemplate
+		blocked  bool
+	}{
+		{name: "partial care", template: classTemplate(child, 13*60, 14*60, 1), blocked: true},
+		{name: "ends at arrival", template: classTemplate(child, 11*60, clock1145, 1)},
+		{name: "starts at pickup", template: classTemplate(child, 16*60, 17*60, 1)},
+		{name: "zero length", template: classTemplate(child, 13*60, 13*60, 1)},
+		{name: "reversed window", template: classTemplate(child, 14*60, 13*60, 1)},
+		{name: "other child", template: classTemplate(studentRange(740, 1), 13*60, 14*60, 1)},
+		{name: "other weekday", template: classTemplate(child, 13*60, 14*60, 2)},
+		{name: "unknown time", template: OfferingGapTemplate{Occurrences: gapRuns(1), Roster: &TemplatePlannedRoster{TargetStudentIDs: child}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			bookings := classDayBookings("2a", 730, 1, 1)
+			bookings[0].PickupTimes = map[int]string{1: "16:00"}
+			gaps := DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{tc.template}, bookings)
+			require.Len(t, gaps, 1, "partial planning must leave the gap visible")
+			assert.Equal(t, []int{1}, gaps[0].Weekdays)
+			assert.Equal(t, tc.blocked, gaps[0].NewSeriesPlansCovered)
+		})
+	}
+}
