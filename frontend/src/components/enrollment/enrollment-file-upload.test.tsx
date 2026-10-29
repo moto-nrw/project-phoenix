@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
@@ -166,6 +172,68 @@ describe("FileUploadInput", () => {
     // The form counted the upload while it ran and released it afterwards.
     expect(pendingCounts).toContain(1);
     await waitFor(() => expect(pendingCounts.at(-1)).toBe(0));
+  });
+
+  it("keeps selection order when concurrent uploads finish backwards", async () => {
+    const resolvers: Array<(response: Response) => void> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            resolvers.push(resolve);
+          }),
+      ),
+    );
+    const { container } = render(
+      <Harness
+        initial={[
+          {
+            upload_id: "55",
+            filename: "stored.pdf",
+            size_bytes: 1,
+            content_type: "application/pdf",
+          },
+        ]}
+      />,
+    );
+    pick(
+      container,
+      [1, 2, 3].map(
+        (n) => new File(["pdf"], `proof-${n}.pdf`, { type: "application/pdf" }),
+      ),
+    );
+    expect(resolvers).toHaveLength(3);
+    for (const n of [3, 2, 1]) {
+      await act(async () => {
+        resolvers[n - 1]!(
+          new Response(
+            JSON.stringify({
+              status: "success",
+              data: {
+                token: `token-${n}`,
+                filename: `proof-${n}.pdf`,
+                size_bytes: 3,
+                content_type: "application/pdf",
+              },
+            }),
+            { status: 201, headers: { "content-type": "application/json" } },
+          ),
+        );
+      });
+    }
+    expect(changes.at(-1)?.map((file) => file.filename)).toEqual([
+      "stored.pdf",
+      "proof-1.pdf",
+      "proof-2.pdf",
+      "proof-3.pdf",
+    ]);
+    expect(
+      screen
+        .getAllByRole("listitem")
+        .map((item) => item.querySelector("span")?.textContent),
+    ).toEqual(["stored.pdf", "proof-1.pdf", "proof-2.pdf", "proof-3.pdf"]);
+    expect(pendingCounts.at(-1)).toBe(0);
   });
 
   it("rejects a file above the size limit without uploading it", () => {
