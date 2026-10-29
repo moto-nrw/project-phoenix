@@ -589,18 +589,11 @@ func (s *AccountAuthentication) LogoutWithAudit(ctx context.Context, refreshToke
 		if _, _, _, err := findLoginAccount(txCtx, s.runtime, s.store, presented.AccountID, true); err != nil {
 			return failed("lock account", err)
 		}
-		var deleteErr error
-		if presented.FamilyID == "" {
-			deleteErr = s.sessions.DeleteAccountSession(txCtx, presented.ID)
-			sessions = []domain.AccountSession{presented}
-		} else {
-			var family []identityaccess.AccountSession
-			family, deleteErr = s.sessions.RevokeAccountSessionFamily(txCtx, presented.FamilyID)
-			sessions = domainAccountSessions(family)
-		}
+		revokedChain, deleteErr := s.revokeSessionChain(txCtx, presented)
 		if deleteErr != nil {
 			return failed("delete token family", deleteErr)
 		}
+		sessions = revokedChain
 		revoked = &presented
 		return nil
 	})

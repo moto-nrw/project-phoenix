@@ -1,9 +1,9 @@
 package migrations
 
 // Coverage for 1.15.707 (#5194): every live refresh chain without family gets
-// exactly one family, head and linked predecessors alike; rows the backfill
-// cannot place, expired rows and rows with a family stay as they are, and a
-// rerun changes nothing.
+// exactly one family in one run, head and linked predecessors alike, however
+// long it is; rows the backfill cannot place, expired rows and rows with a
+// family stay as they are, and a rerun changes nothing.
 
 import (
 	"context"
@@ -92,4 +92,43 @@ func TestBackfillSessionFamilies(t *testing.T) {
 	for id, family := range before {
 		assert.Equal(t, family, familyOf(id), fmt.Sprintf("a rerun keeps row %d", id))
 	}
+}
+
+// TestBackfillSessionFamiliesLongChain pins that a chain far longer than any
+// fixed depth gets one family in a single run, and that a second run
+// changes nothing.
+func TestBackfillSessionFamiliesLongChain(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+	account := testpkg.CreateTestAccount(t, db, "backfill-long-chain")
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	const length = 200
+	_, err := db.ExecContext(ctx, `
+		INSERT INTO auth.tokens (account_id, tenant_id, token, expiry, generation, rotated_at, replacement_token, portal_scope)
+		SELECT ?, ?, encode(sha256(convert_to('long-' || g, 'UTF8')), 'hex'), NOW() + INTERVAL '1 hour', g,
+			CASE WHEN g < ? THEN NOW() END,
+			CASE WHEN g < ? THEN encode(sha256(convert_to('long-' || (g + 1), 'UTF8')), 'hex') END,
+			'tenant'
+		FROM generate_series(0, ?) AS g`, account.ID, tenantID, length-1, length-1, length-1)
+	require.NoError(t, err)
+
+	families := func() (distinct, missing int) {
+		t.Helper()
+		require.NoError(t, db.NewRaw(`SELECT count(DISTINCT family_id), count(*) FILTER (WHERE family_id IS NULL OR family_id = '')
+			FROM auth.tokens WHERE account_id = ?`, account.ID).Scan(ctx, &distinct, &missing))
+		return distinct, missing
+	}
+	require.NoError(t, backfillSessionFamiliesUp(ctx, db))
+	distinct, missing := families()
+	assert.Equal(t, 1, distinct, "the whole chain shares one family")
+	assert.Zero(t, missing, "every one of the %d rows is placed in one run", length)
+
+	var before string
+	require.NoError(t, db.NewRaw(`SELECT string_agg(family_id, ',' ORDER BY id) FROM auth.tokens WHERE account_id = ?`, account.ID).Scan(ctx, &before))
+	require.NoError(t, backfillSessionFamiliesUp(ctx, db))
+	var after string
+	require.NoError(t, db.NewRaw(`SELECT string_agg(family_id, ',' ORDER BY id) FROM auth.tokens WHERE account_id = ?`, account.ID).Scan(ctx, &after))
+	assert.Equal(t, before, after, "a second run changes nothing")
 }

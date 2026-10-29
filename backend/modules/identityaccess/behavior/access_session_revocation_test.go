@@ -327,3 +327,49 @@ func TestPortalLogoutEndsOnlyThatPortalsAccessTokens(t *testing.T) {
 	require.NoError(t, module.LogoutWithAudit(ctx, schoolRefresh, "", ""))
 	require.ErrorIs(t, module.VerifyAccessSession(ctx, school), identityaccess.ErrInvalidToken, "the school token ends with its family")
 }
+
+// TestLogoutOfPartlyPlacedChainRevokesEverything pins the fail-closed rule of
+// #5194: in a chain whose older rows carry no family (a backfill could not
+// place them), a logout presenting any of its refresh tokens revokes the
+// whole chain. No access token of the chain stays valid and no row survives.
+func TestLogoutOfPartlyPlacedChainRevokesEverything(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := setupAuthFactory(t, db)
+	service := newFixtureAuthService(t, db, module)
+	ctx := testpkg.Ctx(t)
+
+	for _, presented := range []string{"oldest predecessor", "head"} {
+		t.Run(presented, func(t *testing.T) {
+			email, username := uniqueTestCredentials("partly-placed")
+			account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+			require.NoError(t, err)
+			testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+			_, refresh, err := service.Login(ctx, email, testPassword)
+			require.NoError(t, err)
+			tokens := []string{refresh}
+			var access string
+			for range 3 {
+				access, refresh, err = service.RefreshToken(ctx, refresh)
+				require.NoError(t, err)
+				tokens = append(tokens, refresh)
+			}
+			session := accessSessionOf(t, access)
+			// Only the head keeps its family; its rotated predecessors do not.
+			_, err = db.ExecContext(ctx, `UPDATE auth.tokens SET family_id = NULL WHERE account_id = ? AND rotated_at IS NOT NULL`, account.ID)
+			require.NoError(t, err)
+			require.NoError(t, module.VerifyAccessSession(ctx, session))
+
+			logoutToken := tokens[len(tokens)-1]
+			if presented == "oldest predecessor" {
+				logoutToken = tokens[0]
+			}
+			require.NoError(t, module.LogoutWithAudit(ctx, logoutToken, "", ""))
+
+			require.ErrorIs(t, module.VerifyAccessSession(ctx, session), identityaccess.ErrInvalidToken, "no access token of the chain stays valid")
+			remaining, err := db.NewSelect().TableExpr("auth.tokens").Where("account_id = ?", account.ID).Count(ctx)
+			require.NoError(t, err)
+			assert.Zero(t, remaining, "no row of the chain survives its logout")
+		})
+	}
+}
