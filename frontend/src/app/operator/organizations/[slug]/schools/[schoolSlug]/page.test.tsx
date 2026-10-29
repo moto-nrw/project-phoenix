@@ -253,7 +253,7 @@ function setupSWR(opts: SetupOpts = {}) {
     switch (k) {
       case "operator-organization-summaries":
         return { data: orgs, isLoading: false, mutate: mockMutateOrgs };
-      case operatorProvisioningKeys.organizationSchools(mockOrg.id):
+      case operatorProvisioningKeys.organizationSchoolSummaries(mockOrg.id):
         return {
           data: schools,
           isLoading: false,

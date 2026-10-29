@@ -169,7 +169,7 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     mutate: mutateSchools,
   } = useSWRAuth(
     isAuthenticated && organization
-      ? operatorProvisioningKeys.organizationSchools(organization.id)
+      ? operatorProvisioningKeys.organizationSchoolSummaries(organization.id)
       : null,
     () =>
       operatorProvisioningService.listOrganizationSchools(

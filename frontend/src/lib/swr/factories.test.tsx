@@ -261,8 +261,10 @@ describe("shared resource factories", () => {
   });
 
   it("shares operator keys across list/detail consumers and separates every messaging dimension", () => {
+    // The organization page and its school page share one key, not an alias.
+    expect(operatorProvisioningKeys).not.toHaveProperty("organizationSchools");
     expect(operatorProvisioningKeys.organizationSchoolSummaries("7")).toBe(
-      operatorProvisioningKeys.organizationSchools("7"),
+      "operator-organization-school-summaries-7",
     );
     expect(messageKeys.groupMessageAudience("group", "7")).not.toBe(
       messageKeys.groupMessageAudience("group", "70"),

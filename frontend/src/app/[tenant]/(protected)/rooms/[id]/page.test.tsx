@@ -92,7 +92,6 @@ vi.mock("~/lib/api", async (importOriginal) => ({
 }));
 
 vi.mock("~/components/rooms/room-detail-content", () => ({
-  roomDetailKey: (id: string) => `room-detail-${id}`,
   useRoomDetail: (roomId: string) => useRoomDetailMock(roomId),
   RoomDetailContent: ({ room }: { room: { name: string } }) => (
     <div data-testid="room-overview">{room.name}</div>

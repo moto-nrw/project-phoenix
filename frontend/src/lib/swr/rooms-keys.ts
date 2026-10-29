@@ -6,5 +6,7 @@ export type RoomFilters = NonNullable<
 export const roomKeys = {
   family: "rooms-",
   key: (params: RoomFilters = {}) => resourceKey("rooms-list-", params),
-  detailKey: (id: string) => resourceKey("rooms-detail-", { id }),
+  // The room page's room with its history. Outside the list family; the SSE
+  // hook and the room sections refresh it via the "room-detail-" prefix.
+  detailKey: (id: string) => `room-detail-${encodeURIComponent(id)}`,
 } as const;

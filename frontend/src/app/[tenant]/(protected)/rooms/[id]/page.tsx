@@ -26,7 +26,6 @@ import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu"
 import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
 import { RoomStatusBadge } from "~/components/rooms/room-status-badge";
 import {
-  roomDetailKey,
   RoomDetailContent,
   RoomDetailSkeleton,
   useRoomDetail,
@@ -263,7 +262,10 @@ function RoomDetailPageContent() {
 
   const refreshRoomLists = useCallback(
     () =>
-      Promise.all([tenantMutate(roomDetailKey(roomId)), refreshRoomFamily()]),
+      Promise.all([
+        tenantMutate(roomKeys.detailKey(roomId)),
+        refreshRoomFamily(),
+      ]),
     [roomId, tenantMutate, refreshRoomFamily],
   );
 

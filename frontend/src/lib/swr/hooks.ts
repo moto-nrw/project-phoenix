@@ -402,7 +402,7 @@ export function useImmutableSWR<T, E = Error>(
  * @example
  * ```tsx
  * const tenantMutate = useTenantMutate();
- * await tenantMutate("database-teachers-list");
+ * await tenantMutate(staffKeys.teachersKey());
  * ```
  */
 export function useTenantMutate() {
