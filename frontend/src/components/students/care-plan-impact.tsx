@@ -22,9 +22,6 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "CarePlanImpact" });
 
-/** Marks the rows the shared hint above the list talks about. */
-const VIA_TARGET_LABEL = "Klasse, Jahrgang oder Gruppe";
-
 interface CarePlanImpactProps {
   readonly impact: RosterImpact;
   /** Ohne Kind-ID gibt es nichts zu entfernen; die Liste bleibt sichtbar. */
@@ -39,7 +36,7 @@ interface CarePlanImpactProps {
  * Regeltermine das Kind an weggefallenen Tagen weiter einplanen. Plant ein
  * Regeltermin über Klasse, Jahrgang oder Gruppe, hält ein Entfernen nicht;
  * dort führt der Hinweis zu „Mit Angebot verbinden“ (#5137). Der Hinweis
- * steht einmal über der Liste, die betroffenen Zeilen tragen seine Marke.
+ * steht einmal über der Liste, nicht in jeder Zeile.
  */
 export function CarePlanImpact({
   impact,
@@ -152,11 +149,12 @@ export function CarePlanImpact({
           className="space-y-3"
         >
           {anyViaTarget ? (
-            // Einmal über der Liste, auch bei nur einer solchen Zeile: Die
-            // Zeilen tragen dieselbe Marke, der Hinweis steht immer hier.
+            // Einmal über der Liste, auch bei nur einer solchen Zeile: eine
+            // Regel, eine Stelle.
             <p className="mb-3 text-sm text-gray-600">
-              Regeltermine mit „{VIA_TARGET_LABEL}“ planen alle Kinder darin
-              ein. Bei der nächsten Planung steht das Kind wieder im Plan.
+              Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe
+              planen alle Kinder darin ein. Bei der nächsten Planung steht das
+              Kind wieder im Plan.
               {canManage
                 ? " Verbinden Sie den Regeltermin mit dem Angebot."
                 : null}
@@ -240,11 +238,6 @@ function ManualTemplateEntry({
           {formatWeekdayAdverbs(template.weekdays)}:{" "}
           {removed ? "Kind entfernt." : "Kind bleibt eingeplant."}
         </p>
-        {template.viaTarget ? (
-          <div className="mt-1">
-            <StatusBadge tone="gray" label={VIA_TARGET_LABEL} compact />
-          </div>
-        ) : null}
       </div>
       <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row min-[480px]:items-center sm:justify-end">
         {removed ? (

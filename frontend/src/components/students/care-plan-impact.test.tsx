@@ -58,7 +58,7 @@ const twoClassesImpact: RosterImpact = {
 };
 
 const SHARED_HINT =
-  "Regeltermine mit „Klasse, Jahrgang oder Gruppe“ planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.";
+  "Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.";
 
 function renderImpact(
   value: RosterImpact = impact,
@@ -166,7 +166,7 @@ describe("CarePlanImpact", () => {
 
     expect(
       screen.getByText(
-        "Regeltermine mit „Klasse, Jahrgang oder Gruppe“ planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan. Verbinden Sie den Regeltermin mit dem Angebot.",
+        "Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan. Verbinden Sie den Regeltermin mit dem Angebot.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -182,7 +182,7 @@ describe("CarePlanImpact", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("states the class hint once above the list and marks each class row", () => {
+  it("states the class hint once above the list, not in a row", () => {
     renderImpact(twoClassesImpact);
 
     expect(
@@ -197,29 +197,29 @@ describe("CarePlanImpact", () => {
       HTMLElement,
       HTMLElement,
     ];
-    // Die Marke verbindet die Zeile mit dem Hinweis; die Hand-Liste trägt sie nicht.
-    expect(
-      within(classRow).getByText("Klasse, Jahrgang oder Gruppe"),
-    ).toBeInTheDocument();
-    expect(
-      within(yearRow).getByText("Klasse, Jahrgang oder Gruppe"),
-    ).toBeInTheDocument();
-    // Anker: die Hand-Liste ist gerendert und bietet ihr Entfernen an.
+    // Anker: jede Zeile ist gerendert und trägt ihre eigene Aktion.
     expect(
       within(manualRow).getByRole("button", {
         name: "Dort auch entfernen: „RDST 1b“",
       }),
     ).toBeInTheDocument();
     expect(
-      within(manualRow).queryByText("Klasse, Jahrgang oder Gruppe"),
-    ).not.toBeInTheDocument();
-    // Anker: der Hinweis oben ist gerendert (erste Prüfung); in keiner Zeile.
+      within(classRow).getByRole("link", {
+        name: "Mit Angebot verbinden: „Klasse 2a“",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(yearRow).getByRole("link", {
+        name: "Mit Angebot verbinden: „Jahrgang 1“",
+      }),
+    ).toBeInTheDocument();
+    // Weder Hinweis noch eine Marke in einer Zeile (Anker: Hinweis oben, Aktionen).
     for (const row of rows) {
       expect(within(row).queryByText(/Bei der nächsten Planung/)).toBeNull();
+      expect(
+        within(row).queryByText(/Klasse, Jahrgang oder Gruppe/),
+      ).toBeNull();
     }
-    expect(
-      screen.getByRole("link", { name: "Mit Angebot verbinden: „Jahrgang 1“" }),
-    ).toBeInTheDocument();
   });
 
   it("drops the call to connect from the shared hint without plan rights", () => {
@@ -229,7 +229,18 @@ describe("CarePlanImpact", () => {
     // Anker: der gemeinsame Hinweis steht, nur ohne den letzten Satz.
     expect(screen.getAllByText(SHARED_HINT)).toHaveLength(1);
     expect(screen.queryByText(/Verbinden Sie/)).not.toBeInTheDocument();
-    expect(screen.getAllByText("Klasse, Jahrgang oder Gruppe")).toHaveLength(2);
+    // Anker: alle drei Zeilen stehen, sie tragen weder Hinweis noch Marke.
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(
+        within(row).getByRole("link", { name: /^Im Betreuungsplan ansehen/ }),
+      ).toBeInTheDocument();
+      expect(within(row).queryByText(/Bei der nächsten Planung/)).toBeNull();
+      expect(
+        within(row).queryByText(/Klasse, Jahrgang oder Gruppe/),
+      ).toBeNull();
+    }
     expect(
       screen.queryByRole("link", { name: /^Mit Angebot verbinden/ }),
     ).not.toBeInTheDocument();
@@ -253,7 +264,7 @@ describe("CarePlanImpact", () => {
     // Person nicht gehen kann.
     expect(
       screen.getByText(
-        "Regeltermine mit „Klasse, Jahrgang oder Gruppe“ planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.",
+        "Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.",
       ),
     ).toBeInTheDocument();
     expect(
