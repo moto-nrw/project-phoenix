@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 
 import { Loading } from "~/components/ui/loading";
@@ -21,15 +21,17 @@ import { useTenantRouter } from "~/lib/tenant-router";
 export default function DashboardRedirectPage() {
   const router = useTenantRouter();
   const { data: session, status } = useSession();
+  const redirectedTo = useRef<string | null>(null);
 
   useEffect(() => {
-    if (status === "unauthenticated") {
-      router.replace("/");
-      return;
-    }
-    if (status !== "authenticated") return;
-
-    const destination = getSmartRedirectPath(session);
+    if (status === "loading") return;
+    const destination =
+      status === "unauthenticated" ? "/" : getSmartRedirectPath(session);
+    // Während des Ladens bleibt diese Seite noch gemountet. Eine erneuerte
+    // Sitzung oder Fast Refresh darf eine neuere Navigation (etwa die Tour)
+    // nicht durch dieselbe Weiterleitung zurück zur Startseite verdrängen.
+    if (redirectedTo.current === destination) return;
+    redirectedTo.current = destination;
     if (isSchoolPortalHandoffPath(destination)) {
       window.location.href = schoolPortalLoginUrl();
       return;
