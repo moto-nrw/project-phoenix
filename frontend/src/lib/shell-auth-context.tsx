@@ -588,11 +588,11 @@ export function ParentShellProvider({
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
       logout: reportingLogout(async () => {
-        // Best-effort: drop this device's Web Push registration first, while
-        // the session can still authenticate it.
-        await unsubscribePushSilently("parent");
-        // Revoke the parent family before Auth.js clears the cookie (#5194).
+        // Revoke the parent family first (#5194): the revocation never waits
+        // for push. The backend drops the family's push subscriptions with
+        // it; the device-side cleanup below stays best-effort (#5260).
         await revokeSessionFamily("/api/parent/auth/logout");
+        await unsubscribePushSilently("parent");
         // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
         // Gerät (#5000).
         clearPersonalStorage();
