@@ -38,6 +38,7 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		rs.mountExportRoutes(r, withTx)
 		rs.mountOperationRoutes(r, withTx)
 		rs.mountTemplateRoutes(r, withTx)
+		rs.mountOfferingGapRoutes(r, withTx)
 		rs.mountPlanningTrackRoutes(r, withTx)
 	})
 
@@ -352,6 +353,16 @@ func (rs *Resource) mountTemplateRoutes(r chi.Router, withTx common.Middleware) 
 		Post("/templates/{id}/offering-connection", rs.connectTemplateOfferingSource)
 	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
 		Put("/templates/{id}/manual-roster", rs.setTemplateManualRoster)
+}
+
+// mountOfferingGapRoutes registers the offerings without a matching
+// Regeltermin (#5140) and the school's decision "Kein eigener Regeltermin
+// nötig".
+func (rs *Resource) mountOfferingGapRoutes(r chi.Router, withTx common.Middleware) {
+	r.With(common.RequiresPermission(permissions.SchedulesRead), withTx).
+		Get("/offering-gaps", rs.listOfferingGaps)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).
+		Put("/offering-gaps/{offeringId}/acknowledgement", rs.setOfferingGapAck)
 }
 
 // mountPlanningTrackRoutes registers the planning tracks of the planner.

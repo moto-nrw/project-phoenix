@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -166,7 +167,7 @@ func (s *Store) ListTemplateRowsForTemplatePeriod(ctx context.Context, templateI
 	))
 }
 
-func (s *Store) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64, today string) ([]timetable.TemplateListRow, domain.OperationStats, error) {
+func (s *Store) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64, today string, window *timetable.TemplateScheduleWindow) ([]timetable.TemplateListRow, domain.OperationStats, error) {
 	const query = templateListSelect + `
 	LEFT JOIN (
 		SELECT activity_group_id, COUNT(*) AS count,
@@ -193,7 +194,9 @@ func (s *Store) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64, 
 	WHERE g.tenant_id = ?
 		AND g.is_template = TRUE
 		AND g.archived_at IS NULL
-		AND s.valid_until IS NULL
+		AND ((?::date IS NULL AND s.valid_until IS NULL) OR
+			(?::date IS NOT NULL AND (s.valid_from IS NULL OR s.valid_from <= ?::date)
+				AND (s.valid_until IS NULL OR s.valid_until > ?::date)))
 		AND (?::BIGINT IS NULL OR (s.calendar_period_id = ? OR
 			(s.calendar_period_id IS NULL AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL))))
 	ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
@@ -201,8 +204,12 @@ func (s *Store) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64, 
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
+	var from, until *calendar.Date
+	if window != nil {
+		from, until = &window.From, &window.Until
+	}
 	return scanTemplateRows(ctx, db.NewRaw(query,
-		tenantID, today, tenantID, tenantID, periodID, periodID, periodID,
+		tenantID, today, tenantID, tenantID, from, from, until, from, periodID, periodID, periodID,
 	))
 }
 

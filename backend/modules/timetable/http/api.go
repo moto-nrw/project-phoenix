@@ -130,6 +130,9 @@ type Dependencies struct {
 	// endpoint, the empty-roster explanation of the instance list and the
 	// roster indicator of the template list (#2137, #3140).
 	OfferingSourceOptions timetable.OfferingSourceSupport
+	// OfferingGapDecisions stores "Kein eigener Regeltermin nötig" for an
+	// offering without a matching Regeltermin (#5140); Care Plan's catalog.
+	OfferingGapDecisions timetable.OfferingTemplateGapDecision
 	// SupervisionSheets serves the per-child supervision sheet of the school
 	// portal (#2527). Only SchoolSupervisionRouter consumes it.
 	SupervisionSheets SupervisionSheets

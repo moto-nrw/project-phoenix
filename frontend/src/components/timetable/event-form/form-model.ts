@@ -525,6 +525,31 @@ export function emptyForm(
   };
 }
 
+/**
+ * A new Regeltermin started from an offering without one (#5140): the
+ * offering feeds its children, and title and weekdays follow its bookings.
+ * The form is empty, so there is no manual list the source would replace.
+ */
+export interface SeriesSourcePrefill {
+  careOfferingIds: string[];
+  title: string;
+  weekdays: number[];
+}
+
+export function withSourcePrefill(
+  form: EventFormState,
+  prefill: SeriesSourcePrefill,
+): EventFormState {
+  return {
+    ...form,
+    title: prefill.title,
+    weekdays:
+      prefill.weekdays.length > 0 ? [...prefill.weekdays] : form.weekdays,
+    targetGroupType: "angebot",
+    sourceCareOfferingIds: [...prefill.careOfferingIds],
+  };
+}
+
 export function formFromInstance(
   instance: EnrichedInstance,
   defaultCalendarPeriodId?: string | null,
