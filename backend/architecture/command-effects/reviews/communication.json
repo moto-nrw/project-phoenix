@@ -326,7 +326,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.StaffInboxReads.ListInbox",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffmessageinbox/internal/adapters/postgres.Projection.ListInbox; modules/staffmessageinbox/internal/adapters/postgres/projection.go:117. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. #4776 copies the group-chat fields (kind, group name, member count, last sender name) onto the inbox record; still a read. Target modules/staffmessageinbox/internal/adapters/postgres.Projection.ListInbox; modules/staffmessageinbox/internal/adapters/postgres/projection.go:117. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffmessageinbox/internal/adapters/postgres.Projection.ListInbox",
       "target_owner": "staff-message-inbox"
