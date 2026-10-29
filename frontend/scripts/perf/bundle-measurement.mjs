@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { perfServerEnv } from "./env.mjs";
+import { measureBase } from "./bundle-base.mjs";
 import { validBytes } from "./bundle-policy.mjs";
 
 const MEASUREMENT_FORMAT = "moto-bundle-measurement/v1";
@@ -229,7 +230,7 @@ export function readBaseComparison(directory = process.cwd(), currentIdentity) {
   const file = join(directory, BASE_MEASUREMENT);
   if (!existsSync(file))
     throw new Error(
-      "Required merge-base measurement missing; run node scripts/perf/bundle-base.mjs. PR delta cannot be skipped.",
+      "Required merge-base measurement missing; run node scripts/perf/bundle-measurement.mjs --build-base. PR delta cannot be skipped.",
     );
   return {
     routes: readMeasurement(file, identity),
@@ -248,6 +249,26 @@ function prepareCI(baseRevision) {
   process.stdout.write(`Bundle measurement key: ${key}\n`);
   if (baseRevision)
     writeMeasurement(BASE_IDENTITY, identityForRevision(baseRevision));
+}
+
+function buildBase() {
+  const requested = JSON.parse(readFileSync(BASE_IDENTITY, "utf8"));
+  const current = identityForRevision(requested.sourceRevision);
+  if (measurementKey(current.identity) !== measurementKey(requested.identity))
+    throw new Error("Base source/configuration changed since preparation");
+  const routes = measureBase(current.sourceRevision);
+  writeMeasurement(
+    BASE_MEASUREMENT,
+    makeMeasurement(
+      current.identity,
+      current.sourceRevision,
+      routes,
+      process.env.GITHUB_RUN_ID ?? null,
+    ),
+  );
+  process.stdout.write(
+    `Cold merge-base measurement completed: ${current.sourceRevision}, ${routes.size} routes.\n`,
+  );
 }
 
 function github(endpoint) {
@@ -391,5 +412,9 @@ if (
 ) {
   if (process.argv[2] === "--prepare-ci") prepareCI(process.argv[3]);
   else if (process.argv[2] === "--fetch-base") fetchBase();
-  else throw new Error("Expected --prepare-ci [base-revision] or --fetch-base");
+  else if (process.argv[2] === "--build-base") buildBase();
+  else
+    throw new Error(
+      "Expected --prepare-ci [base-revision], --build-base or --fetch-base",
+    );
 }

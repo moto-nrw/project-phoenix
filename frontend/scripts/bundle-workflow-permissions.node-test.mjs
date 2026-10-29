@@ -28,7 +28,7 @@ test("bundle builds need no artifact-read token and do not persist checkout cred
   assert.ok(
     build.steps.some(
       (step) =>
-        step.run === "node scripts/perf/bundle-base.mjs" &&
+        step.run === "node scripts/perf/bundle-measurement.mjs --build-base" &&
         step.if === "github.event_name == 'pull_request'",
     ),
   );

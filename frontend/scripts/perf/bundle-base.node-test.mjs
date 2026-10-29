@@ -105,7 +105,7 @@ test("base build uses committed source, frozen dependencies, same env and parser
   fixture(({ frontend, env, log, revision }) => {
     const result = spawnSync(
       process.execPath,
-      [join(scripts, "bundle-base.mjs")],
+      [join(scripts, "bundle-measurement.mjs"), "--build-base"],
       { cwd: frontend, env, encoding: "utf8" },
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -135,7 +135,7 @@ test("base build failure is red, publishes no measurement and cleans its tempora
   fixture(({ frontend, env, log }) => {
     const result = spawnSync(
       process.execPath,
-      [join(scripts, "bundle-base.mjs")],
+      [join(scripts, "bundle-measurement.mjs"), "--build-base"],
       { cwd: frontend, env: { ...env, FAIL_BASE: "1" }, encoding: "utf8" },
     );
     assert.notEqual(result.status, 0);

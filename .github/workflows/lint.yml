@@ -250,7 +250,7 @@ jobs:
       - name: Cold build exact merge-base with the same runner and environment
         if: github.event_name == 'pull_request'
         working-directory: frontend
-        run: node scripts/perf/bundle-base.mjs
+        run: node scripts/perf/bundle-measurement.mjs --build-base
 
       - name: Build frontend
         working-directory: frontend
