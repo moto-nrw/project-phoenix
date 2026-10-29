@@ -41,9 +41,7 @@ func setupMultiSourceCorrection(t *testing.T, email string, periods divergingPer
 	second.ID = f.template.SourceCareOfferingIDs[1]
 	_, _, neighbourID := submitApprovedAdjustmentChild(t, f.env, "nachbar-"+email, "Nachbar",
 		[]*offeringContract.CareOfferingRecord{f.source, second})
-	// The occurrence reconciler acts from the real today on, so the switch
-	// is a future Monday inside the stretched phase.
-	switchDate := firstFutureMondayOnOrAfter(calendar.Date(f.env.sourcePhase.ServiceStartDate).AddDays(60))
+	switchDate := calendar.Date(f.env.sourcePhase.ServiceStartDate).AddDays(60)
 	return multiSourceCorrection{divergingPeriodFixture: f, first: f.source, second: second, neighbourID: neighbourID, switchDate: switchDate}
 }
 
@@ -101,14 +99,17 @@ func (f multiSourceCorrection) childRow(t *testing.T, step string) timetable.Stu
 	return row
 }
 
-// materialize runs the Timetable owner's materializer for the date and
+// materialize runs the Timetable owner's materializer for the day the given
+// number of days after the first Monday on or after the switch that has not
+// passed yet (the occurrence reconciler acts from the real today on), and
 // returns the template's instance there.
-func (f multiSourceCorrection) materialize(t *testing.T, date calendar.Date) int64 {
+func (f multiSourceCorrection) materialize(t *testing.T, daysAfterMonday int) int64 {
 	t.Helper()
+	date := firstFutureMondayOnOrAfter(f.switchDate).AddDays(daysAfterMonday)
 	_, err := f.timetable.Materialization.MaterializeForTenant(testpkg.Ctx(t), date, date, timetable.MaterializationSourceManual)
 	require.NoError(t, err)
 	var ids []int64
-	require.NoError(t, f.env.db.NewSelect().Column("id").TableExpr("schedule.activity_instances").
+	require.NoError(t, testpkg.SetupTestDB(t).NewSelect().Column("id").TableExpr("schedule.activity_instances").
 		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", f.template.ID).
 		Where("date = ?", date).
@@ -165,7 +166,7 @@ func runUnchangedUnionCorrection(t *testing.T, email string, periods divergingPe
 	f := setupMultiSourceCorrection(t, email, periods)
 	child := f.childRow(t, "approval")
 	neighbour := f.singleRowOf(t, "approval", f.neighbourID)
-	occurrence := f.materialize(t, f.switchDate.AddDays(7))
+	occurrence := f.materialize(t, 0)
 	planned := f.participants(t, occurrence)
 	require.Contains(t, planned, f.studentID)
 	require.Contains(t, planned, f.neighbourID)
@@ -185,7 +186,7 @@ func runUnchangedUnionCorrection(t *testing.T, email string, periods divergingPe
 
 	rows := map[int64]timetable.StudentEnrollment{f.studentID: child, f.neighbourID: neighbour}
 	f.requireStable(t, rows, occurrence, planned)
-	later := f.participants(t, f.materialize(t, f.switchDate.AddDays(14)))
+	later := f.participants(t, f.materialize(t, 7))
 	assert.Contains(t, later, f.studentID, "the child stays planned on later occurrences")
 	assert.Contains(t, later, f.neighbourID)
 }
@@ -220,9 +221,9 @@ func TestDatedCorrection_MultiSourceShrinkingUnionSplitsAtSwitch(t *testing.T) {
 	require.Equal(t, []int{1, 3}, running.SelectedWeekdays, "sanity: the first source plans Monday and Wednesday")
 	neighbour := f.singleRowOf(t, "undated setup", f.neighbourID)
 
-	mondayOccurrence := f.materialize(t, f.switchDate.AddDays(7))
-	plannedWednesday := f.materialize(t, f.switchDate.AddDays(9))
-	decidedWednesday := f.materialize(t, f.switchDate.AddDays(16))
+	mondayOccurrence := f.materialize(t, 0)
+	plannedWednesday := f.materialize(t, 2)
+	decidedWednesday := f.materialize(t, 9)
 	require.Contains(t, f.participants(t, plannedWednesday), f.studentID)
 	decided := f.participants(t, decidedWednesday)[f.studentID]
 	require.NotZero(t, decided.ID)
@@ -269,7 +270,7 @@ func TestDatedCorrection_MultiSourceAllSourcesDroppedCapsRow(t *testing.T) {
 	f := setupMultiSourceCorrection(t, "mehrquellen-alle@example.com", divergingPeriodCase{})
 	running := f.childRow(t, "approval")
 	neighbour := f.singleRowOf(t, "approval", f.neighbourID)
-	occurrence := f.materialize(t, f.switchDate.AddDays(7))
+	occurrence := f.materialize(t, 0)
 	require.Contains(t, f.participants(t, occurrence), f.studentID)
 	neighbourParticipant := f.participants(t, occurrence)[f.neighbourID]
 
