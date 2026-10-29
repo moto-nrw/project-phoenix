@@ -21,6 +21,10 @@
     "/traeger/ferien/neu": {
       "referenceBytes": 861284,
       "maxBytes": 878510
+    },
+    "/traeger/ferien/[id]/formular": {
+      "referenceBytes": 836329,
+      "maxBytes": 853056
     }
   }
 }

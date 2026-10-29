@@ -133,5 +133,7 @@
   "holiday_week_booked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "hosted_holiday_week_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_guest_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "holiday_guest_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+  "holiday_guest_group_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "holiday_form_field_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "holiday_registration_form_changed": "Kurum formu az önce değiştirdi. Lütfen bilgilerinizi kontrol edin ve kaydı tekrar gönderin."
 }

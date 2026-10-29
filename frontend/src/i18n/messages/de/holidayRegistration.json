@@ -91,6 +91,10 @@
     "weeks": "Bitte wählen Sie mindestens eine Woche.",
     "privacy": "Bitte stimmen Sie zu. Sonst kann der Träger die Anmeldung nicht bearbeiten.",
     "health": "Bitte stimmen Sie zu oder löschen Sie die Gesundheitsangaben.",
-    "binding": "Bitte bestätigen Sie, dass die Anmeldung verbindlich ist."
-  }
+    "binding": "Bitte bestätigen Sie, dass die Anmeldung verbindlich ist.",
+    "yesNo": "Bitte wählen Sie Ja oder Nein.",
+    "choose": "Bitte wählen Sie eine Antwort."
+  },
+  "childQuestionsTitle": "Weitere Angaben",
+  "familyQuestionsTitle": "Weitere Angaben zur Familie"
 }

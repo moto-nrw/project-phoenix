@@ -106,3 +106,20 @@ export function sidebarLabelClasses(isVisible: boolean): string {
  */
 export const SIDEBAR_SUB_ITEM_CLASSES =
   "flex h-8 items-center justify-between overflow-hidden rounded-lg pr-3 pl-11 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-inset focus-visible:outline-none";
+
+/** Responsive row geometry shared by portal links and accordion headers. */
+const PORTAL_ROW =
+  "flex items-center rounded-lg px-3 py-2.5 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:px-4 lg:py-3 lg:text-base xl:px-3 xl:py-2.5 xl:text-sm";
+const PORTAL_ROW_ACTIVE = "bg-gray-100 font-semibold text-gray-900";
+const PORTAL_ROW_IDLE =
+  "font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900";
+export const PORTAL_ICON_CLASSES =
+  "mr-3 h-5 w-5 shrink-0 lg:mr-3.5 lg:h-[22px] lg:w-[22px] xl:mr-3 xl:h-5 xl:w-5";
+
+export function portalSidebarRowClasses(isActive: boolean): string {
+  return `${PORTAL_ROW} ${isActive ? PORTAL_ROW_ACTIVE : PORTAL_ROW_IDLE}`;
+}
+
+/** Align portal child links with the header label at each desktop width. */
+export const PORTAL_SUB_ITEM_CLASSES =
+  "flex items-center rounded-lg py-1.5 pr-3 pl-11 text-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none lg:pl-13 xl:pl-11";

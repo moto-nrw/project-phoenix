@@ -91,6 +91,10 @@
     "weeks": "Please choose at least one week.",
     "privacy": "Please agree. Otherwise the provider cannot process the registration.",
     "health": "Please agree or delete the health information.",
-    "binding": "Please confirm that the registration is binding."
-  }
+    "binding": "Please confirm that the registration is binding.",
+    "yesNo": "Please choose yes or no.",
+    "choose": "Please choose an answer."
+  },
+  "childQuestionsTitle": "More details",
+  "familyQuestionsTitle": "More details about your family"
 }
