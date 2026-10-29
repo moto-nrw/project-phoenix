@@ -66,6 +66,7 @@ const KEPT_LOCAL = {
   "sidebar-collapsed": "true",
   "sidebar-open-groups": '["planning"]',
   "sidebar-accordion-expanded": "groups",
+  "traeger-sidebar-settings-open": "false",
   "collection-view:students:tenant-1:7": '{"view":"table"}',
   "moto.tenant.notification-setup.v1.schule.7": '{"done":true}',
   "parent-first-steps:v1:7": '{"completed":[],"dismissed":true}',

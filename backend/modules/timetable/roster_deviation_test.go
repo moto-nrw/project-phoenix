@@ -1,6 +1,7 @@
 package timetable_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -11,6 +12,7 @@ import (
 const (
 	randstundeID = int64(301)
 	ganztagID    = int64(302)
+	spaetID      = int64(303)
 )
 
 // classRoster plans the given children on every weekday of the template.
@@ -68,6 +70,7 @@ func TestDetectRosterDeviationSchuleAmBerg(t *testing.T) {
 	assert.Equal(t, 8, deviation.UnbookedCount)
 	assert.Equal(t, 1, deviation.MissingCount, "child 2001 is booked on Monday but not planned")
 	assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, deviation.Candidates)
+	assert.False(t, deviation.Ambiguous, "one candidate is a clear suggestion")
 }
 
 func TestDetectRosterDeviationThresholds(t *testing.T) {
@@ -153,6 +156,7 @@ func TestDetectRosterDeviationPrefersClosestCandidate(t *testing.T) {
 	assert.Equal(t, 2, deviation.UnbookedCount)
 	assert.Zero(t, deviation.MissingCount)
 	assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}, {ID: randstundeID, Name: "Randstunde"}}, deviation.Candidates)
+	assert.True(t, deviation.Ambiguous, "both cover the Jahrgang fully, so the school picks (#5138)")
 }
 
 func TestPreviewOfferingSource(t *testing.T) {
@@ -251,4 +255,121 @@ func TestSuggestOfferingSource(t *testing.T) {
 
 	small := classRoster([]int{1, 3}, class[:2], "Klasse 1b")
 	assert.Nil(t, timetable.SuggestOfferingSource(small, bookings[:2]), "fewer than three children")
+}
+
+// TestSuggestOfferingSourceAmbiguousForCohortTargets (#5138): a Klasse or
+// Jahrgang Regeltermin plans every child of the cohort, and the bookings are
+// narrowed to that cohort. Every offering of it then covers the roster
+// fully, so the rule cannot tell Randstunde from Ganztag: the suggestion
+// names both and preselects neither. A Gruppe or hand-picked children keep
+// a clear suggestion when only one offering covers them fully.
+func TestSuggestOfferingSourceAmbiguousForCohortTargets(t *testing.T) {
+	t.Parallel()
+	grade := 3
+	cohort := studentRange(1001, 20)
+	cohortBookings := func() []timetable.OfferingWeekdayBooking {
+		bookings := []timetable.OfferingWeekdayBooking{}
+		add := func(offeringID int64, name string, students []int64) {
+			for _, studentID := range students {
+				entry := booking(offeringID, name, studentID, "3a", 1, 2, 3)
+				entry.GradeLevel = &grade
+				entry.CountsAsCare = true
+				bookings = append(bookings, entry)
+			}
+		}
+		// Randstunde: 8 children of the cohort, Ganztag: 14 of them.
+		add(randstundeID, "Randstunde", cohort[:8])
+		add(ganztagID, "Ganztag bis 14.30 Uhr", cohort[6:])
+		return bookings
+	}
+	both := []timetable.OfferingRef{
+		{ID: ganztagID, Name: "Ganztag bis 14.30 Uhr"},
+		{ID: randstundeID, Name: "Randstunde"},
+	}
+
+	t.Run("Klasse", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2, 3}, cohort, "3a")
+		roster.OfferingKind = timetable.RosterOfferingCare
+
+		suggestion := timetable.SuggestOfferingSource(roster, cohortBookings())
+
+		require.NotNil(t, suggestion)
+		assert.True(t, suggestion.Ambiguous)
+		assert.Equal(t, both, suggestion.Candidates)
+		assert.Equal(t, []string{"3a"}, suggestion.SchoolClasses)
+		deviation := timetable.DetectRosterDeviation(roster, cohortBookings())
+		require.NotNil(t, deviation, "the class list still deviates from every offering")
+		assert.True(t, deviation.Ambiguous)
+	})
+
+	t.Run("Jahrgang", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2, 3}, cohort)
+		roster.TargetGradeLevels = []int{3}
+		roster.OfferingKind = timetable.RosterOfferingCare
+
+		suggestion := timetable.SuggestOfferingSource(roster, cohortBookings())
+
+		require.NotNil(t, suggestion)
+		assert.True(t, suggestion.Ambiguous)
+		assert.Equal(t, both, suggestion.Candidates)
+		assert.Equal(t, []int{3}, suggestion.GradeLevels)
+	})
+
+	// A Gruppe has no Klasse or Jahrgang filter: every booking of the school
+	// counts, so Ganztag, booked across classes, falls below the rule.
+	t.Run("Gruppe", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2, 3}, cohort)
+		roster.OfferingKind = timetable.RosterOfferingCare
+		bookings := cohortBookings()
+		for _, studentID := range studentRange(5001, 10) {
+			entry := booking(ganztagID, "Ganztag bis 14.30 Uhr", studentID, "4b", 1, 2, 3)
+			entry.CountsAsCare = true
+			bookings = append(bookings, entry)
+		}
+
+		suggestion := timetable.SuggestOfferingSource(roster, bookings)
+
+		require.NotNil(t, suggestion)
+		assert.False(t, suggestion.Ambiguous)
+		assert.Equal(t, timetable.OfferingRef{ID: randstundeID, Name: "Randstunde"}, suggestion.Offering)
+		assert.Equal(t, []timetable.OfferingRef{{ID: randstundeID, Name: "Randstunde"}}, suggestion.Candidates)
+	})
+
+	// A third offering passes the rule with less than full coverage: it is
+	// no equal alternative and stays out of the choice.
+	t.Run("Klasse mit schwächerem Angebot", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2, 3}, cohort, "3a")
+		roster.OfferingKind = timetable.RosterOfferingCare
+		bookings := cohortBookings()
+		for _, studentID := range append(slices.Clone(cohort[:5]), 7001) {
+			entry := booking(spaetID, "Spätbetreuung", studentID, "3a", 1, 2, 3)
+			entry.GradeLevel = &grade
+			entry.CountsAsCare = true
+			bookings = append(bookings, entry)
+		}
+
+		suggestion := timetable.SuggestOfferingSource(roster, bookings)
+
+		require.NotNil(t, suggestion)
+		assert.True(t, suggestion.Ambiguous)
+		assert.Equal(t, both, suggestion.Candidates, "Spätbetreuung covers 5 of 6 and is not offered")
+	})
+
+	// Hand-picked children: Randstunde covers them fully, Ganztag only for
+	// 9 of its 14 children.
+	t.Run("Einzelkind", func(t *testing.T) {
+		t.Parallel()
+		roster := classRoster([]int{1, 2, 3}, cohort[:15])
+		roster.OfferingKind = timetable.RosterOfferingCare
+
+		suggestion := timetable.SuggestOfferingSource(roster, cohortBookings())
+
+		require.NotNil(t, suggestion)
+		assert.False(t, suggestion.Ambiguous)
+		assert.Equal(t, timetable.OfferingRef{ID: randstundeID, Name: "Randstunde"}, suggestion.Offering)
+	})
 }

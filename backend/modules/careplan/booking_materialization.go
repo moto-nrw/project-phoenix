@@ -56,6 +56,12 @@ type OfferingRosterResync struct {
 	// TolerateDriftedSources loads the source offerings without the active
 	// and phase checks. Detach fallback only; never set on a save path.
 	TolerateDriftedSources bool
+	// SkipInactiveSources lets a stored source that turned inactive after it
+	// was declared contribute nothing while another source stays valid
+	// (#5305). Every other guard still applies, and a template left without
+	// a valid source is still refused. Resyncs of a template's stored sources
+	// only; never set on a save or catalog-edit path.
+	SkipInactiveSources bool
 }
 
 // SourcedRosters keeps the rosters of offering-sourced Regeltermine in step

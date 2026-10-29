@@ -290,11 +290,13 @@ func (f reattachScanFixture) runReattachAgainstScan(t *testing.T, holder *rowHol
 // scan closed the child's visit and waits before its check-in; the reattach
 // starts and takes over the ended session's visits. Before the fix the
 // reattach had locked the stay first, the scan's check-in waited for it and
-// PostgreSQL aborted one of them with 40P01.
+// PostgreSQL aborted one of them with 40P01. The holder keeps the stay's row,
+// the first new lock after the closed visit: the scan locks the child before
+// its visit (#5278), so the child's row would stop it before the visit.
 func TestReattachWaitsForTheScanHoldingTheVisit(t *testing.T) {
 	t.Parallel()
 	f := newReattachScanFixture(t)
-	holder := holdRow(t, f.k.db, "SELECT id FROM users.student_profiles WHERE id = ? FOR UPDATE", f.scanned)
+	holder := holdRow(t, f.k.db, "SELECT id FROM active.groups WHERE id = ? FOR UPDATE", f.stay)
 
 	rr, reattachErr := f.runReattachAgainstScan(t, holder, holder.commit)
 

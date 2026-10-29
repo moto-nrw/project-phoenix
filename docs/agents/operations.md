@@ -98,6 +98,13 @@ previously managed native app processes, then starts only the selected apps.
 All modes keep Postgres and Mailpit; frontend-only mode skips Go and migrations
 and expects a separately running backend for API calls. Backend children default
 to `GOFLAGS=-p=4` and `GOMAXPROCS=4`, preserving explicit caller values.
+`down` captures both managed process trees before sending TERM and waits up to
+ten seconds for them to exit, including children whose launcher exits first.
+On timeout it returns an error without forcing KILL. A persisted shutdown
+snapshot tracks surviving children across retries, even if the supervisor
+removes the launcher PID files; start times guard against reused PIDs.
+Chain cache cleanup or a restart with `&&` so a failed stop blocks both.
+The same stop gate runs before `up` replaces apps or `docker` starts Compose apps.
 After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
@@ -136,7 +143,11 @@ the source's fixed subnet back. Keep the source configuration and network intact
 contents; it does not prove that published ports are free or networks can start.
 
 If Docker reports `all predefined address pools have been fully subnetted`,
-leave existing networks alone. Inspect allocated subnets without env contents:
+the automatic address pool is exhausted. This differs from an overlapping
+copied subnet: changing the project name or removing fixed IPAM does not free
+address space. First check for [your own orphaned networks](#orphaned-worktree-networks);
+leave networks with uncertain ownership intact. Inspect allocated subnets
+without env contents:
 
 ```bash
 docker network inspect $(docker network ls -q) \
@@ -201,6 +212,60 @@ their owner decides otherwise. `wt remove` runs `.wtconfig` teardown, which
 deletes the managed target's Compose and test-server volumes; it is not an
 adoption or harmless handoff step. Never prune or remove another worktree's
 networks or volumes to make setup succeed.
+
+For **tests only**, no app setup or sibling is needed: supply `TEST_DB_DSN`
+through a private process environment, pointing to a local test server, then
+run the relevant tests through `scripts/run-go-toolchain.sh`. Do not write the
+DSN into tracked files or print it. The test lifecycle uses the tracked
+`docker-compose.example.yml` and derives its project and port from that DSN;
+it does not need a copied `.env` or `docker-compose.yml`. Starting a new test
+server still needs Docker address space. Use only a test server, never the app
+database; servers on the same port are shared, not owned by one worktree.
+
+#### Local env and Compose drift
+
+Ignored local files do not update when their templates change. `wt` copies
+that drift too, and `scripts/setup-dev.sh` skips existing files. Missing env
+keys, stale service wiring and healthchecks are configuration drift, not proof
+of either subnet overlap or pool exhaustion. Native mode still starts Compose
+infrastructure, so it does not bypass either network failure.
+
+Compare required key names with the matching templates in the
+[env-sync inventory](../../.claude/rules/env-docker-sync.md#file-inventory),
+and reconcile missing keys privately without replacing existing secrets or
+leased ports. For a new, unused target, select the tracked Compose template as
+above; preserve customizations and persistent data in an already-used checkout.
+`docker compose config --quiet` checks syntax and interpolation, not template
+parity or network availability. Do not print env values, full resolved Compose
+configuration or secret-bearing diffs into logs or PR evidence.
+
+#### Orphaned worktree networks
+
+An empty network alone does not prove it is disposable. Confirm that the
+project belongs to your completed task and no other session or worktree needs
+it. Inspect only network metadata and container identities, not container
+environments. Filter by the exact network **name**, not its ID: never-started
+`Created` containers can have an empty `NetworkID` and be absent from both
+the ID-filtered container list and the network's endpoint map.
+
+```bash
+docker network ls --filter label=com.docker.compose.project
+# Set network_id to one confirmed task-owned candidate from the list.
+network_name=$(docker network inspect "$network_id" --format '{{.Name}}')
+docker network inspect "$network_id" \
+  --format '{{.Name}} {{json .Labels}} {{json .IPAM.Config}} {{json .Containers}}'
+docker ps -a --filter "network=$network_name" --format '{{.ID}} {{.Names}} {{.Status}}'
+```
+
+If that task still has containers, stop and remove only its disposable
+containers using its recorded project/configuration; preserve volumes and
+databases. Repeat the name-based `docker ps -a` check above, including
+`Created` and `Exited` containers. Only when it returns no containers, remove
+that one network with `docker network rm "$network_id"`. Verify its absence and
+that other projects remain available. Do not disconnect foreign containers,
+use blanket `docker network prune`/`docker system prune`, or delete volumes.
+If ownership or use is uncertain, keep it and use the checked target-only
+subnet fallback above instead.
 
 The seeder is **dev-only**. Staging/production infrastructure belongs in data
 migrations or the admin UI, never the seeder. The one deployed exception is the

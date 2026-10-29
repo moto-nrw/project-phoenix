@@ -69,6 +69,7 @@ func TestDraftOfferingSuggestion(t *testing.T) {
 	assert.Empty(t, suggestion.GradeLevels)
 	assert.Equal(t, 2, suggestion.UnbookedCount)
 	assert.Zero(t, suggestion.MissingCount)
+	assert.False(t, suggestion.Ambiguous)
 
 	exact := getDraftSuggestion(t, router, query(class[:4]))
 	require.NotNil(t, exact, "a new Regeltermin that matches the bookings exactly is still suggested")
@@ -82,6 +83,38 @@ func TestDraftOfferingSuggestion(t *testing.T) {
 
 	sources.bookings = nil
 	assert.Nil(t, getDraftSuggestion(t, router, query(class)), "no bookings, for example with care offerings off")
+}
+
+// TestDraftOfferingSuggestionAmbiguous (#5138): Randstunde and Ganztag both
+// book only children of class 1b, so both cover the class fully. The answer
+// says so and lists both; the dialog then preselects neither.
+func TestDraftOfferingSuggestionAmbiguous(t *testing.T) {
+	t.Parallel()
+	sources := &rosterMaintenanceSources{}
+	s := buildRosterReviewModule(t, sources)
+	router := s.draftRouter()
+	period := createTemplateTestPeriodRange(t, s.db, "Draft-Period", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	class := createClassStudents(t, s.db, "1b", 6)
+	ganztagID := rosterReviewOfferingID + 1
+	sources.bookings = append(
+		rosterReviewBookings(rosterReviewOfferingID, "Randstunde", "1b", class[:3], 1, 3),
+		rosterReviewBookings(ganztagID, "Ganztag", "1b", class[1:5], 1, 3)...,
+	)
+
+	suggestion := getDraftSuggestion(t, router, url.Values{
+		"period_id":      {fmt.Sprint(period.ID)},
+		"type":           {timetableModule.GroupTypeCare},
+		"list_kind":      {"edge_hours"},
+		"school_classes": {"1b"},
+		"roster":         {draftRosterParam(1, class), draftRosterParam(3, class)},
+	})
+
+	require.NotNil(t, suggestion)
+	assert.True(t, suggestion.Ambiguous)
+	assert.Equal(t, []templateRosterMaintenanceOfferingResponse{
+		{ID: ganztagID, Name: "Ganztag"},
+		{ID: rosterReviewOfferingID, Name: "Randstunde"},
+	}, suggestion.Candidates)
 }
 
 // TestDraftOfferingPreview: switching the planned Regeltermin to Randstunde

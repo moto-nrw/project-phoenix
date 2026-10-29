@@ -20,8 +20,10 @@ import (
 // one of its source offerings or already carry a row on it. Every write goes
 // through the ordinary resync, so unchanged rows keep their id, legacy-fed
 // and manual rows stay protected and only the students' future occurrences
-// are reconciled. A template whose source drifted invalid is skipped with a
-// warning: the restore it follows is deliberately forgiving. It runs in the
+// are reconciled. A stored source that turned inactive contributes nothing
+// while another stays valid (#5305); a template whose source drifted invalid
+// otherwise is skipped with a warning: the restore it follows is deliberately
+// forgiving. It runs in the
 // caller's tenant unit, whose holder took the tenant recurrence lock.
 func (m *BookingMaterialization) ResyncStudentSourcedRosters(ctx context.Context, studentIDs []int64, effectiveFrom calendar.Date) error {
 	if len(studentIDs) == 0 {
@@ -46,6 +48,7 @@ func (m *BookingMaterialization) ResyncStudentSourcedRosters(ctx context.Context
 		in := templateResync(tmpl, tmpl.SourceCareOfferingIDs, effectiveFrom)
 		in.GradeLevels, in.SchoolClasses = tmpl.SourceGradeLevels, tmpl.SourceSchoolClasses
 		in.ScopeRequestChildIDs = scope
+		in.SkipInactiveSources = true
 		if err := m.ResyncTemplateOfferingRoster(ctx, in); err != nil {
 			if m.catalog.deps.SourceRules.IsRejection(err) {
 				m.logSkippedSourcedTemplate(tmpl.ID, tmpl.SourceCareOfferingIDs, "student resync: source invalid", err)

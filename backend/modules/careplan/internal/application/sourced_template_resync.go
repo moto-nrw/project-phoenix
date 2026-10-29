@@ -145,10 +145,12 @@ func removeOfferingID(ids []int64, offeringID int64) []int64 {
 
 // resyncSourcedTemplateList reconciles each template's sourced roster.
 // skipInvalid controls what a drifted-invalid source does: the tenant-wide
-// resync skips the template with a warning (one broken template must not
-// block a whole grade transition), while the offering-scoped resync behind
-// phase/offering edits propagates the refusal so the caller can reject the
-// edit that would strand the template's rows (#2147 review).
+// resync lets a stored source that turned inactive contribute nothing while
+// another stays valid (#5305) and skips any other invalid template with a
+// warning (one broken template must not block a whole grade transition),
+// while the offering-scoped resync behind phase/offering edits keeps every
+// guard and propagates the refusal so the caller can reject the edit that
+// would strand the template's rows (#2147 review).
 func (m *BookingMaterialization) resyncSourcedTemplateList(ctx context.Context, templates []ports.SourcedTemplate, effectiveFrom calendar.Date, skipInvalid bool) error {
 	for _, tmpl := range templates {
 		if len(tmpl.SourceCareOfferingIDs) == 0 {
@@ -156,6 +158,7 @@ func (m *BookingMaterialization) resyncSourcedTemplateList(ctx context.Context, 
 		}
 		in := templateResync(tmpl, tmpl.SourceCareOfferingIDs, effectiveFrom)
 		in.GradeLevels, in.SchoolClasses = tmpl.SourceGradeLevels, tmpl.SourceSchoolClasses
+		in.SkipInactiveSources = skipInvalid
 		err := m.ResyncTemplateOfferingRoster(ctx, in)
 		switch {
 		case err == nil:

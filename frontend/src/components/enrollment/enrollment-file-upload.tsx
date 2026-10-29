@@ -221,6 +221,7 @@ export function FileUploadInput({
     latest.current = files;
   }, [files]);
   const nextPendingId = useRef(0);
+  const selectionOrder = useRef(new Map<string, number>());
   const controllers = useRef(new Set<AbortController>());
 
   useEffect(() => {
@@ -258,7 +259,14 @@ export function FileUploadInput({
             uploadEndpoint: target.uploadEndpoint,
             signal: controller.signal,
           });
-      const next = [...latest.current, uploaded];
+      selectionOrder.current.set(uploadValueKey(uploaded), id);
+      // Stored files stay first; new files follow their selection order,
+      // independent of which concurrent request finished first.
+      const next = [...latest.current, uploaded].sort(
+        (a, b) =>
+          (selectionOrder.current.get(uploadValueKey(a)) ?? -1) -
+          (selectionOrder.current.get(uploadValueKey(b)) ?? -1),
+      );
       latest.current = next;
       onChange(next);
     } catch (cause) {
@@ -300,6 +308,7 @@ export function FileUploadInput({
     const next = latest.current.filter(
       (entry) => uploadValueKey(entry) !== key,
     );
+    selectionOrder.current.delete(key);
     latest.current = next;
     onChange(next);
   };
