@@ -13,10 +13,11 @@
  * held while the tab leaves.
  *
  * If the tab stays instead (sign-out failed, navigation aborted, or a new
- * sign-in in this document), the barrier resets: it aborts the held requests,
- * reports the discarded writes and lets Server-Sent Events reconnect. A held
- * write is never sent later, because it could reach the server under a
- * different session.
+ * sign-in in this document), the barrier resets: it sends the held reads (a
+ * failed logout leaves the session valid, so a held session poll must not end
+ * as "signed out"), rejects the held writes, reports them once and lets
+ * Server-Sent Events reconnect. A held write is never sent later, because it
+ * could reach the server under a different session.
  *
  * A page restored from the back-forward cache while a session ends is reloaded
  * instead (decision on #5126): its paused logout continuations (a csrf lookup,
@@ -48,9 +49,9 @@
  *  - Every way out of `ending` or `left` (failure, deadline, aborted
  *    navigation, no page change, new sign-in) goes through `open`, exactly
  *    once per generation. It aborts the generation's requests still in flight
- *    (a hanging sign-out ends here), clears its timers, rejects the held
- *    requests, reports discarded writes, lets SSE reconnect and frees the
- *    single-flight slot, so the next logout can start.
+ *    (a hanging sign-out ends here), clears its timers, sends the held reads,
+ *    rejects the held writes, reports discarded writes, lets SSE reconnect and
+ *    frees the single-flight slot, so the next logout can start.
  *  - A bfcache restore during a session end reloads the page exactly once.
  */
 
@@ -85,6 +86,8 @@ type Phase = "open" | "holding" | "cookie-deleted";
 
 interface HeldRequest {
   write: boolean;
+  // A read goes out after the barrier opens (see `open`).
+  resend: (() => void) | null;
   cleanup: () => void;
   reject: (reason: unknown) => void;
 }
@@ -158,8 +161,17 @@ function open(
   stopNavigationWatch = null;
   const queue = held;
   held = [];
+  // A held read (the session poll, a list) goes out now. If the logout failed,
+  // the session still holds and the read must not end as "signed out"; if the
+  // cookie is gone, it learns that from its own answer. A held write is never
+  // sent: it could reach the server under another session.
+  const reads: (() => void)[] = [];
   for (const request of queue) {
     request.cleanup();
+    if (request.resend) {
+      reads.push(request.resend);
+      continue;
+    }
     const error = new DOMException(
       "The logout discarded this request",
       "AbortError",
@@ -173,6 +185,7 @@ function open(
   };
   window.dispatchEvent(new CustomEvent(SESSION_END_EVENT, { detail }));
   if (releaseFlight) releaseSessionEnd();
+  for (const resend of reads) resend();
 }
 
 /** After the cookie deletion the tab should leave; if it stays, open. */
@@ -280,7 +293,7 @@ export function installSessionEndBarrier(): void {
     if (expired?.generation === generation && SIGN_OUT_PATHS.has(url.pathname))
       return Promise.reject(expired.reason);
     if (phase === "holding" && !SIGN_OUT_PATHS.has(url.pathname)) {
-      return new Promise<Response>((_resolve, reject) => {
+      return new Promise<Response>((resolve, reject) => {
         const signal =
           init?.signal !== undefined
             ? init.signal
@@ -296,11 +309,15 @@ export function installSessionEndBarrier(): void {
           request.cleanup();
           reject(signal?.reason);
         };
+        const read = ["GET", "HEAD", "OPTIONS"].includes(method);
         const request: HeldRequest = {
           // Background telemetry is not an unsaved user change.
-          write:
-            url.pathname !== "/api/logs" &&
-            !["GET", "HEAD", "OPTIONS"].includes(method),
+          write: url.pathname !== "/api/logs" && !read,
+          resend: read
+            ? () => {
+                window.fetch(input, init).then(resolve, reject);
+              }
+            : null,
           cleanup: () => signal?.removeEventListener("abort", abort),
           reject,
         };

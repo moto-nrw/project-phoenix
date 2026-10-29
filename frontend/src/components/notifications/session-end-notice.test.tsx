@@ -1,6 +1,6 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { ToastProvider } from "~/contexts/ToastContext";
+import { ToastProvider, useToast } from "~/contexts/ToastContext";
 import { releaseFakeTimers } from "~/test/clock";
 import {
   DISCARDED_WRITE_MESSAGE,
@@ -42,7 +42,7 @@ describe("NotificationBridge session-end notice", () => {
 
   // Decision on #5126: a bfcache restore during a logout reloads the page. If
   // the reload does not happen, a lasting message offers it.
-  it("offers a lasting „Seite neu laden“ that reloads the page", async () => {
+  it("offers a lasting „Seite neu laden“ that later toasts cannot push out or close", async () => {
     vi.useFakeTimers();
     const location = Object.getOwnPropertyDescriptor(window, "location");
     const reload = vi.fn();
@@ -54,10 +54,16 @@ describe("NotificationBridge session-end notice", () => {
         reload,
       },
     });
+    let toast!: ReturnType<typeof useToast>;
+    function ToastHandle() {
+      toast = useToast();
+      return null;
+    }
     try {
       render(
         <ToastProvider>
           <NotificationBridge />
+          <ToastHandle />
         </ToastProvider>,
       );
       act(() => {
@@ -72,8 +78,37 @@ describe("NotificationBridge session-end notice", () => {
       });
       expect(screen.getByText(RELOAD_REQUIRED_MESSAGE)).toBeInTheDocument();
 
+      // Later toasts do not push it out, and it has no close button.
+      act(() => {
+        for (const n of [1, 2, 3, 4, 5])
+          toast.warning(`Hinweis ${n}`, { duration: 0 });
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      const notice = screen
+        .getByText(RELOAD_REQUIRED_MESSAGE)
+        .closest('[role="status"], [role="alert"]');
+      expect(notice).not.toBeNull();
+      // Anker: the notice's own action is there, its close button is not.
+      expect(
+        within(notice as HTMLElement).getByRole("button", {
+          name: "Seite neu laden",
+        }),
+      ).toBeInTheDocument();
+      expect(
+        within(notice as HTMLElement).queryByRole("button", {
+          name: "Schließen",
+        }),
+      ).not.toBeInTheDocument();
+
       fireEvent.click(screen.getByRole("button", { name: "Seite neu laden" }));
       expect(reload).toHaveBeenCalledOnce();
+      // If the reload does not happen either, the notice stays.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60_000);
+      });
+      expect(screen.getByText(RELOAD_REQUIRED_MESSAGE)).toBeInTheDocument();
     } finally {
       if (location) Object.defineProperty(window, "location", location);
       releaseFakeTimers();

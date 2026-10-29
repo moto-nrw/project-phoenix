@@ -127,28 +127,48 @@ describe("session end barrier", () => {
     expect(sent).not.toContain("/api/auth/session");
   });
 
-  it("aborts the held requests on a failed logout, reports discarded writes and reopens", async () => {
+  // A failed logout leaves the session valid: held reads go out after the
+  // barrier opens, held writes stay discarded with one report (#5126).
+  it("on a failed logout discards held writes, sends held reads and reopens", async () => {
     const barrier = await loadBarrier();
     const cancel = await barrier.holdRequestsUntilSessionEnds();
     const write = window.fetch("/api/groups", { method: "POST" });
     const read = window.fetch("/api/me/profile");
-    read.catch(() => undefined);
 
     cancel();
 
     const writeError = await write.catch((error: unknown) => error);
     expect(writeError).toMatchObject({ name: "AbortError" });
     expect(barrier.discardedBySessionEnd(writeError)).toBe(true);
-    await expect(read).rejects.toMatchObject({ name: "AbortError" });
-    expect(sent).toEqual([]);
+    expect(sent).toEqual(["/api/me/profile"]);
+    answers.get("/api/me/profile")?.();
+    await expect(read).resolves.toMatchObject({ status: 200 });
     expect(barrier.isSessionEnding()).toBe(false);
     expect(phases).toEqual([
       { ending: true, discardedWrites: 0 },
       { ending: false, discardedWrites: 1 },
     ]);
-    // A later request goes out normally.
-    void window.fetch("/api/me/profile");
-    expect(sent).toEqual(["/api/me/profile"]);
+  });
+
+  it("does not end a held session poll as signed out when the logout fails", async () => {
+    vi.useFakeTimers();
+    const barrier = await loadBarrier();
+    await barrier.holdRequestsUntilSessionEnds();
+    // The SessionProvider's poll while the logout holds requests.
+    const poll = window.fetch("/api/auth/session");
+    let settled = false;
+    poll.then(
+      () => (settled = true),
+      () => (settled = true),
+    );
+
+    // The sign-out never answers; the deadline fails the logout.
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(barrier.isSessionEnding()).toBe(false);
+    expect(settled).toBe(false);
+    expect(sent).toEqual(["/api/auth/session"]);
+    answers.get("/api/auth/session")?.();
+    await expect(poll).resolves.toMatchObject({ status: 200 });
   });
 
   it("recognises a discarded request behind an error that wraps it", async () => {
@@ -219,18 +239,19 @@ describe("session end barrier", () => {
     expect(phases.at(-1)).toEqual({ ending: false, discardedWrites: 1 });
   });
 
-  it("recognises a discarded student list request through both service wrappers", async () => {
+  // A held read is no longer discarded (#5126): the student list goes out
+  // once a failed logout opens the barrier, so the page is not left empty.
+  it("sends a held student list request after a failed logout", async () => {
     const barrier = await loadBarrier();
     const { studentService } = await import("./api");
     const cancel = await barrier.holdRequestsUntilSessionEnds();
-    const students = studentService.getStudents();
+    void studentService.getStudents().catch(() => undefined);
     await flush();
-    cancel();
-    const error = await students.catch((cause: unknown) => cause);
-    expect(error).toBeInstanceOf(Error);
-    expect(error).toMatchObject({ cause: { cause: { name: "AbortError" } } });
-    expect(barrier.discardedBySessionEnd(error)).toBe(true);
     expect(sent).toEqual([]);
+    cancel();
+    await vi.waitFor(() =>
+      expect(sent.some((url) => url.includes("students"))).toBe(true),
+    );
   });
 
   it("stops at cyclic and non-object causes without marking unrelated errors", async () => {
@@ -271,8 +292,11 @@ describe("session end barrier", () => {
     expect(barrier.isSessionEnding()).toBe(true);
     await vi.advanceTimersByTimeAsync(1);
 
-    await expect(read).rejects.toMatchObject({ name: "AbortError" });
+    // The held read goes out once the barrier opens; the write stays dropped.
     expect(barrier.isSessionEnding()).toBe(false);
+    expect(sent).toContain("/api/me/profile");
+    answers.get("/api/me/profile")?.();
+    await expect(read).resolves.toMatchObject({ status: 200 });
   });
 
   // Decision on #5126: a bfcache restore during a session end reloads the
@@ -441,7 +465,11 @@ describe("session end barrier", () => {
     const barrier = await loadBarrier();
     await signOutAndHold(barrier);
     await vi.advanceTimersByTimeAsync(5_000);
-    const cancelSecond = await barrier.holdRequestsUntilSessionEnds();
+    const holding = barrier.holdRequestsUntilSessionEnds();
+    // Closing the first generation sends its held read; answer it.
+    await flush();
+    answers.get("/api/me/profile")?.();
+    const cancelSecond = await holding;
     expect(openings()).toBe(1);
 
     // The first generation's ten-second navigation watch has passed.

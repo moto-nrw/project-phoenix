@@ -50,6 +50,8 @@ export function tenantNotificationPath(
   return tenantAwarePath(path, tenantSlug, routingMode);
 }
 
+const RELOAD_REQUIRED_TOAST_ID = "session-end-reload-required";
+
 export const RELOAD_REQUIRED_MESSAGE =
   "Die Abmeldung wurde unterbrochen. Laden Sie die Seite neu, um weiterzuarbeiten.";
 const RELOAD_ACTION_LABEL = "Seite neu laden";
@@ -67,7 +69,8 @@ export function NotificationBridge() {
       if (detail.reloadRequired) {
         // The tab stays frozen until it reloads (#5126); this stays until then.
         toast.warning(RELOAD_REQUIRED_MESSAGE, {
-          duration: 0,
+          id: RELOAD_REQUIRED_TOAST_ID,
+          persistent: true,
           action: {
             label: RELOAD_ACTION_LABEL,
             onClick: () => window.location.reload(),

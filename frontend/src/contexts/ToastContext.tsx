@@ -42,6 +42,12 @@ interface ToastOptions {
   };
   requestId?: string;
   requestIdLabel?: string;
+  /**
+   * Stays until the page goes: no timer, no close button, never evicted, and
+   * its action does not dismiss it. For a state the person must resolve, such
+   * as a tab that needs a reload (#5126).
+   */
+  persistent?: boolean;
 }
 
 interface ToastItemData {
@@ -52,6 +58,7 @@ interface ToastItemData {
   action?: ToastOptions["action"];
   requestId?: string;
   requestIdLabel?: string;
+  persistent?: boolean;
 }
 
 interface ToastAPI {
@@ -311,7 +318,7 @@ function ToastRow({
 
   const handleAction = () => {
     item.action?.onClick();
-    dismissWithExitAnimation();
+    if (!item.persistent) dismissWithExitAnimation();
   };
 
   return (
@@ -320,7 +327,7 @@ function ToastRow({
       message={item.message}
       accessibleLabel={`${labels.typeTitles[item.type]}: ${item.message}`}
       closeLabel={labels.close}
-      onClose={dismissWithExitAnimation}
+      onClose={item.persistent ? undefined : dismissWithExitAnimation}
       requestId={item.requestId}
       requestIdLabel={item.requestIdLabel}
       copyRequestIdLabel={labels.copyRequestId}
@@ -378,7 +385,7 @@ export function ToastProvider({
 
       // Errors must not disappear on a timer; success feedback lasts four seconds.
       const duration =
-        type === "error"
+        type === "error" || options?.persistent
           ? 0
           : type === "success"
             ? 4000
@@ -395,11 +402,15 @@ export function ToastProvider({
             action: options?.action,
             requestId: options?.requestId,
             requestIdLabel: options?.requestIdLabel,
+            persistent: options?.persistent,
           },
         ];
         if (next.length > MAX_VISIBLE) {
-          // Never evict an error that the person has not dismissed.
-          const removable = next.findIndex((item) => item.type !== "error");
+          // Never evict an error that the person has not dismissed, nor a
+          // persistent toast.
+          const removable = next.findIndex(
+            (item) => item.type !== "error" && !item.persistent,
+          );
           if (removable >= 0) next.splice(removable, 1);
         }
         return next;

@@ -18,7 +18,8 @@ interface ToastProps {
   readonly message: string;
   readonly accessibleLabel: string;
   readonly closeLabel: string;
-  readonly onClose: () => void;
+  /** Without it the toast has no close button (a persistent toast). */
+  readonly onClose?: () => void;
   readonly action?: ToastAction;
   readonly requestId?: string;
   readonly requestIdLabel?: string;
@@ -91,7 +92,7 @@ export function Toast({
   // Das X sitzt in der Toast-Fläche (es gehört zur Meldung), aber absolut
   // oben rechts auf Höhe der ersten Textzeile: p-4 plus halbe Zeilenhöhe
   // minus halbe Knopfhöhe. Die Alert-Fläche ist dafür `relative`.
-  const close = (
+  const close = onClose ? (
     <Button
       type="button"
       variant="ghost"
@@ -105,7 +106,7 @@ export function Toast({
     >
       <X className="h-4 w-4" aria-hidden="true" />
     </Button>
-  );
+  ) : null;
 
   return (
     <div
@@ -133,7 +134,7 @@ export function Toast({
         // Rechts Platz für das Schließen-X oben in der Ecke.
         className={cn(
           "relative rounded-xl shadow-lg",
-          touchFriendly ? "pr-14" : "pr-12",
+          close ? (touchFriendly ? "pr-14" : "pr-12") : undefined,
         )}
       />
     </div>
