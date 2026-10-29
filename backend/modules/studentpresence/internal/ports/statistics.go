@@ -110,8 +110,12 @@ type StatisticsRetention interface {
 
 // Own presence facts the report reads through the application service.
 
+// AttendanceDays reads Student Presence's own attendance: the days with a
+// check-in, and the Ist of the Soll-und-Ist comparison (#4774), where an
+// empty student list reads every child of the tenant.
 type AttendanceDays interface {
 	ListAttendanceDays(ctx context.Context, from, to string) ([]studentpresence.AttendanceDay, error)
+	ListAttendanceSpans(ctx context.Context, from, to Date, studentIDs []int64) ([]AttendanceSpan, error)
 }
 
 type RoomUtilizations interface {
@@ -120,4 +124,27 @@ type RoomUtilizations interface {
 
 type RetentionSettings interface {
 	ListAcceptedRetentionSettings(context.Context) ([]studentpresence.StudentRetentionSetting, error)
+}
+
+// CareTimeTargets is the Soll source of the Soll-und-Ist comparison. The
+// root binds it to Care Plan today; a Träger contract can replace it (#4683).
+type CareTimeTargets interface {
+	CareTimeTargets(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]studentpresence.CareTimeTarget, error)
+}
+
+// CarePlanFacts are the facts the report reads from the care plan: the
+// status days and the booked care times.
+type CarePlanFacts interface {
+	StatusDays
+	CareTimeTargets
+}
+
+// AttendanceSpan is the Ist of one child-day: the first check-in and the
+// last check-out. LastCheckOut is nil while any attendance row of the day
+// is still open.
+type AttendanceSpan struct {
+	StudentID    int64
+	Date         Date
+	FirstCheckIn time.Time
+	LastCheckOut *time.Time
 }

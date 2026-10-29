@@ -9,6 +9,6 @@ type CareParticipationResolver = application.CareParticipationResolver
 type CareDayDependencies = application.CareDayDependencies
 
 // NewCareDayQuery composes the care-day derivation over its required reads.
-func NewCareDayQuery(deps CareDayDependencies) (careplan.CareDayQuery, error) {
+func NewCareDayQuery(deps CareDayDependencies) (careplan.CareDays, error) {
 	return application.NewCareDayQuery(deps)
 }

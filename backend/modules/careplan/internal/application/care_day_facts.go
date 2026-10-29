@@ -54,7 +54,7 @@ type careDayService struct {
 // NewCareDayQuery builds the care-day derivation with every read boundary it
 // needs, the care participation included; a missing one is a construction
 // error. The arrival baselines stay optional.
-func NewCareDayQuery(deps CareDayDependencies) (careplan.CareDayQuery, error) {
+func NewCareDayQuery(deps CareDayDependencies) (careplan.CareDays, error) {
 	if deps.Records == nil || deps.PickupBaselines == nil || deps.CareParticipation == nil {
 		return nil, errors.New("care plan care-day queries: records, pickup baselines and care participation are required")
 	}
@@ -67,6 +67,10 @@ func (s *careDayService) ResolveForDate(ctx context.Context, studentIDs []int64,
 
 func (s *careDayService) ResolveForRange(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.CareDayStatus, error) {
 	return NewCareDayQueries(s).ResolveForRange(ctx, studentIDs, from, to)
+}
+
+func (s *careDayService) ResolveCareTimes(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.CareTime, error) {
+	return NewCareDayQueries(s).ResolveCareTimes(ctx, studentIDs, from, to)
 }
 
 func (s *careDayService) LoadCareDayFacts(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.CareDayFacts, error) {

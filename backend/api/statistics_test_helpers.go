@@ -56,9 +56,15 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
+	// The booked care times come from the same care-day derivation the
+	// presence test graph builds (#4774).
+	active, err := NewActiveTestModule(db, unit, clocks...)
+	if err != nil {
+		return StatisticsTestModule{}, err
+	}
 	service := owners.NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
 		DB:         db.Pool(),
-		StatusDays: owners.StatisticsStatusDays{Query: r.CarePlan}, Courses: owners.NewCourseStatistics(db),
+		StatusDays: owners.StatisticsStatusDays{Query: r.CarePlan, CareTimes: active.CareDay}, Courses: owners.NewCourseStatistics(db),
 		Holidays:    schoolCalendarCompose.NewTenantHolidays(calendar),
 		ClosingDays: schoolCalendarCompose.NewTenantClosingDays(calendar), Periods: owners.StatisticsReportPeriods{Periods: calendar}, Students: owners.StatisticsReportStudents{Students: students}, Rooms: owners.StatisticsReportRooms{Rooms: rooms},
 		AccessLog: owners.StatisticsAuditLog{Log: owners.NewTestAuditPersistence(db, command).DataAccessLog}, Retention: settingsModule.NewStatisticsRetention(settings.Settings), Logger: slog.Default(), Now: OptionalClock(clocks),

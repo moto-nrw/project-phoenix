@@ -59,7 +59,7 @@ func (ActiveTestModule) WithAttendanceStaff(ctx context.Context, staffID, tenant
 type ActiveTestModule struct {
 	PickupSchedule  careplan.PickupScheduleService
 	ArrivalSchedule careplan.ArrivalScheduleService
-	CareDay         careplan.CareDayQuery
+	CareDay         careplan.CareDays
 }
 
 // ActiveTimetable is the Timetable side of the active graph.

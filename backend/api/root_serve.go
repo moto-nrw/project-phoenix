@@ -378,7 +378,7 @@ func composeServeRoot(
 			return
 		},
 		func() error {
-			reports = owners.BuildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
+			reports = owners.BuildPresenceReports(db, env, presence, carePlanRows, carePlan, schedules.CareTimes, services.Users, timetableRows, rooms, calendar,
 				people, audit, settings.Service)
 			return nil
 		},

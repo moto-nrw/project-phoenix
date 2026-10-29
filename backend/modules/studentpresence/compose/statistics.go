@@ -32,7 +32,7 @@ type StatisticsDependencies struct {
 	DB      *bun.DB
 	Observe func(Observation)
 
-	StatusDays  ports.StatusDays
+	StatusDays  ports.CarePlanFacts
 	Courses     ports.CourseStatistics
 	Holidays    ports.HolidayDates
 	ClosingDays ports.ClosingDayDates

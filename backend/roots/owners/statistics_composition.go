@@ -36,11 +36,11 @@ type StatisticsSettings interface {
 // newStatisticsReports binds the Statistik report to the owners it reads;
 // the service graph calls the result with its access log and retention
 // settings. now fixes the report clock; nil is the Berlin clock.
-func newStatisticsReports(db transactionruntime.Database, carePlan careplan.StudentStatusDaysQuery, calendar schoolcalendar.Days, students statisticsStudentRows, rooms facilities.Query, logger *slog.Logger, now func() time.Time) func(AccessLogLedger, StatisticsSettings) studentpresence.StatisticsReports {
+func newStatisticsReports(db transactionruntime.Database, carePlan careplan.StudentStatusDaysQuery, careTimes careplan.CareTimeQuery, calendar schoolcalendar.Days, students statisticsStudentRows, rooms facilities.Query, logger *slog.Logger, now func() time.Time) func(AccessLogLedger, StatisticsSettings) studentpresence.StatisticsReports {
 	return func(accessLog AccessLogLedger, settings StatisticsSettings) studentpresence.StatisticsReports {
 		return NewStatistics(logger, presenceCompose.StatisticsDependencies{
 			DB:          db.Pool(),
-			StatusDays:  StatisticsStatusDays{carePlan},
+			StatusDays:  StatisticsStatusDays{carePlan, careTimes},
 			Courses:     NewCourseStatistics(db),
 			Holidays:    schoolCalendarCompose.NewTenantHolidays(calendar),
 			ClosingDays: schoolCalendarCompose.NewTenantClosingDays(calendar),

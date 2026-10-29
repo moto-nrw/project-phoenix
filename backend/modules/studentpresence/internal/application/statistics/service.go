@@ -46,7 +46,7 @@ const (
 type Config struct {
 	Statistics      ports.RoomUtilizations
 	Attendance      ports.AttendanceDays
-	StatusDays      ports.StatusDays
+	StatusDays      ports.CarePlanFacts
 	Courses         ports.CourseStatistics
 	Holidays        ports.HolidayDates
 	ClosingDays     ports.ClosingDayDates

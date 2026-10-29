@@ -7057,6 +7057,38 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverruns",
+      "binding_digest": "da24ddbb662d1645c6ac077946069698",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverruns",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrolledOn",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverruns",
+      "binding_digest": "348f7cbb577318156fd8ea47dc1fcad6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverruns",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.Config.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverrunsForExport",
+      "binding_digest": "da24ddbb662d1645c6ac077946069698",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverrunsForExport",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrolledOn",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverrunsForExport",
+      "binding_digest": "348f7cbb577318156fd8ea47dc1fcad6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverrunsForExport",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.Config.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.Report",
       "binding_digest": "da24ddbb662d1645c6ac077946069698",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.Report",
@@ -7084,6 +7116,22 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.ReportForExport",
       "binding_digest": "348f7cbb577318156fd8ea47dc1fcad6",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.ReportForExport",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.Config.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.StudentCareTimes",
+      "binding_digest": "da24ddbb662d1645c6ac077946069698",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.StudentCareTimes",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrolledOn",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.StudentCareTimes",
+      "binding_digest": "348f7cbb577318156fd8ea47dc1fcad6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.StudentCareTimes",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.Config.Now",
       "target_owner": ""
@@ -10225,6 +10273,14 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ListAttendanceSpans",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.AttendanceDays.ListAttendanceSpans",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCareDayLocker.LockExceptionDay",
       "binding_digest": "13891c9842cc673b5abd17685443433c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CareDayLocker.LockExceptionDay",
@@ -10238,6 +10294,46 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CareDayLocker.LockStudentAndExceptionDay",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/compose.DayLocks.LockStudentAndExceptionDay",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsStatusDays.CareTimeTargets",
+      "binding_digest": "c3ec91f158329bbd5cec7c5e352a4c97",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CarePlanFacts.CareTimeTargets",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveCareTimes",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsStatusDays.CareTimeTargets",
+      "binding_digest": "500de7bc091ccd2ccce9efacac7dca31",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CarePlanFacts.CareTimeTargets",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareTimeQuery.ResolveCareTimes",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsStatusDays.StatusDays",
+      "binding_digest": "9edb72013a53a55196a9aff487e17e03",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CarePlanFacts.StatusDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStatusDaySummaries",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsStatusDays.StatusDays",
+      "binding_digest": "13a4671c491810693a059799c0330e58",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CarePlanFacts.StatusDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStatusDaySummaries",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsStatusDays.StatusDays",
+      "binding_digest": "c3a2091fa9ef962e854ecb5e6726b45b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.CarePlanFacts.StatusDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentStatusDaysQuery.ListStatusDaySummaries",
       "target_owner": "care-plan"
     },
     {
@@ -10551,30 +10647,6 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Query.ListGroupsByID",
       "target_owner": "school-structure"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsStatusDays.StatusDays",
-      "binding_digest": "9edb72013a53a55196a9aff487e17e03",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatusDays.StatusDays",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStatusDaySummaries",
-      "target_owner": "care-plan"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsStatusDays.StatusDays",
-      "binding_digest": "13a4671c491810693a059799c0330e58",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatusDays.StatusDays",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStatusDaySummaries",
-      "target_owner": "care-plan"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsStatusDays.StatusDays",
-      "binding_digest": "c3a2091fa9ef962e854ecb5e6726b45b",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatusDays.StatusDays",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentStatusDaysQuery.ListStatusDaySummaries",
-      "target_owner": "care-plan"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.AddGroupToCombination",
@@ -10996,6 +11068,14 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.ListAttendanceDays",
       "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.ListAttendanceDays",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.ListAttendanceSpans",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.ListAttendanceSpans",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"

@@ -11,16 +11,6 @@
       "target_owner": "care-plan"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolveForDate",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/internal/application.careDayService.ResolveForDate; modules/careplan/internal/application/care_day_facts.go:64. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "timetable-activities",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolveForDate",
-      "target_owner": "care-plan"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
       "classification": "query",
       "effect": "query",
@@ -28,6 +18,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDayQuery.ResolveForDate; modules/careplan/care_days.go:12. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDays.ResolveForDate: the Soll-und-Ist comparison reads booked care times (#4774). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForDate",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDays.ResolveForDate: the Soll-und-Ist comparison reads booked care times (#4774). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForDate",
       "target_owner": "care-plan"
     },
     {
@@ -41,16 +51,6 @@
       "target_owner": "care-plan"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolveForRange",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/internal/application.careDayService.ResolveForRange; modules/careplan/internal/application/care_day_facts.go:68. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "timetable-activities",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolveForRange",
-      "target_owner": "care-plan"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
       "classification": "query",
       "effect": "query",
@@ -58,6 +58,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDayQuery.ResolveForRange; modules/careplan/care_days.go:13. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDays.ResolveForRange: the Soll-und-Ist comparison reads booked care times (#4774). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDays.ResolveForRange: the Soll-und-Ist comparison reads booked care times (#4774). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForRange",
       "target_owner": "care-plan"
     },
     {
@@ -17204,6 +17224,16 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableCareDays.ResolveForDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CareDays.ResolveForDate",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDays.ResolveForDate: the Soll-und-Ist comparison reads booked care times (#4774). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForDate",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableCareDays.ResolveForRange",
       "classification": "query",
       "effect": "query",
@@ -17211,6 +17241,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDayQuery.ResolveForRange; modules/careplan/care_days.go:13. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableCareDays.ResolveForRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CareDays.ResolveForRange",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.CareDays.ResolveForRange: the Soll-und-Ist comparison reads booked care times (#4774). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForRange",
       "target_owner": "care-plan"
     },
     {
