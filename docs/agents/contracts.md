@@ -398,11 +398,12 @@ the error with a retry, as does the tenant relogin action. Portal cookies
 are host-only, but a late response of the same portal can still write one
 back; the revoked family makes it worthless. Migration 1.15.707 gives every
 live chain from before families (head plus rotated predecessors linked by
-`replacement_token`, same account, generation + 1) one family in one
-recursive statement, so it keeps signing in through one forced renewal. A
-head that rotates while the migration runs gets its family from the
-rotation itself, which also writes it onto the predecessor; the migration
-rechecks the locked row and never overwrites it. An access token without
+`replacement_token`, same account, generation + 1) one family, so it keeps
+signing in through one forced renewal. It works one account per
+transaction and reads the chain only after taking the account lock refresh
+and logout take first, so a rotation during the migration commits either
+before the read (the migration then hands the rotation's family down to the
+remaining predecessors) or after the write. An access token without
 family gets 401, a rotated row without family is refused at refresh, and a
 logout revokes the whole chain it links into, all reached families
 included, before it reports success. The walk follows only unique links

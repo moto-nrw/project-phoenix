@@ -2,8 +2,9 @@ package migrations
 
 // Coverage for 1.15.707 (#5194): every live refresh chain without family gets
 // exactly one family in one run, head and linked predecessors alike, however
-// long it is; rows the backfill cannot place, expired rows and rows with a
-// family stay as they are, and a rerun changes nothing.
+// long it is; a predecessor without family takes the family of its head;
+// rows the backfill cannot place, expired rows and rows with a family stay
+// as they are, and a rerun changes nothing.
 
 import (
 	"context"
@@ -64,6 +65,12 @@ func TestBackfillSessionFamilies(t *testing.T) {
 	// A link with the wrong generation is no lineage.
 	skipped := insert("skip-g0", 0, nil, "skip-g2", future)
 	skipHead := insert("skip-g2", 2, nil, "", future)
+	// A rotation that committed before the backfill read the chain left a
+	// family on the new head and its predecessor; the older predecessor
+	// takes the same family.
+	rotatedOld := insert("rotated-g0", 0, nil, "rotated-g1", future)
+	rotatedMid := insert("rotated-g1", 1, "family-rotated", "rotated-g2", future)
+	rotatedHead := insert("rotated-g2", 2, "family-rotated", "", future)
 	// Expired rows and rows with a family stay as they are.
 	expired := insert("expired", 0, nil, "", past)
 	modern := insert("modern", 0, "family-modern", "", future)
@@ -83,9 +90,12 @@ func TestBackfillSessionFamilies(t *testing.T) {
 	assert.NotEmpty(t, familyOf(skipHead))
 	assert.Empty(t, familyOf(expired))
 	assert.Equal(t, "family-modern", familyOf(modern))
+	assert.Equal(t, "family-rotated", familyOf(rotatedOld), "a predecessor takes the family of its chain")
+	assert.Equal(t, "family-rotated", familyOf(rotatedMid))
+	assert.Equal(t, "family-rotated", familyOf(rotatedHead))
 
 	before := map[int64]string{}
-	for _, id := range []int64{chainOld, chainMid, chainHead, single, orphan, ambiguous, twinA, skipped, skipHead, expired, modern} {
+	for _, id := range []int64{chainOld, chainMid, chainHead, single, orphan, ambiguous, twinA, skipped, skipHead, expired, modern, rotatedOld, rotatedMid, rotatedHead} {
 		before[id] = familyOf(id)
 	}
 	require.NoError(t, backfillSessionFamiliesUp(ctx, db))
