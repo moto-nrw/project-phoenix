@@ -930,5 +930,16 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
         name: "Bitte eine Trinkflasche mitgeben.",
       }),
     ).not.toBeInTheDocument();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    // Anker: the information-only notice remains visible in the summary.
+    expect(await screen.findByText("Trinkflaschen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte eine Trinkflasche mitgeben."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Nicht bestätigt")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bestätigt")).not.toBeInTheDocument();
   });
 });

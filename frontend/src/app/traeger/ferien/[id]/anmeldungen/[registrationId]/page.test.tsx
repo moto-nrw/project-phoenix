@@ -180,6 +180,18 @@ describe("TraegerHolidayRegistrationPage", () => {
             text: "",
             sort_order: 1,
           },
+          {
+            key: "info",
+            kind: "notice",
+            source: "custom",
+            enabled: true,
+            required: false,
+            title: "Trinkflaschen",
+            label: "Bitte eine Trinkflasche mitgeben.",
+            text: "",
+            sort_order: 2,
+            attachments: [{ label: "Packliste", document_url: "82" }],
+          },
         ],
       },
       legalAcceptances: { hinweis: "2026-11-03T10:12:00Z" },
@@ -199,7 +211,15 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(
       evidence.getByText("Zugestimmt am 03.11.2026, 11:12 Uhr"),
     ).toBeInTheDocument();
-    expect(evidence.getByText("Nicht zugestimmt")).toBeInTheDocument();
+    expect(evidence.getAllByText("Nicht zugestimmt")).toHaveLength(1);
+    // Anker: the information-only notice and its PDF remain visible.
+    const notice = within(
+      evidence.getByRole("heading", { name: "Trinkflaschen" }).parentElement!,
+    );
+    expect(
+      notice.getByRole("button", { name: "Packliste öffnen" }),
+    ).toBeInTheDocument();
+    expect(notice.queryByText("Nicht zugestimmt")).not.toBeInTheDocument();
     expect(
       evidence.getByRole("button", { name: "Ferienbrief öffnen" }),
     ).toHaveTextContent("Öffnen");

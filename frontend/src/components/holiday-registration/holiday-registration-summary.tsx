@@ -197,9 +197,11 @@ export function HolidayRegistrationSummary({
               ?.filter((b) => b.enabled)
               .map((block) => (
                 <DataField key={block.key} label={block.title}>
-                  {draft.legalAcceptances?.[block.key]
-                    ? t("legalAccepted")
-                    : t("legalNotAccepted")}
+                  {block.kind === "notice" && !block.required
+                    ? block.label
+                    : draft.legalAcceptances?.[block.key]
+                      ? t("legalAccepted")
+                      : t("legalNotAccepted")}
                 </DataField>
               ))}
           </DataGrid>

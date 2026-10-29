@@ -331,11 +331,13 @@ export default function TraegerHolidayRegistrationPage() {
                         <h3 className="text-sm font-semibold text-gray-900">
                           {block.title}
                         </h3>
-                        <p className="text-sm text-gray-700">
-                          {at
-                            ? `Zugestimmt am ${formatChatDateTime(at)} Uhr`
-                            : "Nicht zugestimmt"}
-                        </p>
+                        {block.kind === "notice" && !block.required ? null : (
+                          <p className="text-sm text-gray-700">
+                            {at
+                              ? `Zugestimmt am ${formatChatDateTime(at)} Uhr`
+                              : "Nicht zugestimmt"}
+                          </p>
+                        )}
                         <AttachmentList
                           labels={PDF_LABELS}
                           attachments={block.attachments}
