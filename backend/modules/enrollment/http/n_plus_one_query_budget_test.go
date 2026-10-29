@@ -230,6 +230,43 @@ func TestOfferingWeekdayBookingsListsTheBookedWeekdays(t *testing.T) {
 		"an open-ended booking ends with the phase's inclusive last service day")
 }
 
+// TestOfferingWeekdayBookingsCarryTheClassDayFacts: the offering-gap check
+// (#5343) reads from each booking whether the Klassentag applies, which the
+// school-year phase allows unless the offering includes holiday care, and
+// the offering's pickup times.
+func TestOfferingWeekdayBookingsCarryTheClassDayFacts(t *testing.T) {
+	t.Parallel()
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	pickups := map[string]string{"mon": "12:45", "tue": "12:45", "wed": "12:45", "thu": "12:45", "fri": "12:45"}
+	schoolDays := createAdjustmentCareOfferingWith(t, env, uniqueSchemaName("Randstunde Klassentag"), func(offering *offeringContract.CareOfferingRecord) {
+		offering.CountsAsCare, offering.PickupTimes = true, pickups
+	})
+	withHolidays := createAdjustmentCareOfferingWith(t, env, uniqueSchemaName("Randstunde Ferien"), func(offering *offeringContract.CareOfferingRecord) {
+		offering.CountsAsCare, offering.PickupTimes, offering.IncludesHolidayCare = true, pickups, true
+	})
+	submitApprovedAdjustmentChild(t, env, "klassentag@example.com", "Klassentag", []*offeringContract.CareOfferingRecord{schoolDays, withHolidays})
+	lister := env.bookings.(careplan.OfferingSourceEditor)
+
+	var bookings []careplan.OfferingWeekdayBooking
+	err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		bookings, err = lister.OfferingWeekdayBookings(txCtx, nil, calendar.Date(env.sourcePhase.ServiceStartDate))
+		return err
+	})
+	require.NoError(t, err)
+
+	byOffering := map[int64]careplan.OfferingWeekdayBooking{}
+	for _, booking := range bookings {
+		byOffering[booking.OfferingID] = booking
+	}
+	require.Contains(t, byOffering, schoolDays.ID)
+	require.Contains(t, byOffering, withHolidays.ID)
+	assert.True(t, byOffering[schoolDays.ID].ClassDayApplies, "a school-year phase follows the school days")
+	assert.False(t, byOffering[withHolidays.ID].ClassDayApplies, "holiday care runs on days without school")
+	assert.Equal(t, map[int]string{1: "12:45", 2: "12:45", 3: "12:45", 4: "12:45", 5: "12:45"}, byOffering[schoolDays.ID].PickupTimes)
+}
+
 // TestOfferingTemplateGapDecisionTravelsWithTheBookings: the school's
 // decision "Kein eigener Regeltermin nötig" (#5140) is stored on the
 // offering for one planning period, with its classes trimmed, deduplicated

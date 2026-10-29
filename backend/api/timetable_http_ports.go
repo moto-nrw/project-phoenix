@@ -349,6 +349,8 @@ func (s timetableOfferingSources) OfferingWeekdayBookings(ctx context.Context, c
 			CountsAsCare:          booking.CountsAsCare,
 			IncludesLunch:         booking.IncludesLunch,
 			TemplateGapAckClasses: booking.TemplateGapAckClasses,
+			ClassDayApplies:       booking.ClassDayApplies,
+			PickupTimes:           booking.PickupTimes,
 			Windows:               timetableBookingWindows(booking.Windows),
 		})
 	}

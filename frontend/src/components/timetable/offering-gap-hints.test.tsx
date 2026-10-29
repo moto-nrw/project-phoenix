@@ -62,6 +62,8 @@ const randstunde: OfferingGap = {
   weekdays: [1, 2, 3, 4, 5],
   acknowledged: false,
   acknowledgedClasses: [],
+  newSeriesClasses: ["3a", "3b", "4a"],
+  newSeriesPlansCovered: false,
 };
 
 const mittag: OfferingGap = {
@@ -71,6 +73,8 @@ const mittag: OfferingGap = {
   weekdays: [3],
   acknowledged: true,
   acknowledgedClasses: [""],
+  newSeriesClasses: [],
+  newSeriesPlansCovered: false,
 };
 
 function renderHints(canManage = true) {
@@ -163,6 +167,67 @@ describe("OfferingGapHints", () => {
     expect(create).toHaveTextContent("Regeltermin anlegen");
     expect(none).toHaveTextContent("Kein Regeltermin nötig");
     expect(create.className).toBe(none.className);
+  });
+
+  it("explains once why a row offers no new Regeltermin (#5343)", () => {
+    mockGaps.current = [
+      { ...randstunde, newSeriesPlansCovered: true },
+      {
+        ...randstunde,
+        offering: { id: "9", name: "Kurzbetreuung" },
+        newSeriesPlansCovered: true,
+      },
+      { ...randstunde, offering: { id: "10", name: "Spätbetreuung" } },
+    ];
+    renderHints();
+
+    expect(
+      screen.getAllByText(
+        /Fehlt „Regeltermin anlegen“\? Dann sind einige Kinder an diesen Tagen schon eingeplant oder noch im Unterricht\./,
+      ),
+    ).toHaveLength(1);
+    expect(
+      screen.queryByRole("button", {
+        name: "Regeltermin anlegen: „Randstunde“",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: "Regeltermin anlegen: „Kurzbetreuung“",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Regeltermin anlegen: „Spätbetreuung“",
+      }),
+    ).toBeInTheDocument();
+    // The decision stays available on every row.
+    expect(
+      screen.getAllByRole("button", { name: /^Kein Regeltermin nötig: / }),
+    ).toHaveLength(3);
+  });
+
+  it("names only the offering's missing Regeltermin when creation is safe", () => {
+    renderHints();
+
+    expect(
+      screen.getByText(
+        "Diese Kinder haben ein Angebot gebucht. An den genannten Tagen steht kein passender Regeltermin für sie im Plan.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Fehlt „Regeltermin anlegen“/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows readers without planning rights no explanation of a button", () => {
+    mockGaps.current = [{ ...randstunde, newSeriesPlansCovered: true }];
+    renderHints(false);
+
+    expect(screen.getByText("„Randstunde“")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Fehlt „Regeltermin anlegen“/),
+    ).not.toBeInTheDocument();
   });
 
   it("folds the list after five offerings", () => {

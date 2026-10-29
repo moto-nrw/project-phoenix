@@ -42,6 +42,8 @@ it("removes old hints until the selected period has loaded", async () => {
     weekdays: [1],
     acknowledged: false,
     acknowledgedClasses: [],
+    newSeriesClasses: [],
+    newSeriesPlansCovered: false,
   };
   let resolveNext!: (gaps: OfferingGap[]) => void;
   const next = new Promise<OfferingGap[]>((resolve) => {

@@ -3,6 +3,7 @@ package timetable
 import (
 	"context"
 	"errors"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -24,6 +25,11 @@ type TemplateRosterReview interface {
 	// enrollment rows plus the current members of the Klasse, Jahrgang or
 	// Gruppe targets. A zero from means today. Unknown ids are absent.
 	FutureRosters(ctx context.Context, templateIDs []int64, from calendar.Date) (map[int64]TemplateFutureRoster, error)
+	// PlannedRosters returns, per template, who it plans on which dates:
+	// its enrollment rows with their validity and the current members of
+	// its Klasse, Jahrgang or Gruppe targets (#5343). Children who left the
+	// school are left out; unknown ids are absent.
+	PlannedRosters(ctx context.Context, templateIDs []int64) (map[int64]TemplatePlannedRoster, error)
 	// SeriesSegments lists the segments of the template's series that still
 	// have days on or after from, ordered by their start.
 	SeriesSegments(ctx context.Context, templateID int64, from calendar.Date) ([]TemplateSeriesSegment, error)
@@ -52,6 +58,55 @@ type TemplateFutureRoster struct {
 	// OfferingKind restricts which offerings may explain the roster; the
 	// zero value admits every offering.
 	OfferingKind RosterOfferingKind
+}
+
+// TemplatePlannedRoster is who a Regeltermin plans, as materialization
+// fills its occurrences: the enrollment rows on the dates they apply, and
+// the members of its Klasse, Jahrgang or Gruppe targets on every date.
+type TemplatePlannedRoster struct {
+	Entries          []TemplateRosterEntry
+	TargetStudentIDs []int64
+}
+
+// TemplateRosterEntry is one enrollment row of a Regeltermin.
+type TemplateRosterEntry struct {
+	StudentID int64
+	// ValidFrom is inclusive, ValidUntil exclusive; nil is open.
+	ValidFrom  *calendar.Date
+	ValidUntil *calendar.Date
+	// CalendarPeriodID pins the row to one planning period; nil holds in
+	// every period.
+	CalendarPeriodID *int64
+	// Weekday scopes the row to one ISO weekday; nil holds on every day.
+	Weekday *int
+	// SelectedWeekdays restricts the row to these ISO weekdays; empty holds
+	// on every day.
+	SelectedWeekdays []int
+}
+
+// Plans reports whether the roster puts the child on the template's
+// occurrence on date in the planning period, with materialization's rule
+// for enrollment rows (isEnrollmentValidOn). A periodID of 0 skips the
+// period check.
+func (r TemplatePlannedRoster) Plans(studentID int64, date calendar.Date, periodID int64) bool {
+	if slices.Contains(r.TargetStudentIDs, studentID) {
+		return true
+	}
+	return slices.ContainsFunc(r.Entries, func(entry TemplateRosterEntry) bool {
+		return entry.StudentID == studentID && entry.appliesOn(date, periodID)
+	})
+}
+
+func (e TemplateRosterEntry) appliesOn(date calendar.Date, periodID int64) bool {
+	weekday := calendar.ISOWeekday(date)
+	switch {
+	case e.ValidFrom != nil && e.ValidFrom.After(date),
+		e.ValidUntil != nil && !e.ValidUntil.After(date),
+		periodID != 0 && e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID,
+		e.Weekday != nil && *e.Weekday != weekday:
+		return false
+	}
+	return len(e.SelectedWeekdays) == 0 || slices.Contains(e.SelectedWeekdays, weekday)
 }
 
 // TemplateSeriesSegment is one segment of a split series.

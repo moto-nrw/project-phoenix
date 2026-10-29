@@ -350,6 +350,7 @@ func BookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
 	return careplan.OfferingPhase{
 		ID: phase.ID, Name: phase.Name,
 		ServiceStart: calendar.Date(phase.ServiceStartDate), ServiceEnd: calendar.Date(phase.ServiceEndDate),
+		SchoolYear: phase.Kind == enrollmentOwner.PhaseKindSchoolYear,
 	}
 }
 

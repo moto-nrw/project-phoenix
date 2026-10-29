@@ -41,7 +41,9 @@ const INITIAL_GAP_COUNT = 5;
  * Offerings whose booked children no Regeltermin of the period takes over
  * (#5140): one collected hint above the Regeltermine, a list in a neutral
  * card with one row per offering and its two equal decisions, the way the
- * staff inbox lists absence requests. Only the icon and the count badge
+ * staff inbox lists absence requests. A row offers „Regeltermin anlegen“
+ * only when the new Regeltermin would plan no child twice (#5343); the
+ * reason stands once above the list. Only the icon and the count badge
  * carry the warning colour. Decided offerings wait in a folded card with
  * the same rows, from where the hint can come back. Readers without planning
  * rights only see the open hints. A failed check shows the load error with a
@@ -133,6 +135,8 @@ export function OfferingGapHints({
   if (open.length === 0 && decided.length === 0) return null;
 
   const hiddenCount = Math.max(0, open.length - INITIAL_GAP_COUNT);
+  const createWithheld =
+    canManage && open.some((gap) => gap.newSeriesPlansCovered);
   const visible = expanded ? open : open.slice(0, INITIAL_GAP_COUNT);
 
   return (
@@ -143,7 +147,7 @@ export function OfferingGapHints({
           titleBadge={
             <StatusBadge tone="orange" label={`${open.length} offen`} />
           }
-          description="Diese Kinder haben ein Angebot gebucht, aber kein Regeltermin übernimmt sie."
+          description="Diese Kinder haben ein Angebot gebucht. An den genannten Tagen steht kein passender Regeltermin für sie im Plan."
           leading={
             <TriangleAlert
               className="text-moto-orange-strong mt-0.5 size-5 shrink-0"
@@ -151,21 +155,31 @@ export function OfferingGapHints({
             />
           }
         >
+          {createWithheld ? (
+            // Einmal über der Liste, auch bei nur einer solchen Zeile.
+            <p className="mb-3 text-sm text-gray-600">
+              Fehlt „Regeltermin anlegen“? Dann sind einige Kinder an diesen
+              Tagen schon eingeplant oder noch im Unterricht. Tragen Sie die
+              übrigen Kinder in einen Regeltermin ein.
+            </p>
+          ) : null}
           <ResponsiveActionList id={openListId}>
             {visible.map((gap) => (
               <OfferingGapRow key={gap.offering.id} gap={gap}>
                 {canManage ? (
                   <>
-                    <Button
-                      type="button"
-                      variant="surface"
-                      size="compact"
-                      aria-label={`Regeltermin anlegen: „${gap.offering.name}“`}
-                      onClick={() => onCreateSeries(gap)}
-                      disabled={busyOfferingId === gap.offering.id}
-                    >
-                      Regeltermin anlegen
-                    </Button>
+                    {gap.newSeriesPlansCovered ? null : (
+                      <Button
+                        type="button"
+                        variant="surface"
+                        size="compact"
+                        aria-label={`Regeltermin anlegen: „${gap.offering.name}“`}
+                        onClick={() => onCreateSeries(gap)}
+                        disabled={busyOfferingId === gap.offering.id}
+                      >
+                        Regeltermin anlegen
+                      </Button>
+                    )}
                     <Button
                       type="button"
                       variant="surface"

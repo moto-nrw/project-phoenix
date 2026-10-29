@@ -71,6 +71,9 @@ type OfferingPhase struct {
 	Name         string
 	ServiceStart calendar.Date
 	ServiceEnd   calendar.Date
+	// SchoolYear is true for a school-year phase, whose service follows the
+	// school days; holiday and custom phases are false.
+	SchoolYear bool
 }
 
 // LinkedSegment is one live segment of a linked template's split series with

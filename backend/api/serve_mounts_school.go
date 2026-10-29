@@ -102,8 +102,14 @@ func mountSchoolPortalRoutes(
 	if err != nil {
 		return err
 	}
+	// The offering-gap check reads the Klassentag of the booked classes
+	// (#5343) from Timetable's class arrival plans.
+	classArrivals, err := owners.BuildClassArrivals(db, logger)
+	if err != nil {
+		return err
+	}
 	timetableResource := newTimetableResource(calendar, timetableOwner, materialization, lifecycle, planning, planningTracks, users, schedules,
-		caller, settings, careOfferings, classDay, planExport, pickupExtensions, persons, logger)
+		caller, settings, careOfferings, classDay, planExport, pickupExtensions, persons, classArrivals, logger)
 	// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
 	// separate surface from /messages (which is parent-facing).
 	staffMessaging := staffMessagingAPI.NewResource(chat.StaffMessaging)
@@ -146,7 +152,8 @@ func newTimetableResource(
 	lifecycle owners.TimetableLifecycle, planning TimetablePlanning, planningTracks timetableModule.PlanningTrackAdministration,
 	users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules, caller *owners.CallerRows, settings settingsCompose.SettingsService,
 	careOfferings carePlanModule.CareOfferingCapability, classDay ClassDayViews, planExport planexport.Service,
-	pickupExtensions timetableAPI.PickupExtensionDecisions, hints peopledirectory.SchoolDayHintQuery, logger *slog.Logger,
+	pickupExtensions timetableAPI.PickupExtensionDecisions, hints peopledirectory.SchoolDayHintQuery,
+	classArrivals timetableModule.ClassArrivalQuery, logger *slog.Logger,
 ) *timetableAPI.Resource {
 	return timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         calendar,
@@ -174,6 +181,7 @@ func newTimetableResource(
 		SettingsService:         settings,
 		OfferingSourceOptions:   NewTimetableOfferingSources(careOfferings),
 		OfferingGapDecisions:    careOfferings,
+		ClassArrivals:           classArrivals,
 		SupervisionSheets:       NewTimetableSupervisionSheets(classDay.ClassDay),
 		HomeworkFeedback:        timetableOwner,
 		PlanExportService:       planExport,
