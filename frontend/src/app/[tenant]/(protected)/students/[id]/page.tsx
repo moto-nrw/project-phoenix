@@ -216,6 +216,23 @@ const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "historie",
 ];
 
+function addDocumentsTab(tabs: StudentTabId[]): StudentTabId[] {
+  if (tabs.includes("dokumente")) {
+    return tabs;
+  }
+
+  const requestLogIndex = tabs.indexOf("aenderungsprotokoll");
+  if (requestLogIndex === -1) {
+    return [...tabs, "dokumente"];
+  }
+
+  return [
+    ...tabs.slice(0, requestLogIndex),
+    "dokumente",
+    ...tabs.slice(requestLogIndex),
+  ];
+}
+
 const DEFAULT_TAB: StudentTabId = "stammdaten";
 
 function resolveActiveTab(
@@ -271,7 +288,7 @@ function studentTabs(
   // (which the migration exists to make grantable) could never reach the tab
   // at all.
   const withDocuments = canViewDocuments
-    ? withCarePlan
+    ? addDocumentsTab(withCarePlan)
     : withCarePlan.filter((tab) => tab !== "dokumente");
   // Änderungsprotokoll (#2437) uses the gate of both its sources:
   // Both sources require users:update, or users:read plus users:absence. The
