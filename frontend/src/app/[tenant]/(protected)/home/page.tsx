@@ -58,6 +58,7 @@ import {
 } from "~/lib/redirect-utils";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr/hooks";
+import { dashboardKeys } from "~/lib/swr/portal-keys";
 import {
   useBookedModules,
   useOpenCareGroupMode,
@@ -243,7 +244,7 @@ function HomeContent() {
     error: swrError,
     mutate: mutateDashboard,
   } = useSWRAuth<DashboardAnalytics>(
-    needsAnalytics ? "dashboard-analytics" : null,
+    needsAnalytics ? dashboardKeys.analytics() : null,
     fetchDashboardAnalyticsClient,
     { refreshInterval: 5 * 60 * 1000 },
   );

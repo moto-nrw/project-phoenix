@@ -27,6 +27,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { formatFloor, getRoomCategoryColor } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
+import { dashboardKeys } from "~/lib/swr/portal-keys";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ChevronRight, FileSpreadsheet, FileText } from "lucide-react";
@@ -280,7 +281,7 @@ function RoomsPageContent() {
   );
 
   const { data: dashboardData } = useSWRAuth<DashboardAnalytics>(
-    "dashboard-analytics",
+    dashboardKeys.analytics(),
     fetchDashboardAnalyticsClient,
     { refreshInterval: 5 * 60 * 1000 },
   );

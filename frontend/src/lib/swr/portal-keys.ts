@@ -95,6 +95,12 @@ export const studentKeys = {
   arrivalData: (id: string) => `arrival-data-${encodeURIComponent(id)}`,
 } as const;
 
+// Shared by the home page, its now strip and the rooms page; the SSE hook
+// refreshes it on attendance events.
+export const dashboardKeys = {
+  analytics: () => "dashboard-analytics",
+} as const;
+
 export const timetableKeys = {
   offeringGaps: (periodId: string) =>
     `offering-gaps-${encodeURIComponent(periodId)}`,
