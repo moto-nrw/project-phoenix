@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SidebarAccordionSection } from "~/components/dashboard/sidebar-accordion-section";
 import { PORTAL_SUB_ITEM_CLASSES } from "~/components/dashboard/sidebar-geometry";
 import { NavLink } from "~/components/ui/nav-link";
@@ -19,6 +19,25 @@ import {
   traegerSettingsNavItemsFor,
 } from "./traeger-nav-items";
 
+const SETTINGS_OPEN_KEY = "traeger-sidebar-settings-open";
+
+function readStoredSettingsOpen(): boolean | null {
+  try {
+    const raw = globalThis.localStorage.getItem(SETTINGS_OPEN_KEY);
+    return raw === null ? null : raw === "true";
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredSettingsOpen(open: boolean) {
+  try {
+    globalThis.localStorage.setItem(SETTINGS_OPEN_KEY, String(open));
+  } catch {
+    // Ohne Speicher gilt der Zustand nur für diese Sitzung.
+  }
+}
+
 /**
  * Die dauerhafte Seitennavigation des Träger-Portals ab 1024 px (#5145):
  * die geteilte `PortalSidebar` des Schul-Portals mit den Zielen, die die
@@ -33,7 +52,18 @@ export function TraegerSidebar() {
   const containsActive = settingsItems.some((item) =>
     isTraegerNavActive(item.href, pathname),
   );
-  const [settingsOpen, setSettingsOpen] = useState(containsActive);
+  const [settingsOpen, setSettingsOpenState] = useState(containsActive);
+  const setSettingsOpen = (open: boolean) => {
+    setSettingsOpenState(open);
+    writeStoredSettingsOpen(open);
+  };
+  // Der Browser merkt sich den Klappzustand (#5331). Der erste Render kennt
+  // den Speicher nicht (Server und Client liefern dasselbe Bild), deshalb
+  // wird der gespeicherte Stand erst nach dem Einhängen übernommen.
+  useEffect(() => {
+    const stored = readStoredSettingsOpen();
+    if (stored !== null) setSettingsOpenState(stored);
+  }, []);
   // Open on entry into settings, but still allow manually collapsing them.
   const [wasActive, setWasActive] = useState(containsActive);
   if (containsActive !== wasActive) {
@@ -62,7 +92,7 @@ export function TraegerSidebar() {
                 concept={TRAEGER_SETTINGS_NAV.concept}
                 data-portal-nav-section={TRAEGER_SETTINGS_NAV.key}
                 isExpanded={settingsOpen}
-                onToggle={() => setSettingsOpen((value) => !value)}
+                onToggle={() => setSettingsOpen(!settingsOpen)}
                 isActive={containsActive && !settingsOpen}
                 isIconActive={containsActive}
                 hasChildren
