@@ -112,6 +112,32 @@ func TestOfferingGapsClassDay(t *testing.T) {
 	}, gaps[0], "3a arrives at the pickup; the stored decision covers what is left")
 }
 
+// TestOfferingGapsClassDayMovedOccurrence: the check takes each date's
+// time from the materializer, so a Klassen-Randstunde moved to the afternoon
+// on one Monday leaves that Monday open (#5343). Cancelling it does too.
+func TestOfferingGapsClassDayMovedOccurrence(t *testing.T) {
+	t.Parallel()
+	s, arrivals := buildClassDayGapsModule(t)
+	period := createTemplateTestPeriodRange(t, s.db, "Gap-ClassDay-Moved", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	class1a := createClassStudents(t, s.db, "1a", 2)
+	saveClassArrivals(t, s, arrivals, "1a", map[string]string{"mon": "11:45", "wed": "11:45"})
+	templateID := s.createKlassenRandstunde(t, "1a", period.ID, timetableModule.WeekdayMonday, timetableModule.WeekdayWednesday)
+	s.sources.bookings = withGrade(classDayRandstunde("1a", class1a, true, 1, 3), 1)
+	require.Empty(t, s.listGaps(t, period.ID), "the Klassen-Randstunde covers 1a")
+
+	createTestActivityException(t, s.db, templateID, rosterReviewMonday.AddDays(14), timetableModule.ActivityExceptionModified, "14:00", "15:00", "Ausflug")
+	gaps := s.listGaps(t, period.ID)
+	require.Len(t, gaps, 1, "%+v", gaps)
+	assert.Equal(t, []int{1}, gaps[0].Weekdays, "only the moved Monday is open")
+	assert.Equal(t, 2, gaps[0].StudentCount)
+	assert.True(t, gaps[0].NewSeriesPlansCovered, "a new Monday Regeltermin would plan 1a twice on the other Mondays")
+
+	createTestActivityException(t, s.db, templateID, rosterReviewMonday.AddDays(23), timetableModule.ActivityExceptionCancelled, "", "", "Konferenz")
+	gaps = s.listGaps(t, period.ID)
+	require.Len(t, gaps, 1, "%+v", gaps)
+	assert.Equal(t, []int{1, 3}, gaps[0].Weekdays, "the cancelled Wednesday is open as well")
+}
+
 // TestOfferingGapsClassDayQueryBudget measures the check with clock times:
 // it adds the Klassentag (plans, changes) and one batch of rosters to the
 // scenario without them, flat in the number of Regeltermine.

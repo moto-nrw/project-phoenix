@@ -112,8 +112,8 @@ func (rs *Resource) activePlanningPeriod(ctx context.Context, periodID int64) (s
 }
 
 // offeringGapTemplates reads the period's Regeltermine with the offerings
-// that feed them, the dates materialization creates their occurrences on,
-// their clock times and, where one can cover a booking, their rosters; it
+// that feed them, the dates and clock times materialization creates their
+// occurrences with and, where one can cover a booking, their rosters; it
 // fills the scope's closed days from the same projection. Unlike the
 // template list, a failed read fails the request: without it every booking
 // would look uncovered. allRosters reads every roster, since with clock
@@ -146,7 +146,9 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalen
 	scope.ClosedDays = projection.ClosedDays
 	result := make([]timetable.OfferingGapTemplate, 0, len(templates))
 	for _, template := range templates {
-		result = append(result, offeringGapTemplate(template, feeds[template.ID], projection.Dates[template.ID]))
+		gapTemplate := offeringGapTemplate(template, feeds[template.ID], projection.Dates[template.ID])
+		gapTemplate.Times = projection.Times[template.ID]
+		result = append(result, gapTemplate)
 	}
 	return result, rs.attachOfferingGapRosters(ctx, templates, result, allRosters)
 }
@@ -167,8 +169,8 @@ func offeringGapFeedQueries(templates []templateResponse, periodID int64) []time
 
 // offeringGapTemplate splits the feeding offerings into the source rule,
 // which keeps its Jahrgang or Klassen filter, and the offerings' own links,
-// which feed every booked child, and carries the clock times and the kind.
-// occurrences are the projected dates; the caller attaches the roster.
+// which feed every booked child, and carries the kind. occurrences are the
+// projected dates; the caller attaches their times and the roster.
 func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, occurrences []calendar.Date) timetable.OfferingGapTemplate {
 	gapTemplate := timetable.OfferingGapTemplate{
 		Occurrences:       make(map[calendar.Date]bool, len(occurrences)),
@@ -178,7 +180,6 @@ func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRost
 		},
 		HasOfferingSource: len(template.SourceCareOfferingIDs) > 0 || len(feeds.LinkedOfferingIDs) > 0 || len(feeds.Offerings) > 0,
 		Kind:              timetable.RosterOfferingKindFor(template.Type, template.ListKind),
-		Schedules:         offeringGapSchedules(template.Schedules),
 	}
 	for _, date := range occurrences {
 		gapTemplate.Occurrences[date] = true

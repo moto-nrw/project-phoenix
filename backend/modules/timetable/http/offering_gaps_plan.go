@@ -10,7 +10,8 @@ import (
 )
 
 // The reads the gap check adds for #5343: the Klassentag of the booked
-// classes, the clock times of the Regeltermine and their rosters.
+// classes and the rosters of the Regeltermine; their clock times come with
+// the occurrence projection.
 
 // offeringGapClockClasses are the classes of the bookings that can carry a
 // care stretch: an offering on school days with a pickup time. Only their
@@ -126,27 +127,4 @@ func (rs *Resource) attachOfferingGapRosters(ctx context.Context, templates []te
 		}
 	}
 	return nil
-}
-
-// offeringGapSchedules are the clock windows of the template's schedules;
-// a schedule without readable times is left out, so it covers nothing by
-// its time.
-func offeringGapSchedules(schedules []templateScheduleResponse) []timetable.OfferingGapSchedule {
-	result := make([]timetable.OfferingGapSchedule, 0, len(schedules))
-	for _, schedule := range schedules {
-		start, startOK := timetable.ParseOfferingGapClock(schedule.StartTime)
-		end, endOK := timetable.ParseOfferingGapClock(schedule.EndTime)
-		if !startOK || !endOK {
-			continue
-		}
-		window := timetable.OfferingGapSchedule{Weekday: schedule.Weekday, StartMinute: start, EndMinute: end}
-		if date, err := calendar.ParseDate(schedule.ValidFrom); err == nil {
-			window.ValidFrom = &date
-		}
-		if date, err := calendar.ParseDate(schedule.ValidUntil); err == nil {
-			window.ValidUntil = &date
-		}
-		result = append(result, window)
-	}
-	return result
 }

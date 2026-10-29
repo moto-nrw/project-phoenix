@@ -134,28 +134,13 @@ func (t offeringGapIndexedTemplate) plans(studentID int64, date calendar.Date, p
 	})
 }
 
-// overlaps reports whether the Regeltermin's time on date overlaps the
-// need. Every schedule that may run on date has to overlap: with A/B weeks
-// at different times the check cannot tell which one runs, so it never
-// counts a time that might not be the one.
+// overlaps reports whether one of the Regeltermin's occurrences on date
+// overlaps the need. The child is on each of them, so one is enough; a date
+// without a known time overlaps nothing.
 func (t OfferingGapTemplate) overlaps(date calendar.Date, need offeringGapNeed) bool {
-	matched := false
-	for _, schedule := range t.Schedules {
-		if !schedule.runsOn(date) {
-			continue
-		}
-		if schedule.StartMinute >= need.until || schedule.EndMinute <= need.from || schedule.StartMinute >= schedule.EndMinute {
-			return false
-		}
-		matched = true
-	}
-	return matched
-}
-
-func (s OfferingGapSchedule) runsOn(date calendar.Date) bool {
-	return s.Weekday == calendar.ISOWeekday(date) &&
-		(s.ValidFrom == nil || !s.ValidFrom.After(date)) &&
-		(s.ValidUntil == nil || s.ValidUntil.After(date))
+	return slices.ContainsFunc(t.Times[date], func(clock OccurrenceClock) bool {
+		return clock.StartMinute < clock.EndMinute && clock.StartMinute < need.until && clock.EndMinute > need.from
+	})
 }
 
 // newSeriesPlansCovered reports whether a new Regeltermin started from the

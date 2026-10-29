@@ -49,14 +49,20 @@ func studentRange(first int64, count int) []int64 {
 // classTemplate is a Klasse Regeltermin without offering source whose
 // target holds the children, at the given time on the given weekdays.
 func classTemplate(students []int64, start, end int, weekdays ...int) OfferingGapTemplate {
-	schedules := make([]OfferingGapSchedule, 0, len(weekdays))
-	for _, weekday := range weekdays {
-		schedules = append(schedules, OfferingGapSchedule{Weekday: weekday, StartMinute: start, EndMinute: end})
-	}
 	return OfferingGapTemplate{
-		Occurrences: gapRuns(weekdays...), Kind: RosterOfferingCare, Schedules: schedules,
+		Occurrences: gapRuns(weekdays...), Kind: RosterOfferingCare, Times: clockTimes(start, end, weekdays...),
 		Roster: &TemplatePlannedRoster{TargetStudentIDs: students},
 	}
+}
+
+// clockTimes gives every occurrence of gapRuns(weekdays) the same window,
+// as the projection reports it.
+func clockTimes(start, end int, weekdays ...int) map[calendar.Date][]OccurrenceClock {
+	times := map[calendar.Date][]OccurrenceClock{}
+	for date := range gapRuns(weekdays...) {
+		times[date] = []OccurrenceClock{{StartMinute: start, EndMinute: end}}
+	}
+	return times
 }
 
 // mittagTemplate is the lunch offering's Regeltermin from 12:45, which plans
@@ -122,8 +128,8 @@ func TestDetectOfferingGapsClassDayCoverage(t *testing.T) {
 	arrives1145 := weeklyArrivals(map[string]map[int]int{"2b": {1: clock1145, 3: clock1145}})
 	handList := OfferingGapTemplate{
 		Occurrences: gapRuns(1, 3), Kind: RosterOfferingCare,
-		Schedules: []OfferingGapSchedule{{Weekday: 1, StartMinute: clock1145, EndMinute: clock1245}, {Weekday: 3, StartMinute: clock1145, EndMinute: clock1245}},
-		Roster:    &TemplatePlannedRoster{Entries: entriesFor(child)},
+		Times:  clockTimes(clock1145, clock1245, 1, 3),
+		Roster: &TemplatePlannedRoster{Entries: entriesFor(child)},
 	}
 	cases := []struct {
 		name      string
@@ -137,7 +143,7 @@ func TestDetectOfferingGapsClassDayCoverage(t *testing.T) {
 		{name: "another offering's Regeltermin at the time counts", arrivals: arrives1145, templates: []OfferingGapTemplate{
 			func() OfferingGapTemplate {
 				template := mittagTemplate(child, 1, 3)
-				template.Schedules = []OfferingGapSchedule{{Weekday: 1, StartMinute: 12 * 60, EndMinute: clock1345}, {Weekday: 3, StartMinute: 12 * 60, EndMinute: clock1345}}
+				template.Times = clockTimes(12*60, clock1345, 1, 3)
 				return template
 			}(),
 		}},
@@ -308,23 +314,32 @@ func TestDetectOfferingGapsDatedArrival(t *testing.T) {
 		"a later arrival on one date needs nothing either")
 }
 
-// TestDetectOfferingGapsAlternatingTimes: with A/B weeks at different
-// times the check cannot tell which schedule runs on a date, so it counts
-// the Regeltermin only when every one of them overlaps the need.
-func TestDetectOfferingGapsAlternatingTimes(t *testing.T) {
+// TestDetectOfferingGapsOccurrenceTimes: the check reads each date's own
+// clock windows, as the projection reports them. A single occurrence moved
+// out of the need leaves that date open; of two occurrences on one date one
+// overlapping is enough; a date without a known time covers nothing.
+func TestDetectOfferingGapsOccurrenceTimes(t *testing.T) {
 	t.Parallel()
 	child := studentRange(600, 1)
 	arrivals := weeklyArrivals(map[string]map[int]int{"2a": {1: clock1145}})
+	bookings := func() []OfferingWeekdayBooking { return classDayBookings("2a", 600, 1, 1) }
+	moved := NextWeekdayOnOrAfter(gapScope.From, 1).AddDays(21)
+
 	template := classTemplate(child, clock1145, clock1245, 1)
-	template.Schedules = append(template.Schedules, OfferingGapSchedule{Weekday: 1, StartMinute: 14 * 60, EndMinute: 15 * 60})
-	assert.Len(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, classDayBookings("2a", 600, 1, 1)), 1)
+	require.Empty(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings()))
 
-	template.Schedules[1] = OfferingGapSchedule{Weekday: 1, StartMinute: 12 * 60, EndMinute: 13 * 60}
-	assert.Empty(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, classDayBookings("2a", 600, 1, 1)))
+	template.Times[moved] = []OccurrenceClock{{StartMinute: 14 * 60, EndMinute: 15 * 60}}
+	gaps := DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings())
+	require.Len(t, gaps, 1, "the moved Monday is open")
+	assert.Equal(t, []int{1}, gaps[0].Weekdays)
 
-	template.Schedules = []OfferingGapSchedule{{Weekday: 1, StartMinute: clock1145, EndMinute: clock1245, ValidUntil: new(calendar.NewDate(2030, 4, 1))}}
-	assert.Len(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, classDayBookings("2a", 600, 1, 1)), 1,
-		"a schedule ended before a date says nothing about its time there")
+	template.Times[moved] = []OccurrenceClock{{StartMinute: 14 * 60, EndMinute: 15 * 60}, {StartMinute: 12 * 60, EndMinute: 13 * 60}}
+	assert.Empty(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings()),
+		"a second occurrence that day overlaps the need")
+
+	delete(template.Times, moved)
+	assert.Len(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings()), 1,
+		"an occurrence without a known time overlaps nothing")
 }
 
 // TestDetectOfferingGapsNeverAddsToTheSourceCheck: the offering's own
@@ -334,7 +349,7 @@ func TestDetectOfferingGapsNeverAddsToTheSourceCheck(t *testing.T) {
 	t.Parallel()
 	fed := OfferingGapTemplate{
 		Occurrences: gapRuns(1, 2, 3, 4, 5), Sources: OfferingSourceFilter{OfferingIDs: []int64{gapRandstunde}}, HasOfferingSource: true,
-		Schedules: []OfferingGapSchedule{{Weekday: 1, StartMinute: 15 * 60, EndMinute: 16 * 60}},
+		Times: clockTimes(15*60, 16*60, 1),
 	}
 	assert.Empty(t, DetectOfferingGaps(withArrivals(schoolAArrivals()), []OfferingGapTemplate{fed}, classDayBookings("1a", 100, 4, 1, 2, 3, 4, 5)))
 }

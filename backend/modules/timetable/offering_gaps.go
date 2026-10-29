@@ -114,21 +114,12 @@ type OfferingGapTemplate struct {
 	HasOfferingSource bool
 	// Kind names the offerings it stands in for under the strict day rule.
 	Kind RosterOfferingKind
-	// Schedules are its weekly clock times.
-	Schedules []OfferingGapSchedule
+	// Times are the clock windows of its occurrences per date, as
+	// ProjectOccurrences reports them: one per schedule materialized there,
+	// an exception's moved time applied.
+	Times map[calendar.Date][]OccurrenceClock
 	// Roster is who it plans on which date; nil plans nobody.
 	Roster *TemplatePlannedRoster
-}
-
-// OfferingGapSchedule is one weekly clock window of a Regeltermin, in
-// minutes after midnight, valid from ValidFrom (inclusive) to ValidUntil
-// (exclusive); nil is open.
-type OfferingGapSchedule struct {
-	Weekday     int
-	StartMinute int
-	EndMinute   int
-	ValidFrom   *calendar.Date
-	ValidUntil  *calendar.Date
 }
 
 // OfferingGap is one offering with booked children no Regeltermin takes

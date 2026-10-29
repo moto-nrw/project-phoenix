@@ -119,6 +119,13 @@ type MaterializationCapability interface {
 	ProjectOccurrences(ctx context.Context, templateIDs []int64, from, to calendar.Date) (OccurrenceProjection, error)
 }
 
+// OccurrenceClock is the clock window of one projected occurrence, in
+// minutes after midnight.
+type OccurrenceClock struct {
+	StartMinute int
+	EndMinute   int
+}
+
 // MaxOccurrenceProjectionDays bounds a read-only projection: one school year
 // with room for an overlong planning period.
 const MaxOccurrenceProjectionDays = 400
@@ -127,6 +134,10 @@ const MaxOccurrenceProjectionDays = 400
 type OccurrenceProjection struct {
 	// Dates are the occurrence dates per template id, ascending.
 	Dates map[int64][]calendar.Date
+	// Times are the clock windows of the occurrences per template id and
+	// date, one per schedule materialized there, with an exception's moved
+	// time already applied (#5343).
+	Times map[int64]map[calendar.Date][]OccurrenceClock
 	// ClosedDays are the holidays and closing days of the window; no care is
 	// planned there unless a series includes closing days.
 	ClosedDays map[calendar.Date]bool
