@@ -14,14 +14,14 @@ export function statisticsTopic(): HelpTopic {
     steps: [
       "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
       "Öffnen Sie `Statistik`.",
-      "Wählen Sie oben den Bereich: `Gruppen`, `Kinder`, `Räume` oder `Kurse`.",
+      "Wählen Sie oben den Bereich: `Gruppen`, `Kinder`, `Räume`, `Kurse` oder `Soll und Ist`.",
       "Wählen Sie den Zeitraum.",
       "Lesen Sie die Zahlen der Tabelle.",
     ],
     result: "Die Zahlen gelten für den gewählten Bereich und Zeitraum.",
     notes: [
       "Bei `Kurse` wählen Sie zusätzlich zwischen `Je Kurs` und `Je Kind`.",
-      "Über das Menü mit den drei Punkten geht `Exportieren` als `PDF`, `Excel` oder `Word`.",
+      "Über das Menü mit den drei Punkten geht `Exportieren` als `PDF`, `Excel` oder `Word`. `Soll und Ist` hat ein eigenes Menü an der Liste, mit `PDF` und `Excel`.",
       "Die Pfeile schieben den Zeitraum um seine eigene Länge weiter.",
     ],
     differences: [
@@ -36,6 +36,7 @@ export function statisticsTopic(): HelpTopic {
     related: [
       HELP_TOPICS.leadAbsenceReport,
       HELP_TOPICS.leadExports,
+      HELP_TOPICS.careTimeComparison,
       HELP_TOPICS.dayLog,
     ],
   };

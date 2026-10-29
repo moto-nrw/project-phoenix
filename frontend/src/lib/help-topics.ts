@@ -159,6 +159,7 @@ export const HELP_TOPICS = {
   leadWorkTimeReview: "arbeitszeiten-des-teams-pruefen",
   leadAbsenceReport: "abwesenheiten-auswerten",
   leadStatistics: "statistik-oeffnen",
+  careTimeComparison: "soll-und-ist",
   leadHolidayWeeks: "ferienwochen-teilnehmer-ansehen",
   leadHolidayGuestGroup: "feriengruppe-waehlen",
   leadExports: "liste-exportieren",

@@ -36,6 +36,7 @@ import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { CareTimeOverrunsSection } from "~/components/statistics/care-time-overruns-section";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import {
   ApiError,
@@ -71,13 +72,15 @@ import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 const logger = createLogger({ component: "StatisticsPage" });
 
-type StatisticsView = "groups" | "students" | "rooms" | "courses";
+type StatisticsView =
+  "groups" | "students" | "rooms" | "courses" | "care-times";
 
 const VIEW_ITEMS: readonly { value: StatisticsView; label: string }[] = [
   { value: "groups", label: "Gruppen" },
   { value: "students", label: "Kinder" },
   { value: "rooms", label: "Räume" },
   { value: "courses", label: "Kurse" },
+  { value: "care-times", label: "Soll und Ist" },
 ];
 
 // Der Kursbereich hat zwei Sichten auf dieselben Zahlen. Sie stehen als
@@ -658,6 +661,7 @@ export default function StatisticsPage() {
           ? "Eine Zeile je Kurs. Offen sind Termine, die noch nicht abgeschlossen wurden; sie verändern die Quote nicht. Nur zur Information, hier wird nichts geändert."
           : "Eine Zeile je Kind und Kurs. Offen sind Termine, die noch nicht abgeschlossen wurden. Ein Klick auf den Namen öffnet die Detailseite des Kindes.",
     },
+    "care-times": { title: "Soll und Ist", hint: "" },
     rooms: {
       title: "Räume",
       hint:
@@ -793,11 +797,15 @@ export default function StatisticsPage() {
         items: VIEW_ITEMS,
         label: "Bereich wählen",
       }}
+      // Soll und Ist hat seinen eigenen Export an der Liste; der
+      // Anwesenheitsexport der Kopfkarte gehörte dort zur falschen Tabelle.
       actions={
-        <OverflowMenu
-          items={exportMenuItems("attendance")}
-          ariaLabel="Weitere Aktionen"
-        />
+        view === "care-times" ? undefined : (
+          <OverflowMenu
+            items={exportMenuItems("attendance")}
+            ariaLabel="Weitere Aktionen"
+          />
+        )
       }
       // Bauart 3, Regel 1: die Zeitnavigation sitzt im Bedienband der
       // Kopfkarte, nicht als Bedienelement neben dem Titel. Der Zeitraum ist
@@ -853,7 +861,14 @@ export default function StatisticsPage() {
         </PlanningContextBar>
       }
     >
-      {data && headline && (
+      {view === "care-times" && fromISO && toISO ? (
+        <CareTimeOverrunsSection
+          fromISO={fromISO}
+          toISO={toISO}
+          groupIds={groupIds}
+        />
+      ) : null}
+      {view !== "care-times" && data && headline && (
         <>
           {/* Kennzahlen des Zeitraums als eigene Karte; die Tabelle darunter
               ist ihre eigene. Karten stapeln sich nicht ineinander. */}

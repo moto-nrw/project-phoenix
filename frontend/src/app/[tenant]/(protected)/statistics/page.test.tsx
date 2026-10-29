@@ -41,6 +41,19 @@ vi.mock("~/lib/statistics-api", async () => {
   };
 });
 
+const mockFetchOverruns = vi.fn();
+vi.mock("~/lib/care-times", async () => {
+  const actual =
+    await vi.importActual<typeof import("~/lib/care-times")>(
+      "~/lib/care-times",
+    );
+  return {
+    ...actual,
+    fetchCareTimeOverruns: (...args: unknown[]) =>
+      mockFetchOverruns(...args) as Promise<unknown>,
+  };
+});
+
 const emptyGroupRow = {
   group_id: "0",
   name: "Gesamt",
@@ -327,6 +340,44 @@ describe("Statistik — ausgeschaltete Raumhistorie (#3844)", () => {
     ).toBeVisible();
     expect(
       screen.queryByText("Raumhistorie ist ausgeschaltet"),
+    ).not.toBeInTheDocument();
+  });
+});
+
+describe("Statistik — Bereich Soll und Ist (#4774)", () => {
+  beforeEach(() => {
+    mockFetchReport.mockReset();
+    mockFetchReport.mockResolvedValue(report());
+    mockFetchOverruns.mockReset();
+    mockFetchOverruns.mockResolvedValue({
+      from: "2026-08-11",
+      to: TEST_CLOCK_TODAY,
+      tolerance_minutes: 15,
+      students: [],
+    });
+  });
+
+  it("zeigt die Liste im selben Zeitraum und nimmt den Anwesenheitsexport aus der Kopfkarte", async () => {
+    render(<StatisticsPage />);
+    await waitFor(() =>
+      expect(
+        screen.getByRole("tab", { name: "Soll und Ist" }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      screen.getByRole("button", { name: "Weitere Aktionen" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "Soll und Ist" }));
+
+    await waitFor(() => expect(mockFetchOverruns).toHaveBeenCalled());
+    const [from, to] = mockFetchReport.mock.calls[0] as [string, string];
+    expect(mockFetchOverruns).toHaveBeenCalledWith(from, to, []);
+    expect(
+      screen.getByRole("button", { name: "Liste exportieren" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Weitere Aktionen" }),
     ).not.toBeInTheDocument();
   });
 });
