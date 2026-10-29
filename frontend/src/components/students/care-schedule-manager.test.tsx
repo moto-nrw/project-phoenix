@@ -712,6 +712,7 @@ describe("CareScheduleManager", () => {
       />,
     );
     await screen.findByText("Betreuungszeiten");
+    // Anker: die Wochenleiste der aktuellen Woche ist geladen.
     expect(screen.getByText("Aktuelle Woche")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
     expect(
