@@ -190,9 +190,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Compare the PR's own tree, not GitHub's synthetic merge with a
-          # newer target branch. Merge-base history is required below.
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          # Keep the default synthetic merge for the regular integration build.
+          # Feature bundle measurements switch to the PR head afterwards.
           fetch-depth: 0
           filter: blob:none
           persist-credentials: false
@@ -232,13 +231,26 @@ jobs:
 
       - name: Verify bundle budget and observation contracts
         working-directory: frontend
-        run: node --test scripts/perf/bundle-policy.node-test.mjs scripts/perf/bundle-measurement.node-test.mjs scripts/perf/bundle-base.node-test.mjs
+        run: node --test scripts/bundle-workflow-permissions.node-test.mjs scripts/perf/bundle-policy.node-test.mjs scripts/perf/bundle-measurement.node-test.mjs scripts/perf/bundle-base.node-test.mjs
+
+      - name: Build frontend merge integration
+        working-directory: frontend
+        run: pnpm run build
+
+      - name: Select feature PR head for bundle delta measurements
+        if: github.event_name == 'pull_request' && github.base_ref != 'main'
+        working-directory: frontend
+        env:
+          HEAD_REVISION: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git checkout --detach "$HEAD_REVISION"
+          pnpm install --frozen-lockfile
 
       - name: Identify bundle observation source and configuration
         id: bundle-key
         working-directory: frontend
         env:
-          BASE_REVISION: ${{ github.event.pull_request.base.sha }}
+          BASE_REVISION: ${{ github.event_name == 'pull_request' && github.base_ref != 'main' && github.event.pull_request.base.sha || '' }}
         run: |
           if [[ -n "$BASE_REVISION" && ! "$BASE_REVISION" =~ ^0+$ ]]; then
             merge_base=$(git merge-base HEAD "$BASE_REVISION")
@@ -248,17 +260,14 @@ jobs:
           fi
 
       - name: Cold build exact merge-base with the same runner and environment
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && github.base_ref != 'main'
         working-directory: frontend
         run: node scripts/perf/bundle-measurement.mjs --build-base
 
-      - name: Build frontend
-        working-directory: frontend
-        run: pnpm run build
-
-      # PRs enforce their own delta against the cold merge-base build, plus
-      # reviewed absolute ceilings. Inherited excess warns on PRs; nightly
-      # enforces all ceilings on development without inheriting PR exceptions.
+      # Feature PRs enforce their own delta against a cold merge-base build.
+      # Release PRs into main and nightly enforce only absolute ceilings:
+      # release-cycle growth is not a feature PR regression. The regular merge
+      # build above still catches semantic integration failures before merging.
       # Keep the regular build: experimental-analyze's cold compilation is not
       # assumed to cover every Next.js build/type/route-validation contract.
       - name: Bundle size ratchet

@@ -18,10 +18,15 @@ type StaffMessageRecord struct {
 	UpdatedAt       time.Time
 }
 type StaffThreadRecord struct {
-	ID                  int64
-	TenantID            int64
-	ParticipantKey      string
-	Kind                string
+	ID             int64
+	TenantID       int64
+	ParticipantKey string
+	Kind           string
+	// Name is the display name of a group chat (#4776); empty for a direct chat.
+	Name string
+	// CreatedByAccountID is who started a group chat; nil for a direct chat
+	// and after the creator's account was deleted.
+	CreatedByAccountID  *int64
 	LastMessageAt       *time.Time
 	LastMessageID       *int64
 	LastMessageBody     string
@@ -39,6 +44,21 @@ type StaffInboxRecord struct {
 	LastMessageBody      string
 	LastSenderAccountID  *int64
 	UnreadCount          int
+	// Kind is "direct" or "group" (#4776). A group row carries GroupName and
+	// MemberCount instead of a counterpart.
+	Kind           string
+	GroupName      string
+	MemberCount    int
+	LastSenderName string
+}
+
+// StaffParticipantRecord is one member of a conversation with the instant
+// their visible history starts (nil: the whole history) and their read cursor.
+type StaffParticipantRecord struct {
+	AccountID         int64
+	HistoryFrom       *time.Time
+	LastReadAt        *time.Time
+	LastReadMessageID int64
 }
 type AddressableStaffRecord struct {
 	AccountID int64
@@ -55,6 +75,24 @@ type StaffThreadRecords interface {
 	StaffParticipantAccountIDs(context.Context, int64) ([]int64, error)
 	HasStaffParticipant(context.Context, int64, int64) (bool, error)
 	DeleteEmptyStaffThreads(context.Context, time.Time) (int64, error)
+}
+
+// StaffGroupRecords is the group-chat membership capability (#4776). It is a
+// facet of its own so the thread capability stays narrow; the thread store
+// implements both.
+type StaffGroupRecords interface {
+	CreateStaffGroupThread(ctx context.Context, name string, creatorAccountID int64, memberAccountIDs []int64) (*StaffThreadRecord, error)
+	RenameStaffGroupThread(ctx context.Context, threadID int64, name string) error
+	AddStaffGroupParticipants(ctx context.Context, threadID int64, accountIDs []int64) error
+	RemoveStaffParticipant(ctx context.Context, threadID, accountID int64) error
+	StaffParticipantStates(ctx context.Context, threadID int64) ([]*StaffParticipantRecord, error)
+	DeleteStaffThread(ctx context.Context, threadID int64) error
+}
+
+// StaffConversationRecords is the thread store with both facets.
+type StaffConversationRecords interface {
+	StaffThreadRecords
+	StaffGroupRecords
 }
 type StaffMessageRecords interface {
 	CreateStaffMessage(context.Context, *StaffMessageRecord) error

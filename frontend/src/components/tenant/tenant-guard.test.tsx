@@ -235,7 +235,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -302,7 +301,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -590,7 +588,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -619,7 +616,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -809,7 +805,6 @@ describe("TenantGuard", () => {
       await waitFor(() => {
         expect(mockPerformTenantSwitch).toHaveBeenLastCalledWith(
           "school-c",
-          mockSignIn,
           mockMutate,
         );
       });
@@ -996,7 +991,6 @@ describe("TenantGuard", () => {
       await waitFor(() =>
         expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
           "school-a",
-          mockSignIn,
           mockMutate,
         ),
       );
@@ -1026,7 +1020,6 @@ describe("TenantGuard", () => {
       await waitFor(() =>
         expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
           "school-a",
-          mockSignIn,
           mockMutate,
         ),
       );

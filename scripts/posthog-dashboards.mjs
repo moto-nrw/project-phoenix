@@ -278,7 +278,7 @@ export const FEATURES = Object.freeze([
     events: [
       'parent_message_sent', 'staff_message_sent', 'parent_message_marked_unread', 'parent_messages_marked_all_read',
       'parent_message_count_scope_changed', 'parent_declaration_submitted', 'staff_notice_acknowledged',
-      'class_parent_letter_sent',
+      'class_parent_letter_sent', 'staff_group_created',
     ],
   },
   {
