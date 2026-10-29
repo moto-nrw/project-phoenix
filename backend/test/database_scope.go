@@ -103,7 +103,7 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 	if err = setCloneSearchPath(ctx, entry.clone); err != nil {
 		return err
 	}
-	entry.db, err = openTestPool(entry.clone.DSN)
+	entry.db, err = openTestPool(ctx, entry.clone.DSN)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 }
 
 func setCloneSearchPath(ctx context.Context, clone *testdb.CloneHandle) error {
-	db, err := openTestPool(clone.DSN)
+	db, err := openTestPool(ctx, clone.DSN)
 	if err != nil {
 		return err
 	}
@@ -143,7 +143,7 @@ func setCloneSearchPath(ctx context.Context, clone *testdb.CloneHandle) error {
 	return err
 }
 
-func openTestPool(dsn string) (*bun.DB, error) {
+func openTestPool(ctx context.Context, dsn string) (*bun.DB, error) {
 	sqlDB := OpenPostgresSQL(dsn)
 	sqlDB.SetMaxOpenConns(poolSize())
 	sqlDB.SetMaxIdleConns(poolSize())
@@ -151,7 +151,7 @@ func openTestPool(dsn string) (*bun.DB, error) {
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 	db := NewBunDB(sqlDB)
 	var one int
-	if err := db.NewSelect().ColumnExpr("1").Scan(context.Background(), &one); err != nil {
+	if err := db.NewSelect().ColumnExpr("1").Scan(ctx, &one); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("connect to isolated test database: %w", err)
 	}

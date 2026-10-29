@@ -2,6 +2,7 @@ package enrollment
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -47,15 +48,49 @@ type HostedHolidayWeek struct {
 // HolidayParticipant is one confirmed child of a hosted week with the
 // minimum fields: name, date of birth, home school and booked time model. A
 // nil HomeSchoolID marks a holiday guest; GuestSchoolName is the school the
-// parents named for it, if any.
+// parents named for it, if any. SecondGuardian and Answers are what the
+// Träger shares beyond them (#5202): the second guardian with name and
+// phone, nil without one, and the answers to the shared questions of the
+// form version of the child's registration, empty without such questions.
 type HolidayParticipant struct {
-	ChildID         int64         `json:"child_id"`
-	FirstName       string        `json:"first_name"`
-	LastName        string        `json:"last_name"`
-	BirthDate       calendar.Date `json:"birth_date"`
-	HomeSchoolID    *int64        `json:"home_school_id"`
-	GuestSchoolName string        `json:"guest_school_name"`
-	TimeModelID     int64         `json:"time_model_id"`
+	ChildID         int64                `json:"child_id"`
+	FirstName       string               `json:"first_name"`
+	LastName        string               `json:"last_name"`
+	BirthDate       calendar.Date        `json:"birth_date"`
+	HomeSchoolID    *int64               `json:"home_school_id"`
+	GuestSchoolName string               `json:"guest_school_name"`
+	TimeModelID     int64                `json:"time_model_id"`
+	SecondGuardian  *HolidayHostGuardian `json:"second_guardian"`
+	Answers         []HolidayHostAnswer  `json:"answers"`
+}
+
+// HolidayHostGuardian is the second guardian of a registration as the
+// hosting school sees it: name and phone, never the e-mail address. Phone
+// is empty when the parents gave none.
+type HolidayHostGuardian struct {
+	Name  string `json:"name"`
+	Phone string `json:"phone"`
+}
+
+// HolidayHostAnswer is the answer to a question the Träger shares with the
+// hosting school (#5202). Only a question without health information can be
+// shared; the database decides that per form version (ADR 0116 addendum).
+// Value is a JSON boolean for a yes/no question, the label of the chosen
+// option for a selection, a string for every other question ("YYYY-MM-DD"
+// for a date), and null when the parents gave no answer.
+type HolidayHostAnswer struct {
+	Key   string          `json:"key"`
+	Label string          `json:"label"`
+	Type  FormFieldType   `json:"type"`
+	Value json.RawMessage `json:"value"`
+}
+
+// HolidayHostQuestion is a shared question of a participant list: one
+// column of the list and its export.
+type HolidayHostQuestion struct {
+	Key   string        `json:"key"`
+	Label string        `json:"label"`
+	Type  FormFieldType `json:"type"`
 }
 
 // HolidayTimeModelCount is a time model of the week with the number of
@@ -76,10 +111,13 @@ type HolidayHomeSchoolCount struct {
 }
 
 // HolidayParticipantList is the participant list of one hosted week.
+// Questions are the shared questions its children answered, in the order
+// of the form; empty when the period shares none.
 type HolidayParticipantList struct {
 	Week         HostedHolidayWeek        `json:"week"`
 	TimeModels   []HolidayTimeModelCount  `json:"time_models"`
 	HomeSchools  []HolidayHomeSchoolCount `json:"home_schools"`
+	Questions    []HolidayHostQuestion    `json:"questions"`
 	Participants []HolidayParticipant     `json:"participants"`
 }
 
