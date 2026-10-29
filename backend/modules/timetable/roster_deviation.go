@@ -49,13 +49,19 @@ func RosterOfferingKindFor(templateType string, listKind *string) RosterOffering
 }
 
 func (kind RosterOfferingKind) admits(booking OfferingWeekdayBooking) bool {
+	return kind.AdmitsOffering(booking.CountsAsCare, booking.IncludesLunch)
+}
+
+// AdmitsOffering reports whether an offering with these catalog flags can
+// stand behind a Regeltermin of the kind.
+func (kind RosterOfferingKind) AdmitsOffering(countsAsCare, includesLunch bool) bool {
 	switch kind {
 	case RosterOfferingCare:
-		return booking.CountsAsCare
+		return countsAsCare
 	case RosterOfferingLunch:
-		return booking.IncludesLunch
+		return includesLunch
 	case RosterOfferingCourse:
-		return !booking.CountsAsCare && !booking.IncludesLunch
+		return !countsAsCare && !includesLunch
 	}
 	return true
 }

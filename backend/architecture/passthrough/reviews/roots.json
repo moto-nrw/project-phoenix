@@ -2717,11 +2717,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/bookingManualPlans.ManualStudentPlan",
-      "reason": "Owner-edge translation: maps Timetable's hand planning onto Care Plan's roster contract (#5102). ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/bookingPeriods.Periods",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
