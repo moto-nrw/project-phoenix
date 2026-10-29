@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -440,46 +442,74 @@ func TestStaffPersonMergeSerializesConcurrentConfirmation(t *testing.T) {
 	assert.Equal(t, 1, audits)
 }
 
+// A merge holding its lock must not hold back another school's person writes:
+// both finish while PostgreSQL still reports the merge holding the lock, and
+// no backend is ever blocked by the merge. The raw insert covers row and table
+// locks, the directory command also the shared gate on its own school's key.
 func TestStaffPersonMergeDoesNotBlockOtherSchoolsPersonWrites(t *testing.T) {
 	t.Parallel()
 	h := newStaffMergeHarness(t)
 	h.pair(t, "Andere Schule")
 	input := mergeSelection(h.preview(t))
 	otherSchoolID, _ := testpkg.CreateTestTenant(t, h.db)
-	reachedAudit := make(chan struct{})
-	releaseAudit := make(chan struct{})
-	audit, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{DB: h.db})
+	merge := newHeldStaffMerge(t)
+	h.router = merge.router(t, h.db)
+	merge.start(t, h, input)
+
+	directory, err := peopleCompose.New(peopleCompose.Dependencies{DB: h.db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(peopleCompose.Observation) {}}, nil)
 	require.NoError(t, err)
-	workflow, err := mergeCompose.New(peopleCompose.NewStaffPersonMerge(), membershipCompose.NewStaffPersonMerge(), staffPersonMergeAudit{create: func(ctx context.Context, entry *auditRecords.OperatorAuditEntry) error {
-		close(reachedAudit)
-		<-releaseAudit
-		return audit.OperatorAuditLog.Create(ctx, entry)
-	}}, operatorIDFromSession)
-	require.NoError(t, err)
-	h.router = chi.NewRouter()
-	h.router.Mount("/", mergeHTTP.Router(workflow, TenantScopeMiddleware))
+	inserted := merge.startWriter(t, h.db, otherSchoolID, "person insert of another school", func(ctx context.Context) error {
+		_, err := h.db.NewRaw(`INSERT INTO users.persons (tenant_id, first_name, last_name) VALUES (?, 'Andere', 'Person')`, otherSchoolID).Exec(ctx)
+		return err
+	})
+	created := merge.startWriter(t, h.db, otherSchoolID, "person creation of another school", func(ctx context.Context) error {
+		_, err := directory.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Andere", LastName: "Schule"})
+		return err
+	})
+	results := awaitWritersBesideHeldStaffMerge(t, h, inserted, created)
+	require.NoError(t, results[0], "a merge must not block person writes of another school")
+	require.NoError(t, results[1], "a merge must not block person creation of another school")
+	assert.True(t, slices.ContainsFunc(created.queries.Queries(), func(query string) bool {
+		return strings.Contains(query, "pg_advisory_xact_lock_shared(hashtextextended(")
+	}), "person creation of another school must pass its own school's merge gate")
 
-	status := make(chan int, 1)
-	go func() {
-		status <- h.request(t, http.MethodPost, h.schoolID, input).Code
-	}()
-	select {
-	case <-reachedAudit:
-	case <-time.After(time.Second):
-		t.Fatal("merge did not reach the audit while holding its locks")
-	}
+	merge.release()
+	assert.Equal(t, http.StatusOK, <-merge.status)
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	_, err = h.db.NewRaw(`INSERT INTO users.persons (tenant_id, first_name, last_name) VALUES (?, 'Andere', 'Person')`, otherSchoolID).Exec(ctx)
-	require.NoError(t, err, "a merge must not block person writes of another school")
-
-	close(releaseAudit)
-	select {
-	case code := <-status:
-		assert.Equal(t, http.StatusOK, code)
-	case <-time.After(time.Second):
-		t.Fatal("merge did not complete after its audit was released")
+// awaitWritersBesideHeldStaffMerge returns each writer's result once all
+// finished. Every poll requires the merge to still hold its lock and to block
+// no backend, so a writer the merge holds back fails at once instead of
+// running into a deadline. Only the go test timeout bounds a writer stuck for
+// another reason; no local deadline decides the result.
+func awaitWritersBesideHeldStaffMerge(t *testing.T, h staffMergeHarness, writers ...staffMergeLockWriter) []error {
+	t.Helper()
+	results := make([]error, len(writers))
+	finished := make([]bool, len(writers))
+	poll := time.NewTicker(10 * time.Millisecond)
+	defer poll.Stop()
+	for {
+		state := staffMergeLockState(t, h)
+		require.True(t, state.Held, "the merge must still hold its lock while other schools write")
+		require.Zero(t, state.AtMergeLock, "the merge must not block another school's writers at its lock")
+		require.Empty(t, state.Elsewhere, "the merge must not block another school's writers")
+		pending := 0
+		for i, writer := range writers {
+			if finished[i] {
+				continue
+			}
+			select {
+			case results[i] = <-writer.done:
+				finished[i] = true
+			default:
+				pending++
+			}
+		}
+		if pending == 0 {
+			require.True(t, staffMergeLockState(t, h).Held, "other schools' writes must finish while the merge holds its lock")
+			return results
+		}
+		<-poll.C
 	}
 }
 
@@ -541,12 +571,38 @@ type staffMergeLockWriter struct {
 	done    chan error
 }
 
-func (m *heldStaffMerge) startWriter(t *testing.T, h staffMergeHarness, name string, write func(context.Context) error) staffMergeLockWriter {
+func (m *heldStaffMerge) startWriter(t *testing.T, db *bun.DB, schoolID int64, name string, write func(context.Context) error) staffMergeLockWriter {
 	t.Helper()
-	writer := staffMergeLockWriter{name: name, queries: testpkg.CaptureQueriesForContext(t, h.db), done: make(chan error, 1)}
-	ctx := writer.queries.Context(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), h.schoolID))
+	writer := staffMergeLockWriter{name: name, queries: testpkg.CaptureQueriesForContext(t, db), done: make(chan error, 1)}
+	ctx := writer.queries.Context(tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), schoolID))
 	m.running.Go(func() { writer.done <- write(ctx) })
 	return writer
+}
+
+// staffMergeLockWaits is PostgreSQL's view of the school's staff-person-merge
+// lock: whether a backend holds it exclusively, how many backends that holder
+// blocks at the same key, and every other lock it blocks a backend at.
+type staffMergeLockWaits struct {
+	Held        bool   `bun:"held"`
+	AtMergeLock int    `bun:"at_merge_lock"`
+	Elsewhere   string `bun:"elsewhere"`
+}
+
+func staffMergeLockState(t *testing.T, h staffMergeHarness) staffMergeLockWaits {
+	t.Helper()
+	var state staffMergeLockWaits
+	require.NoError(t, h.db.NewRaw(`WITH merge_lock AS (
+  SELECT l.pid, l.database, l.classid, l.objid FROM pg_locks l, (SELECT hashtextextended(?, 0) AS v) k
+  WHERE l.locktype = 'advisory' AND l.objsubid = 1 AND l.granted AND l.mode = 'ExclusiveLock'
+    AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
+    AND l.classid::bigint = (k.v >> 32) & 4294967295 AND l.objid::bigint = k.v & 4294967295)
+SELECT EXISTS (SELECT 1 FROM merge_lock) AS held,
+       count(w.pid) FILTER (WHERE w.locktype = 'advisory' AND w.objsubid = 1 AND w.mode = 'ShareLock'
+         AND w.database = m.database AND w.classid = m.classid AND w.objid = m.objid) AS at_merge_lock,
+       coalesce(string_agg(w.locktype || ' ' || w.mode, ', ') FILTER (WHERE w.pid IS NOT NULL AND NOT (w.locktype = 'advisory'
+         AND w.objsubid = 1 AND w.database = m.database AND w.classid = m.classid AND w.objid = m.objid)), '') AS elsewhere
+FROM merge_lock m LEFT JOIN pg_locks w ON NOT w.granted AND m.pid = ANY(pg_blocking_pids(w.pid))`, peopledirectory.StaffPersonMergeLockKey(h.schoolID)).Scan(testpkg.Ctx(t), &state))
+	return state
 }
 
 // awaitStaffMergeLockWaiters returns once PostgreSQL reports every writer
@@ -557,25 +613,11 @@ func (m *heldStaffMerge) startWriter(t *testing.T, h staffMergeHarness, name str
 // that never queues; no local deadline decides the result.
 func awaitStaffMergeLockWaiters(t *testing.T, h staffMergeHarness, writers ...staffMergeLockWriter) {
 	t.Helper()
-	ctx := testpkg.Ctx(t)
 	poll := time.NewTicker(10 * time.Millisecond)
 	defer poll.Stop()
 	for {
-		var waits struct {
-			AtMergeLock int    `bun:"at_merge_lock"`
-			Elsewhere   string `bun:"elsewhere"`
-		}
-		require.NoError(t, h.db.NewRaw(`WITH merge_lock AS (
-  SELECT l.pid, l.database, l.classid, l.objid FROM pg_locks l, (SELECT hashtextextended(?, 0) AS v) k
-  WHERE l.locktype = 'advisory' AND l.objsubid = 1 AND l.granted AND l.mode = 'ExclusiveLock'
-    AND l.database = (SELECT oid FROM pg_database WHERE datname = current_database())
-    AND l.classid::bigint = (k.v >> 32) & 4294967295 AND l.objid::bigint = k.v & 4294967295)
-SELECT count(*) FILTER (WHERE w.locktype = 'advisory' AND w.objsubid = 1 AND w.mode = 'ShareLock'
-         AND w.database = m.database AND w.classid = m.classid AND w.objid = m.objid) AS at_merge_lock,
-       coalesce(string_agg(w.locktype || ' ' || w.mode, ', ') FILTER (WHERE NOT (w.locktype = 'advisory'
-         AND w.objsubid = 1 AND w.database = m.database AND w.classid = m.classid AND w.objid = m.objid)), '') AS elsewhere
-FROM pg_locks w JOIN merge_lock m ON m.pid = ANY(pg_blocking_pids(w.pid))
-WHERE NOT w.granted`, peopledirectory.StaffPersonMergeLockKey(h.schoolID)).Scan(ctx, &waits))
+		waits := staffMergeLockState(t, h)
+		require.True(t, waits.Held, "the merge must hold its lock while same-school writers wait")
 		require.Empty(t, waits.Elsewhere, "the merge must block same-school writers only at its staff-person-merge lock")
 		if waits.AtMergeLock == len(writers) {
 			for _, writer := range writers {
@@ -608,7 +650,7 @@ func TestStaffPersonMergeWaitsForSameSchoolPersonCreation(t *testing.T) {
 
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{DB: h.db, StudentDirectory: testpkg.StudentDirectory{}, Observe: func(peopleCompose.Observation) {}}, nil)
 	require.NoError(t, err)
-	created := merge.startWriter(t, h, "person creation", func(ctx context.Context) error {
+	created := merge.startWriter(t, h.db, h.schoolID, "person creation", func(ctx context.Context) error {
 		_, err := directory.CreatePerson(ctx, peopledirectory.CreatePerson{FirstName: "Gleichzeitig", LastName: "Doppelsatz"})
 		return err
 	})
@@ -636,8 +678,8 @@ func TestStaffPersonMergeWaitsForSameSchoolStaffCreation(t *testing.T) {
 			return err
 		}
 	}
-	created := merge.startWriter(t, h, "staff creation", createStaff(other.ID))
-	retiredDonor := merge.startWriter(t, h, "donor staff creation", createStaff(input.Cases[0].DonorID))
+	created := merge.startWriter(t, h.db, h.schoolID, "staff creation", createStaff(other.ID))
+	retiredDonor := merge.startWriter(t, h.db, h.schoolID, "donor staff creation", createStaff(input.Cases[0].DonorID))
 	awaitStaffMergeLockWaiters(t, h, created, retiredDonor)
 
 	merge.release()
