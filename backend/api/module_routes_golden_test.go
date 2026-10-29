@@ -161,8 +161,8 @@ func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
 	booked, _ := testpkg.CreateTestTenant(t, db)
 	_, cancelledAdmin := testpkg.CreateTestStaffWithAccountForTenant(t, db, cancelled, "Modul", "Abbestellt")
 	_, bookedAdmin := testpkg.CreateTestStaffWithAccountForTenant(t, db, booked, "Modul", "Gebucht")
-	cancelledToken := testpkg.MintTestJWT(t, testpkg.AdminTestClaimsForTenant(int(cancelledAdmin.ID), cancelled))
-	bookedToken := testpkg.MintTestJWT(t, testpkg.AdminTestClaimsForTenant(int(bookedAdmin.ID), booked))
+	cancelledToken := testpkg.MintLiveSessionJWT(t, db, testpkg.AdminTestClaimsForTenant(int(cancelledAdmin.ID), cancelled))
+	bookedToken := testpkg.MintLiveSessionJWT(t, db, testpkg.AdminTestClaimsForTenant(int(bookedAdmin.ID), booked))
 	child := testpkg.CreateTestStudent(t, db, "Mila", "Modul", "2a")
 
 	request := func(token, method, path, body string) (int, map[string]any) {

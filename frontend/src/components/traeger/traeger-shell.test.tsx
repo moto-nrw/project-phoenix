@@ -37,21 +37,24 @@ vi.mock("next-auth/react", () => ({
 }));
 
 import { TraegerShell } from "./traeger-shell";
+import { ToastProvider } from "~/contexts/ToastContext";
 
 function renderPortal({
   organizationName,
   testSystem = false,
 }: { organizationName?: string; testSystem?: boolean } = {}) {
   return render(
-    <TraegerShellProvider organizationName={organizationName}>
-      <BreadcrumbProvider>
-        <ShellIntlProvider>
-          <TraegerShell testSystem={testSystem}>
-            <p>Inhalt</p>
-          </TraegerShell>
-        </ShellIntlProvider>
-      </BreadcrumbProvider>
-    </TraegerShellProvider>,
+    <ToastProvider>
+      <TraegerShellProvider organizationName={organizationName}>
+        <BreadcrumbProvider>
+          <ShellIntlProvider>
+            <TraegerShell testSystem={testSystem}>
+              <p>Inhalt</p>
+            </TraegerShell>
+          </ShellIntlProvider>
+        </BreadcrumbProvider>
+      </TraegerShellProvider>
+    </ToastProvider>,
   );
 }
 

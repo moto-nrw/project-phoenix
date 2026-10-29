@@ -12,7 +12,7 @@ import {
   sentrySessionContext,
   type SentryPortal,
 } from "~/lib/sentry-context";
-import type { ServerSession } from "./shared";
+import { withForcedSessionRenewal, type ServerSession } from "./shared";
 
 export type ResponseRouteHandler<Context = RouteContext> = (
   request: NextRequest,
@@ -79,7 +79,10 @@ export function createResponseAwareAuth(
       const freshReader = rawAuth(async (request) =>
         Response.json(request.auth),
       ) as ResponseRouteHandler;
-      const response = await freshReader(current.request);
+      // Every caller holds a backend 401: renew now, not at the expiry.
+      const response = await withForcedSessionRenewal(() =>
+        freshReader(current.request),
+      );
       current.freshCookies.push(...response.headers.getSetCookie());
 
       const session = (await response.json()) as ServerSession | null;
@@ -116,6 +119,22 @@ export function createResponseAwareAuth(
       }) as ResponseRouteHandler<Context>;
 
       const response = await wrapped(request, context);
+
+      // A 401 for an unexpired token means its family may be revoked
+      // (#5194). Routes without their own retry still renew the session, so
+      // a revoked one leaves with an ended session cookie instead of one the
+      // browser keeps presenting.
+      if (
+        response.status === 401 &&
+        current.session?.user?.token &&
+        !current.freshSession
+      ) {
+        try {
+          await requestSession.run(current, uncachedAuth);
+        } catch {
+          // The 401 stands; the next request renews again.
+        }
+      }
 
       // Auth.js appends the outer session cookie after the route callback.
       // Append explicit retry cookies afterwards so the freshly rotated cookie

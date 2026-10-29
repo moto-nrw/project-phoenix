@@ -365,6 +365,7 @@ type Owner interface {
 	RolePermissionQuery
 	SchoolMembershipQuery
 	AccountAuthentication
+	AccessSessions
 	AccountSessionMaintenance
 	AccountClaimsQuery
 	OperatorAuthentication

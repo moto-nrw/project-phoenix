@@ -512,9 +512,9 @@ function GuardedTenant({
   ]);
 
   if (refusal === "failed") {
-    // No sign-out here: it would delete the cookie without making a copy
-    // that a late answer writes back worthless (access tokens stay valid
-    // until they expire). Checking again is the safe way out.
+    // Checking again is the way out. A relogin here would need the revoking
+    // logout of reloginAtTenant, since only the revoked family makes a
+    // cookie a late answer writes back worthless (#5194).
     return (
       <div className="mx-auto flex min-h-[200px] max-w-3xl items-center p-4">
         <div className="w-full space-y-3">

@@ -51,6 +51,9 @@ export function LogoutModal({ isOpen, onClose }: LogoutModalProps) {
         // sessionStorage unavailable
       }
       setIsLoggingOut(false);
+      // The shell showed the failure with a retry (#5194); the modal would
+      // cover it. The session stays signed in.
+      onClose();
     }
   };
 
