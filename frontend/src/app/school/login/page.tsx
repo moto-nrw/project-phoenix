@@ -13,6 +13,7 @@ import {
   AuthShell,
   MotoBrand,
   authPrimaryButtonClassName,
+  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -404,7 +405,7 @@ function LoginForm() {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setIsResetModalOpen(true)}
-                    className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                    className={authTextButtonClassName}
                   >
                     Passwort vergessen?
                   </button>
