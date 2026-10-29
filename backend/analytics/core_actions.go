@@ -61,6 +61,9 @@ func export(exportType string) CoreAction {
 // Adding a writing route: classify it here. New core action: name the event
 // in snake_case after what succeeded (group_created, not create_group).
 var coreActions = map[RouteKey]CoreAction{
+	// Period-owned PDFs have no school to count them for (#5199).
+	{http.MethodPost, "/traeger/holiday-periods/{id}/form/documents"}:                notCaptured,
+	{http.MethodDelete, "/traeger/holiday-periods/{id}/form/documents/{documentId}"}: notCaptured,
 	// OGS portal (tenant API).
 	{http.MethodPost, "/api/absence-types/"}:                                                               notCaptured,
 	{http.MethodPut, "/api/absence-types/{id}"}:                                                            notCaptured,
@@ -315,6 +318,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/staff/{id}/documents"}:                                                         notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/documents/{documentId}"}:                                          notCaptured,
 	{http.MethodPut, "/api/staff/{id}/payroll-number"}:                                                     notCaptured,
+	{http.MethodPut, "/api/staff/{id}/planned-exit"}:                                                       notCaptured,
+	{http.MethodDelete, "/api/staff/{id}/planned-exit"}:                                                    notCaptured,
 	{http.MethodPut, "/api/staff/{id}/schedule"}:                                                           notCaptured,
 	{http.MethodPut, "/api/staff/{id}/school-classes"}:                                                     notCaptured,
 	{http.MethodPut, "/api/staff/{id}/stammdaten/arbeitsvertrag"}:                                          notCaptured,
@@ -593,6 +598,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/"}:                      notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}"}:                   notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
+	// The form of a holiday period (#5198) belongs to the Träger, not to a
+	// school: no school to count it for.
+	{http.MethodPut, "/traeger/holiday-periods/{id}/form"}: notCaptured,
 	// The review of the holiday registrations (#4663) belongs to the
 	// Träger, not to a school: no school to count it for.
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/cancel"}:                     notCaptured,

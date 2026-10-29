@@ -1,9 +1,15 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import type {
   HolidayKnownFamily,
   HolidayRegistrationOffer,
@@ -88,12 +94,19 @@ const offer: HolidayRegistrationOffer = {
       endsOn: "2027-01-08",
       hostSchoolName: "OGS Nord",
       timeModels: [
-        { id: "21", name: "bis 13 Uhr", startsAt: "08:00", endsAt: "13:00" },
+        {
+          id: "21",
+          name: "bis 13 Uhr",
+          startsAt: "08:00",
+          endsAt: "13:00",
+          priceCents: 4500,
+        },
       ],
     },
   ],
   schools: [{ id: "31", name: "OGS Nord" }],
   captchaSiteKey: "site",
+  form: { version: 1, fields: [] },
 };
 
 const family: HolidayKnownFamily = {
@@ -114,21 +127,26 @@ const family: HolidayKnownFamily = {
   ],
 };
 
-function renderForm(known: HolidayKnownFamily | null = null) {
+function renderForm(
+  known: HolidayKnownFamily | null = null,
+  shown: HolidayRegistrationOffer = offer,
+  onFormChanged?: () => Promise<void>,
+) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
       <ToastProvider>
         <HolidayRegistrationForm
           token="link-key"
-          offer={offer}
+          offer={shown}
           family={known}
+          onFormChanged={onFormChanged}
         />
       </ToastProvider>
     </NextIntlClientProvider>,
   );
 }
 
-function choose(combobox: HTMLElement, option: string) {
+function choose(combobox: HTMLElement, option: string | RegExp) {
   fireEvent.click(combobox);
   fireEvent.click(screen.getByRole("option", { name: option }));
 }
@@ -137,30 +155,33 @@ function type(input: HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } });
 }
 
+/** The time model of the week with its price; € follows a no-break space. */
+const WEEK_TIME_MODEL = /^bis 13 Uhr · 45,00\s€ \(08:00 bis 13:00 Uhr\)$/;
+
 /** Fills a complete registration of one holiday guest. */
 function fillRegistration() {
-  const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname *");
-  const [childLast, guardianLast] = screen.getAllByLabelText("Nachname *");
+  const [childFirst, guardianFirst] = screen.getAllByLabelText("Vorname");
+  const [childLast, guardianLast] = screen.getAllByLabelText("Nachname");
   type(childFirst!, "Ben");
   type(childLast!, "Muster");
   choose(screen.getByRole("combobox", { name: "Tag" }), "4");
   choose(screen.getByRole("combobox", { name: "Monat" }), "Mai");
   choose(screen.getByRole("combobox", { name: "Jahr" }), "2017");
   choose(
-    screen.getByRole("combobox", { name: "Schule *" }),
+    screen.getByRole("combobox", { name: "Schule" }),
     "Eine andere Schule",
   );
   expect(screen.getByText(/Ihr Kind kommt als Feriengast/)).toBeInTheDocument();
   choose(
     screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
-    "bis 13 Uhr (08:00 bis 13:00 Uhr)",
+    WEEK_TIME_MODEL,
   );
   type(guardianFirst!, "Eva");
   type(guardianLast!, "Muster");
-  type(screen.getByLabelText("E-Mail-Adresse *"), "eva@example.org");
-  type(screen.getAllByLabelText("Telefon *")[0]!, "0151 1");
-  type(screen.getAllByLabelText("Name *")[0]!, "Oma Muster");
-  type(screen.getAllByLabelText("Telefon *")[1]!, "05402 1");
+  type(screen.getByLabelText("E-Mail-Adresse"), "eva@example.org");
+  type(screen.getAllByLabelText("Telefon")[0]!, "0151 1");
+  type(screen.getAllByLabelText("Name")[0]!, "Oma Muster");
+  type(screen.getAllByLabelText("Telefon")[1]!, "05402 1");
   fireEvent.click(
     screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
   );
@@ -351,6 +372,22 @@ describe("HolidayRegistrationForm", () => {
     );
   });
 
+  it("shows the price per week at each time model, as the base line of the contribution", () => {
+    renderForm();
+    expect(
+      screen.getByText(
+        /Der Preis gilt pro Woche und Kind, ohne Ermäßigung oder Befreiung\. Ihren Beitrag sehen Sie in der Zusammenfassung\./,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
+    );
+    // 45,00 € is the base line quoted(false) shows under "Beitrag".
+    expect(
+      screen.getByRole("option", { name: WEEK_TIME_MODEL }),
+    ).toBeInTheDocument();
+  });
+
   it("lets parents send the registration when the contribution cannot be shown", async () => {
     mockQuote.mockRejectedValue(new Error("offline"));
     renderForm();
@@ -374,7 +411,7 @@ describe("HolidayRegistrationForm", () => {
     mockSubmit.mockResolvedValue(undefined);
     renderForm(family);
 
-    expect(screen.getByLabelText("E-Mail-Adresse *")).toHaveValue(
+    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
       "sabine@example.org",
     );
     const known = screen.getByRole("checkbox", { name: /Felix Schneider/ });
@@ -383,17 +420,17 @@ describe("HolidayRegistrationForm", () => {
     ).toBeInTheDocument();
     fireEvent.click(known);
     expect(known).toBeChecked();
-    const childFirst = screen.getAllByLabelText("Vorname *")[0]!;
+    const childFirst = screen.getAllByLabelText("Vorname")[0]!;
     expect(childFirst).toHaveValue("Felix");
     expect(screen.getAllByText("Kind 1")).toHaveLength(1);
     type(childFirst, "Feli");
 
     choose(
       screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
-      "bis 13 Uhr (08:00 bis 13:00 Uhr)",
+      WEEK_TIME_MODEL,
     );
-    type(screen.getAllByLabelText("Name *")[0]!, "Oma Schneider");
-    type(screen.getAllByLabelText("Telefon *")[1]!, "05402 2");
+    type(screen.getAllByLabelText("Name")[0]!, "Oma Schneider");
+    type(screen.getAllByLabelText("Telefon")[1]!, "05402 2");
     fireEvent.click(
       screen.getByLabelText(/Ich bin einverstanden, dass der Träger/),
     );
@@ -437,10 +474,10 @@ describe("HolidayRegistrationForm", () => {
     renderForm(family);
     const known = screen.getByRole("checkbox", { name: /Felix Schneider/ });
     fireEvent.click(known);
-    expect(screen.getAllByLabelText("Vorname *")[0]).toHaveValue("Felix");
+    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("Felix");
     fireEvent.click(known);
     expect(known).not.toBeChecked();
-    expect(screen.getAllByLabelText("Vorname *")[0]).toHaveValue("");
+    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("");
   });
 
   it("offers no known children without a parent account", () => {
@@ -449,5 +486,485 @@ describe("HolidayRegistrationForm", () => {
     expect(
       screen.queryByText("Ihre Kinder aus dem Elternkonto"),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("second guardian card", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  function card() {
+    const heading = screen.getByRole("heading", {
+      name: "Zweite sorgeberechtigte Person",
+    });
+    return within(heading.closest("section")!);
+  }
+
+  it("requires names only while the optional card contains information", () => {
+    renderForm();
+    const second = card();
+    const firstName = second.getByLabelText("Vorname");
+    const lastName = second.getByLabelText("Nachname");
+    expect(firstName).not.toBeRequired();
+    expect(lastName).not.toBeRequired();
+    const phone = second.getByLabelText("Telefon (freiwillig)");
+    type(phone, "0151 2345678");
+    expect(second.getByLabelText("Vorname")).toBeRequired();
+    expect(second.getByLabelText("Nachname")).toBeRequired();
+    type(phone, " ");
+    expect(firstName).not.toBeRequired();
+    expect(lastName).not.toBeRequired();
+  });
+
+  it("allows leaving the card blank", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    await renderFilledForm();
+    expect(screen.getByText("Eva Muster")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    expect(mockSubmit.mock.calls[0]![1].second_guardian).toBeUndefined();
+  });
+
+  it("shows the second guardian in the summary and submits all four fields", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm();
+    fillRegistration();
+    const second = card();
+    type(second.getByLabelText(/^Vorname\b/), "Tom");
+    type(second.getByLabelText(/^Nachname\b/), "Anders");
+    type(
+      second.getByLabelText("E-Mail-Adresse (freiwillig)"),
+      "tom@example.org",
+    );
+    type(second.getByLabelText("Telefon (freiwillig)"), "0151 2345678");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect(card().getByText("Tom Anders")).toBeInTheDocument();
+    expect(card().getByText("tom@example.org")).toBeInTheDocument();
+    expect(card().getByText("0151 2345678")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    expect(mockSubmit.mock.calls[0]![1].second_guardian).toEqual({
+      first_name: "Tom",
+      last_name: "Anders",
+      email: "tom@example.org",
+      phone: "0151 2345678",
+    });
+  });
+
+  it.each([
+    [/^Vorname\b/, "", /^Vorname\b/],
+    [/^Nachname\b/, "", /^Nachname\b/],
+    ["E-Mail-Adresse (freiwillig)", "bad", "E-Mail-Adresse (freiwillig)"],
+    ["Telefon (freiwillig)", "abc", "Telefon (freiwillig)"],
+  ])(
+    "shows errors at the second guardian field %s",
+    async (label, value, invalidLabel) => {
+      renderForm();
+      fillRegistration();
+      const second = card();
+      type(second.getByLabelText(/^Vorname\b/), "Tom");
+      type(second.getByLabelText(/^Nachname\b/), "Anders");
+      type(second.getByLabelText(label), value);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+      );
+      await waitFor(() =>
+        expect(second.getByLabelText(invalidLabel)).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        ),
+      );
+      expect(second.getByLabelText(invalidLabel)).toHaveAttribute(
+        "aria-describedby",
+      );
+    },
+  );
+});
+
+/** The Träger's questions (#5198): per child and per family. */
+const offerWithQuestions: HolidayRegistrationOffer = {
+  ...offer,
+  form: {
+    version: 3,
+    fields: [
+      {
+        key: "ausfluege",
+        label: "Darf an Ausflügen teilnehmen",
+        type: "boolean",
+        required: true,
+        applies_to_child: true,
+        sort_order: 0,
+      },
+      {
+        key: "ausflug_hinweis",
+        label: "Was müssen wir bei Ausflügen beachten?",
+        type: "text",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+        visible_when: {
+          source: "field",
+          field: "ausfluege",
+          operator: "eq",
+          value: true,
+        },
+      },
+      {
+        key: "tetanus",
+        label: "Tetanus-Impfschutz",
+        type: "select",
+        applies_to_child: true,
+        health: true,
+        sort_order: 2,
+        options: [
+          { label: "ja", value: "ja" },
+          { label: "nein", value: "nein" },
+        ],
+      },
+      {
+        key: "newsletter",
+        label: "Wie haben Sie von den Ferien erfahren?",
+        type: "text",
+        required: true,
+        sort_order: 3,
+      },
+    ],
+  },
+};
+
+describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  it("marks a missing required answer and skips a hidden required question", async () => {
+    renderForm(null, offerWithQuestions);
+    fillRegistration();
+    expect(screen.getByText("Weitere Angaben")).toBeInTheDocument();
+    expect(screen.getByText("Weitere Angaben zur Familie")).toBeInTheDocument();
+    // The follow-up question waits for its condition.
+    expect(
+      screen.queryByText("Was müssen wir bei Ausflügen beachten?"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+
+    expect(
+      await screen.findByText("Bitte wählen Sie Ja oder Nein."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", {
+        name: /Wie haben Sie von den Ferien erfahren/,
+      }),
+    ).toHaveAttribute("aria-invalid", "true");
+    expect(mockSubmit).not.toHaveBeenCalled();
+  });
+
+  it("asks for the health consent when a health question is answered and sends the answers", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(null, offerWithQuestions);
+    fillRegistration();
+    fireEvent.click(screen.getByRole("radio", { name: "Nein" }));
+    choose(screen.getByRole("combobox", { name: "Tetanus-Impfschutz" }), "ja");
+    type(
+      screen.getByRole("textbox", {
+        name: /Wie haben Sie von den Ferien erfahren/,
+      }),
+      " Aus der Zeitung ",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText(
+        "Bitte stimmen Sie zu oder löschen Sie die Gesundheitsangaben.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByLabelText(
+        /^Ich bin einverstanden, dass die Betreuung die Gesundheitsangaben meiner Kinder sieht\./,
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    // The summary repeats the answers with the question.
+    expect(
+      screen.getByText("Darf an Ausflügen teilnehmen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Tetanus-Impfschutz")).toBeInTheDocument();
+    expect(screen.getByText("Aus der Zeitung")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({
+        form_version: 3,
+        custom_data: { newsletter: "Aus der Zeitung" },
+        health_consent: true,
+        children: [
+          expect.objectContaining({
+            custom_data: { ausfluege: false, tetanus: "ja" },
+          }),
+        ],
+      }),
+    );
+  });
+
+  it("loads the calendar of a date question when the form has one", async () => {
+    renderForm(null, {
+      ...offer,
+      form: {
+        version: 1,
+        fields: [
+          {
+            key: "letzte_impfung",
+            label: "Datum der letzten Tetanus-Impfung",
+            type: "date",
+            applies_to_child: true,
+            sort_order: 0,
+          },
+        ],
+      },
+    });
+    expect(
+      await screen.findByText("Datum der letzten Tetanus-Impfung"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByLabelText("Datum der letzten Tetanus-Impfung"),
+    ).toBeInTheDocument();
+  });
+
+  it("loads the form again when the Träger changed it and keeps the answers", async () => {
+    mockSubmit.mockRejectedValue(
+      new ApiError("form changed", 409, {
+        code: "enrollment.holiday_registration_form_changed",
+      }),
+    );
+    const reload = vi.fn().mockResolvedValue(undefined);
+    renderForm(null, offerWithQuestions, reload);
+    fillRegistration();
+    fireEvent.click(screen.getByRole("radio", { name: "Nein" }));
+    type(
+      screen.getByRole("textbox", {
+        name: /Wie haben Sie von den Ferien erfahren/,
+      }),
+      "Schule",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByText(
+        "Der Träger hat das Formular gerade geändert. Bitte prüfen Sie Ihre Angaben und senden Sie die Anmeldung noch einmal.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("textbox", {
+        name: /Wie haben Sie von den Ferien erfahren/,
+      }),
+    ).toHaveValue("Schule");
+  });
+  it("requires PDF acknowledgements and shows the accepted and declined blocks in the summary", async () => {
+    const shown = {
+      ...offer,
+      form: {
+        ...offer.form,
+        legalBlocks: [
+          {
+            key: "hinweis",
+            kind: "notice" as const,
+            source: "custom" as const,
+            title: "Ferienhinweise",
+            label: "Ich habe die Ferienhinweise gelesen.",
+            text: "Bitte eine Trinkflasche mitgeben.",
+            enabled: true,
+            required: true,
+            sort_order: 0,
+            attachments: [{ label: "Ferienbrief", document_url: "19" }],
+          },
+          {
+            key: "foto",
+            kind: "consent" as const,
+            source: "custom" as const,
+            title: "Erinnerungsfotos",
+            label: "Fotos sind erlaubt.",
+            text: "",
+            enabled: true,
+            required: false,
+            sort_order: 1,
+          },
+        ],
+      },
+    };
+    renderForm(null, shown);
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText("Bitte prüfen Sie die markierten Felder."),
+    ).toBeInTheDocument();
+    const acknowledgement = screen.getByRole("checkbox", {
+      name: /Ich habe die Ferienhinweise gelesen/,
+    });
+    expect(acknowledgement).toHaveAttribute("aria-invalid", "true");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Details zu Ferienhinweise anzeigen",
+      }),
+    );
+    expect(
+      await screen.findByText("Bitte eine Trinkflasche mitgeben."),
+    ).toBeInTheDocument();
+    expect(acknowledgement).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    fireEvent.click(acknowledgement);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText("Bitte prüfen Sie Ihre Angaben"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ferienhinweise")).toBeInTheDocument();
+    expect(screen.getByText("Bestätigt")).toBeInTheDocument();
+    expect(screen.getByText("Nicht bestätigt")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "link-key",
+        expect.objectContaining({
+          legal_acceptances: { hinweis: true, foto: false },
+        }),
+      ),
+    );
+  });
+  it("requires fresh legal acknowledgement after the version changes", async () => {
+    mockSubmit.mockRejectedValueOnce(
+      new ApiError("changed", 409, {
+        code: "enrollment.holiday_registration_form_changed",
+      }),
+    );
+    const reload = vi.fn().mockResolvedValue(undefined);
+    renderForm(
+      null,
+      {
+        ...offer,
+        form: {
+          ...offer.form,
+          legalBlocks: [
+            {
+              key: "hinweis",
+              kind: "terms",
+              source: "custom",
+              title: "Ferienhinweise",
+              label: "Ich habe die Ferienhinweise gelesen.",
+              text: "",
+              enabled: true,
+              required: true,
+              sort_order: 0,
+            },
+          ],
+        },
+      },
+      reload,
+    );
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ich habe die Ferienhinweise gelesen/,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("checkbox", {
+        name: /Ich habe die Ferienhinweise gelesen/,
+      }),
+    ).not.toBeChecked();
+  });
+  it("keeps an optional information-only notice read-only", async () => {
+    renderForm(null, {
+      ...offer,
+      form: {
+        ...offer.form,
+        legalBlocks: [
+          {
+            key: "info",
+            kind: "notice",
+            source: "custom",
+            title: "Trinkflaschen",
+            label: "Bitte eine Trinkflasche mitgeben.",
+            text: "",
+            enabled: true,
+            required: false,
+            sort_order: 0,
+          },
+        ],
+      },
+    });
+    // Anker: the enabled information block is visible in the loaded form.
+    expect(
+      await screen.findByRole("heading", { name: "Trinkflaschen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte eine Trinkflasche mitgeben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "Bitte eine Trinkflasche mitgeben.",
+      }),
+    ).not.toBeInTheDocument();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    // Anker: the information-only notice remains visible in the summary.
+    expect(await screen.findByText("Trinkflaschen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte eine Trinkflasche mitgeben."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Nicht bestätigt")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bestätigt")).not.toBeInTheDocument();
   });
 });

@@ -1,0 +1,8 @@
+DELETE /operator/announcements/{id}
+GET /operator/announcements/
+GET /operator/announcements/{id}
+GET /operator/announcements/{id}/stats
+GET /operator/announcements/{id}/views
+POST /operator/announcements/
+POST /operator/announcements/{id}/publish
+PUT /operator/announcements/{id}

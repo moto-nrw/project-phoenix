@@ -1,0 +1,9 @@
+GET /school/supervisions/
+GET /school/supervisions/{id}/roster
+GET /school/supervisions/{id}/students/{student_id}/sheet
+PATCH /school/supervisions/{id}/students/{student_id}/attendance
+POST /school/supervisions/{id}/complete
+POST /school/supervisions/{id}/start
+POST /school/supervisions/{id}/students/{student_id}/check-in
+POST /school/supervisions/{id}/students/{student_id}/check-out
+PUT /school/supervisions/{id}/students/{student_id}/homework-feedback

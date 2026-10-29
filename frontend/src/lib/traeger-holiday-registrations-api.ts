@@ -1,3 +1,7 @@
+import {
+  holidayLegalBlocks,
+  type HolidayLegalBlockWire,
+} from "~/lib/holiday-form-field";
 /**
  * Client of the review of the holiday registrations in the Träger portal
  * (#4663): the list of a holiday period with its filters, one registration
@@ -9,6 +13,10 @@
 
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
+import type {
+  HolidayFormField,
+  HolidayFormVersion,
+} from "./holiday-form-field";
 import { traegerRequest } from "./traeger-api";
 
 export type HolidayRegistrationStatus = "received" | "confirmed" | "cancelled";
@@ -115,12 +123,30 @@ export interface HolidayRegistrationEvent {
 }
 
 export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
+  readonly secondGuardian: {
+    readonly firstName: string;
+    readonly lastName: string;
+    readonly email: string;
+    readonly phone: string;
+  } | null;
   readonly health: readonly HolidayRegistrationHealth[];
   readonly contacts: readonly HolidayRegistrationContact[];
   readonly privacyConsentAt: string;
   readonly healthConsentAt: string | null;
   readonly bindingConfirmedAt: string | null;
   readonly history: readonly HolidayRegistrationEvent[];
+  /**
+   * The form version the parents answered (#5198); its labels name the
+   * answers, also after a later change of the form.
+   */
+  readonly legalAcceptances?: Readonly<Record<string, string>>;
+  readonly form: HolidayFormVersion;
+  /** Answers to the family questions, by key. */
+  readonly answers: Readonly<Record<string, unknown>>;
+  /** Answers to the questions per child, by child ID and key. */
+  readonly childAnswers: Readonly<
+    Record<string, Readonly<Record<string, unknown>>>
+  >;
 }
 
 interface BackendBooking {
@@ -168,6 +194,12 @@ interface BackendBookingChange {
 }
 
 interface BackendDetail extends BackendSummary {
+  second_guardian?: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+  } | null;
   health?:
     | {
         child_id: number;
@@ -192,6 +224,15 @@ interface BackendDetail extends BackendSummary {
         } | null;
       }[]
     | null;
+  legal_acceptances?: Record<string, string> | null;
+  form?: {
+    version: number;
+    fields?: HolidayFormField[] | null;
+    legal_blocks?: HolidayLegalBlockWire[] | null;
+  } | null;
+  custom_data?: Record<string, unknown> | null;
+  child_custom_data?:
+    { child_id: number; custom_data?: Record<string, unknown> | null }[] | null;
 }
 
 function summaryFromBackend(
@@ -244,6 +285,14 @@ function detailFromBackend(
 ): HolidayRegistrationDetail {
   return {
     ...summaryFromBackend(registration),
+    secondGuardian: registration.second_guardian
+      ? {
+          firstName: registration.second_guardian.first_name,
+          lastName: registration.second_guardian.last_name,
+          email: registration.second_guardian.email,
+          phone: registration.second_guardian.phone,
+        }
+      : null,
     health: (registration.health ?? []).map((entry) => ({
       childId: String(entry.child_id),
       allergies: entry.allergies,
@@ -262,6 +311,19 @@ function detailFromBackend(
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
     })),
+    legalAcceptances: registration.legal_acceptances ?? {},
+    form: {
+      legalBlocks: holidayLegalBlocks(registration.form?.legal_blocks),
+      version: registration.form?.version ?? 0,
+      fields: registration.form?.fields ?? [],
+    },
+    answers: registration.custom_data ?? {},
+    childAnswers: Object.fromEntries(
+      (registration.child_custom_data ?? []).map((entry) => [
+        String(entry.child_id),
+        entry.custom_data ?? {},
+      ]),
+    ),
   };
 }
 

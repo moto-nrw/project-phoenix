@@ -1,0 +1,1537 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (r DeclarationRules) Closed(now time.Time) bool {\n\treturn r.Deadline != nil \u0026\u0026 !r.Deadline.After(now)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/DeclarationRules.Closed",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s Survey) Status(now time.Time) string {\n\tif s.PublishedAt == nil {\n\t\treturn SurveyStatusDraft\n\t}\n\tif !s.ClosesAt.After(now) {\n\t\treturn SurveyStatusClosed\n\t}\n\treturn SurveyStatusOpen\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/Survey.Status",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *AnnouncementsResource) GetAnnouncement(w http.ResponseWriter, r *http.Request) {\n\tid, ok := common.ParseInt64IDWithError(w, r, \"id\", \"invalid announcement ID\")\n\tif !ok {\n\t\treturn\n\t}\n\tannouncement, err := rs.announcementService.GetAnnouncement(r.Context(), id)\n\tif err != nil {\n\t\tcommon.RenderError(w, r, AnnouncementErrorRenderer(err))\n\t\treturn\n\t}\n\tcommon.Respond(w, r, http.StatusOK, newAnnouncementResponse(announcement), \"Announcement retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/http/operatorannouncements/AnnouncementsResource.GetAnnouncement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p GroupThreadPortal) PortalCountUnreadGroupThreads(ctx context.Context, accountID int64, studentIDs, tenantIDs []int64) (int, error) {\n\treturn p.Store.CountUnreadThreadsForGuardian(ctx, accountID, studentIDs, tenantIDs)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/GroupThreadPortal.PortalCountUnreadGroupThreads",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p GroupThreadPortal) PortalGroupThreadTitles(ctx context.Context, threadIDs []int64) (map[int64]string, error) {\n\treturn p.Store.TitlesByIDs(ctx, threadIDs)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/GroupThreadPortal.PortalGroupThreadTitles",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p GroupThreadPortal) PortalListGroupThreads(ctx context.Context, accountID int64, studentIDs, tenantIDs []int64) ([]communication.PortalGuardianGroupThread, error) {\n\treturn p.Store.ListThreadsForGuardian(ctx, accountID, studentIDs, tenantIDs)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/GroupThreadPortal.PortalListGroupThreads",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *ParentMessageReads) ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error) {\n\treturn r.threads.ClearStaffUnreadMark(ctx, tenantID, threadID, observedAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.ClearStaffUnreadMark",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *ParentMessageReads) ClearUnreadForStaff(ctx context.Context, tenantID, accountID int64, bounds []communication.PortalReadCursorBound) ([]int64, error) {\n\tselected := make([]domain.ReadCursorBound, 0, len(bounds))\n\tfor _, bound := range bounds {\n\t\tselected = append(selected, domain.ReadCursorBound{ThreadID: bound.ThreadID, ReadAt: bound.ReadAt, MessageID: bound.MessageID})\n\t}\n\treturn r.cursors.ClearUnreadForStaff(ctx, tenantID, accountID, selected)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.ClearUnreadForStaff",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *ParentMessageReads) MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error) {\n\treturn r.cursors.MarkReadUpTo(ctx, tenantID, threadID, accountID, readAt, readMessageID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.MarkReadUpTo",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *ParentMessageReads) MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error {\n\treturn r.threads.MarkStaffHandledUpTo(ctx, tenantID, threadID, handledAt, handledMessageID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.MarkStaffHandledUpTo",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *ParentMessageReads) MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error {\n\treturn r.threads.MarkStaffUnread(ctx, tenantID, threadID, accountID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/ParentMessageReads.MarkStaffUnread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) AccountMayAnswerForStudent(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (bool, error) {\n\treturn r.AnnouncementAudienceReads.AccountMayAnswerForStudent(ctx, tenantID, announcementID, accountID, studentID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AccountMayAnswerForStudent",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*communication.PortalAnnouncementPollChild, error) {\n\tvalues, err := r.AnnouncementAudienceReads.AnswerableChildren(ctx, accountID, announcementIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]*communication.PortalAnnouncementPollChild, 0, len(values))\n\tfor _, value := range values {\n\t\trows = append(rows, \u0026communication.PortalAnnouncementPollChild{AnnouncementID: value.AnnouncementID, StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName, SelectedOptions: value.SelectedOptions})\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AnswerableChildren",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementRecipientStatus, error) {\n\tvalues, err := r.AnnouncementAudienceReads.AudienceRecipients(ctx, tenantID, announcementID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]*communication.PortalAnnouncementRecipientStatus, 0, len(values))\n\tfor _, value := range values {\n\t\trows = append(rows, \u0026communication.PortalAnnouncementRecipientStatus{AccountID: value.AccountID, FirstName: value.FirstName, LastName: value.LastName, PortalLocale: value.PortalLocale, ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt})\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.AudienceRecipients",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ClaimReminder(ctx context.Context, id int64, sentAt time.Time) (bool, error) {\n\treturn r.store.ClaimReminder(ctx, id, sentAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ClaimReminder",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ClearEngagement(ctx context.Context, announcementID int64) error {\n\treturn r.store.ClearEngagement(ctx, announcementID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ClearEngagement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) CountAudience(ctx context.Context, tenantID, announcementID int64) (int, error) {\n\treturn r.AnnouncementAudienceReads.CountAudience(ctx, tenantID, announcementID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.CountAudience",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) CountDeclarationSubmissions(ctx context.Context, tenantID, announcementID int64) (int, error) {\n\treturn r.store.CountDeclarationSubmissions(ctx, tenantID, announcementID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.CountDeclarationSubmissions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error) {\n\treturn r.AnnouncementAudienceReads.CountReachableGuardiansForStudents(ctx, tenantID, studentIDs)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.CountReachableGuardiansForStudents",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) DeclarationSettings(ctx context.Context, announcementIDs []int64) (map[int64]communication.PortalAnnouncementDeclarationSettings, error) {\n\tvalues, err := r.store.DeclarationSettings(ctx, announcementIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]communication.PortalAnnouncementDeclarationSettings, len(values))\n\tfor id, value := range values {\n\t\tout[id] = communication.PortalAnnouncementDeclarationSettings(value)\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.DeclarationSettings",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) DeclarationSigners(ctx context.Context, tenantID int64, studentIDs []int64) ([]*communication.PortalDeclarationSigner, error) {\n\tvalues, err := r.AnnouncementAudienceReads.DeclarationSigners(ctx, tenantID, studentIDs)\n\treturn declarationSignerModels(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.DeclarationSigners",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*communication.PortalDeclarationSigner, error) {\n\tvalues, err := r.AnnouncementAudienceReads.DeclarationSignersForStudents(ctx, studentIDs)\n\treturn declarationSignerModels(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.DeclarationSignersForStudents",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) Delete(ctx context.Context, id int64) error {\n\treturn r.store.Delete(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.Delete",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) FindByID(ctx context.Context, id int64) (*communication.PortalParentAnnouncement, error) {\n\tvalue, err := r.store.FindByID(ctx, id)\n\treturn announcementModel(value), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.FindByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) FindByIDForUpdate(ctx context.Context, id int64) (*communication.PortalParentAnnouncement, error) {\n\tvalue, err := r.store.FindByIDForUpdate(ctx, id)\n\treturn announcementModel(value), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.FindByIDForUpdate",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) HoldDeclarationSigner(ctx context.Context, tenantID, announcementID, accountID, studentID int64) (*communication.PortalDeclarationSignerContext, error) {\n\tvalue, err := r.AnnouncementAudienceReads.HoldDeclarationSigner(ctx, tenantID, announcementID, accountID, studentID)\n\tif err != nil || value == nil {\n\t\treturn nil, err\n\t}\n\tsigner := communication.PortalDeclarationSignerContext(*value)\n\treturn \u0026signer, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.HoldDeclarationSigner",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) InsertDeclarationSubmission(ctx context.Context, submission *communication.PortalDeclarationSubmission) error {\n\tvalue := domain.DeclarationSubmission(*submission)\n\tif err := r.store.InsertDeclarationSubmission(ctx, \u0026value); err != nil {\n\t\treturn err\n\t}\n\tsubmission.ID = value.ID\n\tsubmission.TenantID = value.TenantID\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.InsertDeclarationSubmission",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) LatestDeclarationVersion(ctx context.Context, tenantID, announcementID int64) (*communication.PortalDeclarationVersion, error) {\n\tvalue, err := r.store.LatestDeclarationVersion(ctx, tenantID, announcementID)\n\tif err != nil || value == nil {\n\t\treturn nil, err\n\t}\n\treturn declarationVersionModel(value), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.LatestDeclarationVersion",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) LatestDeclarationVersions(ctx context.Context, announcementIDs []int64) (map[int64]*communication.PortalDeclarationVersion, error) {\n\tvalues, err := r.store.LatestDeclarationVersions(ctx, announcementIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]*communication.PortalDeclarationVersion, len(values))\n\tfor id, value := range values {\n\t\tout[id] = declarationVersionModel(value)\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.LatestDeclarationVersions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ListDeclarationSubmissions(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalDeclarationSubmission, error) {\n\tvalues, err := r.store.ListDeclarationSubmissions(ctx, tenantID, announcementID)\n\treturn declarationSubmissionModels(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListDeclarationSubmissions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ListDeclarationSubmissionsForStudents(ctx context.Context, announcementIDs, studentIDs []int64) ([]*communication.PortalDeclarationSubmission, error) {\n\tvalues, err := r.store.ListDeclarationSubmissionsForStudents(ctx, announcementIDs, studentIDs)\n\treturn declarationSubmissionModels(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListDeclarationSubmissionsForStudents",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ListDeclarationVersions(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalDeclarationVersion, error) {\n\tvalues, err := r.store.ListDeclarationVersions(ctx, tenantID, announcementID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make([]*communication.PortalDeclarationVersion, 0, len(values))\n\tfor _, value := range values {\n\t\tout = append(out, declarationVersionModel(value))\n\t}\n\treturn out, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListDeclarationVersions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*communication.PortalParentAnnouncement, error) {\n\tvalues, err := r.store.ListDueReminders(ctx, notBefore, dueBefore)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]*communication.PortalParentAnnouncement, 0, len(values))\n\tfor _, value := range values {\n\t\trows = append(rows, announcementModel(value))\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListDueReminders",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ListForTenant(ctx context.Context, includeInactive bool) ([]*communication.PortalParentAnnouncement, error) {\n\tvalues, err := r.store.ListForTenant(ctx, includeInactive)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]*communication.PortalParentAnnouncement, 0, len(values))\n\tfor _, value := range values {\n\t\trows = append(rows, announcementModel(value))\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListForTenant",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ListOptions(ctx context.Context, announcementID int64) ([]*communication.PortalParentAnnouncementOption, error) {\n\tvalues, err := r.store.ListOptions(ctx, announcementID)\n\treturn optionModels(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListOptions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ListOptionsForAnnouncements(ctx context.Context, announcementIDs []int64) ([]*communication.PortalParentAnnouncementOption, error) {\n\tvalues, err := r.store.ListOptionsForAnnouncements(ctx, announcementIDs)\n\treturn optionModels(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListOptionsForAnnouncements",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ListTargets(ctx context.Context, announcementID int64) ([]*communication.PortalParentAnnouncementTarget, error) {\n\tvalues, err := r.store.ListTargets(ctx, announcementID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]*communication.PortalParentAnnouncementTarget, 0, len(values))\n\tfor _, value := range values {\n\t\trows = append(rows, targetModel(value))\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ListTargets",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) LockDeclarationChild(ctx context.Context, announcementID, studentID int64) error {\n\treturn r.store.LockDeclarationChild(ctx, announcementID, studentID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.LockDeclarationChild",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) MarkAcknowledged(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {\n\treturn r.store.MarkAcknowledged(ctx, tenantID, announcementID, accountID, expectedPublishedAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.MarkAcknowledged",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) MarkRead(ctx context.Context, tenantID, announcementID, accountID int64, expectedPublishedAt time.Time) (bool, error) {\n\treturn r.store.MarkRead(ctx, tenantID, announcementID, accountID, expectedPublishedAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.MarkRead",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {\n\treturn r.store.PublishIfDraft(ctx, id, publishedAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.PublishIfDraft",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ReadOpenDeclarations(ctx context.Context, accountID int64, tenantIDs []int64) (map[int64]*time.Time, error) {\n\treturn r.store.ReadOpenDeclarations(ctx, accountID, tenantIDs)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ReadOpenDeclarations",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ReleaseReminderClaim(ctx context.Context, id int64, sentAt time.Time) (bool, error) {\n\treturn r.store.ReleaseReminderClaim(ctx, id, sentAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ReleaseReminderClaim",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementRecipient, error) {\n\tvalues, err := r.AnnouncementAudienceReads.ResolveAudienceEmails(ctx, tenantID, announcementID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]*communication.PortalAnnouncementRecipient, 0, len(values))\n\tfor _, value := range values {\n\t\trows = append(rows, \u0026communication.PortalAnnouncementRecipient{AccountID: value.AccountID, Email: value.Email, FirstName: value.FirstName, LastName: value.LastName})\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.ResolveAudienceEmails",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {\n\treturn r.store.SetPublished(ctx, id, publishedAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.SetPublished",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) SetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error) {\n\treturn r.store.SetReminder(ctx, id, reminderAt, reminderText)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.SetReminder",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) Stats(ctx context.Context, tenantID, announcementID int64) (*communication.PortalAnnouncementStats, error) {\n\tvalue, err := r.AnnouncementAudienceReads.Stats(ctx, tenantID, announcementID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026communication.PortalAnnouncementStats{TargetCount: value.TargetCount, ReadCount: value.ReadCount, AcknowledgedCount: value.AcknowledgedCount}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.Stats",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) UnacknowledgedReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementPollReminderRecipient, error) {\n\tvalues, err := r.AnnouncementAudienceReads.UnacknowledgedReminderRecipients(ctx, tenantID, announcementID)\n\treturn reminderModels(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.UnacknowledgedReminderRecipients",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*communication.PortalAnnouncementPollReminderRecipient, error) {\n\tvalues, err := r.AnnouncementAudienceReads.UnansweredReminderRecipients(ctx, tenantID, announcementID)\n\treturn reminderModels(values), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.UnansweredReminderRecipients",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *announcementRepository) Update(ctx context.Context, a *communication.PortalParentAnnouncement) error {\n\tdefer stampAnnouncementKind(a)\n\tvalue := announcementValue(a)\n\tif err := r.store.UpdateDraft(ctx, value); err != nil {\n\t\treturn publishedError(err)\n\t}\n\ta.UpdatedAt = value.UpdatedAt\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.Update",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r groupParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)\n\treturn enrichInboxGroups(ctx, r.groups, rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListInboxForStaff",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r groupParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForGuardianStudent(ctx, accountID, studentID)\n\treturn enrichInboxGroups(ctx, r.groups, rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r groupParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForGuardianTenants(ctx, accountID, tenantIDs)\n\treturn enrichInboxGroups(ctx, r.groups, rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r groupParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID)\n\treturn enrichInboxGroups(ctx, r.groups, rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListThreadsForStudent",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *messageRepository) FindByID(ctx context.Context, id int64) (*communication.PortalParentMessage, error) {\n\tvalue, err := r.store.FindByID(ctx, id)\n\tmapped, mapErr := messageModel(value)\n\tif err != nil {\n\t\treturn mapped, err\n\t}\n\treturn mapped, mapErr\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/messageRepository.FindByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *messageRepository) FindByIDForUpdate(ctx context.Context, id int64) (*communication.PortalParentMessage, error) {\n\tvalue, err := r.store.FindByIDForUpdate(ctx, id)\n\tmapped, mapErr := messageModel(value)\n\tif err != nil {\n\t\treturn mapped, err\n\t}\n\treturn mapped, mapErr\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/messageRepository.FindByIDForUpdate",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *messageRepository) FindEventByRef(ctx context.Context, threadID int64, eventType, refTable string, refID int64) (*communication.PortalParentMessage, error) {\n\tvalue, err := r.store.FindEventByRef(ctx, threadID, eventType, refTable, refID)\n\tmapped, mapErr := messageModel(value)\n\tif err != nil {\n\t\treturn mapped, err\n\t}\n\treturn mapped, mapErr\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/messageRepository.FindEventByRef",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *messageRepository) Update(ctx context.Context, message *communication.PortalParentMessage) error {\n\tvalue, err := messageValue(message)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn r.store.Update(ctx, value)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/messageRepository.Update",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r schoolParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {\n\tname, err := r.schools.SchoolName(ctx, tenantID)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"resolve school name: %w\", err)\n\t}\n\treturn name, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentAnnouncementRepository.SchoolName",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r schoolParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)\n\treturn enrichInboxSchools(ctx, r.schools, rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListInboxForStaff",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r schoolParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForGuardianStudent(ctx, accountID, studentID)\n\treturn enrichInboxSchools(ctx, r.schools, rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListThreadsForGuardianStudent",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r schoolParentMessageReadRepository) ListThreadsForGuardianTenants(ctx context.Context, accountID int64, tenantIDs []int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForGuardianTenants(ctx, accountID, tenantIDs)\n\treturn enrichInboxSchools(ctx, r.schools, rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListThreadsForGuardianTenants",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r schoolParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID)\n\treturn enrichInboxSchools(ctx, r.schools, rows, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListThreadsForStudent",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *threadRepository) ClaimStaffMessageNotification(ctx context.Context, threadID int64, cooldown time.Duration) (bool, error) {\n\treturn r.store.ClaimStaffMessageNotification(ctx, threadID, cooldown)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.ClaimStaffMessageNotification",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *threadRepository) Create(ctx context.Context, thread *communication.PortalParentMessageThread) error {\n\tvalue := threadValue(thread)\n\tif err := r.store.Create(ctx, value); err != nil {\n\t\treturn err\n\t}\n\tthread.ID = value.ID\n\tthread.CreatedAt = value.CreatedAt\n\tthread.UpdatedAt = value.UpdatedAt\n\tthread.TenantID = value.TenantID\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.Create",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *threadRepository) FindByID(ctx context.Context, id int64) (*communication.PortalParentMessageThread, error) {\n\tvalue, err := r.store.FindByID(ctx, id)\n\treturn threadModel(value), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.FindByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *threadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {\n\tvalue, err := r.store.FindByStudentGuardian(ctx, studentID, guardianAccountID)\n\treturn threadModel(value), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.FindByStudentGuardian",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *threadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {\n\tvalue, err := r.store.GetOrCreate(ctx, tenantID, studentID, guardianAccountID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn threadModel(value), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.GetOrCreate",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *threadRepository) LockForMessageAppend(ctx context.Context, threadID int64) error {\n\treturn r.store.LockForMessageAppend(ctx, threadID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.LockForMessageAppend",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *threadRepository) TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error {\n\treturn r.store.TouchLastMessage(ctx, threadID, at, messageID, senderKind, body)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.TouchLastMessage",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *threadRepository) Update(ctx context.Context, thread *communication.PortalParentMessageThread) error {\n\treturn r.store.Update(ctx, threadValue(thread))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.Update",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *readRepository) ListStaffInbox(ctx context.Context, accountID int64, unread bool) ([]*communication.StaffInboxRecord, error) {\n\treturn r.inbox.ListInbox(ctx, accountID, unread)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/staffpostgres/readRepository.ListStaffInbox",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *readRepository) MarkStaffReadUpTo(ctx context.Context, id, accountID int64, at time.Time, messageID int64) error {\n\treturn r.cursors.MarkReadUpTo(ctx, id, accountID, at, messageID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/staffpostgres/readRepository.MarkStaffReadUpTo",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *readRepository) StaffUnreadCount(ctx context.Context, accountID int64) (int, error) {\n\treturn r.inbox.UnreadCount(ctx, accountID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/adapters/staffpostgres/readRepository.StaffUnreadCount",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountUnread(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) (result int, err error) {\n\terr = s.run(ctx, \"count_unread\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\tvar stats domain.OperationStats\n\t\tresult, stats, err = s.audience.CountUnread(txCtx, userID, roles, tenantID, orgID)\n\t\treturn stats, err\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/Service.CountUnread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) GetAnnouncement(ctx context.Context, id int64) (*communication.Announcement, error) {\n\tvar result communication.Announcement\n\terr := s.run(ctx, \"read\", func(txCtx context.Context) (stats domain.OperationStats, err error) {\n\t\tresult, stats, err = s.store.Get(txCtx, id)\n\t\treturn stats, err\n\t})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/Service.GetAnnouncement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) GetUnreadForUser(ctx context.Context, userID int64, roles []string, tenantID, orgID int64) ([]*communication.Announcement, error) {\n\tvar result []communication.Announcement\n\terr := s.run(ctx, \"read_unread\", func(txCtx context.Context) (stats domain.OperationStats, err error) {\n\t\tresult, stats, err = s.audience.Unread(txCtx, userID, roles, tenantID, orgID)\n\t\treturn stats, err\n\t})\n\treturn pointers(result), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/Service.GetUnreadForUser",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListAnnouncements(ctx context.Context, includeInactive bool) ([]*communication.Announcement, error) {\n\tvar result []communication.Announcement\n\terr := s.run(ctx, \"read_list\", func(txCtx context.Context) (stats domain.OperationStats, err error) {\n\t\tresult, stats, err = s.store.List(txCtx, includeInactive)\n\t\treturn stats, err\n\t})\n\treturn pointers(result), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/Service.ListAnnouncements",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) MarkDismissed(ctx context.Context, userID, announcementID int64) error {\n\treturn s.run(ctx, \"mark_dismissed\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.store.MarkDismissed(txCtx, userID, announcementID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/Service.MarkDismissed",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) MarkSeen(ctx context.Context, userID, announcementID int64) error {\n\treturn s.run(ctx, \"mark_seen\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.store.MarkSeen(txCtx, userID, announcementID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/Service.MarkSeen",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a audit) Append(ctx context.Context, entry domain.AuditEntry) (domain.OperationStats, error) {\n\tstarted := time.Now()\n\terr := a.port.AppendAnnouncementAudit(ctx, recordports.AuditEntry{OperatorID: entry.OperatorID, Action: entry.Action, ResourceID: entry.ResourceID, RequestIP: entry.RequestIP, Changes: entry.Changes})\n\tstats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}\n\tif err == nil {\n\t\tstats.Rows = 1\n\t}\n\treturn stats, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/audit.Append",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *mappedParentAnnouncementError) Error() string {\n\treturn e.original.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/application/mappedParentAnnouncementError.Error",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a parentAnnouncementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []EmailDelivery) error {\n\tif a.ParentAnnouncementDeliveryRecorder == nil {\n\t\treturn nil\n\t}\n\tvalues := make([]communication.ParentAnnouncementEmailDelivery, 0, len(rows))\n\tfor _, row := range rows {\n\t\tvalues = append(values, communication.ParentAnnouncementEmailDelivery{OutboxID: row.OutboxID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID, RecipientEmail: row.RecipientEmail, Reachability: row.Reachability})\n\t}\n\treturn a.ParentAnnouncementDeliveryRecorder.ReplaceForEntity(ctx, tenantID, relatedType, relatedID, values)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncementDeliveryAdapter.ReplaceForEntity",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) AnnouncementEditable(ctx context.Context, id int64) (bool, error) {\n\teditable, err := p.service.AnnouncementEditable(ctx, id)\n\treturn editable, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.AnnouncementEditable",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) AnnouncementExists(ctx context.Context, id int64) (bool, error) {\n\texists, err := p.service.AnnouncementExists(ctx, id)\n\treturn exists, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.AnnouncementExists",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) CareCancellationReachFor(ctx context.Context, studentIDs []int64) (*communication.CareCancellationReach, error) {\n\treach, err := p.service.CareCancellationReachFor(ctx, studentIDs)\n\tif reach == nil {\n\t\treturn nil, mapParentAnnouncementError(err)\n\t}\n\treturn \u0026communication.CareCancellationReach{FamilyCount: reach.FamilyCount}, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.CareCancellationReachFor",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) CreateParentAnnouncement(ctx context.Context, createdBy int64, input communication.ParentAnnouncementInput) (*communication.ParentAnnouncement, error) {\n\trow, err := p.service.Create(ctx, createdBy, mapParentAnnouncementInput(input))\n\treturn mapParentAnnouncement(row), mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.CreateParentAnnouncement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) DeleteParentAnnouncement(ctx context.Context, id int64) error {\n\treturn mapParentAnnouncementError(p.service.Delete(ctx, id))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.DeleteParentAnnouncement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) ListParentAnnouncements(ctx context.Context, includeInactive bool) ([]communication.ParentAnnouncement, error) {\n\trows, err := p.service.List(ctx, includeInactive)\n\tif err != nil {\n\t\treturn nil, mapParentAnnouncementError(err)\n\t}\n\tresult := make([]communication.ParentAnnouncement, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, *mapParentAnnouncement(row))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.ListParentAnnouncements",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) LockAnnouncementForAttachmentChange(ctx context.Context, id int64) (bool, bool, error) {\n\texists, editable, err := p.service.LockAnnouncementForAttachmentChange(ctx, id)\n\treturn exists, editable, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.LockAnnouncementForAttachmentChange",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) ParentAnnouncementRecipients(ctx context.Context, id int64) ([]communication.ParentAnnouncementRecipient, error) {\n\trows, err := p.service.Recipients(ctx, id)\n\tif err != nil {\n\t\treturn nil, mapParentAnnouncementError(err)\n\t}\n\tresult := make([]communication.ParentAnnouncementRecipient, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, communication.ParentAnnouncementRecipient{AccountID: row.AccountID, FirstName: row.FirstName, LastName: row.LastName, ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.ParentAnnouncementRecipients",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) ParentAnnouncementStats(ctx context.Context, id int64) (*communication.ParentAnnouncementStats, error) {\n\tstats, err := p.service.Stats(ctx, id)\n\tif stats == nil {\n\t\treturn nil, mapParentAnnouncementError(err)\n\t}\n\treturn \u0026communication.ParentAnnouncementStats{TargetCount: stats.TargetCount, ReadCount: stats.ReadCount, AcknowledgedCount: stats.AcknowledgedCount}, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.ParentAnnouncementStats",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) ParentDeclarationStatus(ctx context.Context, id int64) (*communication.ParentDeclarationStatus, error) {\n\tstatus, err := p.service.ParentDeclarationStatus(ctx, id)\n\tif err != nil {\n\t\treturn nil, mapParentAnnouncementError(err)\n\t}\n\treturn mapDeclarationStatus(status), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.ParentDeclarationStatus",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) PublishCareCancellation(ctx context.Context, input communication.CareCancellationInput) (*communication.CareCancellationResult, error) {\n\tresult, err := p.service.PublishCareCancellation(ctx, CareCancellationInput{StudentIDs: input.StudentIDs, Title: input.Title, Body: input.Body, CreatedBy: input.CreatedBy})\n\tif result == nil {\n\t\treturn nil, mapParentAnnouncementError(err)\n\t}\n\treturn \u0026communication.CareCancellationResult{AnnouncementID: result.Announcement.ID, RecipientCount: result.RecipientCount}, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.PublishCareCancellation",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) PublishParentAnnouncement(ctx context.Context, id int64) (*communication.ParentAnnouncement, error) {\n\trow, err := p.service.Publish(ctx, id)\n\treturn mapParentAnnouncement(row), mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.PublishParentAnnouncement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) RemindParentAnnouncement(ctx context.Context, id int64) (int, error) {\n\tcount, err := p.service.RemindOutstanding(ctx, id)\n\treturn count, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.RemindParentAnnouncement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) ResendParentAnnouncementEmails(ctx context.Context, id int64) (int, error) {\n\tcount, err := p.service.ResendFailedEmails(ctx, id)\n\treturn count, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.ResendParentAnnouncementEmails",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) ResetAnnouncementEngagement(ctx context.Context, id int64) error {\n\treturn mapParentAnnouncementError(p.service.ResetAnnouncementEngagement(ctx, id))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.ResetAnnouncementEngagement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) SendDueParentAnnouncementReminders(ctx context.Context, notBefore, dueBefore time.Time) (int, *time.Time, error) {\n\tcount, retryFrom, err := p.service.SendDueReminders(ctx, notBefore, dueBefore)\n\treturn count, retryFrom, mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.SendDueParentAnnouncementReminders",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) UnpublishParentAnnouncement(ctx context.Context, id int64) (*communication.ParentAnnouncement, error) {\n\trow, err := p.service.Unpublish(ctx, id)\n\treturn mapParentAnnouncement(row), mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.UnpublishParentAnnouncement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) UpdateParentAnnouncement(ctx context.Context, id int64, input communication.ParentAnnouncementInput) (*communication.ParentAnnouncement, error) {\n\trow, err := p.service.Update(ctx, id, mapParentAnnouncementInput(input))\n\treturn mapParentAnnouncement(row), mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.UpdateParentAnnouncement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *parentAnnouncements) UpdateParentAnnouncementReminder(ctx context.Context, id int64, input communication.ParentAnnouncementReminderInput) (*communication.ParentAnnouncement, error) {\n\trow, err := p.service.UpdateReminder(ctx, id, ReminderInput{ReminderAt: input.ReminderAt, ReminderText: input.ReminderText})\n\treturn mapParentAnnouncement(row), mapParentAnnouncementError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentAnnouncements.UpdateParentAnnouncementReminder",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r parentMessageRetention[R]) CleanupExpiredParentMessages(ctx context.Context) (communication.ParentMessageCleanupResult, error) {\n\tresult, err := r.retention.CleanupExpiredMessages(ctx)\n\tdeleted, threads, days := result.CleanupCounts()\n\treturn communication.ParentMessageCleanupResult{MessagesDeleted: deleted, ThreadsDeleted: threads, RetentionDays: days}, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessageRetention[R].CleanupExpiredParentMessages",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) CountUnreadParentMessages(ctx context.Context) (int, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.count_unread\", func(runCtx context.Context) (int, error) {\n\t\tcount, err := m.service.UnreadMessageCount(runCtx)\n\t\treturn count, m.mapError(err)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].CountUnreadParentMessages",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) GetParentMessageThread(ctx context.Context, threadID int64) (*communication.ParentMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.get_thread\", func(runCtx context.Context) (*communication.ParentMessageThread, error) {\n\t\tthread, err := m.service.GetThread(runCtx, threadID)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\treturn mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].GetParentMessageThread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) ListParentMessageInbox(ctx context.Context, onlyUnread bool) ([]communication.ParentMessageInboxThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.list_inbox\", func(runCtx context.Context) ([]communication.ParentMessageInboxThread, error) {\n\t\trows, err := m.service.ListInbox(runCtx, onlyUnread)\n\t\treturn mapParentMessageInbox(projectMessageRows(rows, m.rows.Inbox)), m.mapError(err)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].ListParentMessageInbox",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) ListParentMessageReachableStudents(ctx context.Context) ([]int64, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.list_reachable_students\", func(runCtx context.Context) ([]int64, error) {\n\t\tids, err := m.service.ListReachableStudentIDs(runCtx)\n\t\treturn ids, m.mapError(err)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].ListParentMessageReachableStudents",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) ListParentMessageThreadsForStudent(ctx context.Context, studentID int64) ([]communication.ParentMessageInboxThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.list_student_threads\", func(runCtx context.Context) ([]communication.ParentMessageInboxThread, error) {\n\t\trows, err := m.service.ListStudentThreads(runCtx, studentID)\n\t\treturn mapParentMessageInbox(projectMessageRows(rows, m.rows.Inbox)), m.mapError(err)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].ListParentMessageThreadsForStudent",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) MarkAllParentMessagesRead(ctx context.Context) (int, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.mark_all_read\", func(runCtx context.Context) (int, error) {\n\t\tcount, err := m.service.MarkAllRead(runCtx)\n\t\treturn count, m.mapError(err)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].MarkAllParentMessagesRead",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) MarkParentMessageThreadUnread(ctx context.Context, threadID int64) error {\n\t_, err := observeMessageResult(ctx, m.observe, \"parent_messages.mark_unread\", func(runCtx context.Context) (struct{}, error) {\n\t\treturn struct{}{}, m.mapError(m.service.MarkUnread(runCtx, threadID))\n\t})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].MarkParentMessageThreadUnread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) OpenParentMessageThread(ctx context.Context, studentID, guardianAccountID int64) (*communication.ParentMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.open_thread\", func(runCtx context.Context) (*communication.ParentMessageThread, error) {\n\t\tthread, err := m.service.OpenThread(runCtx, studentID, guardianAccountID)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\treturn mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].OpenParentMessageThread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) PostParentMessage(ctx context.Context, threadID int64, body string, handledUpToMessageID int64) ([]communication.ParentMessage, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.post_message\", func(runCtx context.Context) ([]communication.ParentMessage, error) {\n\t\trows, err := m.service.PostMessage(runCtx, threadID, body, handledUpToMessageID)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\treturn mapParentMessages(projectMessageRows(rows, m.rows.Message))\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].PostParentMessage",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) SetParentMessageCountScope(ctx context.Context, scope string) error {\n\t_, err := observeMessageResult(ctx, m.observe, \"parent_messages.set_count_scope\", func(runCtx context.Context) (struct{}, error) {\n\t\treturn struct{}{}, m.mapError(m.service.SetCountScope(runCtx, scope))\n\t})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].SetParentMessageCountScope",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) StartParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*communication.ParentMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.start_thread\", func(runCtx context.Context) (*communication.ParentMessageThread, error) {\n\t\tthread, err := m.service.StartThread(runCtx, studentID, guardianAccountID, body)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\treturn mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].StartParentMessageThread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *Emitter) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {\n\tif e == nil || e.events == nil {\n\t\treturn\n\t}\n\tif tenantID \u003c= 0 || studentID \u003c= 0 {\n\t\treturn\n\t}\n\te.events.WakeChildGuardians(tenantID, studentID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentmessaging/Emitter.BroadcastChildUpdateToGuardians",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *Emitter) EmitChildEvent(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev eventContract.ChildEvent) error {\n\tif e == nil || e.events == nil {\n\t\treturn nil\n\t}\n\tif tenantID \u003c= 0 || studentID \u003c= 0 || guardianAccountID \u003c= 0 {\n\t\treturn nil\n\t}\n\treturn e.events.EmitChildEvent(ctx, tenantID, studentID, guardianAccountID, ev)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentmessaging/Emitter.EmitChildEvent",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *Emitter) MessagingEnabledForTenant(ctx context.Context, tenantID int64) bool {\n\tif e == nil || e.events == nil {\n\t\treturn true\n\t}\n\treturn e.events.MessagingEnabledForTenant(ctx, tenantID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/parentmessaging/Emitter.MessagingEnabledForTenant",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) AnnouncementEditable(ctx context.Context, announcementID int64) (bool, error) {\n\ta, err := s.repo.FindByID(ctx, announcementID)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"announcement: load for attachment check: %w\", err)\n\t}\n\tif a == nil {\n\t\treturn false, nil\n\t}\n\treturn s.attachmentsEditable(ctx, a)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/service.AnnouncementEditable",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) AnnouncementExists(ctx context.Context, announcementID int64) (bool, error) {\n\ta, err := s.repo.FindByID(ctx, announcementID)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"announcement: load for attachment check: %w\", err)\n\t}\n\treturn a != nil, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/service.AnnouncementExists",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) DeclarationFrozen(ctx context.Context, a *StaffParentAnnouncement) (bool, error) {\n\tif !a.IsDeclaration() {\n\t\treturn false, nil\n\t}\n\tversion, err := s.repo.LatestDeclarationVersion(ctx, a.GetTenantID(), a.ID)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"announcement: load declaration version: %w\", err)\n\t}\n\treturn version != nil, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/service.DeclarationFrozen",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) LockAnnouncementForAttachmentChange(ctx context.Context, announcementID int64) (bool, bool, error) {\n\ta, err := s.repo.FindByIDForUpdate(ctx, announcementID)\n\tif err != nil {\n\t\treturn false, false, fmt.Errorf(\"announcement: lock for attachment change: %w\", err)\n\t}\n\tif a == nil {\n\t\treturn false, false, nil\n\t}\n\teditable, err := s.attachmentsEditable(ctx, a)\n\treturn true, editable, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/service.LockAnnouncementForAttachmentChange",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) PollChildren(ctx context.Context, id int64) ([]*StaffAnnouncementPollChildStatus, error) {\n\ta, err := s.loadPoll(ctx, id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows, err := s.repo.PollChildren(ctx, a.GetTenantID(), id)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"announcement: poll children: %w\", err)\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/service.PollChildren",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) PollResults(ctx context.Context, id int64) (*StaffAnnouncementPollResults, error) {\n\ta, err := s.loadPoll(ctx, id)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresults, err := s.repo.PollResults(ctx, a.GetTenantID(), id)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"announcement: poll results: %w\", err)\n\t}\n\treturn results, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/service.PollResults",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *service) ResetAnnouncementEngagement(ctx context.Context, announcementID int64) error {\n\tif err := s.repo.ClearEngagement(ctx, announcementID); err != nil {\n\t\treturn fmt.Errorf(\"announcement: clear engagement after attachment change: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/service.ResetAnnouncementEngagement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *staffMessaging[I, T, M, G, R]) CleanupExpiredStaffMessages(ctx context.Context) (communication.StaffMessageCleanupResult, error) {\n\treturn observeMessageResult(ctx, m.observe, \"staff_messages.cleanup\", func(runCtx context.Context) (communication.StaffMessageCleanupResult, error) {\n\t\tresult, err := m.service.CleanupExpiredMessages(runCtx)\n\t\tdeleted, threads, days := result.CleanupCounts()\n\t\treturn communication.StaffMessageCleanupResult{MessagesDeleted: deleted, ThreadsDeleted: threads, RetentionDays: days}, m.mapError(err)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].CleanupExpiredStaffMessages",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *staffMessaging[I, T, M, G, R]) CountUnreadStaffMessages(ctx context.Context) (int, error) {\n\treturn observeMessageResult(ctx, m.observe, \"staff_messages.count_unread\", func(runCtx context.Context) (int, error) {\n\t\tcount, err := m.service.UnreadMessageCount(runCtx)\n\t\treturn count, m.mapError(err)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].CountUnreadStaffMessages",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *staffMessaging[I, T, M, G, R]) ListMessageableStaff(ctx context.Context) ([]communication.MessageableStaff, error) {\n\treturn observeMessageResult(ctx, m.observe, \"staff_messages.list_recipients\", func(runCtx context.Context) ([]communication.MessageableStaff, error) {\n\t\trows, err := m.service.ListMessageableStaff(runCtx)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\tresult := make([]communication.MessageableStaff, 0, len(rows))\n\t\tfor _, row := range projectMessageRows(rows, m.rows.Colleague) {\n\t\t\tresult = append(result, communication.MessageableStaff{AccountID: row.AccountID, Name: row.Name, RoleKind: row.RoleKind})\n\t\t}\n\t\treturn result, nil\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].ListMessageableStaff",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t targets) CountOrganizationsByID(ctx context.Context, ids []int64) (int, domain.OperationStats, error) {\n\tcount, err := t.capability.CountOrganizationsByID(ctx, ids)\n\tstats := domain.OperationStats{Queries: 1, Rows: int64(count)}\n\tif errors.Is(err, organizationtenancy.ErrInvalidOrganization) {\n\t\treturn 0, stats, fmt.Errorf(\"%w: %v\", errInvalidTarget, err)\n\t}\n\treturn count, stats, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/targets.CountOrganizationsByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t targets) CountSchoolsByID(ctx context.Context, ids []int64) (int, domain.OperationStats, error) {\n\tcount, err := t.capability.CountSchoolsByID(ctx, ids)\n\tstats := domain.OperationStats{Queries: 1, Rows: int64(count)}\n\tif errors.Is(err, organizationtenancy.ErrInvalidSchool) {\n\t\treturn 0, stats, fmt.Errorf(\"%w: %v\", errInvalidTarget, err)\n\t}\n\treturn count, stats, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/application/targets.CountSchoolsByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *EventEmitter) InTransaction(ctx context.Context) bool {\n\tif e == nil || e.runtime == nil {\n\t\treturn false\n\t}\n\treturn e.runtime.InTransaction(ctx)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/EventEmitter.InTransaction",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) CountScope(ctx context.Context) (string, error) {\n\tif s.CountPreferences == nil {\n\t\treturn CountScopeAll, nil\n\t}\n\tscope, err := s.CountPreferences.CountScope(ctx, s.accountID(ctx))\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"messaging: load count scope: %w\", err)\n\t}\n\tif !validCountScope(scope) {\n\t\treturn CountScopeAll, nil\n\t}\n\treturn scope, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/Service.CountScope",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) HasOwnGroups(ctx context.Context) (bool, error) {\n\tif s.Groups == nil {\n\t\treturn false, nil\n\t}\n\tgroupIDs, err := s.Groups.MyGroupIDs(ctx)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"messaging: resolve own groups: %w\", err)\n\t}\n\treturn len(groupIDs) \u003e 0, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/Service.HasOwnGroups",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListGuardians(ctx context.Context, studentID int64) ([]*MessageableGuardian, error) {\n\tif err := s.canReadStudent(ctx, studentID); err != nil {\n\t\treturn nil, err\n\t}\n\tguardians, err := s.ThreadRepo.ListGuardiansForStudent(ctx, studentID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"messaging: list guardians: %w\", err)\n\t}\n\treturn guardians, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/Service.ListGuardians",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListParentGroupThreads(ctx context.Context) ([]deliveryPorts.ParentGroupThreadSummary, error) {\n\tif err := s.requireGroupAuthor(ctx); err != nil {\n\t\treturn nil, err\n\t}\n\trows, err := s.GroupThreads.ListThreads(ctx)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"messaging: list group threads: %w\", err)\n\t}\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/Service.ListParentGroupThreads",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListReachableStudentIDs(ctx context.Context) ([]int64, error) {\n\tif !s.scope(ctx) {\n\t\treturn nil, ErrForbidden\n\t}\n\tids, err := s.ThreadRepo.ListStudentIDsWithMessageableGuardian(ctx)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"messaging: list reachable students: %w\", err)\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/Service.ListReachableStudentIDs",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*InboxThread, error) {\n\tif err := s.canReadStudent(ctx, studentID); err != nil {\n\t\treturn nil, err\n\t}\n\trows, err := s.ReadRepo.ListThreadsForStudent(ctx, s.accountID(ctx), studentID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"messaging: list student threads: %w\", err)\n\t}\n\ts.suppressDisabledUnread(ctx, rows)\n\treturn rows, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/Service.ListStudentThreads",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) MarkUnread(ctx context.Context, threadID int64) error {\n\tthread, err := s.loadAuthorizedThread(ctx, threadID)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif err := s.ReadRepo.MarkStaffUnread(ctx, thread.TenantID, thread.ID, s.accountID(ctx)); err != nil {\n\t\treturn fmt.Errorf(\"messaging: mark unread: %w\", err)\n\t}\n\ts.broadcastStaffUnreadAfterCommit(ctx, thread)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/Service.MarkUnread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) SetCountScope(ctx context.Context, scope string) error {\n\tif !validCountScope(scope) {\n\t\treturn ErrInvalidCountScope\n\t}\n\tif s.CountPreferences == nil {\n\t\treturn errors.New(\"messaging: count preference store is not configured\")\n\t}\n\tif err := s.CountPreferences.SetCountScope(ctx, s.accountID(ctx), scope); err != nil {\n\t\treturn fmt.Errorf(\"messaging: save count scope: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/Service.SetCountScope",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentMessageRepository) FindEventByRef(ctx context.Context, threadID int64, eventType, refTable string, refID int64) (*ParentMessage, error) {\n\trow, err := r.source.ParentMessageFindEventByRef(ctx, threadID, eventType, refTable, refID)\n\tmapped, mapErr := values.ParentMessageFromRecord(row)\n\tif err != nil {\n\t\treturn (*ParentMessage)(mapped), err\n\t}\n\treturn (*ParentMessage)(mapped), mapErr\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentMessageRepository.FindEventByRef",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) ClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error) {\n\treturn r.source.ParentReadClearStaffUnreadMark(ctx, tenantID, threadID, observedAt)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.ClearStaffUnreadMark",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) ClearUnreadForStaff(ctx context.Context, tenantID, accountID int64, bounds []ReadCursorBound) ([]int64, error) {\n\tvar nativeBounds []values.ReadCursorBound\n\tif bounds != nil {\n\t\tnativeBounds = make([]values.ReadCursorBound, len(bounds))\n\t\tfor i, row := range bounds {\n\t\t\tnativeBounds[i] = values.ReadCursorBound(row)\n\t\t}\n\t}\n\treturn r.source.ParentReadClearUnreadForStaff(ctx, tenantID, accountID, values.ParentReadBoundsToRecords(nativeBounds))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.ClearUnreadForStaff",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) FindThreadHeader(ctx context.Context, threadID int64) (*ThreadHeader, error) {\n\trow, err := r.source.ParentReadFindThreadHeader(ctx, threadID)\n\treturn (*ThreadHeader)(values.ThreadHeaderFromRecord(row)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.FindThreadHeader",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) GuardianReadCursor(ctx context.Context, threadID int64) (*ReadCursor, error) {\n\trow, err := r.source.ParentReadGuardianReadCursor(ctx, threadID)\n\treturn (*ReadCursor)(values.ReadCursorFromRecord(row)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.GuardianReadCursor",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) LatestReadCursorByOther(ctx context.Context, threadID, excludeAccountID int64) (*ReadCursor, error) {\n\trow, err := r.source.ParentReadLatestReadCursorByOther(ctx, threadID, excludeAccountID)\n\treturn (*ReadCursor)(values.ReadCursorFromRecord(row)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.LatestReadCursorByOther",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) MarkReadUpTo(ctx context.Context, tenantID, threadID, accountID int64, readAt time.Time, readMessageID int64) (bool, error) {\n\treturn r.source.ParentReadMarkReadUpTo(ctx, tenantID, threadID, accountID, readAt, readMessageID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.MarkReadUpTo",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) MarkStaffHandledUpTo(ctx context.Context, tenantID, threadID int64, handledAt time.Time, handledMessageID int64) error {\n\treturn r.source.ParentReadMarkStaffHandledUpTo(ctx, tenantID, threadID, handledAt, handledMessageID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.MarkStaffHandledUpTo",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) MarkStaffUnread(ctx context.Context, tenantID, threadID, accountID int64) error {\n\treturn r.source.ParentReadMarkStaffUnread(ctx, tenantID, threadID, accountID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.MarkStaffUnread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {\n\treturn r.source.ParentReadUnreadMessageCountForStaff(ctx, accountID, allStudents)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.UnreadMessageCountForStaff",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentReadRepository) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {\n\treturn r.source.ParentReadUnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.UnreadMessageCountForStaffInGroups",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentThreadRepository) FindByID(ctx context.Context, id int64) (*ParentMessageThread, error) {\n\trow, err := r.source.ParentThreadFindByID(ctx, id)\n\treturn (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.FindByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentThreadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*ParentMessageThread, error) {\n\trow, err := r.source.ParentThreadFindByStudentGuardian(ctx, studentID, guardianAccountID)\n\treturn (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.FindByStudentGuardian",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentThreadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*ParentMessageThread, error) {\n\trow, err := r.source.ParentThreadGetOrCreate(ctx, tenantID, studentID, guardianAccountID)\n\treturn (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.GetOrCreate",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentThreadRepository) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*MessageableGuardian, error) {\n\trows, err := r.source.ParentThreadListGuardiansForStudent(ctx, studentID)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tmapped := make([]*MessageableGuardian, len(rows))\n\tfor i, row := range rows {\n\t\tmapped[i] = (*MessageableGuardian)(values.MessageableGuardianFromRecord(row))\n\t}\n\treturn mapped, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.ListGuardiansForStudent",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentThreadRepository) ListStudentIDsWithMessageableGuardian(ctx context.Context) ([]int64, error) {\n\treturn r.source.ParentThreadListStudentIDsWithMessageableGuardian(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.ListStudentIDsWithMessageableGuardian",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentThreadRepository) LockForMessageAppend(ctx context.Context, threadID int64) error {\n\treturn r.source.ParentThreadLockForMessageAppend(ctx, threadID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.LockForMessageAppend",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeParentThreadRepository) TouchLastMessage(ctx context.Context, threadID int64, at time.Time, messageID int64, senderKind, body string) error {\n\treturn r.source.ParentThreadTouchLastMessage(ctx, threadID, at, messageID, senderKind, body)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.TouchLastMessage",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) AudienceRecipients(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffAnnouncementRecipientStatus, error) {\n\trows, err := r.source.AnnouncementAudienceRecipients(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.AnnouncementRecipientStatusSliceFromAnnouncementRecords(rows), func(v *values.AnnouncementRecipientStatus) *values.StaffAnnouncementRecipientStatus {\n\t\treturn (*values.StaffAnnouncementRecipientStatus)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.AudienceRecipients",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ClaimReminder(ctx context.Context, id int64, sentAt time.Time) (bool, error) {\n\trows, err := r.source.AnnouncementClaimReminder(ctx, id, sentAt)\n\treturn rows, err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ClaimReminder",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ClearEngagement(ctx context.Context, announcementID int64) error {\n\terr := r.source.AnnouncementClearEngagement(ctx, announcementID)\n\treturn err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ClearEngagement",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) CountDeclarationSubmissions(ctx context.Context, tenantID, announcementID int64) (int, error) {\n\trows, err := r.source.AnnouncementCountDeclarationSubmissions(ctx, tenantID, announcementID)\n\treturn rows, err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.CountDeclarationSubmissions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) CountReachableGuardiansForStudents(ctx context.Context, tenantID int64, studentIDs []int64) (int, error) {\n\trows, err := r.source.AnnouncementCountReachableGuardiansForStudents(ctx, tenantID, studentIDs)\n\treturn rows, err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.CountReachableGuardiansForStudents",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) Create(ctx context.Context, a *values.StaffParentAnnouncement) error {\n\trecorda := values.ParentAnnouncementToAnnouncementRecord(values.StaffAnnouncementParentAnnouncementToValue(a))\n\terr := r.source.AnnouncementCreate(ctx, recorda)\n\tif a != nil \u0026\u0026 recorda != nil {\n\t\t*a = *values.StaffAnnouncementParentAnnouncementFromValue(values.ParentAnnouncementFromAnnouncementRecord(recorda))\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Create",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) DeclarationChildren(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffDeclarationChild, error) {\n\trows, err := r.source.AnnouncementDeclarationChildren(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.DeclarationChildSliceFromAnnouncementRecords(rows), func(v *values.DeclarationChild) *values.StaffDeclarationChild {\n\t\treturn (*values.StaffDeclarationChild)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.DeclarationChildren",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) DeclarationSigners(ctx context.Context, tenantID int64, studentIDs []int64) ([]*values.StaffDeclarationSigner, error) {\n\trows, err := r.source.AnnouncementDeclarationSigners(ctx, tenantID, studentIDs)\n\treturn values.MapAnnouncementRows(values.DeclarationSignerSliceFromAnnouncementRecords(rows), func(v *values.DeclarationSigner) *values.StaffDeclarationSigner {\n\t\treturn (*values.StaffDeclarationSigner)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.DeclarationSigners",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) Delete(ctx context.Context, id int64) error {\n\terr := r.source.AnnouncementDelete(ctx, id)\n\treturn err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Delete",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) FindByID(ctx context.Context, id int64) (*values.StaffParentAnnouncement, error) {\n\trows, err := r.source.PortalFindByID(ctx, id)\n\treturn values.StaffAnnouncementParentAnnouncementFromValue(values.ParentAnnouncementFromAnnouncementRecord(rows)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.FindByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) FindByIDForUpdate(ctx context.Context, id int64) (*values.StaffParentAnnouncement, error) {\n\trows, err := r.source.AnnouncementFindByIDForUpdate(ctx, id)\n\treturn values.StaffAnnouncementParentAnnouncementFromValue(values.ParentAnnouncementFromAnnouncementRecord(rows)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.FindByIDForUpdate",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) InsertDeclarationVersion(ctx context.Context, version *values.StaffDeclarationVersion) error {\n\trecordversion := values.DeclarationVersionToAnnouncementRecord(values.StaffAnnouncementDeclarationVersionToValue(version))\n\terr := r.source.AnnouncementInsertDeclarationVersion(ctx, recordversion)\n\tif version != nil \u0026\u0026 recordversion != nil {\n\t\t*version = *values.StaffAnnouncementDeclarationVersionFromValue(values.DeclarationVersionFromAnnouncementRecord(recordversion))\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.InsertDeclarationVersion",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) IsPublishedConflict(err error) bool {\n\treturn r.source.IsParentAnnouncementPublishedConflict(err)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.IsPublishedConflict",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) LatestDeclarationVersion(ctx context.Context, tenantID, announcementID int64) (*values.StaffDeclarationVersion, error) {\n\trows, err := r.source.AnnouncementLatestDeclarationVersion(ctx, tenantID, announcementID)\n\treturn values.StaffAnnouncementDeclarationVersionFromValue(values.DeclarationVersionFromAnnouncementRecord(rows)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.LatestDeclarationVersion",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) LetterChildStatuses(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffAnnouncementLetterChildStatus, error) {\n\trows, err := r.source.AnnouncementLetterChildStatuses(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.AnnouncementLetterChildStatusSliceFromAnnouncementRecords(rows), func(v *values.AnnouncementLetterChildStatus) *values.StaffAnnouncementLetterChildStatus {\n\t\treturn (*values.StaffAnnouncementLetterChildStatus)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.LetterChildStatuses",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ListDeclarationSubmissions(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffDeclarationSubmission, error) {\n\trows, err := r.source.AnnouncementListDeclarationSubmissions(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.DeclarationSubmissionSliceFromAnnouncementRecords(rows), func(v *values.DeclarationSubmission) *values.StaffDeclarationSubmission {\n\t\treturn (*values.StaffDeclarationSubmission)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListDeclarationSubmissions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ListDeclarationVersions(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffDeclarationVersion, error) {\n\trows, err := r.source.AnnouncementListDeclarationVersions(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.DeclarationVersionSliceFromAnnouncementRecords(rows), func(v *values.DeclarationVersion) *values.StaffDeclarationVersion {\n\t\treturn values.StaffAnnouncementDeclarationVersionFromValue(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListDeclarationVersions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ListDueReminders(ctx context.Context, notBefore, dueBefore time.Time) ([]*values.StaffParentAnnouncement, error) {\n\trows, err := r.source.AnnouncementListDueReminders(ctx, notBefore, dueBefore)\n\treturn values.MapAnnouncementRows(values.ParentAnnouncementSliceFromAnnouncementRecords(rows), func(v *values.ParentAnnouncement) *values.StaffParentAnnouncement {\n\t\treturn values.StaffAnnouncementParentAnnouncementFromValue(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListDueReminders",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ListForTenant(ctx context.Context, includeInactive bool) ([]*values.StaffParentAnnouncement, error) {\n\trows, err := r.source.AnnouncementListForTenant(ctx, includeInactive)\n\treturn values.MapAnnouncementRows(values.ParentAnnouncementSliceFromAnnouncementRecords(rows), func(v *values.ParentAnnouncement) *values.StaffParentAnnouncement {\n\t\treturn values.StaffAnnouncementParentAnnouncementFromValue(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListForTenant",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ListOptions(ctx context.Context, announcementID int64) ([]*values.StaffParentAnnouncementOption, error) {\n\trows, err := r.source.PortalListOptions(ctx, announcementID)\n\treturn values.MapAnnouncementRows(values.ParentAnnouncementOptionSliceFromAnnouncementRecords(rows), func(v *values.ParentAnnouncementOption) *values.StaffParentAnnouncementOption {\n\t\treturn (*values.StaffParentAnnouncementOption)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListOptions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ListOptionsForAnnouncements(ctx context.Context, announcementIDs []int64) ([]*values.StaffParentAnnouncementOption, error) {\n\trows, err := r.source.PortalListOptionsForAnnouncements(ctx, announcementIDs)\n\treturn values.MapAnnouncementRows(values.ParentAnnouncementOptionSliceFromAnnouncementRecords(rows), func(v *values.ParentAnnouncementOption) *values.StaffParentAnnouncementOption {\n\t\treturn (*values.StaffParentAnnouncementOption)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListOptionsForAnnouncements",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ListTargets(ctx context.Context, announcementID int64) ([]*values.StaffParentAnnouncementTarget, error) {\n\trows, err := r.source.AnnouncementListTargets(ctx, announcementID)\n\treturn values.MapAnnouncementRows(values.ParentAnnouncementTargetSliceFromAnnouncementRecords(rows), func(v *values.ParentAnnouncementTarget) *values.StaffParentAnnouncementTarget {\n\t\treturn (*values.StaffParentAnnouncementTarget)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ListTargets",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) PollChildren(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffAnnouncementPollChildStatus, error) {\n\trows, err := r.source.AnnouncementPollChildren(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.AnnouncementPollChildStatusSliceFromAnnouncementRecords(rows), func(v *values.AnnouncementPollChildStatus) *values.StaffAnnouncementPollChildStatus {\n\t\treturn (*values.StaffAnnouncementPollChildStatus)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.PollChildren",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) PollResults(ctx context.Context, tenantID, announcementID int64) (*values.StaffAnnouncementPollResults, error) {\n\trows, err := r.source.AnnouncementPollResults(ctx, tenantID, announcementID)\n\treturn values.StaffAnnouncementAnnouncementPollResultsFromValue(values.AnnouncementPollResultsFromAnnouncementRecord(rows)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.PollResults",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {\n\trows, err := r.source.AnnouncementPublishIfDraft(ctx, id, publishedAt)\n\treturn rows, err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.PublishIfDraft",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ReleaseReminderClaim(ctx context.Context, id int64, sentAt time.Time) (bool, error) {\n\trows, err := r.source.AnnouncementReleaseReminderClaim(ctx, id, sentAt)\n\treturn rows, err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ReleaseReminderClaim",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ReplaceOptions(ctx context.Context, tenantID, announcementID int64, options []*values.StaffParentAnnouncementOption) error {\n\terr := r.source.AnnouncementReplaceOptions(ctx, tenantID, announcementID, values.ParentAnnouncementOptionSliceToAnnouncementRecords(values.MapAnnouncementRows(options, func(v *values.StaffParentAnnouncementOption) *values.ParentAnnouncementOption {\n\t\treturn (*values.ParentAnnouncementOption)(v)\n\t})))\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ReplaceOptions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ReplaceTargets(ctx context.Context, tenantID, announcementID int64, targets []*values.StaffParentAnnouncementTarget) error {\n\terr := r.source.AnnouncementReplaceTargets(ctx, tenantID, announcementID, values.ParentAnnouncementTargetSliceToAnnouncementRecords(values.MapAnnouncementRows(targets, func(v *values.StaffParentAnnouncementTarget) *values.ParentAnnouncementTarget {\n\t\treturn (*values.ParentAnnouncementTarget)(v)\n\t})))\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ReplaceTargets",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ResolveAudienceEmails(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffAnnouncementRecipient, error) {\n\trows, err := r.source.AnnouncementResolveAudienceEmails(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.AnnouncementRecipientSliceFromAnnouncementRecords(rows), func(v *values.AnnouncementRecipient) *values.StaffAnnouncementRecipient {\n\t\treturn (*values.StaffAnnouncementRecipient)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ResolveAudienceEmails",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) ResolveDeliveryRecipients(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffAnnouncementDeliveryRecipient, error) {\n\trows, err := r.source.AnnouncementResolveDeliveryRecipients(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.AnnouncementDeliveryRecipientSliceFromAnnouncementRecords(rows), func(v *values.AnnouncementDeliveryRecipient) *values.StaffAnnouncementDeliveryRecipient {\n\t\treturn (*values.StaffAnnouncementDeliveryRecipient)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.ResolveDeliveryRecipients",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {\n\trows, err := r.source.AnnouncementSchoolName(ctx, tenantID)\n\treturn rows, err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.SchoolName",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {\n\terr := r.source.AnnouncementSetPublished(ctx, id, publishedAt)\n\treturn err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.SetPublished",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) SetReminder(ctx context.Context, id int64, reminderAt *time.Time, reminderText *string) (bool, error) {\n\trows, err := r.source.AnnouncementSetReminder(ctx, id, reminderAt, reminderText)\n\treturn rows, err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.SetReminder",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) Stats(ctx context.Context, tenantID, announcementID int64) (*values.StaffAnnouncementStats, error) {\n\trows, err := r.source.AnnouncementStats(ctx, tenantID, announcementID)\n\treturn (*values.StaffAnnouncementStats)(values.AnnouncementStatsFromAnnouncementRecord(rows)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Stats",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) UnacknowledgedReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffAnnouncementPollReminderRecipient, error) {\n\trows, err := r.source.AnnouncementUnacknowledgedReminderRecipients(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.AnnouncementPollReminderRecipientSliceFromAnnouncementRecords(rows), func(v *values.AnnouncementPollReminderRecipient) *values.StaffAnnouncementPollReminderRecipient {\n\t\treturn (*values.StaffAnnouncementPollReminderRecipient)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.UnacknowledgedReminderRecipients",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) UnansweredReminderRecipients(ctx context.Context, tenantID, announcementID int64) ([]*values.StaffAnnouncementPollReminderRecipient, error) {\n\trows, err := r.source.AnnouncementUnansweredReminderRecipients(ctx, tenantID, announcementID)\n\treturn values.MapAnnouncementRows(values.AnnouncementPollReminderRecipientSliceFromAnnouncementRecords(rows), func(v *values.AnnouncementPollReminderRecipient) *values.StaffAnnouncementPollReminderRecipient {\n\t\treturn (*values.StaffAnnouncementPollReminderRecipient)(v)\n\t}), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.UnansweredReminderRecipients",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) Update(ctx context.Context, a *values.StaffParentAnnouncement) error {\n\trecorda := values.ParentAnnouncementToAnnouncementRecord(values.StaffAnnouncementParentAnnouncementToValue(a))\n\terr := r.source.AnnouncementUpdate(ctx, recorda)\n\tif a != nil \u0026\u0026 recorda != nil {\n\t\t*a = *values.StaffAnnouncementParentAnnouncementFromValue(values.ParentAnnouncementFromAnnouncementRecord(recorda))\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Update",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffMessageRecords) Create(ctx context.Context, row *StaffMessage) error {\n\treturn r.source.CreateStaffMessage(ctx, values.StaffMessageToRecord((*values.StaffMessage)(row)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffmessages/staffMessageRecords.Create",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffMessageRecords) DeleteOlderThan(ctx context.Context, before time.Time) (int64, error) {\n\treturn r.source.DeleteStaffMessagesBefore(ctx, before)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffMessageRecords.DeleteOlderThan",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffMessageRecords) ListByThread(ctx context.Context, id int64) ([]*StaffMessage, error) {\n\trows, err := r.source.ListStaffMessages(ctx, id)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]*StaffMessage, len(rows))\n\tfor i, row := range rows {\n\t\tresult[i] = (*StaffMessage)(values.StaffMessageFromRecord(row))\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffmessages/staffMessageRecords.ListByThread",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffReadRecords) IsMessageableStaff(ctx context.Context, id int64) (bool, error) {\n\treturn r.source.IsAddressableStaff(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.IsMessageableStaff",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffReadRecords) ListInbox(ctx context.Context, id int64, onlyUnread bool) ([]*StaffInboxThread, error) {\n\trows, err := r.source.ListStaffInbox(ctx, id, onlyUnread)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]*StaffInboxThread, len(rows))\n\tfor i, row := range rows {\n\t\tresult[i] = (*StaffInboxThread)(values.StaffInboxFromRecord(row))\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.ListInbox",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffReadRecords) ListMessageableStaff(ctx context.Context, id int64) ([]*MessageableStaff, error) {\n\trows, err := r.source.ListAddressableStaff(ctx, id)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]*MessageableStaff, len(rows))\n\tfor i, row := range rows {\n\t\tresult[i] = (*MessageableStaff)(values.MessageableStaffFromRecord(row))\n\t}\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.ListMessageableStaff",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffReadRecords) MarkReadUpTo(ctx context.Context, id, accountID int64, at time.Time, messageID int64) error {\n\treturn r.source.MarkStaffReadUpTo(ctx, id, accountID, at, messageID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.MarkReadUpTo",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffReadRecords) StaffRoleKinds(ctx context.Context, ids []int64) (map[int64]string, error) {\n\treturn r.source.StaffRoleKindsForAccounts(ctx, ids)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.StaffRoleKinds",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffReadRecords) UnreadCount(ctx context.Context, id int64) (int, error) {\n\treturn r.source.StaffUnreadCount(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffReadRecords.UnreadCount",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffThreadRecords) DeleteEmpty(ctx context.Context, before time.Time) (int64, error) {\n\treturn r.source.DeleteEmptyStaffThreads(ctx, before)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.DeleteEmpty",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffThreadRecords) FindByID(ctx context.Context, id int64) (*StaffMessageThread, error) {\n\trow, err := r.source.FindStaffThread(ctx, id)\n\treturn (*StaffMessageThread)(values.StaffThreadFromRecord(row)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.FindByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffThreadRecords) GetOrCreateDirect(ctx context.Context, a, b int64) (*StaffMessageThread, error) {\n\trow, err := r.source.GetOrCreateStaffThread(ctx, a, b)\n\treturn (*StaffMessageThread)(values.StaffThreadFromRecord(row)), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.GetOrCreateDirect",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffThreadRecords) IsParticipant(ctx context.Context, id, accountID int64) (bool, error) {\n\treturn r.source.HasStaffParticipant(ctx, id, accountID)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.IsParticipant",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffThreadRecords) LockForMessageAppend(ctx context.Context, id int64) error {\n\treturn r.source.LockStaffThreadForAppend(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.LockForMessageAppend",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffThreadRecords) ParticipantAccountIDs(ctx context.Context, id int64) ([]int64, error) {\n\treturn r.source.StaffParticipantAccountIDs(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.ParticipantAccountIDs",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r staffThreadRecords) TouchLastMessage(ctx context.Context, id int64, at time.Time, messageID, senderID int64, body string) error {\n\treturn r.source.AdvanceStaffThreadPreview(ctx, id, at, messageID, senderID, body)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffmessages/staffThreadRecords.TouchLastMessage",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r parentMessagePeople) FindStaffSenderName(ctx context.Context, id int64) (*StaffSenderName, error) {\n\treturn r.names.FindStaffSenderName(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/parentMessagePeople.FindStaffSenderName",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) Create(ctx context.Context, value *communication.ParentAnnouncementFixture) error {\n\trow := announcementFixtureToRow(value)\n\tif err := f.repo.Create(ctx, row); err != nil {\n\t\treturn err\n\t}\n\t*value = *announcementFixtureFromRow(row)\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.Create",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) Delete(ctx context.Context, id int64) error {\n\treturn f.repo.Delete(ctx, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.Delete",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) FindByID(ctx context.Context, id int64) (*communication.ParentAnnouncementFixture, error) {\n\trow, err := f.repo.FindByID(ctx, id)\n\treturn announcementFixtureFromRow(row), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.FindByID",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) InsertDeclarationVersion(ctx context.Context, value *communication.PortalDeclarationVersion) error {\n\trow := value\n\terr := f.repo.InsertDeclarationVersion(ctx, row)\n\tif value != nil \u0026\u0026 row != nil {\n\t\t*value = *row\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.InsertDeclarationVersion",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Context, tenantID, id int64) ([]*communication.PortalDeclarationSubmission, error) {\n\trows, err := f.repo.ListDeclarationSubmissions(ctx, tenantID, id)\n\treturn rows, err\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ListDeclarationSubmissions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) ListOptions(ctx context.Context, id int64) ([]*communication.ParentAnnouncementOptionFixture, error) {\n\trows, err := f.repo.ListOptions(ctx, id)\n\tif rows == nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*communication.ParentAnnouncementOptionFixture, len(rows))\n\tfor i, row := range rows {\n\t\tvalues[i] = announcementOptionFixture(row)\n\t}\n\treturn values, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ListOptions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) ReplaceOptions(ctx context.Context, tenantID, id int64, values []*communication.ParentAnnouncementOptionFixture) error {\n\trows := announcementOptionFixtureRows(values)\n\terr := f.repo.ReplaceOptions(ctx, tenantID, id, rows)\n\tfor i, row := range rows {\n\t\tif row != nil {\n\t\t\t*values[i] = *announcementOptionFixture(row)\n\t\t}\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ReplaceOptions",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) ReplaceTargets(ctx context.Context, tenantID, id int64, values []*communication.ParentAnnouncementTargetFixture) error {\n\trows := announcementTargetFixtureRows(values)\n\terr := f.repo.ReplaceTargets(ctx, tenantID, id, rows)\n\tfor i, row := range rows {\n\t\tif row != nil {\n\t\t\t*values[i] = *announcementTargetFixture(row)\n\t\t}\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.ReplaceTargets",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (f ParentAnnouncementFixtures) SetPublished(ctx context.Context, id int64, at *time.Time) error {\n\treturn f.repo.SetPublished(ctx, id, at)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/parentstore/ParentAnnouncementFixtures.SetPublished",
+      "owner": "modules/communication"
+    }
+  ]
+}

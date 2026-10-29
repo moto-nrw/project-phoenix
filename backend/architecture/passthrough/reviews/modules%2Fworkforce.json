@@ -1,0 +1,884 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ActivateQueuedStaffDocumentFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.CreateStaffDocument",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.DeleteStaffDocument",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ListDeletedStaffDocumentsPendingFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ListDeletedStaffDocumentsPendingFileCleanups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ListOffboardedStaffDocumentsPendingFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ListQueuedStaffDocumentFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ListQueuedStaffDocumentFileCleanups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ListStaffDocuments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ListStaffDocumentsPendingFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.MarkQueuedStaffDocumentFileCleanupComplete",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.MarkQueuedStaffDocumentFileCleanupCompleteByFilename",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.MarkStaffDocumentFileDeleted",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.QueueStaffDocumentFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ReplaceStaffQualificationList",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ResolveStaffDocumentCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.ResolveStaffDocumentDownload",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.RevealStaffFinancial",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.StaffFinancialMasked",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.StaffStammdaten",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.UpdatePersonnelNumber",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.UpdateStaffFinancial",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.UpdateStaffStammdatenArbeitsvertrag",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.UpdateStaffStammdatenKontakt",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/StaffAdmin.UpdateStaffStammdatenPerson",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/SubstitutionOperationError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/compose/WorkSessionSide.TimeTracking",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/http/substitutions/Resource.Router",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/http/timetracking/StaffAdminResource.CleanupOrphanedStaffDocumentFiles",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/adapters/postgres/Assignments.AssignedStaffIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/adapters/postgres/Assignments.RebaseAnchor",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/adapters/substitutions/databaseError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.Delete",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.FindByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.FindByIDForUpdate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/adapters/substitutions/groupSubstitutionRepository.Update",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.AllowanceSummary",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.ClosedMonthSnapshots",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.ClosedMonthSnapshotsForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.CurrentStaffSchedule",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.ExpiredWorkSessionBreaks",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.HasStaffScheduleHistory",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.ListOverlappingWorkSessions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.ListStaffQualifications",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.ListWorkTimeModels",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.ListWorkTimeModelsByIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.LockGroupSubstitutions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.LockStaffBalanceWrites",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.LockStaffOffboarding",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.PreviewStaffOffboarding",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.SeriesExceptionDates",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.StaffAbsenceTypeInUse",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/Service.StaffIDsWithScheduleHistory",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ActivateQueuedStaffDocumentFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.CreateStaffDocument",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.DeleteStaffDocument",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListDeletedStaffDocumentsPendingFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListDeletedStaffDocumentsPendingFileCleanups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListOffboardedStaffDocumentsPendingFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListQueuedStaffDocumentFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListQueuedStaffDocumentFileCleanups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListStaffDocuments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ListStaffDocumentsPendingFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.MarkQueuedStaffDocumentFileCleanupComplete",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.MarkQueuedStaffDocumentFileCleanupCompleteByFilename",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.MarkStaffDocumentFileDeleted",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.QueueStaffDocumentFileCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ReplaceStaffQualificationList",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ResolveStaffDocumentCleanup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.ResolveStaffDocumentDownload",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.RevealStaffFinancial",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.StaffFinancialMasked",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.StaffStammdaten",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdatePersonnelNumber",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdateStaffFinancial",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdateStaffStammdatenArbeitsvertrag",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdateStaffStammdatenKontakt",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/StaffAdminEngine.UpdateStaffStammdatenPerson",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/missingRecord.Is",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffAudit.RecordDataAccess",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffAudit.RecordMasterDataChange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffAudit.RecordPersonnelNumberChange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffEmployment.RebaseStaffRotationAnchor",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffEmployment.SaveStaffEmployment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffEmployment.SetStaffBirthdayDisplayOptOut",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffEmployment.StaffEmployments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffEmployment.StaffOnWorkTimeModel",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffSubjects.LockStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffSubjects.SetPersonnelNumber",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/staffSubjects.StaffWithPerson",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/AutoCheckIn.EnsureCheckedIn",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeAdministration.AllowanceSummary",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeAdministration.ListAbsenceTypes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeAdministration.PreviewAllowanceBooking",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeAdministration.SetAllowance",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeReader.GetAbsenceType",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeReader.LabelsByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeReader.PreviewAllowanceBooking",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/absenceTypeReader.PreviewAllowanceRebooking",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.CreateAdjustment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.CreateOpeningBalance",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.DeleteAdjustment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.ResetBalance",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/balanceAdjustmentCapability.ValidateOpeningBalance",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/capabilityError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/monthClosingCapability.CloseMonth",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/monthClosingCapability.ListMonthStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/monthClosingCapability.ReopenMonth",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/monthSnapshotCapability.ClosedMonthSnapshots",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/monthSnapshotCapability.ClosedMonthSnapshotsForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/monthSnapshotCapability.LatestClosedMonth",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/monthSnapshotCapability.RecordClosedMonth",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.AbsencesForRange",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ApproveAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.CancelAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.DeleteVacationOpening",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.DenyAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ListPendingRequests",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.QuestionAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.RequestVacation",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ResubmitAbsence",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.SetVacationOpening",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.SetVacationQuota",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.UpsertVacationQuota",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.VacationQuotaSummary",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceCapability.ValidateVacationOpeningAbsencesBefore",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceService.GetTodayAbsenceMap",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffAbsenceService.GetVacationOpening",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffBalanceAdjustmentService.ListAdjustments",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffMonthCloseService.ListMonthStatus",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffOverviewCapability.TimeTrackingOverview",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/staffTimeExportCapability.ExportStaffTime",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.CheckOut",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.CheckOutOn",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.EndBreak",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.EndBreakOn",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.LatestOpenSession",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.StartBreak",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/timeClock.StartBreakOn",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.CheckIn",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.CheckOut",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.CreateSessionAsAdmin",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.EndBreak",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.ExportSessions",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.HistoryIntersecting",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.LatestOpenSession",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.SessionBreaks",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.SessionEdits",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.SessionEditsForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.StartBreak",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.UpdateSession",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.UpdateSessionAsAdmin",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionCapability.UpdateStaffSchedule",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetCurrentSession",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetHistory",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetHistoryIntersecting",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetLatestOpenSession",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetSessionEdits",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetSessionEditsForStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/application/timetracking/workSessionService.GetTodayPresenceMap",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/domain/StaffDocumentFileCleanup.Validate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/capabilityError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/reasonError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/schoolCalendarPeriods.FindSeriesPeriod",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/shiftTypeAdministration.CreateDefaultShiftTypes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/shiftTypeAdministration.CreateShiftType",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/shiftTypeAdministration.DeleteShiftType",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/shiftTypeAdministration.ListShiftTypes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/shiftTypeService.ListShiftTypes",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.CreateSeries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.CreateShift",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.DeleteShift",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.EndSeries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/staffShiftPlanning.GetSeries",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/workforce/internal/planning/staffShiftService.ListShifts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

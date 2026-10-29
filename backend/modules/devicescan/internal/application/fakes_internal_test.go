@@ -116,12 +116,17 @@ type fakePresence struct {
 	groupCounts map[int64]int
 	// groupRevisions are the visit revisions of the session counts (#5128).
 	groupRevisions map[int64]int64
-	roomErr        error
-	groupErr       error
+	// roomRevisions are the visit revisions of the room counts (#5205).
+	roomRevisions map[int64]int64
+	roomErr       error
+	groupErr      error
 }
 
 func (p *fakePresence) CountOpenVisitsInRoom(_ context.Context, id int64) (int, error) {
 	return p.roomCounts[id], p.roomErr
+}
+func (p *fakePresence) CountOpenVisitsInRoomWithRevision(_ context.Context, id int64) (int, int64, error) {
+	return p.roomCounts[id], p.roomRevisions[id], p.roomErr
 }
 func (p *fakePresence) CountOpenVisitsInGroup(_ context.Context, id int64) (int, error) {
 	return p.groupCounts[id], p.groupErr
@@ -523,7 +528,7 @@ func newHarness(t *testing.T) *harness {
 	templateID := int64(301)
 	h := &harness{
 		fleet:      &fakeFleet{online: true, devices: map[string]devicefleet.Device{"dev-001": {ID: testDeviceID, DeviceID: "dev-001"}}},
-		presence:   &fakePresence{roomCounts: map[int64]int{}, groupCounts: map[int64]int{}},
+		presence:   &fakePresence{roomCounts: map[int64]int{}, roomRevisions: map[int64]int64{}, groupCounts: map[int64]int{}},
 		rooms:      &fakeRooms{rooms: map[int64]facilities.Room{testRoomID: {ID: testRoomID, Name: "Klassenraum 1a"}}, byName: map[string]facilities.Room{}},
 		principals: &fakePrincipals{device: testDevice()},
 		people: &fakePeople{

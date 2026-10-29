@@ -1,0 +1,57 @@
+{
+  "packages": [
+    {
+      "path": "database/migrations",
+      "owner": "migrations",
+      "role": "migration",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "active.presence_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "enrollment.request_child_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "enrollment.request_child_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "enrollment.request_child_storage_backfill_checkpoints",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "platform.storage_backfill_checkpoints",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.staff_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.staff_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.students_guardians_compatibility_writes",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "auth.parent_declaration_permission_grants",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.student_compatibility_reads",
+      "write_owner": "migrations"
+    },
+    {
+      "name": "users.student_compatibility_writes",
+      "write_owner": "migrations"
+    }
+  ]
+}

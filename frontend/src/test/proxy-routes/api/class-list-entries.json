@@ -1,0 +1,13 @@
+{
+  "api/class-list-entries": [
+    "GET tenant /api/class-list-entries/",
+    "POST tenant /api/class-list-entries/"
+  ],
+  "api/class-list-entries/[id]": [
+    "DELETE tenant /api/class-list-entries/id%2F1",
+    "PUT tenant /api/class-list-entries/id%2F1"
+  ],
+  "api/class-list-entries/[id]/assign": [
+    "POST tenant /api/class-list-entries/id%2F1/assign"
+  ]
+}

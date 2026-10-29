@@ -1,0 +1,234 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/TeacherGroupIDs.TeacherGroupIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.CountGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.CreateGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.DeleteGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.FindGroupWithRoom",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetGroupTeachers",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetGroupsByIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetGroupsWithRoomsByIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetStaffSchoolClasses",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.GetTeacherGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.ListGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.RemoveTeacherFromGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.SetStaffSchoolClasses",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.UpdateGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/compose/legacyGroupManagement.UpdateGroupTeachers",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/contract/OperationError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/adapters/staffgroups/Reader.ListSchoolClassesByStaff",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/GroupRoomDirectory.ListGroupRooms",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/GroupNames.GroupNamesByID",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/GroupStoreError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.CountGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.CreateGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.DeleteGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.FindGroupWithRoom",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetGroupTeachers",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetGroupsByIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetGroupsWithRoomsByIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetStaffSchoolClasses",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.GetTeacherGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.ListGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.RemoveTeacherFromGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.SetStaffSchoolClasses",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.UpdateGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupManagement.UpdateGroupTeachers",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.CountGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.FindGroupWithRoom",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.GetGroup",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.GetGroupsByIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.GetGroupsWithRoomsByIDs",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/groupReads.ListGroups",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/substitutionBoundary.Assign",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/substitutionBoundary.End",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/application/groups/substitutionBoundary.Overview",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/schoolstructure/internal/domain/StoreError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

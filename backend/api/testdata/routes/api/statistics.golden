@@ -1,0 +1,2 @@
+GET /api/statistics/export
+GET /api/statistics/report

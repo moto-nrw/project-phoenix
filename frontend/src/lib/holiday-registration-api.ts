@@ -1,7 +1,15 @@
+import {
+  holidayLegalBlocks,
+  type HolidayLegalBlockWire,
+} from "~/lib/holiday-form-field";
 // Öffentliche Ferienanmeldung (#4661): der eine Link eines Ferienzeitraums
 // für alle Schulen des Trägers, ohne Elternkonto.
 
 import { unavailableApiError, type ApiError } from "~/lib/api-error";
+import type {
+  HolidayFormField,
+  HolidayFormVersion,
+} from "~/lib/holiday-form-field";
 import { readEnrollmentError } from "~/lib/enrollment-api-error";
 import {
   type BackendContribution,
@@ -17,6 +25,8 @@ export interface HolidayRegistrationTimeModel {
   readonly name: string;
   readonly startsAt: string;
   readonly endsAt: string;
+  /** Price per week in cent: the base line of the contribution (#5237). */
+  readonly priceCents: number;
 }
 
 export interface HolidayRegistrationWeek {
@@ -44,6 +54,8 @@ export interface HolidayRegistrationOffer {
   readonly weeks: readonly HolidayRegistrationWeek[];
   readonly schools: readonly HolidayRegistrationSchool[];
   readonly captchaSiteKey: string;
+  /** The questions of the Träger in their current version (#5198). */
+  readonly form: HolidayFormVersion;
 }
 
 interface BackendOffer {
@@ -61,12 +73,23 @@ interface BackendOffer {
         ends_on: string;
         host_school_name: string;
         time_models?:
-          | { id: number; name: string; starts_at: string; ends_at: string }[]
+          | {
+              id: number;
+              name: string;
+              starts_at: string;
+              ends_at: string;
+              price_cents: number;
+            }[]
           | null;
       }[]
     | null;
   schools?: { id: number; name: string }[] | null;
   captcha_site_key: string;
+  form?: {
+    version: number;
+    fields?: HolidayFormField[] | null;
+    legal_blocks?: HolidayLegalBlockWire[] | null;
+  } | null;
 }
 
 /** The registration as the backend reads it; IDs travel as numbers. */
@@ -77,6 +100,7 @@ export interface HolidayRegistrationPayload {
     readonly email: string;
     readonly phone: string;
   };
+  readonly second_guardian?: HolidayRegistrationPayload["guardian"];
   readonly children: readonly {
     readonly first_name: string;
     readonly last_name: string;
@@ -90,6 +114,8 @@ export interface HolidayRegistrationPayload {
       readonly week_id: number;
       readonly time_model_id: number;
     }[];
+    /** Answers to the questions per child, by key (#5198). */
+    readonly custom_data: Readonly<Record<string, unknown>>;
   }[];
   readonly emergency_contacts: readonly HolidayContactPayload[];
   readonly pickup_persons: readonly HolidayContactPayload[];
@@ -98,6 +124,11 @@ export interface HolidayRegistrationPayload {
   readonly binding_confirmed: boolean;
   readonly benefits_declared: boolean;
   readonly captcha_token: string;
+  /** The form version the parent answered (#5198). */
+  readonly legal_acceptances?: Readonly<Record<string, boolean>>;
+  readonly form_version: number;
+  /** Answers to the questions per family, by key (#5198). */
+  readonly custom_data: Readonly<Record<string, unknown>>;
 }
 
 export interface HolidayContactPayload {
@@ -125,6 +156,7 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
         name: model.name,
         startsAt: model.starts_at,
         endsAt: model.ends_at,
+        priceCents: model.price_cents,
       })),
     })),
     schools: (offer.schools ?? []).map((school) => ({
@@ -132,6 +164,11 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       name: school.name,
     })),
     captchaSiteKey: offer.captcha_site_key,
+    form: {
+      legalBlocks: holidayLegalBlocks(offer.form?.legal_blocks),
+      version: offer.form?.version ?? 0,
+      fields: offer.form?.fields ?? [],
+    },
   };
 }
 

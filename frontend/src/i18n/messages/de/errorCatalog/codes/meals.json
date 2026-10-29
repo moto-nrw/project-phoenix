@@ -1,0 +1,18 @@
+{
+  "child_not_enrolled": "{object} geht nicht. Das Kind ist an diesem Tag nicht in der Betreuung.",
+  "day_closed": "{object} geht nicht. An diesem Tag ist die Schule geschlossen.",
+  "day_past": "{object} geht nicht mehr. Der Tag ist schon vorbei.",
+  "invalid_allergens": "Die Allergene konnten nicht gespeichert werden. Bitte wählen Sie sie neu aus.",
+  "invalid_dishes": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+  "invalid_meal_date": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+  "invalid_participation": "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
+  "participation_cutoff_passed": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+  "participation_out_of_range": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+  "plan_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+  "plan_week_out_of_range": "{object} konnte nicht übernommen werden. Bitte prüfen Sie Ihre Angaben.",
+  "registration_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+  "delivery_range_too_long": "Die Lieferliste umfasst höchstens sieben Tage. Bitte wählen Sie einen kürzeren Zeitraum.",
+  "not_supplied": "Sie beliefern diese Schule nicht mehr. Bitte fragen Sie die Schule.",
+  "order_not_found": "Diese Bestellung gibt es nicht. Bitte laden Sie die Seite neu.",
+  "supply_active": "{object} geht gerade nicht. Ein Caterer beliefert die Schule noch. Beenden Sie zuerst diese Belieferung."
+}

@@ -2,6 +2,7 @@ package enrollmenthttp
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -241,14 +242,14 @@ func (rs *HolidayPeriodResource) exportRegistrations(w http.ResponseWriter, r *h
 		renderHolidayReviewError(w, r, err)
 		return
 	}
-	period, rows, err := rs.review.ExportHolidayRegistrations(r.Context(), reviewer, periodID, filter, string(format))
+	export, err := rs.review.ExportHolidayRegistrations(r.Context(), reviewer, periodID, filter, string(format))
 	if err != nil {
 		renderHolidayReviewError(w, r, err)
 		return
 	}
 	names, _ := r.Context().Value(holidaySchoolNamesKey{}).(map[int64]string)
-	doc := holidayRegistrationDocument(period, filter, rows, names)
-	file, err := lists.NewRenderer().Render(doc, format, "ferienanmeldungen-"+period.Name)
+	doc := holidayRegistrationDocument(export, filter, names)
+	file, err := lists.NewRenderer().Render(doc, format, "ferienanmeldungen-"+export.Period.Name)
 	if err != nil {
 		renderHolidayReviewError(w, r, err)
 		return
@@ -266,8 +267,10 @@ var holidayRegistrationStatusLabels = map[string]string{
 	capability.HolidayRegistrationCancelled: "Storniert",
 }
 
-// holidayRegistrationColumns are the columns of the export. Health
+// holidayRegistrationColumns are the fixed columns of the export. Health
 // information stays out: the export is a list, not the record of a child.
+// One column per question of the form without health information follows
+// (#5198).
 var holidayRegistrationColumns = []lists.Column{
 	{ID: "status", Label: "Status"},
 	{ID: "frozen", Label: "Eingefroren"},
@@ -283,10 +286,13 @@ var holidayRegistrationColumns = []lists.Column{
 	{ID: "guardian", Label: "Elternteil"},
 	{ID: "email", Label: "E-Mail"},
 	{ID: "phone", Label: "Telefon"},
+	{ID: "second_guardian", Label: "Zweites Elternteil"},
+	{ID: "second_guardian_phone", Label: "Telefon zweites Elternteil"},
 	{ID: "duplicate", Label: "Mögliche Doppelanmeldung"},
 }
 
-func holidayRegistrationDocument(period capability.HolidayPeriod, filter capability.HolidayRegistrationFilter, rows []capability.HolidayRegistrationExportRow, names map[int64]string) lists.Document {
+func holidayRegistrationDocument(export capability.HolidayRegistrationExport, filter capability.HolidayRegistrationFilter, names map[int64]string) lists.Document {
+	period, rows := export.Period, export.Rows
 	schoolName := func(id int64) string {
 		if name, ok := names[id]; ok {
 			return name
@@ -313,6 +319,7 @@ func holidayRegistrationDocument(period capability.HolidayPeriod, filter capabil
 		if row.Registration.Frozen {
 			frozen = "Ja"
 		}
+		secondName, secondPhone := holidaySecondGuardianContact(row.SecondGuardian)
 		values := map[lists.ColumnID]string{
 			"status": holidayRegistrationStatusLabels[row.Registration.Status], "frozen": frozen,
 			"registration": strconv.FormatInt(row.Registration.ID, 10),
@@ -323,7 +330,9 @@ func holidayRegistrationDocument(period capability.HolidayPeriod, filter capabil
 			"host_school": schoolName(row.Booking.HostSchoolID), "time_model": row.Booking.TimeModelName,
 			"guardian": row.Registration.GuardianFirstName + " " + row.Registration.GuardianLastName,
 			"email":    row.Registration.GuardianEmail, "phone": row.Registration.GuardianPhone, "duplicate": duplicate,
+			"second_guardian": secondName, "second_guardian_phone": secondPhone,
 		}
+		addHolidayAnswers(values, row.AnswerFields, row.Answers)
 		for id, value := range values {
 			values[id] = lists.SanitizeUserText(value)
 		}
@@ -331,7 +340,7 @@ func holidayRegistrationDocument(period capability.HolidayPeriod, filter capabil
 	}
 	return lists.Document{
 		Title: "Ferienanmeldungen", Subtitle: period.Name, GeneratedAt: time.Now(),
-		Filters: holidayRegistrationFilterLabels(period, filter, schoolName), Columns: holidayRegistrationColumns, Rows: out,
+		Filters: holidayRegistrationFilterLabels(period, filter, schoolName), Columns: holidayExportColumns(export.Columns), Rows: out,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
 	}
 }
@@ -359,4 +368,72 @@ func holidayRegistrationFilterLabels(period capability.HolidayPeriod, filter cap
 		labels = append(labels, "Zeitmodell: "+filter.TimeModel)
 	}
 	return labels
+}
+
+// holidaySecondGuardianContact keeps an absent optional card empty in both exports.
+func holidaySecondGuardianContact(guardian *capability.HolidayGuardianInput) (string, string) {
+	if guardian == nil {
+		return "", ""
+	}
+	return guardian.FirstName + " " + guardian.LastName, guardian.Phone
+}
+
+// addHolidayAnswers adds the answers of a row to its question columns.
+func addHolidayAnswers(values map[lists.ColumnID]string, columns []capability.HolidayFormField, answers capability.HolidayAnswers) {
+	for _, column := range columns {
+		if value, ok := answers[column.Key]; ok {
+			values[holidayAnswerColumnID(column)] = holidayAnswerText(column, value)
+		}
+	}
+}
+
+// holidayExportColumns are the fixed columns and one column per question.
+func holidayExportColumns(questions []capability.HolidayFormField) []lists.Column {
+	columns := append([]lists.Column{}, holidayRegistrationColumns...)
+	for _, question := range questions {
+		columns = append(columns, lists.Column{ID: holidayAnswerColumnID(question), Label: lists.SanitizeUserText(question.Label)})
+	}
+	return columns
+}
+
+func holidayAnswerColumnID(question capability.HolidayFormField) lists.ColumnID {
+	return lists.ColumnID("answer." + question.Key)
+}
+
+// holidayAnswerText writes an answer as the form shows it: Ja or Nein, the
+// label of a choice, a German date.
+func holidayAnswerText(question capability.HolidayFormField, raw json.RawMessage) string {
+	var value any
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return ""
+	}
+	switch answer := value.(type) {
+	case bool:
+		if answer {
+			return "Ja"
+		}
+		return "Nein"
+	case string:
+		return holidayTextAnswer(question, answer)
+	default:
+		return fmt.Sprint(answer)
+	}
+}
+
+// holidayTextAnswer names a choice by its label and writes a date in
+// German.
+func holidayTextAnswer(question capability.HolidayFormField, answer string) string {
+	switch question.Type {
+	case capability.FormFieldSelect:
+		for _, option := range question.Options {
+			if option.Value == answer {
+				return option.Label
+			}
+		}
+	case capability.FormFieldDate:
+		if date, err := calendar.ParseDate(answer); err == nil {
+			return date.Format("02.01.2006")
+		}
+	}
+	return answer
 }

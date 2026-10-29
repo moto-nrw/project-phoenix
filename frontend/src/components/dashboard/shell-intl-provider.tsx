@@ -1,7 +1,7 @@
 "use client";
 
 import { NextIntlClientProvider } from "next-intl";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { DEFAULT_LOCALE } from "~/i18n/locales";
 
 // Shared shell components call next-intl hooks, which throw without a

@@ -83,11 +83,6 @@ const mainRoutes: Record<string, string> = {
   // erreichbar über das Aktionsmenü der Kindersuche.
   "/absences": "Abwesenheiten",
   "/profile": "Profil",
-  // Die Planungsseiten selbst kommen aus PLANNING_SUB_PAGES
-  // (getSectionBreadcrumb); /planung ist nur der Redirect-Frame und behält
-  // einen Eintrag, damit während des Client-Redirects kein falscher Titel
-  // aufblitzt.
-  "/planung": PLANNING_SECTION.label,
   // Alt-Route der Freigabeansicht; nur noch ein Redirect-Frame auf /anfragen
   // (#2429). Der Eintrag verhindert, dass während des Client-Redirects kurz
   // "Home" aufblitzt.
@@ -202,9 +197,7 @@ export function getPageTitle(pathname: string): string {
     return getStudentPageTitle(pathname);
   }
 
-  // Sektionsseiten tragen das Label ihres Navigationseintrags. Muss VOR der
-  // Detailrouten-Prüfung laufen: /staff/dienstplan ist die Planungsseite
-  // "Dienstplan" und nicht die Detailansicht einer Mitarbeiterin.
+  // Sektionsseiten tragen das Label ihres Navigationseintrags.
   const section = getSectionBreadcrumb(pathname);
   if (section) return section.deepLabel ?? section.pageLabel;
 
@@ -312,9 +305,7 @@ export function getPageTypeInfo(pathname: string): PageTypeInfo {
       pathname.includes("/change-history"));
 
   const isStaffDetailPage =
-    pathname.startsWith("/staff/") &&
-    pathname !== "/staff" &&
-    pathname !== "/staff/dienstplan";
+    pathname.startsWith("/staff/") && pathname !== "/staff";
 
   // Die Raumseite /rooms/[id] (#3115). „Unterwegs" liegt darunter, ist aber
   // eine eigene Seite mit festem Titel.

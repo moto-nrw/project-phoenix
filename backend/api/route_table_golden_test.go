@@ -71,6 +71,15 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 	require.NoError(t, walkErr)
 	sort.Strings(routes)
 	sort.Strings(middlewareRoutes)
+	if !*updateGoldens {
+		catalog, err := RouteCatalog()
+		require.NoError(t, err)
+		var embedded []string
+		for _, route := range catalog {
+			embedded = append(embedded, route.Method+" "+route.Pattern)
+		}
+		require.Equal(t, routes, embedded, "embedded route catalog must match the complete production router")
+	}
 
 	// The root mounts the only session verifier. An Authenticator without a
 	// verifier before it rejects every token, and the shared test executors
@@ -88,10 +97,10 @@ func checkRouteTableGolden(t *testing.T, apiInstance *goldenRuntime) {
 		require.Truef(t, verifier >= 0 && verifier < authenticator, "authenticated route without a preceding session verifier: %s", chain)
 	}
 
-	compareGolden(t, filepath.Join("testdata", "route_table.golden"), strings.Join(routes, "\n")+"\n",
-		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description")
-	compareMiddlewareGolden(t, filepath.Join("testdata", "middleware_table.golden"), strings.Join(middlewareRoutes, "\n")+"\n",
-		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact")
+	compareResourceGoldens(t, filepath.Join("testdata", "routes"), strings.Join(routes, "\n")+"\n",
+		"the route table changed — if intentional, regenerate with -update-goldens and call the change out in the PR description", false, *updateGoldens)
+	compareResourceGoldens(t, filepath.Join("testdata", "middleware"), strings.Join(middlewareRoutes, "\n")+"\n",
+		"a route's middleware chain changed — if intentional, regenerate with -update-goldens and call out the auth, scope, transaction, and observability impact", true, *updateGoldens)
 
 	// Der Frontend-Client ruft Sammlungen ohne Schrägstrich am Ende auf
 	// (/api/staff-notices), das Backend registriert den Subrouter mit "/".
@@ -255,7 +264,12 @@ func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *goldenRuntime) {
 
 func compareGolden(t *testing.T, path, got, hint string) {
 	t.Helper()
-	if *updateGoldens {
+	compareGoldenWithUpdate(t, path, got, hint, *updateGoldens)
+}
+
+func compareGoldenWithUpdate(t *testing.T, path, got, hint string, update bool) {
+	t.Helper()
+	if update {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 		require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
 		t.Logf("golden rewritten: %s", path)
@@ -272,10 +286,10 @@ func compareGolden(t *testing.T, path, got, hint string) {
 // golden file that stores each distinct chain once, with its routes indented
 // below it. An added or moved route is one short line in the file's diff, and
 // a changed chain is one header line.
-func compareMiddlewareGolden(t *testing.T, path, got, hint string) {
+func compareMiddlewareGolden(t *testing.T, path, got, hint string, update bool) {
 	t.Helper()
 	wantBytes, err := os.ReadFile(path) // #nosec G304 -- repo-local testdata
-	if *updateGoldens {
+	if update {
 		if err == nil {
 			got = preserveEquivalentMiddlewareNames(expandMiddlewareTable(t, string(wantBytes)), got, stableMiddlewareTable)
 		} else {
@@ -388,6 +402,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		require.NotNil(t, runtime.worker)
 		handler, ok := runtime.Handler().(*serveHandler)
 		require.True(t, ok)
+		testpkg.AdoptPrivatePool(t, runtime.db.Pool()) // before any request or Worker uses the pool
 		api := &goldenRuntime{handler: handler, router: handler.router, db: runtime.db}
 		if *runtimeCheckpointOutput != "" {
 			measureRuntimeCheckpoint(t, runtime)

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { Search, ArrowLeft, Check, X } from "lucide-react";
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { formErrorMessage } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -190,14 +192,15 @@ export default function GuardianPickerPanel({
             <Search className="text-moto-blue-strong h-3.5 w-3.5 md:h-4 md:w-4" />
             Vorhandene/n suchen
           </h4>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={onCancel}
             aria-label="Suche schließen"
-            className="rounded-lg p-1 text-gray-400 transition-colors hover:bg-white/60 hover:text-gray-600"
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
       )}
 
@@ -222,14 +225,16 @@ export default function GuardianPickerPanel({
                     </p>
                   )}
               </div>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="compact"
                 onClick={() => setSelected(null)}
-                className="flex flex-shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-white/60"
+                className="flex-shrink-0"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Andere wählen
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -251,28 +256,31 @@ export default function GuardianPickerPanel({
             onChange={updateRelationship}
           />
 
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="md"
             onClick={handleConfirm}
-            className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-gray-700 md:text-sm"
+            className="w-full gap-2"
           >
             <Check className="h-4 w-4" />
             Hinzufügen
-          </button>
+          </Button>
         </div>
       ) : (
         <>
           {/* Search input */}
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400" />
-            <input
+            <Input
               type="text"
+              controlSize="compact"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
               placeholder="Name oder E-Mail suchen…"
-              className="focus:border-moto-blue focus:ring-moto-blue block w-full rounded-lg border border-gray-200 bg-white py-2 pr-3 pl-9 text-sm transition-colors focus:ring-1"
+              className="pl-9"
             />
           </div>
 

@@ -1,0 +1,190 @@
+{
+  "codes": [
+    {
+      "code": "classday.absence_report_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.absence_report_conflict"
+    },
+    {
+      "code": "classday.absence_report_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.absence_report_no_school_day"
+    },
+    {
+      "code": "classday.absence_report_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.absence_report_not_found"
+    },
+    {
+      "code": "classday.absence_report_not_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.absence_report_not_missing"
+    },
+    {
+      "code": "classday.absence_report_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.absence_report_not_today"
+    },
+    {
+      "code": "classday.absence_report_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.absence_report_unknown_child"
+    },
+    {
+      "code": "classday.arrival_exception_class_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "class_arrival_exception_class_not_found"
+    },
+    {
+      "code": "classday.arrival_exception_editor_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "class_arrival_exception_editor_required"
+    },
+    {
+      "code": "classday.arrival_exception_past_date",
+      "class": "input",
+      "parameters": [],
+      "legacy": "class_arrival_exception_past_date"
+    },
+    {
+      "code": "classday.arrival_exception_weekend",
+      "class": "input",
+      "parameters": [],
+      "legacy": "class_arrival_exception_weekend"
+    },
+    {
+      "code": "classday.class_handover_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_handover_no_school_day"
+    },
+    {
+      "code": "classday.class_handover_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_handover_not_found"
+    },
+    {
+      "code": "classday.class_handover_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_handover_not_today"
+    },
+    {
+      "code": "classday.class_handover_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_handover_unknown_child"
+    },
+    {
+      "code": "classday.class_trip_arrival_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_arrival_conflict"
+    },
+    {
+      "code": "classday.class_trip_invalid_range",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_invalid_range"
+    },
+    {
+      "code": "classday.class_trip_no_students",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_no_students"
+    },
+    {
+      "code": "classday.class_trip_past_date",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_past_date"
+    },
+    {
+      "code": "classday.class_trip_return_time_multi_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_return_time_multi_day"
+    },
+    {
+      "code": "classday.class_trip_return_time_weekend",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.class_trip_return_time_weekend"
+    },
+    {
+      "code": "classday.class_trip_status_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_status_conflict"
+    },
+    {
+      "code": "classday.class_trip_student_not_in_class",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.class_trip_student_not_in_class"
+    },
+    {
+      "code": "classday.day_hint_class_empty",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.day_hint_class_empty"
+    },
+    {
+      "code": "classday.day_hint_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.day_hint_invalid"
+    },
+    {
+      "code": "classday.day_hint_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.day_hint_not_today"
+    },
+    {
+      "code": "classday.day_hint_student_not_in_class",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.day_hint_student_not_in_class"
+    },
+    {
+      "code": "classday.homework_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.homework_not_found"
+    },
+    {
+      "code": "classday.morning_attendance_no_school_day",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_no_school_day"
+    },
+    {
+      "code": "classday.morning_attendance_not_today",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_not_today"
+    },
+    {
+      "code": "classday.morning_attendance_unknown_child",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "classday.morning_attendance_unknown_child"
+    },
+    {
+      "code": "classday.school_write_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "school_write_disabled"
+    }
+  ]
+}

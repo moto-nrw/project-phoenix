@@ -4,6 +4,7 @@ import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-session";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { catererPath } from "~/lib/caterer-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 
@@ -31,6 +32,7 @@ export function CatererProviders({
       refetchOnWindowFocus={false}
     >
       <PersonalStorageGuard homeHref={catererHome} />
+      <SWRScopeBoundary />
       <PortalAnalyticsSession surface="caterer" />
       <SentrySessionContext portal="caterer" />
       {children}

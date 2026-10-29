@@ -69,6 +69,20 @@ func (s *Service) CountOpenVisitsInRoom(ctx context.Context, id int64) (result i
 	return result, err
 }
 
+// CountOpenVisitsInRoomWithRevision returns the open visit count of a room
+// together with the revision that orders it (#5205).
+func (s *Service) CountOpenVisitsInRoomWithRevision(ctx context.Context, id int64) (count int, revision int64, err error) {
+	err = s.runWrite(ctx, "count_open_visits_in_room_with_revision", func(ctx context.Context) (ports.Stats, error) {
+		if id <= 0 {
+			return ports.Stats{}, errors.New("student presence: invalid room ID")
+		}
+		var stats ports.Stats
+		count, revision, stats, err = s.store.CountOpenVisitsInRoomWithRevision(ctx, id)
+		return stats, err
+	})
+	return count, revision, err
+}
+
 func (s *Service) ListOpenVisitRooms(ctx context.Context, roomID int64) (result []studentpresence.OpenVisitRoom, err error) {
 	err = s.runWrite(ctx, "list_open_visit_rooms", func(ctx context.Context) (ports.Stats, error) {
 		var stats ports.Stats

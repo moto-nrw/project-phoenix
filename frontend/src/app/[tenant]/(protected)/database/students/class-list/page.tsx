@@ -26,6 +26,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { Input } from "~/components/ui/input";
+import { Radio } from "~/components/ui/radio";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -768,13 +769,13 @@ export default function ClassListEntriesPage() {
                     {modal.entry.matchingStudentIds.map((studentId) => (
                       <label
                         key={studentId}
+                        htmlFor={`assign-target-${studentId}`}
                         className="flex items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-700"
                       >
                         <span className="flex items-center gap-2">
-                          <input
-                            type="radio"
+                          <Radio
+                            id={`assign-target-${studentId}`}
                             name="assign-target"
-                            className="accent-moto-green"
                             checked={assignTarget === studentId}
                             onChange={() => setAssignTarget(studentId)}
                           />

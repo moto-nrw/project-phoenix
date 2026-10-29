@@ -7,6 +7,7 @@ import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
+import { FieldLabel } from "~/components/ui/field-label";
 import { createLogger } from "~/lib/logger";
 import { getDefaultMaxLength } from "~/lib/constants/input-limits";
 import useSWR from "swr";
@@ -592,11 +593,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     }));
   };
 
-  const renderSelectField = (
-    field: FormField,
-    hasError: boolean,
-    labelClasses: string,
-  ) => {
+  const renderSelectField = (field: FormField, hasError: boolean) => {
     const selectOptions = Array.isArray(field.options)
       ? field.options
       : (asyncOptions[field.name] ?? []);
@@ -604,10 +601,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
     return (
       <div>
-        <label htmlFor={field.name} className={labelClasses}>
+        <FieldLabel
+          htmlFor={field.name}
+          required={field.required}
+          invalid={hasError}
+          className="mb-1.5 text-xs"
+        >
           {field.label}
-          {field.required && "*"}
-        </label>
+        </FieldLabel>
         <CustomSelect
           id={field.name}
           name={field.name}
@@ -643,11 +644,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     );
   };
 
-  const renderMultiselectField = (
-    field: FormField,
-    hasError: boolean,
-    labelClasses: string,
-  ) => {
+  const renderMultiselectField = (field: FormField, hasError: boolean) => {
     const multiselectOptions = Array.isArray(field.options)
       ? field.options
       : (asyncOptions[field.name] ?? []);
@@ -657,10 +654,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
     return (
       <div>
-        <label htmlFor={field.name} className={labelClasses}>
+        <FieldLabel
+          htmlFor={field.name}
+          required={field.required}
+          invalid={hasError}
+          className="mb-1.5 text-xs"
+        >
           {field.label}
-          {field.required && "*"}
-        </label>
+        </FieldLabel>
 
         {selectedValues.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">
@@ -730,7 +731,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
     const hasError = errorPath.fieldError(field.name) !== undefined;
 
     const baseInputClasses = `w-full rounded-lg border ${hasError ? "border-moto-red/40" : "border-gray-300"} px-3 py-2 md:px-4 md:py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-moto-blue focus:outline-none`;
-    const labelClasses = `mb-1.5 block text-xs font-medium ${hasError ? "text-moto-red" : "text-gray-700"}`;
 
     switch (field.type) {
       case "custom": {
@@ -784,10 +784,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
       case "textarea":
         return (
           <div>
-            <label htmlFor={field.name} className={labelClasses}>
+            <FieldLabel
+              htmlFor={field.name}
+              required={field.required}
+              invalid={hasError}
+              className="mb-1.5 text-xs"
+            >
               {field.label}
-              {field.required && "*"}
-            </label>
+            </FieldLabel>
             <textarea
               id={field.name}
               name={field.name}
@@ -806,10 +810,10 @@ export function DatabaseForm<T = Record<string, unknown>>({
         );
 
       case "select":
-        return renderSelectField(field, hasError, labelClasses);
+        return renderSelectField(field, hasError);
 
       case "multiselect":
-        return renderMultiselectField(field, hasError, labelClasses);
+        return renderMultiselectField(field, hasError);
 
       case "number": {
         // Handle both number and empty string values
@@ -824,10 +828,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
         return (
           <div>
-            <label htmlFor={field.name} className={labelClasses}>
+            <FieldLabel
+              htmlFor={field.name}
+              required={field.required}
+              invalid={hasError}
+              className="mb-1.5 text-xs"
+            >
               {field.label}
-              {field.required && "*"}
-            </label>
+            </FieldLabel>
             <input
               type="number"
               id={field.name}
@@ -859,10 +867,14 @@ export function DatabaseForm<T = Record<string, unknown>>({
       default:
         return (
           <div>
-            <label htmlFor={field.name} className={labelClasses}>
+            <FieldLabel
+              htmlFor={field.name}
+              required={field.required}
+              invalid={hasError}
+              className="mb-1.5 text-xs"
+            >
               {field.label}
-              {field.required && "*"}
-            </label>
+            </FieldLabel>
             <input
               type={field.type}
               id={field.name}

@@ -12,6 +12,7 @@ import {
 } from "react";
 import { Plus, X } from "lucide-react";
 import { Button } from "~/components/ui/button";
+import { FieldLabel } from "~/components/ui/field-label";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -300,10 +301,13 @@ export function FileUploadInput({
 
   return (
     <div>
-      <span className="block text-sm font-semibold text-gray-700">
+      <FieldLabel
+        required={field.required}
+        invalid={Boolean(error)}
+        className="mb-0"
+      >
         {field.label}
-        {field.required && <span className="text-moto-red"> *</span>}
-      </span>
+      </FieldLabel>
       {field.help_text && (
         <span className="mt-1 block text-xs leading-5 text-gray-500">
           {field.help_text}

@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.communication.parent_group_threads.list",
+  "max": 1,
+  "exact": true,
+  "description": "The group threads (#4784): the OGS list and a guardian's list read the\nthreads with their newest message, counts and read state in one\nstatement each, however many threads exist."
+}

@@ -259,3 +259,43 @@ describe("SettingsField with a colour", () => {
     expect(screen.getByLabelText("Farbe als Farbcode")).toHaveValue("#12");
   });
 });
+
+describe("SettingsField with colour presets", () => {
+  it("offers the presets of the setting and saves the picked one", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(
+      <ToastProvider>
+        <SettingsField
+          setting={makeSetting({
+            key: "branding.primary_color",
+            label: "Farbe für Briefe und Rechnungen",
+            type: "color",
+            default: "#111827",
+            value: "#111827",
+            levels: "traeger",
+            options: {
+              static: [
+                { label: "Schwarz", value: "#111827" },
+                { label: "Dunkelblau", value: "#1F4E79" },
+              ],
+            },
+          })}
+          audience="traeger"
+          onSave={onSave}
+          onReset={vi.fn().mockResolvedValue(undefined)}
+        />
+      </ToastProvider>,
+    );
+
+    expect(screen.getByRole("radio", { name: "Schwarz" })).toBeChecked();
+    expect(screen.queryByLabelText(/als Farbcode/)).not.toBeInTheDocument();
+
+    const darkBlue = screen.getByRole("radio", { name: "Dunkelblau" });
+    fireEvent.click(darkBlue);
+    fireEvent.blur(darkBlue);
+
+    await waitFor(() =>
+      expect(onSave).toHaveBeenCalledWith("branding.primary_color", "#1F4E79"),
+    );
+  });
+});

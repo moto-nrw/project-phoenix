@@ -8,6 +8,8 @@ import { Alert } from "~/components/ui/alert";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { Button } from "~/components/ui/button";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { authService } from "~/lib/auth-service";
 import { toAssignableRoleOptions, type RoleOption } from "~/lib/auth-helpers";
@@ -383,13 +385,14 @@ export function InvitationForm({
         ) : null}
 
         <div>
-          <label
+          <FieldLabel
             id="invitation-role-label"
             htmlFor="invitation-role"
-            className={`mb-1 block text-sm font-medium ${roleError ? "text-moto-red-strong" : "text-gray-700"}`}
+            required
+            invalid={Boolean(roleError)}
           >
             Rolle
-          </label>
+          </FieldLabel>
           <CustomSelect
             id="invitation-role"
             name="role_id"
@@ -430,18 +433,12 @@ export function InvitationForm({
         </div>
 
         <div>
-          <label
-            htmlFor="invitation-position"
-            className="mb-1 block text-sm font-medium text-gray-700"
-          >
-            Position (optional)
-          </label>
-          <input
+          <Input
             type="text"
             id="invitation-position"
             name="position"
+            label="Position (optional)"
             list="invitation-position-suggestions"
-            className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 transition-colors focus:border-gray-400 focus:ring-2 focus:ring-gray-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-500"
             value={form.position ?? ""}
             onChange={(event) =>
               handleChange("position")(event.target.value || undefined)
@@ -458,18 +455,20 @@ export function InvitationForm({
           )}
         </div>
 
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          size="md"
           data-setup-tour="invite-submit"
           disabled={isSubmitting || isLoadingRoles || checkingAddress}
-          className="w-full rounded-xl bg-gray-900 py-2.5 text-sm font-semibold text-white transition-all duration-200 hover:bg-gray-800 active:scale-98 disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full py-2.5 font-semibold disabled:cursor-not-allowed"
         >
           {isSubmitting
             ? "Wird gesendet…"
             : checkingAddress
               ? "Adresse wird geprüft…"
               : "Einladung senden"}
-        </button>
+        </Button>
       </form>
     </div>
   );

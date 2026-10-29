@@ -9,6 +9,8 @@ import Image from "next/image";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import {
   credentialError,
   LOGIN_REFUSALS,
@@ -22,7 +24,6 @@ import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClass,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { MFAChallengeForm } from "~/components/auth/mfa-challenge-form";
@@ -573,48 +574,36 @@ function LoginForm() {
 
               <div className="space-y-4">
                 <div className="text-left">
-                  <label
-                    htmlFor="email"
-                    className="mb-1 block text-sm font-medium text-gray-700"
-                  >
-                    E-Mail-Adresse
-                  </label>
-                  <input
+                  <Input
                     id="email"
                     name="email"
                     type="email"
+                    label="E-Mail-Adresse"
+                    controlSize="compact"
                     data-testid="input-email"
                     autoComplete="username"
                     required
                     disabled={isSubmitting}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    aria-invalid={Boolean(formErrors.fieldError("email"))}
-                    aria-describedby={
-                      formErrors.fieldError("email") ? "email-error" : undefined
-                    }
-                    className={authInputClass(
-                      Boolean(formErrors.fieldError("email")),
-                    )}
-                  />
-                  <AuthFieldError
-                    id="email-error"
-                    message={formErrors.fieldError("email")}
+                    error={formErrors.fieldError("email")}
                   />
                 </div>
 
                 <div className="text-left">
-                  <label
+                  <FieldLabel
                     htmlFor="password"
-                    className="mb-1 block text-sm font-medium text-gray-700"
+                    required
+                    invalid={Boolean(formErrors.fieldError("password"))}
                   >
                     Passwort
-                  </label>
+                  </FieldLabel>
                   <div className="relative">
-                    <input
+                    <Input
                       id="password"
                       name="password"
                       type={showPassword ? "text" : "password"}
+                      controlSize="compact"
                       data-testid="input-password"
                       autoComplete="current-password"
                       required
@@ -627,7 +616,7 @@ function LoginForm() {
                           ? "password-error"
                           : undefined
                       }
-                      className={`${authInputClass(Boolean(formErrors.fieldError("password")))} pr-10`}
+                      className="pr-10"
                     />
                     <PasswordToggleButton
                       showPassword={showPassword}

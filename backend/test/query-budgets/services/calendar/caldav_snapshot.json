@@ -1,0 +1,6 @@
+{
+  "scenario": "services.calendar.caldav_snapshot",
+  "max": 24,
+  "exact": false,
+  "description": "modules/schoolcalendar/portal — one authenticated CalDAV snapshot. The operation\nresolves the capability owner once, then batch-loads the shared personal\ncalendar projection regardless of the number of returned VEVENTs."
+}

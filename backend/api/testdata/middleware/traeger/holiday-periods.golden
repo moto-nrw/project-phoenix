@@ -1,0 +1,23 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TraegerScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions.# > api/common.TraegerTxMiddleware
+	DELETE /traeger/holiday-periods/{id}/form/documents/{documentId}
+	GET /traeger/holiday-periods/
+	GET /traeger/holiday-periods/{id}
+	GET /traeger/holiday-periods/{id}/form
+	GET /traeger/holiday-periods/{id}/form/documents/{documentId}
+	GET /traeger/holiday-periods/{id}/registrations
+	GET /traeger/holiday-periods/{id}/registrations/{registrationId}
+	POST /traeger/holiday-periods/
+	POST /traeger/holiday-periods/{id}/form/documents
+	POST /traeger/holiday-periods/{id}/publish
+	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/cancel
+	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/freeze
+	POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
+	PUT /traeger/holiday-periods/{id}
+	PUT /traeger/holiday-periods/{id}/form
+	PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.TraegerScopeMiddleware > api.SecurityPrincipalMiddleware > api/common.requirePermissions.# > modules/enrollment/http.(*HolidayPeriodResource).withSchoolNames-fm > api/common.TraegerTxMiddleware
+	GET /traeger/holiday-periods/{id}/registrations/export

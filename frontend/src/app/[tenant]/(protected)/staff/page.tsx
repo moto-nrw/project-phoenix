@@ -8,6 +8,8 @@ import { CollectionGrid } from "~/components/ui/collection-grid";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { TileCard } from "~/components/ui/tile-card";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { formatDate } from "~/lib/date-helpers";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { EmptyState } from "~/components/ui/empty-state";
 import type { FormErrorInput } from "~/components/ui/form-error";
@@ -1128,6 +1130,14 @@ function StaffPageContent() {
                                   label={locationStatus.label}
                                   color={locationStatus.customBgColor}
                                 />
+                                {/* Geplanter Austritt (#4809): bis zum letzten
+                                Arbeitstag arbeitet die Person normal. */}
+                                {staffMember.plannedExitDate ? (
+                                  <StatusBadge
+                                    label={`Austritt am ${formatDate(staffMember.plannedExitDate)}`}
+                                    tone="orange"
+                                  />
+                                ) : null}
                               </span>
                             </div>
 

@@ -3,6 +3,7 @@
 import { useId } from "react";
 import { Button } from "@/components/ui/button";
 import { ColorSwatchInput } from "@/components/ui/color-swatch-input";
+import { FieldLabel } from "@/components/ui/field-label";
 import { LOCATION_COLORS } from "@/lib/location-helper";
 
 /**
@@ -47,13 +48,13 @@ export function CatalogColorField(props: {
 
   return (
     <div>
-      <label
+      <FieldLabel
         htmlFor={inputId}
-        className="mb-1.5 block text-xs font-medium text-gray-700"
+        required={required}
+        className="mb-1.5 text-xs"
       >
         {label}
-        {required && "*"}
-      </label>
+      </FieldLabel>
       <div className="flex items-center gap-3">
         <ColorSwatchInput
           id={inputId}

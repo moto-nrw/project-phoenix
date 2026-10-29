@@ -92,7 +92,7 @@ func (m *TraegerMasterData) ReplaceLogo(ctx context.Context, organizationID, acc
 		return organizationtenancy.TraegerLogo{}, err
 	}
 	logo, err := m.store.SaveLogo(ctx, organizationID, accountID, domain.TraegerLogoWrite{
-		ContentType: checked.ContentType, Data: data, Width: checked.Width, Height: checked.Height,
+		ContentType: checked.ContentType, Data: checked.Data, Width: checked.Width, Height: checked.Height,
 	})
 	if err != nil {
 		return organizationtenancy.TraegerLogo{}, err

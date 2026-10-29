@@ -87,14 +87,16 @@ type HolidayRegistrationOffer struct {
 	Notes                string
 	Weeks                []HolidayWeek
 	Open                 bool
+	// Form is the current version of the period's form (#5198).
+	Form HolidayPeriodForm
 }
 
-// HolidayGuardianInput is the parent who registers.
+// HolidayGuardianInput holds the registering or optional second guardian’s contact details.
 type HolidayGuardianInput struct {
-	FirstName string
-	LastName  string
-	Email     string
-	Phone     string
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+	Phone     string `json:"phone"`
 }
 
 // HolidayBookingInput is the time model a child books in one week.
@@ -115,6 +117,9 @@ type HolidayChildInput struct {
 	Medication      string
 	HealthNotes     string
 	Bookings        []HolidayBookingInput
+	// CustomData are the answers to the questions of the form per child
+	// (#5198), by field key.
+	CustomData HolidayAnswers
 }
 
 // HolidayContactInput is an emergency contact or a person allowed to
@@ -129,9 +134,12 @@ type HolidayContactInput struct {
 // PrivacyConsent is always required, HealthConsent whenever a child carries
 // health information and BindingConfirmed when the period is binding.
 // BenefitsDeclared states that the family receives benefits (#4664); the
-// Träger-Büro checks it before it applies an exemption.
+// Träger-Büro checks it before it applies an exemption. FormVersion names
+// the version of the period's form the parent filled in (0 when the client
+// does not say); CustomData are the answers per family (#5198).
 type HolidayRegistrationInput struct {
 	Guardian          HolidayGuardianInput
+	SecondGuardian    *HolidayGuardianInput
 	Children          []HolidayChildInput
 	EmergencyContacts []HolidayContactInput
 	PickupPersons     []HolidayContactInput
@@ -139,6 +147,9 @@ type HolidayRegistrationInput struct {
 	HealthConsent     bool
 	BindingConfirmed  bool
 	BenefitsDeclared  bool
+	FormVersion       int
+	CustomData        HolidayAnswers
+	LegalAcceptances  map[string]bool
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -152,6 +163,7 @@ type HolidayRegistrationReceipt struct {
 // ResolveHolidayRegistrationLink runs in the administrative transaction,
 // every other operation in the Träger transaction of the link's Träger.
 type HolidayRegistrations interface {
+	PublicHolidayFormDocument(context.Context, HolidayRegistrationLink, string) (HolidayFormDocument, error)
 	ResolveHolidayRegistrationLink(ctx context.Context, token string) (HolidayRegistrationLink, error)
 	HolidayRegistrationOffer(ctx context.Context, link HolidayRegistrationLink) (HolidayRegistrationOffer, error)
 	// CountHolidayRegistrationAttempt counts one attempt per IP address and
