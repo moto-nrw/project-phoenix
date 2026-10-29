@@ -11,6 +11,7 @@
  */
 
 import "server-only";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
@@ -42,6 +43,10 @@ export const operatorAuthConfig = {
       },
       async authorize(credentials, request) {
         const creds = credentials as Record<string, string> | undefined;
+        // HTTP credentials cannot create a session from caller-supplied tokens.
+        // Only the BFF's in-process mutation context may use this seed path.
+        if (creds?.internalRefresh === "true" && !isServerSessionMutation())
+          return null;
         const isDev = process.env.NODE_ENV === "development";
 
         // Handle internal token refresh
