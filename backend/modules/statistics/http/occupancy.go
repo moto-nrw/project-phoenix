@@ -11,8 +11,9 @@ import (
 
 type occupancySlotResponse struct {
 	Start          string   `json:"start"`
-	PlannedAverage float64  `json:"planned_average"`
-	PlannedMax     int      `json:"planned_max"`
+	End            string   `json:"end"`
+	PlannedAverage *float64 `json:"planned_average"`
+	PlannedMax     *int     `json:"planned_max"`
 	ActualAverage  *float64 `json:"actual_average"`
 	ActualMax      *int     `json:"actual_max"`
 }
@@ -31,6 +32,8 @@ type occupancyResponse struct {
 	UntimedPlanDays int                        `json:"untimed_plan_days"`
 	ActualDataDays  int                        `json:"actual_data_days"`
 	ActualDataFrom  string                     `json:"actual_data_from"`
+	PlanDataDays    int                        `json:"plan_data_days"`
+	PlanDataFrom    string                     `json:"plan_data_from"`
 }
 
 func toOccupancyResponse(occupancy *studentpresence.StatisticsOccupancy) *occupancyResponse {
@@ -43,6 +46,8 @@ func toOccupancyResponse(occupancy *studentpresence.StatisticsOccupancy) *occupa
 		UntimedPlanDays: occupancy.UntimedPlanDays,
 		ActualDataDays:  occupancy.ActualDataDays,
 		ActualDataFrom:  occupancy.ActualDataFrom.String(),
+		PlanDataDays:    occupancy.PlanDataDays,
+		PlanDataFrom:    occupancy.PlanDataFrom.String(),
 	}
 	for _, weekday := range occupancy.Weekdays {
 		row := occupancyWeekdayResponse{
@@ -52,6 +57,7 @@ func toOccupancyResponse(occupancy *studentpresence.StatisticsOccupancy) *occupa
 		for _, slot := range weekday.Slots {
 			row.Slots = append(row.Slots, occupancySlotResponse{
 				Start:          formatSlotStart(slot.StartMinute),
+				End:            formatSlotStart(slot.StartMinute + occupancy.SlotMinutes),
 				PlannedAverage: slot.PlannedAverage,
 				PlannedMax:     slot.PlannedMax,
 				ActualAverage:  slot.ActualAverage,

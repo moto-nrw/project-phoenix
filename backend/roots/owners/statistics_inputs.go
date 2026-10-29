@@ -145,21 +145,9 @@ func (a StatisticsPlannedCareDays) PlannedCareDays(ctx context.Context, studentI
 	for studentID, days := range values {
 		byDate := make(map[timezone.Date]studentpresence.PlannedCareDay, len(days))
 		for date, day := range days {
-			byDate[date] = studentpresence.PlannedCareDay{
-				Expected: day.Status.Expected(),
-				Arrival:  wallClockOf(day.Arrival),
-				Pickup:   wallClockOf(day.Pickup),
-			}
+			byDate[date] = studentpresence.PlannedCareDay{Expected: day.Status.Expected(), Arrival: day.Arrival, Pickup: day.Pickup}
 		}
 		result[studentID] = byDate
 	}
 	return result, nil
-}
-
-func wallClockOf(t *time.Time) *timezone.WallClock {
-	if t == nil {
-		return nil
-	}
-	clock := timezone.WallClockFromTime(*t)
-	return &clock
 }

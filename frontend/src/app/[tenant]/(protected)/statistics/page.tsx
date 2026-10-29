@@ -189,16 +189,16 @@ export default function StatisticsPage() {
       .then((report) => {
         if (cancelled) return;
         setData(report);
-        if (groupIds.length === 0 && schoolClasses.length === 0)
+        // Die Auswahl der Filter kommt aus dem ungefilterten Bericht. Klassen
+        // stammen aus den Kindern; Kinder ohne Klasse haben keinen Eintrag.
+        if (groupIds.length === 0 && schoolClasses.length === 0) {
           setAvailableGroups(report.groups);
-        // Klassen kommen aus den Kindern des ungefilterten Berichts; Kinder
-        // ohne Klasse haben keinen Eintrag.
-        if (groupIds.length === 0 && schoolClasses.length === 0)
           setAvailableClasses([
             ...new Set(
               report.students.map((st) => st.school_class).filter(Boolean),
             ),
           ]);
+        }
       })
       .catch((error: unknown) => {
         if (cancelled) return;
@@ -239,6 +239,8 @@ export default function StatisticsPage() {
   useEffect(() => {
     if (view !== "occupancy" || !fromISO || !toISO) return;
     let cancelled = false;
+    // Alte Zahlen gelten nicht für den neuen Filter: sofort weg damit.
+    setOccupancy(null);
     setOccupancyLoading(true);
     clearOccupancyError();
     fetchStatisticsReport(fromISO, toISO, filter, ["occupancy"])
@@ -756,7 +758,7 @@ export default function StatisticsPage() {
     },
     occupancy: {
       title: "Kinder nach Uhrzeit",
-      hint: "So viele Kinder sind in jeder halben Stunde da, auch wenn nur kurz. Bei „Geplant“ zählen kranke, entschuldigte Kinder und „Kommt heute nicht“ nicht mit.",
+      hint: "So viele Kinder sind in jeder halben Stunde da, auch wenn nur kurz. Bei „Geplant“ zählen kranke und entschuldigte Kinder nicht mit, Kinder mit „Kommt heute nicht“ auch nicht.",
     },
     rooms: {
       title: "Räume",

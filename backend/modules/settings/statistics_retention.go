@@ -50,6 +50,13 @@ func (r StatisticsRetention) AttendanceRetentionDays(ctx context.Context) (int, 
 	return NewAttendanceRetention(r.source).Days(ctx)
 }
 
+// StatusDayRetentionDays caps the planned values of the occupancy by time of
+// day (#4764): without the sick and excused days the plan would count absent
+// children.
+func (r StatisticsRetention) StatusDayRetentionDays(ctx context.Context) (int, error) {
+	return NewStatusDayRetention(r.source).Days(ctx)
+}
+
 // StatusDayRetention is the retention window of the student status days
 // (sick and excused days), the tenant's GDPR status day retention.
 type StatusDayRetention struct{ source StatisticsRetentionSource }

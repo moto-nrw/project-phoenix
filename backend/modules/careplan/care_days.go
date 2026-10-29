@@ -2,7 +2,6 @@ package careplan
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -20,13 +19,12 @@ type CareDayQuery interface {
 }
 
 // PlannedCareDay is the care-day verdict with the planned clock times of the
-// day. Arrival and Pickup are wall-clock values (only hour and minute carry
-// meaning) and nil where the plan names no time — always nil for a day the
-// child is not expected.
+// day. Arrival and Pickup are nil where the plan names no time — always nil
+// for a day the child is not expected.
 type PlannedCareDay struct {
 	Status  CareDayStatus
-	Arrival *time.Time
-	Pickup  *time.Time
+	Arrival *calendar.WallClock
+	Pickup  *calendar.WallClock
 }
 
 // CareDayStatus is the derived per-child, per-day care-plan verdict.

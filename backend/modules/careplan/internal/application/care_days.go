@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
@@ -82,12 +83,21 @@ func plannedCareDay(facts careplan.CareDayFacts, participating bool) careplan.Pl
 		return day
 	}
 	if facts.Arrival != nil {
-		day.Arrival = facts.Arrival.ArrivalTime
+		day.Arrival = wallClockOf(facts.Arrival.ArrivalTime)
 	}
 	if facts.Pickup != nil {
-		day.Pickup = facts.Pickup.PickupTime
+		day.Pickup = wallClockOf(facts.Pickup.PickupTime)
 	}
 	return day
+}
+
+// wallClockOf keeps only the time of day of a scanned TIME value.
+func wallClockOf(t *time.Time) *calendar.WallClock {
+	if t == nil {
+		return nil
+	}
+	clock := calendar.WallClockFromTime(*t)
+	return &clock
 }
 
 var _ careplan.CareDayQuery = (*CareDayQueries)(nil)

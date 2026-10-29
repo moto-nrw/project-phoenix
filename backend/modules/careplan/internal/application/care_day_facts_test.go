@@ -393,8 +393,8 @@ func TestResolvePlannedForRangeCarriesTimesOnlyForExpectedDays(t *testing.T) {
 	assert.Equal(t, careplan.CareDayScheduled, coming.Status)
 	require.NotNil(t, coming.Arrival)
 	require.NotNil(t, coming.Pickup)
-	assert.Equal(t, arrival, *coming.Arrival)
-	assert.Equal(t, pickup, *coming.Pickup)
+	assert.Equal(t, calendar.WallClockFromTime(arrival), *coming.Arrival)
+	assert.Equal(t, calendar.WallClockFromTime(pickup), *coming.Pickup)
 
 	assert.Equal(t, careplan.PlannedCareDay{Status: careplan.CareDayCancelled}, out[cancelledID][careDayMonday])
 	assert.Equal(t, careplan.PlannedCareDay{Status: careplan.CareDayNotScheduled}, out[withdrawnID][careDayMonday])

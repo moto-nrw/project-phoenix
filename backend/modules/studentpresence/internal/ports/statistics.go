@@ -108,6 +108,8 @@ type StatisticsRetention interface {
 	CourseRetentionDays(context.Context) (int, error)
 	// AttendanceRetentionDays is gdpr.attendance_retention_days.
 	AttendanceRetentionDays(context.Context) (int, error)
+	// StatusDayRetentionDays is gdpr.status_day_retention_days.
+	StatusDayRetentionDays(context.Context) (int, error)
 }
 
 type PlannedCareDay = studentpresence.PlannedCareDay

@@ -30,9 +30,11 @@ type PlannedCareDay struct {
 type StatisticsOccupancySlot struct {
 	StartMinute int
 	// PlannedAverage is the mean planned head count over the weekday's care
-	// days, PlannedMax the largest of them.
-	PlannedAverage float64
-	PlannedMax     int
+	// days, PlannedMax the largest of them. Both are nil when no care day of
+	// the weekday lies inside the status-day retention window: without the
+	// sick and excused days the plan would count absent children.
+	PlannedAverage *float64
+	PlannedMax     *int
 	// ActualAverage and ActualMax are nil when no care day of the weekday lies
 	// inside the attendance retention window.
 	ActualAverage *float64
@@ -44,7 +46,9 @@ type StatisticsOccupancySlot struct {
 type StatisticsOccupancyWeekday struct {
 	Weekday int
 	// PlanDays is how many care days of this weekday the plan values cover,
-	// ActualDays how many of them still have attendance data.
+	// ActualDays how many have attendance data. Each stops at its retention
+	// cutoff; in a period, today counts for neither actual value until it is
+	// over.
 	PlanDays   int
 	ActualDays int
 	Slots      []StatisticsOccupancySlot
@@ -63,4 +67,8 @@ type StatisticsOccupancy struct {
 	// ActualDataFrom may already be deleted, so the actual values stop there.
 	ActualDataDays int
 	ActualDataFrom calendar.Date
+	// PlanDataDays is gdpr.status_day_retention_days; sick and excused days
+	// before PlanDataFrom may already be deleted, so the plan values stop there.
+	PlanDataDays int
+	PlanDataFrom calendar.Date
 }

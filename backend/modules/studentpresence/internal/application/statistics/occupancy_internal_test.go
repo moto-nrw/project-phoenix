@@ -60,12 +60,12 @@ func TestBuildOccupancy_SlotBoundaries(t *testing.T) {
 	day := out.Weekdays[0]
 	assert.Equal(t, 3, day.Weekday)
 	assert.Equal(t, 1, day.PlanDays)
-	assert.Equal(t, 0, slotAt(t, day, 7, 0).PlannedMax)
-	assert.Equal(t, 1, slotAt(t, day, 7, 30).PlannedMax, "07:45 arrival counts from the 07:30 slot on")
-	assert.Equal(t, 2, slotAt(t, day, 8, 0).PlannedMax)
-	assert.Equal(t, 1, slotAt(t, day, 8, 30).PlannedMax, "a pickup at 08:30 ends before the 08:30 slot")
-	assert.Equal(t, 1, slotAt(t, day, 15, 30).PlannedMax)
-	assert.Equal(t, 0, slotAt(t, day, 16, 0).PlannedMax, "a pickup at 16:00 does not count at 16:00")
+	assert.Equal(t, 0, *slotAt(t, day, 7, 0).PlannedMax)
+	assert.Equal(t, 1, *slotAt(t, day, 7, 30).PlannedMax, "07:45 arrival counts from the 07:30 slot on")
+	assert.Equal(t, 2, *slotAt(t, day, 8, 0).PlannedMax)
+	assert.Equal(t, 1, *slotAt(t, day, 8, 30).PlannedMax, "a pickup at 08:30 ends before the 08:30 slot")
+	assert.Equal(t, 1, *slotAt(t, day, 15, 30).PlannedMax)
+	assert.Equal(t, 0, *slotAt(t, day, 16, 0).PlannedMax, "a pickup at 16:00 does not count at 16:00")
 	assert.Equal(t, 7*60, day.Slots[0].StartMinute, "default axis starts at 07:00")
 	assert.Equal(t, 16*60+30, day.Slots[len(day.Slots)-1].StartMinute, "default axis ends with the 16:30 slot")
 }
@@ -120,13 +120,13 @@ func TestBuildOccupancy_ExceptionsDoNotCountAsPlanned(t *testing.T) {
 		actualFrom: wed,
 		today:      wed,
 	})
-	assert.Equal(t, 1, slotAt(t, out.Weekdays[0], 10, 0).PlannedMax, "only child 6 is planned")
+	assert.Equal(t, 1, *slotAt(t, out.Weekdays[0], 10, 0).PlannedMax, "only child 6 is planned")
 	assert.Equal(t, 2, out.UntimedPlanDays, "missing pickup and pickup before arrival")
 }
 
-// Actual values: several rows of one child count once, an open row on today
-// runs until now, an open row of an earlier day only fills its check-in slot,
-// a row of a non-care day is ignored.
+// Actual values: several rows of one child count once, an open row of an
+// earlier day only fills its check-in slot, a row of a non-care day is
+// ignored. (Today's live window: TestBuildOccupancy_PeriodLeavesTodayOutOfActual.)
 func TestBuildOccupancy_ActualWindows(t *testing.T) {
 	t.Parallel()
 	mon := calendar.NewDate(2026, 8, 17)
@@ -147,16 +147,37 @@ func TestBuildOccupancy_ActualWindows(t *testing.T) {
 			{StudentID: 3, Date: sat, CheckInTime: berlinAt(sat, 9, 0), CheckOutTime: checkout(sat, 12, 0)},
 		},
 		actualFrom: mon,
-		today:      tue,
-		now:        berlinAt(tue, 13, 5),
+		today:      calendar.NewDate(2026, 8, 25),
 	})
-	require.Len(t, out.Weekdays, 2)
+	require.Len(t, out.Weekdays, 2, "the Saturday row is no care day")
 	monday, tuesday := out.Weekdays[0], out.Weekdays[1]
 	assert.Equal(t, 1, *slotAt(t, monday, 8, 30).ActualMax, "overlapping rows of one child count once")
 	assert.Equal(t, 1, *slotAt(t, monday, 12, 0).ActualMax, "open row of an earlier day fills its check-in slot")
 	assert.Equal(t, 0, *slotAt(t, monday, 12, 30).ActualMax)
-	assert.Equal(t, 1, *slotAt(t, tuesday, 13, 0).ActualMax, "open row of today runs until now")
-	assert.Equal(t, 0, *slotAt(t, tuesday, 13, 30).ActualMax)
+	assert.Equal(t, 1, *slotAt(t, tuesday, 11, 0).ActualMax)
+	assert.Equal(t, 0, *slotAt(t, tuesday, 11, 30).ActualMax)
+}
+
+// Days before the status-day retention cutoff carry no plan values: without
+// their sick days the plan would count absent children.
+func TestBuildOccupancy_PlanStopsAtStatusDayRetention(t *testing.T) {
+	t.Parallel()
+	mon1 := calendar.NewDate(2026, 8, 10)
+	mon2 := calendar.NewDate(2026, 8, 17)
+	plan := ports.PlannedCareDay{Expected: true, Arrival: clock(t, 8, 0), Pickup: clock(t, 15, 0)}
+	out := buildOccupancy(occupancyInputs{
+		students:   []*ports.StatisticsStudent{occupancyStudent(1, "")},
+		careDays:   map[calendar.Date]bool{mon1: true, mon2: true},
+		planned:    map[int64]map[calendar.Date]ports.PlannedCareDay{1: {mon1: plan, mon2: plan}},
+		planFrom:   calendar.NewDate(2026, 8, 15),
+		actualFrom: calendar.NewDate(2026, 8, 25),
+		today:      calendar.NewDate(2026, 8, 25),
+	})
+	monday := out.Weekdays[0]
+	assert.Equal(t, 1, monday.PlanDays)
+	assert.Equal(t, 0, monday.ActualDays)
+	assert.InDelta(t, 1.0, *slotAt(t, monday, 9, 0).PlannedAverage, 0.001)
+	assert.Nil(t, slotAt(t, monday, 9, 0).ActualAverage, "no attendance kept for these days")
 }
 
 // Days before the attendance retention cutoff carry no actual values: the
@@ -264,10 +285,10 @@ func TestReport_OccupancyAcrossHolidays(t *testing.T) {
 	monday := occupancy.Weekdays[0]
 	assert.Equal(t, 1, monday.Weekday)
 	assert.Equal(t, 2, monday.PlanDays, "the holiday Monday is no care day")
-	assert.InDelta(t, 1.5, slotAt(t, monday, 8, 0).PlannedAverage, 0.001, "child 2 comes at 12:00 on the second Monday")
-	assert.Equal(t, 2, slotAt(t, monday, 8, 0).PlannedMax)
-	assert.InDelta(t, 1.5, slotAt(t, monday, 11, 30).PlannedAverage, 0.001)
-	assert.InDelta(t, 2.0, slotAt(t, monday, 12, 0).PlannedAverage, 0.001)
+	assert.InDelta(t, 1.5, *slotAt(t, monday, 8, 0).PlannedAverage, 0.001, "child 2 comes at 12:00 on the second Monday")
+	assert.Equal(t, 2, *slotAt(t, monday, 8, 0).PlannedMax)
+	assert.InDelta(t, 1.5, *slotAt(t, monday, 11, 30).PlannedAverage, 0.001)
+	assert.InDelta(t, 2.0, *slotAt(t, monday, 12, 0).PlannedAverage, 0.001)
 	assert.Equal(t, 365, occupancy.ActualDataDays)
 	assert.Equal(t, calendar.NewDate(2025, 8, 25), occupancy.ActualDataFrom)
 
@@ -275,4 +296,36 @@ func TestReport_OccupancyAcrossHolidays(t *testing.T) {
 	assert.Equal(t, from.String(), attendance.filters[0].FromDate)
 	assert.ElementsMatch(t, []int64{1, 2}, attendance.filters[0].StudentIDs, "the class filter narrows the attendance read")
 	assert.Nil(t, report.Students, "the attendance table was not asked for")
+}
+
+// In a period that ends today, today's attendance is still running: an
+// afternoon slot would count 0 for today and pull the average down. Only a
+// single-day report of today shows its live numbers.
+func TestBuildOccupancy_PeriodLeavesTodayOutOfActual(t *testing.T) {
+	t.Parallel()
+	lastMon := calendar.NewDate(2026, 8, 17)
+	today := calendar.NewDate(2026, 8, 24) // Monday
+	row := func(day calendar.Date) *ports.Attendance {
+		return &ports.Attendance{StudentID: 1, Date: day, CheckInTime: berlinAt(day, 8, 0), CheckOutTime: ptrTime(berlinAt(day, 16, 0))}
+	}
+	open := &ports.Attendance{StudentID: 1, Date: today, CheckInTime: berlinAt(today, 8, 0)}
+	in := occupancyInputs{
+		students:   []*ports.StatisticsStudent{occupancyStudent(1, "")},
+		careDays:   map[calendar.Date]bool{lastMon: true, today: true},
+		attendance: []*ports.Attendance{row(lastMon), open},
+		actualFrom: lastMon.AddDays(-30),
+		today:      today,
+		now:        berlinAt(today, 10, 0),
+	}
+	monday := buildOccupancy(in).Weekdays[0]
+	assert.Equal(t, 2, monday.PlanDays)
+	assert.Equal(t, 1, monday.ActualDays, "today is not complete yet")
+	assert.InDelta(t, 1.0, *slotAt(t, monday, 14, 0).ActualAverage, 0.001)
+
+	in.careDays = map[calendar.Date]bool{today: true}
+	in.singleDay = true
+	day := buildOccupancy(in).Weekdays[0]
+	assert.Equal(t, 1, day.ActualDays, "a report of today alone shows the live numbers")
+	assert.Equal(t, 1, *slotAt(t, day, 9, 30).ActualMax)
+	assert.Equal(t, 0, *slotAt(t, day, 14, 0).ActualMax)
 }

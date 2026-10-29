@@ -19,6 +19,7 @@ function weekday(
     slots: [
       {
         start: "13:00",
+        end: "13:30",
         planned_average: planned,
         planned_max: Math.ceil(planned),
         actual_average: actual,
@@ -36,6 +37,8 @@ function occupancy(
     untimed_plan_days: 0,
     actual_data_days: 365,
     actual_data_from: "2025-01-01",
+    plan_data_days: 365,
+    plan_data_from: "2025-01-01",
     weekdays: [weekday(1, 12, 10)],
     ...overrides,
   };
@@ -94,7 +97,7 @@ describe("OccupancySection", () => {
     );
     expect(
       screen.getByText(
-        "Anwesenheiten werden 30 Tage aufbewahrt. Für diese Tage gibt es nur noch die geplanten Zahlen.",
+        "Anwesenheiten werden 30 Tage aufbewahrt. Für diese Tage gibt es keine Zahlen bei „Da“ mehr.",
       ),
     ).toBeVisible();
     expect(
@@ -103,6 +106,30 @@ describe("OccupancySection", () => {
       ),
     ).toBeVisible();
     expect(screen.getAllByText("–").length).toBeGreaterThan(0);
+  });
+
+  it("nennt beide Tageszahlen, wenn „Da“ aus weniger Tagen stammt", () => {
+    render(
+      <OccupancySection
+        occupancy={occupancy({
+          weekdays: [{ ...weekday(1, 6, 4), plan_days: 3, actual_days: 2 }],
+          plan_data_days: 30,
+          plan_data_from: "2026-08-10",
+        })}
+        fromISO="2026-08-01"
+        toISO="2026-08-31"
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Montag: Durchschnitt aus 3 Betreuungstagen, bei „Da“ aus 2",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        "Krankmeldungen und Entschuldigungen werden 30 Tage aufbewahrt. „Geplant“ zählt erst ab 10.08.2026.",
+      ),
+    ).toBeVisible();
   });
 
   it("erklärt einen Zeitraum ohne Betreuungstag", () => {

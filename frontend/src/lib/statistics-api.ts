@@ -73,10 +73,12 @@ export interface StatisticsCourseStudentRow {
 
 /** Eine halbe Stunde der Belegung nach Uhrzeit (#4764). */
 export interface StatisticsOccupancySlot {
-  /** Beginn als "HH:MM" (Berliner Zeit). */
+  /** Beginn und Ende als "HH:MM" (Berliner Zeit). */
   start: string;
-  planned_average: number;
-  planned_max: number;
+  end: string;
+  /** null, wenn für diesen Wochentag keine Krankmeldungen mehr gespeichert sind. */
+  planned_average: number | null;
+  planned_max: number | null;
   /** null, wenn für diesen Wochentag keine Anwesenheiten mehr gespeichert sind. */
   actual_average: number | null;
   actual_max: number | null;
@@ -96,6 +98,8 @@ export interface StatisticsOccupancy {
   untimed_plan_days: number;
   actual_data_days: number;
   actual_data_from: string;
+  plan_data_days: number;
+  plan_data_from: string;
 }
 
 export interface StatisticsReport {

@@ -338,6 +338,8 @@ describe("Statistik — Kinder nach Uhrzeit (#4764)", () => {
     untimed_plan_days: 0,
     actual_data_days: 365,
     actual_data_from: "2025-09-09",
+    plan_data_days: 365,
+    plan_data_from: "2025-09-09",
     weekdays: [
       {
         weekday: 1,
@@ -346,6 +348,7 @@ describe("Statistik — Kinder nach Uhrzeit (#4764)", () => {
         slots: [
           {
             start: "07:30",
+            end: "08:00",
             planned_average: 7.5,
             planned_max: 9,
             actual_average: 6,

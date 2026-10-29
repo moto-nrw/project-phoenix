@@ -14,13 +14,15 @@ package statistics
 //     earlier day, because nobody recorded when the child left
 //   - days     = the care days of the report (weekends only where they follow
 //     Friday's plan, minus public holidays, closing days and holiday periods);
-//     averages divide by the care days of the weekday, actual values only by
-//     those inside the attendance retention window
+//     averages divide by the care days of the weekday that still have their
+//     data: plan values stop at the status-day retention cutoff (without the
+//     sick days the plan would count absent children), actual values at the
+//     attendance retention cutoff; in a period, today joins the actual values
+//     only once it is over
 
 import (
 	"context"
 	"fmt"
-	"sort"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -67,26 +69,32 @@ type occupancyInputs struct {
 	statusDays []ports.StatusDay
 	planned    map[int64]map[calendar.Date]ports.PlannedCareDay
 	attendance []*ports.Attendance
+	// planFrom and actualFrom are the retention cutoffs; zero means none.
+	planFrom   calendar.Date
 	actualFrom calendar.Date
 	today      calendar.Date
 	now        time.Time
+	// singleDay reports a single date, where today shows its live numbers.
+	singleDay bool
 }
 
 func (s *service) fillOccupancySection(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, students []*ports.StatisticsStudent, inputs attendanceInputs) error {
 	if s.cfg.PlannedCareDays == nil || s.cfg.AttendanceIntervals == nil || s.cfg.Retention == nil {
 		return fmt.Errorf("statistics occupancy: planned care days, attendance and retention are required")
 	}
-	actualDays, err := s.cfg.Retention.AttendanceRetentionDays(ctx)
+	planDays, actualDays, err := s.occupancyRetention(ctx)
 	if err != nil {
-		return fmt.Errorf("load attendance retention: %w", err)
+		return err
 	}
 	in := occupancyInputs{
 		students:   students,
 		careDays:   inputs.careDays,
 		statusDays: inputs.statusDays,
+		planFrom:   today.AddDays(-planDays),
 		actualFrom: today.AddDays(-actualDays),
 		today:      today,
 		now:        s.cfg.Now(),
+		singleDay:  filters.From == filters.To,
 	}
 	ids := make([]int64, 0, len(students))
 	for _, st := range students {
@@ -103,10 +111,24 @@ func (s *service) fillOccupancySection(ctx context.Context, report *studentprese
 		}
 	}
 	occupancy := buildOccupancy(in)
-	occupancy.ActualDataDays = actualDays
-	occupancy.ActualDataFrom = in.actualFrom
+	occupancy.PlanDataDays, occupancy.PlanDataFrom = planDays, in.planFrom
+	occupancy.ActualDataDays, occupancy.ActualDataFrom = actualDays, in.actualFrom
 	report.Occupancy = &occupancy
 	return nil
+}
+
+// occupancyRetention resolves how far back the status days and the
+// attendance reach.
+func (s *service) occupancyRetention(ctx context.Context) (int, int, error) {
+	planDays, err := s.cfg.Retention.StatusDayRetentionDays(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("load status day retention: %w", err)
+	}
+	actualDays, err := s.cfg.Retention.AttendanceRetentionDays(ctx)
+	if err != nil {
+		return 0, 0, fmt.Errorf("load attendance retention: %w", err)
+	}
+	return planDays, actualDays, nil
 }
 
 // loadAttendanceRows reads no further back than the retention cutoff the
@@ -127,62 +149,67 @@ func (s *service) loadAttendanceRows(ctx context.Context, ids []int64, from, to,
 	return rows, nil
 }
 
+// weekdaySeries are the counted days of one weekday, plan and actual apart.
+type weekdaySeries struct{ plan, actual []daySlots }
+
 // buildOccupancy counts every care day and aggregates the days per weekday.
 func buildOccupancy(in occupancyInputs) studentpresence.StatisticsOccupancy {
 	planned, untimed := plannedSlotsByDay(in)
-	actual := actualSlotsByDay(in)
-
-	days := make([]calendar.Date, 0, len(in.careDays))
-	for day := range in.careDays {
-		days = append(days, day)
-	}
-	sort.Slice(days, func(i, j int) bool { return days[i].Before(days[j]) })
-
-	type weekdayDays struct{ plan, actual []daySlots }
-	byWeekday := map[int]*weekdayDays{}
-	first, last := defaultFirstSlot, defaultLastSlot
-	for _, day := range days {
-		weekday := isoWeekday(day)
-		agg, ok := byWeekday[weekday]
-		if !ok {
-			agg = &weekdayDays{}
-			byWeekday[weekday] = agg
-		}
-		plan := planned[day]
-		agg.plan = append(agg.plan, plan)
-		first, last = widenAxis(first, last, plan)
-		if !day.Before(in.actualFrom) && !day.After(in.today) {
-			act := actual[day]
-			agg.actual = append(agg.actual, act)
-			first, last = widenAxis(first, last, act)
-		}
-	}
-
+	byWeekday, first, last := weekdaySeriesOf(in, planned)
 	out := studentpresence.StatisticsOccupancy{
 		SlotMinutes:     studentpresence.OccupancySlotMinutes,
 		Weekdays:        []studentpresence.StatisticsOccupancyWeekday{},
 		UntimedPlanDays: untimed,
 	}
 	for weekday := 1; weekday <= 7; weekday++ {
-		agg, ok := byWeekday[weekday]
+		series, ok := byWeekday[weekday]
 		if !ok {
 			continue
 		}
 		row := studentpresence.StatisticsOccupancyWeekday{
-			Weekday: weekday, PlanDays: len(agg.plan), ActualDays: len(agg.actual),
+			Weekday: weekday, PlanDays: len(series.plan), ActualDays: len(series.actual),
 		}
 		for slot := first; slot <= last; slot++ {
 			cell := studentpresence.StatisticsOccupancySlot{StartMinute: slot * studentpresence.OccupancySlotMinutes}
-			cell.PlannedAverage, cell.PlannedMax = averageAndMax(agg.plan, slot)
-			if len(agg.actual) > 0 {
-				avg, peak := averageAndMax(agg.actual, slot)
-				cell.ActualAverage, cell.ActualMax = &avg, &peak
-			}
+			cell.PlannedAverage, cell.PlannedMax = averageAndMax(series.plan, slot)
+			cell.ActualAverage, cell.ActualMax = averageAndMax(series.actual, slot)
 			row.Slots = append(row.Slots, cell)
 		}
 		out.Weekdays = append(out.Weekdays, row)
 	}
 	return out
+}
+
+// weekdaySeriesOf sorts every care day into its weekday, keeps only the days
+// whose data is still there, and returns the slot axis the data needs.
+func weekdaySeriesOf(in occupancyInputs, planned map[calendar.Date]daySlots) (map[int]*weekdaySeries, int, int) {
+	actual := actualSlotsByDay(in)
+	byWeekday := map[int]*weekdaySeries{}
+	first, last := defaultFirstSlot, defaultLastSlot
+	for day := range in.careDays {
+		series, ok := byWeekday[isoWeekday(day)]
+		if !ok {
+			series = &weekdaySeries{}
+			byWeekday[isoWeekday(day)] = series
+		}
+		if !day.Before(in.planFrom) {
+			series.plan = append(series.plan, planned[day])
+			first, last = widenAxis(first, last, planned[day])
+		}
+		if in.countsActual(day) {
+			series.actual = append(series.actual, actual[day])
+			first, last = widenAxis(first, last, actual[day])
+		}
+	}
+	return byWeekday, first, last
+}
+
+// countsActual reports whether the day's attendance is complete and kept.
+func (in occupancyInputs) countsActual(day calendar.Date) bool {
+	if day.Before(in.actualFrom) || day.After(in.today) {
+		return false
+	}
+	return day.Before(in.today) || in.singleDay
 }
 
 // plannedSlotsByDay counts the planned children per care day and the child
@@ -317,10 +344,10 @@ func widenAxis(first, last int, slots daySlots) (int, int) {
 	return first, last
 }
 
-// averageAndMax rounds the mean to one decimal.
-func averageAndMax(days []daySlots, slot int) (float64, int) {
+// averageAndMax rounds the mean to one decimal; both are nil without days.
+func averageAndMax(days []daySlots, slot int) (*float64, *int) {
 	if len(days) == 0 {
-		return 0, 0
+		return nil, nil
 	}
 	sum, peak := 0, 0
 	for _, d := range days {
@@ -329,8 +356,8 @@ func averageAndMax(days []daySlots, slot int) (float64, int) {
 			peak = d[slot]
 		}
 	}
-	avg := float64(sum) / float64(len(days))
-	return float64(int64(avg*10+0.5)) / 10, peak
+	avg := float64(int64(float64(sum)/float64(len(days))*10+0.5)) / 10
+	return &avg, &peak
 }
 
 // isoWeekday maps Sunday to 7.

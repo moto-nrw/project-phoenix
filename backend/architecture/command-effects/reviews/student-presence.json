@@ -14344,6 +14344,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.StatusDayRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.StatusDayRetentionDays",
+      "reason": "Read-only target: student-presence reaches modules/settings.StatisticsRetention.StatusDayRetentionDays (settings-platform), which resolves gdpr.status_day_retention_days for the occupancy by time of day (#4764). No persistent, lock or scope effect.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.StatusDayRetentionDays",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsReportRooms.StatisticsRooms",
       "classification": "query",
       "effect": "query",

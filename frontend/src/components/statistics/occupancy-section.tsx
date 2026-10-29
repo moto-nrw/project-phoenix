@@ -37,15 +37,6 @@ const WEEKDAY_SHORT: Readonly<Record<number, string>> = {
   7: "So",
 };
 
-/** "07:30" plus Rasterbreite → "07:30–08:00". */
-function slotRange(start: string, minutes: number): string {
-  const [h = 0, m = 0] = start.split(":").map(Number);
-  const end = h * 60 + m + minutes;
-  const hh = String(Math.floor(end / 60)).padStart(2, "0");
-  const mm = String(end % 60).padStart(2, "0");
-  return `${start}–${hh}:${mm}`;
-}
-
 function formatAverage(value: number): string {
   return value.toLocaleString("de-DE", {
     minimumFractionDigits: 1,
@@ -55,14 +46,20 @@ function formatAverage(value: number): string {
 
 /**
  * Zahl mit schmalem Balken. Der Balken ist reine Anzeige: er macht die
- * vollsten halben Stunden auf einen Blick sichtbar.
+ * vollsten halben Stunden auf einen Blick sichtbar. Ohne Wert steht „–“.
  */
 function CountBar({
   value,
   label,
   max,
   color,
-}: Readonly<{ value: number; label: string; max: number; color: string }>) {
+}: Readonly<{
+  value: number | null;
+  label: string;
+  max: number;
+  color: string;
+}>) {
+  if (value === null) return <span>–</span>;
   const width = max > 0 ? Math.round((value / max) * 100) : 0;
   return (
     <div className="flex items-center justify-end gap-3">
@@ -99,7 +96,7 @@ export function OccupancySection({
   const peak = useMemo(() => {
     let value = 0;
     for (const slot of current?.slots ?? []) {
-      value = Math.max(value, slot.planned_max, slot.actual_max ?? 0);
+      value = Math.max(value, slot.planned_max ?? 0, slot.actual_max ?? 0);
     }
     return value;
   }, [current]);
@@ -113,82 +110,57 @@ export function OccupancySection({
     );
   }
 
-  const noActual = current.actual_days === 0;
-  const range = (row: StatisticsOccupancySlot) =>
-    slotRange(row.start, occupancy.slot_minutes);
-  const plannedColor = LOCATION_COLORS.OTHER_ROOM;
-  const actualColor = LOCATION_COLORS.GROUP_ROOM;
+  const bar = (value: number | null, label: string, color: string) => (
+    <CountBar value={value} label={label} max={peak} color={color} />
+  );
+  const planned = LOCATION_COLORS.OTHER_ROOM;
+  const actual = LOCATION_COLORS.GROUP_ROOM;
+  const slotColumn: DataTableColumn<StatisticsOccupancySlot> = {
+    key: "slot",
+    header: "Uhrzeit",
+    render: (row) => (
+      <span className="font-medium whitespace-nowrap text-gray-900 tabular-nums">
+        {row.start}–{row.end}
+      </span>
+    ),
+  };
+  const count = (value: number | null) =>
+    value === null ? "–" : String(value);
+  const average = (value: number | null) =>
+    value === null ? "–" : formatAverage(value);
 
   const columns: DataTableColumn<StatisticsOccupancySlot>[] = singleDay
     ? [
-        {
-          key: "slot",
-          header: "Uhrzeit",
-          render: (row) => (
-            <span className="font-medium whitespace-nowrap text-gray-900 tabular-nums">
-              {range(row)}
-            </span>
-          ),
-        },
+        slotColumn,
         {
           key: "planned",
           header: "Geplant",
           align: "right",
-          render: (row) => (
-            <CountBar
-              value={row.planned_max}
-              label={String(row.planned_max)}
-              max={peak}
-              color={plannedColor}
-            />
-          ),
+          render: (row) =>
+            bar(row.planned_max, count(row.planned_max), planned),
         },
         {
           key: "actual",
           header: "Da",
           align: "right",
-          render: (row) =>
-            row.actual_max === null ? (
-              "–"
-            ) : (
-              <CountBar
-                value={row.actual_max}
-                label={String(row.actual_max)}
-                max={peak}
-                color={actualColor}
-              />
-            ),
+          render: (row) => bar(row.actual_max, count(row.actual_max), actual),
         },
       ]
     : [
-        {
-          key: "slot",
-          header: "Uhrzeit",
-          render: (row) => (
-            <span className="font-medium whitespace-nowrap text-gray-900 tabular-nums">
-              {range(row)}
-            </span>
-          ),
-        },
+        slotColumn,
         {
           key: "planned-average",
           header: "Geplant Ø",
           align: "right",
-          render: (row) => (
-            <CountBar
-              value={row.planned_average}
-              label={formatAverage(row.planned_average)}
-              max={peak}
-              color={plannedColor}
-            />
-          ),
+          render: (row) =>
+            bar(row.planned_average, average(row.planned_average), planned),
         },
         {
           key: "planned-max",
           header: "Geplant höchstens",
           align: "right",
           render: (row) => (
-            <span className="tabular-nums">{row.planned_max}</span>
+            <span className="tabular-nums">{count(row.planned_max)}</span>
           ),
         },
         {
@@ -196,28 +168,36 @@ export function OccupancySection({
           header: "Da Ø",
           align: "right",
           render: (row) =>
-            row.actual_average === null ? (
-              "–"
-            ) : (
-              <CountBar
-                value={row.actual_average}
-                label={formatAverage(row.actual_average)}
-                max={peak}
-                color={actualColor}
-              />
-            ),
+            bar(row.actual_average, average(row.actual_average), actual),
         },
         {
           key: "actual-max",
           header: "Da höchstens",
           align: "right",
           render: (row) => (
-            <span className="tabular-nums">{row.actual_max ?? "–"}</span>
+            <span className="tabular-nums">{count(row.actual_max)}</span>
           ),
         },
       ];
 
-  const actualStartsInsideWindow = occupancy.actual_data_from > fromISO;
+  // Beide Werte reichen nur so weit zurück, wie ihre Daten aufbewahrt werden.
+  const retentionNotes = [
+    occupancy.plan_data_from > fromISO &&
+      (current.plan_days === 0
+        ? `Krankmeldungen und Entschuldigungen werden ${occupancy.plan_data_days} Tage aufbewahrt. Für diese Tage gibt es keine geplanten Zahlen mehr.`
+        : `Krankmeldungen und Entschuldigungen werden ${occupancy.plan_data_days} Tage aufbewahrt. „Geplant“ zählt erst ab ${formatDate(occupancy.plan_data_from)}.`),
+    occupancy.actual_data_from > fromISO &&
+      (current.actual_days === 0
+        ? `Anwesenheiten werden ${occupancy.actual_data_days} Tage aufbewahrt. Für diese Tage gibt es keine Zahlen bei „Da“ mehr.`
+        : `Anwesenheiten werden ${occupancy.actual_data_days} Tage aufbewahrt. „Da“ zählt erst ab ${formatDate(occupancy.actual_data_from)}.`),
+  ].filter((note): note is string => typeof note === "string");
+
+  // „Da“ kann aus weniger Tagen stammen: heute zählt erst, wenn der Tag
+  // vorbei ist, und ältere Anwesenheiten sind gelöscht.
+  const dayCount =
+    current.actual_days === current.plan_days
+      ? `Durchschnitt aus ${current.plan_days} Betreuungstagen`
+      : `Durchschnitt aus ${current.plan_days} Betreuungstagen, bei „Da“ aus ${current.actual_days}`;
 
   return (
     <div className="space-y-3">
@@ -239,20 +219,12 @@ export function OccupancySection({
       )}
       {!singleDay && (
         <p className="text-sm text-gray-600">
-          {WEEKDAY_LABELS[current.weekday] ?? ""}: Durchschnitt aus{" "}
-          {current.plan_days} Betreuungstagen
+          {`${WEEKDAY_LABELS[current.weekday] ?? ""}: ${dayCount}`}
         </p>
       )}
-      {actualStartsInsideWindow && (
-        <Alert
-          type="info"
-          message={
-            noActual
-              ? `Anwesenheiten werden ${occupancy.actual_data_days} Tage aufbewahrt. Für diese Tage gibt es nur noch die geplanten Zahlen.`
-              : `Anwesenheiten werden ${occupancy.actual_data_days} Tage aufbewahrt. „Da“ zählt erst ab ${formatDate(occupancy.actual_data_from)}.`
-          }
-        />
-      )}
+      {retentionNotes.map((note) => (
+        <Alert key={note} type="info" message={note} />
+      ))}
       {occupancy.untimed_plan_days > 0 && (
         <Alert
           type="info"

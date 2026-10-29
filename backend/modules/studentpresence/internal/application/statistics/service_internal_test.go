@@ -29,6 +29,9 @@ func (r reportRetention) CourseRetentionDays(context.Context) (int, error) { ret
 func (r reportRetention) AttendanceRetentionDays(context.Context) (int, error) {
 	return 365, r.err
 }
+func (r reportRetention) StatusDayRetentionDays(context.Context) (int, error) {
+	return 365, r.err
+}
 
 type reportAudit struct {
 	recordErr error

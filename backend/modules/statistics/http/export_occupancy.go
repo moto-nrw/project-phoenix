@@ -78,16 +78,13 @@ func occupancyExportFrame(report *studentpresence.StatisticsReport, singleDay bo
 func occupancyExportValues(slot studentpresence.StatisticsOccupancySlot, width int, singleDay bool) map[string]string {
 	values := map[string]string{columnSlot: formatSlotRange(slot.StartMinute, width)}
 	if singleDay {
-		values[columnPlanned] = strconv.Itoa(slot.PlannedMax)
+		values[columnPlanned] = formatOptionalCount(slot.PlannedMax)
 		values[columnActual] = formatOptionalCount(slot.ActualMax)
 		return values
 	}
 	values[columnPlannedAverage] = formatAverage(slot.PlannedAverage)
-	values[columnPlannedMax] = strconv.Itoa(slot.PlannedMax)
-	values[columnActualAverage] = ""
-	if slot.ActualAverage != nil {
-		values[columnActualAverage] = formatAverage(*slot.ActualAverage)
-	}
+	values[columnPlannedMax] = formatOptionalCount(slot.PlannedMax)
+	values[columnActualAverage] = formatAverage(slot.ActualAverage)
 	values[columnActualMax] = formatOptionalCount(slot.ActualMax)
 	return values
 }
@@ -96,9 +93,10 @@ func occupancyExportValues(slot studentpresence.StatisticsOccupancySlot, width i
 func occupancyExportFilters(occupancy *studentpresence.StatisticsOccupancy) []string {
 	lines := []string{
 		"Ein Kind zählt in einer halben Stunde, wenn es in dieser Zeit da ist, auch nur kurz.",
-		"Geplant: Betreuungszeiten und Änderungen für den Tag. Kranke, entschuldigte Kinder und Kinder mit „Kommt heute nicht“ zählen nicht.",
+		"Geplant: Betreuungszeiten und Änderungen für den Tag. Kranke und entschuldigte Kinder zählen nicht, Kinder mit „Kommt heute nicht“ auch nicht.",
 		"Da: Anmeldung bis Abmeldung.",
-		fmt.Sprintf("Anwesenheiten werden %d Tage aufbewahrt (ab %s). Für ältere Tage fehlt die Spalte „Da“.", occupancy.ActualDataDays, occupancy.ActualDataFrom.Format("02.01.2006")),
+		fmt.Sprintf("Anwesenheiten werden %d Tage aufbewahrt (ab %s). Für ältere Tage fehlt „Da“.", occupancy.ActualDataDays, occupancy.ActualDataFrom.Format("02.01.2006")),
+		fmt.Sprintf("Krankmeldungen und Entschuldigungen werden %d Tage aufbewahrt (ab %s). Für ältere Tage fehlt „Geplant“.", occupancy.PlanDataDays, occupancy.PlanDataFrom.Format("02.01.2006")),
 	}
 	if occupancy.UntimedPlanDays > 0 {
 		lines = append(lines, fmt.Sprintf("%d-mal fehlte bei einem Kind die geplante Ankunft oder Abholung. Dann zählt das Kind nicht bei „Geplant“.", occupancy.UntimedPlanDays))
@@ -110,8 +108,12 @@ func formatSlotRange(start, width int) string {
 	return formatSlotStart(start) + "–" + formatSlotStart(start+width)
 }
 
-func formatAverage(v float64) string {
-	return strings.ReplaceAll(strconv.FormatFloat(v, 'f', 1, 64), ".", ",")
+// formatAverage leaves a missing value empty, like formatOptionalCount.
+func formatAverage(v *float64) string {
+	if v == nil {
+		return ""
+	}
+	return strings.ReplaceAll(strconv.FormatFloat(*v, 'f', 1, 64), ".", ",")
 }
 
 func formatOptionalCount(v *int) string {
