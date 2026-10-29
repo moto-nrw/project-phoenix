@@ -7,8 +7,8 @@
   "scripts": {
     "build": "next build",
     "build-storybook": "node scripts/build-storybook.mjs",
-    "check": "node scripts/verify-locales.mjs && node scripts/generate-help-index.mjs --check && pnpm run test:source-contracts && node scripts/verify-error-catalog.mjs && oxlint . && node ./node_modules/typescript-native/bin/tsc --noEmit",
-    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/generate-help-index.mjs --check && pnpm run test:source-contracts && node scripts/verify-error-catalog.mjs && oxlint . && node ./node_modules/typescript-native/bin/tsc --noEmit",
+    "check": "node scripts/verify-locales.mjs && node scripts/generate-help-index.mjs --check && pnpm run test:source-contracts && node scripts/verify-error-catalog.mjs && oxlint . --max-warnings 0 && node ./node_modules/typescript-native/bin/tsc --noEmit",
+    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/generate-help-index.mjs --check && pnpm run test:source-contracts && node scripts/verify-error-catalog.mjs && oxlint . --max-warnings 0 && node ./node_modules/typescript-native/bin/tsc --noEmit",
     "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
     "dev": "node --max-http-header-size=65536 node_modules/next/dist/bin/next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
