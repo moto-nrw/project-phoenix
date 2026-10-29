@@ -137,9 +137,6 @@ func CreateTestActivityCategory(tb testing.TB, db *bun.DB, name string) *Activit
 func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *ActivityGroup {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	// First create a category (activities.groups.category_id is required)
 	category := CreateTestActivityCategory(tb, db, fmt.Sprintf("Category-%s-%d", name, uniqueFixtureSuffix()))
 
@@ -155,6 +152,9 @@ func CreateTestActivityGroup(tb testing.TB, db *bun.DB, name string) *ActivityGr
 		CreatedBy:       &staff.ID,
 	}
 	group.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(group).
@@ -542,9 +542,6 @@ type (
 func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID int64) *ActiveGroupRow {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	now := fixtureInstant()
 	activeGroup := &ActiveGroupRow{
 		GroupID:        &activityGroupID,
@@ -554,6 +551,9 @@ func CreateTestActiveGroup(tb testing.TB, db *bun.DB, activityGroupID, roomID in
 		TimeoutMinutes: 30,
 	}
 	activeGroup.TenantID = fixtureTenantID(tb)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(activeGroup).
@@ -2007,9 +2007,6 @@ func CreateTestActivityCategoryForTenant(tb testing.TB, db *bun.DB, tenantID int
 func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64, name string) *ActivityGroup {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	category := CreateTestActivityCategoryForTenant(tb, db, tenantID, fmt.Sprintf("Cat-%s", name))
 	staff := CreateTestStaffForTenant(tb, db, tenantID, "Creator", name)
 
@@ -2021,6 +2018,9 @@ func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 		CreatedBy:       &staff.ID,
 	}
 	group.TenantID = tenantID
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(group).
@@ -2036,9 +2036,6 @@ func CreateTestActivityGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64,
 func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *ActiveGroupRow {
 	tb.Helper()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
 	room := CreateTestRoomForTenant(tb, db, tenantID, "IsolationRoom")
 	activityGroup := CreateTestActivityGroupForTenant(tb, db, tenantID, "IsolationActivity")
 
@@ -2052,6 +2049,9 @@ func CreateTestActiveGroupForTenant(tb testing.TB, db *bun.DB, tenantID int64) *
 		TimeoutMinutes: 30,
 	}
 	activeGroup.TenantID = tenantID
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	err := db.NewInsert().
 		Model(activeGroup).
