@@ -7,6 +7,7 @@
  */
 
 import { apiErrorFromText, transportFetch } from "~/lib/api-error";
+import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 
 export interface HostedHolidayWeek {
@@ -37,6 +38,32 @@ export interface HolidayHomeSchoolCount {
   readonly count: number;
 }
 
+/**
+ * Antwort auf eine Frage, die der Träger für die OGS freigibt (#5202). Nur
+ * Fragen ohne Gesundheitsangabe. `value` ist `true`/`false` bei Ja/Nein, die
+ * gewählte Antwort bei einer Auswahl, ein Kalendertag „YYYY-MM-DD“ bei einem
+ * Datum, sonst der Text; `null` ohne Antwort.
+ */
+export interface HolidayHostAnswer {
+  readonly key: string;
+  readonly label: string;
+  readonly type: string;
+  readonly value: boolean | string | null;
+}
+
+/** Eine freigegebene Frage der Liste: eine Spalte. */
+export interface HolidayHostQuestion {
+  readonly key: string;
+  readonly label: string;
+  readonly type: string;
+}
+
+/** Die zweite sorgeberechtigte Person: Name und Telefon, keine E-Mail. */
+export interface HolidayHostGuardian {
+  readonly name: string;
+  readonly phone: string;
+}
+
 export interface HolidayParticipant {
   readonly childId: string;
   readonly firstName: string;
@@ -46,13 +73,28 @@ export interface HolidayParticipant {
   readonly homeSchoolId: string | null;
   readonly homeSchoolName: string;
   readonly timeModelId: string;
+  /** `null` ohne zweite sorgeberechtigte Person. */
+  readonly secondGuardian: HolidayHostGuardian | null;
+  readonly answers: HolidayHostAnswer[];
 }
 
 export interface HolidayParticipantList {
   readonly week: HostedHolidayWeek;
   readonly timeModels: HolidayTimeModelCount[];
   readonly homeSchools: HolidayHomeSchoolCount[];
+  /** Die freigegebenen Fragen; leer, wenn der Träger keine freigibt. */
+  readonly questions: HolidayHostQuestion[];
   readonly participants: HolidayParticipant[];
+}
+
+/** Eine Antwort zum Lesen: „Ja“, „Nein“, ein deutsches Datum oder der Text. */
+export function formatHolidayHostAnswer(
+  answer: Pick<HolidayHostAnswer, "type" | "value"> | undefined,
+): string {
+  if (answer === undefined || answer.value === null) return "–";
+  if (typeof answer.value === "boolean") return answer.value ? "Ja" : "Nein";
+  if (answer.type === "date") return formatDate(answer.value);
+  return answer.value;
 }
 
 interface BackendWeek {
@@ -79,6 +121,7 @@ interface BackendParticipantList {
     name: string;
     count: number;
   }[];
+  questions?: HolidayHostQuestion[] | null;
   participants: {
     child_id: number | string;
     first_name: string;
@@ -87,6 +130,8 @@ interface BackendParticipantList {
     home_school_id: number | string | null;
     home_school_name: string;
     time_model_id: number | string;
+    second_guardian?: HolidayHostGuardian | null;
+    answers?: HolidayHostAnswer[] | null;
   }[];
 }
 
@@ -126,6 +171,7 @@ function mapHolidayParticipantList(
       name: school.name,
       count: school.count,
     })),
+    questions: list.questions ?? [],
     participants: list.participants.map((participant) => ({
       childId: String(participant.child_id),
       firstName: participant.first_name,
@@ -134,6 +180,8 @@ function mapHolidayParticipantList(
       homeSchoolId: optionalId(participant.home_school_id),
       homeSchoolName: participant.home_school_name,
       timeModelId: String(participant.time_model_id),
+      secondGuardian: participant.second_guardian ?? null,
+      answers: participant.answers ?? [],
     })),
   };
 }
@@ -206,7 +254,8 @@ export interface HolidayGuestContact {
 
 /**
  * Was die ausrichtende OGS von einem Feriengast über den Namen hinaus sieht:
- * Betreuung, Notfall und Abholung.
+ * Betreuung, Notfall und Abholung, dazu die Antworten, die der Träger
+ * freigibt (#5202).
  */
 export interface HolidayGuestSheet {
   readonly studentId: string;
@@ -221,6 +270,7 @@ export interface HolidayGuestSheet {
   readonly guestSchoolName: string;
   readonly emergencyContacts: HolidayGuestContact[];
   readonly pickupContacts: HolidayGuestContact[];
+  readonly answers: HolidayHostAnswer[];
   /** Nach dem letzten Tag der Woche: nur noch sieben Tage zum Nachlesen. */
   readonly readOnly: boolean;
 }
@@ -236,6 +286,7 @@ interface BackendGuestSheet {
   guest_school_name: string;
   emergency_contacts: HolidayGuestContact[] | null;
   pickup_contacts: HolidayGuestContact[] | null;
+  answers?: HolidayHostAnswer[] | null;
   read_only: boolean;
 }
 
@@ -288,6 +339,7 @@ export async function fetchHolidayGuestSheet(
     guestSchoolName: sheet.guest_school_name,
     emergencyContacts: sheet.emergency_contacts ?? [],
     pickupContacts: sheet.pickup_contacts ?? [],
+    answers: sheet.answers ?? [],
     readOnly: sheet.read_only,
   };
 }

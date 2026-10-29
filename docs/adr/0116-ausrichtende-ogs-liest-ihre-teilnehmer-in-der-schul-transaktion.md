@@ -123,3 +123,39 @@ Trägers und Feriengäste ohne Schule. Ihr Token trägt nur ihre eigene
   Trägers; die Liste hält keine eigene Kopie.
 - Wer in der Schule `config:read` hat, sieht die Liste. Ein eigenes Recht
   dafür gibt es nicht.
+
+## Nachtrag 2026-10-28: Freigegebene Antworten und zweite sorgeberechtigte Person (#5202)
+
+Der Nutzer hat am 28.10.2026 Option B „Ohne Gesundheit“ gewählt
+([#5202](https://github.com/moto-nrw/project-phoenix/issues/5202), Spec #4611
+B7). Punkt 3 gilt mit dieser Erweiterung:
+
+- **Mehr als die Mindestfelder.** Zu den Mindestfeldern kommen je Kind Name
+  und Telefon der zweiten sorgeberechtigten Person (#5197) und die Antworten
+  auf die Fragen, die der Träger im Formular-Baukasten (#5198) für die
+  ausrichtende OGS freigibt (`share_with_host`). Die Standardvorlage gibt
+  „Darf allein nach Hause gehen“ und „Darf an Ausflügen teilnehmen“ frei;
+  Formularversionen von vorher geben nichts frei. Eine Freigabe wirkt ab der
+  Version, die sie setzt: Es zählt die Version, mit der die Anmeldung kam.
+- **Keine Gesundheitsangaben.** Gesundheitsangaben bleiben beim Träger, bis
+  [#4722](https://github.com/moto-nrw/project-phoenix/issues/4722) umgesetzt
+  ist; das gilt für Allergien, Medikamente und Gesundheitshinweise und für
+  jede Frage mit Gesundheitskennzeichen. Der Baukasten lehnt eine Freigabe
+  an einer Gesundheitsfrage ab (`enrollment.holiday_form_field_not_allowed`,
+  Feld `fields.N.share_with_host`).
+- **Filter in der Datenbank.** `enrollment.holiday_host_participants` gibt
+  eine Antwort nur heraus, wenn die Version der Anmeldung die Frage freigibt
+  und als `health: false` (JSON-Boolean) markiert, keine Version des
+  Zeitraums dieselbe Frage anders markiert und die Frage eine Antwort hat
+  (kein Infotext). Ein fehlendes oder unklares Kennzeichen gilt als
+  Gesundheitsangabe. Keine E-Mail-Adresse verlässt die Funktion.
+- Liste und Export zeigen eine Spalte je freigegebener Frage und die zweite
+  Person, wenn ein Kind eine hat. Ohne beides bleiben sie wie bisher. Das
+  Zugriffsprotokoll (Punkt 6) und das Ende nach der Woche (Punkt 4) bleiben
+  unverändert.
+- **Register.** Migration `1.15.707` ersetzt die Funktion; der Down-Pfad
+  stellt die alte Signatur wieder her. Keine neue Tabelle, keine neue Regel
+  in `policy.json`.
+
+Option C (Gesundheitsangaben für die OGS) braucht #4722 und einen eigenen
+Nachtrag.

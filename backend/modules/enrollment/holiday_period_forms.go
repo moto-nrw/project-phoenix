@@ -28,9 +28,17 @@ import (
 // on the wire carries it, false included, so a later reader such as the
 // hosting school's copy without health information (#5202) can tell the two
 // kinds of question apart by the field alone, never by its key or label.
+//
+// ShareWithHost lets the school that hosts a week see the answer in its
+// participant list and on the sheet of a holiday guest (#5202, ADR 0116 and
+// ADR 0120 addenda). A health question cannot carry it; the hosting school's
+// functions check both markers again in the database and treat a missing
+// marker as health information. It is stored on every version, false
+// included, and acts from the version that sets it on.
 type HolidayFormField struct {
 	FormField
-	Health bool `json:"health"`
+	Health        bool `json:"health"`
+	ShareWithHost bool `json:"share_with_host"`
 }
 
 // HolidayAnswers are the answers to the questions of a form by field key.
@@ -132,6 +140,10 @@ func validateHolidayFormField(f *HolidayFormField) error {
 		return notAllowed("visible_when", "condition source %q", f.VisibleWhen.Source)
 	case f.Health && f.Type == FormFieldInfo:
 		return notAllowed("health", "an information block collects no health information")
+	case f.ShareWithHost && f.Type == FormFieldInfo:
+		return notAllowed("share_with_host", "an information block has no answer to share")
+	case f.ShareWithHost && f.Health:
+		return notAllowed("share_with_host", "a health question stays with the Träger (ADR 0116)")
 	}
 	// A check of the online registration without a wire code of its own
 	// refuses an attribute the field cannot carry, such as a required
@@ -148,13 +160,18 @@ func validateHolidayFormField(f *HolidayFormField) error {
 
 // HolidayFormTemplate is the standard template of a new period (B7 of the
 // requirements memo of 14.10.2026): per child, optional, the health
-// questions marked. "Standardvorlage einfügen" in the editor adds the fields
-// whose key is missing.
+// questions marked. The way home and the trips go to the hosting school
+// (#5202). "Standardvorlage einfügen" in the editor adds the fields whose
+// key is missing.
 func HolidayFormTemplate() []HolidayFormField {
 	child := func(order int, key, label string, typ FormFieldType, health bool, options ...FormFieldOption) HolidayFormField {
 		return HolidayFormField{FormField: FormField{
 			Key: key, Label: label, Type: typ, SortOrder: order, AppliesToCh: true, Options: options,
 		}, Health: health}
+	}
+	shared := func(field HolidayFormField) HolidayFormField {
+		field.ShareWithHost = true
+		return field
 	}
 	return []HolidayFormField{
 		child(1, "lebensmittelunvertraeglichkeiten", "Lebensmittelunverträglichkeiten", FormFieldTextarea, true),
@@ -163,8 +180,8 @@ func HolidayFormTemplate() []HolidayFormField {
 			FormFieldOption{Label: "Weiß nicht", Value: "weiss_nicht"}),
 		child(3, "foerderbedarf", "Förderbedarf", FormFieldTextarea, true),
 		child(4, "koerperliche_einschraenkungen", "Körperliche Einschränkungen", FormFieldTextarea, true),
-		child(5, "darf_allein_nach_hause", "Darf allein nach Hause gehen", FormFieldBoolean, false),
-		child(6, "darf_an_ausfluegen_teilnehmen", "Darf an Ausflügen teilnehmen", FormFieldBoolean, false),
+		shared(child(5, "darf_allein_nach_hause", "Darf allein nach Hause gehen", FormFieldBoolean, false)),
+		shared(child(6, "darf_an_ausfluegen_teilnehmen", "Darf an Ausflügen teilnehmen", FormFieldBoolean, false)),
 	}
 }
 
