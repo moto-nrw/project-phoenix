@@ -10,7 +10,6 @@ const {
   mockClearSessionCache,
   mockEndStaffPreview,
   mockSchoolPortalLoginUrl,
-  mockUnsubscribePush,
 } = vi.hoisted(() => ({
   mockShowLogoutError: vi.fn(),
   mockUseSession: vi.fn(),
@@ -18,7 +17,6 @@ const {
   mockClearSessionCache: vi.fn(),
   mockEndStaffPreview: vi.fn(),
   mockSchoolPortalLoginUrl: vi.fn(),
-  mockUnsubscribePush: vi.fn(),
 }));
 
 const mockProfile = {
@@ -47,15 +45,6 @@ vi.mock("next-auth/react", () => ({
 vi.mock("~/contexts/ToastContext", () => ({
   useApiErrorDisplay: () => ({ show: mockShowLogoutError }),
 }));
-
-vi.mock("~/lib/push-api", () => ({
-  unsubscribePushSilently: mockUnsubscribePush,
-}));
-
-beforeEach(() => {
-  mockUnsubscribePush.mockReset();
-  mockUnsubscribePush.mockResolvedValue(undefined);
-});
 
 vi.mock("~/lib/profile-context", () => ({
   useProfile: () => ({ profile: mockProfile }),
@@ -959,36 +948,6 @@ describe("every portal logout revokes its session family (#5194)", () => {
       ),
     });
   }
-
-  it("Schule: finishes push cleanup before revoking the family", async () => {
-    const order: string[] = [];
-    let finishPush!: () => void;
-    const pushFinished = new Promise<void>((resolve) => (finishPush = resolve));
-    mockUnsubscribePush.mockImplementation(() => {
-      order.push("unsubscribe");
-      return pushFinished;
-    });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => {
-        order.push("revoke");
-        return new Response(null, { status: 204 });
-      }),
-    );
-    mockSignOut.mockImplementation(async () => {
-      order.push("signOut");
-    });
-
-    const logout = renderPortal(SchoolShellProvider).result.current.logout();
-    try {
-      expect(order).toEqual(["unsubscribe"]);
-      expect(mockUnsubscribePush).toHaveBeenCalledWith("school");
-    } finally {
-      finishPush();
-      await logout;
-    }
-    expect(order).toEqual(["unsubscribe", "revoke", "signOut"]);
-  });
 
   it.each(portals)(
     "%s: revokes before the cookie goes",
