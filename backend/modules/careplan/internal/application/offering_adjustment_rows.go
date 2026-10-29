@@ -273,24 +273,30 @@ func (m *BookingMaterialization) splitAdjustedEnrollments(
 	// keeps through ANOTHER of the template's source offerings after leaving
 	// this one. Scoped to this child: a dated switch must not reconcile other
 	// children's rows as a side effect.
-	return m.resyncAdjustedUnionTemplates(ctx, multiSource, inactiveSourced, boundary, adjusted.requestChildID)
+	return m.resyncAdjustedUnionTemplates(ctx, multiSource, inactiveSourced, existing, boundary, adjusted.requestChildID)
 }
 
 // resyncAdjustedUnionTemplates runs the child's union resync from the switch
 // boundary. A template with a source that turned inactive is resynced from
 // today instead: that source contributes nothing from today on (#5305), as
 // every later student or tenant-wide resync applies it, so the correction
-// already leaves the state those resyncs keep. The resync reads the child's
-// links as they stand, so before the switch the remaining sources still plan
-// the old selection; only the inactive source's contribution leaves earlier.
+// already leaves the state those resyncs keep. That covers the templates of
+// the new selection and those the child's rows still plan from the old one
+// (previousInactiveSourcedTemplates). The resync reads the child's links as
+// they stand, so before the switch the remaining sources still plan the old
+// selection; only the inactive source's contribution leaves earlier.
 func (m *BookingMaterialization) resyncAdjustedUnionTemplates(
 	ctx context.Context,
 	templates map[int64]ports.SourcedTemplate,
 	inactiveSourced map[int64]bool,
+	existing []ports.RosterEnrollment,
 	boundary calendar.Date,
 	requestChildID int64,
 ) error {
-	fromToday := make(map[int64]ports.SourcedTemplate)
+	fromToday, err := m.previousInactiveSourcedTemplates(ctx, existing, requestChildID, templates)
+	if err != nil {
+		return err
+	}
 	for id, tmpl := range templates {
 		if inactiveSourced[id] {
 			fromToday[id] = tmpl
@@ -302,6 +308,64 @@ func (m *BookingMaterialization) resyncAdjustedUnionTemplates(
 		return err
 	}
 	return m.resyncMultiSourceTemplates(ctx, fromToday, m.todayDate(), scope)
+}
+
+// previousInactiveSourcedTemplates lists the templates outside the new
+// selection on which the child's rows still plan from today on and whose
+// sources include an inactive one next to a valid one. Without the resync
+// from today, the dated correction would only cap such a row at the switch,
+// keep the inactive source's days until then, and leave the next resync to
+// rewrite the rows. The candidates come from the list the tenant-wide resync
+// walks; a template it refuses keeps the ordinary cap path.
+func (m *BookingMaterialization) previousInactiveSourcedTemplates(
+	ctx context.Context,
+	existing []ports.RosterEnrollment,
+	requestChildID int64,
+	selected map[int64]ports.SourcedTemplate,
+) (map[int64]ports.SourcedTemplate, error) {
+	planned := plannedTemplatesFromToday(existing, requestChildID, m.todayDate(), selected)
+	previous := make(map[int64]ports.SourcedTemplate)
+	if len(planned) == 0 {
+		return previous, nil
+	}
+	templates, err := m.tenantSourcedTemplates(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, tmpl := range templates {
+		// One stored source left without a valid one is refused anyway.
+		if !planned[tmpl.ID] || len(tmpl.SourceCareOfferingIDs) < 2 {
+			continue
+		}
+		sources, err := m.catalog.LoadOfferingSources(ctx, tmpl.SourceCareOfferingIDs, tmpl.CalendarPeriodID, skipInactiveSources)
+		if err != nil {
+			if !m.catalog.deps.SourceRules.IsRejection(err) {
+				return nil, fmt.Errorf("decision: validate previously planned union template %d: %w", tmpl.ID, err)
+			}
+			continue
+		}
+		if len(sources.Inactive) > 0 {
+			previous[tmpl.ID] = tmpl
+		}
+	}
+	return previous, nil
+}
+
+// plannedTemplatesFromToday is the set of templates outside selected on which
+// the request child's rows plan today or later.
+func plannedTemplatesFromToday(
+	rows []ports.RosterEnrollment, requestChildID int64, today calendar.Date, selected map[int64]ports.SourcedTemplate,
+) map[int64]bool {
+	planned := make(map[int64]bool)
+	for _, row := range rows {
+		if !taggedWithRequestChild(row, requestChildID) || (row.ValidUntil != nil && !row.ValidUntil.After(today)) {
+			continue
+		}
+		if _, ok := selected[row.ActivityGroupID]; !ok {
+			planned[row.ActivityGroupID] = true
+		}
+	}
+	return planned
 }
 
 // excludeInvalidAdjustedUnionTemplates leaves only templates whose sources
