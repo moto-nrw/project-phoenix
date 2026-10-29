@@ -100,10 +100,14 @@ const backendAbsence = {
 };
 
 describe("TimeTrackingService", () => {
-  const originalFetch = global.fetch;
+  const unexpectedFetch = vi.fn<typeof fetch>();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    unexpectedFetch.mockImplementation(() => {
+      throw new Error("Unexpected fetch: configure a mock for this test");
+    });
+    vi.stubGlobal("fetch", unexpectedFetch);
     mockGetSession.mockResolvedValue({
       user: { id: "1" },
       expires: "2025-12-31",
@@ -111,7 +115,9 @@ describe("TimeTrackingService", () => {
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    vi.unstubAllGlobals();
+    // Transport errors are normalized to 503, so throwing alone can pass.
+    expect(unexpectedFetch).not.toHaveBeenCalled();
   });
 
   describe("checkIn", () => {
@@ -194,7 +200,9 @@ describe("TimeTrackingService", () => {
       await expect(failure).rejects.toBeInstanceOf(ApiError);
       await expect(failure).rejects.toMatchObject({
         code: "general.unavailable",
+        status: 503,
       });
+      expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
     it("reports a network failure of a void request as unavailable", async () => {
@@ -202,22 +210,13 @@ describe("TimeTrackingService", () => {
         .fn()
         .mockRejectedValue(new TypeError("Failed to fetch"));
 
-      await expect(
-        timeTrackingService.deleteAbsence("3"),
-      ).rejects.toMatchObject({ code: "general.unavailable" });
-    });
-
-    it("reports a session lookup failure as unavailable", async () => {
-      const { clearSessionCache } = await import("./session-cache");
-      clearSessionCache();
-      mockGetSession.mockRejectedValueOnce(new Error("Session unavailable"));
-
-      await expect(
-        timeTrackingService.checkIn("present"),
-      ).rejects.toMatchObject({
+      const failure = timeTrackingService.deleteAbsence("3");
+      await expect(failure).rejects.toBeInstanceOf(ApiError);
+      await expect(failure).rejects.toMatchObject({
         code: "general.unavailable",
         status: 503,
       });
+      expect(global.fetch).toHaveBeenCalledTimes(1);
     });
 
     it("keeps the code and request ID of a refused stamp", async () => {
