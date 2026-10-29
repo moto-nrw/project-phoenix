@@ -21,11 +21,35 @@ const approved = new Map([
   ],
 ]);
 
-test("mechanically migrated budgets retain the original 2%/10KiB ceilings", () => {
+test("bundle policy retains migration ceilings except the explicit #5260 room-detail increase", () => {
   const budgets = readBudgets(join(source, "bundle-budgets"));
   assert.ok(budgets.size > 0);
-  for (const [route, budget] of budgets)
-    assert.equal(budget.maxBytes, legacyCeiling(budget.referenceBytes), route);
+  assert.deepEqual(budgets.get("/[tenant]/rooms/[id]"), {
+    referenceBytes: 1_024_021,
+    maxBytes: 1_046_549,
+  });
+  for (const [route, budget] of budgets) {
+    const increase = route === "/[tenant]/rooms/[id]" ? 2_048 : 0;
+    assert.equal(
+      budget.maxBytes,
+      legacyCeiling(budget.referenceBytes) + increase,
+      route,
+    );
+  }
+});
+
+test("the #5260 room-detail policy still rejects one byte over its ceiling", () => {
+  const route = "/[tenant]/rooms/[id]";
+  const budgets = readBudgets(join(source, "bundle-budgets"));
+  const { maxBytes } = budgets.get(route);
+  assert.deepEqual(
+    compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
+    [],
+  );
+  assert.equal(
+    compareBudgets(budgets, new Map([[route, maxBytes + 1]])).failures.length,
+    1,
+  );
 });
 
 test("a significant improvement passes without lowering an observation baseline", () => {
