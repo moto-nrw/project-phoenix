@@ -22,7 +22,10 @@ import (
 // stay's row, so both writers queue on locks, not on sleeps.
 func TestReattachAndWebVisitMoveIntoTheStayDoNotDeadlock(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	// The holder, both writers and the lock diagnostics hold connections at
+	// once; a pool of the test's own keeps them off the shared one (#5269).
+	db := testpkg.SetupClosableTestDB(t)
+	t.Cleanup(func() { assert.NoError(t, db.Close()) })
 	svc := setupActiveService(t, db)
 	ctx := testpkg.Ctx(t)
 
