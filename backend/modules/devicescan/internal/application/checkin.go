@@ -57,8 +57,19 @@ func (s *Service) loadCurrentVisit(ctx context.Context, studentID int64) (*ports
 }
 
 // checkoutCurrentVisit resolves and closes the room stay before a new
-// check-in. A failed lookup or checkout prevents the scan from proceeding.
+// check-in. A failed lock, lookup or checkout prevents the scan from
+// proceeding.
 func (s *Service) checkoutCurrentVisit(ctx context.Context, student *ports.Student, person *ports.Person) (currentVisitCheckout, error) {
+	// The child before its visit: a bulk move locks the child and then the
+	// visit, so a scan that closed the visit first and waited for the child
+	// at its check-in deadlocked against it (#5278).
+	if err := s.visits.LockStudent(ctx, student.ID); err != nil {
+		s.logger.ErrorContext(ctx, "failed to lock student",
+			slog.Int64("student_id", student.ID),
+			slog.String("error", err.Error()),
+		)
+		return currentVisitCheckout{}, devicescan.Internal(devicescan.MessageInternalServerError, err)
+	}
 	visit, err := s.loadCurrentVisit(ctx, student.ID)
 	if err != nil || visit == nil {
 		return currentVisitCheckout{}, err
