@@ -62,16 +62,25 @@ describe("POST /api/auth/staff-preview/end (#5005)", () => {
     expect(forwardedBody()).toEqual({ preview_token: "preview-token" });
   });
 
-  // A start whose session swap failed presents the token it was handed.
-  it("records a presented token although the session holds no preview", async () => {
+  it("ignores browser-provided tokens, including while a different preview runs", async () => {
     await POST(
-      endRequest(session({ token: "admin-token" }), {
-        preview_token: "minted-preview-token",
+      endRequest(session({ isPreview: true, token: "cookie-preview" }), {
+        preview_token: "injected-preview",
       }),
       context,
     );
+    expect(forwardedBody()).toEqual({ preview_token: "cookie-preview" });
+  });
 
-    expect(forwardedBody()).toEqual({ preview_token: "minted-preview-token" });
+  it("does not end a browser-provided preview without a preview session", async () => {
+    const response = await POST(
+      endRequest(session({ token: "admin-token" }), {
+        preview_token: "injected-preview",
+      }),
+      context,
+    );
+    expect(response.status).toBe(204);
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("never sends the admin's own token as a preview token", async () => {
