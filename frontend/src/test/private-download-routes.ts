@@ -43,6 +43,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["staff/[id]/documents/[documentId]/download", "GET"],
   ["staff/[id]/time-tracking/export", "GET"],
   ["staff/time-tracking/export", "GET"],
+  ["statistics/care-time-overruns/export", "GET"],
   ["statistics/export", "GET"],
   ["students/[id]/attendance-history/export", "GET"],
   ["students/[id]/documents/[documentId]/download", "GET"],

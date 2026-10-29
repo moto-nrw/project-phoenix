@@ -1,6 +1,6 @@
 {
   "scenario": "api.statistics.student_care_times",
-  "max": 30,
+  "max": 19,
   "exact": false,
   "description": "GET /statistics/students/{id}/care-times: fixed tenant and comparison batches, independent of listed days. TestCareTimesQueryBudgets compares three with six days."
 }

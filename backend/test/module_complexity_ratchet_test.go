@@ -265,8 +265,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentRequestsSeedStep).Run": 16,
 	// ADR 0087.
-	"internal/devtools/seedapi/seed_extras.go:(seedStatisticsDemoStep).Run": 19,
-	// ADR 0087.
 	"internal/devtools/seedapi/seed_phase_periods.go:seedPhaseSchoolYear": 30,
 	// ADR 0087.
 	"internal/devtools/seedapi/seed_planning.go:selectRecurringPlanningInstances": 16,
