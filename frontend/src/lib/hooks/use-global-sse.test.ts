@@ -972,10 +972,6 @@ describe("useGlobalSSE — stream refused for another school's session", () => {
     fetchMock.mockReset();
     mismatch.mockReset();
     vi.stubGlobal("fetch", fetchMock);
-    // A report wakes the session cache, which posts on the "next-auth"
-    // BroadcastChannel. Node delivers that to every worker thread, so it
-    // would reach the SessionProvider of another test file running at once.
-    vi.stubGlobal("BroadcastChannel", undefined);
     // TenantGuard installs the observer in the app; here it wraps the stub.
     restoreObserver = installSessionTenantMismatchObserver();
     unsubscribe = onSessionTenantMismatch(mismatch);
