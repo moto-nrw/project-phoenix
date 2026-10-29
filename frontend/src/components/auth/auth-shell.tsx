@@ -25,6 +25,10 @@ export function AuthFieldError({
 export const authPrimaryButtonClassName =
   "inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400";
 
+/** The quiet text button under the password field ("Passwort vergessen?"). */
+export const authTextButtonClassName =
+  "text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400";
+
 type AuthShellVariant =
   "tenant" | "parents" | "tenant-select" | "reset" | "operator";
 

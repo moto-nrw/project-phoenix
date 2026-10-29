@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createFileDownloadRoute } from "~/lib/export-proxy.server";
 
@@ -7,10 +8,12 @@ import { createFileDownloadRoute } from "~/lib/export-proxy.server";
  * im Pfad, weil die Download-Route keine Suchparameter weiterreicht; das
  * Backend lehnt jedes andere Format ab.
  */
-export const GET = withTenantAuth(
-  createFileDownloadRoute<{ weekId: string; format: string }>({
-    backendPath: ({ weekId, format }) =>
-      `/api/holiday-weeks/${encodeURIComponent(weekId)}/participants/export?format=${encodeURIComponent(format)}`,
-    component: "HolidayParticipantsExportRoute",
-  }),
+export const GET = withPrivateDownloadNoStore(
+  withTenantAuth(
+    createFileDownloadRoute<{ weekId: string; format: string }>({
+      backendPath: ({ weekId, format }) =>
+        `/api/holiday-weeks/${encodeURIComponent(weekId)}/participants/export?format=${encodeURIComponent(format)}`,
+      component: "HolidayParticipantsExportRoute",
+    }),
+  ),
 );

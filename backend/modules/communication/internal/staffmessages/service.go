@@ -14,6 +14,7 @@ package staffmessaging
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"log/slog"
 	"strings"
@@ -63,6 +64,17 @@ type ThreadDetail struct {
 	// CounterpartRoleKind: one of the existing coarse colleague-role values.
 	CounterpartRoleKind string
 	Messages            []*StaffMessage
+
+	// Group chat (#4776). Kind is "direct" or "group"; the rest is set for a
+	// group only.
+	Kind      string
+	GroupName string
+	// CanManage: the viewer may rename the group and add or remove members.
+	CanManage bool
+	Members   []deliveryPorts.MessageableStaff
+	// Receipts holds, per message id, who of the members read it and how many
+	// could have (members other than the sender who had joined by then).
+	Receipts map[int64]deliveryPorts.StaffReadReceipt
 }
 
 // PersonLookup resolves the person behind a sender's account for display.
@@ -88,7 +100,9 @@ type Service struct {
 
 // Config is the dependency-injection bundle.
 type Config struct {
-	ThreadRepo  StaffMessageThreadRepository
+	ThreadRepo StaffMessageThreadRepository
+	// Groups is the group-chat facet of the thread store (#4776).
+	Groups      deliveryPorts.StaffGroupSource
 	MessageRepo StaffMessageRepository
 	ReadRepo    StaffMessageReadRepository
 	Persons     PersonLookup
@@ -164,16 +178,30 @@ func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*StaffInbox
 	if err != nil {
 		return nil, err
 	}
+	if containsGroupThread(rows) {
+		active, err := s.ReadRepo.IsMessageableStaff(ctx, accountID)
+		if err != nil {
+			return nil, err
+		}
+		if !active {
+			rows = directThreads(rows)
+		}
+	}
 	ids := make([]int64, 0, len(rows))
 	for _, row := range rows {
-		ids = append(ids, row.CounterpartAccountID)
+		// A group row has no counterpart (#4776).
+		if row.CounterpartAccountID != 0 {
+			ids = append(ids, row.CounterpartAccountID)
+		}
 	}
 	kinds, err := s.ReadRepo.StaffRoleKinds(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
-		row.CounterpartRoleKind = kinds[row.CounterpartAccountID]
+		if row.CounterpartAccountID != 0 {
+			row.CounterpartRoleKind = kinds[row.CounterpartAccountID]
+		}
 	}
 	return rows, nil
 }
@@ -187,7 +215,47 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	active, err := s.ReadRepo.IsMessageableStaff(ctx, accountID)
+	if err != nil {
+		return 0, err
+	}
+	if !active {
+		rows, err := s.ReadRepo.ListInbox(ctx, accountID, true)
+		if err != nil {
+			return 0, err
+		}
+		return directUnreadCount(rows), nil
+	}
 	return s.ReadRepo.UnreadCount(ctx, accountID)
+}
+
+func directThreads(rows []*StaffInboxThread) []*StaffInboxThread {
+	filtered := make([]*StaffInboxThread, 0, len(rows))
+	for _, row := range rows {
+		if row.Kind != groupKind {
+			filtered = append(filtered, row)
+		}
+	}
+	return filtered
+}
+
+func containsGroupThread(rows []*StaffInboxThread) bool {
+	for _, row := range rows {
+		if row.Kind == groupKind {
+			return true
+		}
+	}
+	return false
+}
+
+func directUnreadCount(rows []*StaffInboxThread) int {
+	count := 0
+	for _, row := range rows {
+		if row.Kind != groupKind {
+			count += row.UnreadCount
+		}
+	}
+	return count
 }
 
 // ListMessageableStaff returns the colleagues the caller may write to.
@@ -237,6 +305,34 @@ func (s *Service) authorizeThread(ctx context.Context, threadID, accountID int64
 	return thread, nil
 }
 
+// lockThread serializes a thread mutation and translates a concurrent deletion
+// into the same not-found result as an authorization lookup.
+func (s *Service) lockThread(ctx context.Context, threadID int64) error {
+	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrThreadNotFound
+		}
+		return err
+	}
+	return nil
+}
+
+// lockAndReauthorizeThread closes the gap between an initial authorization and
+// a thread-row lock: a group member may have been removed while waiting.
+func (s *Service) lockAndReauthorizeThread(ctx context.Context, threadID, accountID int64) (*StaffMessageThread, error) {
+	if err := s.lockThread(ctx, threadID); err != nil {
+		return nil, err
+	}
+	thread, err := s.authorizeThread(ctx, threadID, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireActiveGroupMember(ctx, thread, accountID); err != nil {
+		return nil, err
+	}
+	return thread, nil
+}
+
 // OpenThread returns the conversation with the given colleague, creating it
 // when it does not exist yet. This is the "write to someone" entry point; the
 // thread carries no message until the first send.
@@ -270,9 +366,14 @@ func (s *Service) OpenThread(ctx context.Context, counterpartAccountID int64) (*
 }
 
 // requireReachableCounterparts verifies every participant except the caller is
-// still a messageable colleague.
-func (s *Service) requireReachableCounterparts(ctx context.Context, threadID, callerAccountID int64) error {
-	participants, err := s.ThreadRepo.ParticipantAccountIDs(ctx, threadID)
+// still a messageable colleague. A group (#4776) has no single counterpart: it
+// stays writable while one member leaves the school, and only reachable
+// members receive the push.
+func (s *Service) requireReachableCounterparts(ctx context.Context, thread *StaffMessageThread, callerAccountID int64) error {
+	if thread.Kind == groupKind {
+		return nil
+	}
+	participants, err := s.ThreadRepo.ParticipantAccountIDs(ctx, thread.ID)
 	if err != nil {
 		return err
 	}
@@ -316,6 +417,15 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 	if err != nil {
 		return nil, err
 	}
+	// A group membership may change after the initial authorization. Lock and
+	// authorize again before reading its participant state and history, so a
+	// just-removed member cannot receive the group's complete history (#4776).
+	if thread.Kind == groupKind {
+		thread, err = s.lockAndReauthorizeThread(ctx, threadID, accountID)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	detail, err := s.buildDetail(ctx, thread, accountID)
 	if err != nil {
@@ -331,22 +441,32 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 		if err := s.ReadRepo.MarkReadUpTo(ctx, threadID, accountID, newest.CreatedAt, newest.ID); err != nil {
 			return nil, err
 		}
+		if thread.Kind == groupKind {
+			if err := s.refreshGroupReceipts(ctx, threadID, detail); err != nil {
+				return nil, err
+			}
+		}
 	}
 	return detail, nil
 }
 
 // PostMessage appends a message to a conversation the caller takes part in.
 func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*StaffMessage, error) {
+	_, message, err := s.postMessage(ctx, threadID, body)
+	return message, err
+}
+
+func (s *Service) postMessage(ctx context.Context, threadID int64, body string) (*StaffMessageThread, *StaffMessage, error) {
 	if err := s.requireEnabled(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	accountID, err := s.actor(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	trimmed, err := validateBody(body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Still a colleague? A JWT stays valid for its lifetime, so someone
 	// deactivated (or offboarded) mid-session keeps a usable token for up to
@@ -357,12 +477,11 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// Reads deliberately stay open: seeing the history one already had is
 	// harmless, adding to it after leaving the school is not.
 	if err := s.requireActiveMember(ctx, accountID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
 	thread, err := s.authorizeThread(ctx, threadID, accountID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Is the OTHER side still reachable? Membership in the thread is a
@@ -371,13 +490,17 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// that nobody will ever answer - and worse: because reads stay open, that
 	// person's still-valid token would keep DELIVERING them. Leaving history
 	// readable was meant for the past, not for ongoing traffic.
-	if err := s.requireReachableCounterparts(ctx, threadID, accountID); err != nil {
-		return nil, err
+	if err := s.requireReachableCounterparts(ctx, thread, accountID); err != nil {
+		return nil, nil, err
+	}
+	thread, err = s.lockAndReauthorizeThread(ctx, threadID, accountID)
+	if err != nil {
+		return nil, nil, err
 	}
 
-	message, err := s.appendMessage(ctx, threadID, accountID, trimmed)
+	message, err := s.appendLockedMessage(ctx, threadID, accountID, trimmed)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Deliberately NO read-cursor advance here.
 	//
@@ -391,7 +514,24 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// TestSendingDoesNotSwallowIncomingUnread pins this.
 
 	s.notifyAfterCommit(ctx, thread, message, accountID)
-	return message, nil
+	return thread, message, nil
+}
+
+// PostMessageWithReceipt returns a new message together with its initial group
+// read receipt. The caller's transaction still holds the thread lock.
+func (s *Service) PostMessageWithReceipt(ctx context.Context, threadID int64, body string) (*deliveryPorts.StaffMessagePostResult[StaffMessage], error) {
+	thread, message, err := s.postMessage(ctx, threadID, body)
+	if err != nil || message == nil {
+		return nil, err
+	}
+	var receipt *deliveryPorts.StaffReadReceipt
+	if thread.Kind == groupKind {
+		receipt, err = s.groupMessageReceipt(ctx, threadID, message)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &deliveryPorts.StaffMessagePostResult[StaffMessage]{Message: message, Receipt: receipt}, nil
 }
 
 // validateBody trims and range-checks a message body.
@@ -425,6 +565,9 @@ func (s *Service) resolveSenderName(ctx context.Context, accountID int64) string
 
 // buildDetail assembles the chat window payload for one viewer.
 func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, viewerAccountID int64) (*ThreadDetail, error) {
+	if thread.Kind == groupKind {
+		return s.buildGroupDetail(ctx, thread, viewerAccountID)
+	}
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID)
 	if err != nil {
 		return nil, err
@@ -434,7 +577,7 @@ func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, v
 		return nil, err
 	}
 
-	detail := &ThreadDetail{ThreadID: thread.ID, Messages: messages}
+	detail := &ThreadDetail{ThreadID: thread.ID, Kind: directKind, Messages: messages}
 	for _, id := range participants {
 		if id != viewerAccountID {
 			detail.CounterpartAccountID = id
@@ -452,12 +595,7 @@ func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, v
 	return detail, nil
 }
 
-func (s *Service) appendMessage(ctx context.Context, threadID, accountID int64, trimmed string) (*StaffMessage, error) {
-	// Serialize appends for this thread so message order matches commit order.
-	if err := s.ThreadRepo.LockForMessageAppend(ctx, threadID); err != nil {
-		return nil, err
-	}
-
+func (s *Service) appendLockedMessage(ctx context.Context, threadID, accountID int64, trimmed string) (*StaffMessage, error) {
 	message := &StaffMessage{
 		ThreadID:        threadID,
 		SenderAccountID: accountID,

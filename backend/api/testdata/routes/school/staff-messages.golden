@@ -4,3 +4,4 @@ GET /school/staff-messages/threads/{threadID}
 GET /school/staff-messages/unread-count
 POST /school/staff-messages/threads/open
 POST /school/staff-messages/threads/{threadID}
+POST /school/staff-messages/threads/{threadID}/leave

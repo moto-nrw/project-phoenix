@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Authenticated proxy streaming staff document bytes (#1424). Mirrors the
 // student-photo serve proxy: inject the JWT server-side, refresh once on
@@ -66,4 +67,4 @@ async function GETHandler(
   return new NextResponse(upstream.body, { status: 200, headers });
 }
 
-export const GET = withTenantAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withTenantAuth(GETHandler));

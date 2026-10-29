@@ -10,6 +10,8 @@ function parts(
     title: "Unterhaltung",
     roleLabel: null,
     stats: "",
+    audience: "",
+    actions: null,
     statsLoading: false,
     state: "ready",
     empty: { icon: null, title: "", description: "" },

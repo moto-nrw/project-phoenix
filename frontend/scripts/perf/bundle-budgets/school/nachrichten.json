@@ -7,8 +7,9 @@
       "maxBytes": 837880
     },
     "/school/nachrichten/[threadID]": {
-      "referenceBytes": 804077,
-      "maxBytes": 820159
+      "referenceBytes": 826529,
+      "maxBytes": 843060,
+      "_reason": "#4776: Gruppenchats im Schulportal mit Mitgliederansicht, Verlassen und Lesestatus. CI-Messung: 804077 auf 826529 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz."
     }
   }
 }

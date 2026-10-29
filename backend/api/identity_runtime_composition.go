@@ -6,6 +6,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
@@ -60,6 +61,19 @@ func initiatePasswordReset(resets identityaccess.PasswordResets, scope identitya
 	return func(ctx context.Context, email string) error {
 		_, err := resets.InitiatePasswordReset(ctx, email, scope)
 		return err
+	}
+}
+
+// portalPasswordResets binds the shared public reset routes of a portal to
+// Identity & Access: only accounts of the scope's portal are served, and the
+// link lands on that portal's host (caterer: ADR 0077, Träger: #5149).
+func portalPasswordResets(resets identityaccess.PasswordResets, scope identityaccess.PasswordResetScope) common.PasswordResetRoutes {
+	return common.PasswordResetRoutes{
+		Initiate:     initiatePasswordReset(resets, scope),
+		Reset:        resets.ResetPassword,
+		LinkUnusable: passwordResetLinkUnusable,
+		TooWeak:      passwordResetTooWeak,
+		RetryAfter:   passwordResetRetryAfter,
 	}
 }
 

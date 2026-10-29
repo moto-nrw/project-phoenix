@@ -14,6 +14,11 @@ const CodeCommunicationNotificationsDisabled = "communication.notifications_disa
 const CodeCommunicationParentNewsDisabled = "communication.parent_news_disabled"
 const CodeCommunicationPollNotOpen = "communication.poll_not_open"
 const CodeCommunicationStaffCounterpartUnavailable = "communication.staff_counterpart_unavailable"
+const CodeCommunicationStaffGroupCreateForbidden = "communication.staff_group_create_forbidden"
+const CodeCommunicationStaffGroupManageForbidden = "communication.staff_group_manage_forbidden"
+const CodeCommunicationStaffGroupMembersRequired = "communication.staff_group_members_required"
+const CodeCommunicationStaffGroupNameInvalid = "communication.staff_group_name_invalid"
+const CodeCommunicationStaffGroupTooLarge = "communication.staff_group_too_large"
 const CodeCommunicationStaffMessagingDisabled = "communication.staff_messaging_disabled"
 const CodeCommunicationStaffNoticeOutdated = "communication.staff_notice_outdated"
 const CodeCommunicationSurveyAlreadyAnswered = "communication.survey_already_answered"
@@ -36,6 +41,11 @@ var errorCodeClassesCommunication = []errorCodeClass{
 	{CodeCommunicationParentNewsDisabled, "permission"},
 	{CodeCommunicationPollNotOpen, "business_rejection"},
 	{CodeCommunicationStaffCounterpartUnavailable, "unavailable"},
+	{CodeCommunicationStaffGroupCreateForbidden, "permission"},
+	{CodeCommunicationStaffGroupManageForbidden, "permission"},
+	{CodeCommunicationStaffGroupMembersRequired, "input"},
+	{CodeCommunicationStaffGroupNameInvalid, "input"},
+	{CodeCommunicationStaffGroupTooLarge, "input"},
 	{CodeCommunicationStaffMessagingDisabled, "permission"},
 	{CodeCommunicationStaffNoticeOutdated, "business_rejection"},
 	{CodeCommunicationSurveyAlreadyAnswered, "business_rejection"},
