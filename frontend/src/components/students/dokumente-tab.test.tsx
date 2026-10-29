@@ -94,6 +94,34 @@ describe("StudentDokumenteTab", () => {
     expect(upload).not.toHaveBeenCalled();
   });
 
+  it("shows the generic upload for an uploadable document category", () => {
+    renderTab();
+
+    expect(
+      screen.getByRole("combobox", { name: "Kategorie" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Datei auswählen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the generic upload for accident report readers", () => {
+    swrResult.data = {
+      documents: [],
+      visibleCategories: [{ value: "unfallanzeige", label: "Unfallanzeige" }],
+    };
+    renderTab();
+
+    // Anker: Die geladene Dokumentliste zeigt den Leerzustand.
+    expect(screen.getByText("Noch keine Unfallanzeigen")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Kategorie" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Datei auswählen" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("lists an accident report in the school timezone, linked to its page", () => {
     swrResult.data = {
       documents: [

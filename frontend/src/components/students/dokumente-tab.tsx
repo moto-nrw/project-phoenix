@@ -144,6 +144,7 @@ export function StudentDokumenteTab({
       ),
     [visibleCategories],
   );
+  const canUploadDocuments = uploadCategories.length > 0;
   const documents = data?.documents ?? [];
   const effectiveUploadCategory =
     uploadCategory ?? uploadCategories[0]?.value ?? null;
@@ -375,76 +376,77 @@ export function StudentDokumenteTab({
           ) : undefined
         }
       >
-        {/* Upload row: category choice + drop zone */}
-        <div className="mb-5 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <label
-              htmlFor="kind-dokument-kategorie"
-              className="text-xs font-medium text-gray-600"
-            >
-              Kategorie
-            </label>
-            <CustomSelect
-              id="kind-dokument-kategorie"
-              value={effectiveUploadCategory ?? ""}
-              options={uploadCategories.map((category) => ({
-                value: category.value,
-                label: category.label,
-              }))}
-              onChange={(value) => setUploadCategory(value)}
-              disabled={uploadCategories.length === 0}
-              // triggerClassName REPLACES the default trigger classes, and the
-              // base class carries a colorless `border` — without
-              // moto-content-surface the Tailwind-4 default (currentColor)
-              // paints it black.
-              triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
-            />
-          </div>
-
-          <div
-            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
-              dragActive
-                ? "border-moto-green bg-moto-green/5"
-                : "border-gray-200 bg-gray-50/50"
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragActive(true);
-            }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragActive(false);
-              void handleFiles(e.dataTransfer.files);
-            }}
-          >
-            <Upload className="h-5 w-5 text-gray-400" aria-hidden="true" />
-            <p className="text-sm text-gray-600">
-              Datei hierher ziehen oder{" "}
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                className="text-moto-blue"
-                disabled={uploading || !effectiveUploadCategory}
-                onClick={() => fileInputRef.current?.click()}
+        {canUploadDocuments && (
+          /* Upload row: category choice + drop zone */
+          <div className="mb-5 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <label
+                htmlFor="kind-dokument-kategorie"
+                className="text-xs font-medium text-gray-600"
               >
-                {uploading ? "Wird hochgeladen…" : "Datei auswählen"}
-              </Button>
-            </p>
-            <p className="text-xs text-gray-400">
-              PDF, DOCX, PNG oder JPG · max. 10 MB
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPTED_FILE_TYPES}
-              className="hidden"
-              aria-label="Dokument auswählen"
-              onChange={(e) => void handleFiles(e.target.files)}
-            />
+                Kategorie
+              </label>
+              <CustomSelect
+                id="kind-dokument-kategorie"
+                value={effectiveUploadCategory ?? ""}
+                options={uploadCategories.map((category) => ({
+                  value: category.value,
+                  label: category.label,
+                }))}
+                onChange={(value) => setUploadCategory(value)}
+                // triggerClassName REPLACES the default trigger classes, and the
+                // base class carries a colorless `border` — without
+                // moto-content-surface the Tailwind-4 default (currentColor)
+                // paints it black.
+                triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
+              />
+            </div>
+
+            <div
+              className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+                dragActive
+                  ? "border-moto-green bg-moto-green/5"
+                  : "border-gray-200 bg-gray-50/50"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+                void handleFiles(e.dataTransfer.files);
+              }}
+            >
+              <Upload className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              <p className="text-sm text-gray-600">
+                Datei hierher ziehen oder{" "}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  className="text-moto-blue"
+                  disabled={uploading || !effectiveUploadCategory}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {uploading ? "Wird hochgeladen…" : "Datei auswählen"}
+                </Button>
+              </p>
+              <p className="text-xs text-gray-400">
+                PDF, DOCX, PNG oder JPG · max. 10 MB
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_FILE_TYPES}
+                className="hidden"
+                aria-label="Dokument auswählen"
+                onChange={(e) => void handleFiles(e.target.files)}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Category filter */}
         {documents.length > 0 && filterItems.length > 2 && (
@@ -481,10 +483,16 @@ export function StudentDokumenteTab({
               icon={<FileText className="h-12 w-12" aria-hidden="true" />}
               title={
                 filter === "alle"
-                  ? "Noch keine Dokumente"
+                  ? canUploadDocuments
+                    ? "Noch keine Dokumente"
+                    : "Noch keine Unfallanzeigen"
                   : "Keine Dokumente in dieser Kategorie"
               }
-              description="Lade die erste Datei über den Bereich oben hoch."
+              description={
+                canUploadDocuments
+                  ? "Lade die erste Datei über den Bereich oben hoch."
+                  : undefined
+              }
             />
           }
         />
