@@ -36,6 +36,7 @@ export function leadRosterDeviationTopic(): HelpTopic {
     notes: [
       // #5139: mehrere Angebote zusammen als Quelle.
       "Passen mehrere Angebote zusammen, etwa `Randstunde` und `Ganztag`? Dann schlägt moto beide vor. Ein Kind kommt, wenn es für eines davon angemeldet ist. So fällt kein Ganztagskind aus der Randstunde.",
+      "Angebote einer Anmeldephase für die Ferienbetreuung schlägt moto nie vor. Brauchen Sie eines davon, wählen Sie es in `Mit Angebot verbinden` unter `Angebote` selbst aus.",
       "Pflegen Sie die Kinder bewusst selbst? Wählen Sie `Bleibt von Hand gepflegt`. Dann verschwindet der Hinweis für diesen Regeltermin.",
       "Den Hinweis holen Sie zurück: Öffnen Sie einen Termin des Regeltermins und wählen Sie `Hinweis wieder zeigen`.",
       "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
