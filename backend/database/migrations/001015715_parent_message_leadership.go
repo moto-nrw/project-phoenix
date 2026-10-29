@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	parentMessageLeadershipVersion     = "1.15.714"
+	parentMessageLeadershipVersion     = "1.15.715"
 	parentMessageLeadershipDescription = "Eltern schreiben wahlweise an das ganze Team oder nur an die Leitung: zweite Unterhaltung pro Kind und Elternteil, Recht parent_messages:leadership (#5200)"
 
 	parentMessagesLeadershipPermissionName = "parent_messages:leadership"
@@ -20,8 +20,8 @@ func init() {
 		Version:     parentMessageLeadershipVersion,
 		Description: parentMessageLeadershipDescription,
 		DependsOn: []string{
-			holidayGuestAnswerFilterVersion, // the last migration before this one
-			parentMessagingVersion,          // creates users.parent_message_threads and its unique constraint
+			staffGroupChatsVersion, // the last migration before this one
+			parentMessagingVersion, // creates users.parent_message_threads and its unique constraint
 		},
 	})
 	Migrations.MustRegister(parentMessageLeadershipUp, parentMessageLeadershipDown)

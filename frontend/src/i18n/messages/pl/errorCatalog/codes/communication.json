@@ -19,5 +19,10 @@
   "survey_anonymous": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "class_letter_class_not_reachable": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
   "class_letter_read_only": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "leadership_messages_unavailable": "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS."
+  "leadership_messages_unavailable": "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
+  "staff_group_create_forbidden": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "staff_group_manage_forbidden": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "staff_group_name_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "staff_group_members_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "staff_group_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
 }

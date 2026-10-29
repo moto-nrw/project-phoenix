@@ -32,7 +32,58 @@ var (
 	ErrStaffMessageBodyTooLong            = errors.New("staffmessaging: message body is too long")
 	ErrStaffMessagingNoActor              = errors.New("staffmessaging: no authenticated account in context")
 	ErrStaffMessageRetentionUnresolved    = errors.New("staffmessaging: retention window could not be resolved")
+	ErrStaffMessageGroupCreateForbidden   = errors.New("staffmessaging: this role may not start a group chat")
+	ErrStaffMessageGroupManageForbidden   = errors.New("staffmessaging: only the creator and the leadership may manage this group")
+	ErrStaffMessageGroupNameInvalid       = errors.New("staffmessaging: group name must not be empty or too long")
+	ErrStaffMessageGroupMembersRequired   = errors.New("staffmessaging: a group needs at least one other member")
+	ErrStaffMessageGroupTooLarge          = errors.New("staffmessaging: too many members for one group")
 )
+
+type staffGroupNameInvalidError struct {
+	error
+	maxCharacters int
+}
+
+func (e staffGroupNameInvalidError) Unwrap() error { return e.error }
+
+// NewStaffGroupNameInvalidError preserves the enforced name limit at the
+// public capability boundary.
+func NewStaffGroupNameInvalidError(maxCharacters int, cause error) error {
+	return staffGroupNameInvalidError{error: cause, maxCharacters: maxCharacters}
+}
+
+// StaffGroupNameInvalidMaxCharacters returns the limit from a mapped group
+// name error.
+func StaffGroupNameInvalidMaxCharacters(err error) (int, bool) {
+	var limit staffGroupNameInvalidError
+	if !errors.As(err, &limit) {
+		return 0, false
+	}
+	return limit.maxCharacters, true
+}
+
+type staffGroupTooLargeError struct {
+	error
+	maxMembers int
+}
+
+func (e staffGroupTooLargeError) Unwrap() error { return e.error }
+
+// NewStaffGroupTooLargeError preserves the enforced member limit at the
+// public capability boundary.
+func NewStaffGroupTooLargeError(maxMembers int, cause error) error {
+	return staffGroupTooLargeError{error: cause, maxMembers: maxMembers}
+}
+
+// StaffGroupTooLargeMaxMembers returns the limit from a mapped group-size
+// error.
+func StaffGroupTooLargeMaxMembers(err error) (int, bool) {
+	var limit staffGroupTooLargeError
+	if !errors.As(err, &limit) {
+		return 0, false
+	}
+	return limit.maxMembers, true
+}
 
 // ParentMessage is the Communication view of one parent/OGS chat entry.
 // Payload is raw JSON so the public contract does not leak an ORM model or an
@@ -172,6 +223,11 @@ type StaffMessage struct {
 	SenderName      string
 	Body            string
 	CreatedAt       time.Time
+	// Group chats only (#4776): who of the members read the message, and how
+	// many members could have.
+	ReadByAccountIDs         []int64
+	EligibleReaderAccountIDs []int64
+	ReaderCount              int
 }
 
 type StaffMessageInboxThread struct {
@@ -183,6 +239,11 @@ type StaffMessageInboxThread struct {
 	LastMessageBody      string
 	LastSenderAccountID  *int64
 	UnreadCount          int
+	// Kind is "direct" or "group" (#4776).
+	Kind           string
+	GroupName      string
+	MemberCount    int
+	LastSenderName string
 }
 
 type StaffMessageThread struct {
@@ -191,6 +252,18 @@ type StaffMessageThread struct {
 	CounterpartName      string
 	CounterpartRoleKind  string
 	Messages             []StaffMessage
+	// Group chats (#4776).
+	Kind      string
+	GroupName string
+	CanManage bool
+	Members   []StaffThreadMember
+}
+
+// StaffThreadMember is one person in a group chat.
+type StaffThreadMember struct {
+	AccountID int64
+	Name      string
+	RoleKind  string
 }
 
 type MessageableStaff struct {
@@ -240,6 +313,12 @@ type StaffMessagingCommand interface {
 	OpenStaffMessageThread(context.Context, int64) (*StaffMessageThread, error)
 	GetStaffMessageThread(context.Context, int64) (*StaffMessageThread, error)
 	PostStaffMessage(context.Context, int64, string) (*StaffMessage, error)
+	// Group chats (#4776).
+	CreateStaffMessageGroup(ctx context.Context, name string, memberAccountIDs []int64) (*StaffMessageThread, error)
+	RenameStaffMessageGroup(ctx context.Context, threadID int64, name string) (*StaffMessageThread, error)
+	AddStaffMessageGroupMembers(ctx context.Context, threadID int64, accountIDs []int64) (*StaffMessageThread, error)
+	// Removing oneself is leaving the group; the result is then nil.
+	RemoveStaffMessageGroupMember(ctx context.Context, threadID, accountID int64) (*StaffMessageThread, error)
 }
 
 type StaffMessagingCapability interface {

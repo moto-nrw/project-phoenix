@@ -35,12 +35,16 @@ type StaffMessageService[I, T, M, G any, R retentionCounts] interface {
 	ListMessageableStaff(context.Context) ([]*G, error)
 	OpenThread(context.Context, int64) (*T, error)
 	GetThread(context.Context, int64) (*T, error)
-	PostMessage(context.Context, int64, string) (*M, error)
+	PostMessageWithReceipt(context.Context, int64, string) (*StaffMessagePostResult[M], error)
 	CleanupExpiredMessages(context.Context) (R, error)
+	CreateGroup(context.Context, string, []int64) (*T, error)
+	RenameGroup(context.Context, int64, string) (*T, error)
+	AddGroupMembers(context.Context, int64, []int64) (*T, error)
+	RemoveGroupMember(context.Context, int64, int64) (*T, error)
 }
 type StaffMessageRows[I, T, M, G any, R retentionCounts] struct {
 	Inbox     func(*I) *StaffInboxThread
-	Thread    func(*T) (StaffInboxThread, []*M)
+	Thread    func(*T) *StaffThreadView
 	Message   func(*M) *StaffMessage
 	Colleague func(*G) *MessageableStaff
 }
@@ -66,4 +70,11 @@ type StaffMessageErrors struct {
 	ErrMessageTooLong         error
 	ErrNoActor                error
 	ErrRetentionUnresolved    error
+	ErrGroupCreateForbidden   error
+	ErrGroupManageForbidden   error
+	ErrGroupNameInvalid       error
+	GroupNameMaxCharacters    int
+	ErrGroupMembersRequired   error
+	ErrGroupTooLarge          error
+	GroupMaxMembers           int
 }

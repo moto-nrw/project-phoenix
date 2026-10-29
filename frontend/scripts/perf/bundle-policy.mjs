@@ -88,6 +88,7 @@ export function compareBudgets(budgets, measured, base = null) {
   if (!(measured instanceof Map) || measured.size === 0)
     throw new Error("No measured bundle routes");
   const failures = [];
+  const warnings = [];
   const rows = [];
   for (const [route, bytes] of [...measured.entries()].sort(([a], [b]) =>
     a < b ? -1 : a > b ? 1 : 0,
@@ -102,6 +103,8 @@ export function compareBudgets(budgets, measured, base = null) {
       continue;
     }
     const baseBytes = base?.get(route);
+    if (baseBytes !== undefined && !validBytes(baseBytes))
+      throw new Error(`Invalid base bundle bytes for ${route}`);
     rows.push({
       route,
       bytes,
@@ -110,11 +113,18 @@ export function compareBudgets(budgets, measured, base = null) {
       baseBytes,
       delta: baseBytes === undefined ? null : bytes - baseBytes,
     });
-    if (bytes > budget.maxBytes) {
+    if (baseBytes !== undefined && bytes > legacyCeiling(baseBytes)) {
       failures.push(
+        `${route}: eigenes PR-Delta ${bytes - baseBytes} Bytes überschreitet die Toleranz ${legacyCeiling(baseBytes) - baseBytes} Bytes gegenüber der Merge-Basis (${baseBytes} Bytes). Bundle verkleinern; historische Referenzen ändern dieses Delta nicht.`,
+      );
+    }
+    if (bytes > budget.maxBytes) {
+      // An already over-budget base must not make an unrelated PR red.
+      const messages = baseBytes > budget.maxBytes ? warnings : failures;
+      messages.push(
         `${route}: ${bytes} Bytes überschreiten die genehmigte Obergrenze ${budget.maxBytes} Bytes. Bundle verkleinern oder eine begründete Policy-Änderung reviewen lassen; eine neue Messung erhöht kein Budget.`,
       );
     }
   }
-  return { failures, rows };
+  return { failures, warnings, rows };
 }

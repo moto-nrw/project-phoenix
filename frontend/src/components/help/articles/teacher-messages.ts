@@ -21,6 +21,7 @@ export function teacherMessagesTopic(): HelpTopic {
     notes: [
       "Vor Ihrer eigenen Nachricht steht `Sie:`.",
       "Hier melden Sie, was die OGS wissen muss, zum Beispiel eine falsche Abholzeit.",
+      "Die OGS kann Sie in einen Gruppenchat aufnehmen. Er steht dann mit seinem Namen in Ihrer Liste. Mit `Mitglieder` und `Gruppenchat verlassen` gehen Sie wieder heraus.",
     ],
     differences: [
       "Fehlt `Nachrichten` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
