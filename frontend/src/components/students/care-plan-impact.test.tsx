@@ -60,10 +60,13 @@ const twoClassesImpact: RosterImpact = {
 const SHARED_HINT =
   "Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.";
 
+// Ohne zweites Argument rendert das Kind "42"; ein ausdrückliches
+// `undefined` bleibt erhalten und rendert ohne Kind-ID.
 function renderImpact(
   value: RosterImpact = impact,
-  studentId: string | undefined = "42",
+  ...rest: [studentId?: string | undefined]
 ) {
+  const studentId = rest.length > 0 ? rest[0] : "42";
   return render(
     <ToastProvider>
       <CarePlanImpact impact={value} studentId={studentId} />
@@ -250,7 +253,12 @@ describe("CarePlanImpact", () => {
     const { unmount } = renderImpact(classImpact, undefined);
     expect(
       screen.getByRole("link", { name: "Mit Angebot verbinden: „Klasse 2a“" }),
-    ).toBeInTheDocument();
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "/betreuungsplan?view=serien&d=2027-05-31&verbinden=11",
+      ),
+    );
     unmount();
 
     grantPlanEditing(false);
@@ -269,6 +277,21 @@ describe("CarePlanImpact", () => {
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: /^Mit Angebot verbinden/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("offers no removal from a hand-maintained Regeltermin without a child id", () => {
+    renderImpact(impact, undefined);
+
+    // Anker: der Eintrag der Hand-Liste steht mit seinem Planlink.
+    expect(
+      screen.getByRole("link", {
+        name: "Im Betreuungsplan ansehen: „RDST 1b“",
+      }),
+    ).toBeInTheDocument();
+    // Gleiche Abfrage wie im Entfernen-Test mit Kind-ID und Recht.
+    expect(
+      screen.queryByRole("button", { name: "Dort auch entfernen: „RDST 1b“" }),
     ).not.toBeInTheDocument();
   });
 
