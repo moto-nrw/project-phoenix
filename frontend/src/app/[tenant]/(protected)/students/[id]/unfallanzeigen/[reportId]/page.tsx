@@ -24,6 +24,8 @@ import {
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import { transportFetch } from "~/lib/api-error";
+import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { hasPermission } from "~/lib/auth-utils";
 import { formatDate, formatTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -49,6 +51,28 @@ const logger = createLogger({ component: "AccidentReportPage" });
 function stamp(iso: string | null): string {
   if (!iso) return "–";
   return `${formatDate(iso)}, ${formatTime(iso)} Uhr`;
+}
+
+/** The child's name for the head and the breadcrumb; null until known. */
+function useStudentName(studentId: string): string | null {
+  const { data } = useSWRAuth<string | null>(
+    `student-name-${studentId}`,
+    async () => {
+      const res = await transportFetch(`/api/students/${studentId}`);
+      // The name only labels the page; without it the report still shows.
+      if (!res.ok) return null;
+      const body = (await res.json()) as {
+        data?: { name?: string; first_name?: string; second_name?: string };
+      };
+      const student = body.data;
+      if (!student) return null;
+      return (
+        student.name ??
+        `${student.first_name ?? ""} ${student.second_name ?? ""}`
+      ).trim();
+    },
+  );
+  return data ?? null;
 }
 
 function orDash(value: string): string {
@@ -85,6 +109,11 @@ export default function AccidentReportPage() {
   );
   const report = document?.accidentReport ?? null;
   const backHref = `/students/${studentId}?tab=dokumente`;
+  const studentName = useStudentName(studentId);
+  useStudentHistoryBreadcrumb({
+    studentName: studentName ?? undefined,
+    referrer: "/students/search",
+  });
 
   const [editing, setEditing] = useState<AccidentReportDraft | null>(null);
   const [correcting, setCorrecting] = useState(false);
@@ -108,10 +137,8 @@ export default function AccidentReportPage() {
         report ? (
           <TenantPageStats
             items={[
+              ...(studentName ? [{ value: studentName, label: "" }] : []),
               { value: stamp(report.occurredAt), label: "Unfall" },
-              ...(report.version > 0
-                ? [{ value: String(report.version), label: "Fassung" }]
-                : []),
             ]}
           />
         ) : undefined
@@ -365,7 +392,7 @@ function SignatureSection({
   if (report.status === "signed") {
     return (
       <SectionCard
-        title="Unterschrift"
+        title="Unterschrift der Leitung"
         action={
           canManage && !report.supersededById ? (
             <Button
@@ -405,7 +432,7 @@ function SignatureSection({
 
   return (
     <SectionCard
-      title="Unterschrift"
+      title="Unterschrift der Leitung"
       description={
         canManage
           ? "Die Leitung unterschreibt die Unfallanzeige. Danach lässt sie sich nicht mehr ändern."

@@ -53,7 +53,9 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 function accidentReportTitle(doc: StudentDocument): string {
   const occurredAt = doc.accidentReport?.occurredAt;
   if (!occurredAt) return doc.filename;
-  return `Unfall am ${formatDate(occurredAt)}, ${formatTime(occurredAt)} Uhr`;
+  const title = `Unfall am ${formatDate(occurredAt)}, ${formatTime(occurredAt)} Uhr`;
+  const version = doc.accidentReport?.version ?? 0;
+  return version > 1 ? `${title} · Fassung ${version}` : title;
 }
 
 function AccidentReportStatus({ doc }: Readonly<{ doc: StudentDocument }>) {
@@ -231,7 +233,7 @@ export function StudentDokumenteTab({
             {documentIcon(doc.contentType)}
             <NavigationLink
               href={accidentReportPath(studentId, doc.id)}
-              className="truncate text-sm font-medium text-gray-900 underline-offset-2 hover:underline"
+              className="min-w-0 text-sm font-medium break-words text-gray-900 underline-offset-2 hover:underline"
             >
               {accidentReportTitle(doc)}
             </NavigationLink>
@@ -272,7 +274,8 @@ export function StudentDokumenteTab({
       className: "whitespace-nowrap",
       render: (doc) => (
         <span className="text-xs text-gray-500">
-          {formatFileSize(doc.sizeBytes)}
+          {/* A report without paper copy has no file, only its PDF. */}
+          {doc.hasFile ? formatFileSize(doc.sizeBytes) : "–"}
         </span>
       ),
       sortValue: (doc) => doc.sizeBytes,

@@ -363,7 +363,8 @@ func (rs *Resource) accidentReportChild(ctx context.Context, studentID int64) (a
 	}
 	facts := accidentReportFacts{
 		Name: strings.TrimSpace(person.LastName + ", " + person.FirstName), Birthday: person.Birthday,
-		SchoolClass: student.SchoolClass,
+		// The class name may already carry the word; the PDF labels it once.
+		SchoolClass: strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(student.SchoolClass), "Klasse ")),
 	}
 	facts.Address = joinNonEmpty(", ", derefString(student.AddressStreet),
 		joinNonEmpty(" ", derefString(student.AddressPostalCode), derefString(student.AddressCity)))
