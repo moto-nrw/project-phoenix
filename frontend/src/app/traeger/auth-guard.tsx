@@ -14,6 +14,8 @@ import { traegerPath } from "~/lib/traeger-url";
 const TRAEGER_PUBLIC_PAGES = [
   "/traeger/login",
   "/login",
+  "/traeger/reset-password",
+  "/reset-password",
   "/traeger/invite",
   "/invite",
 ];

@@ -121,6 +121,7 @@ type TraegerOrganizationRouter interface {
 type Resource struct {
 	auth           AuthRuntime
 	mfa            MFARuntime
+	resets         common.PasswordResetRoutes
 	schools        TraegerRouter
 	holidayPeriods TraegerRouter
 	accessLog      TraegerRouter
@@ -136,13 +137,13 @@ type Resource struct {
 // Settings Platform (ADR 0086), the master data of Organisation & Tenancy
 // (#4653) and the Träger of the session (#4658).
 // accounts serves the Träger-Büro account routes (#4650) and
-// schoolSessions the Absprung into a school (#4654); without them those
-// routes answer 500.
-func NewResource(auth AuthRuntime, mfa MFARuntime, schools, holidayPeriods, accessLog, settings, masterData TraegerRouter, accounts identityaccess.TraegerAccountManagement, organization TraegerOrganizationRouter, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
+// schoolSessions the Absprung into a school (#4654), resets the password
+// reset (#5149); without them those routes answer 500.
+func NewResource(auth AuthRuntime, mfa MFARuntime, resets common.PasswordResetRoutes, schools, holidayPeriods, accessLog, settings, masterData TraegerRouter, accounts identityaccess.TraegerAccountManagement, organization TraegerOrganizationRouter, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
 	if schools == nil || holidayPeriods == nil || accessLog == nil || settings == nil || masterData == nil || organization == nil {
 		panic("traeger portal: the school list, holiday period, access log, settings, master data and Träger routes are required")
 	}
-	return &Resource{auth: auth, mfa: mfa, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, masterData: masterData, accounts: accounts, organization: organization, schoolSessions: schoolSessions}
+	return &Resource{auth: auth, mfa: mfa, resets: resets, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, masterData: masterData, accounts: accounts, organization: organization, schoolSessions: schoolSessions}
 }
 
 // The sentences the Träger-Portal renders for a refused login.
@@ -167,6 +168,10 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 			r.Use(authRateLimiter)
 		}
 		r.Post("/login", rs.login)
+		// The reset link reaches Träger-Büro members only and lands on the
+		// Träger host (#5149).
+		r.Post("/password-reset", rs.resets.ServeInitiate)
+		r.Post("/password-reset/confirm", rs.resets.ServeConfirm)
 		// The Träger second factor: redeems only org-scope challenges.
 		r.Post("/mfa/verify", rs.mfaVerify)
 		r.Post("/mfa/resend", rs.mfaResend)

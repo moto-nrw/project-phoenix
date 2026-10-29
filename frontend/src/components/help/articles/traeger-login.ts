@@ -14,6 +14,7 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 /**
  * `/traeger/login` (#4649): eigene Adresse, danach die Liste der Schulen.
  * Der Code per E-Mail ist Pflicht, beim ersten Mal mit Einrichtung (#4651).
+ * „Passwort vergessen?“ schickt den Link auf den Träger-Host (#5149).
  */
 export function traegerLoginTopic(): HelpTopic {
   return {
@@ -57,6 +58,9 @@ export function traegerLoginTopic(): HelpTopic {
       "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
+      "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`.",
+      "Öffnen Sie den Link aus der E-Mail. Er führt zum Träger-Portal. Legen Sie dort ein neues Passwort fest.",
+      "Das neue Passwort gilt auch für Ihr Konto in der OGS.",
     ],
     related: [HELP_TOPICS.errorMessages],
   };
