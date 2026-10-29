@@ -1,6 +1,7 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import {
   ApiError,
+  apiErrorFromBody,
   apiErrorFromText,
   enrichApiError,
   problemDetail,
@@ -413,11 +414,16 @@ async function reloadSession(): Promise<void> {
   await getCachedSession();
 }
 
-function accessDeniedApiError(status?: 401 | 403): ApiError {
+/**
+ * The refusal fetchWithRetry reported, with code, details and request ID of
+ * the backend envelope when its body carried one (ADR 0006).
+ */
+function accessDeniedApiError(status?: 401 | 403, body?: unknown): ApiError {
   const accessDeniedStatus = status ?? 401;
-  return new ApiError(
+  return apiErrorFromBody(
     accessDeniedStatus === 403 ? "Access denied" : "Authentication failed",
     accessDeniedStatus,
+    body,
   );
 }
 
@@ -942,16 +948,14 @@ export const studentService = {
 
     try {
       if (useProxyApi) {
-        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
-          url,
-          {
+        const { data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
             beforeRetry: reloadSession,
-          },
-        );
+          });
 
         if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         return parseStudentsPaginatedResponse(data);
@@ -976,16 +980,14 @@ export const studentService = {
 
     try {
       if (useProxyApi) {
-        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
-          url,
-          {
+        const { data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
             beforeRetry: reloadSession,
-          },
-        );
+          });
 
         if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         return parseSchoolClassesResponse(data);
@@ -1008,16 +1010,14 @@ export const studentService = {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
         // Route handler already maps response, so applyMapping=false
-        const { data, accessDeniedStatus } = await fetchWithRetry<unknown>(
-          url,
-          {
+        const { data, accessDeniedStatus, accessDeniedBody } =
+          await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
             beforeRetry: reloadSession,
-          },
-        );
+          });
 
         if (data === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         return parseSingleStudentResponse(data, false);
@@ -1210,7 +1210,7 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { response, data, accessDeniedStatus } =
+        const { response, data, accessDeniedStatus, accessDeniedBody } =
           await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
             beforeRetry: reloadSession,
@@ -1219,7 +1219,8 @@ export const groupService = {
         // Handle errors: null response means auth failed or permission denied
         // Return empty array for graceful degradation
         if (response === null || data === null) {
-          if (options?.strict) throw accessDeniedApiError(accessDeniedStatus);
+          if (options?.strict)
+            throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
           return [];
         }
 
@@ -1247,14 +1248,14 @@ export const groupService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { response, data, accessDeniedStatus } =
+        const { response, data, accessDeniedStatus, accessDeniedBody } =
           await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
             beforeRetry: reloadSession,
           });
 
         if (response === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         const groupData = extractBackendGroup(data);
@@ -1620,14 +1621,14 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { response, data, accessDeniedStatus } =
+        const { response, data, accessDeniedStatus, accessDeniedBody } =
           await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
             beforeRetry: reloadSession,
           });
 
         if (options?.strict && (response === null || data === null)) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         const rooms = parseRoomsResponse(data);
@@ -1654,14 +1655,14 @@ export const roomService = {
     try {
       if (useProxyApi) {
         // Browser environment: use fetchWithRetry for automatic 401 handling
-        const { response, data, accessDeniedStatus } =
+        const { response, data, accessDeniedStatus, accessDeniedBody } =
           await fetchWithRetry<unknown>(url, {
             onAuthFailure: handleAuthFailure,
             beforeRetry: reloadSession,
           });
 
         if (response === null) {
-          throw accessDeniedApiError(accessDeniedStatus);
+          throw accessDeniedApiError(accessDeniedStatus, accessDeniedBody);
         }
 
         const roomData = extractBackendRoom(data);

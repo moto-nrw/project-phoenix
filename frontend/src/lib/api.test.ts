@@ -712,6 +712,45 @@ describe("api.ts helper functions", () => {
         restore();
       }
     });
+    it.each([
+      ["groups", 401],
+      ["groups", 403],
+      ["rooms", 401],
+      ["rooms", 403],
+    ] as const)(
+      "keeps code, details and request ID of a strict %s refusal (%s)",
+      async (resource, status) => {
+        const { fetchWithRetry } = await import("./api-helpers");
+        vi.mocked(fetchWithRetry).mockResolvedValue({
+          data: null,
+          response: null,
+          accessDeniedStatus: status,
+          accessDeniedBody: {
+            status,
+            code: "module.not_booked",
+            detail: "module rooms is not booked",
+            details: { module: "rooms" },
+            instance: "req-42",
+          },
+        });
+        const { groupService, roomService } = await import("./api");
+        const restore = setupBrowserEnv();
+        try {
+          const read =
+            resource === "groups"
+              ? groupService.getGroups({}, { strict: true })
+              : roomService.getRooms({}, { strict: true });
+          await expect(read).rejects.toMatchObject({
+            status,
+            code: "module.not_booked",
+            details: { module: "rooms" },
+            instance: "req-42",
+          });
+        } finally {
+          restore();
+        }
+      },
+    );
     it("returns empty array when response is null", async () => {
       const { fetchWithRetry } = await import("./api-helpers");
       vi.mocked(fetchWithRetry).mockResolvedValue({
