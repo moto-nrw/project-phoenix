@@ -27,7 +27,7 @@ import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { hasPermission } from "~/lib/auth-utils";
-import { formatDate, formatTime } from "~/lib/date-helpers";
+import { berlinClockFromISO, formatBerlinDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   accidentReportPath,
@@ -50,7 +50,7 @@ const logger = createLogger({ component: "AccidentReportPage" });
 
 function stamp(iso: string | null): string {
   if (!iso) return "–";
-  return `${formatDate(iso)}, ${formatTime(iso)} Uhr`;
+  return `${formatBerlinDate(iso)}, ${berlinClockFromISO(iso)} Uhr`;
 }
 
 /** The child's name for the head and the breadcrumb; null until known. */

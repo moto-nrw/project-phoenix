@@ -9,6 +9,7 @@ import {
   createFileUploadHandler,
   FileValidationError,
 } from "~/lib/file-upload-wrapper.server";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 import { uncachedAuth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 
@@ -39,10 +40,13 @@ export const POST = createFileUploadHandler<unknown>(
       new File([buffer], file.name, { type: file.type }),
     );
 
-    const sendUpload = (bearer: string) =>
+    const sendUpload = async (bearer: string) =>
       fetch(backendUrl, {
         method: "POST",
-        headers: { Authorization: `Bearer ${bearer}` },
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          ...(await incomingAnalyticsSessionHeaders()),
+        },
         body: forwarded,
       });
 

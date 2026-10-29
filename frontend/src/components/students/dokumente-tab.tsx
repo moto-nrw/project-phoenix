@@ -21,7 +21,11 @@ import {
   useApiFormError,
   useApiLoadError,
 } from "~/contexts/ToastContext";
-import { formatDate, formatTime } from "~/lib/date-helpers";
+import {
+  berlinClockFromISO,
+  formatBerlinDate,
+  formatDate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { formatFileSize } from "~/lib/staff-documents-api";
 import {
@@ -53,7 +57,7 @@ const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 function accidentReportTitle(doc: StudentDocument): string {
   const occurredAt = doc.accidentReport?.occurredAt;
   if (!occurredAt) return doc.filename;
-  const title = `Unfall am ${formatDate(occurredAt)}, ${formatTime(occurredAt)} Uhr`;
+  const title = `Unfall am ${formatBerlinDate(occurredAt)}, ${berlinClockFromISO(occurredAt)} Uhr`;
   const version = doc.accidentReport?.version ?? 0;
   return version > 1 ? `${title} · Fassung ${version}` : title;
 }

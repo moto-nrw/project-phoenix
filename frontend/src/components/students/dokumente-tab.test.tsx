@@ -94,7 +94,7 @@ describe("StudentDokumenteTab", () => {
     expect(upload).not.toHaveBeenCalled();
   });
 
-  it("lists an accident report by its time and status, linked to its page", () => {
+  it("lists an accident report in the school timezone, linked to its page", () => {
     swrResult.data = {
       documents: [
         {
@@ -135,17 +135,23 @@ describe("StudentDokumenteTab", () => {
         { value: "unfallanzeige", label: "Unfallanzeige" },
       ],
     };
-    renderTab();
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      renderTab();
 
-    const link = screen.getByRole("link", {
-      name: "Unfall am 08.09.2026, 10:40 Uhr",
-    });
-    expect(link).toHaveAttribute("href", "/students/7/unfallanzeigen/41");
-    expect(screen.getByText("Offen")).toBeInTheDocument();
-    // Without student_accidents:manage there is nothing to record.
-    expect(screen.getByText("Dokumente")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Unfall erfassen" }),
-    ).not.toBeInTheDocument();
+      const link = screen.getByRole("link", {
+        name: "Unfall am 08.09.2026, 10:40 Uhr",
+      });
+      expect(link).toHaveAttribute("href", "/students/7/unfallanzeigen/41");
+      expect(screen.getByText("Offen")).toBeInTheDocument();
+      // Without student_accidents:manage there is nothing to record.
+      expect(screen.getByText("Dokumente")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Unfall erfassen" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      process.env.TZ = previousTimezone;
+    }
   });
 });
