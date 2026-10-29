@@ -95,6 +95,11 @@ export const studentKeys = {
   arrivalData: (id: string) => `arrival-data-${encodeURIComponent(id)}`,
 } as const;
 
+export const timetableKeys = {
+  offeringGaps: (periodId: string) =>
+    `offering-gaps-${encodeURIComponent(periodId)}`,
+} as const;
+
 export const payrollKeys = {
   status: () => "payroll-status",
 } as const;

@@ -28,6 +28,93 @@ describe.concurrent("swr/no-direct-import", () => {
     expect(good.status, good.output).toBe(0);
   });
   it.each([
+    [
+      "a module constant",
+      'const FREE_KEY = "rooms"; export function useProbe() { return useSWRAuth(FREE_KEY, async () => []); }',
+    ],
+    [
+      "a join",
+      'export function useProbe(id: string) { return useSWRAuth(["a", id].join("-"), async () => []); }',
+    ],
+    [
+      "a concatenation",
+      'export function useProbe(id: string) { return useSWRAuth("a-" + id, async () => []); }',
+    ],
+    [
+      "a parameter",
+      "export function useProbe(key: string) { return useSWRAuth(key, async () => []); }",
+    ],
+    [
+      "another module's constant",
+      'import { USER_KEY } from "~/lib/user"; export function useProbe() { return useImmutableSWR(USER_KEY, async () => []); }',
+    ],
+    [
+      "a useSWRWithId base key",
+      'export function useProbe(id: string) { return useSWRWithId("student", id, async () => []); }',
+    ],
+    [
+      "a local template",
+      "export function useProbe(id: string) { const key = `room-${id}`; return useSWRAuth(id ? key : null, async () => []); }",
+    ],
+  ])("rejects a free key: %s", async (_name, body) => {
+    const result = await lintSource(
+      `import { useSWRAuth, useImmutableSWR, useSWRWithId } from "~/lib/swr"; void useSWRAuth; void useImmutableSWR; void useSWRWithId;\n${body}`,
+    );
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain("swr(no-free-key)");
+  });
+
+  it("accepts factory keys directly, through locals and in branches", async () => {
+    const result = await lintSource(`
+      import { useSWRAuth, useSWRWithId } from "~/lib/swr";
+      import { roomKeys } from "~/lib/swr/rooms-keys";
+      import { meKeys } from "~/lib/swr/me-keys";
+      export function useProbe(id: string | null) {
+        const key = id ? roomKeys.detailKey(id) : null;
+        const later = useSWRAuth(listKey, async () => []);
+        const listKey = roomKeys.key({ page: 1 });
+        void later;
+        void useSWRWithId(meKeys.family, id, async () => []);
+        return useSWRAuth(key, async () => []);
+      }
+    `);
+    expect(result.status, result.output).toBe(0);
+  });
+
+  it.each([
+    'import { useSWRConfig } from "~/lib/swr/cache"; void useSWRConfig;',
+    'import { useSWRConfig as config } from "~/lib/swr"; void config;',
+    'export { useSWRConfig } from "~/lib/swr/cache";',
+    'import { stampSWRValue } from "~/lib/swr/generation"; void stampSWRValue;',
+    'export * from "~/lib/swr/generation";',
+    'void import("~/lib/swr/generation");',
+  ])("rejects unlocked cache access outside ~/lib/swr: %s", async (source) => {
+    const result = await lintSource(source);
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain("swr(no-cache-access)");
+  });
+
+  it("accepts the provider and the locked helpers", async () => {
+    const result = await lintSource(`
+      import { SWRConfig } from "~/lib/swr/cache";
+      import { useInvalidateMatching, useSWRSeedFrom, stampSWRSeeds } from "~/lib/swr";
+      void SWRConfig; void useInvalidateMatching; void useSWRSeedFrom; void stampSWRSeeds;
+    `);
+    expect(result.status, result.output).toBe(0);
+  });
+
+  it.each(["src/lib/swr/seed.ts", "src/components/probe.test.tsx"])(
+    "leaves cache access to the boundary and its tests: %s",
+    async (file) => {
+      const result = await lintSource(
+        'import { stampSWRValue } from "~/lib/swr/generation"; void stampSWRValue;',
+        file,
+      );
+      expect(result.output).not.toContain("swr(no-cache-access)");
+    },
+  );
+
+  it.each([
     'import useSWR from "swr"; void useSWR;',
     'import useSWRInfinite from "swr/infinite"; void useSWRInfinite;',
     'import { preload } from "swr"; void preload;',
