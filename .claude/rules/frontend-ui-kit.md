@@ -151,15 +151,15 @@ Use when one screen shows two or more notices of the same kind, each about its o
 Build it from existing kit parts, as Tristan Heitger and Florian (`fl0r14n28`) set them up; add no wrapper component:
 
 1. **One neutral section.** A `SectionCard` holds all entries as rows in `ResponsiveActionList` (`divide-y divide-gray-100`). Colour stays on the icon (`leading`) and on a count that names a fact („3 offen“); the rows are white, never one coloured `Alert` per entry.
-2. **Actions in one flush column.** From `sm` on, every row's actions start at the same place (rows take `sm:col-span-2 sm:grid-cols-subgrid`); on a phone they stack under the text. Actions of equal rank use the same kit button, `variant="surface" size="compact"`, with an `aria-label` naming the row's object. A text link next to a button is no equal-rank action.
+2. **Actions in one flush column.** From `sm` on, every row's actions start at the same place (rows take `sm:col-span-2 sm:grid sm:grid-cols-subgrid`); below `sm` they sit under the text, side by side from 480 px and one per line below. Actions of equal rank look the same: `Button` or, for navigation, `ButtonLink`, both `variant="surface" size="compact"`, with an `aria-label` naming the row's object. A text link next to a button is no equal-rank action.
 3. **Shared text once.** A hint that applies to several rows stands once above the list, also when only one row needs it, never repeated per row.
 4. **Only concrete labels.** Show what OGS staff can act on (name, children, days). Skip markers or badges that carry no concrete information.
 5. **Long lists fold.** More than 5 open rows: show the first 5 and a `ghost` button „N weitere anzeigen“ / „Weniger anzeigen“ with `aria-expanded`. Decided or done entries go into a second `SectionCard` with `collapsible defaultCollapsed`.
-6. **Load error stays small.** `LoadErrorAlert` with `actionLayout="responsive"` puts „Wiederholen“ right of the message from `sm` on and under it on a phone; never an empty list instead of the error.
+6. **Load error stays small.** `LoadErrorAlert` with `actionLayout="responsive"` puts „Wiederholen“ right of the message from `sm` on and under it on a phone; never an empty list instead of the error. Exceptions in [`form-error-alert.tsx`](../../frontend/src/components/ui/form-error-alert.tsx): an error with a request ID stays `stacked` (retry and ID under the message), a retry shows only when the error carries one, and a module the school did not book shows its explanation without a retry.
 
 Reference implementations: [`offering-gap-hints.tsx`](../../frontend/src/components/timetable/offering-gap-hints.tsx) (#5181, all six points) and [`care-plan-impact.tsx`](../../frontend/src/components/students/care-plan-impact.tsx) (#5298, shared hint above the list, equal `surface compact` buttons).
 
-Review check: with three or more entries that carry actions, the screen shows one card, no `Alert` per entry, flush action columns on desktop, stacked actions on a phone, and no repeated hint text. The before/after pairs for desktop and phone follow [Before/After Screenshots](../../frontend/CLAUDE.md#beforeafter-screenshots-for-ui-changes-mandatory).
+Review check: with two or more entries that carry actions, the screen shows one card, no `Alert` per entry, a flush action column from `sm` on, actions under the text below `sm`, and no repeated hint text. The before/after pairs for desktop and phone follow [Before/After Screenshots](../../frontend/CLAUDE.md#beforeafter-screenshots-for-ui-changes-mandatory).
 
 ## Canonical values
 
