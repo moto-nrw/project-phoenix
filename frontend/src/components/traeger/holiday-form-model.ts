@@ -1,5 +1,6 @@
 // Entwurf des Anmeldeformulars eines Ferienzeitraums (#5198): Fragen je
-// Familie oder je Kind, Pflicht, Bedingung und Gesundheitsangabe. Die
+// Familie oder je Kind, Pflicht, Bedingung, Gesundheitsangabe und die
+// Freigabe für die ausrichtende OGS (#5202). Die
 // Feldnamen der Prüfung folgen dem Backend ("fields.2.label"), damit Fehler
 // vom Server an derselben Frage landen.
 
@@ -38,6 +39,8 @@ export function prepareHolidayFieldsForSave(
       // Always sent, false included: the marker tells health questions from
       // the others, also for later readers such as #5202.
       health: Boolean(field.health),
+      // A health question is never shared with the hosting school (#5202).
+      share_with_host: Boolean(field.share_with_host) && !field.health,
     };
   });
 }

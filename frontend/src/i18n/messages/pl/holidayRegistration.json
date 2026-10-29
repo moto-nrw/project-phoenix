@@ -33,6 +33,8 @@
   "notBooked": "Bez zgłoszenia",
   "weekRange": "{starts} do {ends}",
   "timeModel": "{name} ({startsAt} do {endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt} do {endsAt})",
+  "weeksPriceText": "Cena dotyczy jednego tygodnia i jednego dziecka, bez zniżki ani zwolnienia. Twoją opłatę zobaczysz w podsumowaniu.",
   "healthTitle": "Zdrowie (dobrowolnie)",
   "healthText": "Te informacje widzi tylko opieka.",
   "allergies": "Alergie i nietolerancje",
@@ -55,7 +57,7 @@
   "addPickup": "Dodaj osobę",
   "remove": "Usuń",
   "consentTitle": "Zgoda",
-  "privacyConsent": "Zgadzam się, aby organizator używał tych danych do opieki w ferie. Usunie je trzy miesiące po feriach.",
+  "privacyConsent": "Zgadzam się, aby organizator używał tych danych do opieki w ferie. Usunie je trzy miesiące po feriach. OGS, która opiekuje się moim dzieckiem w tygodniu ferii, widzi imię, nazwisko i telefon drugiego opiekuna prawnego. Widzi też odpowiedzi, które organizator jej udostępni. Nie widzi informacji o zdrowiu. OGS widzi to już przed tygodniem ferii, aby się przygotować. Listę dzieci widzi do ostatniego dnia tygodnia. Potem może czytać imię, nazwisko, telefon i odpowiedzi jeszcze najwyżej 7 dni. Następnie są one usuwane.",
   "healthConsent": "Zgadzam się, aby opieka widziała informacje o zdrowiu moich dzieci.",
   "bindingConfirmed": "Wiem, że zgłoszenie jest wiążące.",
   "captchaMissing": "Brakuje kontroli bezpieczeństwa. Załaduj stronę ponownie.",
@@ -96,5 +98,8 @@
     "choose": "Wybierz odpowiedź."
   },
   "childQuestionsTitle": "Dodatkowe informacje",
-  "familyQuestionsTitle": "Dodatkowe informacje o rodzinie"
+  "familyQuestionsTitle": "Dodatkowe informacje o rodzinie",
+  "legalTitle": "Informacje i zgody",
+  "legalAccepted": "Potwierdzono",
+  "legalNotAccepted": "Nie potwierdzono"
 }

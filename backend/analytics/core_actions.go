@@ -61,6 +61,9 @@ func export(exportType string) CoreAction {
 // Adding a writing route: classify it here. New core action: name the event
 // in snake_case after what succeeded (group_created, not create_group).
 var coreActions = map[RouteKey]CoreAction{
+	// Period-owned PDFs have no school to count them for (#5199).
+	{http.MethodPost, "/traeger/holiday-periods/{id}/form/documents"}:                notCaptured,
+	{http.MethodDelete, "/traeger/holiday-periods/{id}/form/documents/{documentId}"}: notCaptured,
 	// OGS portal (tenant API).
 	{http.MethodPost, "/api/absence-types/"}:                                                               notCaptured,
 	{http.MethodPut, "/api/absence-types/{id}"}:                                                            notCaptured,
@@ -469,6 +472,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/timetable/templates/{id}/end"}:                                               notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/split"}:                                             notCaptured,
 	{http.MethodPut, "/api/timetable/templates/{id}/manual-roster"}:                                      notCaptured,
+	{http.MethodPut, "/api/timetable/offering-gaps/{offeringId}/acknowledgement"}:                        notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/offering-connection"}:                               event("template_offering_connected"),
 	{http.MethodPost, "/api/timetable/templates/{id}/students/{studentId}/remove-days"}:                  notCaptured,
 	{http.MethodPost, "/api/users/"}:                                                                     notCaptured,

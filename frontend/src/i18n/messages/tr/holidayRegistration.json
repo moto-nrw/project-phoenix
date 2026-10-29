@@ -33,6 +33,8 @@
   "notBooked": "Kayıt yok",
   "weekRange": "{starts} – {ends}",
   "timeModel": "{name} ({startsAt}–{endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt}–{endsAt})",
+  "weeksPriceText": "Fiyat bir hafta ve bir çocuk içindir, indirim veya muafiyet hariç. Ücretinizi özette görürsünüz.",
   "healthTitle": "Sağlık (isteğe bağlı)",
   "healthText": "Bu bilgileri sadece bakım personeli görür.",
   "allergies": "Alerjiler ve intoleranslar",
@@ -55,7 +57,7 @@
   "addPickup": "Kişi ekle",
   "remove": "Kaldır",
   "consentTitle": "Onay",
-  "privacyConsent": "Kurumun bu bilgileri tatil bakımı için kullanmasını kabul ediyorum. Kurum bilgileri tatilden üç ay sonra siler.",
+  "privacyConsent": "Kurumun bu bilgileri tatil bakımı için kullanmasını kabul ediyorum. Kurum bilgileri tatilden üç ay sonra siler. Çocuğuma bir tatil haftasında bakan OGS, ikinci yasal velinin adını ve telefonunu görür. Kurumun onunla paylaştığı cevapları da görür. Sağlık bilgilerini görmez. OGS bunları hazırlanabilmek için tatil haftasından önce görür. Çocuk listesini haftanın son gününe kadar görür. Sonrasında adı, telefonu ve cevapları en fazla 7 gün daha okuyabilir. Ardından bunlar silinir.",
   "healthConsent": "Bakım personelinin çocuklarımın sağlık bilgilerini görmesini kabul ediyorum.",
   "bindingConfirmed": "Kaydın bağlayıcı olduğunu biliyorum.",
   "captchaMissing": "Güvenlik kontrolü eksik. Lütfen sayfayı yeniden yükleyin.",
@@ -96,5 +98,8 @@
     "choose": "Lütfen bir cevap seçin."
   },
   "childQuestionsTitle": "Diğer bilgiler",
-  "familyQuestionsTitle": "Aileniz hakkında diğer bilgiler"
+  "familyQuestionsTitle": "Aileniz hakkında diğer bilgiler",
+  "legalTitle": "Bilgiler ve onaylar",
+  "legalAccepted": "Onaylandı",
+  "legalNotAccepted": "Onaylanmadı"
 }

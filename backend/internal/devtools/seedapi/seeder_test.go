@@ -1061,6 +1061,34 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			trace.parentSubmissions = append(trace.parentSubmissions, body)
 			r.Body = io.NopCloser(bytes.NewReader(raw))
 		}
+		// Holiday PDFs are multipart and IDs are strings, unlike the
+		// generic JSON entity fixture. Keep this before the profile mocks.
+		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form/documents") {
+			idCounter++
+			require.NoError(t, r.ParseMultipartForm(10<<20))
+			defer func() { require.NoError(t, r.MultipartForm.RemoveAll()) }()
+			file, header, err := r.FormFile("document")
+			require.NoError(t, err)
+			defer func() { require.NoError(t, file.Close()) }()
+			content, err := io.ReadAll(file)
+			require.NoError(t, err)
+			require.True(t, bytes.HasPrefix(content, []byte("%PDF-")))
+			require.True(t, strings.HasSuffix(header.Filename, ".pdf"))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(seedHTTPStatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprint(idCounter)}})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"version":1,"fields":[]}}`)
+			return
+		}
+		if r.Method == seedHTTPMethodPut && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"version":2,"fields":[]}}`)
+			return
+		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/enrollment/legal-documents" {
 			// Handle this multipart response before the profile mocks decode JSON.
 			idCounter++

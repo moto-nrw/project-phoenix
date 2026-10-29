@@ -366,7 +366,7 @@ func (s *HolidayRegistrationStore) AppendHolidayAudit(ctx context.Context, organ
 }
 
 const (
-	reviewRegistrationAnswersQuery = `SELECT id, form_version, custom_data
+	reviewRegistrationAnswersQuery = `SELECT id, form_version, custom_data, legal_acceptances
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)`
 	reviewChildAnswersQuery = `SELECT id, holiday_registration_id, custom_data
@@ -386,9 +386,10 @@ func (s *HolidayRegistrationStore) ReadHolidayAnswers(ctx context.Context, organ
 		return nil, err
 	}
 	var registrations []struct {
-		ID          int64                     `bun:"id"`
-		FormVersion int                       `bun:"form_version"`
-		CustomData  enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+		ID               int64                     `bun:"id"`
+		LegalAcceptances map[string]time.Time      `bun:"legal_acceptances,type:jsonb"`
+		FormVersion      int                       `bun:"form_version"`
+		CustomData       enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
 	}
 	if err := db.NewRaw(reviewRegistrationAnswersQuery, organizationID, periodID, registrationID, registrationID).
 		Scan(ctx, &registrations); err != nil {
@@ -400,7 +401,7 @@ func (s *HolidayRegistrationStore) ReadHolidayAnswers(ctx context.Context, organ
 	}
 	for _, row := range registrations {
 		answers[row.ID] = enrollment.HolidayRegistrationAnswers{
-			FormVersion: row.FormVersion, CustomData: answersOrEmpty(row.CustomData), Children: []enrollment.HolidayChildAnswers{},
+			LegalAcceptances: row.LegalAcceptances, FormVersion: row.FormVersion, CustomData: answersOrEmpty(row.CustomData), Children: []enrollment.HolidayChildAnswers{},
 		}
 	}
 	var children []struct {

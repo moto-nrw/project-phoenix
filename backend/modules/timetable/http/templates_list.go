@@ -318,7 +318,7 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	// "0 Kinder". Only the schedule join below stays period-filtered, which
 	// decides WHETHER the card appears at all.
 	childrenPerStaffRatio := rs.childrenPerStaffRatio(r.Context())
-	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(r.Context(), periodID, childrenPerStaffRatio)
+	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(r.Context(), periodID, childrenPerStaffRatio, nil)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return

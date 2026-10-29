@@ -1,4 +1,5 @@
 "use client";
+import { HolidayRegistrationLegal } from "./holiday-registration-legal";
 
 // Öffentliche Ferienanmeldung (#4661): bis zu drei Geschwister, Wochen mit
 // Zeitmodell, Notfallkontakte, Abholberechtigte und Gesundheitsangaben. Vor
@@ -118,6 +119,7 @@ export function HolidayRegistrationForm({
       setStep("form");
       setCaptchaToken("");
       if (err instanceof ApiError && err.code === FORM_CHANGED) {
+        setDraft((current) => ({ ...current, legalAcceptances: {} }));
         await onFormChanged?.();
       }
       void errorPath.show(err, { object: t("errorObject") });
@@ -339,6 +341,18 @@ export function HolidayRegistrationForm({
         onChange={(pickupPersons) => setDraft({ ...draft, pickupPersons })}
       />
 
+      <HolidayRegistrationLegal
+        token={token}
+        blocks={offer.form.legalBlocks ?? []}
+        accepted={draft.legalAcceptances ?? {}}
+        fieldError={fieldError}
+        onChange={(key, checked) =>
+          setDraft({
+            ...draft,
+            legalAcceptances: { ...draft.legalAcceptances, [key]: checked },
+          })
+        }
+      />
       <SectionCard title={t("consentTitle")}>
         <div className="space-y-3">
           <ConsentCheckbox

@@ -33,6 +33,8 @@
   "notBooked": "Nicht angemeldet",
   "weekRange": "{starts} bis {ends}",
   "timeModel": "{name} ({startsAt} bis {endsAt} Uhr)",
+  "timeModelPrice": "{name} · {price} ({startsAt} bis {endsAt} Uhr)",
+  "weeksPriceText": "Der Preis gilt pro Woche und Kind, ohne Ermäßigung oder Befreiung. Ihren Beitrag sehen Sie in der Zusammenfassung.",
   "healthTitle": "Gesundheit (freiwillig)",
   "healthText": "Nur die Betreuung sieht diese Angaben.",
   "allergies": "Allergien und Unverträglichkeiten",
@@ -55,7 +57,7 @@
   "addPickup": "Person hinzufügen",
   "remove": "Entfernen",
   "consentTitle": "Einverständnis",
-  "privacyConsent": "Ich bin einverstanden, dass der Träger die Angaben für die Ferienbetreuung nutzt. Er löscht sie drei Monate nach den Ferien.",
+  "privacyConsent": "Ich bin einverstanden, dass der Träger die Angaben für die Ferienbetreuung nutzt. Er löscht sie drei Monate nach den Ferien. Die OGS, die mein Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Gesundheitsangaben sieht sie nicht. Die OGS sieht das schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht.",
   "healthConsent": "Ich bin einverstanden, dass die Betreuung die Gesundheitsangaben meiner Kinder sieht.",
   "bindingConfirmed": "Ich weiß, dass die Anmeldung verbindlich ist.",
   "captchaMissing": "Die Sicherheitsprüfung fehlt. Bitte laden Sie die Seite neu.",
@@ -96,5 +98,8 @@
     "choose": "Bitte wählen Sie eine Antwort."
   },
   "childQuestionsTitle": "Weitere Angaben",
-  "familyQuestionsTitle": "Weitere Angaben zur Familie"
+  "familyQuestionsTitle": "Weitere Angaben zur Familie",
+  "legalTitle": "Hinweise und Einwilligungen",
+  "legalAccepted": "Bestätigt",
+  "legalNotAccepted": "Nicht bestätigt"
 }

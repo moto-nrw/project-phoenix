@@ -31,7 +31,13 @@ const offer: HolidayRegistrationOffer = {
       endsOn: "2027-01-08",
       hostSchoolName: "OGS Nord",
       timeModels: [
-        { id: "21", name: "bis 13 Uhr", startsAt: "08:00", endsAt: "13:00" },
+        {
+          id: "21",
+          name: "bis 13 Uhr",
+          startsAt: "08:00",
+          endsAt: "13:00",
+          priceCents: 4500,
+        },
       ],
     },
     {
@@ -40,7 +46,13 @@ const offer: HolidayRegistrationOffer = {
       endsOn: "2027-01-15",
       hostSchoolName: "OGS Süd",
       timeModels: [
-        { id: "22", name: "bis 16 Uhr", startsAt: "08:00", endsAt: "16:00" },
+        {
+          id: "22",
+          name: "bis 16 Uhr",
+          startsAt: "08:00",
+          endsAt: "16:00",
+          priceCents: 6500,
+        },
       ],
     },
   ],

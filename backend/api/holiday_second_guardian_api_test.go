@@ -147,7 +147,13 @@ func assertSecondGuardianExports(t *testing.T, f reviewFixture) {
 	}
 }
 
-func TestHolidaySecondGuardianStaysOutOfSchoolParticipantsAndGuestCopy(t *testing.T) {
+// TestHolidaySecondGuardianReachesTheHostingSchoolWithoutItsEMail pins the
+// contract of #5202 (user decision of 28.10.2026, option B), which replaces
+// the one of #5197 that kept the second guardian with the Träger: the
+// hosting school sees the second guardian with name and phone in its
+// participant list and as an emergency contact of a holiday guest, never
+// its e-mail address.
+func TestHolidaySecondGuardianReachesTheHostingSchoolWithoutItsEMail(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Zweite Person Schulgrenze")
 	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_registrations SET
@@ -159,8 +165,8 @@ func TestHolidaySecondGuardianStaysOutOfSchoolParticipantsAndGuestCopy(t *testin
 	rec := f.get(t, lead, fmt.Sprintf("/%d/participants", f.offer.Weeks[0].ID))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Ben")
-	assert.NotContains(t, rec.Body.String(), "Anders")
-	assert.NotContains(t, rec.Body.String(), "second_guardian")
+	assert.Contains(t, rec.Body.String(), `"second_guardian":{"name":"Tom Anders","phone":"0151 9999999"}`)
+	assert.NotContains(t, rec.Body.String(), "tom@example.org")
 	rec = f.assign(t, lead, f.offer.Weeks[0].ID, f.group)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	f.today.Store(calendar.NewDate(2099, 7, 6))
@@ -170,7 +176,9 @@ func TestHolidaySecondGuardianStaysOutOfSchoolParticipantsAndGuestCopy(t *testin
 	rec = f.sheet(t, lead, guest)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "Eva Muster")
-	for _, private := range []string{"Anders", "tom@example.org", "0151 9999999", "second_guardian"} {
+	assert.Contains(t, rec.Body.String(), `{"name":"Tom Anders","phone":"0151 9999999","relationship":"Eltern"}`,
+		"the second guardian is an emergency contact of the holiday guest")
+	for _, private := range []string{"tom@example.org", "second_guardian"} {
 		assert.NotContains(t, rec.Body.String(), private)
 	}
 }

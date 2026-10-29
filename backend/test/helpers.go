@@ -144,7 +144,7 @@ func SetupClosableTestDB(t *testing.T) *bun.DB {
 
 	SetupTestDB(t) // ensure the lifecycle ran and selected this test's clone
 	if dsn, ok := isolatedTestDSN(t); ok {
-		db, err := openTestPool(dsn)
+		db, err := openTestPool(context.Background(), dsn)
 		require.NoError(t, err, "Failed to open private isolated test database pool")
 		return AdoptPrivatePool(t, db)
 	}
@@ -162,7 +162,7 @@ func SetupServeTestDB(t *testing.T) *bun.DB {
 
 	SetupTestDB(t) // ensure the selected clone and test role password are ready
 	if dsn, ok := isolatedTestDSN(t); ok {
-		db, err := openTestPool(authRoleDSN(dsn))
+		db, err := openTestPool(context.Background(), authRoleDSN(dsn))
 		require.NoError(t, err, "Failed to open private phoenix_auth isolated test database pool")
 		return AdoptPrivatePool(t, db)
 	}
