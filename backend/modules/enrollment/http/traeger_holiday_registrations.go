@@ -35,6 +35,7 @@ func (rs *HolidayPeriodResource) registrationRoutes(r chi.Router, withTx common.
 	review.Get("/{id}/registrations", rs.listRegistrations)
 	r.With(rs.requireManage, rs.withSchoolNames, withTx).Get("/{id}/registrations/export", rs.exportRegistrations)
 	review.Get("/{id}/registrations/{registrationId}", rs.getRegistration)
+	review.Get("/{id}/registrations/{registrationId}/proofs/{proofId}", rs.openProof)
 	review.Post("/{id}/registrations/{registrationId}/cancel", rs.registrationAction(capability.HolidayAuditCancel))
 	review.Post("/{id}/registrations/{registrationId}/freeze", rs.registrationAction(capability.HolidayAuditFreeze))
 	review.Post("/{id}/registrations/{registrationId}/reopen", rs.registrationAction(capability.HolidayAuditReopen))
@@ -191,6 +192,8 @@ func renderHolidayReviewError(w http.ResponseWriter, r *http.Request, err error)
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayPeriodNotFound))
 	case errors.Is(err, capability.ErrHolidayRegistrationEntryNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayRegistrationEntryNotFound))
+	case errors.Is(err, capability.ErrHolidayProofNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentUploadNotFound))
 	case errors.Is(err, capability.ErrHolidayRegistrationFrozen):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayRegistrationFrozen))
 	case errors.Is(err, capability.ErrHolidayRegistrationStateConflict):

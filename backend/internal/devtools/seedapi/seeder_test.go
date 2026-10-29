@@ -1100,8 +1100,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
-		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/api/enrollment/") && strings.HasSuffix(r.URL.Path, "/uploads") {
-			// The income proof of #4783 is a multipart upload, too.
+		if r.Method == seedHTTPMethodPost && (strings.HasPrefix(r.URL.Path, "/api/enrollment/") || strings.HasPrefix(r.URL.Path, "/traeger/holiday-registrations/")) &&
+			strings.HasSuffix(r.URL.Path, "/uploads") {
+			// The income proof of #4783 and the proof of benefits of the
+			// holiday registration (#5238) are multipart uploads, too.
 			idCounter++
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{

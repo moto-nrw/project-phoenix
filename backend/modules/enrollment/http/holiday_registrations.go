@@ -23,16 +23,25 @@ import (
 // resolved Träger.
 type HolidayRegistrationResource struct {
 	registrations capability.HolidayRegistrations
+	proofs        HolidayProofUploads
 	captcha       capability.CaptchaVerifier
 }
 
+// HolidayProofUploads stores a proof of benefits of the public link
+// (#5238). The root opens the Träger units of each call: the upload counts
+// in a unit of its own, so a refused upload still counts, like the uploads
+// of the online registration (#4783).
+type HolidayProofUploads interface {
+	UploadHolidayProof(ctx context.Context, link capability.HolidayRegistrationLink, remoteIP string, upload capability.HolidayProofUpload) (capability.HolidayProofReceipt, error)
+}
+
 // NewHolidayRegistrationResource builds the resource. captcha is always
-// required for the public link.
-func NewHolidayRegistrationResource(registrations capability.HolidayRegistrations, captcha capability.CaptchaVerifier) *HolidayRegistrationResource {
-	if registrations == nil || captcha == nil {
-		panic("enrollment http: the holiday registrations and the captcha are required")
+// required for the public link; proofs stores the proofs of benefits.
+func NewHolidayRegistrationResource(registrations capability.HolidayRegistrations, proofs HolidayProofUploads, captcha capability.CaptchaVerifier) *HolidayRegistrationResource {
+	if registrations == nil || proofs == nil || captcha == nil {
+		panic("enrollment http: the holiday registrations, the proof uploads and the captcha are required")
 	}
-	return &HolidayRegistrationResource{registrations: registrations, captcha: captcha}
+	return &HolidayRegistrationResource{registrations: registrations, proofs: proofs, captcha: captcha}
 }
 
 // Router returns the public routes mounted at /traeger/holiday-registrations.
@@ -42,6 +51,7 @@ func (rs *HolidayRegistrationResource) Router() chi.Router {
 	r.Get("/{token}", rs.offer)
 	r.Get("/{token}/documents/{documentId}", rs.document)
 	r.Post("/{token}", rs.submit)
+	r.Post("/{token}/uploads", rs.uploadProof)
 	return r
 }
 
@@ -131,7 +141,8 @@ type holidayContactRequest struct {
 // /traeger/holiday-registrations/{token}. home_school_id 0 makes a child a holiday
 // guest. form_version names the version of the form the parent filled in;
 // custom_data holds the answers per family, children[].custom_data those
-// per child (#5198).
+// per child (#5198). benefits_proof_tokens name the uploaded proofs of the
+// benefits (#5238).
 type HolidayRegistrationRequest struct {
 	Guardian          holidayGuardianRequest    `json:"guardian"`
 	SecondGuardian    *holidayGuardianRequest   `json:"second_guardian"`
@@ -142,6 +153,7 @@ type HolidayRegistrationRequest struct {
 	HealthConsent     bool                      `json:"health_consent"`
 	BindingConfirmed  bool                      `json:"binding_confirmed"`
 	BenefitsDeclared  bool                      `json:"benefits_declared"`
+	BenefitsProofs    []string                  `json:"benefits_proof_tokens"`
 	CaptchaToken      string                    `json:"captcha_token"`
 	FormVersion       int                       `json:"form_version"`
 	CustomData        capability.HolidayAnswers `json:"custom_data"`
@@ -176,7 +188,8 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		EmergencyContacts: holidayContacts(req.EmergencyContacts),
 		PickupPersons:     holidayContacts(req.PickupPersons),
 		PrivacyConsent:    req.PrivacyConsent, HealthConsent: req.HealthConsent, BindingConfirmed: req.BindingConfirmed,
-		LegalAcceptances: req.LegalAcceptances, BenefitsDeclared: req.BenefitsDeclared, FormVersion: req.FormVersion, CustomData: req.CustomData,
+		LegalAcceptances: req.LegalAcceptances, BenefitsDeclared: req.BenefitsDeclared, BenefitsProofTokens: req.BenefitsProofs,
+		FormVersion: req.FormVersion, CustomData: req.CustomData,
 	}
 }
 
@@ -314,12 +327,22 @@ func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organiz
 	return limitErr
 }
 
-// renderHolidayRegistrationError answers a refused public registration.
+// renderHolidayRegistrationError answers a refused public registration or
+// proof upload.
 func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
+	var rejection *capability.UploadRejection
 	switch {
 	case common.HasInputRejection(err):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.As(err, &rejection):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
+			map[string]any{"max_mb": rejection.MaxMB, "allowed_types": rejection.AllowedTypes}))
+	case errors.Is(err, capability.ErrUploadRateLimited):
+		w.Header().Set("Retry-After", "3600")
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
+	case errors.Is(err, capability.ErrHolidayProofExpired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayRegistrationNotFound):

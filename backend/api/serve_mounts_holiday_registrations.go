@@ -13,6 +13,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
@@ -49,10 +50,9 @@ type HolidayOrganizations interface {
 // Organisation & Tenancy, Delivery and Turnstile. An empty verifyURL uses
 // Turnstile's endpoint; tests point it at a local provider.
 func NewHolidayRegistrationHTTP(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, keys TurnstileKeys, verifyURL string, logger *slog.Logger) *enrollmentAPI.HolidayRegistrationResource {
-	registrations := enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
-		holidayTraegerMail{delivery: delivery}, logger.With("service", "holiday-registrations"))
+	registrations := newHolidayRegistrations(organizations, delivery, logger.With("service", "holiday-registrations"))
 	captcha := enrollmentCompose.NewCaptcha(holidayCaptchaSettings(keys), verifyURL, logger.With("service", "holiday-registration-captcha"))
-	return enrollmentAPI.NewHolidayRegistrationResource(registrations, captcha)
+	return enrollmentAPI.NewHolidayRegistrationResource(registrations, holidayProofUnits{registrations: registrations}, captcha)
 }
 
 // holidayCaptchaSettings always require the captcha with the platform's
@@ -121,8 +121,15 @@ type parentHolidayRegistrationLinks struct {
 // newParentHolidayRegistrationLinks binds the parents portal to Enrollment's
 // link resolution over the same Träger directory as the public link.
 func newParentHolidayRegistrationLinks(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) parentAPI.HolidayRegistrationLinks {
-	return parentHolidayRegistrationLinks{registrations: enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
-		holidayTraegerMail{delivery: delivery}, logger.With("service", "parent-holiday-registrations"))}
+	return parentHolidayRegistrationLinks{registrations: newHolidayRegistrations(organizations, delivery, logger.With("service", "parent-holiday-registrations"))}
+}
+
+// newHolidayRegistrations binds Enrollment's holiday registrations to the
+// Träger directory, the Träger's mail and Security Runtime's entropy and
+// fingerprint for the tokens of uploaded proofs (#5238).
+func newHolidayRegistrations(organizations HolidayOrganizations, delivery deliveryRuntime.Capability, logger *slog.Logger) enrollmentOwner.HolidayRegistrations {
+	return enrollmentCompose.NewHolidayRegistrations(holidayTraegerDirectory{organizations: organizations},
+		holidayTraegerMail{delivery: delivery}, securityruntime.FillRandom, securityruntime.Fingerprint, logger)
 }
 
 func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (int64, []int64, error) {

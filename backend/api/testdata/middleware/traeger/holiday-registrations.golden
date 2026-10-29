@@ -5,3 +5,4 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/holiday-registrations/{token}
 	GET /traeger/holiday-registrations/{token}/documents/{documentId}
 	POST /traeger/holiday-registrations/{token}
+	POST /traeger/holiday-registrations/{token}/uploads

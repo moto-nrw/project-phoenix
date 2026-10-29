@@ -119,6 +119,10 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_registration_proofs",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_registration_rate_limits",
       "write_owner": "enrollment"
     },
