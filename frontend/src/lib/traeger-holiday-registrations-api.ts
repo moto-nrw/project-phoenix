@@ -123,7 +123,7 @@ export interface HolidayRegistrationEvent {
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
-export interface HolidayRegistrationProof {
+interface HolidayRegistrationProof {
   readonly id: string;
   readonly filename: string;
   readonly sizeBytes: number;
