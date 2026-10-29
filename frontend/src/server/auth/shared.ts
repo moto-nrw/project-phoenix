@@ -1327,7 +1327,30 @@ export const schoolRedirectCallback: NonNullable<
 
 export const sharedJwtCallback: NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["jwt"]
-> = async ({ token, user, trigger, session }) => {
+> = async (params) => {
+  const update = params.session as Record<string, unknown> | undefined;
+  const previewStart =
+    params.trigger === "update" &&
+    isServerSessionMutation() &&
+    !isPreviewActive(params.token) &&
+    isPreviewStartUpdate(update?.previewStart)
+      ? update.previewStart
+      : undefined;
+  const token = await maintainSessionJwt(params);
+  // unstable_update reads the original request cookie. Renew it (or reuse
+  // the outer wrapper's cached renewal) before validating and parking admin state.
+  if (token && !token.error && previewStart) {
+    await applyPreviewStart(token, previewStart);
+  }
+  return token;
+};
+
+const maintainSessionJwt: typeof sharedJwtCallback = async ({
+  token,
+  user,
+  trigger,
+  session,
+}) => {
   const isDev = process.env.NODE_ENV === "development";
 
   if (isDev) {
@@ -1406,18 +1429,7 @@ export const sharedJwtCallback: NonNullable<
       token.tokenExpiry =
         Date.now() + (ACCESS_TOKEN_REFRESH_BUFFER_MS - 60_000);
     }
-    // Admin staff-view preview (#2893): enter with the freshly minted
-    // read-only token, leave by restoring the parked admin state. A start
-    // while a preview is already active is ignored — it would overwrite the
-    // parked admin tokens with preview tokens.
-    if (
-      isServerSessionMutation() &&
-      update.previewStart !== undefined &&
-      !isPreviewActive(token) &&
-      isPreviewStartUpdate(update.previewStart)
-    ) {
-      await applyPreviewStart(token, update.previewStart);
-    }
+    // Leave preview before maintenance so a stale restored admin can renew.
     if (update.previewEnd === true && isPreviewActive(token)) {
       restoreAdminFromPreview(token);
     }

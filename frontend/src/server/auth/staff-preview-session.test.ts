@@ -201,6 +201,52 @@ describe("JWT callback — staff preview (#2893)", () => {
     expect(mockFetch).not.toHaveBeenCalled();
   });
 
+  it.each([false, true])(
+    "starts preview with a renewed admin session (outer renewal: %s)",
+    async (renewedByWrapper) => {
+      const expiredAccess = encodeJwt({
+        id: 1,
+        tenant_id: 7,
+        exp: Math.floor(Date.now() / 1000) - 60,
+      });
+      const original = {
+        ...adminToken(),
+        token: expiredAccess,
+        tokenExpiry: Date.now() - 60_000,
+      };
+      const freshAccess = adminJwt();
+      const freshRefresh = refreshJwt("renewed-admin");
+      const validate = vi.mocked(validateSessionToken).getMockImplementation()!;
+      vi.mocked(validateSessionToken).mockImplementation((access, portal) =>
+        access === expiredAccess
+          ? Promise.resolve(null)
+          : validate(access, portal),
+      );
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          access_token: freshAccess,
+          refresh_token: freshRefresh,
+        }),
+      });
+      if (renewedByWrapper) {
+        const renewed = await callJwt({ ...original });
+        expect(renewed?.token).toBe(freshAccess);
+      }
+
+      // unstable_update reads the original cookie, not the wrapper's renewal.
+      const result = await startPreview({ ...original });
+
+      expect(result.previewTargetAccountId).toBe("42");
+      expect(result.id).toBe("42");
+      expect(result.previewAdminToken).toBe(freshAccess);
+      expect(result.previewAdminTokenExpiry).toBeGreaterThan(Date.now());
+      expect(result.refreshToken).toBe(freshRefresh);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(validateSessionToken).toHaveBeenCalledWith(freshAccess, "tenant");
+    },
+  );
+
   it("previewStart refuses a token without the read_only claim", async () => {
     const token = adminToken();
     const before = token.token;

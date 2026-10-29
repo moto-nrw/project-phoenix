@@ -1,6 +1,12 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest";
 import NextAuth, { type NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import { encode } from "next-auth/jwt";
+import {
+  _resetRefreshState,
+  sharedJwtCallback,
+  sharedSessionCallback,
+} from "~/server/auth/shared";
 import { NextRequest } from "next/server";
 import { RequestCookies } from "next/dist/server/web/spec-extension/cookies";
 import {
@@ -177,6 +183,100 @@ describe("real Auth.js server actions under the response wrapper", () => {
       await read(incoming(cookieHeader(response, initial)))
     ).json();
     expect(session.user.name).toBe("preview");
+  });
+
+  it("starts preview from the original expired cookie after the wrapper renews", async () => {
+    _resetRefreshState();
+    const now = Math.floor(Date.now() / 1000);
+    const claims = { id: 1, tenant_id: 7, is_admin: true, exp: now + 900 };
+    const jwt = (payload: Record<string, unknown>) =>
+      `e30.${Buffer.from(JSON.stringify(payload)).toString("base64url")}.test`;
+    const expiredAccess = jwt({ ...claims, exp: now - 60 });
+    const freshAccess = jwt(claims);
+    const freshRefresh = jwt({ exp: now + 3600, token: "renewed-admin" });
+    const previewClaims = {
+      ...claims,
+      id: 42,
+      is_admin: false,
+      read_only: true,
+      acting_admin_id: 1,
+    };
+    const previewAccess = jwt(previewClaims);
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url, init) => {
+        if (String(url).endsWith("/auth/refresh")) {
+          return Response.json({
+            access_token: freshAccess,
+            refresh_token: freshRefresh,
+          });
+        }
+        if (String(url).endsWith("/auth/session/validate")) {
+          const access = (
+            JSON.parse(init!.body as string) as { access_token: string }
+          ).access_token;
+          if (access === freshAccess) return Response.json(claims);
+          if (access === previewAccess) return Response.json(previewClaims);
+        }
+        return new Response(null, { status: 401 });
+      });
+    try {
+      const instance = NextAuth({
+        ...config,
+        callbacks: { jwt: sharedJwtCallback, session: sharedSessionCallback },
+      });
+      const helpers = createResponseAwareAuth(instance.auth, "tenant");
+      const original = `authjs.session-token=${await encode({
+        secret: config.secret as string,
+        salt: "authjs.session-token",
+        token: {
+          id: "1",
+          token: expiredAccess,
+          tokenExpiry: Date.now() - 60_000,
+          refreshToken: jwt({ exp: now + 3600, token: "original-admin" }),
+          refreshTokenExpiry: Date.now() + 3600_000,
+        },
+      })}`;
+      const transition = helpers.withAuthResponse(async () => {
+        expect((await helpers.auth())?.user.token).toBe(freshAccess);
+        await helpers.mutateSession(
+          () =>
+            instance.unstable_update({
+              previewStart: {
+                accessToken: previewAccess,
+                expiresIn: 900,
+                targetAccountId: "42",
+                targetName: "Preview target",
+              },
+            } as Parameters<typeof instance.unstable_update>[0]),
+          (session) => session?.user.isPreview === true,
+        );
+        return Response.json({ success: true });
+      });
+      const response = await transition(incoming(original));
+      expect(await response.json()).toEqual({ success: true });
+      const read = helpers.withAuthResponse(async () =>
+        Response.json(await helpers.auth()),
+      );
+      const session = await (
+        await read(incoming(cookieHeader(response, original)))
+      ).json();
+      expect(session.user).toMatchObject({
+        id: "42",
+        isPreview: true,
+        previewTargetAccountId: "42",
+        token: previewAccess,
+        refreshToken: freshRefresh,
+      });
+      expect(
+        fetchMock.mock.calls.filter(([url]) =>
+          String(url).endsWith("/auth/refresh"),
+        ),
+      ).toHaveLength(1);
+    } finally {
+      fetchMock.mockRestore();
+      _resetRefreshState();
+    }
   });
 
   it("does not replace the source cookie when Credentials refuses the new session", async () => {
