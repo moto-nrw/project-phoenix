@@ -315,13 +315,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		if existing.DeviceID != nil && *existing.DeviceID != deviceID {
 			return nil, 0, ErrSessionConflict
 		}
-		if existing.DeviceID == nil && deviceID > 0 {
-			existing.DeviceID = &deviceID
-			if err := s.GroupRepo.Update(ctx, existing); err != nil {
-				return nil, 0, err
-			}
-		}
-		return s.finishSessionStart(ctx, existing, deviceID, roomID)
+		return s.joinOpenSession(ctx, existing, deviceID, roomID)
 	}
 
 	now := time.Now()
@@ -338,17 +332,50 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 	if err := s.GroupRepo.Create(ctx, newGroup); err != nil {
 		return nil, 0, err
 	}
-	return s.finishSessionStart(ctx, newGroup, deviceID, roomID)
-}
-
-func (s *service) finishSessionStart(ctx context.Context, group *ports.ActiveGroup, deviceID, roomID int64) (*ports.ActiveGroup, int, error) {
-	if deviceID > 0 {
-		s.updateDeviceLocation(ctx, deviceID, roomID)
-	}
-
-	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, group.ID, deviceID)
+	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, newGroup.ID, deviceID)
 	if err != nil {
 		return nil, 0, err
+	}
+	return s.finishSessionStart(ctx, newGroup, deviceID, roomID, transferredCount)
+}
+
+// joinOpenSession attaches the device to a running session of the room and
+// moves the device's open visits into it. A scan closes a child's visit, then
+// locks the session it checks into and then the room row for its capacity
+// check; the join takes the same rows in the same order (#5206). It moves the
+// visits first and locks the session afterwards, read again because it may
+// have ended while the takeover waited; the device's room, whose foreign key
+// shares the room row, follows in finishSessionStart.
+func (s *service) joinOpenSession(ctx context.Context, existing *ports.ActiveGroup, deviceID, roomID int64) (*ports.ActiveGroup, int, error) {
+	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, existing.ID, deviceID)
+	if err != nil {
+		return nil, 0, err
+	}
+	group := existing
+	if existing.DeviceID == nil && deviceID > 0 {
+		group, err = s.lockActiveGroupOpenForUpdate(ctx, existing.ID)
+		if errors.Is(err, ErrActiveGroupNotFound) {
+			// The session ended while the takeover waited; the start
+			// rolls back and may be repeated against the room's new state.
+			return nil, 0, ErrSessionConflict
+		}
+		if err != nil {
+			return nil, 0, err
+		}
+		if group.DeviceID != nil && *group.DeviceID != deviceID {
+			return nil, 0, ErrSessionConflict
+		}
+		group.DeviceID = &deviceID
+		if err := s.GroupRepo.Update(ctx, group); err != nil {
+			return nil, 0, err
+		}
+	}
+	return s.finishSessionStart(ctx, group, deviceID, roomID, transferredCount)
+}
+
+func (s *service) finishSessionStart(ctx context.Context, group *ports.ActiveGroup, deviceID, roomID, transferredCount int64) (*ports.ActiveGroup, int, error) {
+	if deviceID > 0 {
+		s.updateDeviceLocation(ctx, deviceID, roomID)
 	}
 	if transferredCount > 0 {
 		if err := s.ensureRoomCapacity(ctx, roomID, 0); err != nil {

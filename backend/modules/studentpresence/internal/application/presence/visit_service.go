@@ -254,19 +254,43 @@ func (s *service) prepareVisitTransfer(
 }
 
 // lockVisitTransferTarget locks the running session a visit is reopened in or
-// moved to.
+// moved to. Like a push move it takes the target room's session lock first:
+// a kiosk start in that room holds the room lock, moves open visits into the
+// session and only then locks it (#5206), so this path must not hold the
+// session row while it waits for one of those visits.
 func (s *service) lockVisitTransferTarget(ctx context.Context, groupID int64) (*ports.ActiveGroup, error) {
-	targetGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
+	target, err := activeVisitTransferTarget(s.GroupRepo.FindByID(ctx, groupID))
+	if err != nil {
+		return nil, err
+	}
+	if target.RoomID > 0 {
+		if err := s.SchoolPresence.LockRoomSessionWrites(ctx, target.RoomID); err != nil {
+			return nil, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+	}
+	locked, err := activeVisitTransferTarget(s.GroupRepo.FindByIDForUpdate(ctx, groupID))
+	if err != nil {
+		return nil, err
+	}
+	if locked.RoomID != target.RoomID {
+		return nil, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+	return locked, nil
+}
+
+// activeVisitTransferTarget maps a target lookup to the running session or
+// the transfer's not-found and database errors.
+func activeVisitTransferTarget(group *ports.ActiveGroup, err error) (*ports.ActiveGroup, error) {
 	if err != nil {
 		if IsNoRows(err) {
 			return nil, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
 		}
 		return nil, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
 	}
-	if targetGroup == nil || !targetGroup.IsActive() {
+	if group == nil || !group.IsActive() {
 		return nil, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
 	}
-	return targetGroup, nil
+	return group, nil
 }
 
 // ensureVisitTransferCapacity checks the target room has space when a visit
