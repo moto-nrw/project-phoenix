@@ -203,6 +203,11 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
+	// Consent evidence must name its exact form; only legacy submissions
+	// without acknowledgements may default to the current version.
+	if len(input.LegalAcceptances) > 0 && input.FormVersion != form.Version {
+		return enrollment.HolidayRegistrationReceipt{}, enrollment.InvalidInput(enrollment.CodeHolidayRegistrationFormChanged, "form_version", enrollment.ErrHolidayRegistrationFormChanged)
+	}
 	if input.FormVersion != 0 && input.FormVersion != form.Version {
 		return enrollment.HolidayRegistrationReceipt{}, enrollment.ErrHolidayRegistrationFormChanged
 	}

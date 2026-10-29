@@ -316,6 +316,8 @@ func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organiz
 func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
 	var fields validation.Errors
 	switch {
+	case common.HasInputRejection(err):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
 	case errors.Is(err, capability.ErrHolidayRegistrationNotFound):
