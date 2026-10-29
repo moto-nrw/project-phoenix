@@ -236,21 +236,25 @@ configuration or secret-bearing diffs into logs or PR evidence.
 
 An empty network alone does not prove it is disposable. Confirm that the
 project belongs to your completed task and no other session or worktree needs
-it. Inspect only network metadata and container identities (including stopped
-containers), not container environments:
+it. Inspect only network metadata and container identities, not container
+environments. Filter by the exact network **name**, not its ID: never-started
+`Created` containers can have an empty `NetworkID` and be absent from both
+the ID-filtered container list and the network's endpoint map.
 
 ```bash
 docker network ls --filter label=com.docker.compose.project
 # Set network_id to one confirmed task-owned candidate from the list.
+network_name=$(docker network inspect "$network_id" --format '{{.Name}}')
 docker network inspect "$network_id" \
   --format '{{.Name}} {{json .Labels}} {{json .IPAM.Config}} {{json .Containers}}'
-docker ps -a --filter "network=$network_id" --format '{{.ID}} {{.Names}} {{.Status}}'
+docker ps -a --filter "network=$network_name" --format '{{.ID}} {{.Names}} {{.Status}}'
 ```
 
 If that task still has containers, stop and remove only its disposable
 containers using its recorded project/configuration; preserve volumes and
-databases. Recheck that no containers reference the network, then remove that
-one network with `docker network rm "$network_id"`. Verify its absence and
+databases. Repeat the name-based `docker ps -a` check above, including
+`Created` and `Exited` containers. Only when it returns no containers, remove
+that one network with `docker network rm "$network_id"`. Verify its absence and
 that other projects remain available. Do not disconnect foreign containers,
 use blanket `docker network prune`/`docker system prune`, or delete volumes.
 If ownership or use is uncertain, keep it and use the checked target-only
