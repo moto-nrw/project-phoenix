@@ -37,7 +37,7 @@ func TestPassthroughChecksCommittedBaseInventory(t *testing.T) {
 	for _, args := range [][]string{
 		{"init", "--quiet"},
 		{"add", "."},
-		{"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Record base inventory"},
+		{"-c", "core.hooksPath=/dev/null", "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Record base inventory"},
 	} {
 		if _, err := git(repo, args...); err != nil {
 			t.Fatal(err)

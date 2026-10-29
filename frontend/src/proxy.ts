@@ -240,11 +240,37 @@ function sanitizedHeaders(request: NextRequest): Headers {
   return preserveOriginalRequestTarget(headers, request);
 }
 
+/**
+ * The sandbox of a file a person uploaded, as the backend sends it with an
+ * inline file (#5275). The CSP set here replaces the route's own, so these
+ * routes get it from the proxy: under the app CSP an embedded script of a PDF
+ * would run on the app's origin.
+ */
+const SANDBOX_CSP_HEADER =
+  "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'";
+
+/** API routes that stream an uploaded file the browser may show inline. */
+const SANDBOXED_FILE_ROUTES: readonly RegExp[] = [
+  // Proofs parents attach to an enrollment request (#4783).
+  /^\/api\/enrollment\/admin\/requests\/[^/]+\/uploads\/[^/]+$/,
+  // Proofs of benefits of a holiday registration (#5238).
+  /^\/api\/traeger\/holiday-periods\/[^/]+\/registrations\/[^/]+\/proofs\/[^/]+$/,
+  // Managed files and announcement attachments, staff and parents.
+  /^\/api\/files\/folders\/[^/]+\/files\/[^/]+\/download$/,
+  /^\/api\/announcement-attachments\/[^/]+\/[^/]+\/download$/,
+  /^\/api\/parent\/me\/news\/[^/]+\/attachments\/[^/]+\/download$/,
+];
+
 /** Like NextResponse.next, but strips any client-forged localize header. */
 function secureNext(request: NextRequest): NextResponse {
-  return withSecurityHeaders(
+  const response = withSecurityHeaders(
     NextResponse.next({ request: { headers: sanitizedHeaders(request) } }),
   );
+  const { pathname } = request.nextUrl;
+  if (SANDBOXED_FILE_ROUTES.some((route) => route.test(pathname))) {
+    response.headers.set("Content-Security-Policy", SANDBOX_CSP_HEADER);
+  }
+  return response;
 }
 
 /** Like NextResponse.rewrite, but strips any client-forged localize header. */

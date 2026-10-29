@@ -2,6 +2,7 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
+import { PRIVATE_DOWNLOAD_ROUTES } from "~/test/private-download-routes";
 
 /**
  * Every exported HTTP handler under `src/app/api` must be built by a factory
@@ -32,7 +33,10 @@ const PORTAL_PROXIES = ["proxyGet", "proxyPost", "proxyPut", "proxyPatch"];
  * `src/server/auth/portal-cache-control.test.ts`.
  */
 const POLICY_FACTORIES: Record<string, readonly string[]> = {
-  "~/lib/private-no-store": ["withPrivateNoStore"],
+  "~/lib/private-no-store": [
+    "withPrivateNoStore",
+    "withPrivateDownloadNoStore",
+  ],
   "~/server/auth": ["withTenantAuth"],
   "~/server/auth/tenant-route": ["withTenantAuth"],
   "~/server/auth/operator": ["withOperatorAuth"],
@@ -105,6 +109,34 @@ const POLICY_FACTORIES: Record<string, readonly string[]> = {
  */
 const ROUTE_CACHE_POLICY_EXCEPTIONS: Record<string, string> = {};
 
+const DOWNLOAD_POLICY_FACTORIES: Record<string, string[]> = {
+  "~/lib/private-no-store": ["withPrivateDownloadNoStore"],
+};
+
+// Non-JSON resources deliberately outside the private-download rule. Image,
+// legal-document and subscription caching is not changed by #5119.
+const NON_DOWNLOAD_RESOURCES: Record<string, string> = {
+  "parent/me/news/[announcementId]/declaration/proof":
+    "JSON proof metadata; the actual file is under proof/pdf",
+  "traeger/master-data/logo":
+    "Authenticated brand image, existing no-store policy",
+  "public/enrollment-form-legal-documents/[filename]":
+    "Public form PDF, public cache policy",
+  "public/enrollment-legal-documents/[filename]":
+    "Public legal PDF, public cache policy",
+  "public/login-image/[filename]": "Public login image, public cache policy",
+  "me/profile/avatar/[filename]":
+    "Session avatar, existing private image cache",
+  "staff/[id]/avatar": "Staff avatar, existing private image cache",
+  "students/[id]/photo/[filename]":
+    "Photo with existing backend revalidation policy",
+  "calendar-feed/[token]": "Subscription feed, private max-age=3600",
+  "request-feed/[token]": "Subscription feed, already private no-store",
+  "sse/events": "Live stream, existing SSE cache/abort contract",
+  "parent/sse/events": "Live stream, existing SSE cache/abort contract",
+  "school/sse/events": "Live stream, existing SSE cache/abort contract",
+};
+
 function routeFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const absolute = path.join(dir, entry);
@@ -146,6 +178,7 @@ function isPolicyFactoryCall(
   bindings: Map<string, string>,
   locals: Map<string, ts.Expression | undefined>,
   seen = new Set<string>(),
+  factories = POLICY_FACTORIES,
 ): boolean {
   if (!expression) return false;
   // `export const PATCH = PUT` reuses a handler defined in the same file.
@@ -153,14 +186,20 @@ function isPolicyFactoryCall(
     const name = expression.text;
     if (seen.has(name) || !locals.has(name)) return false;
     seen.add(name);
-    return isPolicyFactoryCall(locals.get(name), bindings, locals, seen);
+    return isPolicyFactoryCall(
+      locals.get(name),
+      bindings,
+      locals,
+      seen,
+      factories,
+    );
   }
   if (!ts.isCallExpression(expression)) return false;
   if (!ts.isIdentifier(expression.expression)) return false;
   const binding = bindings.get(expression.expression.text);
   if (!binding) return false;
   const [module, name] = binding.split("#") as [string, string];
-  return POLICY_FACTORIES[module]?.includes(name) ?? false;
+  return factories[module]?.includes(name) ?? false;
 }
 
 function hasExportModifier(node: ts.Node): boolean {
@@ -177,7 +216,11 @@ function hasExportModifier(node: ts.Node): boolean {
  * re-exports appear as `export * from "<module>"` and never count as covered:
  * the check rejects what it cannot see instead of resolving other modules.
  */
-function analyzeRouteSource(file: string, text: string): Map<string, boolean> {
+function analyzeRouteSource(
+  file: string,
+  text: string,
+  factories = POLICY_FACTORIES,
+): Map<string, boolean> {
   const source = ts.createSourceFile(
     file,
     text,
@@ -204,7 +247,13 @@ function analyzeRouteSource(file: string, text: string): Map<string, boolean> {
           if (HTTP_METHODS.has(declaration.name.text)) {
             handlers.set(
               declaration.name.text,
-              isPolicyFactoryCall(declaration.initializer, bindings, locals),
+              isPolicyFactoryCall(
+                declaration.initializer,
+                bindings,
+                locals,
+                new Set(),
+                factories,
+              ),
             );
           }
           continue;
@@ -286,6 +335,75 @@ describe("BFF route cache policy (#4999)", () => {
     });
 
     expect(stale).toEqual([]);
+  });
+});
+
+describe("private download cache policy (#5119)", () => {
+  it.each(PRIVATE_DOWNLOAD_ROUTES)(
+    "%s:%s enforces all MIME types, not just JSON",
+    (route, method) => {
+      const file = path.join(API_ROOT, route, "route.ts");
+      expect(
+        analyzeRouteSource(
+          file,
+          readFileSync(file, "utf8"),
+          DOWNLOAD_POLICY_FACTORIES,
+        ).get(method),
+      ).toBe(true);
+    },
+  );
+
+  it("inventories file constructors, file factories and download paths", () => {
+    const inventoried = new Set<string>(
+      PRIVATE_DOWNLOAD_ROUTES.map(([route]) => route),
+    );
+    const missing = routeFiles(API_ROOT).filter((file) => {
+      const route = path.relative(API_ROOT, path.dirname(file));
+      const text = readFileSync(file, "utf8");
+      const fileFactory =
+        /\b(?:createFileExportRoute|createFileDownloadRoute|pdfDownloadResponse|proxyFile|streamIcsDownload)\s*[(<]/.test(
+          text,
+        );
+      const binaryResponse =
+        /new (?:Next)?Response\(/.test(text) &&
+        /content-disposition|application\/octet-stream|text\/calendar|text\/event-stream|image\//i.test(
+          text,
+        );
+      const downloadPath =
+        /(?:^|\/)(?:export(?:\/\[format\])?|download|template|ics|signature-proof|proof(?:\/pdf)?|pdf)$|-export$/.test(
+          route,
+        );
+      return (
+        (fileFactory || binaryResponse || downloadPath) &&
+        !inventoried.has(route) &&
+        !(route in NON_DOWNLOAD_RESOURCES)
+      );
+    });
+    expect(missing.map((file) => path.relative(API_ROOT, file))).toEqual([]);
+  });
+
+  it("keeps the non-download inventory pointed at real routes", () => {
+    const routes = new Set(
+      routeFiles(API_ROOT).map((file) =>
+        path.relative(API_ROOT, path.dirname(file)),
+      ),
+    );
+    expect(
+      Object.keys(NON_DOWNLOAD_RESOURCES).filter((route) => !routes.has(route)),
+    ).toEqual([]);
+  });
+
+  it("does not mistake a JSON or portal wrapper for a download policy", () => {
+    const file = path.join(API_ROOT, "fixture/route.ts");
+    for (const [module, name] of [
+      ["~/lib/private-no-store", "withPrivateNoStore"],
+      ["~/server/auth/tenant-route", "withTenantAuth"],
+    ]) {
+      const text = `import { ${name} } from "${module}"; export const GET = ${name}(handler);`;
+      expect(
+        analyzeRouteSource(file, text, DOWNLOAD_POLICY_FACTORIES).get("GET"),
+      ).toBe(false);
+    }
   });
 });
 

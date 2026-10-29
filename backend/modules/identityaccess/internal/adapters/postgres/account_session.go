@@ -242,10 +242,13 @@ func (s *Store) MarkAccountSessionRotated(ctx context.Context, id int64, replace
 	if err != nil {
 		return false, domain.OperationStats{}, err
 	}
+	// A predecessor without family takes the family its successor got, so
+	// the chain keeps one family (#5194).
 	query := withTenantFilter(s.scope(ctx), db.NewUpdate().Model((*accountSessionRow)(nil)).
 		Set(`rotated_at = ?`, rotatedAt).
 		Set(`replacement_token = ?`, domain.HashToken(replacementToken)).
 		Set(`recovery_proof_hash = ?`, recoveryProofHash).
+		Set(`family_id = COALESCE(NULLIF("token".family_id, ''), (SELECT successor.family_id FROM auth.tokens AS successor WHERE successor.token = ? LIMIT 1))`, domain.HashToken(replacementToken)).
 		Where(`"token".id = ?`, id).
 		Where(`"token".rotated_at IS NULL`))
 	started := time.Now()

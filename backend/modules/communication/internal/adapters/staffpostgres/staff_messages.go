@@ -128,5 +128,35 @@ func (s *MessageStore) DeleteStaffMessagesBefore(ctx context.Context, cutoff tim
 	if err != nil {
 		return 0, fmt.Errorf("delete old staff messages: %w", err)
 	}
+	if affected > 0 {
+		if _, err := db.ExecContext(ctx, `
+			WITH previews AS (
+				SELECT thread.id, latest.id AS last_message_id, latest.created_at AS last_message_at,
+					latest.body AS last_message_body, latest.sender_account_id AS last_sender_account_id
+				FROM users.staff_message_threads AS thread
+				LEFT JOIN LATERAL (
+					SELECT id, created_at, body, sender_account_id
+					FROM users.staff_messages
+					WHERE thread_id = thread.id AND tenant_id = thread.tenant_id
+					ORDER BY created_at DESC, id DESC
+					LIMIT 1
+				) AS latest ON TRUE
+				WHERE thread.tenant_id = ?
+					AND (thread.last_message_at < ? OR NOT EXISTS (
+						SELECT 1 FROM users.staff_messages current
+						WHERE current.id = thread.last_message_id AND current.tenant_id = thread.tenant_id
+					))
+			)
+			UPDATE users.staff_message_threads AS thread
+			SET last_message_id = previews.last_message_id,
+				last_message_at = previews.last_message_at,
+				last_message_body = COALESCE(previews.last_message_body, ''),
+				last_sender_account_id = previews.last_sender_account_id
+			FROM previews
+			WHERE thread.id = previews.id AND thread.tenant_id = ?
+		`, tenantID, cutoff, tenantID); err != nil {
+			return 0, fmt.Errorf("refresh staff message previews after retention: %w", err)
+		}
+	}
 	return affected, nil
 }
