@@ -209,12 +209,24 @@ export const ERROR_CATALOG = {
         "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
       "communication.group_thread_no_recipients":
         "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
+      "communication.leadership_messages_unavailable":
+        "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
       "communication.notifications_disabled":
         "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
       "communication.parent_news_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.poll_not_open":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
+      "communication.staff_group_create_forbidden":
+        "Lehrkräfte können keinen Gruppenchat anlegen. Bitten Sie die OGS darum.",
+      "communication.staff_group_manage_forbidden":
+        "Nur wer den Gruppenchat angelegt hat und die OGS-Leitung können ihn ändern.",
+      "communication.staff_group_members_required":
+        "Bitte wählen Sie mindestens eine Person aus, die noch nicht in der Gruppe ist.",
+      "communication.staff_group_name_invalid":
+        "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens {max_characters} Zeichen.",
+      "communication.staff_group_too_large":
+        "Ein Gruppenchat hat höchstens {max_members} Mitglieder.",
       "communication.staff_messaging_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
@@ -1148,6 +1160,8 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie einen anderen Termin als Ziel.",
       "timetable.no_staff_profile":
         "Für diese Aktion brauchen Sie ein eigenes Personalprofil. Bitte fragen Sie die Leitung.",
+      "timetable.offering_gap_period_inactive":
+        "Dieser Planungszeitraum ist nicht mehr aktiv. Bitte laden Sie die Seite neu.",
       "timetable.offering_source_inactive":
         "Das Angebot „{offering}“ ist ausgeschaltet. Bitte wählen Sie ein anderes Angebot.",
       "timetable.offering_source_invalid":
@@ -1624,6 +1638,18 @@ export const ERROR_CATALOG = {
         "This group message is closed. You can no longer reply.",
       "communication.group_thread_no_recipients":
         "No child in this group has parents with access to moto. The message was not sent.",
+      "communication.leadership_messages_unavailable":
+        "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
+      "communication.staff_group_create_forbidden":
+        "Teachers cannot start a group chat. Please ask the after-school team.",
+      "communication.staff_group_manage_forbidden":
+        "Only the person who started the group chat and the leadership can change it.",
+      "communication.staff_group_members_required":
+        "Please choose at least one person who is not in the group yet.",
+      "communication.staff_group_name_invalid":
+        "Please give the group chat a name of at most {max_characters} characters.",
+      "communication.staff_group_too_large":
+        "A group chat has at most {max_members} members.",
       "communication.survey_already_answered":
         "You have already taken part in this survey. Your answer cannot be changed.",
       "communication.survey_not_open": "This survey no longer accepts answers.",
@@ -2082,6 +2108,8 @@ export const ERROR_CATALOG = {
         "Это групповое сообщение закрыто. Ответить больше нельзя.",
       "communication.group_thread_no_recipients":
         "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
+      "communication.leadership_messages_unavailable":
+        "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
       "communication.survey_already_answered":
         "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
@@ -2474,6 +2502,8 @@ export const ERROR_CATALOG = {
         "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
       "communication.group_thread_no_recipients":
         "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
+      "communication.leadership_messages_unavailable":
+        "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
       "communication.survey_already_answered":
         "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
@@ -2878,6 +2908,8 @@ export const ERROR_CATALOG = {
         "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
       "communication.group_thread_no_recipients":
         "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
+      "communication.leadership_messages_unavailable":
+        "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
       "communication.survey_already_answered":
         "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
       "communication.survey_not_open":
@@ -3271,6 +3303,8 @@ export const ERROR_CATALOG = {
         "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
       "communication.group_thread_no_recipients":
         "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
+      "communication.leadership_messages_unavailable":
+        "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
       "communication.survey_already_answered":
         "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
@@ -3666,6 +3700,8 @@ export const ERROR_CATALOG = {
         "Це групове повідомлення закрито. Відповісти більше не можна.",
       "communication.group_thread_no_recipients":
         "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
+      "communication.leadership_messages_unavailable":
+        "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS.",
       "communication.survey_already_answered":
         "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
       "communication.survey_not_open":

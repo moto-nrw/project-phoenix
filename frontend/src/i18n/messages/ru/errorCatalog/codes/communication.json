@@ -18,5 +18,11 @@
   "survey_not_draft": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "survey_anonymous": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "class_letter_class_not_reachable": "У вас нет доступа к: {object}. Обратитесь в школу.",
-  "class_letter_read_only": "Не удалось изменить: {object}. Проверьте текущее состояние."
+  "class_letter_read_only": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "leadership_messages_unavailable": "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
+  "staff_group_create_forbidden": "У вас нет доступа к: {object}. Обратитесь в школу.",
+  "staff_group_manage_forbidden": "У вас нет доступа к: {object}. Обратитесь в школу.",
+  "staff_group_name_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+  "staff_group_members_required": "Не удалось сохранить: {object}. Проверьте введённые данные.",
+  "staff_group_too_large": "Не удалось сохранить: {object}. Проверьте введённые данные."
 }

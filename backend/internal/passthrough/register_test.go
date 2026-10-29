@@ -37,10 +37,8 @@ func TestPassthroughChecksCommittedBaseInventory(t *testing.T) {
 	for _, args := range [][]string{
 		{"init", "--quiet"},
 		{"add", "."},
-		// The fixture commit only establishes the immutable base inventory.
-		// Repository-local or global hooks are outside that contract and can
-		// require tools unavailable in t.TempDir().
-		{"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "--no-verify", "-m", "Record base inventory"},
+		// Host hooks may require project files this synthetic repository does not have.
+		{"-c", "core.hooksPath=" + os.DevNull, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Record base inventory"},
 	} {
 		if _, err := git(repo, args...); err != nil {
 			t.Fatal(err)

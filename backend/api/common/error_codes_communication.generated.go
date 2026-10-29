@@ -10,10 +10,16 @@ const CodeCommunicationClassLetterReadOnly = "communication.class_letter_read_on
 const CodeCommunicationDeclarationHasSubmissions = "communication.declaration_has_submissions"
 const CodeCommunicationGroupThreadClosed = "communication.group_thread_closed"
 const CodeCommunicationGroupThreadNoRecipients = "communication.group_thread_no_recipients"
+const CodeCommunicationLeadershipMessagesUnavailable = "communication.leadership_messages_unavailable"
 const CodeCommunicationNotificationsDisabled = "communication.notifications_disabled"
 const CodeCommunicationParentNewsDisabled = "communication.parent_news_disabled"
 const CodeCommunicationPollNotOpen = "communication.poll_not_open"
 const CodeCommunicationStaffCounterpartUnavailable = "communication.staff_counterpart_unavailable"
+const CodeCommunicationStaffGroupCreateForbidden = "communication.staff_group_create_forbidden"
+const CodeCommunicationStaffGroupManageForbidden = "communication.staff_group_manage_forbidden"
+const CodeCommunicationStaffGroupMembersRequired = "communication.staff_group_members_required"
+const CodeCommunicationStaffGroupNameInvalid = "communication.staff_group_name_invalid"
+const CodeCommunicationStaffGroupTooLarge = "communication.staff_group_too_large"
 const CodeCommunicationStaffMessagingDisabled = "communication.staff_messaging_disabled"
 const CodeCommunicationStaffNoticeOutdated = "communication.staff_notice_outdated"
 const CodeCommunicationSurveyAlreadyAnswered = "communication.survey_already_answered"
@@ -32,10 +38,16 @@ var errorCodeClassesCommunication = []errorCodeClass{
 	{CodeCommunicationDeclarationHasSubmissions, "business_rejection"},
 	{CodeCommunicationGroupThreadClosed, "business_rejection"},
 	{CodeCommunicationGroupThreadNoRecipients, "business_rejection"},
+	{CodeCommunicationLeadershipMessagesUnavailable, "permission"},
 	{CodeCommunicationNotificationsDisabled, "business_rejection"},
 	{CodeCommunicationParentNewsDisabled, "permission"},
 	{CodeCommunicationPollNotOpen, "business_rejection"},
 	{CodeCommunicationStaffCounterpartUnavailable, "unavailable"},
+	{CodeCommunicationStaffGroupCreateForbidden, "permission"},
+	{CodeCommunicationStaffGroupManageForbidden, "permission"},
+	{CodeCommunicationStaffGroupMembersRequired, "input"},
+	{CodeCommunicationStaffGroupNameInvalid, "input"},
+	{CodeCommunicationStaffGroupTooLarge, "input"},
 	{CodeCommunicationStaffMessagingDisabled, "permission"},
 	{CodeCommunicationStaffNoticeOutdated, "business_rejection"},
 	{CodeCommunicationSurveyAlreadyAnswered, "business_rejection"},

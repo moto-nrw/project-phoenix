@@ -65,7 +65,7 @@ func (rs *Resource) templateRosterDeviations(ctx context.Context, periodID int64
 		return result, nil
 	}
 	ratio := rs.childrenPerStaffRatio(ctx)
-	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &periodID, ratio)
+	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &periodID, ratio, nil)
 	if err != nil {
 		return nil, err
 	}

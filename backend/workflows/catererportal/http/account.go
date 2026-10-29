@@ -12,6 +12,7 @@ import (
 var (
 	errPasswordFieldsRequired = errors.New("current_password and new_password are required")
 	errCurrentPasswordWrong   = errors.New("current password is incorrect")
+	errPasswordMismatch       = errors.New("passwords do not match")
 )
 
 type changePasswordRequest struct {

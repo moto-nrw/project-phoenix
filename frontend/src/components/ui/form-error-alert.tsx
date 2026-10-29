@@ -126,9 +126,18 @@ export function errorAlertActions(
 export function LoadErrorAlert({
   error,
   className,
+  actionLayout = "stacked",
 }: {
   readonly error: FormErrorInput;
   readonly className?: string;
+  /**
+   * Where the retry sits. `stacked` (default) puts it under the message;
+   * `responsive` puts it right of it from `sm` on, for a short message in a
+   * wide area, and under it on a phone. An error with a request ID stays
+   * stacked: the 36-character ID beside the message squeezes the message
+   * into a narrow column on a tablet (#2511).
+   */
+  readonly actionLayout?: "stacked" | "responsive";
 }) {
   const text = formErrorMessage(error);
   const detail = formErrorDetail(error);
@@ -143,12 +152,22 @@ export function LoadErrorAlert({
       />
     );
   }
+  const layout = detail?.requestId ? "stacked" : actionLayout;
+  const actions = errorAlertActions(detail);
   return (
     <Alert
       type="error"
       message={text}
-      action={errorAlertActions(detail)}
-      actionLayout="stacked"
+      action={
+        layout === "responsive" && actions ? (
+          // On a phone the retry wraps under the message: max-sm:pl-7 keeps
+          // it flush with the text, as the stacked layout does.
+          <span className="block max-sm:pl-7">{actions}</span>
+        ) : (
+          actions
+        )
+      }
+      actionLayout={layout}
       className={className}
     />
   );

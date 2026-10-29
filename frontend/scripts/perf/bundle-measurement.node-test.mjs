@@ -1,20 +1,12 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import {
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  assertProducerRun,
-  assertProducerSource,
   buildConfiguration,
   identityForRevision,
   makeIdentity,
@@ -25,7 +17,6 @@ import {
   validateMeasurement,
   writeMeasurement,
 } from "./bundle-measurement.mjs";
-import { compareBudgets, legacyCeiling } from "./bundle-policy.mjs";
 
 const sourceTree = "a".repeat(40);
 const revision = "b".repeat(40);
@@ -58,13 +49,22 @@ test("source/configuration identity, not commit identity, selects a reusable obs
 test("different real commits with identical frontend trees reuse one key", () =>
   inDirectory((directory) => {
     const git = (...args) =>
-      execFileSync("git", args, {
-        cwd: directory,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      }).trim();
+      execFileSync(
+        "git",
+        [
+          "-c",
+          "core.hooksPath=/dev/null",
+          "-c",
+          "commit.gpgsign=false",
+          ...args,
+        ],
+        {
+          cwd: directory,
+          encoding: "utf8",
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      ).trim();
     git("init");
-    git("config", "commit.gpgsign", "false");
     git("config", "user.name", "Bundle fixture");
     git("config", "user.email", "bundle@example.org");
     mkdirSync(join(directory, "frontend"));
@@ -169,28 +169,15 @@ test("foreign project, stale source/configuration and invalid bytes are rejected
   );
 });
 
-test("missing base comparison is explicit and cannot disable the approved ceiling", () =>
+test("a requested but missing base comparison fails closed instead of skipping PR delta", () =>
   inDirectory((directory) => {
     writeMeasurement(
       join(directory, "perf-results/bundle-base-identity.json"),
       { identity, sourceRevision: revision },
     );
-    const base = readBaseComparison(directory, identity);
-    assert.equal(base.routes, null);
-    assert.match(base.status, /nicht durchgeführt/);
-    const budgets = new Map([
-      [
-        "/parents/children",
-        { referenceBytes: 100_000, maxBytes: legacyCeiling(100_000) },
-      ],
-    ]);
-    assert.equal(
-      compareBudgets(
-        budgets,
-        new Map([["/parents/children", 111_000]]),
-        base.routes,
-      ).failures.length,
-      1,
+    assert.throws(
+      () => readBaseComparison(directory, identity),
+      /Required merge-base measurement missing/,
     );
   }));
 
@@ -247,207 +234,20 @@ test("valid cached observations preserve route bytes and deterministic route ord
     );
   }));
 
-const repository = "moto-nrw/project-phoenix";
-const run = {
-  id: 42,
-  repository: { full_name: repository },
-  head_repository: { full_name: repository },
-  path: ".github/workflows/main.yml",
-  head_sha: revision,
-};
-const measurement = makeMeasurement(
-  identity,
-  "c".repeat(40),
-  observations,
-  "42",
-);
-const commit = {
-  sha: measurement.sourceRevision,
-  parents: [{ sha: revision }],
-  tree: { sha: "d".repeat(40) },
-};
-const tree = {
-  sha: commit.tree.sha,
-  tree: [{ path: "frontend", type: "tree", sha: sourceTree }],
-};
-
-test("a synthetic merge producer is accepted by parent relation and actual frontend tree", () => {
-  assert.doesNotThrow(() =>
-    assertProducerSource(repository, run, measurement, commit, tree),
-  );
-});
-
-test("foreign repositories/workflows and mismatched producer revisions/trees fail closed", () => {
-  assert.throws(
-    () =>
-      assertProducerRun(repository, {
-        ...run,
-        head_repository: { full_name: "attacker/fork" },
-      }),
-    /Foreign/,
-  );
-  assert.throws(
-    () =>
-      assertProducerRun(repository, {
-        ...run,
-        path: ".github/workflows/unrelated.yml",
-      }),
-    /Foreign/,
-  );
-  assert.throws(
-    () =>
-      assertProducerSource(
-        repository,
-        run,
-        { ...measurement, runId: "43" },
-        commit,
-        tree,
-      ),
-    /run identity/,
-  );
-  assert.throws(
-    () =>
-      assertProducerSource(
-        repository,
-        run,
-        measurement,
-        { ...commit, parents: [] },
-        tree,
-      ),
-    /revision/,
-  );
-  assert.throws(
-    () =>
-      assertProducerSource(repository, run, measurement, commit, {
-        ...tree,
-        tree: [],
-      }),
-    /source tree/,
-  );
-});
-
-function fetchFixture(directory, { onlyFork = false, corrupt = false } = {}) {
-  const name = `bundle-measured-${measurementKey(identity)}`;
-  const measured = makeMeasurement(
-    identity,
-    measurement.sourceRevision,
-    observations,
-    "43",
-  );
-  if (corrupt) measured.routes["/parents/children"] = -1;
-  const metadata = {
-    artifacts: [
-      { name, expired: false, workflow_run: { id: 42 } },
-      ...(!onlyFork
-        ? [{ name, expired: false, workflow_run: { id: 43 } }]
-        : []),
-    ],
-    runs: {
-      42: {
-        ...run,
-        status: "completed",
-        conclusion: "success",
-        head_repository: { full_name: "untrusted/fork" },
-      },
-      43: { ...run, id: 43, status: "completed", conclusion: "success" },
-    },
-    measurement: measured,
-    commit,
-    tree,
-  };
-  const bin = join(directory, "bin");
-  mkdirSync(bin);
-  const data = join(directory, "api.json");
-  const calls = join(directory, "calls.log");
-  writeFileSync(data, JSON.stringify(metadata));
-  writeMeasurement(
-    join(directory, "perf-results", "bundle-base-identity.json"),
-    { identity, sourceRevision: revision },
-  );
-  writeFileSync(
-    join(bin, "gh"),
-    `#!/usr/bin/env node
-const fs = require("node:fs");
-const path = require("node:path");
-const data = JSON.parse(fs.readFileSync(process.env.FAKE_API_DATA, "utf8"));
-const args = process.argv.slice(2);
-fs.appendFileSync(process.env.FAKE_CALLS, JSON.stringify(args)+"\\n");
-if (args[0] === "api") {
- const endpoint = args[1];
- let value;
- if (endpoint.includes("/actions/artifacts?")) value = { artifacts: data.artifacts };
- else if (endpoint.includes("/actions/runs/")) value = data.runs[endpoint.split("/").pop()];
- else if (endpoint.includes("/git/commits/")) value = data.commit;
- else if (endpoint.includes("/git/trees/")) value = data.tree;
- else throw new Error("unexpected endpoint "+endpoint);
- process.stdout.write(JSON.stringify(value));
-} else {
- if (args[0] !== "run" || args[1] !== "download" || args[2] !== "43") throw new Error("ineligible download");
- const target = args[args.indexOf("--dir")+1];
- fs.writeFileSync(path.join(target, "bundle-measured.json"), JSON.stringify(data.measurement));
-}
-`,
-    { mode: 0o755 },
-  );
+// Artifact lookup no longer exists: an unavailable observation cannot disable
+// the mandatory freshly built feature-PR comparison.
+test("removed --fetch-base command is rejected rather than contacting GitHub", () => {
   const result = spawnSync(
     process.execPath,
     [
       fileURLToPath(new URL("./bundle-measurement.mjs", import.meta.url)),
       "--fetch-base",
     ],
-    {
-      cwd: directory,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${bin}:${process.env.PATH}`,
-        GITHUB_REPOSITORY: repository,
-        FAKE_API_DATA: data,
-        FAKE_CALLS: calls,
-      },
-    },
+    { encoding: "utf8" },
   );
-  return {
-    result,
-    calls: readFileSync(calls, "utf8")
-      .trim()
-      .split("\n")
-      .map((line) => JSON.parse(line)),
-  };
-}
-
-test("base lookup skips a matching fork observation and reuses the next eligible run", () =>
-  inDirectory((directory) => {
-    const { result, calls } = fetchFixture(directory);
-    assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(result.stdout, /Reused bundle observation from run 43/);
-    assert.deepEqual(
-      calls.filter((args) => args[0] === "run").map((args) => args[2]),
-      ["43"],
-    );
-    assert.deepEqual(
-      readMeasurement(
-        join(directory, "perf-results", "bundle-base.json"),
-        identity,
-      ),
-      observations,
-    );
-  }));
-
-test("only ineligible observations are an explicit miss, while corrupt eligible data still fails", () => {
-  inDirectory((directory) => {
-    const { result, calls } = fetchFixture(directory, { onlyFork: true });
-    assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(result.stdout, /No compatible successful base observation/);
-    assert.equal(
-      calls.some((args) => args[0] === "run"),
-      false,
-    );
-    assert.equal(readBaseComparison(directory, identity).routes, null);
-  });
-  inDirectory((directory) => {
-    const { result } = fetchFixture(directory, { corrupt: true });
-    assert.notEqual(result.status, 0);
-    assert.match(result.stderr, /Invalid bundle observation/);
-  });
+  assert.notEqual(result.status, 0);
+  assert.match(
+    result.stderr,
+    /Expected --prepare-ci \[base-revision\] or --build-base/,
+  );
 });

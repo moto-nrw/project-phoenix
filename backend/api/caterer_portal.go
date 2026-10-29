@@ -50,7 +50,7 @@ func mountCatererPortal(root, tenantRouter chi.Router, limiters authRateLimiters
 			file, err := renderMealList(renderer, export, format)
 			return catererPortalHTTP.ExportFile(file), err
 		},
-		Resets: catererPasswordResets(identity),
+		Resets: portalPasswordResets(identity, identityaccess.PasswordResetScopeCaterer),
 	})
 	tenantRouter.Mount("/meal-caterer", resource.SchoolRouter(ProtectedTenantRoutes, requireMealPlanAccess(mealplanAPI.AccessWrite), common.RequiresPermission(permissions.AdminWildcard), requireMealPlanAccess(mealplanAPI.AccessParticipants)))
 	root.Mount("/caterer", resource.CatererRouter(limiters.authMiddleware(), CatererSessionChain))
@@ -75,17 +75,5 @@ func schoolNames(schools organizationtenancy.Capability) func(context.Context, [
 			names[school.ID] = school.Name
 		}
 		return names, nil
-	}
-}
-
-// catererPasswordResets binds the caterer portal's reset: only caterer
-// accounts are served, and the link lands on the caterer host.
-func catererPasswordResets(resets identityaccess.PasswordResets) catererPortalHTTP.PasswordResetRuntime {
-	return catererPortalHTTP.PasswordResetRuntime{
-		Initiate:     initiatePasswordReset(resets, identityaccess.PasswordResetScopeCaterer),
-		Reset:        resets.ResetPassword,
-		LinkUnusable: passwordResetLinkUnusable,
-		TooWeak:      passwordResetTooWeak,
-		RetryAfter:   passwordResetRetryAfter,
 	}
 }

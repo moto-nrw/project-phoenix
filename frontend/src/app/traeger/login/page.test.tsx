@@ -241,6 +241,36 @@ describe("TraegerLoginPage", () => {
     expect(mockSignIn).not.toHaveBeenCalled();
   });
 
+  // #5149: "Passwort vergessen?" opens the reset dialog of the other
+  // logins, which asks the Träger route for the link.
+  it("requests a reset link through the Träger route", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        message: "If the email exists, a password reset link has been sent",
+      }),
+    );
+    render(<TraegerLoginPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Passwort vergessen?" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(dialog.querySelector("#reset-email")!, {
+      target: { value: "buero@traeger.example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Link senden" }));
+
+    expect(await screen.findByText("E-Mail versendet!")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/traeger/auth/password-reset",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ email: "buero@traeger.example" }),
+      }),
+    );
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
   it("keeps a refused password in the form instead of redirecting", async () => {
     const assign = vi
       .spyOn(window.location, "assign")

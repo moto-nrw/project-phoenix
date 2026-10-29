@@ -125,6 +125,11 @@ import {
   type RosterDeviation,
 } from "./roster-deviation";
 import {
+  mapOfferingGaps,
+  type BackendOfferingGapsResponse,
+  type OfferingGap,
+} from "./offering-gap";
+import {
   draftPreviewQuery,
   mapOfferingSuggestion,
   suggestionQuery,
@@ -392,6 +397,51 @@ class TimetableService {
     return mapRosterDeviations(
       await unwrap<BackendRosterDeviationsResponse>(response),
     );
+  }
+
+  /**
+   * GET /api/timetable/offering-gaps — offerings whose booked children no
+   * Regeltermin of the period takes over (#5140).
+   */
+  async getOfferingGaps(periodId: string): Promise<OfferingGap[]> {
+    const params = new URLSearchParams({ period_id: periodId });
+    const response = await transportFetch(
+      `/api/timetable/offering-gaps?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+    return mapOfferingGaps(await unwrap<BackendOfferingGapsResponse>(response));
+  }
+
+  /**
+   * PUT /api/timetable/offering-gaps/{offeringId}/acknowledgement —
+   * „Kein eigener Regeltermin nötig“ (#5140) for the classes the hint names,
+   * or its undo.
+   */
+  async setOfferingGapAcknowledged(
+    offeringId: string,
+    periodId: string,
+    acknowledged: boolean,
+  ): Promise<void> {
+    const response = await transportFetch(
+      `/api/timetable/offering-gaps/${offeringId}/acknowledgement`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          period_id: Number(periodId),
+          acknowledged,
+        }),
+      },
+    );
+    await unwrap<unknown>(response);
   }
 
   /** GET /api/timetable/templates/{id}/offering-preview (#5103). */

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useLinkIntentPrefetch } from "./use-link-intent-prefetch";
 import { cn } from "~/lib/utils";
 
 // Die kurze Brücke vermeidet, dass ButtonLink den Portal-Anbieter lädt.
@@ -146,10 +147,12 @@ export function ButtonLink({
   className = "",
   ...props
 }: Readonly<ButtonLinkProps>) {
+  const intentProps = useLinkIntentPrefetch(props);
   return (
     <Link
       className={buttonClassName({ variant, size, className })}
       {...props}
+      {...intentProps}
       onNavigate={(event: ButtonLinkNavigationEvent) => {
         let cancelled: boolean | undefined;
         props.onNavigate?.({

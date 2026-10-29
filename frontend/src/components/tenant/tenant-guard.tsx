@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { hasSessionAccess } from "~/lib/session-access";
 import { clearSessionCache } from "~/lib/session-cache";
@@ -398,7 +398,7 @@ function GuardedTenant({
 
     // A switch that went through can still leave the old school behind: every
     // API response re-issues the session cookie it was asked with, so a
-    // request of the old session that answers after signIn() writes the old
+    // request of the old session that answers after the BFF session switch writes the old
     // school back (#3375). Those requests settle, so a bounded number of
     // repeats gets through; after that the person decides, not a spinner.
     if (switchAttempts.current.count >= MAX_SWITCH_ATTEMPTS) {
@@ -426,7 +426,7 @@ function GuardedTenant({
         if (session?.user?.isPreview) {
           await performEndStaffPreview(update, mutate);
         }
-        await performTenantSwitch(urlSubdomain!, signIn, mutate);
+        await performTenantSwitch(urlSubdomain!, mutate);
 
         // Refetch session to trigger re-render with new tenant
         await update();
@@ -512,9 +512,9 @@ function GuardedTenant({
   ]);
 
   if (refusal === "failed") {
-    // No sign-out here: it would delete the cookie without making a copy
-    // that a late answer writes back worthless (access tokens stay valid
-    // until they expire). Checking again is the safe way out.
+    // Checking again is the way out. A relogin here would need the revoking
+    // logout of reloginAtTenant, since only the revoked family makes a
+    // cookie a late answer writes back worthless (#5194).
     return (
       <div className="mx-auto flex min-h-[200px] max-w-3xl items-center p-4">
         <div className="w-full space-y-3">

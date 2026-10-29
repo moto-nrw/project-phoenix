@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 // Authenticated proxy for the staff proof of a signed enrollment (#4786):
 // the backend answers the request detail with ?format=pdf as a PDF with the
 // parent's signature. Inject the JWT server-side, refresh once on 401, pass
@@ -57,4 +58,4 @@ async function GETHandler(
   return pdfDownloadResponse(upstream);
 }
 
-export const GET = withTenantAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withTenantAuth(GETHandler));

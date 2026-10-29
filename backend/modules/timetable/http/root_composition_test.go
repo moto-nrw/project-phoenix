@@ -44,6 +44,7 @@ func init() {
 			api.WithOfferingSourceValidator(options.ValidateOfferingSource),
 			api.WithOfferingRosterResync(options.ResyncOfferingRoster),
 			api.WithTimetableMaterialization(options.Materialization),
+			api.WithTimetableNonWorkingDays(options.NonWorkingDays),
 			api.WithTimetableInstances(options.Instances),
 		}
 		if options.Clock != nil {
@@ -56,6 +57,7 @@ func init() {
 		return timetableAPI.TimetableHTTPModule{
 			Templates: module.Templates, RosterReview: module.RosterReview, Data: module.Data, ConflictDetection: module.ConflictDetection,
 			AttendanceCorrections: module.AttendanceCorrections, RecurrenceLock: module.RecurrenceLock,
+			Materialization: module.Materialization,
 		}, nil
 	}
 	root.Rows = func(db *bun.DB, clocks ...func() time.Time) (timetableAPI.TimetableRows, error) {

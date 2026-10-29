@@ -70,12 +70,8 @@ func (s *AccountAuthentication) prepareSessionMint(ctx context.Context, account 
 	if _, err := s.store.RecordAccountLogin(ctx, account.ID, loginTime); err != nil {
 		return time.Time{}, fmt.Errorf("update last login before token issuance: %w", err)
 	}
-	if retireFamilyID != "" && (session.PortalScope == domain.PortalScopeTenant || session.PortalScope == domain.PortalScopeSchool) {
-		verified, err := s.switchMFAProof(ctx, account.ID, retireFamilyID, session.PortalScope)
-		if err != nil {
-			return time.Time{}, &mintGuardError{err: err}
-		}
-		session.MFAVerified = verified
+	if err := s.adoptSourceFamily(ctx, account.ID, retireFamilyID, session, loginTime); err != nil {
+		return time.Time{}, &mintGuardError{err: err}
 	}
 	if err := s.requireSessionMFA(ctx, account.ID, tenantID, session.PortalScope, session.MFAVerified); err != nil {
 		return time.Time{}, &mintGuardError{err: err}
@@ -148,4 +144,42 @@ func (s *AccountAuthentication) verifiedMFAMintGuard(proof *identityaccess.Verif
 		}
 		return nil
 	}
+}
+
+// adoptSourceFamily checks the family a switch presents: it must still live,
+// and a tenant or school switch inherits its second-factor proof.
+func (s *AccountAuthentication) adoptSourceFamily(ctx context.Context, accountID int64, familyID string, session *domain.AccountSession, now time.Time) error {
+	if err := s.requireLiveSourceFamily(ctx, accountID, familyID, now); err != nil {
+		return err
+	}
+	if familyID == "" || (session.PortalScope != domain.PortalScopeTenant && session.PortalScope != domain.PortalScopeSchool) {
+		return nil
+	}
+	verified, err := s.switchMFAProof(ctx, accountID, familyID, session.PortalScope)
+	if err != nil {
+		return err
+	}
+	session.MFAVerified = verified
+	return nil
+}
+
+// requireLiveSourceFamily refuses a switch whose presented family is gone
+// (#5194). It runs under the account lock logout takes as well, so a switch
+// that started before a logout either commits first or finds the family
+// revoked; it cannot mint a new session out of a revoked one.
+func (s *AccountAuthentication) requireLiveSourceFamily(ctx context.Context, accountID int64, familyID string, now time.Time) error {
+	if familyID == "" {
+		return nil
+	}
+	source, err := s.sessions.LatestAccountSessionInFamily(ctx, familyID)
+	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
+		return identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return fmt.Errorf("inspect source session family: %w", err)
+	}
+	if source.AccountID != accountID || !source.Expiry.After(now) {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
 }

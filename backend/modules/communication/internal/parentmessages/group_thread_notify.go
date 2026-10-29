@@ -159,7 +159,7 @@ func (s *Service) broadcastGroupThreadAfterCommit(ctx context.Context, thread *d
 	}
 	tenantID := thread.TenantID
 	s.runtime.RegisterAfterCommit(ctx, func() {
-		s.broadcastValues(tenantID, 0, 0, 0)
+		Broadcast(s.Broadcaster, s.Logger, tenantID, 0, 0, 0, deliveryPorts.ParentAudienceTeam)
 		if s.Broadcaster == nil {
 			return
 		}

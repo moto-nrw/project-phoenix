@@ -29,6 +29,9 @@ type Database func(context.Context) (bun.IDB, int64, error)
 // owner's rows without importing that owner's package.
 const studentStatusAlumnus = "alumnus"
 
+// teamAudience mirrors Communication's team conversation audience (#5200).
+const teamAudience = "team"
+
 // Projection answers every parent-conversation read that spans owners.
 type Projection struct {
 	database Database
@@ -68,6 +71,7 @@ type inboxRow struct {
 	GuardianAccountID      int64           `bun:"guardian_account_id"`
 	GuardianName           string          `bun:"guardian_name"`
 	RelationshipType       string          `bun:"relationship_type"`
+	Audience               string          `bun:"audience"`
 	LastMessageAt          *time.Time      `bun:"last_message_at"`
 	LastSenderKind         string          `bun:"last_sender_kind"`
 	LastMessageBody        string          `bun:"last_message_body"`
@@ -89,7 +93,7 @@ func inboxValues(rows []inboxRow) []*contract.ParentInboxThread {
 			ThreadID: row.ThreadID, TenantID: row.TenantID, StudentID: row.StudentID,
 			StudentName: row.StudentName, SchoolClass: row.SchoolClass, GroupID: row.GroupID,
 			GuardianAccountID: row.GuardianAccountID, GuardianName: row.GuardianName,
-			RelationshipType: row.RelationshipType, LastMessageAt: row.LastMessageAt,
+			RelationshipType: row.RelationshipType, Audience: row.Audience, LastMessageAt: row.LastMessageAt,
 			LastSenderKind: row.LastSenderKind, LastMessageBody: row.LastMessageBody,
 			LastMessageKind: row.LastMessageKind, LastEventType: row.LastEventType,
 			LastRequestType: row.LastRequestType, LastRequestStatus: row.LastRequestStatus,
@@ -146,6 +150,7 @@ func (p *Projection) inboxSelect(q *bun.SelectQuery, accountID int64, staffReade
 		ColumnExpr("t.guardian_account_id AS guardian_account_id").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS guardian_name").
 		ColumnExpr("COALESCE(sg.relationship_type,'') AS relationship_type").
+		ColumnExpr("t.audience AS audience").
 		ColumnExpr("t.last_message_at AS last_message_at").
 		ColumnExpr("COALESCE(t.last_sender_kind,'') AS last_sender_kind").
 		// last_message_body is denormalized onto the thread, so the preview no
@@ -200,26 +205,37 @@ func unreadMessageCountSelect(q *bun.SelectQuery, accountID int64, staffReader b
 	return query.Where(counterpartUnreadUMForGuardian)
 }
 
-// applyStaffScope narrows a thread query to the students a staff member may
-// read: everything for admins and verified staff, nothing for any other caller
-// (an impossible filter, so the result is empty).
-func applyStaffScope(q *bun.SelectQuery, allStudents bool) *bun.SelectQuery {
-	if allStudents {
+// applyStaffScope narrows a thread query to what a staff member may read:
+// every child for admins and verified staff, nothing for any other caller (an
+// impossible filter, so the result is empty). Without the leadership
+// permission the conversations parents addressed to the leadership only stay
+// out of every list and number (#5200).
+func applyStaffScope(q *bun.SelectQuery, reach contract.StaffReach) *bun.SelectQuery {
+	if !reach.AllStudents {
+		return q.Where("1 = 0")
+	}
+	return applyLeadershipScope(q, reach.Leadership)
+}
+
+// applyLeadershipScope keeps the leadership conversations out of a staff
+// query unless the reader holds the leadership permission (#5200).
+func applyLeadershipScope(q *bun.SelectQuery, leadership bool) *bun.SelectQuery {
+	if leadership {
 		return q
 	}
-	return q.Where("1 = 0")
+	return q.Where("t.audience = ?", teamAudience)
 }
 
 // ListInboxForStaff returns the staff member's readable threads, newest
 // activity first. onlyUnread keeps only threads with unread guardian activity.
-func (p *Projection) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*contract.ParentInboxThread, error) {
+func (p *Projection) ListInboxForStaff(ctx context.Context, accountID int64, reach contract.StaffReach, onlyUnread bool) ([]*contract.ParentInboxThread, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []inboxRow
 	query := p.inboxSelect(db.NewSelect(), accountID, true, nil)
-	query = applyStaffScope(query, allStudents)
+	query = applyStaffScope(query, reach)
 	query = query.Where(threadHasMessages)
 	query = withTenant(query, "t", tenantID)
 	if onlyUnread {
@@ -242,10 +258,11 @@ func (p *Projection) ListInboxForStaff(ctx context.Context, accountID int64, all
 }
 
 // ListThreadsForStudent returns the staff view of one child's threads, newest
-// activity first. The caller must have authorized read access already; this
-// only adds the student filter, so the student detail card stops fetching the
-// whole school inbox and filtering client-side.
-func (p *Projection) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*contract.ParentInboxThread, error) {
+// activity first. The caller must have authorized read access to the child
+// already, so only the leadership part of reach applies: the student detail
+// card stops fetching the whole school inbox and never shows a leadership
+// conversation to a caller without the leadership permission.
+func (p *Projection) ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach contract.StaffReach) ([]*contract.ParentInboxThread, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -254,6 +271,7 @@ func (p *Projection) ListThreadsForStudent(ctx context.Context, accountID, stude
 	query := p.inboxSelect(db.NewSelect(), accountID, true, nil).
 		Where("t.student_id = ?", studentID).
 		Where(threadHasMessages)
+	query = applyLeadershipScope(query, reach.Leadership)
 	query = withTenant(query, "t", tenantID)
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list parent message threads for student: %w", err)
@@ -315,33 +333,33 @@ func (p *Projection) ListThreadsForGuardianTenants(ctx context.Context, accountI
 // A thread marked unread for the team without a real unread message adds 1,
 // the same floor its pill shows. Both counts run as one statement, so the
 // badge stays a single query.
-func (p *Projection) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
-	return p.unreadMessageCountForStaff(ctx, accountID, allStudents, nil)
+func (p *Projection) UnreadMessageCountForStaff(ctx context.Context, accountID int64, reach contract.StaffReach) (int, error) {
+	return p.unreadMessageCountForStaff(ctx, accountID, reach, nil)
 }
 
 // UnreadMessageCountForStaffInGroups is UnreadMessageCountForStaff limited to
 // children whose OGS group is one of groupIDs: the counter of a staff member
 // who chose to count only their own groups (#3673). No group counts nothing.
-func (p *Projection) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
+func (p *Projection) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach contract.StaffReach, groupIDs []int64) (int, error) {
 	if len(groupIDs) == 0 {
 		return 0, nil
 	}
-	return p.unreadMessageCountForStaff(ctx, accountID, allStudents, groupIDs)
+	return p.unreadMessageCountForStaff(ctx, accountID, reach, groupIDs)
 }
 
 // unreadMessageCountForStaff runs both badge counts as one statement. A
 // non-nil groupIDs keeps only children of those OGS groups in both counts.
-func (p *Projection) unreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
+func (p *Projection) unreadMessageCountForStaff(ctx context.Context, accountID int64, reach contract.StaffReach, groupIDs []int64) (int, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return 0, err
 	}
 	messages := unreadMessageCountSelect(db.NewSelect(), accountID, true)
-	messages = applyStaffScope(messages, allStudents)
+	messages = applyStaffScope(messages, reach)
 	messages = withChildGroups(messages, groupIDs)
 	messages = withTenant(messages, "t", tenantID).ColumnExpr("COUNT(*)")
 	marked := markedThreadsWithoutUnreadSelect(db.NewSelect(), accountID)
-	marked = applyStaffScope(marked, allStudents)
+	marked = applyStaffScope(marked, reach)
 	marked = withChildGroups(marked, groupIDs)
 	marked = withTenant(marked, "t", tenantID).ColumnExpr("COUNT(*)")
 	var count int

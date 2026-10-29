@@ -7,9 +7,11 @@
  */
 
 import "server-only";
+import { isServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 import type { JwtPayload } from "./jwt-payload";
 import type { DefaultSession, NextAuthConfig, Session, User } from "next-auth";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
 import {
@@ -619,6 +621,30 @@ export async function performLogin(
 }
 
 // ---------------------------------------------------------------------------
+// Forced renewal after a backend 401
+// ---------------------------------------------------------------------------
+
+// The backend refuses an unexpired access token once its refresh-token family
+// is revoked (#5194): logout in another tab, or a cookie a late response wrote
+// back. Inside this scope the JWT callback renews at once instead of waiting
+// for the expiry. A revoked family then fails its refresh and ends the session
+// (RefreshTokenError), so the browser is sent to the login instead of being
+// shown a session that opens nothing; a live family continues with fresh
+// tokens.
+const forcedRenewal = new AsyncLocalStorage<true>();
+
+/** Runs a session read that must renew the session first. */
+export function withForcedSessionRenewal<T>(
+  read: () => Promise<T>,
+): Promise<T> {
+  return forcedRenewal.run(true, read);
+}
+
+function isRenewalForced(): boolean {
+  return forcedRenewal.getStore() === true;
+}
+
+// ---------------------------------------------------------------------------
 // Singleflight state for proactive token refresh
 // ---------------------------------------------------------------------------
 
@@ -809,6 +835,19 @@ function isKnownTerminalRefresh(refreshKey: string): boolean {
   return expiresAt !== undefined && Date.now() < expiresAt;
 }
 
+function refreshAlreadyRefused(token: Record<string, unknown>): boolean {
+  const refreshToken = token.refreshToken;
+  if (typeof refreshToken !== "string" || refreshToken.length === 0) {
+    return false;
+  }
+  const proof =
+    typeof token.refreshRecoveryProof === "string" &&
+    token.refreshRecoveryProof.length > 0
+      ? token.refreshRecoveryProof
+      : deriveRefreshRecoveryProof(refreshToken);
+  return isKnownTerminalRefresh(`${refreshToken}\0${proof}`);
+}
+
 /** @internal Exposed for unit testing only */
 export const _testHelpers = {
   parseJwtPayload,
@@ -874,9 +913,8 @@ async function applyPreviewStart(
       : null;
   // Only genuine read-only preview tokens may be injected here — anything
   // else would smuggle a full session under the preview flag. The session
-  // stays as it is, so the session object returned to the client carries no
-  // preview; performStartStaffPreview reads that, closes the just-recorded
-  // preview in the audit trail, and reports the failure instead of reloading.
+  // stays as it is. The BFF checks the server update result and closes the
+  // just-recorded preview if the session did not enter the requested target.
   if (
     !payload?.read_only ||
     !admin ||
@@ -1088,13 +1126,19 @@ async function maintainPreviewSession(
   now: number,
 ): Promise<boolean> {
   const previewExpiry = (token.tokenExpiry as number | undefined) ?? 0;
-  if (now < previewExpiry - PREVIEW_REFRESH_BUFFER_MS) return true;
+  // A forced renewal re-proves the admin session the preview rests on.
+  const forced = isRenewalForced();
+  if (!forced && now < previewExpiry - PREVIEW_REFRESH_BUFFER_MS) return true;
 
   // Step 1: a fresh admin access token to re-mint with.
   let adminAccessToken = token.previewAdminToken as string | undefined;
   const adminExpiry =
     (token.previewAdminTokenExpiry as number | undefined) ?? 0;
-  if (!adminAccessToken || now > adminExpiry - PREVIEW_ADMIN_TOKEN_MIN_TTL_MS) {
+  if (
+    forced ||
+    !adminAccessToken ||
+    now > adminExpiry - PREVIEW_ADMIN_TOKEN_MIN_TTL_MS
+  ) {
     const attempt = await refreshAdminTokenForPreview(token);
     if (attempt.status === "success") {
       token.refreshToken = attempt.result.refresh_token;
@@ -1283,7 +1327,30 @@ export const schoolRedirectCallback: NonNullable<
 
 export const sharedJwtCallback: NonNullable<
   NonNullable<NextAuthConfig["callbacks"]>["jwt"]
-> = async ({ token, user, trigger, session }) => {
+> = async (params) => {
+  const update = params.session as Record<string, unknown> | undefined;
+  const previewStart =
+    params.trigger === "update" &&
+    isServerSessionMutation() &&
+    !isPreviewActive(params.token) &&
+    isPreviewStartUpdate(update?.previewStart)
+      ? update.previewStart
+      : undefined;
+  const token = await maintainSessionJwt(params);
+  // unstable_update reads the original request cookie. Renew it (or reuse
+  // the outer wrapper's cached renewal) before validating and parking admin state.
+  if (token && !token.error && previewStart) {
+    await applyPreviewStart(token, previewStart);
+  }
+  return token;
+};
+
+const maintainSessionJwt: typeof sharedJwtCallback = async ({
+  token,
+  user,
+  trigger,
+  session,
+}) => {
   const isDev = process.env.NODE_ENV === "development";
 
   if (isDev) {
@@ -1362,17 +1429,7 @@ export const sharedJwtCallback: NonNullable<
       token.tokenExpiry =
         Date.now() + (ACCESS_TOKEN_REFRESH_BUFFER_MS - 60_000);
     }
-    // Admin staff-view preview (#2893): enter with the freshly minted
-    // read-only token, leave by restoring the parked admin state. A start
-    // while a preview is already active is ignored — it would overwrite the
-    // parked admin tokens with preview tokens.
-    if (
-      update.previewStart !== undefined &&
-      !isPreviewActive(token) &&
-      isPreviewStartUpdate(update.previewStart)
-    ) {
-      await applyPreviewStart(token, update.previewStart);
-    }
+    // Leave preview before maintenance so a stale restored admin can renew.
     if (update.previewEnd === true && isPreviewActive(token)) {
       restoreAdminFromPreview(token);
     }
@@ -1408,6 +1465,16 @@ export const sharedJwtCallback: NonNullable<
     return token;
   }
 
+  // A cookie the backend already refused to renew ends here too, without a
+  // backend call: a late response may have written it back after a forced
+  // renewal ended it (#5194).
+  if (refreshAlreadyRefused(token)) {
+    if (isPreviewActive(token)) await endPreviewOnSessionLoss(token);
+    token.error = "RefreshTokenError";
+    token.needsRefresh = true;
+    return token;
+  }
+
   // Admin staff-view preview (#2893): while active, the preview branch owns
   // token maintenance (admin refresh + preview re-mint). Only when the
   // preview just ended does control fall through, so the restored admin
@@ -1428,7 +1495,7 @@ export const sharedJwtCallback: NonNullable<
     token.tokenExpiry &&
     token.refreshToken &&
     token.refreshTokenExpiry &&
-    now > tokenExpiry - ACCESS_TOKEN_REFRESH_BUFFER_MS &&
+    (isRenewalForced() || now > tokenExpiry - ACCESS_TOKEN_REFRESH_BUFFER_MS) &&
     now < (token.refreshTokenExpiry as number)
   ) {
     const currentRefreshToken = token.refreshToken as string;

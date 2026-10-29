@@ -3612,6 +3612,9 @@ export const leadRosterDeviationTopic =
         "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
         "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot.",
+        "Haben Kinder ein Angebot gebucht, aber kein Regeltermin übernimmt sie? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
+        "Brauchen diese Kinder bewusst keinen eigenen Regeltermin? Wählen Sie `Kein Regeltermin nötig`. Das gilt für den gewählten Zeitraum. Der Hinweis kommt wieder, sobald Kinder einer anderen Klasse betroffen sind. Das gilt auch für Ferienangebote.",
+        "Diesen Hinweis holen Sie zurück: Klappen Sie `Ohne eigenen Regeltermin` auf und wählen Sie `Hinweis wieder zeigen`.",
         // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
         "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Findet moto kein passendes Angebot, öffnet sich der Regeltermin zum Bearbeiten. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
       ],
@@ -5665,6 +5668,7 @@ export const parentGroupMessageTopic =
         "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
         "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
         "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",
+        "Über dem Schreibfeld steht bei `Ging an:`, an wen die Nachricht ging und wie viele Familien sie bekommen haben.",
       ],
       related: [HELP_TOPICS.parentMessage, HELP_TOPICS.leadParentAnnouncement],
     };
@@ -5696,6 +5700,7 @@ export const parentGroupMessagesTopic =
       notes: [
         "Sie sehen nicht, welche anderen Eltern die Nachricht bekommen.",
         "Haben mehrere Ihrer Kinder die Nachricht bekommen? Dann wählen Sie vor dem Senden das Kind.",
+        "Unter `Antwort an die OGS` steht, wer Ihre Antwort lesen kann.",
       ],
       differences: [
         "Steht dort `Diese Gruppennachricht ist geschlossen`? Dann können Sie nicht mehr antworten. Schreiben Sie der OGS im Chat zu Ihrem Kind.",
@@ -6072,6 +6077,17 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eine Unterhaltung nur für die Leitung beginnen",
+        description:
+          "Das geht nur mit dem Recht `Vertrauliche Elternnachrichten lesen` und wenn die Schule `Nachrichten nur an die Leitung (Eltern)` eingeschaltet hat.",
+        steps: [
+          "Wählen Sie unter `Nachrichten` den Knopf `Neue Nachricht`.",
+          "Wählen Sie das Kind und dann `Weiter`.",
+          "Wählen Sie bei `Wer liest auf Ihrer Seite mit?` den Punkt `Nur Leitung`.",
+          "Wählen Sie die Bezugsperson.",
+        ],
+      },
+      {
         title: "Auf eine Nachricht antworten",
         steps: [
           "Öffnen Sie die Unterhaltung im Posteingang.",
@@ -6120,8 +6136,11 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
       "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
+      "Steht bei einer Unterhaltung `Nur Leitung`? Dann lesen sie nur die Bezugsperson und die Leitung. Begonnen hat sie die Bezugsperson oder jemand aus der Leitung. Ohne das Recht `Vertrauliche Elternnachrichten lesen` sehen Sie solche Unterhaltungen nicht.",
+      "Eltern können nur an die Leitung schreiben, wenn unter `Einstellungen` der Schalter `Nachrichten nur an die Leitung (Eltern)` an ist und jemand das Recht `Vertrauliche Elternnachrichten lesen` hat. Das Recht vergeben Sie unter `Rollen`.",
     ],
     notes: [
+      "Über dem Schreibfeld steht, wer die Unterhaltung lesen kann: die eine Bezugsperson und alle Mitarbeitenden oder nur die Leitung. Andere Bezugspersonen des Kindes lesen nicht mit.",
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
       "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",
@@ -6152,10 +6171,13 @@ export const parentMessagesTopic = function parentMessagesTopic(): HelpTopic {
     result: "Die OGS bekommt Ihre Nachricht sofort.",
     notes: [
       "Jedes Kind hat eine eigene Unterhaltung. Oben steht, für welches Kind sie gilt.",
+      "Oben und über dem Schreibfeld steht, wer mitliest, zum Beispiel `Lesen können: Sie und alle Mitarbeitenden der OGS.` Andere Bezugspersonen Ihres Kindes lesen Ihre Unterhaltung nicht.",
       "Unter Ihrer Nachricht steht `Gesendet` und später `Von der OGS gelesen`.",
     ],
     differences: [
       "Bei einem Kind steht `Für dieses Kind können Sie nicht schreiben`? Dann dürfen Sie den Verlauf nur lesen.",
+      "Sehen Sie oben `Ganzes OGS-Team` und `Nur die Leitung`? Dann bietet Ihre OGS das an. Tippen Sie auf `Nur die Leitung`, wenn nur die Leitung Ihre Nachricht lesen soll. Darunter stehen die Namen der Leitung.",
+      "Steht in der Unterhaltung mit der Leitung `Zurzeit liest niemand aus der Leitung mit`? Dann schreiben Sie an `Ganzes OGS-Team`. Den Verlauf können Sie weiter lesen.",
     ],
     troubleshootingDetails: [
       "moto sagt, Ihre Sitzung sei abgelaufen? Melden Sie sich neu an und schicken Sie die Nachricht erneut.",
@@ -8575,6 +8597,7 @@ export const teacherMessagesTopic = function teacherMessagesTopic(): HelpTopic {
     notes: [
       "Vor Ihrer eigenen Nachricht steht `Sie:`.",
       "Hier melden Sie, was die OGS wissen muss, zum Beispiel eine falsche Abholzeit.",
+      "Die OGS kann Sie in einen Gruppenchat aufnehmen. Er steht dann mit seinem Namen in Ihrer Liste. Mit `Mitglieder` und `Gruppenchat verlassen` gehen Sie wieder heraus.",
     ],
     differences: [
       "Fehlt `Nachrichten` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
@@ -8946,24 +8969,58 @@ export const teamChatTopic = function teamChatTopic(): HelpTopic {
     title: "Den Team-Chat nutzen",
     question: "Wie nutze ich den Team-Chat?",
     summary:
-      "Schreiben Sie einer Betreuungskraft oder Lehrkraft Ihrer Schule eine Nachricht.",
+      "Schreiben Sie einer Person oder mehreren Personen Ihrer Schule, auch Lehrkräften.",
     group: "team",
     audience: ["caregiver", "lead"],
     icon: "ChatsCircle",
-    steps: [
-      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Team-Chat`.",
-      "Wählen Sie `Neue Nachricht`.",
-      "Suchen Sie die Person und wählen Sie sie aus.",
-      "Schreiben Sie Ihre Nachricht.",
-      "Wählen Sie `Senden`.",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Einer Person schreiben",
+        ordered: true,
+        steps: [
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Team-Chat`.",
+          "Wählen Sie `Neue Nachricht`.",
+          "Suchen Sie die Person und wählen Sie sie aus.",
+          "Schreiben Sie Ihre Nachricht.",
+          "Wählen Sie `Senden`.",
+        ],
+      },
+      {
+        title: "Einen Gruppenchat anlegen",
+        description:
+          "Ein Gruppenchat hat einen Namen und mehrere Mitglieder, auch Lehrkräfte.",
+        ordered: true,
+        steps: [
+          "Öffnen Sie `Team-Chat`.",
+          "Wählen Sie `Neuer Gruppenchat`.",
+          "Geben Sie einen Namen ein, zum Beispiel `Frühbetreuung`.",
+          "Kreuzen Sie die Personen an. Sie selbst sind automatisch dabei.",
+          "Wählen Sie `Gruppenchat anlegen`.",
+        ],
+      },
+      {
+        title: "Mitglieder ändern oder den Gruppenchat verlassen",
+        description:
+          "Mitglieder und Namen ändern die Person, die den Gruppenchat angelegt hat, und die OGS-Leitung, wenn sie Mitglied ist.",
+        ordered: true,
+        steps: [
+          "Öffnen Sie den Gruppenchat.",
+          "Wählen Sie oben `Mitglieder`.",
+          "Ändern Sie den Namen, wählen Sie `Personen hinzufügen` oder entfernen Sie eine Person über das Menü neben ihrem Namen.",
+          "Mit `Gruppenchat verlassen` gehen Sie selbst aus dem Gruppenchat.",
+        ],
+      },
     ],
     result:
-      "Die Nachricht erscheint in Ihrer Unterhaltung mit dieser Person. Lehrkräfte lesen sie in moto schule.",
+      "Die Nachricht erscheint in der Unterhaltung. Lehrkräfte lesen sie in moto schule.",
     differences: [
       "Nachrichten im Team-Chat können nicht nachträglich geändert oder gelöscht werden.",
       "Der Bereich fehlt? Dann hat Ihre OGS den Team-Chat nicht eingeschaltet.",
+      "Neue Mitglieder eines Gruppenchats sehen die Nachrichten ab ihrem Beitritt, nicht die älteren.",
     ],
     notes: [
+      "Unter Ihrer Nachricht in einem Gruppenchat steht, wie viele sie gelesen haben. Tippen Sie darauf, dann sehen Sie die Namen.",
       "Eltern können den Team-Chat nicht sehen. Für Eltern nutzen Sie `Nachrichten` im Bereich `Eltern`.",
       "Mit `Nur ungelesen` sehen Sie nur Unterhaltungen mit neuen Nachrichten.",
     ],
@@ -9742,6 +9799,7 @@ export const traegerInvitationTopic =
 /**
  * `/traeger/login` (#4649): eigene Adresse, danach die Liste der Schulen.
  * Der Code per E-Mail ist Pflicht, beim ersten Mal mit Einrichtung (#4651).
+ * „Passwort vergessen?“ schickt den Link auf den Träger-Host (#5149).
  */
 export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
   return {
@@ -9768,7 +9826,10 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
     ],
     result: "moto öffnet die Seite `Schulen` mit allen Schulen Ihres Trägers.",
-    notes: ["Legen Sie sich die Adresse als Lesezeichen an."],
+    notes: [
+      "Legen Sie sich die Adresse als Lesezeichen an.",
+      "Ein neues Passwort gilt auch für Ihr Konto in der OGS.",
+    ],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
@@ -9785,6 +9846,8 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
+      "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`. Öffnen Sie den Link aus der E-Mail und legen Sie ein neues Passwort fest.",
+      "Keine E-Mail zum Zurücksetzen? Schauen Sie im Spam-Ordner nach. Kommt keine, gehört Ihr Konto nicht zum Träger-Büro. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.errorMessages],
   };
