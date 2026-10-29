@@ -7,8 +7,8 @@
       "maxBytes": 969228
     },
     "/[tenant]/rooms/[id]": {
-      "referenceBytes": 1023861,
-      "maxBytes": 1044338
+      "referenceBytes": 1024021,
+      "maxBytes": 1044501
     },
     "/[tenant]/rooms/unterwegs": {
       "referenceBytes": 968047,
