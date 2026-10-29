@@ -179,7 +179,7 @@ func bookingPlansOccurrence(rows []*activityContract.StudentEnrollment, occurren
 // addHandRowDays adds the weekdays the student's hand rows still plan from
 // the date on, unless a booking-created row of the same template covers the
 // weekday as well, with the end of the template's schedule on that weekday.
-// Only schedules still valid from the date on count.
+// Only schedules that can plan a hand row from the date on count.
 func (s *StudentTemplateDays) addHandRowDays(
 	ctx context.Context, rows []*activityContract.StudentEnrollment, from calendar.Date, wanted map[int]bool, days templateDays, ends templateDayEnds,
 ) error {
@@ -191,7 +191,7 @@ func (s *StudentTemplateDays) addHandRowDays(
 	if err != nil {
 		return err
 	}
-	if schedules, err = s.runningSchedules(ctx, schedules, from); err != nil {
+	if schedules, err = s.runningSchedules(ctx, schedules, from, hand); err != nil {
 		return err
 	}
 	scheduleDays := weekdaysBySchedule(schedules)

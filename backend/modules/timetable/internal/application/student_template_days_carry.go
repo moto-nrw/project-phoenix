@@ -68,9 +68,9 @@ func clockMinutes(clock string) (int, bool) {
 }
 
 // runningSchedules keeps the schedules that are valid on a date of their
-// weekday from the date on. A schedule whose validity, series or period has
-// ended plans nothing the change touches.
-func (s *StudentTemplateDays) runningSchedules(ctx context.Context, schedules []timetable.Schedule, from calendar.Date) ([]timetable.Schedule, error) {
+// weekday from the date on for at least one hand enrollment. Schedule and
+// enrollment validity, including their selected calendar period, must overlap.
+func (s *StudentTemplateDays) runningSchedules(ctx context.Context, schedules []timetable.Schedule, from calendar.Date, rows []*activityContract.StudentEnrollment) ([]timetable.Schedule, error) {
 	if len(schedules) == 0 {
 		return schedules, nil
 	}
@@ -88,7 +88,7 @@ func (s *StudentTemplateDays) runningSchedules(ctx context.Context, schedules []
 	}
 	running := make([]timetable.Schedule, 0, len(schedules))
 	for _, sch := range schedules {
-		if template := byID[sch.ActivityGroupID]; template != nil && scheduleRunsFrom(template, legacySchedule(sch), from, periods) {
+		if template := byID[sch.ActivityGroupID]; template != nil && scheduleRunsFrom(template, legacySchedule(sch), from, periods, rows) {
 			running = append(running, sch)
 		}
 	}
@@ -96,13 +96,19 @@ func (s *StudentTemplateDays) runningSchedules(ctx context.Context, schedules []
 }
 
 // scheduleRunsFrom reports whether the schedule is valid on a date of its
-// weekday within the projection horizon from the date on.
-func scheduleRunsFrom(template *activityContract.Group, sch *activityContract.Schedule, from calendar.Date, periods []*schedule.CalendarPeriod) bool {
+// weekday within the projection horizon from the date on and plans at least
+// one enrollment on that same date.
+func scheduleRunsFrom(template *activityContract.Group, sch *activityContract.Schedule, from calendar.Date, periods []*schedule.CalendarPeriod, rows []*activityContract.StudentEnrollment) bool {
 	last := from.AddDays(timetable.MaxOccurrenceProjectionDays)
 	for date := timetable.NextWeekdayOnOrAfter(from, sch.Weekday); !date.After(last); date = date.AddDays(7) {
-		switch _, skip := scheduleValidOn(template, sch, date, periods, nil); skip {
+		period, skip := scheduleValidOn(template, sch, date, periods, nil)
+		switch skip {
 		case candidateKept:
-			return true
+			for _, row := range rows {
+				if row.ActivityGroupID == sch.ActivityGroupID && isEnrollmentValidOn(row, date, period.ID, sch.Weekday) {
+					return true
+				}
+			}
 		case candidateEnded:
 			return false
 		}

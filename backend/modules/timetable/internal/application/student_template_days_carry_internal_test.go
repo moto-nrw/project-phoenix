@@ -160,18 +160,19 @@ func TestScheduleRunsFrom_UsesMaterializationValidity(t *testing.T) {
 	expired := period(42, calendar.NewDate(2025, 8, 1), calendar.NewDate(2026, 7, 31))
 	periods := []*schedule.CalendarPeriod{current, expired}
 	template := &activityContract.Group{}
+	rows := []*activityContract.StudentEnrollment{{}}
 	pinned := func(periodID int64) *activityContract.Schedule {
 		return &activityContract.Schedule{Weekday: monday, CalendarPeriodID: &periodID}
 	}
 
-	assert.True(t, scheduleRunsFrom(template, pinned(current.ID), from, periods))
-	assert.False(t, scheduleRunsFrom(template, pinned(expired.ID), from, periods), "expired period")
+	assert.True(t, scheduleRunsFrom(template, pinned(current.ID), from, periods, rows))
+	assert.False(t, scheduleRunsFrom(template, pinned(expired.ID), from, periods, rows), "expired period")
 	until := activityContract.Date(from)
-	assert.False(t, scheduleRunsFrom(template, &activityContract.Schedule{Weekday: monday, ValidUntil: &until}, from, periods), "valid_until is exclusive")
+	assert.False(t, scheduleRunsFrom(template, &activityContract.Schedule{Weekday: monday, ValidUntil: &until}, from, periods, rows), "valid_until is exclusive")
 	later := activityContract.Date(from.AddDays(1))
-	assert.True(t, scheduleRunsFrom(template, &activityContract.Schedule{Weekday: monday, ValidUntil: &later}, from, periods))
+	assert.True(t, scheduleRunsFrom(template, &activityContract.Schedule{Weekday: monday, ValidUntil: &later}, from, periods, rows))
 	lastDay := activityContract.Date(from.AddDays(-1))
-	assert.False(t, scheduleRunsFrom(&activityContract.Group{SeriesLastDay: &lastDay}, pinned(current.ID), from, periods), "series ended")
+	assert.False(t, scheduleRunsFrom(&activityContract.Group{SeriesLastDay: &lastDay}, pinned(current.ID), from, periods, rows), "series ended")
 }
 
 func TestClockMinutes_ReadsPickupAndTimeframeClocks(t *testing.T) {

@@ -499,3 +499,71 @@ func TestRosterImpact_WithoutPickupTimes_SwitchToACourseKeepsTheEarlierRule(t *t
 
 	assert.Empty(t, reported)
 }
+
+// Only schedules that can actually plan this enrollment may set its end.
+func TestRosterImpact_ScheduleOutsideEnrollmentDoesNotDecide(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupTestDB(t)
+	for _, scenario := range []struct {
+		name        string
+		future      bool
+		otherPeriod bool
+		wantWarning bool
+	}{
+		{name: "schedule starts at exclusive enrollment end", future: true},
+		{name: "schedule ends at inclusive enrollment start"},
+		{name: "schedule selects a different period", otherPeriod: true},
+		{name: "overlapping late schedule still warns", future: true, wantWarning: true},
+	} {
+		t.Run(scenario.name, func(t *testing.T) {
+			t.Parallel()
+			testpkg.OwnTenant(t)
+			f := newCarryFixture(t)
+			late := f.offering("Ganztag bis 16 Uhr", "16:00", true)
+			early := f.offering("Randstunde", "12:45", true)
+			block := f.template("Mittagsblock", carryMonday, "11:45", "12:45", "")
+			boundary := calendar.NewDate(2027, 7, 1)
+			periodID := f.period.ID
+			if scenario.otherPeriod {
+				periodID = createCareOfferingTestPeriod(t, f.env.db, "other-period", carryStichtag, boundary).ID
+			}
+			f.extraSchedule(block, carryMonday, "14:30", "16:00", periodID, nil)
+			ctx := testpkg.Ctx(t)
+			var scheduleFrom, scheduleUntil *calendar.Date
+			var enrollmentUntil *calendar.Date
+			enrollmentFrom := calendar.Date(f.env.sourcePhase.ServiceStartDate)
+			switch {
+			case scenario.future:
+				scheduleFrom = &boundary
+				if !scenario.wantWarning {
+					enrollmentUntil = &boundary
+				}
+			case !scenario.otherPeriod:
+				scheduleUntil = &boundary
+				enrollmentFrom = boundary
+			}
+			_, err := f.env.db.NewRaw(`UPDATE activities.schedules SET valid_from = ?, valid_until = ?
+				WHERE activity_group_id = ? AND timeframe_id IN
+				(SELECT id FROM schedule.timeframes WHERE end_time = '16:00'::time)`,
+				scheduleFrom, scheduleUntil, block).Exec(ctx)
+			require.NoError(t, err)
+			requestID, childID, studentID := f.child("1a", map[*offeringContract.CareOfferingRecord][]string{late: {"mon"}})
+			_, err = f.env.timetable.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+				StudentID: studentID, ActivityGroupID: block,
+				ValidFrom: enrollmentFrom.String(), CalendarPeriodID: &f.period.ID,
+			})
+			require.NoError(t, err)
+			_, err = f.env.db.NewRaw(`UPDATE activities.student_enrollments SET valid_until = ?
+				WHERE student_id = ? AND activity_group_id = ?`, enrollmentUntil, studentID, block).Exec(ctx)
+			require.NoError(t, err)
+
+			reported := f.change(requestID, childID, map[*offeringContract.CareOfferingRecord][]string{early: {"mon"}}, false)
+
+			if scenario.wantWarning {
+				assert.Equal(t, map[int64][]int{block: {carryMonday}}, reported)
+			} else {
+				assert.Empty(t, reported)
+			}
+		})
+	}
+}
