@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Which booking carries a Regeltermin (#5342). The booked care of an offering
@@ -49,6 +50,16 @@ func (e templateDayEnds) merge(templateID int64, weekday int, other templateDayE
 	}
 }
 
+// scheduleEndedBefore reports whether the schedule's exclusive valid_until
+// lies on or before the date. An unreadable date keeps the schedule.
+func scheduleEndedBefore(sch timetable.Schedule, from calendar.Date) bool {
+	if sch.ValidUntil == nil {
+		return false
+	}
+	until, err := calendar.ParseDate(*sch.ValidUntil)
+	return err == nil && !until.After(from)
+}
+
 func clockMinutes(clock string) (int, bool) {
 	for _, layout := range []string{"15:04:05", "15:04"} {
 		if parsed, err := time.Parse(layout, clock); err == nil {
@@ -59,15 +70,22 @@ func clockMinutes(clock string) (int, bool) {
 }
 
 // scheduleEnds reads the end of each template's schedule per weekday from
-// the timeframes the schedules use.
-func (s *StudentTemplateDays) scheduleEnds(ctx context.Context, schedules []timetable.Schedule) (templateDayEnds, error) {
+// the timeframes the schedules use. A schedule that ended before the date
+// plans nothing the change touches and gives no end.
+func (s *StudentTemplateDays) scheduleEnds(ctx context.Context, schedules []timetable.Schedule, from calendar.Date) (templateDayEnds, error) {
 	ends := make(templateDayEnds)
+	reaching := make([]timetable.Schedule, 0, len(schedules))
 	wanted := make(map[int64]bool)
 	for _, sch := range schedules {
+		if scheduleEndedBefore(sch, from) {
+			continue
+		}
+		reaching = append(reaching, sch)
 		if sch.TimeframeID != nil {
 			wanted[*sch.TimeframeID] = true
 		}
 	}
+	schedules = reaching
 	if len(wanted) == 0 {
 		return ends, nil
 	}

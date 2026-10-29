@@ -191,7 +191,7 @@ func (s *StudentTemplateDays) addHandRowDays(
 		return err
 	}
 	scheduleDays := weekdaysBySchedule(schedules)
-	scheduleEnds, err := s.scheduleEnds(ctx, schedules)
+	scheduleEnds, err := s.scheduleEnds(ctx, schedules, from)
 	if err != nil {
 		return err
 	}

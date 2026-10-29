@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -116,6 +117,22 @@ func TestNewBookingCarry_RejectsWeekdaysOutsideTheWeek(t *testing.T) {
 	assert.ErrorIs(t, err, timetable.ErrStudentTemplateDaysInvalid)
 	_, err = newBookingCarry(timetable.ManualStudentPlanQuery{NetLossWeekdays: []int{0}})
 	assert.ErrorIs(t, err, timetable.ErrStudentTemplateDaysInvalid)
+}
+
+// valid_until is exclusive: a schedule ending on the date plans nothing from
+// it on; an open or later end, or an unreadable date, keeps the schedule.
+func TestScheduleEndedBefore_UsesTheExclusiveValidUntil(t *testing.T) {
+	t.Parallel()
+
+	from := calendar.NewDate(2027, 5, 31)
+	ended := func(until string) bool {
+		return scheduleEndedBefore(timetable.Schedule{ValidUntil: &until}, from)
+	}
+	assert.True(t, ended("2027-05-31"))
+	assert.True(t, ended("2027-05-24"))
+	assert.False(t, ended("2027-06-01"))
+	assert.False(t, ended("unbekannt"))
+	assert.False(t, scheduleEndedBefore(timetable.Schedule{}, from))
 }
 
 func TestClockMinutes_ReadsPickupAndTimeframeClocks(t *testing.T) {

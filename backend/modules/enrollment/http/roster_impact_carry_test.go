@@ -79,6 +79,23 @@ func (f *carryFixture) template(name string, weekday int, start, end, listKind s
 	return group.ID
 }
 
+// endedSchedule adds a schedule of the Regeltermin on the weekday that ran
+// from start to end and ended (exclusively) on validUntil.
+func (f *carryFixture) endedSchedule(templateID int64, weekday int, start, end string, validUntil calendar.Date) {
+	f.t.Helper()
+	ctx := testpkg.Ctx(f.t)
+	var timeframeID int64
+	require.NoError(f.t, f.env.db.NewRaw(`INSERT INTO schedule.timeframes (tenant_id, start_time, end_time, is_active, description)
+		VALUES (?, ?::time, ?::time, TRUE, ?) RETURNING id`,
+		testpkg.Tenant(f.t), start, end, fmt.Sprintf("carry-ended-%s-%d", f.t.Name(), templateID)).Scan(ctx, &timeframeID))
+	schedule := &careTemplateSchedule{
+		Weekday: weekday, ActivityGroupID: templateID, CalendarPeriodID: &f.period.ID,
+		TimeframeID: &timeframeID, ValidUntil: &validUntil,
+	}
+	schedule.SetTenantID(testpkg.Tenant(f.t))
+	require.NoError(f.t, createCareTemplateScheduleRow(ctx, f.env.db, schedule))
+}
+
 // target adds a Klasse, Jahrgang or Gruppe target to the Regeltermin.
 func (f *carryFixture) target(templateID int64, targetType string, schoolClass *string, gradeLevel *int16) {
 	f.t.Helper()
@@ -384,4 +401,22 @@ func TestRosterImpact_OnlyCourseLeft_ReportsCareRegeltermin(t *testing.T) {
 	reported := f.change(requestID, childID, map[*offeringContract.CareOfferingRecord][]string{course: {"fri"}}, false)
 
 	assert.Equal(t, map[int64][]int{careBlock: {carryFriday}}, reported)
+}
+
+// A schedule that ended before the Stichtag gives no end: the Regeltermin
+// once ran until 16:00 on Mondays and now ends at 12:45, so a switch to
+// Ganztag until 14:30 keeps it carried.
+func TestRosterImpact_EndedScheduleDoesNotDecide(t *testing.T) {
+	t.Parallel()
+	f := newCarryFixture(t)
+	late := f.offering("Ganztag bis 16 Uhr", "16:00", true)
+	early := f.offering("Ganztag bis 14.30", "14:30", true)
+	block := f.template("Mittagsblock", carryMonday, "11:45", "12:45", "")
+	f.endedSchedule(block, carryMonday, "14:30", "16:00", carryStichtag)
+	requestID, childID, studentID := f.child("1a", map[*offeringContract.CareOfferingRecord][]string{late: {"mon"}})
+	f.plan(studentID, block)
+
+	reported := f.change(requestID, childID, map[*offeringContract.CareOfferingRecord][]string{early: {"mon"}}, false)
+
+	assert.Empty(t, reported)
 }

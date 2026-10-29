@@ -82,7 +82,8 @@ than it newly books (net loss), and the bookings that remain, with their
 pickup times. Timetable reports a hand-maintained Regeltermin on a dropped
 weekday when no remaining booking carries it, also if none carried it
 before. The end of a Regeltermin is the end of its occurrence, or of its
-schedule for a hand roster row; the latest end of the weekday counts.
+schedule for a hand roster row; a schedule that ended before the date gives
+no end, and the latest end of the weekday counts.
 
 When a fitting remaining booking has no pickup time, or the Regeltermin has
 no end, the times cannot decide. Such a day keeps the first rule: the
