@@ -1215,9 +1215,12 @@ export async function listMessageThreads(): Promise<ThreadSummary[]> {
   return Array.isArray(threads) ? threads : [];
 }
 
-/** Counts visible conversations with unread staff-side activity for the badge. */
+/**
+ * Counts the conversations with unread staff-side activity for the badge:
+ * exactly the rows the inbox shows (#5200), team and leadership ones per
+ * child plus the group threads.
+ */
 export async function fetchMessagesUnreadCount(): Promise<number> {
-  // Use the same audience filter as the inbox until leadership navigation ships.
   const [threads, groups] = await Promise.all([
     listMessageThreads(),
     listGroupThreads(),

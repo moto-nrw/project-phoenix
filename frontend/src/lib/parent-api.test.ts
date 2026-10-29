@@ -1069,7 +1069,7 @@ describe("listMessageThreads", () => {
 // --- fetchMessagesUnreadCount -------------------------------------------------
 
 describe("fetchMessagesUnreadCount", () => {
-  it("counts unread team and group conversations, excluding leadership", async () => {
+  it("counts unread team, leadership and group conversations, as the inbox shows them", async () => {
     const seenURLs: string[] = [];
     mockFetch(async (input) => {
       const url = typeof input === "string" ? input : input.toString();
@@ -1086,7 +1086,7 @@ describe("fetchMessagesUnreadCount", () => {
         ],
       });
     });
-    expect(await fetchMessagesUnreadCount()).toBe(3);
+    expect(await fetchMessagesUnreadCount()).toBe(4);
     expect(seenURLs).toEqual(
       expect.arrayContaining([
         expect.stringContaining("/api/parent/me/messages"),
