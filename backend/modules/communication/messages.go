@@ -7,13 +7,6 @@ import (
 	"time"
 )
 
-const (
-	// MaxStaffGroupNameRunes caps a group-chat name in Unicode code points.
-	MaxStaffGroupNameRunes = 80
-	// MaxStaffGroupMembers caps a group including its creator.
-	MaxStaffGroupMembers = 100
-)
-
 var (
 	ErrParentMessagingForbidden             = errors.New("messaging: forbidden")
 	ErrParentMessageThreadNotFound          = errors.New("messaging: thread not found")
@@ -40,6 +33,54 @@ var (
 	ErrStaffMessageGroupMembersRequired     = errors.New("staffmessaging: a group needs at least one other member")
 	ErrStaffMessageGroupTooLarge            = errors.New("staffmessaging: too many members for one group")
 )
+
+type staffGroupNameInvalidError struct {
+	maxCharacters int
+	cause         error
+}
+
+func (e staffGroupNameInvalidError) Error() string { return e.cause.Error() }
+func (e staffGroupNameInvalidError) Unwrap() error { return e.cause }
+
+// NewStaffGroupNameInvalidError preserves the enforced name limit at the
+// public capability boundary.
+func NewStaffGroupNameInvalidError(maxCharacters int, cause error) error {
+	return staffGroupNameInvalidError{maxCharacters: maxCharacters, cause: cause}
+}
+
+// StaffGroupNameInvalidMaxCharacters returns the limit from a mapped group
+// name error.
+func StaffGroupNameInvalidMaxCharacters(err error) (int, bool) {
+	var limit staffGroupNameInvalidError
+	if !errors.As(err, &limit) {
+		return 0, false
+	}
+	return limit.maxCharacters, true
+}
+
+type staffGroupTooLargeError struct {
+	maxMembers int
+	cause      error
+}
+
+func (e staffGroupTooLargeError) Error() string { return e.cause.Error() }
+func (e staffGroupTooLargeError) Unwrap() error { return e.cause }
+
+// NewStaffGroupTooLargeError preserves the enforced member limit at the
+// public capability boundary.
+func NewStaffGroupTooLargeError(maxMembers int, cause error) error {
+	return staffGroupTooLargeError{maxMembers: maxMembers, cause: cause}
+}
+
+// StaffGroupTooLargeMaxMembers returns the limit from a mapped group-size
+// error.
+func StaffGroupTooLargeMaxMembers(err error) (int, bool) {
+	var limit staffGroupTooLargeError
+	if !errors.As(err, &limit) {
+		return 0, false
+	}
+	return limit.maxMembers, true
+}
 
 // ParentMessage is the Communication view of one parent/OGS chat entry.
 // Payload is raw JSON so the public contract does not leak an ORM model or an

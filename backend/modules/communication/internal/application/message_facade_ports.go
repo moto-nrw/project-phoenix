@@ -71,6 +71,8 @@ type StaffMessageErrors struct {
 	ErrGroupCreateForbidden   error
 	ErrGroupManageForbidden   error
 	ErrGroupNameInvalid       error
+	GroupNameMaxCharacters    int
 	ErrGroupMembersRequired   error
 	ErrGroupTooLarge          error
+	GroupMaxMembers           int
 }

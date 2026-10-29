@@ -5,7 +5,7 @@ import (
 )
 
 func NativeFacadeErrors() values.StaffMessageErrors {
-	return values.StaffMessageErrors{ErrMessagingDisabled: ErrMessagingDisabled, ErrNotParticipant: ErrNotParticipant, ErrThreadNotFound: ErrThreadNotFound, ErrRecipientNotAvailable: ErrRecipientNotAvailable, ErrCounterpartUnavailable: ErrCounterpartUnavailable, ErrSelfConversation: ErrSelfConversation, ErrEmptyMessage: ErrEmptyMessage, ErrMessageTooLong: ErrMessageTooLong, ErrNoActor: ErrNoActor, ErrRetentionUnresolved: ErrRetentionUnresolved, ErrGroupCreateForbidden: ErrGroupCreateForbidden, ErrGroupManageForbidden: ErrGroupManageForbidden, ErrGroupNameInvalid: ErrGroupNameInvalid, ErrGroupMembersRequired: ErrGroupMembersRequired, ErrGroupTooLarge: ErrGroupTooLarge}
+	return values.StaffMessageErrors{ErrMessagingDisabled: ErrMessagingDisabled, ErrNotParticipant: ErrNotParticipant, ErrThreadNotFound: ErrThreadNotFound, ErrRecipientNotAvailable: ErrRecipientNotAvailable, ErrCounterpartUnavailable: ErrCounterpartUnavailable, ErrSelfConversation: ErrSelfConversation, ErrEmptyMessage: ErrEmptyMessage, ErrMessageTooLong: ErrMessageTooLong, ErrNoActor: ErrNoActor, ErrRetentionUnresolved: ErrRetentionUnresolved, ErrGroupCreateForbidden: ErrGroupCreateForbidden, ErrGroupManageForbidden: ErrGroupManageForbidden, ErrGroupNameInvalid: ErrGroupNameInvalid, GroupNameMaxCharacters: maxGroupNameLen, ErrGroupMembersRequired: ErrGroupMembersRequired, ErrGroupTooLarge: ErrGroupTooLarge, GroupMaxMembers: maxGroupMembers}
 }
 func NativeFacadeRows() values.StaffMessageRows[StaffInboxThread, ThreadDetail, StaffMessage, MessageableStaff, CleanupResult] {
 	return values.StaffMessageRows[StaffInboxThread, ThreadDetail, StaffMessage, MessageableStaff, CleanupResult]{

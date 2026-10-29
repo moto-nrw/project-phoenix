@@ -411,11 +411,13 @@ func MapStaffMessagingError(err error, kinds StaffMessageErrors) error {
 	case errors.Is(err, kinds.ErrGroupManageForbidden):
 		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupManageForbidden, err)
 	case errors.Is(err, kinds.ErrGroupNameInvalid):
-		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupNameInvalid, err)
+		return communication.NewStaffGroupNameInvalidError(kinds.GroupNameMaxCharacters,
+			fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupNameInvalid, err))
 	case errors.Is(err, kinds.ErrGroupMembersRequired):
 		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupMembersRequired, err)
 	case errors.Is(err, kinds.ErrGroupTooLarge):
-		return fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupTooLarge, err)
+		return communication.NewStaffGroupTooLargeError(kinds.GroupMaxMembers,
+			fmt.Errorf("%w: %w", communication.ErrStaffMessageGroupTooLarge, err))
 	default:
 		return err
 	}

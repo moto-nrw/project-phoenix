@@ -21,16 +21,18 @@ func TestStaffMessagingGroupLimitErrorsIncludeStructuredLimits(t *testing.T) {
 		details map[string]int
 	}{
 		{
-			name:    "name",
-			err:     communication.ErrStaffMessageGroupNameInvalid,
+			name: "name",
+			err: communication.NewStaffGroupNameInvalidError(80,
+				communication.ErrStaffMessageGroupNameInvalid),
 			code:    "communication.staff_group_name_invalid",
-			details: map[string]int{"max_characters": communication.MaxStaffGroupNameRunes},
+			details: map[string]int{"max_characters": 80},
 		},
 		{
-			name:    "members",
-			err:     communication.ErrStaffMessageGroupTooLarge,
+			name: "members",
+			err: communication.NewStaffGroupTooLargeError(100,
+				communication.ErrStaffMessageGroupTooLarge),
 			code:    "communication.staff_group_too_large",
-			details: map[string]int{"max_members": communication.MaxStaffGroupMembers},
+			details: map[string]int{"max_members": 100},
 		},
 	}
 

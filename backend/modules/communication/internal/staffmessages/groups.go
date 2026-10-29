@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
 	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
@@ -31,6 +30,12 @@ const (
 	// Role kinds of the colleague directory (peopledirectory StaffRoleKind*).
 	roleKindAdmin     = "admin"
 	roleKindLehrkraft = "lehrkraft"
+
+	// maxGroupNameLen caps a group name in runes.
+	maxGroupNameLen = 80
+	// maxGroupMembers caps a group including its creator. A group of a whole
+	// school is a Mitteilung, not a chat.
+	maxGroupMembers = 100
 )
 
 var (
@@ -43,7 +48,7 @@ var (
 	ErrGroupNameInvalid = errors.New("staffmessaging: group name must not be empty or too long")
 	// ErrGroupMembersRequired: a group needs at least one other member.
 	ErrGroupMembersRequired = errors.New("staffmessaging: a group needs at least one other member")
-	// ErrGroupTooLarge: more members than the group limit.
+	// ErrGroupTooLarge: more members than maxGroupMembers.
 	ErrGroupTooLarge = errors.New("staffmessaging: too many members for one group")
 )
 
@@ -65,7 +70,7 @@ func (s *Service) requireActiveGroupMember(ctx context.Context, thread *StaffMes
 
 func validateGroupName(name string) (string, error) {
 	trimmed := strings.TrimSpace(name)
-	if trimmed == "" || len([]rune(trimmed)) > communication.MaxStaffGroupNameRunes {
+	if trimmed == "" || len([]rune(trimmed)) > maxGroupNameLen {
 		return "", ErrGroupNameInvalid
 	}
 	return trimmed, nil
@@ -150,7 +155,7 @@ func (s *Service) CreateGroup(ctx context.Context, name string, memberAccountIDs
 	if len(members) == 0 {
 		return nil, ErrGroupMembersRequired
 	}
-	if len(members)+1 > communication.MaxStaffGroupMembers {
+	if len(members)+1 > maxGroupMembers {
 		return nil, ErrGroupTooLarge
 	}
 	if err := s.requireMessageable(ctx, accountID, members); err != nil {
@@ -255,7 +260,7 @@ func (s *Service) AddGroupMembers(ctx context.Context, threadID int64, accountID
 	if len(added) == 0 {
 		return nil, ErrGroupMembersRequired
 	}
-	if len(current)+len(added) > communication.MaxStaffGroupMembers {
+	if len(current)+len(added) > maxGroupMembers {
 		return nil, ErrGroupTooLarge
 	}
 	if err := s.requireMessageable(ctx, accountID, added); err != nil {
