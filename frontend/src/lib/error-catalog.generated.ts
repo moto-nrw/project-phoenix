@@ -496,6 +496,8 @@ export const ERROR_CATALOG = {
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
       "enrollment.submission_rate_limited":
         "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
+      "enrollment.upload_content_mismatch":
+        "Der Inhalt von „{filename}“ passt nicht zur Dateiart. Bitte wählen Sie eine andere Datei. Umbenennen reicht nicht.",
       "enrollment.upload_expired":
         "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_invalid":
@@ -1781,6 +1783,8 @@ export const ERROR_CATALOG = {
         "This link is invalid or has expired. Please use the link from your email.",
       "enrollment.submission_rate_limited":
         "Too many enrollments were sent. Please try again in an hour.",
+      "enrollment.upload_content_mismatch":
+        "The contents of “{filename}” do not match its file type. Please choose another file. Renaming it is not enough.",
       "enrollment.upload_expired":
         "An uploaded file has expired. Please upload it again.",
       "enrollment.upload_invalid":
@@ -2215,6 +2219,8 @@ export const ERROR_CATALOG = {
         "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
       "enrollment.submission_rate_limited":
         "Отправлено слишком много заявок. Попробуйте снова через час.",
+      "enrollment.upload_content_mismatch":
+        "Содержимое файла «{filename}» не соответствует его типу. Пожалуйста, выберите другой файл. Изменения имени недостаточно.",
       "enrollment.upload_expired":
         "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
       "enrollment.upload_invalid":
@@ -2620,6 +2626,8 @@ export const ERROR_CATALOG = {
         "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
       "enrollment.submission_rate_limited":
         "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
+      "enrollment.upload_content_mismatch":
+        "Përmbajtja e skedarit «{filename}» nuk përputhet me llojin e tij. Ju lutemi, zgjidhni një skedar tjetër. Ndryshimi i emrit nuk mjafton.",
       "enrollment.upload_expired":
         "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
       "enrollment.upload_invalid":
@@ -3015,6 +3023,8 @@ export const ERROR_CATALOG = {
         "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
       "enrollment.submission_rate_limited":
         "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
+      "enrollment.upload_content_mismatch":
+        "Zawartość pliku „{filename}” nie pasuje do jego typu. Proszę wybrać inny plik. Zmiana nazwy nie wystarczy.",
       "enrollment.upload_expired":
         "Przesłany plik wygasł. Prześlij go ponownie.",
       "enrollment.upload_invalid":
@@ -3415,6 +3425,8 @@ export const ERROR_CATALOG = {
         "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
       "enrollment.submission_rate_limited":
         "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
+      "enrollment.upload_content_mismatch":
+        "“{filename}” dosyasının içeriği dosya türüyle uyuşmuyor. Lütfen başka bir dosya seçin. Adını değiştirmek yeterli değildir.",
       "enrollment.upload_expired":
         "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_invalid":
@@ -3807,6 +3819,8 @@ export const ERROR_CATALOG = {
         "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
       "enrollment.submission_rate_limited":
         "Надіслано забагато заявок. Спробуйте ще раз через годину.",
+      "enrollment.upload_content_mismatch":
+        "Вміст файлу «{filename}» не відповідає його типу. Будь ласка, виберіть інший файл. Зміни назви недостатньо.",
       "enrollment.upload_expired":
         "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
       "enrollment.upload_invalid":
