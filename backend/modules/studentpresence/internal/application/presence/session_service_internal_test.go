@@ -908,21 +908,45 @@ func TestActivityConflictDestination(t *testing.T) {
 		"copies in different rooms stay a conflict")
 }
 
-func TestMarkRollbackOnRoomCapacity(t *testing.T) {
+func TestMarkRollbackOnFailure(t *testing.T) {
 	t.Parallel()
 
 	ctx := tenant.WithRollbackMarker(context.Background())
 	capacityErr := &RoomCapacityError{RoomID: 30, RoomName: "Mensa", CurrentOccupancy: 43, MaxCapacity: 43}
 
-	returned := markRollbackOnRoomCapacity(ctx, capacityErr)
+	returned := markRollbackOnFailure(ctx, capacityErr)
 
 	require.ErrorIs(t, returned, ErrRoomCapacityExceeded)
 	assert.True(t, tenant.RollbackRequested(ctx))
 
 	otherCtx := tenant.WithRollbackMarker(context.Background())
 	otherErr := errors.New("other failure")
-	assert.ErrorIs(t, markRollbackOnRoomCapacity(otherCtx, otherErr), otherErr)
-	assert.False(t, tenant.RollbackRequested(otherCtx))
+	assert.ErrorIs(t, markRollbackOnFailure(otherCtx, otherErr), otherErr)
+	assert.True(t, tenant.RollbackRequested(otherCtx), "every failed start rolls back, a 4xx refusal included")
+
+	okCtx := tenant.WithRollbackMarker(context.Background())
+	assert.NoError(t, markRollbackOnFailure(okCtx, nil))
+	assert.False(t, tenant.RollbackRequested(okCtx))
+}
+
+func TestSessionStartErrorClassifiesConflicts(t *testing.T) {
+	t.Parallel()
+
+	for name, err := range map[string]error{
+		"joined stay changed twice": errJoinedSessionChanged,
+		"bare session conflict":     ErrSessionConflict,
+	} {
+		var activeErr *ActiveError
+		require.ErrorAs(t, sessionStartError("StartActivitySession", err), &activeErr, name)
+		assert.ErrorIs(t, activeErr.Err, ErrSessionConflict, name)
+		assert.NotErrorIs(t, activeErr, errJoinedSessionChanged, name)
+	}
+
+	wrapped := &ActiveError{Op: "StartActivitySession", Err: ErrRoomConflict}
+	assert.Same(t, wrapped, sessionStartError("StartActivitySession", wrapped))
+	other := errors.New("other failure")
+	assert.Same(t, other, sessionStartError("StartActivitySession", other))
+	assert.NoError(t, sessionStartError("StartActivitySession", nil))
 }
 
 func TestCreateSessionWithMultipleSupervisors_TransferredVisitsBranch(t *testing.T) {
@@ -1086,7 +1110,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 		}},
 		}
 
-		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500)
+		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500, []int64{30})
 
 		require.NoError(t, err)
 		assert.Equal(t, []int64{30}, ended)
@@ -1101,7 +1125,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 		}},
 		}
 
-		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500)
+		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, endedIDs)
@@ -1121,7 +1145,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 		}},
 		}
 
-		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500)
+		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500, []int64{31})
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, endedIDs)
@@ -1327,7 +1351,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 		}},
 		}
 
-		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100, 0)
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.Zero(t, endedID)
@@ -1336,7 +1360,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 	t.Run("nil existing session is zero", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{}}}
 
-		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100, 0)
 
 		require.NoError(t, err)
 		assert.Zero(t, endedID)
@@ -1355,7 +1379,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 		}},
 		}
 
-		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100, 302)
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.Zero(t, endedID)
@@ -1375,7 +1399,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 		}},
 		}
 
-		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100, 303)
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(303), endedID)

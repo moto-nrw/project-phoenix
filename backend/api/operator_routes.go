@@ -136,6 +136,7 @@ func operatorRouter(
 		identityRoutes.mountAccountMFARoutes(r, provisioningRoutes)
 		identityRoutes.mountAccountTenantAccessRoutes(r, provisioningRoutes)
 		identityRoutes.mountProfileRoutes(r)
+		identityRoutes.mountLogoutRoute(r)
 		identityRoutes.mountTrustedDeviceRoutes(r)
 		identityRoutes.mountInvitationRoutes(r)
 		mountOperatorAnnouncementRoutes(r, announcementRoutes, provisioningRoutes)
@@ -412,6 +413,15 @@ func (rs operatorIdentityRoutes) mountProfileRoutes(r chi.Router) {
 		}
 		r.Post("/email-change", rs.profile.InitiateEmailChange)
 	})
+}
+
+// mountLogoutRoute registers the operator logout (#5194). It runs behind the
+// operator session chain, whose active-operator check proves the family the
+// access token names live and the operator's own.
+func (rs operatorIdentityRoutes) mountLogoutRoute(r chi.Router) {
+	if rs.account != nil {
+		r.Post("/auth/logout", rs.account.Logout)
+	}
 }
 
 // mountTrustedDeviceRoutes registers self-service trusted-device management.

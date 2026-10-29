@@ -16,7 +16,7 @@ import {
   resendChallenge,
   verifyMFA,
   type LoginScope,
-  type MFATokenResponse,
+  type MFAResult,
 } from "~/lib/mfa-api";
 import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
 
@@ -30,7 +30,7 @@ interface MFAChallengeFormProps {
   readonly challengeToken: string;
   readonly maskedEmail: string;
   readonly resendCooldownSeconds?: number;
-  readonly onSuccess: (tokens: MFATokenResponse) => void | Promise<void>;
+  readonly onSuccess: (result: MFAResult) => void | Promise<void>;
   /**
    * Gives the embedding login flow a chance to handle a terminal verify
    * error, such as a portal handoff. Return true when the error is handled.

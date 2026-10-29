@@ -76,6 +76,7 @@ const CodeEnrollmentGuardianAccountMismatch = "enrollment.guardian_account_misma
 const CodeEnrollmentGuardianEmailRequired = "enrollment.guardian_email_required"
 const CodeEnrollmentGuardianNameRequired = "enrollment.guardian_name_required"
 const CodeEnrollmentGuardianPhoneRequired = "enrollment.guardian_phone_required"
+const CodeEnrollmentHolidayFormFieldNotAllowed = "enrollment.holiday_form_field_not_allowed"
 const CodeEnrollmentHolidayGuestGroupInvalid = "enrollment.holiday_guest_group_invalid"
 const CodeEnrollmentHolidayGuestNotFound = "enrollment.holiday_guest_not_found"
 const CodeEnrollmentHolidayHostSchoolOutsideTraeger = "enrollment.holiday_host_school_outside_traeger"
@@ -84,6 +85,7 @@ const CodeEnrollmentHolidayPeriodInvalid = "enrollment.holiday_period_invalid"
 const CodeEnrollmentHolidayPeriodNotFound = "enrollment.holiday_period_not_found"
 const CodeEnrollmentHolidayRegistrationClosed = "enrollment.holiday_registration_closed"
 const CodeEnrollmentHolidayRegistrationEntryNotFound = "enrollment.holiday_registration_entry_not_found"
+const CodeEnrollmentHolidayRegistrationFormChanged = "enrollment.holiday_registration_form_changed"
 const CodeEnrollmentHolidayRegistrationFrozen = "enrollment.holiday_registration_frozen"
 const CodeEnrollmentHolidayRegistrationInvalid = "enrollment.holiday_registration_invalid"
 const CodeEnrollmentHolidayRegistrationNotFound = "enrollment.holiday_registration_not_found"
@@ -129,6 +131,7 @@ const CodeEnrollmentSignatureRequired = "enrollment.signature_required"
 const CodeEnrollmentStatusLinkInvalid = "enrollment.status_link_invalid"
 const CodeEnrollmentStudentExists = "enrollment.student_exists"
 const CodeEnrollmentSubmissionRateLimited = "enrollment.submission_rate_limited"
+const CodeEnrollmentUploadContentMismatch = "enrollment.upload_content_mismatch"
 const CodeEnrollmentUploadExpired = "enrollment.upload_expired"
 const CodeEnrollmentUploadInvalid = "enrollment.upload_invalid"
 const CodeEnrollmentUploadNotFound = "enrollment.upload_not_found"
@@ -213,6 +216,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentGuardianEmailRequired, "input"},
 	{CodeEnrollmentGuardianNameRequired, "input"},
 	{CodeEnrollmentGuardianPhoneRequired, "input"},
+	{CodeEnrollmentHolidayFormFieldNotAllowed, "input"},
 	{CodeEnrollmentHolidayGuestGroupInvalid, "input"},
 	{CodeEnrollmentHolidayGuestNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayHostSchoolOutsideTraeger, "input"},
@@ -221,6 +225,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayPeriodNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationClosed, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationEntryNotFound, "business_rejection"},
+	{CodeEnrollmentHolidayRegistrationFormChanged, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationFrozen, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationInvalid, "input"},
 	{CodeEnrollmentHolidayRegistrationNotFound, "business_rejection"},
@@ -266,6 +271,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentStatusLinkInvalid, "business_rejection"},
 	{CodeEnrollmentStudentExists, "business_rejection"},
 	{CodeEnrollmentSubmissionRateLimited, "unavailable"},
+	{CodeEnrollmentUploadContentMismatch, "input"},
 	{CodeEnrollmentUploadExpired, "input"},
 	{CodeEnrollmentUploadInvalid, "input"},
 	{CodeEnrollmentUploadNotFound, "business_rejection"},

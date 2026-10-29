@@ -225,7 +225,7 @@ export async function acceptCatererInvitation(
 export async function loginCaterer(
   email: string,
   password: string,
-): Promise<{ accessToken: string; refreshToken: string }> {
+): Promise<void> {
   const response = await transportFetch("/api/caterer/auth/login", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -234,13 +234,6 @@ export async function loginCaterer(
   if (!response.ok) {
     throw await apiErrorFromResponse(response, "caterer login failed");
   }
-  const body = (await response.json()) as {
-    data: { access_token: string; refresh_token: string };
-  };
-  return {
-    accessToken: body.data.access_token,
-    refreshToken: body.data.refresh_token,
-  };
 }
 
 export type DeliveryExportFormat = "pdf" | "xlsx" | "csv";

@@ -2,17 +2,17 @@
 
 // Login of the caterer portal (ADR 0077). Like the school login without the
 // second factor: the backend checks e-mail and password, refuses every other
-// kind of account like a wrong password, and the page hands the token pair
-// to the caterer NextAuth session.
+// kind of account like a wrong password, and the BFF installs the session.
 
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
   authPrimaryButtonClassName,
+  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -129,21 +129,7 @@ function LoginForm() {
     formErrors.clear();
     setSessionExpired(false);
     try {
-      const tokens = await loginCaterer(email, password);
-      const result = await signIn("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      });
-      if (result?.error) {
-        logger.error("session_seed_failed", { error: result.error });
-        // No ApiError: the path shows its general text for the login.
-        void formErrors.show(new Error(result.error), {
-          object: "die Anmeldung",
-        });
-        return;
-      }
+      await loginCaterer(email, password);
       setAwaitingRedirect(true);
       window.location.href = catererPath("/caterer");
     } catch (cause) {
@@ -251,7 +237,7 @@ function LoginForm() {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setIsResetModalOpen(true)}
-                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                  className={authTextButtonClassName}
                 >
                   Passwort vergessen?
                 </button>

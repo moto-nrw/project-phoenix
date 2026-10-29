@@ -96,6 +96,7 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"meals:orders":                       false,
 		"meals:read":                         false,
 		"meals:register":                     false,
+		"parent_messages:leadership":         false,
 		"permissions:create":                 true,
 		"permissions:delete":                 true,
 		"permissions:read":                   true,

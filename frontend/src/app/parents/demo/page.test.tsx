@@ -66,8 +66,7 @@ describe("ParentDemoEntryPage", () => {
   it("redeems the link as the parent, signs in to the parents app and opens its start page", async () => {
     fetchMock.mockReturnValueOnce(json(200, READY)).mockReturnValueOnce(
       json(200, {
-        access_token: "parent-access",
-        refresh_token: "parent-refresh",
+        session_created: true,
         demo: { access_id: "4711", role: "parent", src: "messe" },
       }),
     );
@@ -75,12 +74,7 @@ describe("ParentDemoEntryPage", () => {
     open("#token=secret-token&role=parent");
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
-    expect(signIn).toHaveBeenCalledWith("parent-credentials", {
-      redirect: false,
-      internalRefresh: true,
-      token: "parent-access",
-      refreshToken: "parent-refresh",
-    });
+    expect(signIn).not.toHaveBeenCalled();
     const [url, init] = fetchMock.mock.calls[1] as [string, RequestInit];
     expect(url).toBe("/api/demo/access/sessions");
     expect(init.body).toBe(
@@ -100,8 +94,7 @@ describe("ParentDemoEntryPage", () => {
   it("reports a switch when the banner of the OGS app sent the visitor", async () => {
     fetchMock.mockReturnValueOnce(json(200, READY)).mockReturnValueOnce(
       json(200, {
-        access_token: "parent-access",
-        refresh_token: "parent-refresh",
+        session_created: true,
         demo: { access_id: "4711", role: "parent" },
       }),
     );
@@ -119,8 +112,7 @@ describe("ParentDemoEntryPage", () => {
   it("sends the visitor of the standing school on to the OGS app", async () => {
     fetchMock.mockReturnValueOnce(json(200, READY)).mockReturnValueOnce(
       json(200, {
-        access_token: "access",
-        refresh_token: "refresh",
+        session_created: true,
         demo: { access_id: "4711", role: "all", fixed_role: true },
       }),
     );

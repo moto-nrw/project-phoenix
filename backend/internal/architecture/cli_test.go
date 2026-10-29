@@ -868,7 +868,7 @@ func runArchitectureWithEnv(t *testing.T, environment map[string]string, args ..
 	}
 
 	root := filepath.Clean(filepath.Join(packageDir(t), "..", "..", ".."))
-	environmentVariables := os.Environ()
+	environmentVariables := gitTestEnvironment()
 	for key, value := range environment {
 		prefix := key + "="
 		filtered := environmentVariables[:0]

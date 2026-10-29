@@ -228,6 +228,10 @@
     "action": "register"
   },
   {
+    "resource": "parent_messages",
+    "action": "leadership"
+  },
+  {
     "resource": "permissions",
     "action": "create"
   },

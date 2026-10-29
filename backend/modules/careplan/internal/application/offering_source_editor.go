@@ -11,7 +11,7 @@ import (
 )
 
 func (m *BookingMaterialization) CombinedOfferingSourceCounts(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) (*careplan.OfferingSourceCombinedCounts, error) {
-	sources, err := m.catalog.LoadOfferingSources(ctx, offeringIDs, calendarPeriodID, false)
+	sources, err := m.catalog.LoadOfferingSources(ctx, offeringIDs, calendarPeriodID, rejectDriftedSources)
 	if err != nil {
 		return nil, err
 	}

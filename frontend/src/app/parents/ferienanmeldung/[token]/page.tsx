@@ -7,7 +7,10 @@
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { use, useCallback, useEffect, useState } from "react";
-import { HolidayRegistrationForm } from "~/components/holiday-registration/holiday-registration-form";
+import {
+  HolidayRegistrationForm,
+  type HolidayRegistrationStep,
+} from "~/components/holiday-registration/holiday-registration-form";
 import {
   PublicEnrollmentContentSkeleton,
   PublicEnrollmentPageShell,
@@ -42,6 +45,7 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
     status === "authenticated" && session?.user?.scope === "parent";
   const [offer, setOffer] = useState<HolidayRegistrationOffer | null>(null);
   const [family, setFamily] = useState<HolidayKnownFamily | null>(null);
+  const [step, setStep] = useState<HolidayRegistrationStep>("form");
   const loadError = useApiLoadError();
   const { show, clear } = loadError;
 
@@ -70,6 +74,19 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
       await show(err, { object: t("errorObject"), retry: () => void load() });
     }
   }, [clear, parentSession, show, t, token]);
+
+  // The Träger changed the form while the parent filled it in (#5198): read
+  // the current questions again. A failure leaves the old offer; the next
+  // submit names the change once more.
+  const reloadOffer = useCallback(async () => {
+    try {
+      setOffer(await fetchHolidayRegistrationOffer(token));
+    } catch (err) {
+      logger.warn("holiday_registration_offer_reload_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }, [token]);
 
   useEffect(() => {
     // Wait for the session, so a parent's form starts prefilled.
@@ -102,7 +119,11 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
               <div className="space-y-2 text-sm text-gray-700">
                 <p>{t("window", dates)}</p>
                 {offer.binding ? <p>{t("binding")}</p> : null}
-                {offer.open ? <p>{t("requiredHint")}</p> : null}
+                {/* The hint names the form's fields: summary and
+                    confirmation have none (#5334). */}
+                {offer.open && step === "form" ? (
+                  <p>{t("requiredHint")}</p>
+                ) : null}
                 {offer.notes ? (
                   <div>
                     <p className="font-semibold text-gray-900">
@@ -118,6 +139,8 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
                 token={token}
                 offer={offer}
                 family={family}
+                onFormChanged={reloadOffer}
+                onStepChange={setStep}
               />
             ) : (
               <SectionCard title={t("closedTitle")}>

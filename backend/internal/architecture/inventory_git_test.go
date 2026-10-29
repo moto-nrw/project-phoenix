@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 )
 
 func TestInventoryBaseRemainsImmutableAfterCandidateMutation(t *testing.T) {
@@ -19,7 +20,7 @@ func TestInventoryBaseRemainsImmutableAfterCandidateMutation(t *testing.T) {
 	if err := artifacts.WriteInventory(filename, artifacts.CommandEffects, original); err != nil {
 		t.Fatal(err)
 	}
-	runGit(t, root, "init", "-q")
+	gitfixture.Init(t, root)
 	runGit(t, root, "add", ".")
 	runGit(t, root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "-qm", "Base")
 	sha := strings.TrimSpace(runGit(t, root, "rev-parse", "HEAD"))
@@ -52,7 +53,7 @@ func TestImmutableEmptyInventoryNeedsNoTrackedDirectories(t *testing.T) {
 	if err := artifacts.WriteInventory(filename, artifacts.CommandEffects, []byte(`{"schema_version":1,"entries":[]}`)); err != nil {
 		t.Fatal(err)
 	}
-	runGit(t, root, "init", "-q")
+	gitfixture.Init(t, root)
 	runGit(t, root, "add", ".")
 	runGit(t, root, "-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "-qm", "Empty inventory")
 	sha := strings.TrimSpace(runGit(t, root, "rev-parse", "HEAD"))

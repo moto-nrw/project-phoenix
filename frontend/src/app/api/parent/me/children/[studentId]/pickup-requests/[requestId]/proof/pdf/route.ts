@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Abholerlaubnis (#4780), Elternseite: der Nachweis einer unterschriebenen
 // Anfrage als PDF der Schule. Nur die Person, die unterschrieben hat, bekommt
@@ -76,4 +77,4 @@ async function GETHandler(
   return new NextResponse(upstream.body, { status: 200, headers });
 }
 
-export const GET = withParentAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withParentAuth(GETHandler));

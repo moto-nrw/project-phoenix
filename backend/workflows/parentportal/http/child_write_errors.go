@@ -26,6 +26,10 @@ func renderParentCareWriteError(w http.ResponseWriter, r *http.Request, err erro
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareSickNoteDisabled))
 	case errors.Is(err, parentService.ErrNotesDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCareNotesDisabled))
+	case errors.Is(err, parentService.ErrLeadershipMessagesUnavailable):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCommunicationLeadershipMessagesUnavailable))
+	case errors.Is(err, parentService.ErrInvalidMessageAudience):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, parentService.ErrMealPlanDisabled):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeMealsPlanDisabled))
 	case errors.Is(err, parentService.ErrMealPlanWeekOutOfRange):

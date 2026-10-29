@@ -5,6 +5,7 @@ import (
 	"image"
 	"image/color"
 	"image/png"
+	"os"
 	"testing"
 	"time"
 
@@ -90,5 +91,21 @@ func TestRenderRecordsSkipsCorruptImageFields(t *testing.T) {
 	}
 	if _, err := NewService().RenderRecords(doc, "nachweis"); err != nil {
 		t.Fatalf("RenderRecords corrupt image: %v", err)
+	}
+}
+
+func TestRenderRecordsWithInterlacedImage(t *testing.T) {
+	t.Parallel()
+	data, err := os.ReadFile("../../../../../testdata/interlaced-logo.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc := listrecords.RecordDocument{Title: "Nachweis", Records: []listrecords.Record{{Title: "Zugestimmt", Fields: []listrecords.Field{{Label: "Unterschrift", PNG: data}}}}}
+	file, err := NewService().RenderRecords(doc, "nachweis")
+	if err != nil {
+		t.Fatalf("RenderRecords: %v", err)
+	}
+	if !bytes.HasPrefix(file.Data, []byte("%PDF")) || !bytes.Contains(file.Data, []byte("/Subtype /Image")) {
+		t.Fatal("PDF must embed the interlaced image")
 	}
 }

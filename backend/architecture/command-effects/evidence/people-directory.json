@@ -6465,6 +6465,14 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentStore.LockRecord",
+      "binding_digest": "b85f4a24f9a0063fab903a076ea48e4f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentStore.LockRecord",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.StudentClassWriteGate",
+      "target_owner": "school-membership"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.caregiverBindingLocker.LockCaregiverCapabilityBindings",
       "binding_digest": "2bef52c97fa1ad9e699ac68674f26c81",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.CaregiverBindingLocker.LockCaregiverCapabilityBindings",

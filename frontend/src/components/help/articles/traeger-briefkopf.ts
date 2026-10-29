@@ -17,7 +17,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       {
         title: "Logo hochladen",
         steps: [
-          "Wählen Sie in der Navigation `Briefkopf`.",
+          "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Briefkopf`.",
           "Wählen Sie bei `Logo` den Knopf `Logo hochladen`.",
           "Wählen Sie ein Bild im Format PNG oder JPG, bis 1 MB.",
         ],
@@ -26,7 +26,8 @@ export function traegerBriefkopfTopic(): HelpTopic {
         title: "Absender, Farbe und Fußzeile eintragen",
         steps: [
           "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein, jede Angabe in eine eigene Zeile.",
-          "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf den farbigen Kreis und wählen Sie eine Farbe. Oder tragen Sie den Farbcode Ihres Trägers in das Feld daneben ein: eine Raute und sechs Zeichen, so wie er im Logo-Entwurf steht.",
+          "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf eine der Farben.",
+          "Passt keine Farbe, wählen Sie `Eigene Farbe`. Klicken Sie dann auf den farbigen Kreis und wählen Sie Ihre Farbe. Steht im Logo-Entwurf ein Farbcode, tragen Sie ihn in das Feld daneben ein: eine Raute und sechs Zeichen.",
           "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein.",
           "moto speichert jedes Feld von selbst.",
         ],
@@ -58,6 +59,7 @@ export function traegerBriefkopfTopic(): HelpTopic {
       "Jedes Ansehen und jede Änderung von Ansprechpartner und Bankverbindungen steht im Protokoll des Trägers.",
     ],
     differences: [
+      "Auf dem Handy steht `Briefkopf` in der Leiste unten oder unter `Mehr`.",
       "Sie können die Angaben nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
     ],
     troubleshootingDetails: [

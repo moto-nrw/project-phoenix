@@ -31,6 +31,10 @@ type GroupThreadSummaryResponse struct {
 	LastMessageBody string                     `json:"last_message_body"`
 	Unread          int                        `json:"unread"`
 	Children        []GroupThreadChildResponse `json:"children"`
+	// Readers says who reads the guardian's answer (#5200): it goes to the
+	// child's team conversation, so school.kind is always "all_staff". Other
+	// parents never see it.
+	Readers ParentReadersResponse `json:"readers"`
 }
 
 // GroupMessageResponse is one OGS message of a group thread. The sender is
@@ -99,6 +103,7 @@ func toGroupThreadSummary(thread parentService.GroupThread, school string, child
 		ID: strconv.FormatInt(thread.ID, 10), Title: thread.Title, TargetLabel: thread.TargetLabel,
 		SchoolName: school, CounterpartName: ogsLabel(school), Closed: thread.ClosedAt != nil,
 		Children: make([]GroupThreadChildResponse, 0, len(children)),
+		Readers:  ParentReadersResponse{School: schoolReaders(parentService.MessageAudienceTeam, nil)},
 	}
 	for _, child := range children {
 		out.Children = append(out.Children, GroupThreadChildResponse{

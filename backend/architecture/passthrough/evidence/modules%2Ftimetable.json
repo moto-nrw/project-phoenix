@@ -2102,7 +2102,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) (result []timetable.TemplateListRow, err error) {\n\tif periodID != nil \u0026\u0026 *periodID \u003c= 0 {\n\t\treturn nil, s.reject(\"list_template_rows_for_period\", timetable.ErrInvalidGroupQuery)\n\t}\n\terr = s.run(ctx, \"list_template_rows_for_period\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvalues, queryStats, listErr := s.store.ListTemplateRowsForPeriod(ctx, periodID, s.today())\n\t\tstats.Add(queryStats)\n\t\tresult = values\n\t\treturn listErr\n\t})\n\treturn result, err\n}",
+      "evidence": "func (s *Service) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64, window *timetable.TemplateScheduleWindow) (result []timetable.TemplateListRow, err error) {\n\tif periodID != nil \u0026\u0026 *periodID \u003c= 0 {\n\t\treturn nil, s.reject(\"list_template_rows_for_period\", timetable.ErrInvalidGroupQuery)\n\t}\n\terr = s.run(ctx, \"list_template_rows_for_period\", func(ctx context.Context, stats *domain.OperationStats) error {\n\t\tvalues, queryStats, listErr := s.store.ListTemplateRowsForPeriod(ctx, periodID, s.today(), window)\n\t\tstats.Add(queryStats)\n\t\tresult = values\n\t\treturn listErr\n\t})\n\treturn result, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/timetable/internal/application/Service.ListTemplateRowsForPeriod",
       "owner": "modules/timetable"
@@ -2802,7 +2802,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d *timetableData) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int) ([]timetable.TemplateListEntry, error) {\n\trows, err := d.deps.Templates.ListTemplateRowsForPeriod(ctx, periodID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn d.templateEntries(ctx, rows, periodID, distinctTemplateIDs(rows), childrenPerStaffRatio)\n}",
+      "evidence": "func (d *timetableData) ListTemplateEntriesForPeriod(ctx context.Context, periodID *int64, childrenPerStaffRatio int, window *timetable.TemplateScheduleWindow) ([]timetable.TemplateListEntry, error) {\n\trows, err := d.deps.Templates.ListTemplateRowsForPeriod(ctx, periodID, window)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn d.templateEntries(ctx, rows, periodID, distinctTemplateIDs(rows), childrenPerStaffRatio)\n}",
       "form": "unclassified-evidence",
       "id": "modules/timetable/internal/application/timetableData.ListTemplateEntriesForPeriod",
       "owner": "modules/timetable"

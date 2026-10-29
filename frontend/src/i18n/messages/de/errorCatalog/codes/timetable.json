@@ -59,6 +59,7 @@
   "move_other_day": "Personal lässt sich nur zu einem Termin am selben Tag verschieben.",
   "move_same_instance": "Bitte wählen Sie einen anderen Termin als Ziel.",
   "no_staff_profile": "Für diese Aktion brauchen Sie ein eigenes Personalprofil. Bitte fragen Sie die Leitung.",
+  "offering_gap_period_inactive": "Dieser Planungszeitraum ist nicht mehr aktiv. Bitte laden Sie die Seite neu.",
   "offering_source_inactive": "Das Angebot „{offering}“ ist ausgeschaltet. Bitte wählen Sie ein anderes Angebot.",
   "offering_source_invalid": "Diese Auswahl der Angebote passt nicht. Bitte prüfen Sie die Angebote.",
   "offering_source_mixed_phases": "Alle Angebote müssen aus derselben Anmeldephase kommen. Bitte prüfen Sie „{offering}“.",

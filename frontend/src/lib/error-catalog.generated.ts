@@ -209,12 +209,24 @@ export const ERROR_CATALOG = {
         "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",
       "communication.group_thread_no_recipients":
         "Niemand in dieser Gruppe hat Eltern mit Zugang zu moto. Die Nachricht wurde nicht verschickt.",
+      "communication.leadership_messages_unavailable":
+        "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
       "communication.notifications_disabled":
         "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
       "communication.parent_news_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.poll_not_open":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
+      "communication.staff_group_create_forbidden":
+        "Lehrkräfte können keinen Gruppenchat anlegen. Bitten Sie die OGS darum.",
+      "communication.staff_group_manage_forbidden":
+        "Nur wer den Gruppenchat angelegt hat und die OGS-Leitung können ihn ändern.",
+      "communication.staff_group_members_required":
+        "Bitte wählen Sie mindestens eine Person aus, die noch nicht in der Gruppe ist.",
+      "communication.staff_group_name_invalid":
+        "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens {max_characters} Zeichen.",
+      "communication.staff_group_too_large":
+        "Ein Gruppenchat hat höchstens {max_members} Mitglieder.",
       "communication.staff_messaging_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
@@ -375,6 +387,8 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie Vor- und Nachnamen ein.",
       "enrollment.guardian_phone_required":
         "Bitte geben Sie eine Telefonnummer ein.",
+      "enrollment.holiday_form_field_not_allowed":
+        "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
       "enrollment.holiday_guest_group_invalid":
         "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
       "enrollment.holiday_guest_not_found":
@@ -391,6 +405,8 @@ export const ERROR_CATALOG = {
         "Die Anmeldung für diese Ferien ist nicht offen. Bitte achten Sie auf Anmeldebeginn und Anmeldeschluss.",
       "enrollment.holiday_registration_entry_not_found":
         "Diese Anmeldung gibt es nicht mehr. Bitte laden Sie die Liste neu.",
+      "enrollment.holiday_registration_form_changed":
+        "Der Träger hat das Formular gerade geändert. Bitte prüfen Sie Ihre Angaben und senden Sie die Anmeldung noch einmal.",
       "enrollment.holiday_registration_frozen":
         "Die Anmeldung ist eingefroren. Wählen Sie zuerst „Wieder öffnen“.",
       "enrollment.holiday_registration_invalid":
@@ -480,6 +496,8 @@ export const ERROR_CATALOG = {
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
       "enrollment.submission_rate_limited":
         "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
+      "enrollment.upload_content_mismatch":
+        "Der Inhalt von „{filename}“ passt nicht zur Dateiart. Bitte wählen Sie eine andere Datei. Umbenennen reicht nicht.",
       "enrollment.upload_expired":
         "Eine hochgeladene Datei ist abgelaufen. Bitte laden Sie sie erneut hoch.",
       "enrollment.upload_invalid":
@@ -1146,6 +1164,8 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie einen anderen Termin als Ziel.",
       "timetable.no_staff_profile":
         "Für diese Aktion brauchen Sie ein eigenes Personalprofil. Bitte fragen Sie die Leitung.",
+      "timetable.offering_gap_period_inactive":
+        "Dieser Planungszeitraum ist nicht mehr aktiv. Bitte laden Sie die Seite neu.",
       "timetable.offering_source_inactive":
         "Das Angebot „{offering}“ ist ausgeschaltet. Bitte wählen Sie ein anderes Angebot.",
       "timetable.offering_source_invalid":
@@ -1622,6 +1642,18 @@ export const ERROR_CATALOG = {
         "This group message is closed. You can no longer reply.",
       "communication.group_thread_no_recipients":
         "No child in this group has parents with access to moto. The message was not sent.",
+      "communication.leadership_messages_unavailable":
+        "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
+      "communication.staff_group_create_forbidden":
+        "Teachers cannot start a group chat. Please ask the after-school team.",
+      "communication.staff_group_manage_forbidden":
+        "Only the person who started the group chat and the leadership can change it.",
+      "communication.staff_group_members_required":
+        "Please choose at least one person who is not in the group yet.",
+      "communication.staff_group_name_invalid":
+        "Please give the group chat a name of at most {max_characters} characters.",
+      "communication.staff_group_too_large":
+        "A group chat has at most {max_members} members.",
       "communication.survey_already_answered":
         "You have already taken part in this survey. Your answer cannot be changed.",
       "communication.survey_not_open": "This survey no longer accepts answers.",
@@ -1715,6 +1747,8 @@ export const ERROR_CATALOG = {
         "Registration for these holidays is not open. Please check the start and end of registration.",
       "enrollment.holiday_registration_entry_not_found":
         "This registration no longer exists. Please reload the list.",
+      "enrollment.holiday_registration_form_changed":
+        "The provider has just changed the form. Please check your entries and send the registration again.",
       "enrollment.holiday_registration_frozen":
         "The registration is frozen. Choose “Reopen” first.",
       "enrollment.holiday_registration_invalid":
@@ -1751,6 +1785,8 @@ export const ERROR_CATALOG = {
         "This link is invalid or has expired. Please use the link from your email.",
       "enrollment.submission_rate_limited":
         "Too many enrollments were sent. Please try again in an hour.",
+      "enrollment.upload_content_mismatch":
+        "The contents of “{filename}” do not match its file type. Please choose another file. Renaming it is not enough.",
       "enrollment.upload_expired":
         "An uploaded file has expired. Please upload it again.",
       "enrollment.upload_invalid":
@@ -2080,6 +2116,8 @@ export const ERROR_CATALOG = {
         "Это групповое сообщение закрыто. Ответить больше нельзя.",
       "communication.group_thread_no_recipients":
         "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
+      "communication.leadership_messages_unavailable":
+        "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
       "communication.survey_already_answered":
         "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
@@ -2156,6 +2194,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Укажите номер телефона.",
       "enrollment.holiday_registration_closed":
         "Запись на эти каникулы не открыта. Пожалуйста, проверьте начало и конец записи.",
+      "enrollment.holiday_registration_form_changed":
+        "Организатор только что изменил форму. Пожалуйста, проверьте данные и отправьте заявку ещё раз.",
       "enrollment.holiday_registration_invalid":
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
@@ -2183,6 +2223,8 @@ export const ERROR_CATALOG = {
         "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
       "enrollment.submission_rate_limited":
         "Отправлено слишком много заявок. Попробуйте снова через час.",
+      "enrollment.upload_content_mismatch":
+        "Содержимое файла «{filename}» не соответствует его типу. Пожалуйста, выберите другой файл. Изменения имени недостаточно.",
       "enrollment.upload_expired":
         "Срок действия загруженного файла истёк. Загрузите его ещё раз.",
       "enrollment.upload_invalid":
@@ -2472,6 +2514,8 @@ export const ERROR_CATALOG = {
         "Ky mesazh grupi është mbyllur. Nuk mund të përgjigjeni më.",
       "communication.group_thread_no_recipients":
         "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
+      "communication.leadership_messages_unavailable":
+        "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
       "communication.survey_already_answered":
         "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
@@ -2557,6 +2601,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi shkruani një numër telefoni.",
       "enrollment.holiday_registration_closed":
         "Regjistrimi për këto pushime nuk është i hapur. Ju lutemi kontrolloni fillimin dhe mbarimin e regjistrimit.",
+      "enrollment.holiday_registration_form_changed":
+        "Organizatori sapo ndryshoi formularin. Ju lutemi kontrolloni të dhënat dhe dërgojeni regjistrimin përsëri.",
       "enrollment.holiday_registration_invalid":
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
@@ -2586,6 +2632,8 @@ export const ERROR_CATALOG = {
         "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
       "enrollment.submission_rate_limited":
         "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
+      "enrollment.upload_content_mismatch":
+        "Përmbajtja e skedarit «{filename}» nuk përputhet me llojin e tij. Ju lutemi, zgjidhni një skedar tjetër. Ndryshimi i emrit nuk mjafton.",
       "enrollment.upload_expired":
         "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
       "enrollment.upload_invalid":
@@ -2876,6 +2924,8 @@ export const ERROR_CATALOG = {
         "Ta wiadomość grupowa jest zamknięta. Nie można już odpowiedzieć.",
       "communication.group_thread_no_recipients":
         "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
+      "communication.leadership_messages_unavailable":
+        "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
       "communication.survey_already_answered":
         "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
       "communication.survey_not_open":
@@ -2953,6 +3003,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Wpisz numer telefonu.",
       "enrollment.holiday_registration_closed":
         "Zgłoszenia na te ferie nie są otwarte. Sprawdź początek i koniec zgłoszeń.",
+      "enrollment.holiday_registration_form_changed":
+        "Organizator właśnie zmienił formularz. Sprawdź swoje dane i wyślij zgłoszenie jeszcze raz.",
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
@@ -2979,6 +3031,8 @@ export const ERROR_CATALOG = {
         "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
       "enrollment.submission_rate_limited":
         "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
+      "enrollment.upload_content_mismatch":
+        "Zawartość pliku „{filename}” nie pasuje do jego typu. Proszę wybrać inny plik. Zmiana nazwy nie wystarczy.",
       "enrollment.upload_expired":
         "Przesłany plik wygasł. Prześlij go ponownie.",
       "enrollment.upload_invalid":
@@ -3269,6 +3323,8 @@ export const ERROR_CATALOG = {
         "Bu grup mesajı kapatıldı. Artık yanıt veremezsiniz.",
       "communication.group_thread_no_recipients":
         "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
+      "communication.leadership_messages_unavailable":
+        "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
       "communication.survey_already_answered":
         "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
@@ -3350,6 +3406,8 @@ export const ERROR_CATALOG = {
         "Lütfen bir telefon numarası girin.",
       "enrollment.holiday_registration_closed":
         "Bu tatil için kayıt açık değil. Lütfen kaydın başlangıç ve bitiş tarihlerini kontrol edin.",
+      "enrollment.holiday_registration_form_changed":
+        "Kurum formu az önce değiştirdi. Lütfen bilgilerinizi kontrol edin ve kaydı tekrar gönderin.",
       "enrollment.holiday_registration_invalid":
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
@@ -3377,6 +3435,8 @@ export const ERROR_CATALOG = {
         "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
       "enrollment.submission_rate_limited":
         "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
+      "enrollment.upload_content_mismatch":
+        "“{filename}” dosyasının içeriği dosya türüyle uyuşmuyor. Lütfen başka bir dosya seçin. Adını değiştirmek yeterli değildir.",
       "enrollment.upload_expired":
         "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
       "enrollment.upload_invalid":
@@ -3664,6 +3724,8 @@ export const ERROR_CATALOG = {
         "Це групове повідомлення закрито. Відповісти більше не можна.",
       "communication.group_thread_no_recipients":
         "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
+      "communication.leadership_messages_unavailable":
+        "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS.",
       "communication.survey_already_answered":
         "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
       "communication.survey_not_open":
@@ -3740,6 +3802,8 @@ export const ERROR_CATALOG = {
       "enrollment.guardian_phone_required": "Вкажіть номер телефону.",
       "enrollment.holiday_registration_closed":
         "Запис на ці канікули не відкритий. Будь ласка, перевірте початок і кінець запису.",
+      "enrollment.holiday_registration_form_changed":
+        "Організатор щойно змінив форму. Будь ласка, перевірте дані й надішліть заявку ще раз.",
       "enrollment.holiday_registration_invalid":
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":
@@ -3767,6 +3831,8 @@ export const ERROR_CATALOG = {
         "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
       "enrollment.submission_rate_limited":
         "Надіслано забагато заявок. Спробуйте ще раз через годину.",
+      "enrollment.upload_content_mismatch":
+        "Вміст файлу «{filename}» не відповідає його типу. Будь ласка, виберіть інший файл. Зміни назви недостатньо.",
       "enrollment.upload_expired":
         "Термін дії завантаженого файлу минув. Завантажте його ще раз.",
       "enrollment.upload_invalid":

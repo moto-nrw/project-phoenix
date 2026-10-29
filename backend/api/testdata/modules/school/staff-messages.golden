@@ -4,3 +4,4 @@ GET /school/staff-messages/threads/{threadID} -> unterricht_vormittag
 GET /school/staff-messages/unread-count -> unterricht_vormittag
 POST /school/staff-messages/threads/open -> unterricht_vormittag
 POST /school/staff-messages/threads/{threadID} -> unterricht_vormittag
+POST /school/staff-messages/threads/{threadID}/leave -> unterricht_vormittag

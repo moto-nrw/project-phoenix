@@ -26,7 +26,7 @@ func TestAcquireXactLockReportsContendedWait(t *testing.T) {
 	_, err = holder.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
 	require.NoError(t, err)
 	ctx, evidence := testpkg.CaptureUnitOfWorkEvidence(ctx)
-	testpkg.AttachLockWaitEvidence(db)
+	testpkg.AttachLockWaitEvidence(t, db)
 	require.NoError(t, testpkg.WithinTenantTransaction(ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ testpkg.Tx) error {
 		release := time.AfterFunc(40*time.Millisecond, func() { _ = holder.Rollback() })
 		defer release.Stop()

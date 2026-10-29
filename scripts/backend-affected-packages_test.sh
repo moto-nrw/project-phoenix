@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/test-helpers/git-fixture.sh"
 repo_root=$(git rev-parse --show-toplevel)
 fixture=$(mktemp -d)
 cleanup() {
@@ -105,7 +106,7 @@ package testonly_test
 import _ "example.test/project/graphbase"
 EOF
 
-git -C "$fixture" init -q
+init_git_fixture "$fixture"
 git -C "$fixture" config user.email selector-test@example.invalid
 git -C "$fixture" config user.name selector-test
 git -C "$fixture" config commit.gpgSign false

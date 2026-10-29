@@ -15,12 +15,18 @@
       "maxBytes": 841472
     },
     "/traeger/ferien/[id]/anmeldungen/[registrationId]": {
-      "referenceBytes": 822556,
-      "maxBytes": 839007
+      "referenceBytes": 889571,
+      "maxBytes": 907362,
+      "_reason": "#5199: Historischen Zustimmungswortlaut aus der gespeicherten Formularversion mit dem gemeinsamen sicheren Markdown-Renderer anzeigen. Lokale kalte Messung: 822556 auf 889571 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz."
     },
     "/traeger/ferien/neu": {
       "referenceBytes": 861284,
       "maxBytes": 878510
+    },
+    "/traeger/ferien/[id]/formular": {
+      "referenceBytes": 876825,
+      "maxBytes": 894362,
+      "_reason": "#5199: Neuer gemeinsamer Rechtsblock-Editor mit PDF-Upload und Vorschau. Die kalte Messung steigt von 836329 auf 876825 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz. Nachgeladene Chunks zählen vollständig mit."
     }
   }
 }

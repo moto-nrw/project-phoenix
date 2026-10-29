@@ -46,11 +46,11 @@ jobs:
       # orchestrates every job, test.yml the test suites, lint.yml the lint
       # jobs. Other .github files reach only the script suites below.
       run-backend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
-      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-fs-inputs == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
+      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-fs-inputs == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
       run-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
       run-backend-architecture: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-architecture == 'true' || steps.filter.outputs.workflow-main == 'true' }}
       full-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
-      run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
+      run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-catalog-inputs == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
       # The seed smoke drives runtime API contracts. Test-only edits,
       # frontend-only pushes and CI changes outside its own workflow definition
       # cannot affect it and must not buy another runner.
@@ -172,6 +172,11 @@ jobs:
             frontend:
               - 'frontend/**'
               - '!frontend/**/*.md'
+            # External inputs read by the frontend error-catalog validator.
+            frontend-catalog-inputs:
+              - 'error-registry/**'
+              - 'scripts/error-registry.mjs'
+              - 'backend/modules/delivery/internal/adapters/localization/locales.json'
             frontend-fs-inputs:
               - 'backend/modules/settings/internal/defaults/**'
               - '.github/workflows/e2e.yml'

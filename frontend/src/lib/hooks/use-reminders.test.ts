@@ -5,6 +5,7 @@ const mockUseSWRAuth = vi.fn();
 const mockMutate = vi.fn().mockResolvedValue(undefined);
 vi.mock("~/lib/swr/hooks", () => ({
   useSWRAuth: (...args: unknown[]) => mockUseSWRAuth(...args),
+  useScopedSWRKey: (key: string) => `schule:7:${key}`,
 }));
 
 // GET /api/reminders verlangt users:read (#4573); die Betreuungskraft hält es.

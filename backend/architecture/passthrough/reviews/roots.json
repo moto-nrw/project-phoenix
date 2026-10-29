@@ -1086,6 +1086,16 @@
       "reason": "ADR 0109 (#4655): root translation of the Identity \u0026 Access Träger accounts; only accounts with a Träger role at the Träger are named."
     },
     {
+      "decision": "0137",
+      "id": "api/traegerHolidayTrail.ListHolidayTrail",
+      "reason": "ADR 0137 (#5326): root translation of Enrollment's holiday registration trail into the Träger projection's trail entries without a school."
+    },
+    {
+      "decision": "0137",
+      "id": "api/traegerHolidayTrail.ListHolidayTrailActors",
+      "reason": "ADR 0137 (#5326): root translation of Enrollment's holiday registration trail accounts into the Träger projection's actors without a school."
+    },
+    {
       "decision": "0109",
       "id": "api/traegerPersonDirectory.PersonsByAccount",
       "reason": "ADR 0109 (#4655): root translation of the People Directory persons of accounts (the latest per school) into the Träger projection's person vocabulary."
@@ -3421,7 +3431,7 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "roots/owners/communicationParentInbox.ListInboxForStaff",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -3436,7 +3446,7 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "roots/owners/communicationParentInbox.ListThreadsForStudent",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -3446,14 +3456,14 @@
       "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "roots/owners/communicationParentInbox.UnreadMessageCountForStaff",
-      "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "roots/owners/communicationParentInbox.UnreadMessageCountForStaffInGroups",
-      "reason": "Finite named forwarding debt under ADR 0090, not a new floor; removal/deepening pending."
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0090",
@@ -4341,7 +4351,7 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "roots/owners/parentMessageNotifier.NotifyStaffParentMessage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

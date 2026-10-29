@@ -3,16 +3,17 @@
 // Die Rechnungen eines Abrechnungslaufs (#4668, #4672, #5146): EINE Tabelle,
 // je Familie eine Zeile. Vor der Freigabe Entwürfe ohne Nummer, die sich je
 // Kind korrigieren lassen; nach der Freigabe die Übersicht für die Kämmerei
-// mit allen Positionen und Summen als PDF, Excel oder CSV. Die Aufschlüsselung
-// steht im Seitenpanel, Korrektur und Schreiben im Menü der Zeile.
+// mit allen Positionen und Summen als PDF, Excel oder CSV im Menü der Karte
+// unter „Exportieren“, wie im Schul-Portal (#5240). Die Aufschlüsselung steht
+// im Seitenpanel, Korrektur und Schreiben im Menü der Zeile.
 
 import { useState } from "react";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
-  ExportMenu,
   type ExportMenuOption,
   exportFormatOptions,
+  exportMenuItems,
 } from "~/components/ui/export-menu";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
@@ -164,20 +165,22 @@ export function BillingRunOverviewCard({
       }
       actions={
         released && run.documents.length > 0 ? (
-          <ExportMenu
-            label="Übersicht für die Kämmerei"
-            ariaLabel="Übersicht für die Kämmerei herunterladen"
-            options={FORMATS}
-            busyKey={exporting}
-            onSelect={(option) => {
-              if (
-                option.format === "pdf" ||
-                option.format === "xlsx" ||
-                option.format === "csv"
-              ) {
-                void exportFile(option.format);
-              }
-            }}
+          <OverflowMenu
+            ariaLabel="Übersicht für die Kämmerei exportieren"
+            items={exportMenuItems({
+              header: "Exportieren",
+              options: FORMATS,
+              busyKey: exporting,
+              onSelect: (option) => {
+                if (
+                  option.format === "pdf" ||
+                  option.format === "xlsx" ||
+                  option.format === "csv"
+                ) {
+                  void exportFile(option.format);
+                }
+              },
+            })}
           />
         ) : null
       }

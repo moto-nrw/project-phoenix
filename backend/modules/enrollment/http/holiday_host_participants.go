@@ -100,6 +100,7 @@ type holidayParticipantListResponse struct {
 	Week         capability.HostedHolidayWeek       `json:"week"`
 	TimeModels   []capability.HolidayTimeModelCount `json:"time_models"`
 	HomeSchools  []holidayHomeSchoolResponse        `json:"home_schools"`
+	Questions    []capability.HolidayHostQuestion   `json:"questions"`
 	Participants []holidayParticipantResponse       `json:"participants"`
 }
 
@@ -115,7 +116,7 @@ func (rs *HolidayHostResource) getParticipants(w http.ResponseWriter, r *http.Re
 	}
 	names := hostSchoolNames(r.Context())
 	response := holidayParticipantListResponse{
-		Week: list.Week, TimeModels: list.TimeModels,
+		Week: list.Week, TimeModels: list.TimeModels, Questions: list.Questions,
 		HomeSchools:  make([]holidayHomeSchoolResponse, len(list.HomeSchools)),
 		Participants: make([]holidayParticipantResponse, len(list.Participants)),
 	}
@@ -240,6 +241,37 @@ var holidayParticipantColumns = []lists.Column{
 	{ID: "time_model", Label: "Zeitmodell"},
 }
 
+// holidayParticipantExtraColumns adds to the minimum fields the second
+// guardian, when a child has one, and one column per shared question
+// (#5202). A list without either keeps exactly the columns of before.
+func holidayParticipantExtraColumns(list capability.HolidayParticipantList) []lists.Column {
+	columns := append([]lists.Column{}, holidayParticipantColumns...)
+	for _, participant := range list.Participants {
+		if participant.SecondGuardian != nil {
+			columns = append(columns,
+				lists.Column{ID: "second_guardian", Label: "Zweite sorgeberechtigte Person"},
+				lists.Column{ID: "second_guardian_phone", Label: "Telefon zweite sorgeberechtigte Person"})
+			break
+		}
+	}
+	for _, question := range list.Questions {
+		columns = append(columns, lists.Column{ID: hostAnswerColumnID(question.Key), Label: lists.SanitizeUserText(question.Label)})
+	}
+	return columns
+}
+
+// hostAnswerText is a shared answer as a cell, written like the Träger's
+// export writes it; empty without an answer. A selection arrives as the
+// label of its option already.
+func hostAnswerText(answer capability.HolidayHostAnswer) string {
+	if len(answer.Value) == 0 || string(answer.Value) == "null" {
+		return ""
+	}
+	return holidayAnswerText(capability.HolidayFormField{FormField: capability.FormField{Key: answer.Key, Type: answer.Type}}, answer.Value)
+}
+
+func hostAnswerColumnID(key string) lists.ColumnID { return lists.ColumnID("answer." + key) }
+
 // holidayParticipantDocument is the export of a participant list: one row
 // per child, the counts per time model and home school as header lines.
 func holidayParticipantDocument(list capability.HolidayParticipantList, names holidaySchoolNameMap) lists.Document {
@@ -260,6 +292,13 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 			"birth_date": participant.BirthDate.Format("02.01.2006"), "home_school": names.participantSchool(participant),
 			"time_model": models[participant.TimeModelID],
 		}
+		if participant.SecondGuardian != nil {
+			values["second_guardian"] = participant.SecondGuardian.Name
+			values["second_guardian_phone"] = participant.SecondGuardian.Phone
+		}
+		for _, answer := range participant.Answers {
+			values[hostAnswerColumnID(answer.Key)] = hostAnswerText(answer)
+		}
 		for id, value := range values {
 			values[id] = lists.SanitizeUserText(value)
 		}
@@ -267,7 +306,7 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 	}
 	return lists.Document{
 		Title: "Teilnehmerliste", Subtitle: list.Week.PeriodName, GeneratedAt: time.Now(),
-		Filters: header, Columns: holidayParticipantColumns, Rows: rows,
+		Filters: header, Columns: holidayParticipantExtraColumns(list), Rows: rows,
 		Footer: "Vertraulich. Enthält personenbezogene Daten.",
 	}
 }

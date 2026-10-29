@@ -807,6 +807,28 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ResyncStudentSourcedRosters",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncStudentSourcedRosters",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.BookingMaterialization.ResyncStudentSourcedRosters. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.bookingCommands.ResyncStudentSourcedRosters",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncStudentSourcedRosters",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.bookingCommands.ResyncStudentSourcedRosters. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ResyncTemplateOfferingRoster",
       "classification": "platform",
       "effect": "scope",
@@ -2359,6 +2381,17 @@
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResyncOfferingSourcedTemplates",
       "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.CareOfferings.ResyncOfferingSourcedTemplates. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.ResyncStudentSourcedRosters",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResyncStudentSourcedRosters",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan/internal/application.CareOfferings.ResyncStudentSourcedRosters. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "care-plan",
       "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
@@ -6194,6 +6227,17 @@
     },
     {
       "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncStudentSourcedRosters",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncStudentSourcedRosters",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan.BookingMaterializationCapability.ResyncStudentSourcedRosters. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
       "classification": "platform",
       "effect": "scope",
@@ -7520,6 +7564,111 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students.CallerContext.StudentAccessFacts",
       "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0135",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.Cancel",
+      "classification": "workflow",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Cancel",
+      "reason": "Workflow-backed #5235 care-exit restoration: the route's Cancel runs the unchanged E2 lifecycle command and then Care Plan's student-scoped sourced-roster resync in one tenant unit, so restored rows match the current schedule periods. No new owner, lock or E2 ordering change. Target workflows/careexit.PlanRestoration.Cancel; workflows/careexit/restoration.go.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.Cancel",
+      "target_owner": "care-exit"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.Cancel",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Cancel",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan.CareLifecycle.Cancel. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0135",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.Cancel",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Cancel",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan.CareLifecycle.Cancel. The same lifecycle lock as its direct binding, now reached through the care-exit restoration port (#5235); protocol review is follow-up work (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0135",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.Confirm",
+      "classification": "workflow",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Confirm",
+      "reason": "Workflow-backed #5235 care-exit restoration: the route's Confirm runs the unchanged E2 lifecycle command and then Care Plan's student-scoped sourced-roster resync in one tenant unit, so restored rows match the current schedule periods. No new owner, lock or E2 ordering change. Target workflows/careexit.PlanRestoration.Confirm; workflows/careexit/restoration.go.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.Confirm",
+      "target_owner": "care-exit"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.Confirm",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Confirm",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan.CareLifecycle.Confirm. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0135",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.Confirm",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Confirm",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan.CareLifecycle.Confirm. The same lifecycle lock as its direct binding, now reached through the care-exit restoration port (#5235); protocol review is follow-up work (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0135",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.ConfirmWithdrawalCareEnd",
+      "classification": "workflow",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.ConfirmWithdrawalCareEnd",
+      "reason": "Workflow-backed #5235 care-exit restoration: the route's ConfirmWithdrawalCareEnd runs the unchanged E2 lifecycle command and then Care Plan's student-scoped sourced-roster resync in one tenant unit, so restored rows match the current schedule periods. No new owner, lock or E2 ordering change. Target workflows/careexit.PlanRestoration.ConfirmWithdrawalCareEnd; workflows/careexit/restoration.go.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.ConfirmWithdrawalCareEnd",
+      "target_owner": "care-exit"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.ConfirmWithdrawalCareEnd",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.ConfirmWithdrawalCareEnd",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/careplan.CareLifecycle.ConfirmWithdrawalCareEnd. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0135",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.ConfirmWithdrawalCareEnd",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.ConfirmWithdrawalCareEnd",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): care-plan reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/careplan.CareLifecycle.ConfirmWithdrawalCareEnd. The same lifecycle lock as its direct binding, now reached through the care-exit restoration port (#5235); protocol review is follow-up work (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0067",
@@ -20261,6 +20410,28 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentStatusFlagCapability.ListStudentsWithStatusFlag",
       "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "classification": "platform",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Hub.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Hub.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "classification": "platform",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Broadcaster.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform"
     },
     {
       "adr": "0098",

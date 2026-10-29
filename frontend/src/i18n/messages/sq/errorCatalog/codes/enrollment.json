@@ -82,6 +82,7 @@
   "legal_block_required_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "legal_document_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "form_field_file_options_invalid": "Kontrolloni pyetjen për skedarin. Zgjidhni të paktën një lloj skedari dhe një madhësi nga 1 deri në 10 MB.",
+  "upload_content_mismatch": "Përmbajtja e skedarit «{filename}» nuk përputhet me llojin e tij. Ju lutemi, zgjidhni një skedar tjetër. Ndryshimi i emrit nuk mjafton.",
   "upload_invalid": "Ky skedar nuk përshtatet. Zgjidhni një lloj skedari të lejuar me më së shumti {max_mb} MB.",
   "upload_expired": "Një skedar i ngarkuar ka skaduar. Ngarkojeni përsëri.",
   "upload_rate_limited": "U ngarkuan shumë skedarë. Provoni përsëri më vonë.",
@@ -133,5 +134,7 @@
   "holiday_week_booked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "hosted_holiday_week_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "holiday_guest_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "holiday_guest_group_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
+  "holiday_guest_group_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "holiday_form_field_not_allowed": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "holiday_registration_form_changed": "Organizatori sapo ndryshoi formularin. Ju lutemi kontrolloni të dhënat dhe dërgojeni regjistrimin përsëri."
 }

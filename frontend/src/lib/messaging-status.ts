@@ -347,3 +347,90 @@ export function parentThreadPreviewI18nDescriptor(
   }
   return null;
 }
+
+/**
+ * Which conversation of a guardian about a child (#5200): with the whole
+ * team, or the one only the leadership reads. A missing value is the team.
+ */
+export type MessageAudience = "team" | "leadership";
+
+/** Short staff label of a leadership conversation (inbox, child profile). */
+export const LEADERSHIP_AUDIENCE_LABEL = "Nur Leitung";
+
+/** `?audience=leadership` for the leadership conversation, "" for the team. */
+export function audienceQuery(audience: MessageAudience = "team"): string {
+  return audience === "leadership" ? "?audience=leadership" : "";
+}
+
+/** The school side of a conversation's readers, as both APIs send it. */
+export interface SchoolReaders {
+  readonly kind: "all_staff" | "leadership";
+  /** Leadership persons with a name, short form („Swantje M.“). */
+  readonly names: readonly string[];
+  /** Leadership accounts without a person name, named by the client. */
+  readonly unnamed_count?: number;
+}
+
+/** Whether the backend named anyone of the leadership (person or account). */
+export function hasLeadershipReaders(school: SchoolReaders): boolean {
+  return school.names.length > 0 || (school.unnamed_count ?? 0) > 0;
+}
+
+/**
+ * The leadership as a list for a reader sentence: the named persons, then
+ * once the label for accounts without a name (the school's administration).
+ * Empty when the backend named nobody.
+ */
+export function leadershipNameList(
+  school: SchoolReaders,
+  unnamedLabel: string,
+): string {
+  const names = [...school.names];
+  if ((school.unnamed_count ?? 0) > 0) names.push(unnamedLabel);
+  return names.join(", ");
+}
+
+/**
+ * Ends a sentence with exactly one period. Short names end with one
+ * already („Swantje M.“), other names and labels do not (#5200).
+ */
+export function endSentence(text: string): string {
+  return text.endsWith(".") ? text : `${text}.`;
+}
+
+/** The translator of the `parentMessages` namespace, as far as needed here. */
+type ParentMessagesTranslator = (
+  key:
+    | "readersTeam"
+    | "readersLeadership"
+    | "readersLeadershipUnnamed"
+    | "readersUnnamedLeader",
+  values?: { names: string },
+) => string;
+
+/**
+ * „Lesen können: …“ of a parent conversation (#5200), built only from the
+ * readers the backend reports: the parent is „Sie“, the school side everyone
+ * at the OGS or the leadership by name.
+ */
+export function parentReadersLine(
+  readers: { readonly school: SchoolReaders },
+  t: ParentMessagesTranslator,
+): string {
+  if (readers.school.kind !== "leadership") return t("readersTeam");
+  const names = leadershipNameList(readers.school, t("readersUnnamedLeader"));
+  return names
+    ? endSentence(t("readersLeadership", { names }))
+    : t("readersLeadershipUnnamed");
+}
+
+/**
+ * Parents-portal path of a child's conversation (#5200); the team one needs
+ * no parameter, the leadership one carries `?audience=leadership`.
+ */
+export function childConversationPath(
+  studentId: string,
+  audience: MessageAudience = "team",
+): string {
+  return `/parents/messages/${encodeURIComponent(studentId)}${audienceQuery(audience)}`;
+}

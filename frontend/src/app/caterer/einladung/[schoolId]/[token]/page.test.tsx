@@ -62,10 +62,7 @@ describe("CatererInvitationPage", () => {
     vi.clearAllMocks();
     mocks.fetchCatererInvitation.mockResolvedValue(invitation);
     mocks.acceptCatererInvitation.mockResolvedValue(undefined);
-    mocks.loginCaterer.mockResolvedValue({
-      accessToken: "access",
-      refreshToken: "refresh",
-    });
+    mocks.loginCaterer.mockResolvedValue(undefined);
     mocks.signIn.mockResolvedValue({ ok: true });
     Object.defineProperty(window, "location", {
       value: { href: "https://caterer.example.test/einladung" },
@@ -150,11 +147,12 @@ describe("CatererInvitationPage", () => {
     );
     await vi.advanceTimersByTimeAsync(1600);
     expect(window.location.href).toBe("/caterer");
+    expect(mocks.signIn).not.toHaveBeenCalled();
   });
 
   it("promises no sign-in when the automatic sign-in fails", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
-    mocks.signIn.mockResolvedValue({ error: "CredentialsSignin" });
+    mocks.loginCaterer.mockRejectedValue(new Error("BFF session refused"));
     const submit = await renderPage();
     fillPasswords(acceptedCredential());
 
@@ -164,7 +162,7 @@ describe("CatererInvitationPage", () => {
     expect(screenStatus).toHaveTextContent("Konto erstellt");
     expect(screenStatus).toHaveTextContent("Sie werden gleich weitergeleitet.");
     expect(screenStatus).not.toHaveTextContent("angemeldet");
-    await waitFor(() => expect(mocks.signIn).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.loginCaterer).toHaveBeenCalled());
     await vi.advanceTimersByTimeAsync(1600);
     expect(window.location.href).toBe("/caterer/login");
   });

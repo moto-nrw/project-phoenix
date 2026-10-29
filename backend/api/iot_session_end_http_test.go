@@ -83,14 +83,15 @@ func TestEndActivitySessionDelegatesToTheSessionEndWorkflow(t *testing.T) {
 func TestEndActivitySessionMapsWorkflowErrorsAndRollsBack(t *testing.T) {
 	t.Parallel()
 
-	notFound, alreadyEnded := iotSessionEndTestFailures()
+	notFound, alreadyEnded, conflict := iotSessionEndTestFailures()
 	cases := map[string]struct {
 		err    error
 		status int
 	}{
-		"already ended": {err: alreadyEnded, status: 400},
-		"not found":     {err: notFound, status: 404},
-		"owner failure": {err: errors.New("attendance finalization failed"), status: 500},
+		"already ended":  {err: alreadyEnded, status: 400},
+		"cohort changed": {err: conflict, status: 409},
+		"not found":      {err: notFound, status: 404},
+		"owner failure":  {err: errors.New("attendance finalization failed"), status: 500},
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -104,6 +105,9 @@ func TestEndActivitySessionMapsWorkflowErrorsAndRollsBack(t *testing.T) {
 			rs.Router().ServeHTTP(rr, req)
 
 			assert.Equal(t, tc.status, rr.Code, rr.Body.String())
+			if tc.status == http.StatusConflict {
+				assert.Contains(t, rr.Body.String(), `"code":"general.business_rejection"`)
+			}
 			assert.True(t, testutil.RollbackRequested(req.Context()), "a failed close must not commit")
 		})
 	}

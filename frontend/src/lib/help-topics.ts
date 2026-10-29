@@ -217,6 +217,7 @@ export const HELP_TOPICS = {
   traegerAccounts: "personen-ins-traeger-buero-einladen",
   traegerHolidayPeriod: "traeger-ferienzeitraum",
   traegerHolidayRegistration: "traeger-ferienanmeldung-teilen",
+  traegerHolidayForm: "traeger-ferien-anmeldeformular",
   traegerHolidayRegistrationReview: "traeger-ferienanmeldungen-pruefen",
   traegerHolidayContribution: "traeger-ferienbeitrag",
   traegerBillingRun: "ferien-abrechnen",

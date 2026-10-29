@@ -172,8 +172,15 @@ type SupervisorContact struct {
 	Role      string `json:"role"` // "teacher" or "staff"
 }
 
-// StudentDetailResponse represents a detailed student response with access control
+// StudentPrivacyConsentResponse is the optional retention-consent projection.
+type StudentPrivacyConsentResponse struct {
+	Accepted          bool `json:"accepted"`
+	DataRetentionDays int  `json:"data_retention_days"`
+}
+
+// StudentDetailResponse represents a detailed student response with access control.
 type StudentDetailResponse struct {
+	PrivacyConsent *StudentPrivacyConsentResponse `json:"privacy_consent,omitempty"`
 	StudentResponse
 	HasFullAccess  bool                     `json:"has_full_access"`
 	HasWriteAccess bool                     `json:"has_write_access"`

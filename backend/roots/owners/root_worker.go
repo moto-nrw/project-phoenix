@@ -461,7 +461,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() error {
 			reports = BuildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
-				people, audit, settings.Service)
+				people, audit, settings.Service, schedules.CareDay)
 			return nil
 		},
 		func() (err error) {
@@ -492,7 +492,7 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 		},
 		func() error {
 			chat = BuildCommunicationMessaging(db, env, hub, settings.Service, messaging, services.Users, StaffStudentReads{Caller: caller.Caller()},
-				notifications, delivery.Outbox, people, SchoolNameDirectory{Schools: organizations}, communicationSession)
+				notifications, delivery.Outbox, people, SchoolNameDirectory{Schools: organizations}, communicationSession, identity)
 			calendarApp = BuildCalendarApp(db, env, people, structure, portalReads, timetableRows, rooms, workTime, organizations,
 				identity, caller.Caller(), appointments, calendar, delivery, notifications, settings.Service, persons)
 			return nil

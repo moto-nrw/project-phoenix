@@ -33,6 +33,8 @@
   "notBooked": "Bez zgłoszenia",
   "weekRange": "{starts} do {ends}",
   "timeModel": "{name} ({startsAt} do {endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt} do {endsAt})",
+  "weeksPriceText": "Cena dotyczy jednego tygodnia i jednego dziecka, bez zniżki ani zwolnienia. Twoją opłatę zobaczysz w podsumowaniu.",
   "healthTitle": "Zdrowie (dobrowolnie)",
   "healthText": "Te informacje widzi tylko opieka.",
   "allergies": "Alergie i nietolerancje",
@@ -55,7 +57,7 @@
   "addPickup": "Dodaj osobę",
   "remove": "Usuń",
   "consentTitle": "Zgoda",
-  "privacyConsent": "Zgadzam się, aby organizator używał tych danych do opieki w ferie. Usunie je trzy miesiące po feriach.",
+  "privacyConsent": "Zgadzam się, aby organizator używał tych danych do opieki w ferie. Usunie je trzy miesiące po feriach. OGS, która opiekuje się moim dzieckiem w tygodniu ferii, widzi imię, nazwisko i telefon drugiego opiekuna prawnego. Widzi też odpowiedzi, które organizator jej udostępni. Nie widzi informacji o zdrowiu. OGS widzi to już przed tygodniem ferii, aby się przygotować. Listę dzieci widzi do ostatniego dnia tygodnia. Potem może czytać imię, nazwisko, telefon i odpowiedzi jeszcze najwyżej 7 dni. Następnie są one usuwane.",
   "healthConsent": "Zgadzam się, aby opieka widziała informacje o zdrowiu moich dzieci.",
   "bindingConfirmed": "Wiem, że zgłoszenie jest wiążące.",
   "captchaMissing": "Brakuje kontroli bezpieczeństwa. Załaduj stronę ponownie.",
@@ -74,6 +76,8 @@
   "contributionTotal": "Razem",
   "benefitsLabel": "Otrzymujemy świadczenia, na przykład Bürgergeld, dodatek mieszkaniowy (Wohngeld) lub dodatek na dziecko (Kinderzuschlag).",
   "benefitsHint": "Wtedy opieka w ferie jest bezpłatna. Organizator potrzebuje na to dowodu.",
+  "benefitsProofLabel": "Dokument potwierdzający świadczenia",
+  "benefitsProofHint": "Dobrowolnie: możesz od razu przesłać tutaj dokument, na przykład decyzję o Bürgergeld. Możesz też przekazać go później organizatorowi.",
   "guest": "Gość na ferie",
   "none": "Brak danych",
   "back": "Wróć i zmień",
@@ -91,6 +95,13 @@
     "weeks": "Wybierz co najmniej jeden tydzień.",
     "privacy": "Wyraź zgodę. Inaczej organizator nie może rozpatrzyć zgłoszenia.",
     "health": "Wyraź zgodę albo usuń informacje o zdrowiu.",
-    "binding": "Potwierdź, że zgłoszenie jest wiążące."
-  }
+    "binding": "Potwierdź, że zgłoszenie jest wiążące.",
+    "yesNo": "Wybierz tak lub nie.",
+    "choose": "Wybierz odpowiedź."
+  },
+  "childQuestionsTitle": "Dodatkowe informacje",
+  "familyQuestionsTitle": "Dodatkowe informacje o rodzinie",
+  "legalTitle": "Informacje i zgody",
+  "legalAccepted": "Potwierdzono",
+  "legalNotAccepted": "Nie potwierdzono"
 }

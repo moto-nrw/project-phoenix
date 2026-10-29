@@ -1287,6 +1287,16 @@
       "target_owner": "audit-platform"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.UploadHolidayProof",
+      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof for the token of a proof of benefits (#5238). No persistent, lock or scope effect, like the uploads of #4783 (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidaySchoolNames.HolidaySchoolNames",
       "classification": "query",
       "effect": "query",
@@ -2179,6 +2189,27 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
+      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through api.holidayProofUnits.UploadHolidayProof for the token of a proof of benefits (#5238). No persistent, lock or scope effect, like the uploads of #4783 (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.WithinTraeger (tenant-runtime) through api.holidayProofUnits.UploadHolidayProof (#5238). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.CreateLateInvite",

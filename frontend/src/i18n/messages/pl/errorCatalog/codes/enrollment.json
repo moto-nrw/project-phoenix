@@ -82,6 +82,7 @@
   "legal_block_required_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "legal_document_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "form_field_file_options_invalid": "Sprawdź pytanie o plik. Wybierz co najmniej jeden rodzaj pliku i rozmiar od 1 do 10 MB.",
+  "upload_content_mismatch": "Zawartość pliku „{filename}” nie pasuje do jego typu. Proszę wybrać inny plik. Zmiana nazwy nie wystarczy.",
   "upload_invalid": "Ten plik nie pasuje. Wybierz dozwolony rodzaj pliku o rozmiarze najwyżej {max_mb} MB.",
   "upload_expired": "Przesłany plik wygasł. Prześlij go ponownie.",
   "upload_rate_limited": "Przesłano zbyt wiele plików. Spróbuj ponownie później.",
@@ -133,5 +134,7 @@
   "holiday_week_booked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "hosted_holiday_week_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_guest_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "holiday_guest_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
+  "holiday_guest_group_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "holiday_form_field_not_allowed": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "holiday_registration_form_changed": "Organizator właśnie zmienił formularz. Sprawdź swoje dane i wyślij zgłoszenie jeszcze raz."
 }

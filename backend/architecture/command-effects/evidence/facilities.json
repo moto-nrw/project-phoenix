@@ -841,6 +841,22 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.LockStudent",
+      "binding_digest": "2e3fc6fe23c5c8b952846f6d38e774b1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "source_owner": "facilities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.LockStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "binding_digest": "7fd63902bd4197db8df53dc8a7c5bde4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.MoveStudentsToActiveGroupAuthorized",
       "binding_digest": "53e81a2187d3c5b69395f6a57b1931c4",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToActiveGroupAuthorized",
@@ -870,6 +886,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToOpenRoomSessionAuthorized",
       "source_owner": "facilities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.MoveStudentsToOpenRoomSessionAuthorized",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.PrepareOpenRoomMove",
+      "binding_digest": "6e9cfc3fba77c5c0fbb7d1b979c6ab72",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "source_owner": "facilities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.PrepareOpenRoomMove",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "binding_digest": "39361fbe31a9bd7f7f955505bd1e43e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.PrepareOpenRoomMove",
       "target_owner": "student-presence"
     },
     {

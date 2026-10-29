@@ -26,6 +26,12 @@ type reportRetention struct{ err error }
 
 func (r reportRetention) RoomRetentionDays(context.Context) (int, error)   { return 30, r.err }
 func (r reportRetention) CourseRetentionDays(context.Context) (int, error) { return 365, r.err }
+func (r reportRetention) AttendanceRetentionDays(context.Context) (int, error) {
+	return 365, r.err
+}
+func (r reportRetention) StatusDayRetentionDays(context.Context) (int, error) {
+	return 365, r.err
+}
 
 type reportAudit struct {
 	recordErr error
@@ -374,6 +380,27 @@ func TestRecordAccess_DeduplicatesOnlyMatchingNormalizedGroupScopes(t *testing.T
 	assert.Equal(t, "2,9", accessLog.metadata[0]["group_ids"])
 	assert.Equal(t, "2,9", accessLog.metadata[1]["group_ids"])
 	assert.Equal(t, "3", accessLog.metadata[2]["group_ids"])
+}
+
+func TestAccessMetadata_DistinguishesCommaInSchoolClass(t *testing.T) {
+	t.Parallel()
+	filters := studentpresence.StatisticsFilters{
+		From: calendar.NewDate(2026, 8, 1),
+		To:   calendar.NewDate(2026, 8, 2),
+	}
+
+	commaInClass := accessMetadata(studentpresence.StatisticsFilters{
+		From: filters.From, To: filters.To, SchoolClasses: []string{"1,2"},
+	}, "view")
+	separateClasses := accessMetadata(studentpresence.StatisticsFilters{
+		From: filters.From, To: filters.To, SchoolClasses: []string{"1", "2"},
+	}, "view")
+	reversedClasses := accessMetadata(studentpresence.StatisticsFilters{
+		From: filters.From, To: filters.To, SchoolClasses: []string{"2", "1"},
+	}, "view")
+
+	assert.NotEqual(t, commaInClass["school_classes"], separateClasses["school_classes"])
+	assert.Equal(t, separateClasses["school_classes"], reversedClasses["school_classes"])
 }
 
 type disabledRoomRetention struct{ reportRetention }

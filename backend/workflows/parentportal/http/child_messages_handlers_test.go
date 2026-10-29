@@ -31,7 +31,9 @@ func TestThreadSummaryResponseIncludesStaffReadStatus(t *testing.T) {
 		"counterpart_name":"OGS Schule am Berg",
 		"last_message_read_by_staff":true,
 		"last_message_payload":{"effective_from":"2026-09-01"},
-		"unread":0
+		"unread":0,
+		"audience":"team",
+		"readers":{"school":{"kind":"all_staff","names":[],"unnamed_count":0}}
 	}`, string(body))
 }
 
@@ -63,4 +65,35 @@ func TestNativeMessagePayloadKeepsObjectOmissionAndNumberWireValues(t *testing.T
 			}
 		})
 	}
+}
+
+// TestThreadViewReadersAndLeadershipOption pins the parent API of #5200: who
+// reads the conversation and whether the leadership choice is offered. The
+// names of the option appear only while it is available.
+func TestThreadViewReadersAndLeadershipOption(t *testing.T) {
+	t.Parallel()
+	view := toThreadView(&parentService.MessageThreadView{
+		StudentID: 82, SchoolName: "Schule am Berg", Audience: parentService.MessageAudienceLeadership,
+		GuardianName: "Sabine Schneider", LeadershipReaders: []string{"Swantje M.", ""},
+		Leadership: parentService.LeadershipOption{Enabled: true, Names: []string{"Swantje M.", ""}},
+	})
+	body, err := json.Marshal(struct {
+		Audience         string                   `json:"audience"`
+		Readers          ParentReadersResponse    `json:"readers"`
+		LeadershipOption LeadershipOptionResponse `json:"leadership_option"`
+	}{view.Audience, view.Readers, view.LeadershipOption})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"audience":"leadership",
+		"readers":{"guardian":{"name":"Sabine Schneider"},"school":{"kind":"leadership","names":["Swantje M."],"unnamed_count":1}},
+		"leadership_option":{"available":true,"names":["Swantje M."],"unnamed_count":1}}`, string(body))
+
+	off := toThreadView(&parentService.MessageThreadView{
+		StudentID: 82, Leadership: parentService.LeadershipOption{Enabled: false, Names: []string{"Swantje M."}},
+	})
+	assert.Equal(t, parentService.MessageAudienceTeam, off.Audience)
+	assert.Equal(t, ParentSchoolReadersResponse{Kind: "all_staff", Names: []string{}}, off.Readers.School)
+	assert.Equal(t, LeadershipOptionResponse{Available: false, Names: []string{}}, off.LeadershipOption)
+
+	group := toGroupThreadSummary(parentService.GroupThread{}, "Schule am Berg", nil)
+	assert.Equal(t, ParentSchoolReadersResponse{Kind: "all_staff", Names: []string{}}, group.Readers.School, "a group-thread answer goes to the team")
 }

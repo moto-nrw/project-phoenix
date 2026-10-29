@@ -1,7 +1,7 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { ApiError } from "./api-error";
-import { login } from "./mfa-api";
+import { login, verifyMFA, enrollConfirm } from "./mfa-api";
 
 describe("login error bodies", () => {
   const originalFetch = global.fetch;
@@ -75,4 +75,13 @@ describe("login error bodies", () => {
       login("tenant", { email: "a@b.de", password: "pw", tenantSlug: "s" }),
     ).rejects.toMatchObject({ status: 503, code: "general.unavailable" });
   });
+});
+
+it("all portal MFA results exclude completed session credentials", () => {
+  expectTypeOf<Awaited<ReturnType<typeof verifyMFA>>>().toEqualTypeOf<{
+    status: "authenticated";
+  }>();
+  expectTypeOf<Awaited<ReturnType<typeof enrollConfirm>>>().toEqualTypeOf<{
+    status: "authenticated";
+  }>();
 });
