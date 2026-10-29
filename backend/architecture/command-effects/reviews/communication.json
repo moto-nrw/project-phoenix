@@ -62,84 +62,14 @@
       "target_owner": "parent-announcement-audience"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.effectiveAdmins.ListEffectiveAdminAccountIDs",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
-      "target_owner": "staff-directory-view"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.Owner.ListEffectiveAdminAccountIDs: the school's administrator accounts, which read the leadership conversations through admin:* (#5200). May-bind method surface, not a production-call/liveness claim.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipAdmins.ListEffectiveAdminAccountIDs",
+      "reason": "Reviewed leadership eligibility read: Communication owns the permission intersection, admin union, deduplication and ordering. The root maps staff facts or delegates the active administrator lookup inside the caller tenant scope; these targets only construct the directory or SELECT account/staff facts, with no row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs.",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
       "target_owner": "identity-access"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
-      "target_owner": "staff-directory-view"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
-      "target_owner": "staff-directory-view"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.Owner.ListEffectiveAdminAccountIDs: the school's administrator accounts, which read the leadership conversations through admin:* (#5200). May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
-      "target_owner": "identity-access"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessageLeadership.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeaderDirectory.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
-      "target_owner": "staff-directory-view"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.Settings.ParentMessageLeadershipEnabled",
@@ -160,6 +90,66 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings.ParentMessagingValues.ParentMessageLeadershipEnabled",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMessageLeadershipStaff.StaffWithLeadershipPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipStaff.StaffWithLeadershipPermission",
+      "reason": "Reviewed leadership eligibility read: Communication owns the permission intersection, admin union, deduplication and ordering. The root maps staff facts or delegates the active administrator lookup inside the caller tenant scope; these targets only construct the directory or SELECT account/staff facts, with no row mutation or locking read. Target *github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission.",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMessageLeadershipStaff.StaffWithLeadershipPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipStaff.StaffWithLeadershipPermission",
+      "reason": "Reviewed leadership eligibility read: Communication owns the permission intersection, admin union, deduplication and ordering. The root maps staff facts or delegates the active administrator lookup inside the caller tenant scope; these targets only construct the directory or SELECT account/staff facts, with no row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMessageLeadershipStaff.StaffWithLeadershipPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipStaff.StaffWithLeadershipPermission",
+      "reason": "Reviewed leadership eligibility read: Communication owns the permission intersection, admin union, deduplication and ordering. The root maps staff facts or delegates the active administrator lookup inside the caller tenant scope; these targets only construct the directory or SELECT account/staff facts, with no row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMessageLeadershipStaff.StaffWithMessageReadPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipStaff.StaffWithMessageReadPermission",
+      "reason": "Reviewed leadership eligibility read: Communication owns the permission intersection, admin union, deduplication and ordering. The root maps staff facts or delegates the active administrator lookup inside the caller tenant scope; these targets only construct the directory or SELECT account/staff facts, with no row mutation or locking read. Target *github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission.",
+      "source_owner": "communication",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMessageLeadershipStaff.StaffWithMessageReadPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipStaff.StaffWithMessageReadPermission",
+      "reason": "Reviewed leadership eligibility read: Communication owns the permission intersection, admin union, deduplication and ordering. The root maps staff facts or delegates the active administrator lookup inside the caller tenant scope; these targets only construct the directory or SELECT account/staff facts, with no row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.parentMessageLeadershipStaff.StaffWithMessageReadPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication.ParentMessageLeadershipStaff.StaffWithMessageReadPermission",
+      "reason": "Reviewed leadership eligibility read: Communication owns the permission intersection, admin union, deduplication and ordering. The root maps staff facts or delegates the active administrator lookup inside the caller tenant scope; these targets only construct the directory or SELECT account/staff facts, with no row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New.",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication.parentMessagePeople.FindParentMessageStudent",
@@ -1271,46 +1261,6 @@
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByID",
       "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.Directory.StaffWithPermission. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
-      "target_owner": "staff-directory-view"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.Owner.ListEffectiveAdminAccountIDs: the school's administrator accounts, which read the leadership conversations through admin:* (#5200). May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.ListEffectiveAdminAccountIDs",
-      "target_owner": "identity-access"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
-      "target_owner": "people-directory"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ParentMessagePeopleWithLeaders.ParentMessageLeaders",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages.PersonLookup.ParentMessageLeaders",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/staffdirectoryview.New. May-bind method surface, not a production-call/liveness claim.",
-      "source_owner": "communication",
-      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
-      "target_owner": "staff-directory-view"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/composition.ParentMessageRetentionSettings.ParentMessageRetentionDays",

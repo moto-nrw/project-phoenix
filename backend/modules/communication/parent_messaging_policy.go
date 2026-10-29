@@ -80,8 +80,8 @@ func ParentMessageSchoolReadersKind(audience string) string {
 }
 
 // ParentMessageLeader is one person who reads the leadership conversations:
-// a live staff member of the school whose account holds
-// parent_messages:leadership, directly through a role or through admin:*.
+// a live staff member with both parent_messages:leadership and users:read,
+// or a school administrator, including accounts without a staff record.
 type ParentMessageLeader struct {
 	AccountID int64
 	FirstName string
@@ -105,8 +105,8 @@ func (l ParentMessageLeader) ShortName() string {
 }
 
 // ParentMessageLeaderDirectory lists the leadership persons of the school in
-// context. The composition root binds it over the school's staff and their
-// role permissions; the order is stable (by name).
+// context. Communication resolves eligibility through its staff and admin read
+// ports; the root binds those ports. The order is stable (by name).
 type ParentMessageLeaderDirectory interface {
 	ParentMessageLeaders(context.Context) ([]ParentMessageLeader, error)
 }

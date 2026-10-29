@@ -22,7 +22,7 @@ func TestParentMessageLeaders_RoleGrantAndAdminWildcard(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	identity, err := NewTestIdentityAccess(testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
-	leaders := owners.ParentMessageLeadership{Staff: NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff, Admins: identity}
+	leaders := owners.BindParentMessageLeadership(NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Staff, identity)
 	ctx := testpkg.Ctx(t)
 
 	_, roleAccount := testpkg.CreateTestCalendarStaff(t, db, "Swantje", "Meier")

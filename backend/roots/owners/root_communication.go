@@ -84,7 +84,7 @@ func BuildCommunicationMessaging(
 	logger := env.Logger
 	messagingConfig := communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db.Pool()),
-		ReadRepo: portal.ParentMessageRead, Persons: ParentMessagePeopleWithLeaders{ParentMessagePeople: BindParentMessagePeople(users), ParentMessageLeadership: ParentMessageLeadership{Staff: people.Staff, Admins: admins}}, UserContext: caller,
+		ReadRepo: portal.ParentMessageRead, Persons: ParentMessagePeopleWithLeaders{ParentMessagePeople: BindParentMessagePeople(users), ParentMessageLeadership: BindParentMessageLeadership(people.Staff, admins)}, UserContext: caller,
 		Session: session, Settings: settingsValues.NewParentMessagingValues(settings), Broadcaster: hub, DB: db.Pool(),
 		Logger: logger.With("service", "messaging"), Notifier: BindCommunicationNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307):
