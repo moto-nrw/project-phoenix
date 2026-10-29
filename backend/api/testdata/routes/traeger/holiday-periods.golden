@@ -1,5 +1,6 @@
 GET /traeger/holiday-periods/
 GET /traeger/holiday-periods/{id}
+GET /traeger/holiday-periods/{id}/form
 GET /traeger/holiday-periods/{id}/registrations
 GET /traeger/holiday-periods/{id}/registrations/export
 GET /traeger/holiday-periods/{id}/registrations/{registrationId}
@@ -9,4 +10,5 @@ POST /traeger/holiday-periods/{id}/registrations/{registrationId}/cancel
 POST /traeger/holiday-periods/{id}/registrations/{registrationId}/freeze
 POST /traeger/holiday-periods/{id}/registrations/{registrationId}/reopen
 PUT /traeger/holiday-periods/{id}
+PUT /traeger/holiday-periods/{id}/form
 PUT /traeger/holiday-periods/{id}/registrations/{registrationId}/children/{childId}/bookings

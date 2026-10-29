@@ -32,7 +32,7 @@ func TestDataImportRuntimeEvidence(t *testing.T) {
 	actor := newImporter(t, db)
 
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	testpkg.AttachLockWaitEvidence(db)
+	testpkg.AttachLockWaitEvidence(t, db)
 	baseCtx, events := testpkg.CaptureUnitOfWorkEvidence(counter.Context(testpkg.Ctx(t)))
 	var version string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(context.Background(), &version))

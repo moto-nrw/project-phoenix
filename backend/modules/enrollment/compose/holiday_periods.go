@@ -12,7 +12,7 @@ import (
 // NewHolidayPeriods builds the holiday periods of a Träger (#4659). They run
 // in the Träger transaction the Träger-Portal route opens (ADR 0105).
 func NewHolidayPeriods() enrollment.HolidayPeriods {
-	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore())
+	return applicationNative.NewHolidayPeriods(postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore())
 }
 
 // NewHolidayRegistrations builds the public holiday registration (#4661):
@@ -20,7 +20,7 @@ func NewHolidayPeriods() enrollment.HolidayPeriods {
 // Träger transaction the public route opens for the link's Träger (ADR 0110).
 func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail enrollment.TraegerMailOutbox, logger *slog.Logger) enrollment.HolidayRegistrations {
 	return applicationNative.NewHolidayRegistrations(applicationNative.HolidayRegistrationDependencies{
-		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(),
+		Registrations: postgres.NewHolidayRegistrationStore(), Periods: postgres.NewHolidayPeriodStore(), Forms: postgres.NewHolidayPeriodStore(),
 		Traeger: traeger, Mail: mail, Logger: logger,
 	})
 }
@@ -35,7 +35,7 @@ func NewHolidayRegistrationRetention(today func() calendar.Date) enrollment.Holi
 // by the Träger-Büro (#4663). It runs in the Träger transaction the
 // Träger-Portal route opens (ADR 0114).
 func NewHolidayRegistrationReview() enrollment.HolidayRegistrationReview {
-	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), nil)
+	return applicationNative.NewHolidayRegistrationReview(postgres.NewHolidayRegistrationStore(), postgres.NewHolidayPeriodStore(), postgres.NewHolidayPeriodStore(), nil)
 }
 
 // NewHolidayHostParticipants builds the hosting school's participant lists

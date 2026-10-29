@@ -22,6 +22,14 @@ describe("getTraegerHelpTopicForPath", () => {
     }
   });
 
+  it("opens the form article on the form of a holiday period (#5198)", () => {
+    for (const path of ["/traeger/ferien/5/formular", "/ferien/5/formular"]) {
+      expect(getTraegerHelpTopicForPath(path)).toBe(
+        HELP_TOPICS.traegerHolidayForm,
+      );
+    }
+  });
+
   it("opens the article of the contribution rules on the page Beiträge (#4664)", () => {
     for (const path of ["/beitraege", "/traeger/beitraege"]) {
       expect(getTraegerHelpTopicForPath(path)).toBe(

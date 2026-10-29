@@ -61,6 +61,10 @@ export function traegerHolidayPeriodTopic(): HelpTopic {
       "`Veröffentlichen` lässt sich nicht wählen? Speichern Sie zuerst Ihre Änderungen. Jede Woche braucht mindestens ein Zeitmodell.",
       "Eine Schule fehlt bei `Ausrichtende OGS`? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
     ],
-    related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerHolidayContribution],
+    related: [
+      HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerHolidayForm,
+      HELP_TOPICS.traegerHolidayContribution,
+    ],
   };
 }

@@ -17,7 +17,8 @@ const (
 	FieldText     FieldType = "text"
 	FieldTextarea FieldType = "textarea"
 	// FieldColor stores a colour code as text; the frontend shows a colour
-	// picker. A Pattern in Validation restricts the format.
+	// picker. A Pattern in Validation restricts the format. Options.Static
+	// may name preset colours to pick from; they do not restrict the value.
 	FieldColor    FieldType = "color"
 	FieldPassword FieldType = "password"
 	FieldSelect   FieldType = "select"
@@ -171,7 +172,7 @@ func Range(minVal, maxVal float64) *ValidationRules {
 }
 
 // SelectOptions provides static choices for a FieldSelect or FieldMultiSelect
-// setting.
+// setting, or the preset colours of a FieldColor setting.
 type SelectOptions struct {
 	Static []SelectOption `json:"static,omitempty"`
 }
@@ -203,6 +204,9 @@ func (d *Definition) Validate() error {
 	if err := d.compilePattern(); err != nil {
 		return err
 	}
+	if err := d.validateColorPresets(); err != nil {
+		return err
+	}
 	return d.validateDefaultRange()
 }
 
@@ -222,8 +226,8 @@ func (d *Definition) validateShape() error {
 		return fmt.Errorf("category is required for setting %s", d.Key)
 	}
 	selectType := d.Type == FieldSelect || d.Type == FieldMultiSelect
-	if d.Options != nil && !selectType {
-		return fmt.Errorf("options can only be set for select fields, setting %s has type %s", d.Key, d.Type)
+	if d.Options != nil && !selectType && d.Type != FieldColor {
+		return fmt.Errorf("options can only be set for select or color fields, setting %s has type %s", d.Key, d.Type)
 	}
 	if selectType && d.Options == nil {
 		return fmt.Errorf("select field %s must have options", d.Key)
@@ -269,6 +273,28 @@ func (d *Definition) compilePattern() error {
 		return fmt.Errorf("invalid validation pattern for %s: %w", d.Key, err)
 	}
 	d.Validation.CompiledPattern = compiled
+	return nil
+}
+
+// validateColorPresets checks that every preset of a colour field is a
+// labelled colour code its own pattern accepts, so picking a preset never
+// fails on save.
+func (d *Definition) validateColorPresets() error {
+	if d.Type != FieldColor || d.Options == nil {
+		return nil
+	}
+	if len(d.Options.Static) == 0 {
+		return fmt.Errorf("color field %s has empty options", d.Key)
+	}
+	for _, option := range d.Options.Static {
+		value, ok := option.Value.(string)
+		if !ok || option.Label == "" {
+			return fmt.Errorf("color preset %v of %s needs a label and a string value", option.Value, d.Key)
+		}
+		if d.Validation != nil && d.Validation.CompiledPattern != nil && !d.Validation.CompiledPattern.MatchString(value) {
+			return fmt.Errorf("color preset %s of %s does not match the validation pattern", value, d.Key)
+		}
+	}
 	return nil
 }
 

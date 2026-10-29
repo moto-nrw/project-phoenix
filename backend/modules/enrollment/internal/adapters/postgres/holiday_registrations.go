@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -96,10 +97,11 @@ const (
 	insertHolidayRegistrationQuery = `INSERT INTO enrollment.holiday_registrations
 			(organization_id, holiday_period_id, guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
 			 privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared,
-			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone)
+			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
+			form_version, custom_data)
 		VALUES (?, ?, ?, ?, ?, ?, statement_timestamp(),
 			CASE WHEN ? THEN statement_timestamp() END, CASE WHEN ? THEN statement_timestamp() END, ?,
-			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''))
+			NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), NULLIF(?, ''), ?, ?::jsonb)
 		RETURNING id, submitted_at`
 	insertHolidayBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
 			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id)
@@ -117,19 +119,37 @@ const (
 type holidayChildRow struct {
 	bun.BaseModel `bun:"table:enrollment.holiday_registration_children"`
 
-	ID                    int64         `bun:"id,pk,autoincrement"`
-	OrganizationID        int64         `bun:"organization_id"`
-	HolidayPeriodID       int64         `bun:"holiday_period_id"`
-	HolidayRegistrationID int64         `bun:"holiday_registration_id"`
-	Position              int           `bun:"position"`
-	FirstName             string        `bun:"first_name"`
-	LastName              string        `bun:"last_name"`
-	BirthDate             calendar.Date `bun:"birth_date,type:date"`
-	HomeSchoolID          *int64        `bun:"home_school_id"`
-	GuestSchoolName       string        `bun:"guest_school_name"`
-	Allergies             string        `bun:"allergies"`
-	Medication            string        `bun:"medication"`
-	HealthNotes           string        `bun:"health_notes"`
+	ID                    int64                     `bun:"id,pk,autoincrement"`
+	OrganizationID        int64                     `bun:"organization_id"`
+	HolidayPeriodID       int64                     `bun:"holiday_period_id"`
+	HolidayRegistrationID int64                     `bun:"holiday_registration_id"`
+	Position              int                       `bun:"position"`
+	FirstName             string                    `bun:"first_name"`
+	LastName              string                    `bun:"last_name"`
+	BirthDate             calendar.Date             `bun:"birth_date,type:date"`
+	HomeSchoolID          *int64                    `bun:"home_school_id"`
+	GuestSchoolName       string                    `bun:"guest_school_name"`
+	Allergies             string                    `bun:"allergies"`
+	Medication            string                    `bun:"medication"`
+	HealthNotes           string                    `bun:"health_notes"`
+	CustomData            enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+}
+
+// answersOrEmpty keeps a JSONB object column an object.
+func answersOrEmpty(answers enrollment.HolidayAnswers) enrollment.HolidayAnswers {
+	if answers == nil {
+		return enrollment.HolidayAnswers{}
+	}
+	return answers
+}
+
+// encodeAnswers encodes the answers of a registration for a JSONB column.
+func encodeAnswers(answers enrollment.HolidayAnswers) (string, error) {
+	encoded, err := json.Marshal(answersOrEmpty(answers))
+	if err != nil {
+		return "", fmt.Errorf("enrollment postgres: encode holiday registration answers: %w", err)
+	}
+	return string(encoded), nil
 }
 
 // InsertHolidayRegistration stores the registration with its children,
@@ -149,9 +169,13 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 	if input.SecondGuardian != nil {
 		second = *input.SecondGuardian
 	}
+	answers, err := encodeAnswers(input.CustomData)
+	if err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
 	if err := db.NewRaw(insertHolidayRegistrationQuery, organizationID, periodID, guardian.FirstName, guardian.LastName,
 		guardian.Email, guardian.Phone, input.HealthConsent, input.BindingConfirmed, input.BenefitsDeclared,
-		second.FirstName, second.LastName, second.Email, second.Phone).Scan(ctx, &receipt); err != nil {
+		second.FirstName, second.LastName, second.Email, second.Phone, input.FormVersion, answers).Scan(ctx, &receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment postgres: insert holiday registration: %w", err)
 	}
 	var childIDs, weekIDs, modelIDs []int64
@@ -160,6 +184,7 @@ func (s *HolidayRegistrationStore) InsertHolidayRegistration(ctx context.Context
 			OrganizationID: organizationID, HolidayPeriodID: periodID, HolidayRegistrationID: receipt.ID, Position: i + 1,
 			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
 			GuestSchoolName: child.GuestSchoolName, Allergies: child.Allergies, Medication: child.Medication, HealthNotes: child.HealthNotes,
+			CustomData: answersOrEmpty(child.CustomData),
 		}
 		if child.HomeSchoolID > 0 {
 			row.HomeSchoolID = &child.HomeSchoolID

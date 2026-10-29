@@ -15,12 +15,12 @@ import (
 // (statements inside tenant transactions included) while enabled, so a test
 // can bound the total, one operation, or the statements touching one table.
 //
-// Attach it with CaptureQueries (db.AddQueryHook, disabled again at cleanup)
-// or hand NewQueryCounter to db.WithQueryHook for a private bun clone. bun
-// never removes hooks, so a counter on a shared package DB keeps seeing every
-// later statement; Stop() at cleanup is what keeps tests from counting each
-// other. Tests that share a package DB must use CaptureQueriesForContext and
-// pass counter.Context(ctx) to the operation under test.
+// Attach it with CaptureQueries (registered with the pool's testQueryHooks
+// dispatcher, removed again at cleanup) or hand NewQueryCounter to
+// db.WithQueryHook for a private bun clone. An unscoped counter sees every
+// statement on its pool while it is registered. Tests that share a package DB
+// must use CaptureQueriesForContext and pass counter.Context(ctx) to the
+// operation under test.
 type QueryCounter struct {
 	enabled            atomic.Bool
 	mu                 sync.Mutex
@@ -51,8 +51,7 @@ func NewQueryCounter() *QueryCounter {
 func CaptureQueries(tb testing.TB, db *bun.DB) *QueryCounter {
 	tb.Helper()
 	c := NewQueryCounter()
-	db.AddQueryHook(c) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
-	tb.Cleanup(c.Stop)
+	registerTestQueryHook(tb, db, c, c.Stop)
 	return c
 }
 
@@ -62,8 +61,7 @@ func CaptureQueriesForContext(tb testing.TB, db *bun.DB) *QueryCounter {
 	tb.Helper()
 	c := NewQueryCounter()
 	c.scope = queryCounterScopeID.Add(1)
-	db.AddQueryHook(c) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
-	tb.Cleanup(c.Stop)
+	registerTestQueryHook(tb, db, c, c.Stop)
 	return c
 }
 
@@ -77,9 +75,9 @@ func (c *QueryCounter) Context(ctx context.Context) context.Context {
 }
 
 // CaptureSettingValueSelects counts config.setting_values SELECTs (#2065).
-func CaptureSettingValueSelects(db *bun.DB) func() int32 {
-	c := NewQueryCounter()
-	db.AddQueryHook(c)                                                            //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
+func CaptureSettingValueSelects(tb testing.TB, db *bun.DB) func() int32 {
+	tb.Helper()
+	c := CaptureQueries(tb, db)
 	return func() int32 { return int32(len(c.Selects("config.setting_values"))) } //nolint:gosec // test-only count
 }
 

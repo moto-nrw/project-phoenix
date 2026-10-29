@@ -312,6 +312,8 @@ import type { traegerBriefkopfTopic as authored_traegerBriefkopfTopic } from "./
 
 import type { traegerHolidayContributionTopic as authored_traegerHolidayContributionTopic } from "./articles/traeger-holiday-contribution";
 
+import type { traegerHolidayFormTopic as authored_traegerHolidayFormTopic } from "./articles/traeger-holiday-form";
+
 import type { traegerHolidayPeriodTopic as authored_traegerHolidayPeriodTopic } from "./articles/traeger-holiday-period";
 
 import type { traegerHolidayRegistrationReviewTopic as authored_traegerHolidayRegistrationReviewTopic } from "./articles/traeger-holiday-registration-review";
@@ -9029,7 +9031,7 @@ export const traegerAccessLogTopic =
           title: "Protokoll ansehen",
           steps: [
             "Melden Sie sich im Träger-Portal an.",
-            "Wählen Sie in der Navigation `Zugriffsprotokoll`.",
+            "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Zugriffsprotokoll`.",
             "Wählen Sie den Zeitraum. Am Anfang sind es die letzten 30 Tage.",
             "Wählen Sie bei Bedarf eine Schule und eine Person.",
             "Wählen Sie `Gelesen` oder `Geändert`, wenn Sie nur eine Art sehen möchten.",
@@ -9052,7 +9054,8 @@ export const traegerAccessLogTopic =
         "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
       ],
       differences: [
-        "Sie sehen in der Navigation kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
+        "Auf dem Handy steht `Zugriffsprotokoll` in der Leiste unten oder unter `Mehr`.",
+        "Sie sehen unter `Einstellungen` kein `Zugriffsprotokoll`? Dann hat Ihre Rolle kein Recht dazu.",
         "Steht bei Person `Unbekannte Person`? Zu diesem Konto kennt moto an der Schule keinen Namen, zum Beispiel bei Eltern.",
       ],
       troubleshootingDetails: [
@@ -9258,7 +9261,7 @@ export const traegerBriefkopfTopic =
         {
           title: "Logo hochladen",
           steps: [
-            "Wählen Sie in der Navigation `Briefkopf`.",
+            "Klicken Sie links unten in der Navigation auf `Einstellungen`. Wählen Sie darunter `Briefkopf`.",
             "Wählen Sie bei `Logo` den Knopf `Logo hochladen`.",
             "Wählen Sie ein Bild im Format PNG oder JPG, bis 1 MB.",
           ],
@@ -9267,7 +9270,8 @@ export const traegerBriefkopfTopic =
           title: "Absender, Farbe und Fußzeile eintragen",
           steps: [
             "Tragen Sie bei `Absender im Briefkopf` Name und Anschrift ein, jede Angabe in eine eigene Zeile.",
-            "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf den farbigen Kreis und wählen Sie eine Farbe. Oder tragen Sie den Farbcode Ihres Trägers in das Feld daneben ein: eine Raute und sechs Zeichen, so wie er im Logo-Entwurf steht.",
+            "Klicken Sie bei `Farbe für Briefe und Rechnungen` auf eine der Farben.",
+            "Passt keine Farbe, wählen Sie `Eigene Farbe`. Klicken Sie dann auf den farbigen Kreis und wählen Sie Ihre Farbe. Steht im Logo-Entwurf ein Farbcode, tragen Sie ihn in das Feld daneben ein: eine Raute und sechs Zeichen.",
             "Tragen Sie bei `Fußzeile` zum Beispiel Vorstand, Amtsgericht und Steuernummer ein.",
             "moto speichert jedes Feld von selbst.",
           ],
@@ -9299,6 +9303,7 @@ export const traegerBriefkopfTopic =
         "Jedes Ansehen und jede Änderung von Ansprechpartner und Bankverbindungen steht im Protokoll des Trägers.",
       ],
       differences: [
+        "Auf dem Handy steht `Briefkopf` in der Leiste unten oder unter `Mehr`.",
         "Sie können die Angaben nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
       ],
       troubleshootingDetails: [
@@ -9375,6 +9380,78 @@ export const traegerHolidayContributionTopic =
     };
   } satisfies typeof authored_traegerHolidayContributionTopic;
 
+export const traegerHolidayFormTopic =
+  function traegerHolidayFormTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerHolidayForm,
+      title: "Anmeldeformular der Ferien",
+      question: "Wie lege ich eigene Fragen für die Ferienanmeldung fest?",
+      summary:
+        "Jeder Ferienzeitraum hat ein eigenes Formular. Sie wählen, welche Fragen Eltern zusätzlich beantworten.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "NotePencil",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Fragen festlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Ferien`.",
+            "Öffnen Sie den Ferienzeitraum.",
+            "Wählen Sie den Reiter `Formular`.",
+            "Wählen Sie `Frage hinzufügen` oder `Infotext hinzufügen`.",
+            "Schreiben Sie die Frage und wählen Sie den `Typ`, zum Beispiel `Ja/Nein` oder `Auswahl`.",
+            "Soll jede Familie antworten oder jedes Kind? Für Fragen zum Kind wählen Sie `Pro Kind abfragen`.",
+            "Muss die Frage beantwortet werden? Wählen Sie `Pflichtfrage`.",
+            "Geht es um die Gesundheit des Kindes? Wählen Sie `Gesundheitsangabe`.",
+            "Mit den Pfeilen ändern Sie die Reihenfolge.",
+            "Wählen Sie `Als neue Version speichern`.",
+          ],
+        },
+        {
+          title: "Standardvorlage einfügen",
+          steps: [
+            "Wählen Sie `Standardvorlage einfügen`.",
+            "moto fügt die Fragen der Vorlage ein, die im Formular fehlen. Zum Beispiel Lebensmittelunverträglichkeiten, Tetanus-Impfschutz und Ausflüge.",
+            "Ändern oder entfernen Sie Fragen, die Sie nicht brauchen.",
+            "Wählen Sie `Als neue Version speichern`.",
+          ],
+        },
+        {
+          title: "Frage nur unter einer Bedingung zeigen",
+          steps: [
+            "Legen Sie zuerst eine Frage mit `Ja/Nein` oder `Auswahl` an.",
+            "Wählen Sie bei der anderen Frage `Nur unter einer Bedingung anzeigen`.",
+            "Wählen Sie die Frage und die Antwort, bei der sie erscheinen soll.",
+          ],
+        },
+      ],
+      result:
+        "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
+      notes: [
+        "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
+        "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig.",
+        "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
+        "Mit `Änderungen verwerfen` holen Sie die gespeicherten Fragen zurück. Das gilt auch für Auswahloptionen.",
+        "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nur in der Anmeldung, nicht in Liste und Export.",
+        "Antworten ohne Gesundheitsangabe stehen im Export in eigenen Spalten.",
+        "Die ausrichtende OGS sieht die Antworten nicht.",
+      ],
+      troubleshootingDetails: [
+        "`Nur unter einer Bedingung anzeigen` lässt sich nicht wählen? Es gibt noch keine Frage mit `Ja/Nein` oder `Auswahl`. Eine Frage zur Familie kann nicht von einer Frage zum Kind abhängen.",
+        "`Standardvorlage einfügen` lässt sich nicht wählen? Alle Fragen der Vorlage sind schon im Formular.",
+      ],
+      related: [
+        HELP_TOPICS.traegerHolidayPeriod,
+        HELP_TOPICS.traegerHolidayRegistration,
+        HELP_TOPICS.traegerHolidayRegistrationReview,
+      ],
+    };
+  } satisfies typeof authored_traegerHolidayFormTopic;
+
 /** `/traeger/ferien` (#4659): Ferienzeitraum mit Wochen und Zeitmodellen. */
 export const traegerHolidayPeriodTopic =
   function traegerHolidayPeriodTopic(): HelpTopic {
@@ -9438,6 +9515,7 @@ export const traegerHolidayPeriodTopic =
       ],
       related: [
         HELP_TOPICS.traegerLogin,
+        HELP_TOPICS.traegerHolidayForm,
         HELP_TOPICS.traegerHolidayContribution,
       ],
     };
@@ -9476,7 +9554,7 @@ export const traegerHolidayRegistrationReviewTopic =
         {
           title: "Bestätigen oder stornieren",
           steps: [
-            "Prüfen Sie die Angaben der Eltern und der Kinder.",
+            "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
             "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
             "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
@@ -9512,7 +9590,7 @@ export const traegerHolidayRegistrationReviewTopic =
       notes: [
         "Eltern bekommen beim Bestätigen und Stornieren noch keine Nachricht von moto.",
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
-        "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin.",
+        "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
         "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
@@ -9657,6 +9735,7 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Melden Sie sich zum ersten Mal an? Dann richten Sie den Code zuerst ein. Wählen Sie `Code an meine E-Mail senden`. Geben Sie danach den Code ein.",
       "Der Code ist im Träger-Portal immer Pflicht. moto merkt sich Ihr Gerät hier nicht.",
       "Am Computer stehen die Bereiche links in der Navigation. Auf dem Handy stehen sie unten. Was dort keinen Platz hat, finden Sie unter `Mehr`.",
+      "`Briefkopf`, `Einstellungen` und `Zugriffsprotokoll` stehen am Computer links unten unter `Einstellungen`. Ein Klick darauf klappt sie auf.",
     ],
     troubleshootingDetails: [
       "Keine E-Mail mit Code? Schauen Sie im Spam-Ordner nach. Wählen Sie sonst `Neuen Code anfordern`.",
@@ -9723,7 +9802,8 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
     icon: "Settings",
     requirements: ["Sie dürfen im Träger-Büro Einstellungen ändern."],
     steps: [
-      "Wählen Sie in der Navigation `Einstellungen`.",
+      "Klicken Sie links unten in der Navigation auf `Einstellungen`.",
+      "Wählen Sie darunter noch einmal `Einstellungen`.",
       "Wählen Sie den Bereich, zum Beispiel `Anmeldung` oder `Betrieb`.",
       "Ändern Sie den Wert. moto speichert die Änderung von selbst.",
     ],
@@ -9737,6 +9817,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
     ],
     differences: [
+      "Auf dem Handy steht `Einstellungen` in der Leiste unten oder unter `Mehr`.",
       "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],
