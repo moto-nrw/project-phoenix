@@ -74,13 +74,30 @@ Path by path (tests in `modules/studentpresence/compose/room_visit_revision_test
 | Session deletion | session events of its cascaded visits; no trigger | sequential (FK serializes visit inserts) |
 | Nightly compaction | none; folds and collapses | late checkout of an ended session during the compaction |
 
-- **No new lock edge.** The triggers only insert. `room_id` and
+- **No new lock edge on the write paths.** The triggers only insert. `room_id` and
   `entered_group_id` have no foreign key, so no key-share lock reaches a room
   or a session, and no trigger fires on deletes. A room change, session end
   or reopening does not wait for a visit writer of that session, and a visit
   writer does not wait for them (`room lifecycle takes no visit lock`); the
   deadlock replays of ADR 0131, including reattach against scan (#5206),
   stay green.
+- **One compaction lock.** Two overlapping compactions could each see
+  another state of a session deleted in between: one replaces the session's
+  entry rows, the other folds its session events without those
+  replacements, and the room would lose the session's sum. The compaction
+  therefore takes a transaction-scoped advisory lock per school
+  (`pg_advisory_xact_lock`) in a statement of its own, so a waiting
+  compaction reads a fresh snapshot after its predecessor commits
+  (`TestRoomRevisionSurvivesOverlappingCompactionsAndSessionDeletion`). Only
+  the compaction takes this lock, and it is the last step of the nightly
+  close's transaction: sessions locked `FOR UPDATE` in id order, visits and
+  sessions ended, then the lock, one compaction statement and the commit.
+  After the lock the holder waits for no row a scan, checkout, transfer or
+  reattach holds: event rows are never updated, and rows other writers have
+  not committed are invisible to its delete. Two nightly closes of one school
+  meet first on the session rows in id order. The lock therefore closes no
+  cycle with the visit and session writers, including reattach against scan
+  (#5206).
 - **Compaction.** The nightly close (`EndGroupSessions`) folds the events of
   a deleted session into one room row per room it entered, with the
   session's sum plus that room's entry sum. A deleted session gets no event
