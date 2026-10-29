@@ -1,9 +1,10 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -143,7 +144,7 @@ export function CarePlanImpact({
           bare
           className="space-y-3"
         >
-          <ManualTemplateList>
+          <ResponsiveActionList>
             {impact.notAdjusted.map((template) => (
               <ManualTemplateEntry
                 key={template.templateId}
@@ -156,7 +157,7 @@ export function CarePlanImpact({
                 connectLink={connectLink(template.templateId)}
               />
             ))}
-          </ManualTemplateList>
+          </ResponsiveActionList>
           {actionMissing ? (
             <p className="mt-3 text-xs text-gray-500">
               Ändern kann nur, wer den Betreuungsplan bearbeiten darf.
@@ -187,20 +188,6 @@ export function CarePlanImpact({
         error={errors.error}
       />
     </SectionCard>
-  );
-}
-
-/**
- * The Regeltermine with a dividing line between them, as in the list of
- * offerings without a Regeltermin (#5181). From `sm` on the actions sit in
- * one column of their own (the rows share it through `subgrid`), so every
- * row's buttons start at the same place. Below `sm` each row stacks.
- */
-function ManualTemplateList({ children }: Readonly<{ children: ReactNode }>) {
-  return (
-    <ul className="divide-y divide-gray-100 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4">
-      {children}
-    </ul>
   );
 }
 

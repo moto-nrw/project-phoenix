@@ -12,6 +12,7 @@ import { ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Tooltip } from "~/components/ui/tooltip";
@@ -150,7 +151,7 @@ export function OfferingGapHints({
             />
           }
         >
-          <OfferingGapList id={openListId}>
+          <ResponsiveActionList id={openListId}>
             {visible.map((gap) => (
               <OfferingGapRow key={gap.offering.id} gap={gap}>
                 {canManage ? (
@@ -179,7 +180,7 @@ export function OfferingGapHints({
                 ) : null}
               </OfferingGapRow>
             ))}
-          </OfferingGapList>
+          </ResponsiveActionList>
           {hiddenCount > 0 ? (
             <Button
               type="button"
@@ -213,7 +214,7 @@ export function OfferingGapHints({
           defaultCollapsed
           headingLevel={3}
         >
-          <OfferingGapList>
+          <ResponsiveActionList>
             {decided.map((gap) => (
               <OfferingGapRow key={gap.offering.id} gap={gap}>
                 <Button
@@ -228,33 +229,10 @@ export function OfferingGapHints({
                 </Button>
               </OfferingGapRow>
             ))}
-          </OfferingGapList>
+          </ResponsiveActionList>
         </SectionCard>
       ) : null}
     </div>
-  );
-}
-
-/**
- * The rows with a dividing line between them. From `sm` on the actions sit
- * in one column of their own (the rows share it through `subgrid`), so every
- * row's buttons start at the same place, however long its text is. Below
- * `sm` each row stacks: text above, buttons below. Every decision is the
- * same kit button, neither way the lesser one; its accessible name starts
- * with the visible label and adds the offering, so a screen reader's button
- * list tells the rows apart.
- */
-function OfferingGapList({
-  id,
-  children,
-}: Readonly<{ id?: string; children: ReactNode }>) {
-  return (
-    <ul
-      id={id}
-      className="divide-y divide-gray-100 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4"
-    >
-      {children}
-    </ul>
   );
 }
 
