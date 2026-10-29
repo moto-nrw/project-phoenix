@@ -202,7 +202,7 @@ func TestHolidayProofUploadRefusesWrongFilesAndForeignTokens(t *testing.T) {
 	assert.Equal(t, "enrollment.upload_invalid", refusal(rec), "only PDF, JPEG and PNG by their content")
 	rec = uploadProof(t, public, f.period.PublicToken, "bescheid.png", proofPDF)
 	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
-	assert.Equal(t, "enrollment.upload_invalid", refusal(rec), "the extension must name the content")
+	assert.Equal(t, "enrollment.upload_content_mismatch", refusal(rec), "the extension must name the content")
 	rec = uploadProof(t, public, f.period.PublicToken, "gross.pdf", append(bytes.Clone(proofPDF), bytes.Repeat([]byte{' '}, 10*1024*1024)...))
 	assert.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	assert.Equal(t, "enrollment.upload_invalid", refusal(rec), "at most 10 MB per file")
