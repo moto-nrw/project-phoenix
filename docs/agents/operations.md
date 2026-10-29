@@ -98,6 +98,13 @@ previously managed native app processes, then starts only the selected apps.
 All modes keep Postgres and Mailpit; frontend-only mode skips Go and migrations
 and expects a separately running backend for API calls. Backend children default
 to `GOFLAGS=-p=4` and `GOMAXPROCS=4`, preserving explicit caller values.
+`down` captures both managed process trees before sending TERM and waits up to
+ten seconds for them to exit, including children whose launcher exits first.
+On timeout it returns an error without forcing KILL. A persisted shutdown
+snapshot tracks surviving children across retries, even if the supervisor
+removes the launcher PID files; start times guard against reused PIDs.
+Chain cache cleanup or a restart with `&&` so a failed stop blocks both.
+The same stop gate runs before `up` replaces apps or `docker` starts Compose apps.
 After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
