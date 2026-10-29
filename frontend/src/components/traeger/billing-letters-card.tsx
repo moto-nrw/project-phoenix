@@ -67,7 +67,7 @@ export function BillingLettersCard({
             runId={runId}
             isOpen
             onClose={() => setCreating(false)}
-            onCreated={(created: BillingLetters) => {
+            onCreated={(created) => {
               setCreating(false);
               onCreated(created);
             }}

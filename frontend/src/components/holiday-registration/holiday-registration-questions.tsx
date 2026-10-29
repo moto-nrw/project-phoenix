@@ -71,7 +71,7 @@ export function HolidayQuestions({
                   inputName={name}
                   field={field}
                   value={answers[field.key]}
-                  onChange={(value: unknown) => onChange(field.key, value)}
+                  onChange={(value) => onChange(field.key, value)}
                   error={fieldError(name)}
                   controlId={name.replaceAll(".", "-")}
                 />
