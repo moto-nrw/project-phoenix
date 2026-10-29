@@ -80,7 +80,8 @@ func bookingWindows(booking OfferingWeekdayBooking) []OfferingBookingWindow {
 
 // covers reports whether the booked date needs no Regeltermin of its own: a
 // Regeltermin of the offering has an occurrence there, the class arrives
-// only at the pickup, or another Regeltermin plans the child that day.
+// only at the pickup, or the Regeltermine that plan the child that day cover
+// the whole stretch from arrival to pickup together.
 func (p offeringGapPlan) covers(booking OfferingWeekdayBooking, date calendar.Date) bool {
 	if slices.ContainsFunc(p.templates, func(t offeringGapIndexedTemplate) bool { return t.Occurrences[date] && t.feeds(booking) }) {
 		return true
@@ -94,9 +95,13 @@ func (p offeringGapPlan) covers(booking OfferingWeekdayBooking, date calendar.Da
 	if need.empty() {
 		return true
 	}
-	return slices.ContainsFunc(p.templates, func(t offeringGapIndexedTemplate) bool {
-		return t.plans(booking.StudentID, date, p.scope.PeriodID) && t.overlaps(date, need)
-	})
+	clocks := make([]OccurrenceClock, 0)
+	for _, t := range p.templates {
+		if t.plans(booking.StudentID, date, p.scope.PeriodID) {
+			clocks = append(clocks, t.Times[date]...)
+		}
+	}
+	return need.coveredBy(clocks)
 }
 
 // need is the child's care stretch on date; false when the offering does
@@ -134,13 +139,29 @@ func (t offeringGapIndexedTemplate) plans(studentID int64, date calendar.Date, p
 	})
 }
 
-// overlaps reports whether one of the Regeltermin's occurrences on date
-// overlaps the need. The child is on each of them, so one is enough; a date
-// without a known time overlaps nothing.
-func (t OfferingGapTemplate) overlaps(date calendar.Date, need offeringGapNeed) bool {
-	return slices.ContainsFunc(t.Times[date], func(clock OccurrenceClock) bool {
-		return clock.StartMinute < clock.EndMinute && clock.StartMinute < need.until && clock.EndMinute > need.from
-	})
+// coveredBy reports whether the occurrences cover the need without a gap
+// (#5343): their union contains every minute from arrival to pickup. All
+// windows are half-open wall-clock minutes, [start, end), so 11:45–12:45 and
+// 12:45–16:00 meet seamlessly, while a mere overlap such as a Lernzeit from
+// 13:00 to 14:00 leaves 11:45–13:00 and 14:00–16:00 open. A window without a
+// positive length or a known time covers nothing.
+func (n offeringGapNeed) coveredBy(clocks []OccurrenceClock) bool {
+	sorted := slices.Clone(clocks)
+	slices.SortFunc(sorted, func(a, b OccurrenceClock) int { return a.StartMinute - b.StartMinute })
+	reached := n.from
+	for _, clock := range sorted {
+		if clock.StartMinute >= clock.EndMinute || clock.EndMinute <= reached {
+			continue
+		}
+		if clock.StartMinute > reached {
+			return false
+		}
+		reached = clock.EndMinute
+		if reached >= n.until {
+			return true
+		}
+	}
+	return reached >= n.until
 }
 
 // newSeriesPlansCovered reports whether a new Regeltermin started from the

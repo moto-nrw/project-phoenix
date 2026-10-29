@@ -29,10 +29,11 @@ var ErrOfferingGapNotFound = errors.New("offering has no booked children without
 //   - With clock times (the class's arrival from the Klassentag and the
 //     offering's pickup time that day), the child needs care from arrival to
 //     pickup. A class that arrives at the pickup time or later needs none
-//     from this offering that day; the date is not reported. Otherwise any
-//     Regeltermin that plans the child on that date at a time overlapping
-//     the need covers it, whatever feeds it; one that starts only when the
-//     need ends does not.
+//     from this offering that day; the date is not reported. Otherwise the
+//     Regeltermine that plan the child on that date, whatever feeds them,
+//     cover it only when their occurrences together span the whole stretch
+//     without a gap; occurrences that meet (11:45–12:45 and 12:45–16:00)
+//     count as seamless, a mere overlap does not.
 //   - Without both times, or for an offering outside school days (a holiday
 //     phase or holiday care, where the Klassentag says nothing), the strict
 //     day rule holds: only a Regeltermin without any offering source that

@@ -139,11 +139,11 @@ func TestDetectOfferingGapsClassDayCoverage(t *testing.T) {
 	}{
 		{name: "Klassen-Randstunde at the time", arrivals: arrives1145, templates: []OfferingGapTemplate{classTemplate(child, clock1145, clock1245, 1, 3)}},
 		{name: "hand-kept list at the time", arrivals: arrives1145, templates: []OfferingGapTemplate{handList}},
-		{name: "partial overlap counts", arrivals: arrives1145, templates: []OfferingGapTemplate{classTemplate(child, 12*60, 13*60, 1, 3)}},
-		{name: "another offering's Regeltermin at the time counts", arrivals: arrives1145, templates: []OfferingGapTemplate{
+		{name: "a partial overlap leaves a gap", arrivals: arrives1145, templates: []OfferingGapTemplate{classTemplate(child, 12*60, 13*60, 1, 3)}, uncovered: []int{1, 3}},
+		{name: "another offering's Regeltermin over the whole need counts", arrivals: arrives1145, templates: []OfferingGapTemplate{
 			func() OfferingGapTemplate {
 				template := mittagTemplate(child, 1, 3)
-				template.Times = clockTimes(12*60, clock1345, 1, 3)
+				template.Times = clockTimes(11*60+30, clock1345, 1, 3)
 				return template
 			}(),
 		}},
@@ -316,8 +316,9 @@ func TestDetectOfferingGapsDatedArrival(t *testing.T) {
 
 // TestDetectOfferingGapsOccurrenceTimes: the check reads each date's own
 // clock windows, as the projection reports them. A single occurrence moved
-// out of the need leaves that date open; of two occurrences on one date one
-// overlapping is enough; a date without a known time covers nothing.
+// out of the need leaves that date open; a second occurrence that day
+// counts only when it covers the need; a date without a known time covers
+// nothing.
 func TestDetectOfferingGapsOccurrenceTimes(t *testing.T) {
 	t.Parallel()
 	child := studentRange(600, 1)
@@ -334,8 +335,12 @@ func TestDetectOfferingGapsOccurrenceTimes(t *testing.T) {
 	assert.Equal(t, []int{1}, gaps[0].Weekdays)
 
 	template.Times[moved] = []OccurrenceClock{{StartMinute: 14 * 60, EndMinute: 15 * 60}, {StartMinute: 12 * 60, EndMinute: 13 * 60}}
+	assert.Len(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings()), 1,
+		"a second occurrence that only overlaps the need leaves it open")
+
+	template.Times[moved] = []OccurrenceClock{{StartMinute: 14 * 60, EndMinute: 15 * 60}, {StartMinute: clock1145, EndMinute: clock1245}}
 	assert.Empty(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings()),
-		"a second occurrence that day overlaps the need")
+		"a second occurrence that day covers the need")
 
 	delete(template.Times, moved)
 	assert.Len(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings()), 1,
@@ -416,4 +421,67 @@ func TestParseOfferingGapClock(t *testing.T) {
 		_, ok := ParseOfferingGapClock(value)
 		assert.False(t, ok, value)
 	}
+}
+
+// TestDetectOfferingGapsGaplessCoverage pins the decision on #5343: a day
+// counts as planned only when the Regeltermine that plan the child that day
+// cover the need from arrival to pickup together, without a gap. Windows are
+// half-open wall-clock minutes, so occurrences that meet are seamless.
+func TestDetectOfferingGapsGaplessCoverage(t *testing.T) {
+	t.Parallel()
+	child := studentRange(700, 1)
+	arrives1145 := weeklyArrivals(map[string]map[int]int{"2a": {1: clock1145}})
+	pickup1600 := func() []OfferingWeekdayBooking {
+		bookings := classDayBookings("2a", 700, 1, 1)
+		bookings[0].PickupTimes = map[int]string{1: "16:00"}
+		return bookings
+	}
+	window := func(start, end int) OfferingGapTemplate { return classTemplate(child, start, end, 1) }
+	cases := []struct {
+		name      string
+		templates []OfferingGapTemplate
+		wantGap   bool
+	}{
+		{name: "Lernzeit 13–14 bei Bedarf 11:45–16:00 → Lücke", templates: []OfferingGapTemplate{window(13*60, 14*60)}, wantGap: true},
+		{name: "Randstunde 11:45–12:45 und Ganztag 12:45–16:00 aneinander → gedeckt", templates: []OfferingGapTemplate{window(clock1145, clock1245), window(clock1245, 16*60)}},
+		{name: "one Regeltermin over the whole stretch", templates: []OfferingGapTemplate{window(clock1145, 16*60)}},
+		{name: "a wider Regeltermin", templates: []OfferingGapTemplate{window(11*60, 17*60)}},
+		{name: "overlapping Regeltermine", templates: []OfferingGapTemplate{window(11*60, 13*60), window(12*60+30, 16*60+30)}},
+		{name: "one minute missing between them", templates: []OfferingGapTemplate{window(clock1145, clock1245-1), window(clock1245, 16*60)}, wantGap: true},
+		{name: "the start is missing", templates: []OfferingGapTemplate{window(12*60, 16*60)}, wantGap: true},
+		{name: "the end is missing", templates: []OfferingGapTemplate{window(clock1145, 15*60+59)}, wantGap: true},
+		{name: "a Regeltermin without the child does not fill the gap", templates: []OfferingGapTemplate{
+			window(clock1145, clock1245), classTemplate(studentRange(990, 1), clock1245, 16*60, 1),
+		}, wantGap: true},
+		{name: "another offering's Regeltermin fills its part", templates: []OfferingGapTemplate{
+			window(clock1145, clock1245),
+			func() OfferingGapTemplate {
+				template := mittagTemplate(child, 1)
+				template.Times = clockTimes(clock1245, 16*60, 1)
+				return template
+			}(),
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			gaps := DetectOfferingGaps(withArrivals(arrives1145), tc.templates, pickup1600())
+			assert.Equal(t, tc.wantGap, len(gaps) == 1, "%+v", gaps)
+		})
+	}
+}
+
+// TestDetectOfferingGapsGaplessPerOccurrence: two occurrences of one
+// Regeltermin on a date add up like two Regeltermine.
+func TestDetectOfferingGapsGaplessPerOccurrence(t *testing.T) {
+	t.Parallel()
+	child := studentRange(710, 1)
+	arrivals := weeklyArrivals(map[string]map[int]int{"2b": {1: clock1145}})
+	bookings := classDayBookings("2b", 710, 1, 1)
+	bookings[0].PickupTimes = map[int]string{1: "16:00"}
+	template := classTemplate(child, clock1145, clock1245, 1)
+	for date := range template.Times {
+		template.Times[date] = append(template.Times[date], OccurrenceClock{StartMinute: clock1245, EndMinute: 16 * 60})
+	}
+	assert.Empty(t, DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{template}, bookings))
 }
