@@ -11,6 +11,7 @@ import "@testing-library/jest-dom/vitest";
 import { ApiError, reportSessionTenantMismatch } from "~/lib/api-error";
 import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
 import { catalogText } from "~/test/error-catalog-text";
+import { runTenantSessionEnd } from "~/lib/tenant-session-end";
 
 // ============================================================================
 // Mocks
@@ -700,6 +701,51 @@ describe("TenantGuard", () => {
     );
     expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
   });
+
+  it.each(["authenticated", "unauthenticated"])(
+    "leaves an ended %s session to the active explicit logout",
+    async (status) => {
+      let finish!: () => void;
+      const flight = runTenantSessionEnd(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      await Promise.resolve();
+      try {
+        mockUseSession.mockReturnValue({
+          data:
+            status === "authenticated"
+              ? { user: { tenantId: 1 }, error: "RefreshTokenError" }
+              : null,
+          status,
+          update: vi.fn(),
+        });
+        mockUseTenant.mockReturnValue({
+          tenantSlug: "school-a",
+          tenant: tenantA,
+        });
+        await act(async () => {
+          render(
+            <TenantGuard>
+              <div>Protected Content</div>
+            </TenantGuard>,
+          );
+        });
+        // Anker: the guard is mounted and protects the ended session.
+        expect(
+          screen.getByText("Sitzung wird erneuert..."),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+        expect(mockSignOut).not.toHaveBeenCalled();
+        expect(window.location.assign).not.toHaveBeenCalled();
+      } finally {
+        finish();
+        await flight;
+      }
+    },
+  );
 
   it("signs out authenticated session with refresh error", async () => {
     mockUseSession.mockReturnValue({

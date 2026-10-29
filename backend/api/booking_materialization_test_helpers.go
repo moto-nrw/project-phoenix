@@ -245,7 +245,7 @@ func mustStudentTemplateDays(db transactionruntime.Database, rows owners.Timetab
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	days, err := owners.NewTimetableStudentTemplateDays(rows.Repositories, owners.MustNewTimetableRecurrenceLock(db), today, slog.Default())
+	days, err := owners.NewTimetableStudentTemplateDays(rows.Repositories, rows.CalendarPeriod, owners.MustNewTimetableRecurrenceLock(db), today, slog.Default())
 	if err != nil {
 		panic(fmt.Sprintf("student template days test module: %v", err))
 	}

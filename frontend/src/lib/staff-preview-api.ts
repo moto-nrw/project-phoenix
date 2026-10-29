@@ -145,7 +145,10 @@ async function startStaffPreview(
  * Plain fetch, not sessionFetch: sessionFetch would throw when the
  * admin session has already expired, and the call must never fail the end.
  */
-async function postPreviewEnd(): Promise<void> {
+export async function recordStaffPreviewEnd(
+  signal?: AbortSignal,
+): Promise<void> {
+  signal?.throwIfAborted();
   try {
     await fetch("/api/auth/staff-preview/end", {
       method: "POST",
@@ -153,11 +156,14 @@ async function postPreviewEnd(): Promise<void> {
       body: JSON.stringify({}),
       // The end of the preview waits for this call; a stalled request must
       // not keep the admin in the preview.
-      signal: AbortSignal.timeout(5000),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
+        : AbortSignal.timeout(5000),
     });
   } catch {
     // Audit only — ending the preview must never fail on this call.
   }
+  signal?.throwIfAborted();
 }
 
 /**
@@ -197,7 +203,7 @@ export async function performEndStaffPreview(
   update: SessionUpdate,
   swrMutate: SwrMutateAll,
 ): Promise<void> {
-  await postPreviewEnd();
+  await recordStaffPreviewEnd();
   let restoreError: unknown = null;
   try {
     const result = await update({ previewEnd: true });

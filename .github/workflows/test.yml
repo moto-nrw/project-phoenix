@@ -9,6 +9,12 @@ on:
       run-frontend:
         type: boolean
         default: true
+      frontend-guards-only:
+        type: boolean
+        default: false
+      run-frontend-runner-tests:
+        type: boolean
+        default: false
       run-seed-smoke:
         type: boolean
         required: true
@@ -377,8 +383,8 @@ jobs:
       matrix:
         # Changed-only PRs keep one DOM job. Full suites split its files with
         # Vitest's built-in sharding, retaining four workers per DOM runner.
-        project: ${{ fromJSON((!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
-    runs-on: ${{ matrix.project == 'node' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+        project: ${{ fromJSON(inputs.frontend-guards-only && '["guards"]' || (!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
+    runs-on: ${{ (matrix.project == 'node' || matrix.project == 'guards') && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
 
@@ -406,6 +412,10 @@ jobs:
       - name: Check filesystem guard inventory
         if: ${{ matrix.project == 'node' }}
         run: node scripts/test-frontend-changed.mjs --check-guards
+
+      - name: Test frontend selection runner
+        if: ${{ matrix.project == 'node' && inputs.run-frontend-runner-tests }}
+        run: node --test scripts/test-frontend-changed.test.mjs
 
       # Layout needs a real browser; jsdom/happy-dom compute no boxes (#3328).
       # The binary is cached per lockfile, OS libs install every run.
@@ -443,6 +453,9 @@ jobs:
           test_args=(--project app-dom)
           if [ "$PROJECT" = node ]; then
             test_args=(--project api-node --project logic-node)
+          elif [ "$PROJECT" = guards ]; then
+            # Guard paths span Vitest projects. Do not filter DOM guards out.
+            test_args=()
           fi
           case "$PROJECT" in
             dom-1|dom-2) test_args+=(--shard "${PROJECT#dom-}/2") ;;

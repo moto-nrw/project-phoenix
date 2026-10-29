@@ -15,6 +15,8 @@ import {
 
 const { mockSignOut } = vi.hoisted(() => ({ mockSignOut: vi.fn() }));
 
+vi.mock("~/lib/tenant-session-cookie", () => ({ signOutTenant: mockSignOut }));
+
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {

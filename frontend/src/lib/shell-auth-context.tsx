@@ -16,8 +16,9 @@ import { apiErrorFromResponse } from "~/lib/api-error";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { getSmartRedirectPath } from "~/lib/redirect-utils";
-import { performEndStaffPreview } from "~/lib/staff-preview-api";
-import { mutate } from "~/lib/swr";
+import { recordStaffPreviewEnd } from "~/lib/staff-preview-api";
+import { runTenantSessionEnd } from "~/lib/tenant-session-end";
+import { signOutTenant } from "~/lib/tenant-session-cookie";
 
 const logger = createLogger({ component: "ShellAuthContext" });
 
@@ -31,11 +32,14 @@ type ShowLogoutError = ReturnType<typeof useApiErrorDisplay>["show"];
 function reportingLogout(
   endSession: () => Promise<void>,
   showLogoutError: ShowLogoutError,
+  signal?: AbortSignal,
+  retryLogout?: () => Promise<void>,
 ): () => Promise<void> {
   const logout = async (): Promise<void> => {
     try {
       await endSession();
     } catch (err: unknown) {
+      if (signal?.aborted) return;
       try {
         sessionStorage.removeItem(DELIBERATE_LOGOUT_KEY);
       } catch {
@@ -43,7 +47,7 @@ function reportingLogout(
       }
       void showLogoutError(err, {
         object: "die Abmeldung",
-        retry: () => void logout().catch(() => undefined),
+        retry: () => void (retryLogout ?? logout)().catch(() => undefined),
       });
       throw err;
     }
@@ -57,11 +61,17 @@ function reportingLogout(
  * a late response writes back; a failed revocation therefore throws and the
  * caller keeps the session. 401 means nothing is left to revoke.
  */
-async function revokeSessionFamily(path: string): Promise<void> {
+async function revokeSessionFamily(
+  path: string,
+  signal?: AbortSignal,
+): Promise<void> {
   const response = await fetch(path, {
     method: "POST",
-    signal: AbortSignal.timeout(5000),
+    signal: signal
+      ? AbortSignal.any([signal, AbortSignal.timeout(5000)])
+      : AbortSignal.timeout(5000),
   });
+  signal?.throwIfAborted();
   if (!response.ok && response.status !== 401) {
     throw await apiErrorFromResponse(response, "Logout failed");
   }
@@ -141,7 +151,7 @@ export function TeacherShellProvider({
 }: {
   readonly children: React.ReactNode;
 }) {
-  const { data: session, status: sessionStatus, update } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
   const { show: showLogoutError } = useApiErrorDisplay();
   const { profile } = useProfile();
   // Das Logo folgt derselben Portalentscheidung wie der Login-Redirect. Der
@@ -178,49 +188,62 @@ export function TeacherShellProvider({
           ? "authenticated"
           : "unauthenticated";
 
+    const logout = (): Promise<void> =>
+      runTenantSessionEnd((signal) =>
+        reportingLogout(
+          async () => {
+            // Mark as deliberate logout so the login page suppresses the
+            // "session expired" banner that NextAuth's required-session
+            // redirect would otherwise trigger (race with useSession).
+            try {
+              sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+            } catch {
+              // sessionStorage unavailable (e.g. private browsing quota)
+            }
+            // Record the preview's end before revoking its family (#2893).
+            // Its refresh token is still the admin's (shared.ts), so logout
+            // needs no intermediate session restore or uncancellable update.
+            if (session?.user?.isPreview) {
+              try {
+                await recordStaffPreviewEnd(signal);
+              } catch (err: unknown) {
+                signal.throwIfAborted();
+                logger.warn("staff_preview_end_before_logout_failed", {
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              }
+            }
+            signal.throwIfAborted();
+            // Finish backend revocation before clearing the Auth.js cookie. The
+            // response-aware route may persist a just-refreshed session cookie;
+            // awaiting it guarantees signOut remains the final cookie mutation.
+            // The revocation never waits for push (#5194): the backend drops the
+            // family's push subscriptions with it, and the device-side cleanup
+            // below stays best-effort with one five-second budget (#5260).
+            await revokeSessionFamily("/api/auth/logout", signal);
+            void unsubscribePushSilently("tenant", {
+              signal,
+              timeoutMs: 5000,
+            });
+            signal.throwIfAborted();
+            // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+            // Gerät (#5000).
+            clearPersonalStorage();
+            clearSessionCache();
+            await signOutTenant({ callbackUrl: "/" }, signal);
+          },
+          showLogoutError,
+          signal,
+          logout,
+        )(),
+      );
+
     return {
       user,
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: reportingLogout(async () => {
-        // Mark as deliberate logout so the login page suppresses the
-        // "session expired" banner that NextAuth's required-session
-        // redirect would otherwise trigger (race with useSession).
-        try {
-          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
-        } catch {
-          // sessionStorage unavailable (e.g. private browsing quota)
-        }
-        // Abmelden aus einer laufenden Vorschau beendet zuerst die Vorschau
-        // (#2893): sie endet hier genauso wie per Klick, also gehört ihr Ende
-        // ins Protokoll — und der Aufruf braucht das Admin-Token, das erst das
-        // Zurückschalten wiederherstellt. Danach widerruft der Logout die
-        // Admin-Familie wie gewohnt.
-        if (session?.user?.isPreview) {
-          try {
-            await performEndStaffPreview(update, mutate);
-          } catch (err: unknown) {
-            logger.warn("staff_preview_end_before_logout_failed", {
-              error: err instanceof Error ? err.message : String(err),
-            });
-          }
-        }
-        // Finish backend revocation before clearing the Auth.js cookie. The
-        // response-aware route may persist a just-refreshed session cookie;
-        // awaiting it guarantees signOut remains the final cookie mutation.
-        // The revocation never waits for push (#5194): the backend drops the
-        // family's push subscriptions with it, and the device-side cleanup
-        // below stays best-effort (its deadline follows with #5260).
-        await revokeSessionFamily("/api/auth/logout");
-        await unsubscribePushSilently("tenant");
-        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
-        // Gerät (#5000).
-        clearPersonalStorage();
-        clearSessionCache();
-        await signOut({ redirect: false });
-        window.location.href = "/";
-      }, showLogoutError),
+      logout,
       mode: "teacher" as const,
       homeUrl,
       profileUrl: "/profile",
@@ -233,7 +256,7 @@ export function TeacherShellProvider({
       canStartStaffPreview:
         !session?.user?.isPreview && hasPermission(session, "admin:*"),
     };
-  }, [session, sessionStatus, profile, homeUrl, update, showLogoutError]);
+  }, [session, sessionStatus, profile, homeUrl, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>

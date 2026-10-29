@@ -37,6 +37,8 @@ interface MockSessionReturn {
   status: "authenticated" | "loading" | "unauthenticated";
 }
 
+vi.mock("~/lib/tenant-session-cookie", () => ({ signOutTenant: mockSignOut }));
+
 vi.mock("next-auth/react", () => ({
   useSession: (): MockSessionReturn => mockUseSession() as MockSessionReturn,
   signOut: mockSignOut,
@@ -66,7 +68,7 @@ vi.mock("~/lib/session-cache", () => ({
 }));
 
 vi.mock("~/lib/staff-preview-api", () => ({
-  performEndStaffPreview: mockEndStaffPreview,
+  recordStaffPreviewEnd: mockEndStaffPreview,
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -312,7 +314,7 @@ describe("TeacherShellProvider", () => {
     expect(result.current.isSessionExpired).toBe(true);
   });
 
-  it("calls signOut with redirect:false and navigates manually on logout", async () => {
+  it("deletes the tenant cookie with cancellation and navigates on logout", async () => {
     const mockFetch = vi.fn().mockResolvedValue(new Response(null));
     vi.stubGlobal("fetch", mockFetch);
     mockUseSession.mockReturnValue({
@@ -329,7 +331,10 @@ describe("TeacherShellProvider", () => {
         method: "POST",
         signal: expect.any(AbortSignal) as AbortSignal,
       });
-      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+      expect(mockSignOut).toHaveBeenCalledWith(
+        { callbackUrl: "/" },
+        expect.any(AbortSignal),
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -384,7 +389,10 @@ describe("TeacherShellProvider", () => {
       // Das Vorschau-Token liegt nur im Sitzungs-Cookie (#5005): das Ende
       // muss im Protokoll stehen, bevor der Logout die Sitzung löscht.
       expect(mockEndStaffPreview).toHaveBeenCalledOnce();
-      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+      expect(mockSignOut).toHaveBeenCalledWith(
+        { callbackUrl: "/" },
+        expect.any(AbortSignal),
+      );
       expect(mockEndStaffPreview.mock.invocationCallOrder[0]).toBeLessThan(
         mockSignOut.mock.invocationCallOrder[0]!,
       );
@@ -429,7 +437,10 @@ describe("TeacherShellProvider", () => {
     try {
       const { result } = renderHook(() => useShellAuth(), { wrapper });
       await result.current.logout();
-      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+      expect(mockSignOut).toHaveBeenCalledWith(
+        { callbackUrl: "/" },
+        expect.any(AbortSignal),
+      );
     } finally {
       vi.unstubAllGlobals();
     }
@@ -493,7 +504,10 @@ describe("TeacherShellProvider", () => {
     const { result } = renderHook(() => useShellAuth(), { wrapper });
     await result.current.logout();
 
-    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    expect(mockSignOut).toHaveBeenCalledWith(
+      { callbackUrl: "/" },
+      expect.any(AbortSignal),
+    );
     vi.unstubAllGlobals();
   });
 
@@ -517,7 +531,10 @@ describe("TeacherShellProvider", () => {
     finishBackendLogout?.(new Response(null));
     await logout;
 
-    expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    expect(mockSignOut).toHaveBeenCalledWith(
+      { callbackUrl: "/" },
+      expect.any(AbortSignal),
+    );
     vi.unstubAllGlobals();
   });
 

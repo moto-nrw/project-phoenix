@@ -4,10 +4,17 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestLostBookingWeekdays_NamesDaysAnOfferingNoLongerBooks(t *testing.T) {
+// changedWeekdays returns the dropped and the net-loss weekdays of a change.
+func changedWeekdays(work *offeringAdjustmentWork) [2][]int {
+	dropped, netLoss := changedBookingWeekdays(work)
+	return [2][]int{dropped, netLoss}
+}
+
+func TestChangedBookingWeekdays_NamesDaysAnOfferingNoLongerBooks(t *testing.T) {
 	t.Parallel()
 
 	randstunde := &careplan.CareOffering{ID: 7, DaysOfWeekMode: daysOfWeekModeParentChoice}
@@ -17,12 +24,12 @@ func TestLostBookingWeekdays_NamesDaysAnOfferingNoLongerBooks(t *testing.T) {
 		replacement:  []*careplan.BookedOffering{{CareOfferingID: 7, SelectedDays: []string{"mon"}}},
 	}
 
-	assert.Equal(t, []int{5}, lostBookingWeekdays(work))
+	assert.Equal(t, [2][]int{{5}, {5}}, changedWeekdays(work))
 }
 
 // The impact only reports: a legacy parent-choice booking without stored days
 // must not fail the booking change it describes (#5102).
-func TestLostBookingWeekdays_SkipsBookingsWithoutResolvableDays(t *testing.T) {
+func TestChangedBookingWeekdays_SkipsBookingsWithoutResolvableDays(t *testing.T) {
 	t.Parallel()
 
 	legacy := &careplan.CareOffering{ID: 7, DaysOfWeekMode: daysOfWeekModeParentChoice}
@@ -31,7 +38,7 @@ func TestLostBookingWeekdays_SkipsBookingsWithoutResolvableDays(t *testing.T) {
 		beforeLinks:  []*careplan.BookedOffering{{CareOfferingID: 7}},
 	}
 
-	assert.Empty(t, lostBookingWeekdays(work))
+	assert.Equal(t, [2][]int{{}, {}}, changedWeekdays(work))
 }
 
 // Ganztag variants (6 "bis 14:30", 7 "bis 16 Uhr") as fixed offerings on the
@@ -45,9 +52,11 @@ func switchOfferings() map[int64]*careplan.CareOffering {
 	}
 }
 
-// A switch between Ganztag variants on the same days keeps the child in care:
-// no hand-maintained Regeltermin may be reported as lost.
-func TestLostBookingWeekdays_SwitchBetweenOfferingsOnTheSameDaysLosesNothing(t *testing.T) {
+// A switch between Ganztag variants drops the old variant on every day it
+// booked; the new variant offsets it, so no day is a net loss. With pickup
+// times, Timetable decides about the switched days (#5342); without them,
+// the switch keeps reporting nothing.
+func TestChangedBookingWeekdays_SwitchBetweenOfferingsIsNoNetLoss(t *testing.T) {
 	t.Parallel()
 
 	work := &offeringAdjustmentWork{
@@ -56,12 +65,12 @@ func TestLostBookingWeekdays_SwitchBetweenOfferingsOnTheSameDaysLosesNothing(t *
 		replacement:  []*careplan.BookedOffering{{CareOfferingID: 7}, {CareOfferingID: 5, SelectedDays: []string{"mon"}}},
 	}
 
-	assert.Empty(t, lostBookingWeekdays(work))
+	assert.Equal(t, [2][]int{{1, 2, 3, 4, 5}, {}}, changedWeekdays(work))
 }
 
-// Dropping the Randstunde on Monday stays a loss even though Ganztag still
-// books Monday: the Randstunden block must still be reported.
-func TestLostBookingWeekdays_DroppedRandstundeIsLostWhileGanztagStays(t *testing.T) {
+// Dropping the Randstunde on Monday is a net loss even though Ganztag still
+// books Monday.
+func TestChangedBookingWeekdays_DroppedRandstundeIsANetLossWhileGanztagStays(t *testing.T) {
 	t.Parallel()
 
 	work := &offeringAdjustmentWork{
@@ -70,11 +79,11 @@ func TestLostBookingWeekdays_DroppedRandstundeIsLostWhileGanztagStays(t *testing
 		replacement:  []*careplan.BookedOffering{{CareOfferingID: 6}, {CareOfferingID: 5, SelectedDays: []string{"thu"}}},
 	}
 
-	assert.Equal(t, []int{1}, lostBookingWeekdays(work))
+	assert.Equal(t, [2][]int{{1}, {1}}, changedWeekdays(work))
 }
 
 // A switch does not hide a Randstunde dropped on the same day.
-func TestLostBookingWeekdays_SwitchDoesNotHideDroppedRandstunde(t *testing.T) {
+func TestChangedBookingWeekdays_SwitchDoesNotHideDroppedRandstunde(t *testing.T) {
 	t.Parallel()
 
 	work := &offeringAdjustmentWork{
@@ -83,10 +92,10 @@ func TestLostBookingWeekdays_SwitchDoesNotHideDroppedRandstunde(t *testing.T) {
 		replacement:  []*careplan.BookedOffering{{CareOfferingID: 7}},
 	}
 
-	assert.Equal(t, []int{1}, lostBookingWeekdays(work))
+	assert.Equal(t, [2][]int{{1, 2, 3, 4, 5}, {1}}, changedWeekdays(work))
 }
 
-func TestLostBookingWeekdays_NewlyBookedRandstundeLosesNothing(t *testing.T) {
+func TestChangedBookingWeekdays_NewlyBookedRandstundeLosesNothing(t *testing.T) {
 	t.Parallel()
 
 	work := &offeringAdjustmentWork{
@@ -95,5 +104,36 @@ func TestLostBookingWeekdays_NewlyBookedRandstundeLosesNothing(t *testing.T) {
 		replacement:  []*careplan.BookedOffering{{CareOfferingID: 6}, {CareOfferingID: 5, SelectedDays: []string{"mon", "wed"}}},
 	}
 
-	assert.Empty(t, lostBookingWeekdays(work))
+	assert.Equal(t, [2][]int{{}, {}}, changedWeekdays(work))
+}
+
+// The remaining bookings carry what decides about a hand-maintained
+// Regeltermin (#5342): the weekday, the offering's kind flags and its pickup
+// time that day. A day without a pickup time stays empty, a link
+// that ends before the date and one without resolvable days name nothing.
+func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
+	t.Parallel()
+
+	from := calendar.NewDate(2026, 10, 26)
+	ended := calendar.NewDate(2026, 10, 26)
+	offerings := map[int64]*careplan.CareOffering{
+		5: {ID: 5, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true, PickupTimes: map[string]string{"mon": "12:45", "fri": "12:45"}},
+		6: {ID: 6, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true, IncludesLunch: true},
+		9: {ID: 9, DaysOfWeekMode: daysOfWeekModeParentChoice, PickupTimes: map[string]string{"tue": "15:00"}},
+	}
+	links := []*careplan.BookedOffering{
+		{CareOfferingID: 5, SelectedDays: []string{"mon", "fri"}},
+		{CareOfferingID: 6, SelectedDays: []string{"fri"}},
+		{CareOfferingID: 9, SelectedDays: []string{"tue"}},
+		{CareOfferingID: 6, SelectedDays: []string{"wed"}, ValidUntil: &ended},
+		{CareOfferingID: 5},
+		{CareOfferingID: 42, SelectedDays: []string{"thu"}},
+	}
+
+	assert.Equal(t, []careplan.RemainingDayBooking{
+		{Weekday: 1, CountsAsCare: true, PickupTime: "12:45"},
+		{Weekday: 5, CountsAsCare: true, PickupTime: "12:45"},
+		{Weekday: 5, CountsAsCare: true, IncludesLunch: true},
+		{Weekday: 2, PickupTime: "15:00"},
+	}, remainingDayBookings(links, offerings, from))
 }
