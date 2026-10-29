@@ -19,13 +19,12 @@ has. The office learned nothing about it.
 
 Care Plan now answers every booking change (`AdjustOfferings`) with its
 roster impact: the Regeltermine the resync rewrote and those that keep the
-child on a weekday the change took away. Timetable names the latter through
+child without a booking that carries them. Timetable names the latter through
 the new read `timetable.StudentTemplateDays.ManualStudentPlan`. Care Plan
 reaches it through its consumer port `BookingManualPlans`, bound at the root.
-Timetable does not know which offering carries a Regeltermin, so a weekday
-counts as taken away when the change drops more offerings on it than it newly
-books. A switch between Ganztag variants on the same day reports nothing; a
-Randstunde dropped beside a Ganztag that stays is still reported. The office then confirms the removal per Regeltermin. Timetable runs it as
+Which booking carries a Regeltermin follows from the pickup time
+([addendum for #5342](#addendum-2026-10-29-a-booking-carries-a-regeltermin-until-its-pickup-time-5342)).
+The office then confirms the removal per Regeltermin. Timetable runs it as
 its own command `RemoveStudentTemplateDays` under the tenant recurrence gate.
 It writes only Timetable's rows: the child's hand roster rows and planned
 occurrences of that series.
@@ -62,3 +61,45 @@ and their total rise by exactly these lines.
 After this ADR enters the base it cannot approve another diagnostic. A
 changed clock or settings assignment changes the digest and needs fresh
 approval.
+
+## Addendum 2026-10-29: a booking carries a Regeltermin until its pickup time (#5342)
+
+The first rule counted a weekday as taken away when the change dropped more
+offerings on it than it newly booked. In production it reported class
+Randstunden (11:45 to 12:45) as left behind when a child dropped Ganztag and
+kept the Randstunde. Those class lists hold every child of the class,
+including the children who book only Ganztag: Ganztag care runs past 12:45.
+The rule also hid a real loss when a switch offset it, for example Ganztag
+until 16:00 switched to 14:30 beside a hand-kept block until 16:00.
+
+A booking now carries a Regeltermin on its weekday when the Regeltermin ends
+no later than the offering's pickup time that day. A care Regeltermin needs
+an offering that counts as care; other Regeltermine take any offering. The
+lunch flag does not decide for Mensa lists, because schools keep Mensa lists
+without flagging an offering with lunch. Care Plan names the weekdays on
+which the change drops a booking, those on which it drops more offerings
+than it newly books (net loss), and the bookings that remain, with their
+pickup times. Timetable reports a hand-maintained Regeltermin on a dropped
+weekday when no remaining booking carries it, also if none carried it
+before. The end of a Regeltermin is the end of its occurrence, or of its
+schedule for a hand roster row; the latest end of the weekday counts.
+
+When a fitting remaining booking has no pickup time, or the Regeltermin has
+no end, the times cannot decide. Such a day keeps the first rule: the
+Regeltermin counts as lost only on a net-loss weekday. Schools book a
+Randstunde and Ganztag variants without pickup times; there a booking
+without a pickup time proves nothing about the end of care, and treating it
+as carrying would drop notices the first rule gave. A remaining booking
+with a pickup time that reaches the end still carries the Regeltermin.
+
+Decided for #5342: where both offerings set pickup times, a Randstunde
+dropped beside a Ganztag that stays is not reported: the Ganztag carries the
+class Randstunde, like the Ganztag children the class list already holds. The rule assumes that the booked care
+of a day runs without a gap until the pickup time. A care offering before
+lessons, such as a Frühbetreuung, would break that assumption; no school
+books one yet.
+
+The binding-flow diagnostics of this ADR are unchanged. The read gained query
+fields and a Timetable dependency on its timeframes, not a callable; the
+root binding that maps Care Plan's day change onto the query is reviewed
+again as a query.

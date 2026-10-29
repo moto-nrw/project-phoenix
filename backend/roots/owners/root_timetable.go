@@ -85,7 +85,7 @@ func NewTimetableStudentTemplateDays(
 	repos TimetableRepositories, lock timetable.RecurrenceWriteLock, today func() timezone.Date, logger *slog.Logger,
 ) (timetable.StudentTemplateDays, error) {
 	return arrivalTimetable.NewStudentTemplateDays(timetablePorts.StudentTemplateDaysDependencies{
-		Groups: repos.Timetable, Schedules: repos.ActivitySchedule, Enrollments: repos.StudentEnrollment,
+		Groups: repos.Timetable, Schedules: repos.ActivitySchedule, Timeframes: repos.Timeframe, Enrollments: repos.StudentEnrollment,
 		Instances: repos.ActivityInstance.Reads, Participants: repos.InstanceStudent, RecurrenceLock: lock,
 		Today: today, Logger: logger,
 	})

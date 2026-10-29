@@ -9208,7 +9208,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingManualPlans.ManualStudentPlan",
-      "reason": "Reviewed read: Care Plan asks Timetable which Regeltermine still plan the child on weekdays a booking change took away (#5102, ADR 0128). Target modules/timetable.StudentTemplateDays.ManualStudentPlan reads roster rows, occurrences, schedules and targets; no owned-row mutation or locking read.",
+      "reason": "Reviewed read: Care Plan asks Timetable which Regeltermine still plan the child on weekdays a booking change dropped a booking on, and passes the remaining bookings with their pickup times so Timetable leaves out the Regeltermine they carry (#5102, #5342, ADR 0128). The binding only maps the remaining bookings onto the query. Target modules/timetable.StudentTemplateDays.ManualStudentPlan reads roster rows, occurrences, schedules, timeframes and targets; no owned-row mutation or locking read.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.ManualStudentPlan",
       "target_owner": "timetable-activities"

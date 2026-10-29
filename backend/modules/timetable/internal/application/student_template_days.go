@@ -30,9 +30,9 @@ var _ timetable.StudentTemplateDays = (*StudentTemplateDays)(nil)
 // NewStudentTemplateDays constructs the capability; every row dependency is
 // required.
 func NewStudentTemplateDays(deps ports.StudentTemplateDaysDependencies) (*StudentTemplateDays, error) {
-	if deps.Groups == nil || deps.Schedules == nil || deps.Enrollments == nil || deps.Instances == nil ||
+	if deps.Groups == nil || deps.Schedules == nil || deps.Timeframes == nil || deps.Enrollments == nil || deps.Instances == nil ||
 		deps.Participants.Reads == nil || deps.Participants.Plans == nil || deps.RecurrenceLock == nil {
-		return nil, errors.New("student template days: groups, schedules, enrollments, instances, participants and recurrence lock are required")
+		return nil, errors.New("student template days: groups, schedules, timeframes, enrollments, instances, participants and recurrence lock are required")
 	}
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
@@ -63,9 +63,14 @@ func (d templateDays) add(templateID int64, weekday int) {
 
 // ManualStudentPlan lists the Regeltermin series that keep planning the
 // student on the asked weekdays from the date on, other than through a roster
-// row a booking created.
+// row a booking created, where no remaining booking carries the series
+// (#5342).
 func (s *StudentTemplateDays) ManualStudentPlan(ctx context.Context, query timetable.ManualStudentPlanQuery) ([]timetable.ManualStudentPlan, error) {
 	wanted, err := validStudentTemplateDays(query.StudentID, query.From, query.Weekdays)
+	if err != nil {
+		return nil, err
+	}
+	carry, err := newBookingCarry(query)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +78,7 @@ func (s *StudentTemplateDays) ManualStudentPlan(ctx context.Context, query timet
 	if err != nil {
 		return nil, err
 	}
-	days := make(templateDays)
+	days, ends := make(templateDays), make(templateDayEnds)
 	occurrences, err := s.plannedOccurrences(ctx, query.StudentID, query.From)
 	if err != nil {
 		return nil, err
@@ -86,14 +91,15 @@ func (s *StudentTemplateDays) ManualStudentPlan(ctx context.Context, query timet
 			continue
 		}
 		days.add(*occurrence.instance.ActivityGroupID, occurrence.planWeekday)
+		ends.addClock(*occurrence.instance.ActivityGroupID, occurrence.planWeekday, occurrence.instance.EndTime.Format("15:04:05"))
 	}
-	if err := s.addHandRowDays(ctx, rows, query.From, wanted, days); err != nil {
+	if err := s.addHandRowDays(ctx, rows, query.From, wanted, days, ends); err != nil {
 		return nil, err
 	}
 	if len(days) == 0 {
 		return []timetable.ManualStudentPlan{}, nil
 	}
-	return s.manualPlansBySeries(ctx, query.StudentID, days)
+	return s.manualPlansBySeries(ctx, query.StudentID, days, ends, carry)
 }
 
 // validStudentTemplateDays checks the shared input and returns the weekday
@@ -107,7 +113,7 @@ func validStudentTemplateDays(studentID int64, from calendar.Date, weekdays []in
 	}
 	set := make(map[int]bool, len(weekdays))
 	for _, weekday := range weekdays {
-		if weekday < timetable.WeekdayMonday || weekday > timetable.WeekdaySunday {
+		if !isISOWeekday(weekday) {
 			return nil, fmt.Errorf("%w: weekday %d is not an ISO weekday", timetable.ErrStudentTemplateDaysInvalid, weekday)
 		}
 		set[weekday] = true
@@ -172,15 +178,20 @@ func bookingPlansOccurrence(rows []*activityContract.StudentEnrollment, occurren
 
 // addHandRowDays adds the weekdays the student's hand rows still plan from
 // the date on, unless a booking-created row of the same template covers the
-// weekday as well.
+// weekday as well, with the end of the template's schedule on that weekday.
 func (s *StudentTemplateDays) addHandRowDays(
-	ctx context.Context, rows []*activityContract.StudentEnrollment, from calendar.Date, wanted map[int]bool, days templateDays,
+	ctx context.Context, rows []*activityContract.StudentEnrollment, from calendar.Date, wanted map[int]bool, days templateDays, ends templateDayEnds,
 ) error {
 	hand := reachingRows(rows, from, false)
 	if len(hand) == 0 {
 		return nil
 	}
-	scheduleDays, err := s.scheduleWeekdays(ctx, rowTemplateIDs(hand))
+	schedules, err := s.listSchedules(ctx, rowTemplateIDs(hand))
+	if err != nil {
+		return err
+	}
+	scheduleDays := weekdaysBySchedule(schedules)
+	scheduleEnds, err := s.scheduleEnds(ctx, schedules)
 	if err != nil {
 		return err
 	}
@@ -189,6 +200,7 @@ func (s *StudentTemplateDays) addHandRowDays(
 		for weekday := range rowWeekdays(row, scheduleDays[row.ActivityGroupID]) {
 			if wanted[weekday] && !rowsCoverWeekday(booked, row.ActivityGroupID, weekday, scheduleDays[row.ActivityGroupID]) {
 				days.add(row.ActivityGroupID, weekday)
+				ends.merge(row.ActivityGroupID, weekday, scheduleEnds)
 			}
 		}
 	}
@@ -222,21 +234,33 @@ func rowTemplateIDs(rows []*activityContract.StudentEnrollment) []int64 {
 
 // scheduleWeekdays reads the weekdays each template runs on.
 func (s *StudentTemplateDays) scheduleWeekdays(ctx context.Context, templateIDs []int64) (map[int64]map[int]bool, error) {
-	result := make(map[int64]map[int]bool, len(templateIDs))
+	schedules, err := s.listSchedules(ctx, templateIDs)
+	if err != nil {
+		return nil, err
+	}
+	return weekdaysBySchedule(schedules), nil
+}
+
+func (s *StudentTemplateDays) listSchedules(ctx context.Context, templateIDs []int64) ([]timetable.Schedule, error) {
 	if len(templateIDs) == 0 {
-		return result, nil
+		return nil, nil
 	}
 	schedules, err := s.deps.Schedules.ListSchedules(ctx, timetable.ScheduleFilter{GroupIDs: templateIDs})
 	if err != nil {
 		return nil, fmt.Errorf("student template days: list schedules: %w", err)
 	}
+	return schedules, nil
+}
+
+func weekdaysBySchedule(schedules []timetable.Schedule) map[int64]map[int]bool {
+	result := make(map[int64]map[int]bool)
 	for _, sch := range schedules {
 		if result[sch.ActivityGroupID] == nil {
 			result[sch.ActivityGroupID] = make(map[int]bool)
 		}
 		result[sch.ActivityGroupID][sch.Weekday] = true
 	}
-	return result, nil
+	return result
 }
 
 // rowWeekdays is the weekday set a row plans on a template running on the
@@ -268,19 +292,21 @@ func rowsCoverWeekday(rows []*activityContract.StudentEnrollment, templateID int
 	return false
 }
 
-// manualPlansBySeries names the templates and merges split segments into one
-// entry per series, pointing at the latest segment.
-func (s *StudentTemplateDays) manualPlansBySeries(ctx context.Context, studentID int64, days templateDays) ([]timetable.ManualStudentPlan, error) {
-	ids := make([]int64, 0, len(days))
-	for id := range days {
-		ids = append(ids, id)
-	}
-	slices.Sort(ids)
-	groups, err := s.deps.Groups.ListGroups(ctx, timetable.GroupFilter{IDs: ids})
+// manualPlansBySeries names the templates, drops the weekdays a remaining
+// booking carries and merges split segments into one entry per series,
+// pointing at the latest segment.
+func (s *StudentTemplateDays) manualPlansBySeries(
+	ctx context.Context, studentID int64, days templateDays, ends templateDayEnds, carry bookingCarry,
+) ([]timetable.ManualStudentPlan, error) {
+	groups, err := s.deps.Groups.ListGroups(ctx, timetable.GroupFilter{IDs: sortedTemplateIDs(days)})
 	if err != nil {
 		return nil, fmt.Errorf("student template days: list templates: %w", err)
 	}
-	targets, err := s.deps.Groups.ListTargetStudentIDs(ctx, ids)
+	groups = carry.dropCarriedDays(groups, days, ends)
+	if len(groups) == 0 {
+		return []timetable.ManualStudentPlan{}, nil
+	}
+	targets, err := s.deps.Groups.ListTargetStudentIDs(ctx, sortedTemplateIDs(days))
 	if err != nil {
 		return nil, fmt.Errorf("student template days: list target students: %w", err)
 	}
@@ -306,6 +332,15 @@ func (s *StudentTemplateDays) manualPlansBySeries(ctx context.Context, studentID
 		}
 	}
 	return sortedManualPlans(bySeries, weekdays), nil
+}
+
+func sortedTemplateIDs(days templateDays) []int64 {
+	ids := make([]int64, 0, len(days))
+	for id := range days {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	return ids
 }
 
 func sortedManualPlans(bySeries map[int64]*timetable.ManualStudentPlan, weekdays map[int64]map[int]bool) []timetable.ManualStudentPlan {
