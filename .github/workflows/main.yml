@@ -64,6 +64,10 @@ jobs:
       # Pull requests test what changed against the base branch. Protected-branch
       # pushes and release pull requests run the full suites.
       changed-scope: ${{ github.event_name != 'push' && steps.scope.outputs.release != 'true' }}
+      # Backend-only inputs run all guards together, including DOM guards, but
+      # need neither the regular DOM job nor browser layout tests.
+      frontend-guards-only: ${{ github.event_name != 'push' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend-fs-inputs == 'true' && steps.filter.outputs.frontend != 'true' && steps.filter.outputs.frontend-test-infra != 'true' && steps.filter.outputs.workflow-main != 'true' && steps.filter.outputs.workflow-test != 'true' }}
+      run-frontend-runner-tests: ${{ steps.filter.outputs.frontend-runner-tests == 'true' }}
       base-ref: ${{ github.base_ref }}
       # The script suites, the env sync and the error-code registry check only
       # files their own filter lists. Docs-only pull requests skip all three.
@@ -171,14 +175,16 @@ jobs:
               - '.github/workflows/test.yml'
             frontend:
               - 'frontend/**'
-              - '!frontend/**/*.md'
             # External inputs read by the frontend error-catalog validator.
             frontend-catalog-inputs:
               - 'error-registry/**'
               - 'scripts/error-registry.mjs'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
             frontend-fs-inputs:
-              - 'backend/modules/settings/internal/defaults/**'
+              # External inputs need one guard job, not both frontend projects.
+              - 'backend/**'
+              - '!backend/**/*.md'
+              - 'scripts/dev-native.sh'
               - '.github/workflows/e2e.yml'
             backend-test-infra:
               - 'scripts/backend-affected-packages.sh'
@@ -194,13 +200,16 @@ jobs:
               - 'scripts/total-memory-gb.sh'
             frontend-test-infra:
               - 'scripts/test-frontend-changed.mjs'
-              - 'frontend/package.json'
-              - 'frontend/pnpm-lock.yaml'
-              - 'frontend/pnpm-workspace.yaml'
-              - 'frontend/tsconfig.json'
-              - 'frontend/vitest.config.ts'
-              - 'frontend/src/test/setup.ts'
+              - 'scripts/test-frontend-changed.test.mjs'
               - 'scripts/test-changed.sh'
+              - 'scripts/test-changed_test.sh'
+            frontend-runner-tests:
+              - 'scripts/**'
+              - 'frontend/scripts/**'
+              - 'frontend/vitest.config.ts'
+              - 'frontend/src/test/**'
+              - '.github/workflows/main.yml'
+              - '.github/workflows/test.yml'
             # The workflows that run on pull requests. Each one reruns the
             # jobs it defines in full; see the outputs above.
             workflow-main:
@@ -568,6 +577,8 @@ jobs:
       base_ref: ${{ needs.detect-changes.outputs.base-ref }}
       full-backend-suite: ${{ needs.detect-changes.outputs.full-backend-suite == 'true' }}
       full-frontend-suite: ${{ needs.detect-changes.outputs.full-frontend-suite == 'true' }}
+      frontend-guards-only: ${{ needs.detect-changes.outputs.frontend-guards-only == 'true' }}
+      run-frontend-runner-tests: ${{ needs.detect-changes.outputs.run-frontend-runner-tests == 'true' }}
 
   # Verify all environments have matching env var keys (no secrets needed)
   env-sync-check:

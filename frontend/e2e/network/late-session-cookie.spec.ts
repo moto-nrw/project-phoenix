@@ -141,6 +141,16 @@ async function holdResponse(
 }
 
 const lateSources = {
+  "push DELETE": {
+    pattern: "**/api/notifications/push/subscriptions?**",
+    start: (page: Page) =>
+      page.evaluate(() =>
+        fetch(
+          `/api/notifications/push/subscriptions?endpoint=${encodeURIComponent("https://push.example.invalid/device")}`,
+          { method: "DELETE" },
+        ).then((r) => r.status),
+      ),
+  },
   "BFF GET": {
     pattern: "**/api/me/profile",
     start: (page: Page) =>

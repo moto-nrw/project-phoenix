@@ -23,4 +23,5 @@ them as data payloads.
 - Hook: `~/lib/hooks/use-sse` (`status`: `idle | connected | reconnecting | failed`); event types in `lib/sse-types.ts` mirror `backend/realtime/events.go` — keep in sync
 - Proxy route `app/api/sse/events/route.ts` bypasses the route wrapper (streaming) with `export const runtime = "nodejs"`, injecting the JWT server-side (EventSource can't set headers)
 - After an event for the current group, refetch in bulk: `GET /api/active/groups/{id}/visits/display` (O(1), not per-student)
+- A session of another school is refused with 409 `identity.session_tenant_mismatch` (#5130); EventSource cannot read that. After an answer that was no stream (`readyState` CLOSED), `useGlobalSSE` fetches the route once so the fetch observer reports the refusal to `TenantGuard` (#5157). Parent and school portals call `useSSE` without that check.
 - Connection drops usually mean an expired JWT (lifetime configured by `AUTH_JWT_EXPIRY`) or no supervised active groups

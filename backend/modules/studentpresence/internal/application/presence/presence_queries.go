@@ -8,6 +8,7 @@ import (
 )
 
 type StudentPresence interface {
+	studentpresence.VisitWriteLocks
 	QueryGroupSupervisions(context.Context, studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
 	GetCombinedGroup(context.Context, int64) (studentpresence.CombinedGroup, error)
 	ListCombinedGroups(context.Context, studentpresence.CombinedGroupFilter) ([]studentpresence.CombinedGroup, error)

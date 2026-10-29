@@ -114,6 +114,9 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 // caller, after the commit. The returned activityEndSSEData is that event's
 // payload, resolved while the transaction still holds the tenant role.
 func (s *service) processSessionTimeoutTx(ctx context.Context, sessionID int64) (*TimeoutResult, activityEndSSEData, error) {
+	if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: []int64{sessionID}}); err != nil {
+		return nil, activityEndSSEData{}, err
+	}
 	session, err := s.GroupRepo.FindByIDForUpdate(ctx, sessionID)
 	if err != nil || session == nil {
 		return nil, activityEndSSEData{}, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
