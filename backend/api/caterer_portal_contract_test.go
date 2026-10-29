@@ -79,8 +79,8 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 	db := testpkg.SetupTestDB(t)
 	school := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, fmt.Sprintf("caterer-staff-%d@test.local", time.Now().UnixNano()))
-	staffToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:manage", "meals:read"))
-	adminToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "admin:*"))
+	staffToken := testpkg.MintLiveSessionJWT(t, db, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:manage", "meals:read"))
+	adminToken := testpkg.MintLiveSessionJWT(t, db, testutil.TenantUserTestClaims(int(staff.ID), school, "admin:*"))
 	email := fmt.Sprintf("kueche-%d@example.com", time.Now().UnixNano())
 	forgetContractCaterer(t, db, email)
 	request := func(method, path, body, token string) (int, []byte) {
@@ -186,7 +186,7 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 		VALUES (?, 'operations.meal_plan_enabled', 'true'::jsonb), (?, 'operations.meal_registration_enabled', 'true'::jsonb)
 		ON CONFLICT (tenant_id, setting_key) DO UPDATE SET value = EXCLUDED.value, updated_at = NOW()`, school, school)
 	require.NoError(t, err)
-	registerToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:register"))
+	registerToken := testpkg.MintLiveSessionJWT(t, db, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:register"))
 	status, body = request(http.MethodGet, "/api/meal-plan/participants?date=2026-09-07&include=all", "", registerToken)
 	require.Equal(t, http.StatusOK, status, string(body))
 	status, body = request(http.MethodGet, "/api/meal-plan/participants/export?date=2026-09-07&format=pdf", "", registerToken)
@@ -206,7 +206,7 @@ func checkCatererPortal(t *testing.T, graph *goldenRuntime) {
 		status, body = request(http.MethodGet, "/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", "", deniedToken)
 		require.Equal(t, http.StatusForbidden, status, "delivery exports require meals:orders: %s", body)
 	}
-	ordersToken := testutil.MintTestJWT(t, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:orders"))
+	ordersToken := testpkg.MintLiveSessionJWT(t, db, testutil.TenantUserTestClaims(int(staff.ID), school, "meals:orders"))
 	for _, export := range []struct{ path, token, contentType string }{
 		{"/caterer/orders/export?from=2026-09-07&to=2026-09-11&format=pdf", catererToken, "application/pdf"},
 		{"/api/meal-caterer/orders/export?from=2026-09-07&to=2026-09-11&format=csv", ordersToken, "text/csv; charset=utf-8"},

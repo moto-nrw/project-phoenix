@@ -553,6 +553,22 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ResyncStudentSourcedRosters",
+      "binding_digest": "41521e3ee6e45815de5bbb944b30eb64",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncStudentSourcedRosters",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.bookingCommands.ResyncStudentSourcedRosters",
+      "binding_digest": "41521e3ee6e45815de5bbb944b30eb64",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncStudentSourcedRosters",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.BookingMaterialization.ResyncTemplateOfferingRoster",
       "binding_digest": "41521e3ee6e45815de5bbb944b30eb64",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
@@ -1644,6 +1660,14 @@
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.ResyncOfferingSourcedTemplates",
       "binding_digest": "41521e3ee6e45815de5bbb944b30eb64",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResyncOfferingSourcedTemplates",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.ResyncStudentSourcedRosters",
+      "binding_digest": "41521e3ee6e45815de5bbb944b30eb64",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ResyncStudentSourcedRosters",
       "source_owner": "care-plan",
       "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
@@ -4385,6 +4409,14 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncStudentSourcedRosters",
+      "binding_digest": "41521e3ee6e45815de5bbb944b30eb64",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncStudentSourcedRosters",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
       "binding_digest": "41521e3ee6e45815de5bbb944b30eb64",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
@@ -5351,6 +5383,78 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students.CallerContext.StudentAccessFacts",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.Cancel",
+      "binding_digest": "eeb123ea30b96d5f2d3eff48eeaf4c3f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Cancel",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.Cancel",
+      "target_owner": "care-exit"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.Cancel",
+      "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Cancel",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.Cancel",
+      "binding_digest": "2accb6a2d14b60ec5b5ab81d757e0604",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Cancel",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.Confirm",
+      "binding_digest": "ce4d48c0f9c294eec75a0c9086be24a7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Confirm",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.Confirm",
+      "target_owner": "care-exit"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.Confirm",
+      "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Confirm",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.Confirm",
+      "binding_digest": "2accb6a2d14b60ec5b5ab81d757e0604",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.Confirm",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.ConfirmWithdrawalCareEnd",
+      "binding_digest": "2c1f71530ea4cc790690004f85399544",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.ConfirmWithdrawalCareEnd",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/careexit.PlanRestoration.ConfirmWithdrawalCareEnd",
+      "target_owner": "care-exit"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.ConfirmWithdrawalCareEnd",
+      "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.ConfirmWithdrawalCareEnd",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.ConfirmWithdrawalCareEnd",
+      "binding_digest": "2accb6a2d14b60ec5b5ab81d757e0604",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.CareExitRestoration.ConfirmWithdrawalCareEnd",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract.Emitter.BroadcastChildUpdateToGuardians",
