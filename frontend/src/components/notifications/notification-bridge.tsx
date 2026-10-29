@@ -50,23 +50,38 @@ export function tenantNotificationPath(
   return tenantAwarePath(path, tenantSlug, routingMode);
 }
 
+export const RELOAD_REQUIRED_MESSAGE =
+  "Die Abmeldung wurde unterbrochen. Laden Sie die Seite neu, um weiterzuarbeiten.";
+export const RELOAD_ACTION_LABEL = "Seite neu laden";
+
 export const DISCARDED_WRITE_MESSAGE =
   "Ihre letzte Änderung wurde nicht gespeichert, weil Sie gerade abgemeldet wurden. Bitte speichern Sie sie noch einmal.";
 
 export function NotificationBridge() {
   const { showMessage } = useApiErrorDisplay();
+  const toast = useToast();
 
   useEffect(() => {
     const onSessionEnd = (event: Event) => {
       const detail = (event as CustomEvent<SessionEndDetail>).detail;
+      if (detail.reloadRequired) {
+        // The tab stays frozen until it reloads (#5126); this stays until then.
+        toast.warning(RELOAD_REQUIRED_MESSAGE, {
+          duration: 0,
+          action: {
+            label: RELOAD_ACTION_LABEL,
+            onClick: () => window.location.reload(),
+          },
+        });
+        return;
+      }
       if (!detail.ending && detail.discardedWrites > 0)
         showMessage(DISCARDED_WRITE_MESSAGE);
     };
     window.addEventListener(SESSION_END_EVENT, onSessionEnd);
     return () => window.removeEventListener(SESSION_END_EVENT, onSessionEnd);
-  }, [showMessage]);
+  }, [showMessage, toast]);
 
-  const toast = useToast();
   const router = useRouter();
   const { tenant: tenantSlug } = useParams<{ tenant?: string }>();
 

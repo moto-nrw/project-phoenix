@@ -707,19 +707,57 @@ describe("session end barrier", () => {
       expect(sent).toContain("/api/me/profile");
     });
 
-    it("opens after five seconds if the reload was declined", async () => {
-      vi.useFakeTimers();
-      const barrier = await loadBarrier();
-      const { write } = await signOutAndHold(barrier);
-      restoreFromCache();
-      await vi.advanceTimersByTimeAsync(4_999);
-      expect(barrier.isSessionEnding()).toBe(true);
-      await vi.advanceTimersByTimeAsync(1);
-      await expect(write).rejects.toMatchObject({ name: "AbortError" });
-      expect(barrier.isSessionEnding()).toBe(false);
-      void window.fetch("/api/me/profile");
-      expect(sent).toContain("/api/me/profile");
-    });
+    // Gegenproben der 8. Prüfung: the reload is declined or never happens.
+    it.each(["csrf lookup", "session refetch"] as const)(
+      "never resumes the old attempt after a missing reload, during the %s",
+      async (stage) => {
+        vi.useFakeTimers();
+        const barrier = await loadBarrier();
+        const { endSessionOnce } = await import("./session-end-flight");
+        const steps = { navigated: false };
+        const first = endSessionOnce(() => logoutAttempt(barrier, steps));
+        first.catch(() => undefined);
+        await vi.waitFor(() => expect(sent).toContain("/api/auth/csrf"));
+        if (stage === "session refetch") {
+          answers.get("/api/auth/csrf")?.();
+          await vi.waitFor(() => expect(sent).toContain("/api/auth/signout"));
+          answers.get("/api/auth/signout")?.();
+          await vi.waitFor(() => expect(sent).toContain("/api/auth/session"));
+        }
+        const signOutsBefore = signOuts();
+        const reloadRequired: boolean[] = [];
+        const onEnd = (event: Event) =>
+          reloadRequired.push(
+            Boolean(
+              (event as CustomEvent<{ reloadRequired?: boolean }>).detail
+                .reloadRequired,
+            ),
+          );
+        window.addEventListener("phoenix:session-end", onEnd);
+
+        restoreFromCache();
+        // The page stays: the reload was declined. Every pending answer and
+        // every timer of the old attempt comes due.
+        answers.get("/api/auth/csrf")?.();
+        answers.get("/api/auth/session")?.();
+        await vi.advanceTimersByTimeAsync(60_000);
+        // The person tries again.
+        const second = endSessionOnce(() => logoutAttempt(barrier, steps));
+        await vi.advanceTimersByTimeAsync(60_000);
+        window.removeEventListener("phoenix:session-end", onEnd);
+
+        expect(second).toBe(first);
+        expect(reload).toHaveBeenCalledOnce();
+        expect(signOuts()).toBe(signOutsBefore);
+        expect(steps.navigated).toBe(false);
+        expect(barrier.isSessionEnding()).toBe(true);
+        expect(openings()).toBe(0);
+        expect(reloadRequired).toEqual([true]);
+        // Nothing else of this tab goes out either.
+        void window.fetch("/api/me/profile");
+        expect(sent).not.toContain("/api/me/profile");
+      },
+    );
   });
 
   it("stops waiting for an unanswered request after five seconds", async () => {

@@ -23,8 +23,10 @@
  * a session refetch, a navigation) would otherwise resume next to a new
  * logout. The state is not reset; until the page unloads, the tab's
  * same-origin requests and every answer of the ended session never settle, so
- * nothing of the old attempt runs on. Should the reload not happen (a
- * „Seite verlassen?“ prompt declined), the barrier opens after five seconds.
+ * nothing of the old attempt runs on. The barrier never opens for that
+ * generation again. Should the reload not happen (a „Seite verlassen?“ prompt
+ * of the unsaved-changes guard declined), the tab stays frozen and the
+ * NotificationBridge shows a lasting message with „Seite neu laden“.
  *
  * Every request that passes while a session ends (Auth.js' csrf and sign-out,
  * and requests after the deletion) carries a deadline. If the sign-out has not
@@ -58,10 +60,15 @@ import { releaseSessionEnd } from "~/lib/session-end-flight";
 /** Dispatched on window; see `SessionEndDetail`. */
 export const SESSION_END_EVENT = "phoenix:session-end";
 
-/** `ending` is true at the start, false on reset; resets count discarded writes. */
+/**
+ * `ending` is true at the start, false on reset; resets count discarded writes.
+ * `reloadRequired` asks the person to reload when a bfcache restore froze the
+ * tab and the reload did not take it away.
+ */
 export interface SessionEndDetail {
   ending: boolean;
   discardedWrites: number;
+  reloadRequired?: boolean;
 }
 
 const SIGN_OUT_PATHS = new Set(["/api/auth/csrf", "/api/auth/signout"]);
@@ -71,8 +78,6 @@ const SETTLE_TIMEOUT_MS = 5000;
 const NAVIGATION_TIMEOUT_MS = 10_000;
 // Time Auth.js gets for its csrf and sign-out requests once requests are held.
 const SIGN_OUT_TIMEOUT_MS = 10_000;
-// A reload still not under way after this was declined; the barrier opens.
-const RELOAD_GRACE_MS = 5000;
 const BARRIER_OWNER = Symbol.for("phoenix.session-end-barrier");
 
 // "open" = idle, "holding" = ending, "cookie-deleted" = left.
@@ -216,7 +221,8 @@ function withDeadline(
 
 /** The sign-out did not answer in time: abort what passed and open. */
 function expireSignOut(ending: number): void {
-  if (ending !== generation) return;
+  // A reloading page keeps its state: nothing of the old attempt may resume.
+  if (reloading || ending !== generation) return;
   const reason = unavailableApiError(
     new DOMException("The logout did not finish in time", "TimeoutError"),
   );
@@ -237,15 +243,15 @@ function frozen<T>(): Promise<T> {
 /** A bfcache restore while a session ends: reload, once, without a reset. */
 function reloadAbandonedSessionEnd(): void {
   if (reloading || phase === "open") return;
+  // For good: no timer, answer or caller opens this generation again.
   reloading = true;
-  const ending = generation;
-  const grace = setTimeout(() => {
-    reloading = false;
-    open(ending);
-  }, RELOAD_GRACE_MS);
-  window.addEventListener("pagehide", () => clearTimeout(grace), {
-    once: true,
-  });
+  // Seen only if the reload does not happen, e.g. a declined prompt.
+  const detail: SessionEndDetail = {
+    ending: true,
+    discardedWrites: 0,
+    reloadRequired: true,
+  };
+  window.dispatchEvent(new CustomEvent(SESSION_END_EVENT, { detail }));
   window.location.reload();
 }
 
