@@ -122,6 +122,10 @@ type VisitReads interface {
 type VisitCommands interface {
 	CreateVisit(ctx context.Context, visit *Visit) error
 	EndVisit(ctx context.Context, id int64) error
+	// LockStudent locks the child in the caller's transaction, before any of
+	// its visits (#5278): a caller that ends the child's visit and opens the
+	// next one calls it before it reads that visit.
+	LockStudent(ctx context.Context, studentID int64) error
 }
 
 // StudentMoves moves students between room sessions while preserving the

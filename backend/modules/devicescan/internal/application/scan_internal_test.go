@@ -380,6 +380,33 @@ func TestScan_TransferMovesBetweenRooms(t *testing.T) {
 	require.Len(t, h.visits.recorded, 1)
 }
 
+// TestScan_LocksStudentBeforeItsVisit pins the order of #5278: the scan locks
+// the child before it reads and ends the child's visit.
+func TestScan_LocksStudentBeforeItsVisit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.visits.current = &ports.CurrentVisit{ID: 55, EntryTime: fixedNow.Add(-time.Hour), Session: &ports.SessionRef{ID: 150, RoomID: 7, StartTime: fixedNow.Add(-time.Hour), Room: &ports.Room{ID: 7, Name: "Musikraum"}}}
+
+	_, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"lock", "current", "end"}, h.visits.steps)
+}
+
+func TestScan_StudentLockFailureStopsBeforeTheVisit(t *testing.T) {
+	t.Parallel()
+	h := newHarness(t)
+	h.visits.current = &ports.CurrentVisit{ID: 55, EntryTime: fixedNow.Add(-time.Hour), Session: &ports.SessionRef{ID: 150, RoomID: 7, StartTime: fixedNow.Add(-time.Hour), Room: &ports.Room{ID: 7, Name: "Musikraum"}}}
+	h.visits.lockErr = errors.New("lock failed")
+
+	_, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+
+	requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageInternalServerError)
+	assert.Equal(t, []string{"lock"}, h.visits.steps)
+	assert.Empty(t, h.visits.ended)
+	assert.Empty(t, h.visits.recorded)
+}
+
 func TestScan_SameRoomScanOnlyChecksOut(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)

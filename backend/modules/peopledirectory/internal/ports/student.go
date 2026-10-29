@@ -75,6 +75,9 @@ type StudentStore interface {
 	CountDirectory(context.Context, domain.StudentDirectoryFilter) (int, domain.OperationStats, error)
 	// FindRecord reads one owned row; lock is "UPDATE" to hold it.
 	FindRecord(ctx context.Context, id int64, lock string) (domain.StudentRecord, bool, domain.OperationStats, error)
+	// LockRecord takes the shared class-writes gate and then holds the row
+	// under lock, as one statement where the gate query is wired.
+	LockRecord(ctx context.Context, id int64, lock string) (domain.StudentRecord, bool, domain.OperationStats, error)
 	// ListRecordsByIDs reads the owned rows of the given children, alumni
 	// included, ordered by id.
 	ListRecordsByIDs(context.Context, []int64) ([]domain.StudentRecord, domain.OperationStats, error)

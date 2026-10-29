@@ -242,12 +242,21 @@ type fakeVisits struct {
 	recorded    []recordedVisit
 	recordErr   error
 	nextVisitID int64
+	lockErr     error
+	// steps names the calls in order: lock, current and end.
+	steps []string
 }
 
+func (v *fakeVisits) LockStudent(context.Context, int64) error {
+	v.steps = append(v.steps, "lock")
+	return v.lockErr
+}
 func (v *fakeVisits) Current(context.Context, int64) (*ports.CurrentVisit, error) {
+	v.steps = append(v.steps, "current")
 	return v.current, v.currentErr
 }
 func (v *fakeVisits) EndVisit(_ context.Context, id int64) error {
+	v.steps = append(v.steps, "end")
 	v.ended = append(v.ended, id)
 	return v.endErr
 }
