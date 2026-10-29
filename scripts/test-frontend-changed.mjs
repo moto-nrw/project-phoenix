@@ -18,6 +18,7 @@ const cwd = fileURLToPath(new URL("../frontend/", import.meta.url));
 // src/components/{ui,timetable,staff}/**: planning design contracts.
 // ../backend/modules/settings/internal/defaults/*.go: category labels.
 // ../.github/workflows/e2e.yml: setup-tour target E2E path coverage.
+// src/app/api/**/route.ts: BFF routes that forward a file's CSP (#5275).
 // Always run every scan guard: this covers new/deleted files and directory renames,
 // without duplicating each guard's traversal/exclusion logic in a path matcher.
 const guards = [
@@ -35,6 +36,7 @@ const guards = [
   "src/components/ui/plan-design-guards.test.ts",
   "src/components/settings/settings-filter.test.ts",
   "src/components/school-setup/setup-tour-targets.test.ts",
+  "src/proxy.test.ts",
 ];
 
 // Run in every frontend CI node job, including full-suite runs which do not
