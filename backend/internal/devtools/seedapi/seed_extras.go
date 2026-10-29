@@ -106,6 +106,8 @@ func (seedPrivacyConsentsStep) Run(ctx context.Context, rt *Runtime) error {
 // scenario so a fresh demo tenant can show the Statistik page immediately.
 type seedStatisticsDemoStep struct{}
 
+const statisticsDemoOverrunStudentIndex = 1
+
 func (seedStatisticsDemoStep) Name() string { return "Seeding statistics demo data" }
 
 func (seedStatisticsDemoStep) Run(_ context.Context, rt *Runtime) (err error) {
@@ -165,10 +167,10 @@ func seedStatisticsDemoRecord(rt *Runtime, deviceKey string, roomID int64, index
 	if !ok {
 		return fmt.Errorf("student ID not available for statistics demo index %d", index)
 	}
-	// The first completed attendance intentionally runs past its dated pickup
-	// time. It makes the Soll-und-Ist list useful immediately after seeding,
-	// while the other records remain checked in for live views.
-	if index == 0 {
+	// One completed attendance intentionally runs past its dated pickup time.
+	// The first demo student remains checked in because the parent engagement
+	// scenario later creates a collector permission for that child today.
+	if index == statisticsDemoOverrunStudentIndex {
 		if err := seedStatisticsDemoOverrun(rt, studentID); err != nil {
 			return err
 		}
@@ -184,7 +186,7 @@ func seedStatisticsDemoRecord(rt *Runtime, deviceKey string, roomID int64, index
 	if _, err := rt.Client.DevicePost("/api/iot/checkin", map[string]any{"student_rfid": rfid, "action": "checkin", "room_id": roomID}, deviceKey, rt.StaffPIN); err != nil {
 		return fmt.Errorf("record statistics demo room visit: %w", err)
 	}
-	if index != 0 {
+	if index != statisticsDemoOverrunStudentIndex {
 		return nil
 	}
 	if _, err := rt.Client.DevicePost("/api/iot/attendance/toggle", map[string]string{"rfid": rfid, "action": "confirm"}, deviceKey, rt.StaffPIN); err != nil {
