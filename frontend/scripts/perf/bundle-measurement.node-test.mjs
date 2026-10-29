@@ -1,3 +1,7 @@
+import {
+  gitTestEnvironment,
+  initGitFixture,
+} from "../../../scripts/test-helpers/git-fixture.mjs";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -49,22 +53,13 @@ test("source/configuration identity, not commit identity, selects a reusable obs
 test("different real commits with identical frontend trees reuse one key", () =>
   inDirectory((directory) => {
     const git = (...args) =>
-      execFileSync(
-        "git",
-        [
-          "-c",
-          "core.hooksPath=/dev/null",
-          "-c",
-          "commit.gpgsign=false",
-          ...args,
-        ],
-        {
-          cwd: directory,
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "pipe"],
-        },
-      ).trim();
-    git("init");
+      execFileSync("git", args, {
+        cwd: directory,
+        env: gitTestEnvironment(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }).trim();
+    initGitFixture(git);
     git("config", "user.name", "Bundle fixture");
     git("config", "user.email", "bundle@example.org");
     mkdirSync(join(directory, "frontend"));
