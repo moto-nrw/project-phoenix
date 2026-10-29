@@ -156,6 +156,7 @@ func NewStudentHTTPTestResources(store transactionruntime.Database, unit tenant.
 			WeekdayPickupNotes:       students.CarePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
+			PrivacyConsents:        presence,
 			AbsenceOverview:        presenceservice.NewStatusDayOverviews(repoFactoryCare.StudentStatusDay, StudentTestStatusDayOverviewPeople(livePeople)),
 			ActiveService:          livePresence.Active,
 			ArrivalScheduleService: live.ArrivalSchedule,
