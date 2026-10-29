@@ -13,7 +13,8 @@
  * Filter `group` (OGS-Gruppe) und `staff` (Person) aus #4766 sowie `room`
  * (Raum) aus #4768. `verbinden` (Regeltermin-ID, #5137) öffnet in der
  * Serienansicht einmal „Mit Angebot verbinden“ und fällt danach weg; er setzt
- * `zeitraum` (Zeitraum-ID) für den Zeitraum des Regeltermins. `zeitraum` gilt,
+ * `zeitraum` (Zeitraum-ID) für den Zeitraum des Regeltermins, ebenso der
+ * Zeitraum-Chip für den gewählten aktiven Zeitraum (#5190). `zeitraum` gilt,
  * solange `d` in diesem Zeitraum liegt, und schlägt bei überlappenden
  * Zeiträumen die Wahl per Datum.
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
@@ -1761,7 +1762,10 @@ function TimetablesContent() {
           ? target
           : firstSchoolDayInPeriod(period.startDate, period.endDate, target),
         block: null,
-        zeitraum: null,
+        // Per ID wählen: per Datum gewänne bei Überlappung der ältere
+        // Zeitraum, und eingeschlossene Ferien wären nicht erreichbar.
+        // Ein inaktiver Zeitraum wird dadurch nicht aktiv.
+        zeitraum: period.isActive ? period.id : null,
       });
     },
     [todayISO, updateUrlParams, weekendOpen],
