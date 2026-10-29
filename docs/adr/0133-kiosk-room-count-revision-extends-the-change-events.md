@@ -110,7 +110,8 @@ Path by path (tests in `modules/studentpresence/compose/room_visit_revision_test
   is deleted; `active.groups` has no retention. The read sums the room's
   rows through `idx_visit_revision_events_room` and one compacted session
   row per held session through the session index, so its cost grows with the sessions a room held, not with
-  visits. It runs only for a room-wide kiosk count.
+  visits. It runs only for a room-wide kiosk count. Since #5273 the session
+  index carries the changes (addendum below).
 - **Tenant boundary.** The trigger function runs as its owner with a fixed
   `search_path` and takes the school from the changed session row; the read
   filters every subquery by the ambient school and RLS applies. The school
@@ -153,3 +154,39 @@ Student Presence budget of `TestModulePassthroughRatchet` from 121 to 122
 replaces its count statement one for one.
 
 After this ADR enters the base it cannot approve another diagnostic.
+
+## Addendum (#5273): the session index carries the changes
+
+Decision of 2026-10-29. The read model stays: a room's revision still sums
+the revision of every session it held, and its cost still grows with those
+sessions. A room base in the compaction or a read limited to uncompacted
+sessions (options A and B of #5273) would need new proofs for late events,
+reopening and overlapping compactions; at the measured cost of a few
+milliseconds per room-wide count that is not worth it, and no monitoring is
+set up (option C). The issue is closed with this change; a measured
+bottleneck reopens the question.
+
+Migration 1.15.718 adds `changes` to the session index
+(`idx_visit_revision_events_session`, key unchanged, no predicate), so the
+read takes each session revision from the index instead of visiting the
+table for every held session, whether PostgreSQL probes per held session or
+makes one pass over the school's index entries. This holds for table pages
+vacuum has marked all-visible; rows written since the last vacuum still cost
+a table visit. The session revision and the school erasure keep using the
+same index, and an event insert still maintains one index for its session
+scope. No invariant, runtime lock or statement changes; the migration builds
+the index in one transaction, so event inserts wait for that build.
+
+Synthetic history on PostgreSQL 17 after compaction (one session row and one
+entry row per session, vacuumed), median of seven warm runs per round,
+three rounds:
+
+| Sessions per room | Rooms in the school | Before | After |
+|---|---|---|---|
+| 3,650 | 1 | 4.7–5.7 ms, 14,659 buffers | 1.4–1.5 ms, 77 buffers |
+| 3,650 | 20 | 12.1–13.5 ms, 2,118 buffers | 6.1–7.8 ms, 418 buffers |
+| 36,500 | 1 | 16.8–19.0 ms, 1,248 buffers | 12.5–13.7 ms, 611 buffers |
+
+Ordering the room index by `entered_group_id` saved the sort only for the
+largest room and made the planner choose worse plans for the others, so it
+stays as 1.15.710 created it.
