@@ -52,7 +52,7 @@ export function tenantNotificationPath(
 
 export const RELOAD_REQUIRED_MESSAGE =
   "Die Abmeldung wurde unterbrochen. Laden Sie die Seite neu, um weiterzuarbeiten.";
-export const RELOAD_ACTION_LABEL = "Seite neu laden";
+const RELOAD_ACTION_LABEL = "Seite neu laden";
 
 export const DISCARDED_WRITE_MESSAGE =
   "Ihre letzte Änderung wurde nicht gespeichert, weil Sie gerade abgemeldet wurden. Bitte speichern Sie sie noch einmal.";
