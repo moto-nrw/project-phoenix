@@ -228,6 +228,15 @@ interface FieldEditorRowProps {
     readonly checked: boolean;
     readonly onChange: (checked: boolean) => void;
   };
+  /**
+   * The switch „OGS sieht die Antwort“ of the holiday registration (#5202).
+   * A health question cannot carry it, so it stays off while
+   * „Gesundheitsangabe“ is on.
+   */
+  readonly hostShareToggle?: {
+    readonly checked: boolean;
+    readonly onChange: (checked: boolean) => void;
+  };
 }
 
 const ALL_CONDITION_SOURCES: readonly ConditionSource[] = [
@@ -272,6 +281,7 @@ export function FieldEditorRow({
   allowAttachments = true,
   freeQuestionNote = SCHOOL_FREE_QUESTION_NOTE,
   healthToggle,
+  hostShareToggle,
 }: FieldEditorRowProps) {
   const fieldError = useContext(FieldErrorContext);
   // The key is derived from the question text, so a problem with the key
@@ -787,6 +797,19 @@ export function FieldEditorRow({
                     label="Gesundheitsangabe"
                     hint="Für Angaben zur Gesundheit. Eltern stimmen dann der Verarbeitung zu. Die Antwort steht nur in der Anmeldung, nicht in Liste und Export."
                     disabled={disabled}
+                  />
+                ) : null}
+                {hostShareToggle ? (
+                  <CheckboxCard
+                    checked={hostShareToggle.checked && !healthToggle?.checked}
+                    onChange={hostShareToggle.onChange}
+                    label="OGS sieht die Antwort"
+                    hint={
+                      healthToggle?.checked
+                        ? "Nicht bei Gesundheitsangaben. Diese bleiben beim Träger."
+                        : "Die OGS, die die Woche ausrichtet, sieht die Antwort in ihrer Liste und beim Feriengast."
+                    }
+                    disabled={disabled || Boolean(healthToggle?.checked)}
                   />
                 ) : null}
               </div>
