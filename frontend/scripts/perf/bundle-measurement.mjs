@@ -16,6 +16,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { perfServerEnv } from "./env.mjs";
+import { measureBase } from "./bundle-base.mjs";
 import { validBytes } from "./bundle-policy.mjs";
 
 const MEASUREMENT_FORMAT = "moto-bundle-measurement/v1";
@@ -96,6 +97,7 @@ export function buildConfiguration(directory = process.cwd(), environment) {
     ".env.production",
     ".env.production.local",
     "scripts/perf/bundle-routes.mjs",
+    "scripts/perf/bundle-base.mjs",
     "scripts/perf/bundle-measurement.mjs",
     "scripts/perf/env.mjs",
   ];
@@ -251,6 +253,26 @@ function prepareCI(baseRevision) {
     writeMeasurement(BASE_IDENTITY, identityForRevision(baseRevision));
 }
 
+function buildBase() {
+  const requested = JSON.parse(readFileSync(BASE_IDENTITY, "utf8"));
+  const current = identityForRevision(requested.sourceRevision);
+  if (measurementKey(current.identity) !== measurementKey(requested.identity))
+    throw new Error("Base source/configuration changed since preparation");
+  const routes = measureBase(current.sourceRevision);
+  writeMeasurement(
+    BASE_MEASUREMENT,
+    makeMeasurement(
+      current.identity,
+      current.sourceRevision,
+      routes,
+      process.env.GITHUB_RUN_ID ?? null,
+    ),
+  );
+  process.stdout.write(
+    `Cold merge-base measurement completed: ${current.sourceRevision}, ${routes.size} routes.\n`,
+  );
+}
+
 function github(endpoint) {
   return JSON.parse(
     execFileSync("gh", ["api", endpoint], { encoding: "utf8" }),
@@ -381,5 +403,9 @@ if (
 ) {
   if (process.argv[2] === "--prepare-ci") prepareCI(process.argv[3]);
   else if (process.argv[2] === "--fetch-base") fetchBase();
-  else throw new Error("Expected --prepare-ci [base-revision] or --fetch-base");
+  else if (process.argv[2] === "--build-base") buildBase();
+  else
+    throw new Error(
+      "Expected --prepare-ci [base-revision], --fetch-base or --build-base",
+    );
 }
