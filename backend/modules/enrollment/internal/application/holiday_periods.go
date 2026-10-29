@@ -48,16 +48,18 @@ type HolidayPeriodStore interface {
 // HolidayPeriods serves enrollment.HolidayPeriods.
 type HolidayPeriods struct {
 	store HolidayPeriodStore
+	forms HolidayFormStore
 }
 
 var _ enrollment.HolidayPeriods = (*HolidayPeriods)(nil)
 
-// NewHolidayPeriods builds the holiday period commands over store.
-func NewHolidayPeriods(store HolidayPeriodStore) *HolidayPeriods {
-	if store == nil {
-		panic("enrollment: the holiday period store is required")
+// NewHolidayPeriods builds the holiday period commands over store; forms
+// receives the first version of a new period's form (#5198).
+func NewHolidayPeriods(store HolidayPeriodStore, forms HolidayFormStore) *HolidayPeriods {
+	if store == nil || forms == nil {
+		panic("enrollment: the holiday period store and the form store are required")
 	}
-	return &HolidayPeriods{store: store}
+	return &HolidayPeriods{store: store, forms: forms}
 }
 
 // ListHolidayPeriods returns every period of the Träger, newest first.
@@ -80,7 +82,8 @@ func (h *HolidayPeriods) HolidayPeriod(ctx context.Context, organizationID, peri
 	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
 }
 
-// CreateHolidayPeriod adds a draft period and returns it as stored.
+// CreateHolidayPeriod adds a draft period with version 1 of its form, the
+// standard template, and returns it as stored.
 func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID int64, input enrollment.HolidayPeriodInput) (enrollment.HolidayPeriod, error) {
 	if organizationID <= 0 {
 		return enrollment.HolidayPeriod{}, errHolidayPeriodRequired
@@ -91,6 +94,9 @@ func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID
 	}
 	periodID, err := h.store.InsertHolidayPeriod(ctx, organizationID, input)
 	if err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
+	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate()); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
