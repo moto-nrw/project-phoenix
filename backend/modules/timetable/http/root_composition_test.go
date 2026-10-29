@@ -44,6 +44,7 @@ func init() {
 			api.WithOfferingSourceValidator(options.ValidateOfferingSource),
 			api.WithOfferingRosterResync(options.ResyncOfferingRoster),
 			api.WithTimetableMaterialization(options.Materialization),
+			api.WithTimetableNonWorkingDays(options.NonWorkingDays),
 			api.WithTimetableInstances(options.Instances),
 		}
 		if options.Clock != nil {

@@ -52,6 +52,7 @@ type testTimetableOptions struct {
 	validateOfferingSource     func(context.Context, []int64, []int64, *int64) error
 	resyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
 	materialization            timetableModule.MaterializationCapability
+	nonWorkingDays             timetableModule.NonWorkingDayCalendar
 	instances                  timetableModule.InstanceLifecycleCapability
 }
 
@@ -93,6 +94,7 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		ValidateOfferingSource:     options.validateOfferingSource,
 		ResyncOfferingRoster:       options.resyncOfferingRoster,
 		Materialization:            options.materialization,
+		NonWorkingDays:             options.nonWorkingDays,
 		Instances:                  options.instances,
 	}
 	if len(clocks) > 0 && clocks[0] != nil {
@@ -121,6 +123,7 @@ type TimetableOptions struct {
 	ValidateOfferingSource     func(context.Context, []int64, []int64, *int64) error
 	ResyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
 	Materialization            timetableModule.MaterializationCapability
+	NonWorkingDays             timetableModule.NonWorkingDayCalendar
 	Instances                  timetableModule.InstanceLifecycleCapability
 	Clock                      func() time.Time
 }

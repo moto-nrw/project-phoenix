@@ -114,7 +114,7 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalen
 	}
 	ratio := rs.childrenPerStaffRatio(ctx)
 	rows, err := rs.TimetableData.ListTemplateEntriesForPeriod(ctx, &period.ID, ratio, &timetable.TemplateScheduleWindow{From: scope.From, Until: scope.Until})
-	if err != nil || len(rows) == 0 {
+	if err != nil {
 		return []timetable.OfferingGapTemplate{}, err
 	}
 	templates := mapTemplateRows(rows, ratio, nil)

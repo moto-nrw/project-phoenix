@@ -1,6 +1,7 @@
 package timetablehttp
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -11,6 +12,33 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+type offeringGapClosedCalendar struct{}
+
+func (offeringGapClosedCalendar) TenantHolidayDates(context.Context, string, string) (map[string]bool, error) {
+	return map[string]bool{rosterReviewMonday.String(): true}, nil
+}
+
+func (offeringGapClosedCalendar) ClosingDayDates(context.Context, string, string) (map[string]bool, error) {
+	return map[string]bool{rosterReviewMonday.AddDays(7).String(): true}, nil
+}
+
+func TestOfferingGapsWithoutTemplatesSkipClosedDays(t *testing.T) {
+	t.Parallel()
+	s := buildOfferingGapsModule(t, offeringGapClosedCalendar{})
+	period := createTemplateTestPeriodRange(t, s.db, "Gap-Closed", rosterReviewMonday, rosterReviewMonday.AddDays(14), 1, nil)
+	s.sources.bookings = rosterReviewBookings(rosterReviewOfferingID, "Randstunde", "3a", createClassStudents(t, s.db, "3a", 1), 1)
+	until := rosterReviewMonday.AddDays(8)
+	s.sources.bookings[0].Windows = []timetableModule.OfferingBookingWindow{{ValidUntil: &until, Weekdays: []int{1}}}
+
+	assert.Empty(t, s.listGaps(t, period.ID), "bookings only on closed days need no Regeltermin")
+	w := s.decide(t, rosterReviewOfferingID, period.ID, true)
+	assert.Equal(t, http.StatusNotFound, w.Code, "a closed-day-only booking cannot be acknowledged: %s", w.Body.String())
+	assert.Empty(t, s.sources.decisions)
+
+	until = rosterReviewMonday.AddDays(15)
+	require.Len(t, s.listGaps(t, period.ID), 1, "an uncovered open Monday still needs a Regeltermin")
+}
 
 func TestOfferingGapsFutureSplit(t *testing.T) {
 	t.Parallel()

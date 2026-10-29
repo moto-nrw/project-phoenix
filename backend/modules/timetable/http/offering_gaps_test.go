@@ -28,17 +28,22 @@ type offeringGapsSetup struct {
 	router  chi.Router
 }
 
-func buildOfferingGapsModule(t *testing.T) *offeringGapsSetup {
+func buildOfferingGapsModule(t *testing.T, calendars ...timetableModule.NonWorkingDayCalendar) *offeringGapsSetup {
 	t.Helper()
 	sources := &rosterMaintenanceSources{results: map[int64]timetableModule.TemplateRosterMaintenance{}}
 	s := buildRosterReviewModule(t, sources)
 	s.res.OfferingGapDecisions = sources
+	var days timetableModule.NonWorkingDayCalendar
+	if len(calendars) > 0 {
+		days = calendars[0]
+	}
 	// The gap check compares with what materialization would create, so it
 	// runs against the real materialization over the same database.
 	s.res.MaterializationService = testTimetableWith(s.db, testTimetableOptions{
 		validateCareOfferingSeries: acceptCareOfferingSeries,
 		validateOfferingSource:     func(context.Context, []int64, []int64, *int64) error { return nil },
 		resyncOfferingRoster:       s.fakeResync,
+		nonWorkingDays:             days,
 	}, rosterReviewClock).materialization
 	s.router.Get("/offering-gaps", s.res.listOfferingGaps)
 	s.router.Put("/offering-gaps/{offeringId}/acknowledgement", s.res.setOfferingGapAck)

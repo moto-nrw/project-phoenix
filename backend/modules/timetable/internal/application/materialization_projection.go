@@ -21,7 +21,7 @@ import (
 // archived templates are absent. A constant number of reads.
 func (s *materializationService) ProjectOccurrences(ctx context.Context, templateIDs []int64, from, to calendar.Date) (timetable.OccurrenceProjection, error) {
 	projection := timetable.OccurrenceProjection{Dates: map[int64][]calendar.Date{}, ClosedDays: map[calendar.Date]bool{}}
-	if len(templateIDs) == 0 || from.After(to) {
+	if from.After(to) {
 		return projection, nil
 	}
 	if days := from.DaysUntil(to) + 1; days > timetable.MaxOccurrenceProjectionDays {
@@ -35,11 +35,14 @@ func (s *materializationService) ProjectOccurrences(ctx context.Context, templat
 	if err != nil {
 		return projection, err
 	}
+	projection.ClosedDays = world.closedDays()
+	if len(templateIDs) == 0 {
+		return projection, nil
+	}
 	templates, byTemplate, err := s.projectedTemplates(ctx, templateIDs)
 	if err != nil {
 		return projection, err
 	}
-	projection.ClosedDays = world.closedDays()
 	for _, tmpl := range templates {
 		if !tmpl.IsTemplate || tmpl.ArchivedAt != nil {
 			continue

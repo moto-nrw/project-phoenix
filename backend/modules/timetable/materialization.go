@@ -114,7 +114,8 @@ type MaterializationCapability interface {
 	// ProjectOccurrences returns, per template, the dates in [from, to] on
 	// which materialization creates an occurrence, with the materializer's own
 	// per-date rule and without writing (#5140). The window may span up to
-	// MaxOccurrenceProjectionDays.
+	// MaxOccurrenceProjectionDays. Closed days are returned even when no
+	// template IDs are supplied.
 	ProjectOccurrences(ctx context.Context, templateIDs []int64, from, to calendar.Date) (OccurrenceProjection, error)
 }
 
