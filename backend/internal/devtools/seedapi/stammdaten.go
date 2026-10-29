@@ -43,6 +43,8 @@ type FixedSeeder struct {
 	visitor          visitorName        // prospect of the public demo shown as one caregiver and one parent
 	saveVisitor      func(context.Context, int64, int64) error
 	seedDay          seedDate // the day the seed started; birthdays are relative to it
+
+	localCarePlanAccount *AccountCredentials
 }
 
 // FixedResult contains counts of created entities

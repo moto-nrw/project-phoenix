@@ -99,11 +99,15 @@ func demoRoleDefinitions() []demoRoleDefinition {
 // seedDemoRoles creates the reduced roles of the school with their
 // permission sets and remembers their ids next to the system roles.
 func (s *FixedSeeder) seedDemoRoles(_ context.Context) error {
+	return s.seedRoleDefinitions(demoRoleDefinitions())
+}
+
+func (s *FixedSeeder) seedRoleDefinitions(definitions []demoRoleDefinition) error {
 	permissionIDs, err := s.fetchPermissionIDs()
 	if err != nil {
 		return err
 	}
-	for _, definition := range demoRoleDefinitions() {
+	for _, definition := range definitions {
 		ids := make([]string, 0, len(definition.Permissions))
 		for _, name := range definition.Permissions {
 			id, ok := permissionIDs[name]
@@ -135,7 +139,7 @@ func (s *FixedSeeder) seedDemoRoles(_ context.Context) error {
 		s.roleIDs[definition.Name] = role.Data.ID
 	}
 	if s.verbose {
-		fmt.Printf("  ✓ %d demo roles created\n", len(demoRoleDefinitions()))
+		fmt.Printf("  ✓ %d demo roles created\n", len(definitions))
 	}
 	return nil
 }

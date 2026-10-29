@@ -565,6 +565,9 @@ func makeBootstrapSeedState(bootstrap *bootstrapSeedState) SeedStateBootstrap {
 }
 
 func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
+	if fs.localCarePlanAccount != nil {
+		state.Accounts.Local = append(state.Accounts.Local, *fs.localCarePlanAccount)
+	}
 	groupKeys := []string{
 		"sternengruppe", "bärengruppe", "sonnengruppe", "mondgruppe",
 		"regenbogengruppe", "blumengruppe", "schmetterlingsgruppe",
