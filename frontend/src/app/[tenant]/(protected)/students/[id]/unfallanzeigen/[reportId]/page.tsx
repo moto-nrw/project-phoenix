@@ -149,7 +149,7 @@ export default function AccidentReportPage() {
           <a
             href={studentAccidentReportsService.pdfUrl(studentId, reportId)}
             className={buttonClassName({
-              variant: "secondary",
+              variant: "outline",
               size: "md",
               className: "",
             })}
@@ -184,7 +184,7 @@ export default function AccidentReportPage() {
               action={
                 <ButtonLink
                   href={accidentReportPath(studentId, report.supersededById)}
-                  variant="secondary"
+                  variant="outline"
                   size="md"
                 >
                   Korrektur öffnen
@@ -239,7 +239,7 @@ function ReportDetails({
       description="Die Angaben folgen dem Vordruck der Unfallkasse."
       action={
         onEdit ? (
-          <Button type="button" variant="secondary" size="md" onClick={onEdit}>
+          <Button type="button" variant="outline" size="md" onClick={onEdit}>
             Ändern
           </Button>
         ) : undefined
@@ -397,7 +397,7 @@ function SignatureSection({
           canManage && !report.supersededById ? (
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               size="md"
               onClick={onCorrect}
             >
@@ -416,7 +416,11 @@ function SignatureSection({
           {document.hasFile && (
             <a
               href={studentDocumentsService.downloadUrl(studentId, reportId)}
-              className="text-moto-blue text-sm font-medium underline-offset-2 hover:underline"
+              className={buttonClassName({
+                variant: "outline",
+                size: "md",
+                className: "",
+              })}
             >
               Papierexemplar herunterladen
             </a>
@@ -455,26 +459,29 @@ function SignatureSection({
               onChange={setSignature}
               disabled={busy}
             />
-            <Button
-              type="button"
-              variant="success"
-              size="md"
-              disabled={busy || !signature}
-              onClick={() => {
-                if (!signature) return;
-                void run(
-                  () =>
-                    studentAccidentReportsService.sign(
-                      studentId,
-                      reportId,
-                      signature,
-                    ),
-                  "accident_report_sign_failed",
-                );
-              }}
-            >
-              {busy ? "Wird gespeichert…" : "Unterschreiben"}
-            </Button>
+            {/* Shown once the pad holds a confirmed signature, so the pad's
+                own confirm button is the only primary action before that. */}
+            {signature && (
+              <Button
+                type="button"
+                variant="primary"
+                size="md"
+                disabled={busy}
+                onClick={() => {
+                  void run(
+                    () =>
+                      studentAccidentReportsService.sign(
+                        studentId,
+                        reportId,
+                        signature,
+                      ),
+                    "accident_report_sign_failed",
+                  );
+                }}
+              >
+                {busy ? "Wird gespeichert…" : "Unterschreiben"}
+              </Button>
+            )}
             <div className="border-t border-gray-100 pt-4">
               <p className="text-sm text-gray-600">
                 Oder: Drucken Sie das PDF aus, lassen Sie es unterschreiben und
@@ -482,9 +489,9 @@ function SignatureSection({
               </p>
               <Button
                 type="button"
-                variant="ghost"
-                size="compact"
-                className="text-moto-blue mt-2"
+                variant="outline"
+                size="md"
+                className="mt-3"
                 disabled={busy}
                 onClick={() => fileRef.current?.click()}
               >

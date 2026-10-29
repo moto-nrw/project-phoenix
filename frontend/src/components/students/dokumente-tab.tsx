@@ -362,7 +362,7 @@ export function StudentDokumenteTab({
           canRecordAccidents ? (
             <Button
               type="button"
-              variant="secondary"
+              variant="outline"
               size="md"
               onClick={() => setAccidentOpen(true)}
             >
