@@ -150,4 +150,86 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(screen.getAllByText("Weitere Angaben")).toHaveLength(1);
     expect(screen.getByText("Weitere Angaben zur Familie")).toBeInTheDocument();
   });
+  it("shows pinned legal acknowledgements with Berlin time and German PDF actions", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      form: {
+        version: 2,
+        fields: [],
+        legalBlocks: [
+          {
+            key: "hinweis",
+            kind: "terms",
+            source: "custom",
+            enabled: true,
+            required: true,
+            title: "Damals gültiger Ferienbrief",
+            label: "Gelesen",
+            text: "Der **historische Ferienbrief** bleibt verbindlich.",
+            sort_order: 0,
+            attachments: [{ label: "Ferienbrief", document_url: "81" }],
+          },
+          {
+            key: "foto",
+            kind: "consent",
+            source: "custom",
+            enabled: true,
+            required: false,
+            title: "Fotos",
+            label: "Fotos erlaubt",
+            text: "",
+            sort_order: 1,
+          },
+          {
+            key: "info",
+            kind: "notice",
+            source: "custom",
+            enabled: true,
+            required: false,
+            title: "Trinkflaschen",
+            label: "Bitte eine Trinkflasche mitgeben.",
+            text: "",
+            sort_order: 2,
+            attachments: [{ label: "Packliste", document_url: "82" }],
+          },
+        ],
+      },
+      legalAcceptances: { hinweis: "2026-11-03T10:12:00Z" },
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const title = await screen.findByRole("heading", {
+      name: "Hinweise und Einwilligungen",
+    });
+    const evidence = within(title.closest("section")!);
+    expect(
+      evidence.getByText("Damals gültiger Ferienbrief"),
+    ).toBeInTheDocument();
+    expect(evidence.getByText("Gelesen")).toBeInTheDocument();
+    expect(evidence.getByText("historische Ferienbrief")).toHaveProperty(
+      "tagName",
+      "STRONG",
+    );
+    expect(
+      evidence.getByText("Zugestimmt am 03.11.2026, 11:12 Uhr"),
+    ).toBeInTheDocument();
+    expect(evidence.getAllByText("Nicht zugestimmt")).toHaveLength(1);
+    // Anker: the information-only notice and its PDF remain visible.
+    const notice = within(
+      evidence.getByRole("heading", { name: "Trinkflaschen" }).parentElement!,
+    );
+    expect(
+      notice.getByRole("button", { name: "Packliste öffnen" }),
+    ).toBeInTheDocument();
+    expect(notice.queryByText("Nicht zugestimmt")).not.toBeInTheDocument();
+    expect(
+      evidence.getByRole("button", { name: "Ferienbrief öffnen" }),
+    ).toHaveTextContent("Öffnen");
+    expect(
+      evidence.getByRole("button", { name: "Ferienbrief herunterladen" }),
+    ).toHaveTextContent("Herunterladen");
+  });
 });

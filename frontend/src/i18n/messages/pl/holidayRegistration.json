@@ -98,5 +98,8 @@
     "choose": "Wybierz odpowiedź."
   },
   "childQuestionsTitle": "Dodatkowe informacje",
-  "familyQuestionsTitle": "Dodatkowe informacje o rodzinie"
+  "familyQuestionsTitle": "Dodatkowe informacje o rodzinie",
+  "legalTitle": "Informacje i zgody",
+  "legalAccepted": "Potwierdzono",
+  "legalNotAccepted": "Nie potwierdzono"
 }

@@ -98,5 +98,8 @@
     "choose": "Lütfen bir cevap seçin."
   },
   "childQuestionsTitle": "Diğer bilgiler",
-  "familyQuestionsTitle": "Aileniz hakkında diğer bilgiler"
+  "familyQuestionsTitle": "Aileniz hakkında diğer bilgiler",
+  "legalTitle": "Bilgiler ve onaylar",
+  "legalAccepted": "Onaylandı",
+  "legalNotAccepted": "Onaylanmadı"
 }

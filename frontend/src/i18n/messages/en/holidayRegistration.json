@@ -98,5 +98,8 @@
     "choose": "Please choose an answer."
   },
   "childQuestionsTitle": "More details",
-  "familyQuestionsTitle": "More details about your family"
+  "familyQuestionsTitle": "More details about your family",
+  "legalTitle": "Notices and consent",
+  "legalAccepted": "Confirmed",
+  "legalNotAccepted": "Not confirmed"
 }

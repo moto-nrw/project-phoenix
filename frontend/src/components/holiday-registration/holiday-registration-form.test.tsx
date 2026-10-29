@@ -795,4 +795,176 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
       }),
     ).toHaveValue("Schule");
   });
+  it("requires PDF acknowledgements and shows the accepted and declined blocks in the summary", async () => {
+    const shown = {
+      ...offer,
+      form: {
+        ...offer.form,
+        legalBlocks: [
+          {
+            key: "hinweis",
+            kind: "notice" as const,
+            source: "custom" as const,
+            title: "Ferienhinweise",
+            label: "Ich habe die Ferienhinweise gelesen.",
+            text: "Bitte eine Trinkflasche mitgeben.",
+            enabled: true,
+            required: true,
+            sort_order: 0,
+            attachments: [{ label: "Ferienbrief", document_url: "19" }],
+          },
+          {
+            key: "foto",
+            kind: "consent" as const,
+            source: "custom" as const,
+            title: "Erinnerungsfotos",
+            label: "Fotos sind erlaubt.",
+            text: "",
+            enabled: true,
+            required: false,
+            sort_order: 1,
+          },
+        ],
+      },
+    };
+    renderForm(null, shown);
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText("Bitte prüfen Sie die markierten Felder."),
+    ).toBeInTheDocument();
+    const acknowledgement = screen.getByRole("checkbox", {
+      name: /Ich habe die Ferienhinweise gelesen/,
+    });
+    expect(acknowledgement).toHaveAttribute("aria-invalid", "true");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Details zu Ferienhinweise anzeigen",
+      }),
+    );
+    expect(
+      await screen.findByText("Bitte eine Trinkflasche mitgeben."),
+    ).toBeInTheDocument();
+    expect(acknowledgement).not.toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    fireEvent.click(acknowledgement);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    expect(
+      await screen.findByText("Bitte prüfen Sie Ihre Angaben"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ferienhinweise")).toBeInTheDocument();
+    expect(screen.getByText("Bestätigt")).toBeInTheDocument();
+    expect(screen.getByText("Nicht bestätigt")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "link-key",
+        expect.objectContaining({
+          legal_acceptances: { hinweis: true, foto: false },
+        }),
+      ),
+    );
+  });
+  it("requires fresh legal acknowledgement after the version changes", async () => {
+    mockSubmit.mockRejectedValueOnce(
+      new ApiError("changed", 409, {
+        code: "enrollment.holiday_registration_form_changed",
+      }),
+    );
+    const reload = vi.fn().mockResolvedValue(undefined);
+    renderForm(
+      null,
+      {
+        ...offer,
+        form: {
+          ...offer.form,
+          legalBlocks: [
+            {
+              key: "hinweis",
+              kind: "terms",
+              source: "custom",
+              title: "Ferienhinweise",
+              label: "Ich habe die Ferienhinweise gelesen.",
+              text: "",
+              enabled: true,
+              required: true,
+              sort_order: 0,
+            },
+          ],
+        },
+      },
+      reload,
+    );
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Ich habe die Ferienhinweise gelesen/,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("checkbox", {
+        name: /Ich habe die Ferienhinweise gelesen/,
+      }),
+    ).not.toBeChecked();
+  });
+  it("keeps an optional information-only notice read-only", async () => {
+    renderForm(null, {
+      ...offer,
+      form: {
+        ...offer.form,
+        legalBlocks: [
+          {
+            key: "info",
+            kind: "notice",
+            source: "custom",
+            title: "Trinkflaschen",
+            label: "Bitte eine Trinkflasche mitgeben.",
+            text: "",
+            enabled: true,
+            required: false,
+            sort_order: 0,
+          },
+        ],
+      },
+    });
+    // Anker: the enabled information block is visible in the loaded form.
+    expect(
+      await screen.findByRole("heading", { name: "Trinkflaschen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte eine Trinkflasche mitgeben."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("checkbox", {
+        name: "Bitte eine Trinkflasche mitgeben.",
+      }),
+    ).not.toBeInTheDocument();
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    // Anker: the information-only notice remains visible in the summary.
+    expect(await screen.findByText("Trinkflaschen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte eine Trinkflasche mitgeben."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Nicht bestätigt")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bestätigt")).not.toBeInTheDocument();
+  });
 });

@@ -176,9 +176,10 @@ type HolidayChildAnswers struct {
 // HolidayRegistrationAnswers are the form version and the answers of one
 // registration as the store reads them, the children in their order.
 type HolidayRegistrationAnswers struct {
-	FormVersion int
-	CustomData  HolidayAnswers
-	Children    []HolidayChildAnswers
+	LegalAcceptances map[string]time.Time
+	FormVersion      int
+	CustomData       HolidayAnswers
+	Children         []HolidayChildAnswers
 }
 
 // HolidayRegistrationDetail is one registration with everything the parent
@@ -188,6 +189,7 @@ type HolidayRegistrationAnswers struct {
 // included (#5198).
 type HolidayRegistrationDetail struct {
 	HolidayRegistrationSummary
+	LegalAcceptances   map[string]time.Time         `json:"legal_acceptances"`
 	SecondGuardian     *HolidayGuardianInput        `json:"second_guardian,omitempty"`
 	Health             []HolidayRegistrationHealth  `json:"health"`
 	Form               *HolidayPeriodForm           `json:"form"`

@@ -1,3 +1,7 @@
+import {
+  holidayLegalBlocks,
+  type HolidayLegalBlockWire,
+} from "~/lib/holiday-form-field";
 /**
  * Client of the review of the holiday registrations in the Träger portal
  * (#4663): the list of a holiday period with its filters, one registration
@@ -135,6 +139,7 @@ export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
    * The form version the parents answered (#5198); its labels name the
    * answers, also after a later change of the form.
    */
+  readonly legalAcceptances?: Readonly<Record<string, string>>;
   readonly form: HolidayFormVersion;
   /** Answers to the family questions, by key. */
   readonly answers: Readonly<Record<string, unknown>>;
@@ -219,7 +224,12 @@ interface BackendDetail extends BackendSummary {
         } | null;
       }[]
     | null;
-  form?: { version: number; fields?: HolidayFormField[] | null } | null;
+  legal_acceptances?: Record<string, string> | null;
+  form?: {
+    version: number;
+    fields?: HolidayFormField[] | null;
+    legal_blocks?: HolidayLegalBlockWire[] | null;
+  } | null;
   custom_data?: Record<string, unknown> | null;
   child_custom_data?:
     { child_id: number; custom_data?: Record<string, unknown> | null }[] | null;
@@ -301,7 +311,9 @@ function detailFromBackend(
       before: changesFromBackend(event.details?.before),
       after: changesFromBackend(event.details?.after),
     })),
+    legalAcceptances: registration.legal_acceptances ?? {},
     form: {
+      legalBlocks: holidayLegalBlocks(registration.form?.legal_blocks),
       version: registration.form?.version ?? 0,
       fields: registration.form?.fields ?? [],
     },

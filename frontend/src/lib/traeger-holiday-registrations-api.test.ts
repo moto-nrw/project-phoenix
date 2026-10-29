@@ -220,7 +220,7 @@ describe("traeger-holiday-registrations-api", () => {
 
     const detail = await fetchHolidayRegistration("5", "7");
 
-    expect(detail.form).toEqual({ version: 0, fields: [] });
+    expect(detail.form).toEqual({ version: 0, fields: [], legalBlocks: [] });
     expect(detail.answers).toEqual({});
     expect(detail.childAnswers).toEqual({});
   });

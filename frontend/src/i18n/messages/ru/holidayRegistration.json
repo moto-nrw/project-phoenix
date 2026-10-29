@@ -98,5 +98,8 @@
     "choose": "Пожалуйста, выберите ответ."
   },
   "childQuestionsTitle": "Дополнительные сведения",
-  "familyQuestionsTitle": "Дополнительные сведения о семье"
+  "familyQuestionsTitle": "Дополнительные сведения о семье",
+  "legalTitle": "Уведомления и согласия",
+  "legalAccepted": "Подтверждено",
+  "legalNotAccepted": "Не подтверждено"
 }
