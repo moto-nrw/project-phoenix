@@ -1,3 +1,4 @@
+import { withServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -856,16 +857,18 @@ describe("authConfig", () => {
         ) => Promise<unknown>;
       };
 
-      const result = await credentialsProvider?.authorize?.(
-        {
-          internalRefresh: "true",
-          token: INTERNAL_REFRESH_JWT,
-          refreshToken: "refresh-token",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(async () =>
+        credentialsProvider?.authorize?.(
+          {
+            internalRefresh: "true",
+            token: INTERNAL_REFRESH_JWT,
+            refreshToken: "refresh-token",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
-      expect(result).toBeDefined();
+      expect(result).toMatchObject({ id: "123" });
       expect(mockFetch).not.toHaveBeenCalled(); // Should not call login endpoint
     });
   });
@@ -1501,13 +1504,15 @@ describe("authConfig", () => {
 
     it("should handle internal refresh", async () => {
       const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: INTERNAL_REFRESH_JWT,
-          refreshToken: "refresh-token",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: INTERNAL_REFRESH_JWT,
+            refreshToken: "refresh-token",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
@@ -1517,13 +1522,15 @@ describe("authConfig", () => {
 
     it("should return null for internal refresh with invalid JWT", async () => {
       const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: "invalid-jwt",
-          refreshToken: "refresh-token",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: "invalid-jwt",
+            refreshToken: "refresh-token",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).toBeNull();
@@ -1577,13 +1584,15 @@ describe("authConfig", () => {
 
       it("should handle internal refresh logging", async () => {
         const authorize = getTeacherAuthorize();
-        const result = await authorize(
-          {
-            internalRefresh: "true",
-            token: TEACHER_JWT_MINIMAL,
-            refreshToken: "refresh-token",
-          },
-          new Request("http://localhost:3000"),
+        const result = await withServerSessionMutation(() =>
+          authorize(
+            {
+              internalRefresh: "true",
+              token: TEACHER_JWT_MINIMAL,
+              refreshToken: "refresh-token",
+            },
+            new Request("http://localhost:3000"),
+          ),
         );
 
         expect(result).not.toBeNull();
@@ -1730,13 +1739,15 @@ describe("authConfig", () => {
 
     it("should handle internal refresh with platform scope", async () => {
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: OPERATOR_JWT,
-          refreshToken: "op-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: OPERATOR_JWT,
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
@@ -1749,13 +1760,15 @@ describe("authConfig", () => {
 
     it("should fall back to email claim for legacy operator internal refresh tokens", async () => {
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: OPERATOR_JWT_EMAIL_ONLY,
-          refreshToken: "op-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: OPERATOR_JWT_EMAIL_ONLY,
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
@@ -1766,13 +1779,15 @@ describe("authConfig", () => {
 
     it("should not use operator subject as email when internal refresh token has no email claims", async () => {
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: OPERATOR_JWT_NO_EMAIL,
-          refreshToken: "op-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: OPERATOR_JWT_NO_EMAIL,
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
@@ -1782,13 +1797,15 @@ describe("authConfig", () => {
 
     it("should return null for internal refresh with invalid JWT", async () => {
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: "bad-token",
-          refreshToken: "op-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: "bad-token",
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).toBeNull();
@@ -1831,13 +1848,15 @@ describe("authConfig", () => {
 
       it("should handle operator internal refresh logging", async () => {
         const authorize = getOperatorAuthorize();
-        const result = await authorize(
-          {
-            internalRefresh: "true",
-            token: OPERATOR_JWT_MINIMAL,
-            refreshToken: "op-refresh",
-          },
-          new Request("http://localhost:3000"),
+        const result = await withServerSessionMutation(() =>
+          authorize(
+            {
+              internalRefresh: "true",
+              token: OPERATOR_JWT_MINIMAL,
+              refreshToken: "op-refresh",
+            },
+            new Request("http://localhost:3000"),
+          ),
         );
 
         expect(result).not.toBeNull();
@@ -2079,13 +2098,15 @@ describe("authConfig", () => {
 
     it("should handle internal refresh with parent scope", async () => {
       const authorize = getParentAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: PARENT_JWT,
-          refreshToken: "parent-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: PARENT_JWT,
+            refreshToken: "parent-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
