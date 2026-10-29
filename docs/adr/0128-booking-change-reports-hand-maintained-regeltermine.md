@@ -87,8 +87,11 @@ The end of a Regeltermin is the end of its occurrence, or of its schedule for
 a hand roster row; the latest end of the weekday counts. A schedule names a
 weekday and an end only when it is valid on a date of that weekday from the
 Stichtag on, by materialization's own rule `scheduleValidOn` (validity dates,
-the series' last day, the planning period and the A/B week). A schedule whose
-validity or period has ended plans nothing the change touches.
+the series' last day, the planning period and the A/B week), and when one of
+the child's hand roster rows of the template is valid on that same date by
+materialization's `isEnrollmentValidOn` (its validity, period and weekday
+scope). A schedule whose validity or period has ended, or that never meets
+the child's row, plans nothing the change touches.
 
 The times decide only when the Regeltermin has an end and every remaining
 booking of the day has a pickup time. Otherwise the day keeps the first rule
