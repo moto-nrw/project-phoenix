@@ -94,7 +94,13 @@ const offer: HolidayRegistrationOffer = {
       endsOn: "2027-01-08",
       hostSchoolName: "OGS Nord",
       timeModels: [
-        { id: "21", name: "bis 13 Uhr", startsAt: "08:00", endsAt: "13:00" },
+        {
+          id: "21",
+          name: "bis 13 Uhr",
+          startsAt: "08:00",
+          endsAt: "13:00",
+          priceCents: 4500,
+        },
       ],
     },
   ],
@@ -140,7 +146,7 @@ function renderForm(
   );
 }
 
-function choose(combobox: HTMLElement, option: string) {
+function choose(combobox: HTMLElement, option: string | RegExp) {
   fireEvent.click(combobox);
   fireEvent.click(screen.getByRole("option", { name: option }));
 }
@@ -148,6 +154,9 @@ function choose(combobox: HTMLElement, option: string) {
 function type(input: HTMLElement, value: string) {
   fireEvent.change(input, { target: { value } });
 }
+
+/** The time model of the week with its price; € follows a no-break space. */
+const WEEK_TIME_MODEL = /^bis 13 Uhr · 45,00\s€ \(08:00 bis 13:00 Uhr\)$/;
 
 /** Fills a complete registration of one holiday guest. */
 function fillRegistration() {
@@ -165,7 +174,7 @@ function fillRegistration() {
   expect(screen.getByText(/Ihr Kind kommt als Feriengast/)).toBeInTheDocument();
   choose(
     screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
-    "bis 13 Uhr (08:00 bis 13:00 Uhr)",
+    WEEK_TIME_MODEL,
   );
   type(guardianFirst!, "Eva");
   type(guardianLast!, "Muster");
@@ -363,6 +372,22 @@ describe("HolidayRegistrationForm", () => {
     );
   });
 
+  it("shows the price per week at each time model, as the base line of the contribution", () => {
+    renderForm();
+    expect(
+      screen.getByText(
+        /Der Preis gilt pro Woche und Kind, ohne Ermäßigung oder Befreiung\. Ihren Beitrag sehen Sie in der Zusammenfassung\./,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
+    );
+    // 45,00 € is the base line quoted(false) shows under "Beitrag".
+    expect(
+      screen.getByRole("option", { name: WEEK_TIME_MODEL }),
+    ).toBeInTheDocument();
+  });
+
   it("lets parents send the registration when the contribution cannot be shown", async () => {
     mockQuote.mockRejectedValue(new Error("offline"));
     renderForm();
@@ -402,7 +427,7 @@ describe("HolidayRegistrationForm", () => {
 
     choose(
       screen.getByRole("combobox", { name: /04\.01\.2027 bis 08\.01\.2027/ }),
-      "bis 13 Uhr (08:00 bis 13:00 Uhr)",
+      WEEK_TIME_MODEL,
     );
     type(screen.getAllByLabelText("Name")[0]!, "Oma Schneider");
     type(screen.getAllByLabelText("Telefon")[1]!, "05402 2");

@@ -33,6 +33,8 @@
   "notBooked": "Без запису",
   "weekRange": "{starts} – {ends}",
   "timeModel": "{name} ({startsAt}–{endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt}–{endsAt})",
+  "weeksPriceText": "Ціна вказана за тиждень на одну дитину, без знижки та звільнення. Ваш внесок ви побачите в підсумку.",
   "healthTitle": "Здоров'я (за бажанням)",
   "healthText": "Ці дані бачать лише вихователі.",
   "allergies": "Алергії та непереносимість",
