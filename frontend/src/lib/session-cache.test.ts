@@ -281,6 +281,34 @@ describe("sessionFetch", () => {
     }
   });
 
+  it("lets a revoked session take the sign-out path after a logout elsewhere", async () => {
+    const { checkSessionAfterLogoutElsewhere } = await freshModule();
+    mockGetSession.mockResolvedValue(session("token-a"));
+    mockHandleAuthFailure.mockResolvedValueOnce(false);
+    mockFetch.mockResolvedValueOnce(new Response(null, { status: 401 }));
+
+    await expect(checkSessionAfterLogoutElsewhere()).resolves.toBeUndefined();
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/me/profile",
+      expect.objectContaining({ method: "GET" }),
+    );
+    expect(mockHandleAuthFailure).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([200, 409])(
+    "leaves a session that still holds alone after a logout elsewhere (%s)",
+    async (status) => {
+      const { checkSessionAfterLogoutElsewhere } = await freshModule();
+      mockGetSession.mockResolvedValue(session("token-a"));
+      mockFetch.mockResolvedValueOnce(new Response(null, { status }));
+
+      await checkSessionAfterLogoutElsewhere();
+
+      expect(mockHandleAuthFailure).not.toHaveBeenCalled();
+    },
+  );
+
   it("normalizes a failed session lookup as unavailable", async () => {
     const { sessionFetch } = await freshModule();
     const { ApiError } = await import("./api-error");
