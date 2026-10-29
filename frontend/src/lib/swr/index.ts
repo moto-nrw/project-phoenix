@@ -20,6 +20,7 @@
 // Re-export hooks
 export {
   useSWRAuth,
+  useScopedSWRKey,
   useImmutableSWR,
   useTenantMutate,
   useTenantMutateMatching,
