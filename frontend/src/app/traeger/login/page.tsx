@@ -4,7 +4,8 @@
 // Schul-Logins mit einem Zwischenschritt: Wer zu mehreren Trägern gehört,
 // wählt den Träger aus. Danach ist der zweite Faktor immer Pflicht (#4651):
 // ein Code per E-Mail, beim ersten Mal mit Einrichtung. Ein Gerät merkt sich
-// das Träger-Portal nicht.
+// das Träger-Portal nicht. „Passwort vergessen?“ schickt den Link auf den
+// Träger-Host (#5149).
 
 import { Suspense, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { signIn, signOut, useSession } from "next-auth/react";
@@ -14,6 +15,7 @@ import {
   AuthShell,
   MotoBrand,
   authPrimaryButtonClassName,
+  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -29,8 +31,10 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
+import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { Radio } from "~/components/ui/radio";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { requestTraegerPasswordReset } from "~/lib/auth-api";
 import { hasSessionAccess } from "~/lib/session-access";
 import { errorStatus } from "~/lib/expected-failure";
 import { createLogger } from "~/lib/logger";
@@ -88,6 +92,9 @@ function LoginForm() {
   );
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const resetFormRef = useRef<HTMLFormElement>(null);
+  const resetErrors = useApiFormError(resetFormRef);
   const latestSubmitRef = useRef<() => void>(() => undefined);
   const isCleaningSessionRef = useRef(false);
   const searchParams = useSearchParams();
@@ -262,138 +269,159 @@ function LoginForm() {
   }
 
   return (
-    <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
-      <form
-        ref={formRef}
-        noValidate
-        className="space-y-6"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void submit();
-        }}
-      >
-        {formErrors.error ? (
-          <FormErrorAlert message={formErrors.error} />
-        ) : sessionExpired ? (
-          <Alert
-            type="info"
-            message="Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
-          />
-        ) : null}
+    <>
+      <AuthShell {...SHELL_COPY} variant="tenant" brand={<MotoBrand />}>
+        <form
+          ref={formRef}
+          noValidate
+          className="space-y-6"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          {formErrors.error ? (
+            <FormErrorAlert message={formErrors.error} />
+          ) : sessionExpired ? (
+            <Alert
+              type="info"
+              message="Ihre Sitzung ist abgelaufen. Bitte melden Sie sich erneut an."
+            />
+          ) : null}
 
-        {choices ? (
-          <fieldset className="space-y-3 border-0 p-0">
-            <legend className="mb-2 text-sm font-medium text-gray-700">
-              Sie gehören zu mehreren Trägern. Welchen Träger möchten Sie
-              öffnen?
-            </legend>
-            {choices.map((choice) => (
-              <ChoiceTile
-                key={choice.id}
-                tone="green"
-                selected={selectedId === choice.id}
-                className="p-3"
-              >
-                <Radio
-                  name="organization"
-                  value={choice.id}
-                  checked={selectedId === choice.id}
-                  disabled={isSubmitting}
-                  onChange={() => setSelectedId(choice.id)}
-                />
-                <span>{choice.name}</span>
-              </ChoiceTile>
-            ))}
-          </fieldset>
-        ) : (
-          <div className="space-y-4">
-            <div className="text-left">
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                label="E-Mail-Adresse"
-                controlSize="compact"
-                data-testid="input-email"
-                autoComplete="username"
-                required
-                disabled={isSubmitting}
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                error={formErrors.fieldError("email")}
-              />
-            </div>
-
-            <div className="text-left">
-              <FieldLabel
-                htmlFor="password"
-                required
-                invalid={Boolean(formErrors.fieldError("password"))}
-              >
-                Passwort
-              </FieldLabel>
-              <div className="relative">
+          {choices ? (
+            <fieldset className="space-y-3 border-0 p-0">
+              <legend className="mb-2 text-sm font-medium text-gray-700">
+                Sie gehören zu mehreren Trägern. Welchen Träger möchten Sie
+                öffnen?
+              </legend>
+              {choices.map((choice) => (
+                <ChoiceTile
+                  key={choice.id}
+                  tone="green"
+                  selected={selectedId === choice.id}
+                  className="p-3"
+                >
+                  <Radio
+                    name="organization"
+                    value={choice.id}
+                    checked={selectedId === choice.id}
+                    disabled={isSubmitting}
+                    onChange={() => setSelectedId(choice.id)}
+                  />
+                  <span>{choice.name}</span>
+                </ChoiceTile>
+              ))}
+            </fieldset>
+          ) : (
+            <div className="space-y-4">
+              <div className="text-left">
                 <Input
-                  id="password"
-                  name="password"
-                  type={showPassword ? "text" : "password"}
+                  id="email"
+                  name="email"
+                  type="email"
+                  label="E-Mail-Adresse"
                   controlSize="compact"
-                  data-testid="input-password"
-                  autoComplete="current-password"
+                  data-testid="input-email"
+                  autoComplete="username"
                   required
                   disabled={isSubmitting}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  aria-invalid={Boolean(formErrors.fieldError("password"))}
-                  aria-describedby={
-                    formErrors.fieldError("password")
-                      ? "password-error"
-                      : undefined
-                  }
-                  className="pr-10"
-                />
-                <PasswordToggleButton
-                  showPassword={showPassword}
-                  onToggle={() => setShowPassword(!showPassword)}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  error={formErrors.fieldError("email")}
                 />
               </div>
-              <AuthFieldError
-                id="password-error"
-                message={formErrors.fieldError("password")}
-              />
-            </div>
-          </div>
-        )}
 
-        <div className="mt-2 space-y-3">
-          <button
-            type="submit"
-            disabled={isSubmitting || (choices !== null && !selectedId)}
-            className={authPrimaryButtonClassName}
-          >
-            <span className="relative z-10">
-              {isSubmitting
-                ? "Anmeldung läuft …"
-                : choices
-                  ? "Träger öffnen"
-                  : "Anmelden"}
-            </span>
-          </button>
-          {choices ? (
-            <Button
-              type="button"
-              variant="ghost"
-              size="compact"
-              disabled={isSubmitting}
-              onClick={backToCredentials}
-              className="w-full"
+              <div className="text-left">
+                <FieldLabel
+                  htmlFor="password"
+                  required
+                  invalid={Boolean(formErrors.fieldError("password"))}
+                >
+                  Passwort
+                </FieldLabel>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    controlSize="compact"
+                    data-testid="input-password"
+                    autoComplete="current-password"
+                    required
+                    disabled={isSubmitting}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    aria-invalid={Boolean(formErrors.fieldError("password"))}
+                    aria-describedby={
+                      formErrors.fieldError("password")
+                        ? "password-error"
+                        : undefined
+                    }
+                    className="pr-10"
+                  />
+                  <PasswordToggleButton
+                    showPassword={showPassword}
+                    onToggle={() => setShowPassword(!showPassword)}
+                  />
+                </div>
+                <AuthFieldError
+                  id="password-error"
+                  message={formErrors.fieldError("password")}
+                />
+              </div>
+
+              <div className="text-center">
+                <button
+                  type="button"
+                  disabled={isSubmitting}
+                  onClick={() => setIsResetModalOpen(true)}
+                  className={authTextButtonClassName}
+                >
+                  Passwort vergessen?
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-2 space-y-3">
+            <button
+              type="submit"
+              disabled={isSubmitting || (choices !== null && !selectedId)}
+              className={authPrimaryButtonClassName}
             >
-              Mit einem anderen Konto anmelden
-            </Button>
-          ) : null}
-        </div>
-      </form>
-    </AuthShell>
+              <span className="relative z-10">
+                {isSubmitting
+                  ? "Anmeldung läuft …"
+                  : choices
+                    ? "Träger öffnen"
+                    : "Anmelden"}
+              </span>
+            </button>
+            {choices ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="compact"
+                disabled={isSubmitting}
+                onClick={backToCredentials}
+                className="w-full"
+              >
+                Mit einem anderen Konto anmelden
+              </Button>
+            ) : null}
+          </div>
+        </form>
+      </AuthShell>
+
+      <PasswordResetModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onRequestReset={requestTraegerPasswordReset}
+        errorPath={resetErrors}
+        formRef={resetFormRef}
+      />
+    </>
   );
 }
 
