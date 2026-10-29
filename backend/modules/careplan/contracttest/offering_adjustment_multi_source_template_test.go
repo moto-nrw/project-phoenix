@@ -292,7 +292,9 @@ func TestDatedCorrection_MultiSourceAllSourcesDroppedCapsRow(t *testing.T) {
 // A template the union resync rejects (here a source turned inactive behind
 // the catalog's guard) is not rebuilt by the resync. The dated correction
 // then caps the child's row itself, as before #5234, so the weekday the
-// correction removed does not stay planned.
+// correction removed does not stay planned. The fallback never touches the
+// other child, keeps a hand decision with its participant row, and a repeated
+// correction changes nothing.
 func TestDatedCorrection_MultiSourceRejectedTemplateCapsRow(t *testing.T) {
 	t.Parallel()
 	f := setupMultiSourceCorrection(t, "mehrquellen-abgelehnt@example.com", divergingPeriodCase{})
@@ -302,8 +304,17 @@ func TestDatedCorrection_MultiSourceRejectedTemplateCapsRow(t *testing.T) {
 	running := f.singleRowOf(t, "undated setup", f.studentID)
 	require.Equal(t, []int{1, 3}, running.SelectedWeekdays, "sanity: the first source plans Monday and Wednesday")
 	neighbour := f.singleRowOf(t, "undated setup", f.neighbourID)
+	mondayOccurrence := f.materialize(t, 0)
+	neighbourParticipant, ok := f.participants(t, mondayOccurrence)[f.neighbourID]
+	require.True(t, ok, "sanity: the other child is planned on Monday")
 	wednesday := f.materialize(t, 2)
 	require.Contains(t, f.participants(t, wednesday), f.studentID)
+	decidedWednesday := f.materialize(t, 9)
+	decided, ok := f.participants(t, decidedWednesday)[f.studentID]
+	require.True(t, ok, "sanity: the child is planned on the later Wednesday")
+	testpkg.UpdateSessionAttendance(t, testpkg.Ctx(t), f.env.db, decided.ID, map[string]any{
+		"status": studentpresence.SessionAttendanceAbsent, "manual_status_at": time.Now(),
+	})
 
 	_, err := f.env.db.NewRaw(`UPDATE enrollment.care_offerings SET is_active = false WHERE id = ? AND tenant_id = ?`,
 		f.first.ID, testpkg.Tenant(t)).Exec(testpkg.Ctx(t))
@@ -318,4 +329,35 @@ func TestDatedCorrection_MultiSourceRejectedTemplateCapsRow(t *testing.T) {
 	}
 	assert.NotContains(t, f.participants(t, wednesday), f.studentID, "the removed Wednesday must not stay planned")
 	requireUnchanged(t, "rejected template (other child)", neighbour, f.singleRowOf(t, "rejected template", f.neighbourID))
+	f.requireParticipant(t, "rejected template (other child)", mondayOccurrence, f.neighbourID, neighbourParticipant)
+	kept := f.requireParticipant(t, "rejected template (hand decision)", decidedWednesday, f.studentID, decided)
+	assert.Equal(t, studentpresence.SessionAttendanceAbsent, kept.Status, "the hand decision keeps its status")
+	assert.NotNil(t, kept.ManualStatusAt, "the hand decision keeps its marker")
+
+	rows := map[int64][]timetable.StudentEnrollment{f.studentID: f.rowsOf(t, f.studentID), f.neighbourID: f.rowsOf(t, f.neighbourID)}
+	planned := map[int64]map[int64]testpkg.InstanceStudent{}
+	for _, instanceID := range []int64{mondayOccurrence, wednesday, decidedWednesday} {
+		planned[instanceID] = f.participants(t, instanceID)
+	}
+	f.correctAtSwitch(t, monday(f.second))
+	for studentID, before := range rows {
+		after := f.rowsOf(t, studentID)
+		require.Len(t, after, len(before), "repeated correction on a rejected template: student %d keeps its rows", studentID)
+		for i := range before {
+			requireUnchanged(t, "repeated correction on a rejected template", before[i], after[i])
+		}
+	}
+	for instanceID, before := range planned {
+		f.requireSameParticipants(t, "repeated correction on a rejected template", instanceID, before)
+	}
+}
+
+// requireParticipant asserts that the student is still planned on the
+// instance with the same participant row and returns it.
+func (f multiSourceCorrection) requireParticipant(t *testing.T, step string, instanceID, studentID int64, before testpkg.InstanceStudent) testpkg.InstanceStudent {
+	t.Helper()
+	after, ok := f.participants(t, instanceID)[studentID]
+	require.True(t, ok, "%s: student %d stays on the instance", step, studentID)
+	assert.Equal(t, before.ID, after.ID, "%s: student %d keeps the participant row", step, studentID)
+	return after
 }
