@@ -92,6 +92,9 @@ export const studentKeys = {
     `student-change-history-${encodeURIComponent(id)}`,
   privacyConsent: (id: string) =>
     `student-privacy-consent-${encodeURIComponent(id)}`,
+  // The SSE hook invalidates the "pickup-data-" / "arrival-data-" prefixes.
+  pickupData: (id: string) => `pickup-data-${encodeURIComponent(id)}`,
+  arrivalData: (id: string) => `arrival-data-${encodeURIComponent(id)}`,
 } as const;
 
 export const payrollKeys = {

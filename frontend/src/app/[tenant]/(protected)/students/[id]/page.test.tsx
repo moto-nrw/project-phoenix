@@ -273,12 +273,20 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
     onClose,
     onSubmit,
     canPlanPartialExcusal,
+    onSubmitPartialAbsence,
+    onDeletePartialAbsence,
   }: {
     isOpen: boolean;
     status: "sick" | "excused" | "class_trip";
     onClose: () => void;
     onSubmit: (dates: string[]) => Promise<void>;
     canPlanPartialExcusal?: boolean;
+    onSubmitPartialAbsence?: (
+      id: string | null,
+      date: string,
+      fromTime: string,
+    ) => Promise<void>;
+    onDeletePartialAbsence?: (id: string) => Promise<void>;
   }) =>
     isOpen ? (
       <div
@@ -291,6 +299,22 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
           onClick={() => void onSubmit(["2026-05-25"]).catch(() => undefined)}
         >
           Speichern
+        </button>
+        <button
+          type="button"
+          data-testid="planned-partial-save"
+          onClick={() =>
+            void onSubmitPartialAbsence?.(null, "2026-05-25", "12:00")
+          }
+        >
+          Teilentschuldigung speichern
+        </button>
+        <button
+          type="button"
+          data-testid="planned-partial-delete"
+          onClick={() => void onDeletePartialAbsence?.("p1")}
+        >
+          Teilentschuldigung entfernen
         </button>
         <button
           type="button"
@@ -1911,6 +1935,36 @@ describe("StudentDetailPage", () => {
         expect(mockToastSuccess).toHaveBeenCalled();
       });
     });
+
+    it.each(["save", "delete"] as const)(
+      "reloads the scoped pickup header after a partial absence %s",
+      async (action) => {
+        // Partial excusals need Stammdaten write access.
+        vi.mocked(useSession).mockReturnValue({
+          data: {
+            user: {
+              id: "1",
+              permissions: ["config:manage", "users:update", "users:read"],
+            },
+          },
+          status: "authenticated",
+        } as ReturnType<typeof useSession>);
+        render(<StudentDetailPage />);
+        fireEvent.click(screen.getByTestId("excused-toggle-button"));
+        await screen.findByTestId("planned-status-modal-excused");
+        await act(async () => {
+          fireEvent.click(screen.getByTestId(`planned-partial-${action}`));
+        });
+        // The reader behind useSWRAuth holds the key of the session's scope;
+        // an unscoped revalidation never reached it.
+        await waitFor(() => {
+          expect(mockScopedMutate).toHaveBeenCalledWith(
+            "test-tenant:1:pickup-data-1",
+          );
+        });
+        expect(mockSWRMutate).not.toHaveBeenCalledWith("pickup-data-1");
+      },
+    );
 
     it("does not emit a toast when planned excusal saving fails", async () => {
       mockCreateStudentStatusDays.mockRejectedValue(new Error("fail"));

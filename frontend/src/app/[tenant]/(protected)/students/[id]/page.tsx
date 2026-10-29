@@ -8,7 +8,6 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSWRConfig } from "~/lib/swr/cache";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { hasPermission } from "~/lib/auth-utils";
@@ -411,7 +410,6 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
-  const { mutate } = useSWRConfig();
   const tenantMutate = useTenantMutate();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -682,13 +680,13 @@ function StudentDetailPageContent() {
   // fetch-on-mount effect could not be woken that way and left the header
   // showing the previous pickup time until a manual reload.
   const { data: pickupData } = useSWRAuth(
-    hasFullAccess && studentId ? `pickup-data-${studentId}` : null,
+    hasFullAccess && studentId ? studentKeys.pickupData(studentId) : null,
     async () => fetchStudentPickupData(studentId),
     { revalidateOnFocus: false },
   );
 
   const { data: arrivalData } = useSWRAuth(
-    hasFullAccess && studentId ? `arrival-data-${studentId}` : null,
+    hasFullAccess && studentId ? studentKeys.arrivalData(studentId) : null,
     async () => fetchArrivalData(studentId),
     { revalidateOnFocus: false },
   );
@@ -1319,7 +1317,7 @@ function StudentDetailPageContent() {
       setStatusDayRange((current) => extendStatusDayRange(current, [date]));
       await Promise.all([
         mutatePartialAbsences(),
-        mutate(`pickup-data-${studentId}`),
+        tenantMutate(studentKeys.pickupData(studentId)),
       ]);
       refreshData();
       toast.success(
@@ -1347,7 +1345,7 @@ function StudentDetailPageContent() {
       await deleteStudentPartialAbsence(studentId, partialAbsenceId);
       await Promise.all([
         mutatePartialAbsences(),
-        mutate(`pickup-data-${studentId}`),
+        tenantMutate(studentKeys.pickupData(studentId)),
       ]);
       refreshData();
       toast.success("Die Teilentschuldigung ist entfernt.");
