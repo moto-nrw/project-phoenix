@@ -562,3 +562,60 @@ func TestHolidayExportKeepsHistoricalAnswerLabels(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "Ersatz-Auswahl")
 	assert.Contains(t, rec.Body.String(), "Freitext")
 }
+
+func TestHolidayExportExcludesHealthFieldsFromUnexportedVersions(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Formular Gesundheitsfilter")
+	fields := []map[string]any{
+		{"key": "family_note", "label": "Familienfrage", "type": "text"},
+		{"key": "child_note", "label": "Kinderfrage", "type": "text", "applies_to_child": true},
+		{"key": "pickup", "label": "Abholung vorher", "type": "text"},
+	}
+	register := func(version int, email string) int64 {
+		t.Helper()
+		body := siblingsRegistration(f.offer, email)
+		body["form_version"] = version
+		body["custom_data"] = map[string]any{"family_note": "Familienantwort-vertraulich", "pickup": "Abholantwort-sichtbar"}
+		answerChildren(body, map[string]any{"child_note": "Kinderantwort-vertraulich"}, map[string]any{})
+		rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.period.PublicToken), body)
+		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		return decodeSchoolPortalData[struct {
+			ID int64 `json:"id"`
+		}](t, rec.Body.Bytes()).ID
+	}
+	export := func(filter string) string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, f.path("/export?format=csv"+filter), nil)
+		req.Header.Set("Authorization", "Bearer "+f.office.token)
+		rec := httptest.NewRecorder()
+		f.traeger.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+		return rec.Body.String()
+	}
+	assertProtected := func(filter string) {
+		t.Helper()
+		csv := export(filter)
+		assert.Contains(t, csv, "vorher@example.org", "the older registration is exported")
+		assert.Contains(t, csv, "Abholantwort-sichtbar", "ordinary answers remain exportable")
+		assert.Contains(t, csv, "Abholung vorher", "headings still come from exported versions")
+		for _, excluded := range []string{"Familienfrage", "Kinderfrage", "Familienantwort-vertraulich", "Kinderantwort-vertraulich", "Abholung nachher", "Neue Frage"} {
+			assert.NotContains(t, csv, excluded)
+		}
+	}
+
+	saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.period.ID, fields)
+	register(2, "vorher@example.org")
+	require.Contains(t, export(""), "Familienantwort-vertraulich", "the original classification permits export")
+	fields[0]["health"], fields[1]["health"] = true, true
+	fields[2]["label"] = "Abholung nachher"
+	fields = append(fields, map[string]any{"key": "new_question", "label": "Neue Frage", "type": "text"})
+	saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.period.ID, fields)
+	assertProtected("") // No registration references the health-marked version yet.
+	newID := register(3, "nachher@example.org")
+	require.Equal(t, http.StatusOK, f.act(t, newID, "cancel").Code)
+	assertProtected("&status=received") // The health-marked version is filtered out.
+
+	// Removing the questions again must not erase their historical classification.
+	saveHolidayForm(t, f.holidayRegistrationFixture, f.office, f.period.ID, fields[2:])
+	assertProtected("&status=received")
+}

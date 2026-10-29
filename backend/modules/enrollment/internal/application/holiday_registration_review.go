@@ -118,8 +118,8 @@ func (h *HolidayRegistrationReview) ExportHolidayRegistrations(ctx context.Conte
 	return enrollment.HolidayRegistrationExport{Period: period, Rows: rows, Columns: columns}, nil
 }
 
-// exportAnswers reads the answers of the exported registrations and the
-// form versions they were submitted with, and gives each row the answers
+// exportAnswers reads the answers of the exported registrations and
+// all form versions of the period, and gives each row the answers
 // to the export's columns. No answer to a question with health information
 // reaches a row.
 func (h *HolidayRegistrationReview) exportAnswers(ctx context.Context, organizationID, periodID int64, rows []enrollment.HolidayRegistrationExportRow) ([]enrollment.HolidayFormField, error) {
@@ -136,11 +136,11 @@ func (h *HolidayRegistrationReview) exportAnswers(ctx context.Context, organizat
 			versions = append(versions, version)
 		}
 	}
-	forms, err := h.forms.HolidayPeriodForms(ctx, organizationID, periodID, versions)
+	forms, err := h.forms.HolidayPeriodForms(ctx, organizationID, periodID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("enrollment: read holiday form versions: %w", err)
 	}
-	columns := holidayExportColumns(forms)
+	columns := holidayExportColumns(forms, versions)
 	for i := range rows {
 		registration := answers[rows[i].Registration.ID]
 		rows[i].Answers = holidayRowAnswers(columns, registration, rows[i].Child.ID)

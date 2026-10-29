@@ -40,6 +40,7 @@ const (
 // periods in the Träger transaction.
 type HolidayFormStore interface {
 	CurrentHolidayPeriodForm(ctx context.Context, organizationID, periodID int64) (enrollment.HolidayPeriodForm, bool, error)
+	// HolidayPeriodForms reads selected versions, or all versions when versions is empty.
 	HolidayPeriodForms(ctx context.Context, organizationID, periodID int64, versions []int) (map[int]enrollment.HolidayPeriodForm, error)
 	// InsertHolidayPeriodForm writes the next version; a zero createdBy
 	// names no author.
@@ -303,14 +304,16 @@ func holidayAnswersHaveHealth(form enrollment.HolidayPeriodForm, set holidayAnsw
 }
 
 // holidayExportColumns are the questions without health information of the
-// given versions, newest version first: a key keeps the label of the newest
-// version that asks it, and a key marked as health information in any
-// version stays out.
-func holidayExportColumns(forms map[int]enrollment.HolidayPeriodForm) []enrollment.HolidayFormField {
+// exported versions, newest version first: a key keeps the label of the
+// newest exported version that asks it. Health classifications are checked
+// across every version of the period, independently of the exported rows.
+func holidayExportColumns(forms map[int]enrollment.HolidayPeriodForm, exportedVersions []int) []enrollment.HolidayFormField {
 	versions := make([]int, 0, len(forms))
 	health := map[string]bool{}
 	for version, form := range forms {
-		versions = append(versions, version)
+		if slices.Contains(exportedVersions, version) {
+			versions = append(versions, version)
+		}
 		for _, field := range form.Fields {
 			if field.Health {
 				health[field.Key] = true

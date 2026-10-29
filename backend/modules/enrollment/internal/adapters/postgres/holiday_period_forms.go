@@ -34,7 +34,7 @@ const (
 		WHERE organization_id = ? AND holiday_period_id = ?
 		ORDER BY version DESC LIMIT 1`
 	holidayPeriodFormVersionsQuery = `SELECT version, fields, created_at FROM enrollment.holiday_period_forms
-		WHERE organization_id = ? AND holiday_period_id = ? AND version = ANY(?::int[])
+		WHERE organization_id = ? AND holiday_period_id = ? AND (? OR version = ANY(?::int[]))
 		ORDER BY version`
 	// insertHolidayPeriodFormQuery adds the next version. The caller holds
 	// the period's row, so two saves of one period run one after the other;
@@ -65,18 +65,15 @@ func (s *HolidayPeriodStore) CurrentHolidayPeriodForm(ctx context.Context, organ
 }
 
 // HolidayPeriodForms reads the named versions of a period's form, by
-// version.
+// version. An empty versions slice reads every version of that period.
 func (s *HolidayPeriodStore) HolidayPeriodForms(ctx context.Context, organizationID, periodID int64, versions []int) (map[int]enrollment.HolidayPeriodForm, error) {
 	forms := map[int]enrollment.HolidayPeriodForm{}
-	if len(versions) == 0 {
-		return forms, nil
-	}
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []holidayPeriodFormRow
-	if err := db.NewRaw(holidayPeriodFormVersionsQuery, organizationID, periodID, pgdialect.Array(versions)).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(holidayPeriodFormVersionsQuery, organizationID, periodID, len(versions) == 0, pgdialect.Array(versions)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("enrollment postgres: read holiday form versions: %w", err)
 	}
 	for _, row := range rows {
