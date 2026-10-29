@@ -2,6 +2,7 @@ package presence_test
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -71,17 +72,21 @@ func TestReattachAndWebVisitMoveIntoTheStayDoNotDeadlock(t *testing.T) {
 }
 
 type stayRowHolder struct {
-	pid     int
-	release chan struct{}
-	done    chan error
+	pid         int
+	release     chan struct{}
+	releaseOnce sync.Once
+	done        chan struct{}
+	err         error
 }
 
 func holdStayRow(t *testing.T, db *bun.DB, stayID int64) *stayRowHolder {
 	t.Helper()
-	holder := &stayRowHolder{release: make(chan struct{}), done: make(chan error, 1)}
+	holder := &stayRowHolder{release: make(chan struct{}), done: make(chan struct{})}
+	t.Cleanup(func() { holder.commit(t) })
 	ready := make(chan int, 1)
 	go func() {
-		holder.done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		defer close(holder.done)
+		holder.err = testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 			var pid int
 			if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &pid); err != nil {
 				return err
@@ -97,18 +102,18 @@ func holdStayRow(t *testing.T, db *bun.DB, stayID int64) *stayRowHolder {
 	}()
 	select {
 	case holder.pid = <-ready:
-	case err := <-holder.done:
-		t.Fatalf("stay holder did not start: %v", err)
+	case <-holder.done:
+		t.Fatalf("stay holder did not start: %v", holder.err)
 	}
 	return holder
 }
 
 func (h *stayRowHolder) commit(t *testing.T) {
 	t.Helper()
-	close(h.release)
+	h.releaseOnce.Do(func() { close(h.release) })
 	select {
-	case err := <-h.done:
-		require.NoError(t, err)
+	case <-h.done:
+		require.NoError(t, h.err)
 	case <-time.After(10 * time.Second):
 		t.Fatal("stay holder did not commit")
 	}
@@ -142,4 +147,23 @@ func awaitResult(t *testing.T, result <-chan error) error {
 		t.Fatal("writer did not finish")
 		return nil
 	}
+}
+
+func TestStayRowHolderCleanupReleasesTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	room := testpkg.CreateTestRoom(t, db, "Stay holder cleanup")
+	activity := testpkg.CreateTestActivityGroup(t, db, "Stay holder cleanup")
+	stay := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	var holder *stayRowHolder
+	t.Run("without explicit commit", func(t *testing.T) {
+		holder = holdStayRow(t, db, stay.ID)
+	})
+	defer holder.commit(t)
+	select {
+	case <-holder.done:
+	default:
+		t.Fatal("cleanup did not finish the holder transaction")
+	}
+	holder.commit(t)
 }

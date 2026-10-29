@@ -3,6 +3,7 @@ package checkin_test
 import (
 	"context"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -105,19 +106,23 @@ func (f reattachScanFixture) reattach(t *testing.T) <-chan error {
 
 // rowHolder is a tenant transaction that holds one row lock until commit.
 type rowHolder struct {
-	pid     int
-	release chan struct{}
-	done    chan error
+	pid         int
+	release     chan struct{}
+	releaseOnce sync.Once
+	done        chan struct{}
+	err         error
 }
 
 // holdRow runs the locking query, which returns one id, in its own tenant
 // transaction and keeps that transaction open until commit.
 func holdRow(t *testing.T, db *bun.DB, query string, args ...any) *rowHolder {
 	t.Helper()
-	holder := &rowHolder{release: make(chan struct{}), done: make(chan error, 1)}
+	holder := &rowHolder{release: make(chan struct{}), done: make(chan struct{})}
+	t.Cleanup(func() { holder.commit(t) })
 	ready := make(chan int, 1)
 	go func() {
-		holder.done <- testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+		defer close(holder.done)
+		holder.err = testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
 			var pid int
 			if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &pid); err != nil {
 				return err
@@ -133,18 +138,18 @@ func holdRow(t *testing.T, db *bun.DB, query string, args ...any) *rowHolder {
 	}()
 	select {
 	case holder.pid = <-ready:
-	case err := <-holder.done:
-		t.Fatalf("row holder did not start: %v", err)
+	case <-holder.done:
+		t.Fatalf("row holder did not start: %v", holder.err)
 	}
 	return holder
 }
 
 func (h *rowHolder) commit(t *testing.T) {
 	t.Helper()
-	close(h.release)
+	h.releaseOnce.Do(func() { close(h.release) })
 	select {
-	case err := <-h.done:
-		require.NoError(t, err)
+	case <-h.done:
+		require.NoError(t, h.err)
 	case <-time.After(10 * time.Second):
 		t.Fatal("row holder did not commit")
 	}
@@ -294,4 +299,21 @@ func TestReattachWaitsForTheScanHoldingTheStay(t *testing.T) {
 
 	require.NoError(t, reattachErr, "the reattach must not lose against the scan")
 	f.assertScanThenTakeover(t, rr)
+}
+
+func TestRowHolderCleanupReleasesTransaction(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	room := testpkg.CreateTestRoom(t, db, "Holder cleanup")
+	var holder *rowHolder
+	t.Run("without explicit commit", func(t *testing.T) {
+		holder = holdRow(t, db, "SELECT id FROM facilities.rooms WHERE id = ? FOR UPDATE", room.ID)
+	})
+	defer holder.commit(t)
+	select {
+	case <-holder.done:
+	default:
+		t.Fatal("cleanup did not finish the holder transaction")
+	}
+	holder.commit(t)
 }
