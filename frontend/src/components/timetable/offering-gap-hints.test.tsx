@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { OfferingGap } from "~/lib/offering-gap";
@@ -91,7 +97,7 @@ describe("OfferingGapHints", () => {
     mockSetAcknowledged.mockResolvedValue(undefined);
   });
 
-  it("lists every open offering as one row in one warning", () => {
+  it("collects every open offering as a row of one list", () => {
     mockGaps.current = [
       randstunde,
       { ...randstunde, offering: { id: "9", name: "Kurzbetreuung" } },
@@ -99,14 +105,25 @@ describe("OfferingGapHints", () => {
     ];
     renderHints();
 
-    expect(screen.getByText("2 Angebote ohne Regeltermin")).toBeInTheDocument();
-    expect(screen.getByText("„Randstunde“")).toBeInTheDocument();
-    expect(screen.getByText("„Kurzbetreuung“")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Angebote ohne Regeltermin" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2 offen")).toBeInTheDocument();
+    // A list in the page, not an alert that interrupts.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    const rows = within(
+      screen
+        .getByRole("heading", { name: "Angebote ohne Regeltermin" })
+        .closest("section")!,
+    ).getAllByRole("listitem");
+    expect(rows).toHaveLength(2);
+    expect(within(rows[0]!).getByText("„Randstunde“")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("„Kurzbetreuung“")).toBeInTheDocument();
     expect(
       screen.getAllByText(/46 Kinder · Klassen 3a, 3b, 4a · Mo–Fr/),
     ).toHaveLength(2);
     expect(
-      screen.getAllByRole("button", { name: "Kein Regeltermin nötig" }),
+      screen.getAllByRole("button", { name: /^Kein Regeltermin nötig: / }),
     ).toHaveLength(2);
     // The decided offering waits folded below, not as a warning.
     expect(
@@ -134,12 +151,41 @@ describe("OfferingGapHints", () => {
     expect(screen.getByText(/· Mo, Mi/)).toBeInTheDocument();
   });
 
-  it("offers both ways as equal buttons", () => {
+  it("offers both ways as equal buttons named after their offering", () => {
     renderHints();
 
-    const create = screen.getByRole("button", { name: "Regeltermin anlegen" });
-    const none = screen.getByRole("button", { name: "Kein Regeltermin nötig" });
+    const create = screen.getByRole("button", {
+      name: "Regeltermin anlegen: „Randstunde“",
+    });
+    const none = screen.getByRole("button", {
+      name: "Kein Regeltermin nötig: „Randstunde“",
+    });
+    expect(create).toHaveTextContent("Regeltermin anlegen");
+    expect(none).toHaveTextContent("Kein Regeltermin nötig");
     expect(create.className).toBe(none.className);
+  });
+
+  it("folds the list after five offerings", () => {
+    mockGaps.current = Array.from({ length: 7 }, (_, index) => ({
+      ...randstunde,
+      offering: { id: String(100 + index), name: `Angebot ${index + 1}` },
+    }));
+    renderHints();
+
+    expect(screen.getByText("7 offen")).toBeInTheDocument();
+    expect(screen.getByText("„Angebot 5“")).toBeInTheDocument();
+    expect(screen.queryByText("„Angebot 6“")).not.toBeInTheDocument();
+    const more = screen.getByRole("button", { name: "2 weitere anzeigen" });
+    expect(more).toHaveAttribute("aria-expanded", "false");
+    const list = document.getElementById(more.getAttribute("aria-controls")!);
+    expect(list?.tagName).toBe("UL");
+
+    fireEvent.click(more);
+
+    expect(screen.getByText("„Angebot 7“")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Weniger anzeigen" }),
+    ).toHaveAttribute("aria-expanded", "true");
   });
 
   it("shows no warning when every offering is decided", () => {
@@ -158,12 +204,14 @@ describe("OfferingGapHints", () => {
     const { onCreateSeries } = renderHints();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Regeltermin anlegen" }),
+      screen.getByRole("button", { name: "Regeltermin anlegen: „Randstunde“" }),
     );
-    expect(onCreateSeries).toHaveBeenCalledTimes(1);
+    expect(onCreateSeries).toHaveBeenCalledWith(randstunde);
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Kein Regeltermin nötig" }),
+      screen.getByRole("button", {
+        name: "Kein Regeltermin nötig: „Randstunde“",
+      }),
     );
     await waitFor(() =>
       expect(mockSetAcknowledged).toHaveBeenCalledWith("7", "5", true),
@@ -188,7 +236,9 @@ describe("OfferingGapHints", () => {
       screen.getByText(/1 Kind · Kinder ohne Klasse · Mi/),
     ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Hinweis wieder zeigen" }),
+      screen.getByRole("button", {
+        name: "Hinweis wieder zeigen: „Mittagessen“",
+      }),
     );
 
     await waitFor(() =>
@@ -202,7 +252,9 @@ describe("OfferingGapHints", () => {
     renderHints();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Kein Regeltermin nötig" }),
+      screen.getByRole("button", {
+        name: "Kein Regeltermin nötig: „Randstunde“",
+      }),
     );
 
     await waitFor(() =>
@@ -218,10 +270,10 @@ describe("OfferingGapHints", () => {
 
     expect(screen.getByText("„Randstunde“")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Regeltermin anlegen" }),
+      screen.queryByRole("button", { name: /^Regeltermin anlegen/ }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Kein Regeltermin nötig" }),
+      screen.queryByRole("button", { name: /^Kein Regeltermin nötig/ }),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("„Mittagessen“")).not.toBeInTheDocument();
   });

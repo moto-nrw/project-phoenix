@@ -74,7 +74,9 @@ it("removes old hints until the selected period has loaded", async () => {
   expect(await screen.findByText("„Mittagessen“")).toBeInTheDocument();
   expect(screen.queryByText("„Randstunde“")).not.toBeInTheDocument();
   fireEvent.click(
-    screen.getByRole("button", { name: "Kein Regeltermin nötig" }),
+    screen.getByRole("button", {
+      name: "Kein Regeltermin nötig: „Mittagessen“",
+    }),
   );
   expect(setAcknowledged).toHaveBeenCalledWith("8", "6", true);
 });

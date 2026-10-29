@@ -84,6 +84,8 @@ import { ConnectOfferingModal } from "~/components/timetable/connect-offering-mo
 import { useRosterDeviations } from "~/components/timetable/use-roster-deviations";
 import { OfferingGapHints } from "~/components/timetable/offering-gap-hints";
 import type { RosterDeviation } from "~/lib/roster-deviation";
+import type { OfferingGap } from "~/lib/offering-gap";
+import type { SeriesSourcePrefill } from "~/components/timetable/event-form/form-model";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
@@ -375,6 +377,9 @@ function TimetablesContent() {
   // US-1 quick create: set when the modal was opened from an empty week
   // slot. Non-null switches the event modal into the "quick" variant with
   // prefilled date and times; cleared when the modal closes.
+  const [seriesSource, setSeriesSource] = useState<SeriesSourcePrefill | null>(
+    null,
+  );
   const [quickPrefill, setQuickPrefill] = useState<{
     date: string;
     startTime: string;
@@ -1705,6 +1710,22 @@ function TimetablesContent() {
     setEditingInstance(null);
     setEditingTemplate(null);
     setConvertingInstance(null);
+    setSeriesSource(null);
+    setEventDefaultRepeat("weekly");
+    setEventModalOpen(true);
+  }, []);
+
+  // „Regeltermin anlegen“ on an offering without one (#5140): the new
+  // Regeltermin starts fed by that offering, on its booked weekdays.
+  const openSeriesCreateForGap = useCallback((gap: OfferingGap) => {
+    setEditingInstance(null);
+    setEditingTemplate(null);
+    setConvertingInstance(null);
+    setSeriesSource({
+      careOfferingIds: [gap.offering.id],
+      title: gap.offering.name,
+      weekdays: gap.weekdays,
+    });
     setEventDefaultRepeat("weekly");
     setEventModalOpen(true);
   }, []);
@@ -2203,6 +2224,7 @@ function TimetablesContent() {
           setConvertingInstance(null);
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
+          setSeriesSource(null);
         }}
         defaultDate={
           quickPrefill
@@ -2225,6 +2247,7 @@ function TimetablesContent() {
         variant={quickPrefill ? "quick" : "full"}
         defaultStartTime={quickPrefill?.startTime}
         defaultEndTime={quickPrefill?.endTime}
+        defaultSource={seriesSource}
         onSaved={(result) => {
           void tenantMutate(swrKey);
           void tenantMutate(gapsSWRKey);
@@ -2577,7 +2600,7 @@ function TimetablesContent() {
         <OfferingGapHints
           periodId={templatePeriodID}
           canManage={canManageSchedules}
-          onCreateSeries={openSeriesCreate}
+          onCreateSeries={openSeriesCreateForGap}
           templatesVersion={templateData}
         />
       )}

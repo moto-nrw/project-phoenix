@@ -1,6 +1,7 @@
 "use client";
 
-import { DecisionHint } from "~/components/timetable/decision-hint";
+import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import {
   describeRosterDeviation,
   type RosterDeviation,
@@ -10,7 +11,8 @@ import {
  * The warning a Regeltermin carries when its hand-kept children list does
  * not match the bookings of a care offering (#5103). It replaces the grey
  * „Manuell“ badge. Planners decide here: connect the series to the offering
- * or keep the list by hand. Readers without planning rights only see it.
+ * or keep the list by hand, two equal ways with the same kit button.
+ * Readers without planning rights only see it.
  */
 export function RosterDeviationHint({
   deviation,
@@ -26,20 +28,41 @@ export function RosterDeviationHint({
   busy?: boolean;
   className?: string;
 }>) {
+  const actions =
+    onConnect || onKeepManual ? (
+      <span className="flex flex-wrap gap-2">
+        {onConnect ? (
+          <Button
+            type="button"
+            variant="surface"
+            size="compact"
+            onClick={onConnect}
+            disabled={busy}
+          >
+            Mit Angebot verbinden
+          </Button>
+        ) : null}
+        {onKeepManual ? (
+          <Button
+            type="button"
+            variant="surface"
+            size="compact"
+            onClick={onKeepManual}
+            disabled={busy}
+          >
+            Bleibt von Hand gepflegt
+          </Button>
+        ) : null}
+      </span>
+    ) : undefined;
   return (
-    <DecisionHint
+    <Alert
+      type="warning"
+      // A hint in a list, not an event: it must not interrupt screen readers.
+      announce="off"
       message={describeRosterDeviation(deviation)}
-      primary={
-        onConnect
-          ? { label: "Mit Angebot verbinden", onClick: onConnect }
-          : undefined
-      }
-      secondary={
-        onKeepManual
-          ? { label: "Bleibt von Hand gepflegt", onClick: onKeepManual }
-          : undefined
-      }
-      busy={busy}
+      action={actions}
+      actionLayout="stacked"
       className={className}
     />
   );

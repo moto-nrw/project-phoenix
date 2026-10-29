@@ -4,14 +4,16 @@ import {
   type ReactNode,
   useCallback,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
+import { ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Alert } from "~/components/ui/alert";
 import { SectionCard } from "~/components/ui/section-card";
-import { DecisionActions } from "~/components/timetable/decision-hint";
+import { StatusBadge } from "~/components/ui/status-badge";
 import { Tooltip } from "~/components/ui/tooltip";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
@@ -31,12 +33,16 @@ function offeringGapsKey(periodId: string): string {
   return `offering-gaps-${periodId}`;
 }
 
+/** Open rows shown before „N weitere anzeigen“, as in the parents' to-do list. */
+const INITIAL_GAP_COUNT = 5;
+
 /**
  * Offerings whose booked children no Regeltermin of the period takes over
- * (#5140): one warning above the Regeltermine with a short row per offering
- * and the two equal decisions (DecisionActions, shared with the roster
- * review). Decided offerings wait in a folded card, from where the hint can
- * come back. Readers without planning
+ * (#5140): one collected hint above the Regeltermine, a list in a neutral
+ * card with one row per offering and its two equal decisions, the way the
+ * staff inbox lists absence requests. Only the icon and the count badge
+ * carry the warning colour. Decided offerings wait in a folded card with
+ * the same rows, from where the hint can come back. Readers without planning
  * rights only see the open hints. A failed check shows the load error with a
  * retry, never an empty list: no hint must not read as "no gaps". Every
  * reload of the template list reloads the hints too, so a new Regeltermin
@@ -50,13 +56,16 @@ export function OfferingGapHints({
 }: Readonly<{
   periodId: string | undefined;
   canManage: boolean;
-  onCreateSeries: () => void;
+  /** Opens a new Regeltermin fed by the offering of the row. */
+  onCreateSeries: (gap: OfferingGap) => void;
   templatesVersion: unknown;
 }>) {
   const toast = useToast();
   const { show: showActionError } = useApiErrorDisplay();
   const tenantMutate = useTenantMutate();
   const [busyOfferingId, setBusyOfferingId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState(false);
+  const openListId = useId();
   const { data, error } = useSWRAuth(
     periodId ? offeringGapsKey(periodId) : null,
     () => timetableService.getOfferingGaps(periodId!),
@@ -117,44 +126,76 @@ export function OfferingGapHints({
   const gaps = data ?? [];
   const open = gaps.filter((gap) => !gap.acknowledged);
   const decided = canManage ? gaps.filter((gap) => gap.acknowledged) : [];
-  if (error) return <LoadErrorAlert error={loadError} />;
+  if (error) {
+    return <LoadErrorAlert error={loadError} actionLayout="responsive" />;
+  }
   if (open.length === 0 && decided.length === 0) return null;
+
+  const hiddenCount = Math.max(0, open.length - INITIAL_GAP_COUNT);
+  const visible = expanded ? open : open.slice(0, INITIAL_GAP_COUNT);
 
   return (
     <div className="flex flex-col gap-3" data-testid="offering-gap-hints">
       {open.length > 0 ? (
-        <Alert
-          type="warning"
-          // A hint in a list, not an event: it must not interrupt screen readers.
-          announce="off"
-          title={
-            open.length === 1
-              ? "1 Angebot ohne Regeltermin"
-              : `${open.length} Angebote ohne Regeltermin`
+        <SectionCard
+          title="Angebote ohne Regeltermin"
+          titleBadge={
+            <StatusBadge tone="orange" label={`${open.length} offen`} />
           }
-          message="Diese Kinder haben ein Angebot gebucht, aber kein Regeltermin übernimmt sie."
-          details={
-            <ul className="mt-2 flex flex-col gap-2">
-              {open.map((gap) => (
-                <OfferingGapRow key={gap.offering.id} gap={gap}>
-                  {canManage ? (
-                    <DecisionActions
-                      primary={{
-                        label: "Regeltermin anlegen",
-                        onClick: onCreateSeries,
-                      }}
-                      secondary={{
-                        label: "Kein Regeltermin nötig",
-                        onClick: () => void decide(gap, true),
-                      }}
+          description="Diese Kinder haben ein Angebot gebucht, aber kein Regeltermin übernimmt sie."
+          leading={
+            <TriangleAlert
+              className="text-moto-orange-strong mt-0.5 size-5 shrink-0"
+              aria-hidden="true"
+            />
+          }
+        >
+          <OfferingGapList id={openListId}>
+            {visible.map((gap) => (
+              <OfferingGapRow key={gap.offering.id} gap={gap}>
+                {canManage ? (
+                  <>
+                    <GapButton
+                      label="Regeltermin anlegen"
+                      gap={gap}
+                      onClick={() => onCreateSeries(gap)}
                       busy={busyOfferingId === gap.offering.id}
                     />
-                  ) : null}
-                </OfferingGapRow>
-              ))}
-            </ul>
-          }
-        />
+                    <GapButton
+                      label="Kein Regeltermin nötig"
+                      gap={gap}
+                      onClick={() => void decide(gap, true)}
+                      busy={busyOfferingId === gap.offering.id}
+                    />
+                  </>
+                ) : null}
+              </OfferingGapRow>
+            ))}
+          </OfferingGapList>
+          {hiddenCount > 0 ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="md"
+              className="mt-2 min-h-11 w-full px-3 text-sm font-medium"
+              aria-expanded={expanded}
+              aria-controls={openListId}
+              onClick={() => setExpanded((current) => !current)}
+            >
+              {expanded ? (
+                <>
+                  Weniger anzeigen
+                  <ChevronUp className="size-4" aria-hidden="true" />
+                </>
+              ) : (
+                <>
+                  {hiddenCount} weitere anzeigen
+                  <ChevronDown className="size-4" aria-hidden="true" />
+                </>
+              )}
+            </Button>
+          ) : null}
+        </SectionCard>
       ) : null}
       {decided.length > 0 ? (
         <SectionCard
@@ -164,19 +205,18 @@ export function OfferingGapHints({
           defaultCollapsed
           headingLevel={3}
         >
-          <ul className="flex flex-col gap-2">
+          <OfferingGapList>
             {decided.map((gap) => (
               <OfferingGapRow key={gap.offering.id} gap={gap}>
-                <DecisionActions
-                  primary={{
-                    label: "Hinweis wieder zeigen",
-                    onClick: () => void decide(gap, false),
-                  }}
+                <GapButton
+                  label="Hinweis wieder zeigen"
+                  gap={gap}
+                  onClick={() => void decide(gap, false)}
                   busy={busyOfferingId === gap.offering.id}
                 />
               </OfferingGapRow>
             ))}
-          </ul>
+          </OfferingGapList>
         </SectionCard>
       ) : null}
     </div>
@@ -184,8 +224,28 @@ export function OfferingGapHints({
 }
 
 /**
+ * The rows with a dividing line between them. From `sm` on the actions sit
+ * in one column of their own (the rows share it through `subgrid`), so every
+ * row's buttons start at the same place, however long its text is. Below
+ * `sm` each row stacks: text above, buttons below.
+ */
+function OfferingGapList({
+  id,
+  children,
+}: Readonly<{ id?: string; children: ReactNode }>) {
+  return (
+    <ul
+      id={id}
+      className="divide-y divide-gray-100 sm:grid sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4"
+    >
+      {children}
+    </ul>
+  );
+}
+
+/**
  * One offering: its name, the short facts (children, classes, days) and the
- * actions. A long class list sits in the kit tooltip, so the row stays one
+ * actions. A long class list sits in the kit tooltip, so the facts stay one
  * line on a desktop.
  */
 function OfferingGapRow({
@@ -197,10 +257,12 @@ function OfferingGapRow({
 }>) {
   const classes = summarizeGapClasses(gap.schoolClasses);
   return (
-    <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+    <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
       <div className="min-w-0">
-        <span className="font-medium">„{gap.offering.name}“</span>{" "}
-        <span>
+        <p className="text-sm font-semibold text-gray-900">
+          „{gap.offering.name}“
+        </p>
+        <p className="mt-0.5 text-sm text-gray-600">
           {describeGapChildren(gap.studentCount)} ·{" "}
           {classes.full === classes.short ? (
             classes.short
@@ -208,9 +270,43 @@ function OfferingGapRow({
             <Tooltip content={classes.full}>{classes.short}</Tooltip>
           )}{" "}
           · {describeGapWeekdays(gap.weekdays)}
-        </span>
+        </p>
       </div>
-      {children}
+      {children ? (
+        <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
+          {children}
+        </div>
+      ) : null}
     </li>
+  );
+}
+
+/**
+ * One decision of a row. All of them are the same kit button: neither way
+ * is the lesser one. The accessible name starts with the visible label and
+ * adds the offering, so a screen reader's button list tells the rows apart.
+ */
+function GapButton({
+  label,
+  gap,
+  onClick,
+  busy,
+}: Readonly<{
+  label: string;
+  gap: OfferingGap;
+  onClick: () => void;
+  busy: boolean;
+}>) {
+  return (
+    <Button
+      type="button"
+      variant="surface"
+      size="compact"
+      aria-label={`${label}: „${gap.offering.name}“`}
+      onClick={onClick}
+      disabled={busy}
+    >
+      {label}
+    </Button>
   );
 }
