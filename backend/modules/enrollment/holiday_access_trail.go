@@ -14,16 +14,11 @@ import (
 // access trail, it joins the projection's administrative transaction and
 // every statement filters on the Träger it is given.
 
-// The kinds of a holiday access trail entry: the reads (list, detail,
-// export, proof) and the changes (confirm, cancel, rebook, freeze, reopen).
-const (
-	HolidayAccessRead   = "read"
-	HolidayAccessChange = "change"
-)
-
 // HolidayAccessFilter selects trail entries between the instants From
 // (inclusive) and To (exclusive). AccountID and Kind narrow further when
-// set. Limit bounds the number of entries, newest first.
+// set; Kind is "read" for the reads (list, detail, export, proof) and
+// "change" for the changes (confirm, cancel, rebook, freeze, reopen). Limit
+// bounds the number of entries, newest first.
 type HolidayAccessFilter struct {
 	From      time.Time
 	To        time.Time

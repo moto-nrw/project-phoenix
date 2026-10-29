@@ -42,7 +42,8 @@ export function traegerAccessLogTopic(): HelpTopic {
       "Jede Zeile zeigt Zeitpunkt, Person, Schule, Art und welche Daten es waren.",
     notes: [
       "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
-      "Auch Ferienanmeldungen stehen im Protokoll: jedes Öffnen, jeder Nachweis, jeder Export und jede Änderung. Bei Schule steht dann `Träger (keine Schule)`.",
+      "Auch Ferienanmeldungen stehen im Protokoll. Das ist jedes Öffnen einer Anmeldung oder eines Nachweises, jeder Export und jede Änderung. Bei Schule steht dann `Träger (keine Schule)`.",
+      "Löscht moto eine Ferienanmeldung, löscht es auch ihre Einträge im Protokoll. Nach dem Ende der Ferien löscht moto alle Einträge zu diesen Ferien.",
     ],
     differences: [
       "Auf dem Handy steht `Zugriffsprotokoll` in der Leiste unten oder unter `Mehr`.",

@@ -20,9 +20,17 @@ func (o *Overview) holidayTrail(adminCtx context.Context, viewer traegerview.Vie
 	if filter.SchoolID != 0 {
 		return nil, nil
 	}
-	return o.holiday.ListHolidayTrail(adminCtx, viewer.OrganizationID, traegerview.HolidayTrailQuery{
+	rows, err := o.holiday.ListHolidayTrail(adminCtx, viewer.OrganizationID, traegerview.HolidayTrailQuery{
 		From: span.from, To: span.to, AccountID: filter.AccountID, Kind: filter.Kind, Limit: limit,
 	})
+	for i := range rows {
+		// The trail stores no name, and a deleted account leaves no
+		// account: a person did it, not an automated process.
+		if rows[i].AccountID == nil {
+			rows[i].ActorNameSnapshot = personUnknown
+		}
+	}
+	return rows, err
 }
 
 // mergedPage merges the newest offset+limit entries of both trails in the

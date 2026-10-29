@@ -480,3 +480,20 @@ func TestTraegerAccessLogPagesMergeTheSchoolAndTheHolidayTrail(t *testing.T) {
 	}
 	assert.Len(t, seen, 60)
 }
+
+// A deleted account leaves its holiday entries without an account; a person
+// read the data, so the log names an unknown person, not an automated
+// process (#5326).
+func TestTraegerAccessLogNamesTheDeletedAccountOfAHolidayEntryUnknown(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Träger Protokoll Gelöscht")
+	_, err := f.db.ExecContext(context.Background(), `INSERT INTO enrollment.holiday_registration_audit
+		(organization_id, holiday_period_id, action, actor_account_id, occurred_at) VALUES (?, ?, 'export', NULL, ?)`,
+		f.office.organization, f.period.ID, accessLogAt(9))
+	require.NoError(t, err)
+
+	page := listAccessLog(t, f.traeger, f.office.token, nil)
+	require.Len(t, page.Entries, 1)
+	assert.Equal(t, "Unbekannte Person", page.Entries[0].Person)
+	assert.Nil(t, page.Entries[0].AccountID)
+}

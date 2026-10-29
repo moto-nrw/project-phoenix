@@ -58,6 +58,10 @@ Audit-Spur und zeigte sie deshalb nicht.
 
 - Eine neue Aktion in `enrollment.holiday_registration_audit` erscheint im
   Protokoll; ohne Bezeichnung in `data_labels.go` zeigt das Portal
-  „Sonstige personenbezogene Daten“.
+  „Sonstige personenbezogene Daten“. Eine neue lesende Aktion gehört auch in
+  die Liste der Lese-Aktionen der Abfrage in Enrollment; sonst zählt sie als
+  Änderung.
+- Ein gelöschtes Konto hinterlässt keinen Namen; das Portal zeigt
+  „Unbekannte Person“.
 - Bei vielen Ferieneinträgen liest eine späte Seite aus beiden Spuren bis zu
   `offset + limit` Zeilen.
