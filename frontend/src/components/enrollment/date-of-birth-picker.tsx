@@ -107,8 +107,10 @@ export function DateOfBirthPicker({
   return (
     <>
       {/* Three columns only fit the longest month name ("Październik") from
-          a 24rem field on; narrower fields, such as the nested child card on
-          a phone, stack them instead of cutting the labels. */}
+          a 24rem field on, and only with the wider month column; narrower
+          fields, such as the nested child card on a phone, stack the selects
+          instead of cutting the labels. e2e/layout/date-of-birth-picker.spec.ts
+          measures these classes in a browser. */}
       <div className="@container mt-1">
         <div className="grid grid-cols-1 gap-2 @sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)]">
           <CustomSelect
