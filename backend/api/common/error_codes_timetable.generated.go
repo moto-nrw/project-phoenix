@@ -61,6 +61,7 @@ const CodeTimetableInvalidTransition = "timetable.invalid_transition"
 const CodeTimetableMoveOtherDay = "timetable.move_other_day"
 const CodeTimetableMoveSameInstance = "timetable.move_same_instance"
 const CodeTimetableNoStaffProfile = "timetable.no_staff_profile"
+const CodeTimetableOfferingGapPeriodInactive = "timetable.offering_gap_period_inactive"
 const CodeTimetableOfferingSourceInactive = "timetable.offering_source_inactive"
 const CodeTimetableOfferingSourceInvalid = "timetable.offering_source_invalid"
 const CodeTimetableOfferingSourceMixedPhases = "timetable.offering_source_mixed_phases"
@@ -199,6 +200,7 @@ var errorCodeClassesTimetable = []errorCodeClass{
 	{CodeTimetableMoveOtherDay, "input"},
 	{CodeTimetableMoveSameInstance, "input"},
 	{CodeTimetableNoStaffProfile, "permission"},
+	{CodeTimetableOfferingGapPeriodInactive, "business_rejection"},
 	{CodeTimetableOfferingSourceInactive, "business_rejection"},
 	{CodeTimetableOfferingSourceInvalid, "input"},
 	{CodeTimetableOfferingSourceMixedPhases, "input"},

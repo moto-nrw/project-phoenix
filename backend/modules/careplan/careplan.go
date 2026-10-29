@@ -98,6 +98,10 @@ type CareOffering struct {
 	// Description (#3377). Enrollment owns its shape; Care Plan stores it.
 	Translations              json.RawMessage
 	AutoAddTriggerOfferingIDs []int64
+	// TemplateGapAcks maps a planning period id to the school classes whose
+	// booked children need no Regeltermin of this offering in that period,
+	// as the school decided (#5140); "" stands for children without a class.
+	TemplateGapAcks map[int64][]string
 }
 
 // CareOfferingFields is the writable catalog state. Trigger IDs are part of
@@ -202,6 +206,7 @@ type Command interface {
 	StudentSchedulesCommand
 	CareRequestsCommand
 	StudentStatusDaysCommand
+	CareOfferingTemplateGapCommand
 	CreateCareOffering(context.Context, CreateCareOffering) (CareOffering, error)
 	UpdateCareOffering(context.Context, UpdateCareOffering) (CareOffering, error)
 	DeleteCareOffering(context.Context, int64) error

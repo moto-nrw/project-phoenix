@@ -1148,6 +1148,8 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie einen anderen Termin als Ziel.",
       "timetable.no_staff_profile":
         "Für diese Aktion brauchen Sie ein eigenes Personalprofil. Bitte fragen Sie die Leitung.",
+      "timetable.offering_gap_period_inactive":
+        "Dieser Planungszeitraum ist nicht mehr aktiv. Bitte laden Sie die Seite neu.",
       "timetable.offering_source_inactive":
         "Das Angebot „{offering}“ ist ausgeschaltet. Bitte wählen Sie ein anderes Angebot.",
       "timetable.offering_source_invalid":
