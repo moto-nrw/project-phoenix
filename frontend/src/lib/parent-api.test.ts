@@ -1025,6 +1025,20 @@ function mkThreadView(overrides: Partial<ThreadView> = {}): ThreadView {
 // --- listMessageThreads -------------------------------------------------------
 
 describe("listMessageThreads", () => {
+  it("keeps only team conversations until navigation and replies support audiences", async () => {
+    const team = mkThreadSummary({ audience: "team" });
+    const legacy = mkThreadSummary({ thread_id: "legacy", student_id: "43" });
+    const leadership = mkThreadSummary({
+      thread_id: "leadership",
+      audience: "leadership",
+      last_message_body: "Confidential reply",
+      unread: 1,
+    });
+    mockFetch(async () => jsonResponse({ data: [team, legacy, leadership] }));
+
+    expect(await listMessageThreads()).toEqual([team, legacy]);
+  });
+
   it("GETs /api/parent/me/messages and returns the data array", async () => {
     let seenURL = "";
     mockFetch(async (input) => {
@@ -1047,12 +1061,8 @@ describe("listMessageThreads", () => {
 
   it("returns an empty array when data is missing from the envelope", async () => {
     mockFetch(async () => jsonResponse({}));
-    // parent-api's getJson unwraps { data } or returns the body directly;
-    // an envelope with no data field falls through to the body itself which
-    // is an empty object — cast defensively.
     const out = await listMessageThreads();
-    // Either empty array or empty object-like — the key invariant is no throw.
-    expect(out).toBeDefined();
+    expect(out).toEqual([]);
   });
 });
 

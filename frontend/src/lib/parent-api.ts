@@ -1017,6 +1017,7 @@ export type ParentMessage = ChatMessage & {
 // guardian's unread (staff-sent) count and last-activity metadata.
 export interface ThreadSummary {
   readonly thread_id: string;
+  readonly audience?: "team" | "leadership";
   readonly student_id: string;
   readonly student_name: string;
   readonly school_name: string;
@@ -1205,9 +1206,14 @@ export interface ThreadView {
   readonly messages: ParentMessage[];
 }
 
-/** Lists the guardian's conversations (one per child written about). */
+/** Lists the team conversations supported by the current parent portal. */
 export async function listMessageThreads(): Promise<ThreadSummary[]> {
-  return getJson<ThreadSummary[]>("/api/parent/me/messages");
+  const threads = await getJson<ThreadSummary[]>("/api/parent/me/messages");
+  // Navigation, reads and replies still identify a conversation by child only.
+  // Keep leadership previews out until those paths preserve the audience (#5200).
+  return Array.isArray(threads)
+    ? threads.filter((thread) => !thread.audience || thread.audience === "team")
+    : [];
 }
 
 /**
