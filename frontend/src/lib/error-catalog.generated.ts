@@ -895,6 +895,20 @@ export const ERROR_CATALOG = {
         "Diese Person ist nicht als extern eingetragen. Bitte laden Sie sie wie andere Mitarbeitende ein.",
       "students.absence_read_required":
         "Für {object} brauchen Sie zusätzlich das Recht „Kinder sehen“. Bitte fragen Sie die Schulleitung.",
+      "students.accident_report_forbidden":
+        "Für Unfallanzeigen fehlt Ihnen die Berechtigung. Fragen Sie die Leitung.",
+      "students.accident_report_invalid":
+        "Die Unfallanzeige ist unvollständig. Füllen Sie alle Pflichtfelder aus.",
+      "students.accident_report_not_found":
+        "Diese Unfallanzeige gibt es nicht mehr. Laden Sie die Seite neu.",
+      "students.accident_report_not_signed":
+        "Die Unfallanzeige ist nicht unterschrieben. Sie können sie ändern.",
+      "students.accident_report_signed":
+        "Die Unfallanzeige ist unterschrieben. Legen Sie eine Korrektur an.",
+      "students.accident_report_superseded":
+        "Es gibt schon eine Korrektur. Bearbeiten Sie die neue Fassung.",
+      "students.accident_signature_invalid":
+        "Die Unterschrift wurde nicht gespeichert. Unterschreiben Sie noch einmal.",
       "students.bulk_approval_ineligible":
         "Mindestens eine Anfrage muss einzeln geprüft werden. Es wurde nichts freigegeben.",
       "students.care_day_managed_by_booking":

@@ -324,6 +324,14 @@ const (
 	StudentDocumentsHealth = ResourceStudentDocuments + ":health"
 	StudentDocumentsLegal  = ResourceStudentDocuments + ":legal"
 
+	// Accident reports (Unfallanzeige, #4771): a child's accident with its
+	// injuries is Art. 9 GDPR health data, so reading and writing are their
+	// own permissions. Both are granted to the admin role (Leitung).
+	ResourceStudentAccidents = "student_accidents"
+
+	StudentAccidentsRead   = ResourceStudentAccidents + ":read"
+	StudentAccidentsManage = ResourceStudentAccidents + ":manage"
+
 	// School file storage (#2596). Reading is not a permission: it is the
 	// visibility of the folder. Managing (folders, visibility, any upload or
 	// delete) is catalog-only, so admins match via AdminWildcard and a

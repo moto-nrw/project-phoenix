@@ -1,5 +1,12 @@
 {
   "absence_read_required": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "accident_report_forbidden": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
+  "accident_report_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "accident_report_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "accident_report_not_signed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "accident_report_signed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "accident_report_superseded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "accident_signature_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "bulk_approval_ineligible": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "care_day_managed_by_booking": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "care_exception_raced": "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",

@@ -92,6 +92,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/statistics",
   "/students/:id",
   "/students/:id/change-history",
+  "/students/:id/unfallanzeigen/:reportId",
   "/students/:id/feedback-history",
   "/students/:id/room-history",
   "/students/search",

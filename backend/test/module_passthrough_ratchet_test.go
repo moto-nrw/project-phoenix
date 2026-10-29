@@ -239,7 +239,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // also prunes its deletion log and is no pass-through any more (-1).
 // Raised by ADR 0131: the kiosk count revision read of modules/studentpresence (+1).
 // Raised by ADR 0133: the kiosk room count revision read of modules/studentpresence (+1).
-const modulePassthroughOwnerBudgetTotal = 1411
+// Lowered by #4771: accident-report category visibility has permission logic
+// instead of forwarding directly to the access port (-1).
+const modulePassthroughOwnerBudgetTotal = 1410
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -255,7 +257,7 @@ const modulePassthroughOwnerBudgetTotal = 1411
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 21,
 	"modules/auditlog":     1,
-	"modules/careplan":     159,
+	"modules/careplan":     158,
 	"modules/classday":     14,
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.

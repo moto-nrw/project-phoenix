@@ -1,5 +1,12 @@
 {
   "absence_read_required": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+  "accident_report_forbidden": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+  "accident_report_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "accident_report_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "accident_report_not_signed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "accident_report_signed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "accident_report_superseded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "accident_signature_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "bulk_approval_ineligible": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_day_managed_by_booking": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "care_exception_raced": "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",

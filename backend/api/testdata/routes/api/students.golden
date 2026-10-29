@@ -35,6 +35,7 @@ GET /api/students/ogs-group-navigation
 GET /api/students/school-classes
 GET /api/students/status-days
 GET /api/students/{id}
+GET /api/students/{id}/accident-reports/{documentId}/pdf
 GET /api/students/{id}/arrival-schedules
 GET /api/students/{id}/attendance-history
 GET /api/students/{id}/attendance-history/export
@@ -80,6 +81,10 @@ POST /api/students/pickup-schedules/bulk
 POST /api/students/pickup-times/bulk
 POST /api/students/school-checkin/batch
 POST /api/students/status-days/bulk
+POST /api/students/{id}/accident-reports
+POST /api/students/{id}/accident-reports/{documentId}/corrections
+POST /api/students/{id}/accident-reports/{documentId}/paper-copy
+POST /api/students/{id}/accident-reports/{documentId}/signature
 POST /api/students/{id}/arrival-exceptions
 POST /api/students/{id}/arrival-notes
 POST /api/students/{id}/care-end/resume
@@ -97,6 +102,7 @@ POST /api/students/{id}/school-checkin
 POST /api/students/{id}/status-days
 PUT /api/students/class-arrival-exceptions/{schoolClass}/{date}
 PUT /api/students/{id}
+PUT /api/students/{id}/accident-reports/{documentId}
 PUT /api/students/{id}/arrival-exceptions/{exceptionId}
 PUT /api/students/{id}/arrival-notes/{noteId}
 PUT /api/students/{id}/arrival-schedules
