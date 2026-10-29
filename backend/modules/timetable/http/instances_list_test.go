@@ -519,6 +519,12 @@ func (s stubListCareDays) ResolveForRange(
 	return out, nil
 }
 
+func (stubListCareDays) ResolvePlannedForRange(
+	context.Context, []int64, calendar.Date, calendar.Date,
+) (map[int64]map[calendar.Date]careplan.PlannedCareDay, error) {
+	panic("not used by the instance list")
+}
+
 // A sick / excused / class-trip report flips every still-expected slot of the
 // day to 'absent' — including the slots of children the care plan never booked
 // that weekday, because ApplyStatusDay runs long before anything asks the plan.
