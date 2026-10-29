@@ -8574,6 +8574,7 @@ export const teacherMessagesTopic = function teacherMessagesTopic(): HelpTopic {
     notes: [
       "Vor Ihrer eigenen Nachricht steht `Sie:`.",
       "Hier melden Sie, was die OGS wissen muss, zum Beispiel eine falsche Abholzeit.",
+      "Die OGS kann Sie in einen Gruppenchat aufnehmen. Er steht dann mit seinem Namen in Ihrer Liste. Mit `Mitglieder` und `Gruppenchat verlassen` gehen Sie wieder heraus.",
     ],
     differences: [
       "Fehlt `Nachrichten` ganz? Dann nutzt Ihre OGS diese Funktion nicht.",
@@ -8945,24 +8946,58 @@ export const teamChatTopic = function teamChatTopic(): HelpTopic {
     title: "Den Team-Chat nutzen",
     question: "Wie nutze ich den Team-Chat?",
     summary:
-      "Schreiben Sie einer Betreuungskraft oder Lehrkraft Ihrer Schule eine Nachricht.",
+      "Schreiben Sie einer Person oder mehreren Personen Ihrer Schule, auch Lehrkräften.",
     group: "team",
     audience: ["caregiver", "lead"],
     icon: "ChatsCircle",
-    steps: [
-      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Team-Chat`.",
-      "Wählen Sie `Neue Nachricht`.",
-      "Suchen Sie die Person und wählen Sie sie aus.",
-      "Schreiben Sie Ihre Nachricht.",
-      "Wählen Sie `Senden`.",
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Einer Person schreiben",
+        ordered: true,
+        steps: [
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Team-Chat`.",
+          "Wählen Sie `Neue Nachricht`.",
+          "Suchen Sie die Person und wählen Sie sie aus.",
+          "Schreiben Sie Ihre Nachricht.",
+          "Wählen Sie `Senden`.",
+        ],
+      },
+      {
+        title: "Einen Gruppenchat anlegen",
+        description:
+          "Ein Gruppenchat hat einen Namen und mehrere Mitglieder, auch Lehrkräfte.",
+        ordered: true,
+        steps: [
+          "Öffnen Sie `Team-Chat`.",
+          "Wählen Sie `Neuer Gruppenchat`.",
+          "Geben Sie einen Namen ein, zum Beispiel `Frühbetreuung`.",
+          "Kreuzen Sie die Personen an. Sie selbst sind automatisch dabei.",
+          "Wählen Sie `Gruppenchat anlegen`.",
+        ],
+      },
+      {
+        title: "Mitglieder ändern oder den Gruppenchat verlassen",
+        description:
+          "Mitglieder und Namen ändern die Person, die den Gruppenchat angelegt hat, und die OGS-Leitung, wenn sie Mitglied ist.",
+        ordered: true,
+        steps: [
+          "Öffnen Sie den Gruppenchat.",
+          "Wählen Sie oben `Mitglieder`.",
+          "Ändern Sie den Namen, wählen Sie `Personen hinzufügen` oder entfernen Sie eine Person über das Menü neben ihrem Namen.",
+          "Mit `Gruppenchat verlassen` gehen Sie selbst aus dem Gruppenchat.",
+        ],
+      },
     ],
     result:
-      "Die Nachricht erscheint in Ihrer Unterhaltung mit dieser Person. Lehrkräfte lesen sie in moto schule.",
+      "Die Nachricht erscheint in der Unterhaltung. Lehrkräfte lesen sie in moto schule.",
     differences: [
       "Nachrichten im Team-Chat können nicht nachträglich geändert oder gelöscht werden.",
       "Der Bereich fehlt? Dann hat Ihre OGS den Team-Chat nicht eingeschaltet.",
+      "Neue Mitglieder eines Gruppenchats sehen die Nachrichten ab ihrem Beitritt, nicht die älteren.",
     ],
     notes: [
+      "Unter Ihrer Nachricht in einem Gruppenchat steht, wie viele sie gelesen haben. Tippen Sie darauf, dann sehen Sie die Namen.",
       "Eltern können den Team-Chat nicht sehen. Für Eltern nutzen Sie `Nachrichten` im Bereich `Eltern`.",
       "Mit `Nur ungelesen` sehen Sie nur Unterhaltungen mit neuen Nachrichten.",
     ],
@@ -9741,6 +9776,7 @@ export const traegerInvitationTopic =
 /**
  * `/traeger/login` (#4649): eigene Adresse, danach die Liste der Schulen.
  * Der Code per E-Mail ist Pflicht, beim ersten Mal mit Einrichtung (#4651).
+ * „Passwort vergessen?“ schickt den Link auf den Träger-Host (#5149).
  */
 export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
   return {
@@ -9767,7 +9803,10 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
     ],
     result: "moto öffnet die Seite `Schulen` mit allen Schulen Ihres Trägers.",
-    notes: ["Legen Sie sich die Adresse als Lesezeichen an."],
+    notes: [
+      "Legen Sie sich die Adresse als Lesezeichen an.",
+      "Ein neues Passwort gilt auch für Ihr Konto in der OGS.",
+    ],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
@@ -9784,6 +9823,8 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
+      "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`. Öffnen Sie den Link aus der E-Mail und legen Sie ein neues Passwort fest.",
+      "Keine E-Mail zum Zurücksetzen? Schauen Sie im Spam-Ordner nach. Kommt keine, gehört Ihr Konto nicht zum Träger-Büro. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.errorMessages],
   };

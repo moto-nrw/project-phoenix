@@ -1,0 +1,17 @@
+{
+  "api/staff-messages/groups": [
+    "POST tenant /api/staff-messages/groups"
+  ],
+  "api/staff-messages/threads/[threadID]/leave": [
+    "POST tenant /api/staff-messages/threads/threadID%2F1/leave"
+  ],
+  "api/staff-messages/threads/[threadID]/members": [
+    "POST tenant /api/staff-messages/threads/threadID%2F1/members"
+  ],
+  "api/staff-messages/threads/[threadID]/members/[accountID]": [
+    "DELETE tenant /api/staff-messages/threads/threadID%2F1/members/accountID%2F1"
+  ],
+  "api/staff-messages/threads/[threadID]/name": [
+    "PUT tenant /api/staff-messages/threads/threadID%2F1/name"
+  ]
+}

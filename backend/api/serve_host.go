@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -44,7 +46,7 @@ func newProductionEnvironment(logger *slog.Logger, publicAPIURL string) (owners.
 func mountServeMiddleware(
 	router chi.Router, unit tenant.UnitOfWork, logger *slog.Logger, config ServeConfig, tracer *observability.Tracer,
 	metrics *httpMetrics, tracker analytics.Tracker, settings settingsCompose.SettingsService, policy analytics.CollectionPolicy,
-	consent identityaccess.AccountAnalyticsConsent, guardianSchools identityaccess.GuardianSchools,
+	consent identityaccess.AccountAnalyticsConsent, guardianSchools identityaccess.GuardianSchools, sessions identityaccess.AccessSessions,
 ) (*sessiontoken.TokenAuth, error) {
 	router.Use(requestIDs(tracer))
 	router.Use(apiCommon.ProblemResponseMiddleware)
@@ -84,6 +86,9 @@ func mountServeMiddleware(
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	router.Use(sessionAuth.Verifier())
+	// Every verified access token must still rest on a live refresh-token
+	// family, so logout ends it at once on every instance (#5194).
+	router.Use(sessiontoken.RequireLiveSession(accessSessionLiveness(sessions)))
 	// Classifies each path by module; TenantScopeMiddleware and
 	// SchoolScopeMiddleware refuse a module the bound school has not booked
 	// (#4893, #4895), ParentScopeMiddleware a parents portal none of the
@@ -101,6 +106,20 @@ func mountServeMiddleware(
 	router.Get("/analytics-policy", analytics.PolicyHandler(policy, analyticsRequestActor))
 	mountAnalyticsConsent(router, consent)
 	return sessionAuth, nil
+}
+
+// accessSessionLiveness binds the per-request family check of the verifier
+// chain to Identity & Access (#5194).
+func accessSessionLiveness(sessions identityaccess.AccessSessions) sessiontoken.SessionLiveness {
+	return func(ctx context.Context, claims sessiontoken.AppClaims) (bool, error) {
+		err := sessions.VerifyAccessSession(ctx, identityaccess.AccessSession{
+			AccountID: int64(claims.ID), ActingAdminID: claims.ActingAdminID, Scope: claims.Scope, FamilyID: claims.FamilyID,
+		})
+		if errors.Is(err, identityaccess.ErrInvalidToken) {
+			return false, nil
+		}
+		return err == nil, err
+	}
 }
 
 // mountAnalyticsConsent serves each account's analytics choice in every portal.

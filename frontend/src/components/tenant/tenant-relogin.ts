@@ -20,9 +20,10 @@ export function reloginAtTenant(subdomain: string): Promise<void> {
 }
 
 async function endSessionAndNavigate(subdomain: string): Promise<void> {
-  await unsubscribePushSilently("tenant");
   // Revoke the refresh family BEFORE Auth.js deletes the shared domain cookie.
   // The response-aware BFF can refresh/reissue that cookie while logging out.
+  // The revocation never waits for push (#5194); the backend drops the
+  // family's push subscriptions with it.
   const response = await fetch("/api/auth/logout", {
     method: "POST",
     signal: AbortSignal.timeout(5000),
@@ -32,6 +33,8 @@ async function endSessionAndNavigate(subdomain: string): Promise<void> {
   if (!response.ok && response.status !== 401) {
     throw await apiErrorFromResponse(response, "Tenant logout failed");
   }
+  // Best-effort device-side cleanup; its deadline follows with #5260.
+  await unsubscribePushSilently("tenant");
   try {
     await mutate(() => true, undefined, { revalidate: false });
   } catch (error) {

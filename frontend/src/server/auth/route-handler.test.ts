@@ -349,3 +349,98 @@ describe("createResponseAwareAuth", () => {
     });
   });
 });
+
+// #5194: the backend refuses an unexpired access token whose family is
+// revoked. Routes without their own retry still renew the session once, so
+// the response carries the ended session instead of the revoked one.
+describe("createResponseAwareAuth after a backend 401", () => {
+  const endedSession = {
+    ...tenantSession,
+    user: { ...tenantSession.user, token: "" },
+    error: "RefreshTokenError",
+  } as Session;
+  const unauthorized = () =>
+    Response.json(
+      {
+        status: 401,
+        detail: "session has been revoked",
+        code: "general.permission",
+      },
+      { status: 401 },
+    );
+
+  it("renews the session once and sends its cookie with the 401", async () => {
+    const rawAuth = createRawAuth(
+      [tenantSession, endedSession],
+      "tenant.session-token",
+    );
+    const helpers = createResponseAwareAuth(rawAuth, "tenant");
+    const route = helpers.withAuthResponse(async () => unauthorized());
+
+    const response = await route(
+      new NextRequest("https://school.moto-app.de/api/students"),
+    );
+
+    expect(response.status).toBe(401);
+    expect(vi.mocked(rawAuth)).toHaveBeenCalledTimes(2);
+    expect(response.headers.getSetCookie()).toEqual([
+      expect.stringContaining("tenant.session-token=rotated-session-1"),
+      expect.stringContaining("tenant.session-token=rotated-session-2"),
+    ]);
+  });
+
+  it("does not renew twice when the route already retried", async () => {
+    const rawAuth = createRawAuth(
+      [tenantSession, endedSession],
+      "tenant.session-token",
+    );
+    const helpers = createResponseAwareAuth(rawAuth, "tenant");
+    const route = helpers.withAuthResponse(async () => {
+      await helpers.uncachedAuth();
+      return unauthorized();
+    });
+
+    await route(new NextRequest("https://school.moto-app.de/api/students"));
+
+    expect(vi.mocked(rawAuth)).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves other responses and anonymous 401s alone", async () => {
+    const rawAuth = createRawAuth(tenantSession, "tenant.session-token");
+    const helpers = createResponseAwareAuth(rawAuth, "tenant");
+    const ok = helpers.withAuthResponse(async () =>
+      Response.json({ ok: true }),
+    );
+    await ok(new NextRequest("https://school.moto-app.de/api/students"));
+    expect(vi.mocked(rawAuth)).toHaveBeenCalledTimes(1);
+
+    const anonymousAuth = createRawAuth(null, "tenant.session-token");
+    const anonymous = createResponseAwareAuth(anonymousAuth, "tenant");
+    const refused = anonymous.withAuthResponse(async () => unauthorized());
+    await refused(new NextRequest("https://school.moto-app.de/api/students"));
+    expect(vi.mocked(anonymousAuth)).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the 401 when the renewal itself fails", async () => {
+    let calls = 0;
+    const rawAuth = vi.fn((handler?: unknown) => {
+      calls++;
+      return async (request: NextRequest) => {
+        if (calls > 1) throw new Error("auth store unavailable");
+        const authRequest = request as NextAuthRequest;
+        authRequest.auth = tenantSession;
+        return (handler as (r: NextAuthRequest) => Promise<Response>)(
+          authRequest,
+        );
+      };
+    }) as unknown as NextAuthResult["auth"];
+    const helpers = createResponseAwareAuth(rawAuth, "tenant");
+    const route = helpers.withAuthResponse(async () => unauthorized());
+
+    const response = await route(
+      new NextRequest("https://school.moto-app.de/api/students"),
+    );
+
+    expect(response.status).toBe(401);
+  });
+});
