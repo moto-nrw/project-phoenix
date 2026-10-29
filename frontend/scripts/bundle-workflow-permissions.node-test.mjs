@@ -12,9 +12,30 @@ function workflow(name) {
   );
 }
 
-test("bundle artifact reads stay job-scoped and are permitted by every reusable-workflow caller", () => {
+test("bundle builds need no artifact-read token and do not persist checkout credentials", () => {
   const called = workflow("lint.yml");
-  assert.equal(called.jobs["frontend-build"].permissions.actions, "read");
+  const build = called.jobs["frontend-build"];
+  assert.equal(build.permissions.actions, undefined);
+  const checkout = build.steps.find((step) =>
+    step.uses?.startsWith("actions/checkout@"),
+  );
+  assert.equal(checkout.with["persist-credentials"], false);
+  assert.equal(
+    checkout.with.ref,
+    "${{ github.event.pull_request.head.sha || github.sha }}",
+  );
+  assert.equal(checkout.with["fetch-depth"], 0);
+  assert.ok(
+    build.steps.some(
+      (step) =>
+        step.run === "node scripts/perf/bundle-base.mjs" &&
+        step.if === "github.event_name == 'pull_request'",
+    ),
+  );
+  assert.equal(
+    build.steps.some((step) => step.env?.GH_TOKEN || step.env?.GITHUB_TOKEN),
+    false,
+  );
   for (const [name, job] of Object.entries(called.jobs)) {
     if (name !== "frontend-build") {
       assert.equal(
@@ -31,12 +52,11 @@ test("bundle artifact reads stay job-scoped and are permitted by every reusable-
     );
     assert.ok(calls.length > 0, `${name} must exercise its reusable lint call`);
     for (const job of calls) {
-      // GitHub rejects the entire caller before starting any job when the
-      // called workflow requests permissions absent from the caller.
+      // The reusable build now needs only source access, including on forks.
       assert.equal(
-        job.permissions.actions,
+        job.permissions.contents,
         "read",
-        `${name} must permit the artifact reader`,
+        `${name} must permit source access`,
       );
     }
     assert.equal(

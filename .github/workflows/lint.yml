@@ -170,7 +170,6 @@ jobs:
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
-      actions: read
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080"
       SKIP_ENV_VALIDATION: "true"
@@ -190,6 +189,13 @@ jobs:
       METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Compare the PR's own tree, not GitHub's synthetic merge with a
+          # newer target branch. Merge-base history is required below.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
 
       - name: Enable corepack
         run: corepack enable
@@ -226,33 +232,33 @@ jobs:
 
       - name: Verify bundle budget and observation contracts
         working-directory: frontend
-        run: node --test scripts/perf/bundle-policy.node-test.mjs scripts/perf/bundle-measurement.node-test.mjs
+        run: node --test scripts/perf/bundle-policy.node-test.mjs scripts/perf/bundle-measurement.node-test.mjs scripts/perf/bundle-base.node-test.mjs
 
       - name: Identify bundle observation source and configuration
         id: bundle-key
         working-directory: frontend
         env:
-          BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.before }}
+          BASE_REVISION: ${{ github.event.pull_request.base.sha }}
         run: |
           if [[ -n "$BASE_REVISION" && ! "$BASE_REVISION" =~ ^0+$ ]]; then
-            git fetch --no-tags --depth=1 origin "$BASE_REVISION"
-            node scripts/perf/bundle-measurement.mjs --prepare-ci "$BASE_REVISION"
+            merge_base=$(git merge-base HEAD "$BASE_REVISION")
+            node scripts/perf/bundle-measurement.mjs --prepare-ci "$merge_base"
           else
             node scripts/perf/bundle-measurement.mjs --prepare-ci
           fi
 
-      - name: Reuse compatible base bundle observation without rebuilding it
+      - name: Cold build exact merge-base with the same runner and environment
+        if: github.event_name == 'pull_request'
         working-directory: frontend
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/perf/bundle-measurement.mjs --fetch-base
+        run: node scripts/perf/bundle-base.mjs
 
       - name: Build frontend
         working-directory: frontend
         run: pnpm run build
 
-      # Observations are versioned CI artifacts. Only separately reviewed,
-      # portal-scoped policy sets ceilings; missing base data never disables it.
+      # PRs enforce their own delta against the cold merge-base build, plus
+      # reviewed absolute ceilings. Inherited excess warns on PRs; nightly
+      # enforces all ceilings on development without inheriting PR exceptions.
       # Keep the regular build: experimental-analyze's cold compilation is not
       # assumed to cover every Next.js build/type/route-validation contract.
       - name: Bundle size ratchet
@@ -265,6 +271,9 @@ jobs:
         with:
           name: bundle-measured-${{ steps.bundle-key.outputs.measurement-key }}
           overwrite: true
-          path: frontend/perf-results/bundle-measured.json
+          path: |
+            frontend/perf-results/bundle-measured.json
+            frontend/perf-results/bundle-base.json
+            frontend/perf-results/bundle-base-identity.json
           retention-days: 14
           if-no-files-found: ignore

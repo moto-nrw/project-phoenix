@@ -87,14 +87,23 @@ function analyze() {
   }
 }
 
-function summary(rows, failures, baseStatus) {
+function summary(rows, failures, warnings, baseStatus) {
   const lines = ["## Bundle-Budgets", "", baseStatus, ""];
   lines.push(
     failures.length === 0
-      ? `Alle ${rows.length} gemessenen Routen innerhalb ihrer genehmigten Obergrenzen.`
-      : `${failures.length} Budget-Verstöße:`,
+      ? `Alle ${rows.length} gemessenen Routen ohne neue Delta- oder Budget-Verstöße.`
+      : `${failures.length} Delta-/Budget-Verstöße:`,
   );
   for (const failure of failures) lines.push(`- ${failure}`);
+  if (warnings.length > 0) {
+    lines.push(
+      "",
+      "### Bereits auf der Merge-Basis überschrittene absolute Budgets (Warnung)",
+    );
+    for (const warning of warnings) lines.push(`- ${warning}`);
+    for (const warning of warnings)
+      process.stdout.write(`::warning::${warning}\n`);
+  }
   const moved = rows
     .map((row) => ({
       ...row,
@@ -159,8 +168,12 @@ writeMeasurement(
   ),
 );
 const base = readBaseComparison(process.cwd(), current.identity);
-const { failures, rows } = compareBudgets(budgets, measured, base.routes);
-const text = summary(rows, failures, base.status);
+const { failures, warnings, rows } = compareBudgets(
+  budgets,
+  measured,
+  base.routes,
+);
+const text = summary(rows, failures, warnings, base.status);
 process.stdout.write(text);
 if (process.env.GITHUB_STEP_SUMMARY)
   appendFileSync(process.env.GITHUB_STEP_SUMMARY, text);
