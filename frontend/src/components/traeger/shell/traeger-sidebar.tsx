@@ -53,9 +53,10 @@ export function TraegerSidebar() {
     isTraegerNavActive(item.href, pathname),
   );
   const [settingsOpen, setSettingsOpenState] = useState(containsActive);
-  const setSettingsOpen = (open: boolean) => {
-    setSettingsOpenState(open);
-    writeStoredSettingsOpen(open);
+  const toggleSettings = () => {
+    const next = !settingsOpen;
+    setSettingsOpenState(next);
+    writeStoredSettingsOpen(next);
   };
   // Der Browser merkt sich den Klappzustand (#5331). Der erste Render kennt
   // den Speicher nicht (Server und Client liefern dasselbe Bild), deshalb
@@ -65,10 +66,11 @@ export function TraegerSidebar() {
     if (stored !== null) setSettingsOpenState(stored);
   }, []);
   // Open on entry into settings, but still allow manually collapsing them.
+  // Nur ein Klick wird gespeichert, nicht dieses Aufklappen im Render.
   const [wasActive, setWasActive] = useState(containsActive);
   if (containsActive !== wasActive) {
     setWasActive(containsActive);
-    if (containsActive) setSettingsOpen(true);
+    if (containsActive) setSettingsOpenState(true);
   }
 
   return (
@@ -92,7 +94,7 @@ export function TraegerSidebar() {
                 concept={TRAEGER_SETTINGS_NAV.concept}
                 data-portal-nav-section={TRAEGER_SETTINGS_NAV.key}
                 isExpanded={settingsOpen}
-                onToggle={() => setSettingsOpen(!settingsOpen)}
+                onToggle={toggleSettings}
                 isActive={containsActive && !settingsOpen}
                 isIconActive={containsActive}
                 hasChildren
