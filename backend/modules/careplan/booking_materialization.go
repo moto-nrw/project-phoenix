@@ -74,6 +74,10 @@ type SourcedRosters interface {
 	// DetachTemplatesSourcedFromOffering removes an offering from every
 	// template sourcing it before the offering is deleted.
 	DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) error
+	// ResyncStudentSourcedRosters re-reconciles only the given children's
+	// rows on every sourced template; drifted templates are skipped with a
+	// warning. A restored care plan uses it to match the current sources.
+	ResyncStudentSourcedRosters(ctx context.Context, studentIDs []int64, effectiveFrom calendar.Date) error
 }
 
 // OfferingSourceEditor serves the Regeltermin editor (#2137, #3140).
