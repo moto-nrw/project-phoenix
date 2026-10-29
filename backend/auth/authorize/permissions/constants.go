@@ -243,6 +243,15 @@ const (
 	SurveysManage = ResourceSurveys + ":" + ActionManage
 )
 
+// Parent message permissions (#5200). parent_messages:leadership reads and
+// answers the conversations parents address to the leadership only. Every
+// account without it never sees those conversations; admin:* implies it.
+const (
+	ResourceParentMessages = "parent_messages"
+
+	ParentMessagesLeadership = ResourceParentMessages + ":leadership"
+)
+
 // Staff permissions (#1423). staff:financial gates the bank & tax section
 // of the Stammdaten tab (IBAN, Steuer-ID, SV-Nummer) — deliberately its own
 // permission instead of users:update: the directory maintainers are not the

@@ -9777,6 +9777,22 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "binding_digest": "bfc59890eee35eb46da41f03e6923344",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "binding_digest": "9333339673207992594abdfafa50ffbd",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastParentMessage",
       "binding_digest": "a0d8c8a7d4a580894b19c95281e7bc3d",
       "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastParentMessage",

@@ -26,7 +26,7 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "workflows/parentportal/Portal.GetChildConversation",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -81,12 +81,12 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "workflows/parentportal/Portal.PostChildMessage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "workflows/parentportal/Portal.PostChildReply",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -276,18 +276,23 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "workflows/parentportal/conversationCoreBinding.Broadcast",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "workflows/parentportal/conversationCoreBinding.BroadcastRead",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
       "decision": "0090",
       "id": "workflows/parentportal/conversationCoreBinding.DecorateReadReceipts",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0132",
+      "id": "workflows/parentportal/conversationCoreBinding.LeadershipOption",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -641,12 +646,12 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "workflows/parentportal/messageThreadAccessBinding.FindByStudentGuardian",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0132",
       "id": "workflows/parentportal/messageThreadAccessBinding.GetOrCreate",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

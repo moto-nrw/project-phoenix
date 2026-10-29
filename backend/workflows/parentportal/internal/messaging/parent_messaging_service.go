@@ -22,7 +22,17 @@ type MessageThreadView struct {
 	StudentID   int64
 	StudentName string
 	SchoolName  string
-	Messages    []*ParentMessage
+	// Audience is AudienceTeam or AudienceLeadership (#5200).
+	Audience string
+	// GuardianName is the guardian the conversation belongs to: the caller.
+	// No other guardian of the child reads it.
+	GuardianName string
+	// LeadershipReaders are the leadership persons' short names on a
+	// leadership conversation; a team conversation is read by all staff.
+	LeadershipReaders []string
+	// Leadership is the school's leadership option for a new conversation.
+	Leadership LeadershipOption
+	Messages   []*ParentMessage
 }
 
 // decorateReadReceipts stamps the "OGS hat gelesen" indicator (ReadByStaff) on
@@ -216,20 +226,17 @@ func (s *Service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 
 // GetChildConversation returns the guardian's conversation about one owned
 // child and marks it read. When no conversation exists yet it returns an empty
-// view (ThreadID 0) so the chat window can open ready to write.
-func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID int64) (*MessageThreadView, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
+// view (ThreadID 0) so the chat window can open ready to write. An optional
+// audience selects the team (default) or the leadership conversation (#5200);
+// the view also says who reads it and whether the leadership option is
+// offered.
+func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID int64, audience ...string) (*MessageThreadView, error) {
+	child, view, err := s.childConversationView(ctx, accountID, studentID, firstAudience(audience))
 	if err != nil {
 		return nil, err
 	}
-
-	view := &MessageThreadView{
-		StudentID:   studentID,
-		StudentName: child.StudentName,
-		SchoolName:  child.SchoolName,
-	}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		thread, err := s.MessageThreadRepo.FindByStudentGuardian(txCtx, studentID, accountID)
+		thread, err := s.findChildConversation(txCtx, view, accountID)
 		if err != nil {
 			return err
 		}
@@ -261,7 +268,7 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 			// staff-facing "von den Eltern gelesen" receipt updates live. After commit
 			// and only on a real advance, so it can't loop with the refetch it triggers.
 			tenantID := thread.TenantID
-			threadID := thread.ID
+			threadID := conversationRef{ID: thread.ID, Audience: view.Audience}
 			s.Runtime.RegisterAfterCommit(txCtx, func() {
 				s.broadcastReadReceipt(tenantID, accountID, threadID, studentID)
 			})
@@ -277,17 +284,16 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 // PostChildMessage appends a guardian message to the child's conversation,
 // creating the conversation on the first message (get-or-create).
 //
-// An optional groupThreadID marks the message as the answer to that group
-// thread (#4784). The answer stays in the child's 1:1 conversation with the
-// OGS; no other family ever sees it. The guardian may answer only a group
-// thread that reached them for this child and is still open.
-func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string, groupThreadIDs ...int64) (*MessageThreadView, error) {
-	groupThreadID := int64(0)
-	if len(groupThreadIDs) > 0 {
-		groupThreadID = groupThreadIDs[0]
-	}
-	var err error
-	body, err = normalizeParentMessageBody(body)
+// An optional target names the audience (#5200) and the group thread the
+// message answers (#4784). An answer to a group thread stays in the child's
+// 1:1 team conversation with the OGS; no other family ever sees it, and the
+// guardian may answer only a group thread that reached them for this child and
+// is still open. A new leadership conversation needs the school's leadership
+// option; an existing one stays open after the school switched it off.
+func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string, targets ...MessageTarget) (*MessageThreadView, error) {
+	target := firstTarget(targets)
+	groupThreadID := target.GroupThreadID
+	body, audience, err := normalizeMessageInput(body, target.Audience, groupThreadID)
 	if err != nil {
 		return nil, err
 	}
@@ -311,16 +317,18 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		return nil, err
 	}
 	view := &MessageThreadView{
-		StudentID:   studentID,
-		StudentName: child.StudentName,
-		SchoolName:  child.SchoolName,
+		StudentID:    studentID,
+		StudentName:  child.StudentName,
+		SchoolName:   child.SchoolName,
+		Audience:     audience,
+		GuardianName: senderName,
 	}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, groupRef, view); err != nil {
 			return err
 		}
 		captured := child.TenantID
-		capturedThread := view.ThreadID
+		capturedThread := conversationRef{ID: view.ThreadID, Audience: audience}
 		s.Runtime.RegisterAfterCommit(txCtx, func() {
 			s.broadcastParentMessage(captured, accountID, capturedThread, studentID)
 		})
@@ -335,6 +343,26 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		slog.Int64("tenant_id", child.TenantID),
 	)
 	return view, nil
+}
+
+// guardianName is resolveGuardianName inside the caller's tenant
+// transaction. A genuinely missing/blank profile keeps the "Elternteil"
+// default — that is not an error. Only a real lookup FAILURE propagates, so a
+// transient DB blip never denormalizes the wrong sender name onto the
+// persisted message forever.
+func (s *Service) guardianName(txCtx context.Context, accountID int64) (string, error) {
+	name := "Elternteil"
+	if s.GuardianProfileRepo == nil {
+		return name, nil
+	}
+	profile, err := s.GuardianProfileRepo.FindByAccountID(txCtx, accountID)
+	if err != nil || profile == nil {
+		return name, err
+	}
+	if full := strings.TrimSpace(profile.FirstName + " " + profile.LastName); full != "" {
+		name = full
+	}
+	return name, nil
 }
 
 // requireChildReply checks that the guardian may write for the child now and
@@ -392,21 +420,9 @@ func (s *Service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 		return name, nil
 	}
 	if txErr := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
-		profile, err := s.GuardianProfileRepo.FindByAccountID(txCtx, accountID)
-		if err != nil {
-			return err
-		}
-		// A genuinely missing/blank profile keeps the "Elternteil" default — that is
-		// not an error. Only a real lookup FAILURE must propagate (below), so a
-		// transient DB blip never denormalizes the wrong sender name onto the
-		// persisted message forever.
-		if profile == nil {
-			return nil
-		}
-		if full := strings.TrimSpace(profile.FirstName + " " + profile.LastName); full != "" {
-			name = full
-		}
-		return nil
+		var err error
+		name, err = s.guardianName(txCtx, accountID)
+		return err
 	}); txErr != nil {
 		s.Logger.Warn("parent: resolve guardian name failed",
 			slog.Int64("account_id", accountID),
@@ -420,8 +436,8 @@ func (s *Service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 // broadcastParentMessage wakes the guardian's own tabs and the tenant's staff.
 // threadID/studentID let an open chat skip refetching unrelated threads. The
 // fan-out contract is shared with the staff side via parentmessaging.Broadcast.
-func (s *Service) broadcastParentMessage(tenantID, guardianAccountID, threadID, studentID int64) {
-	s.Conversations.Broadcast(tenantID, guardianAccountID, threadID, studentID)
+func (s *Service) broadcastParentMessage(tenantID, guardianAccountID int64, thread conversationRef, studentID int64) {
+	s.Conversations.Broadcast(tenantID, guardianAccountID, thread.ID, studentID, thread.Audience)
 }
 
 // broadcastReadReceipt wakes the OGS side (and the guardian's own tabs) to refresh
@@ -429,8 +445,8 @@ func (s *Service) broadcastParentMessage(tenantID, guardianAccountID, threadID, 
 // receipt fan-out. Mirrors broadcastParentMessage but as a read-only event;
 // callers fire it after commit and ONLY on a real cursor advance, so it can't loop
 // with the receipt refetch it triggers.
-func (s *Service) broadcastReadReceipt(tenantID, guardianAccountID, threadID, studentID int64) {
-	s.Conversations.BroadcastRead(tenantID, guardianAccountID, threadID, studentID)
+func (s *Service) broadcastReadReceipt(tenantID, guardianAccountID int64, thread conversationRef, studentID int64) {
+	s.Conversations.BroadcastRead(tenantID, guardianAccountID, thread.ID, studentID, thread.Audience)
 }
 
 func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, thread *ParentMessageThread, accountID, studentID, messageID int64, messages []*ParentMessage, view *MessageThreadView) error {
@@ -459,7 +475,7 @@ func (s *Service) finishGuardianReply(txCtx context.Context, child *Child, threa
 	if s.ParentMessageNotifier != nil {
 		if err := s.ParentMessageNotifier.NotifyStaffParentMessage(txCtx, care.StaffParentMessageReport{
 			TenantID: captured, ThreadID: capturedThread, MessageID: messageID,
-			StudentID: studentID, ActorAccountID: accountID,
+			StudentID: studentID, ActorAccountID: accountID, Leadership: view.Audience == AudienceLeadership,
 		}); err != nil {
 			return err
 		}
@@ -485,7 +501,7 @@ func (s *Service) postGuardianReply(txCtx context.Context, child *Child, account
 	if student.CareEndedOn(s.todayDate()) {
 		return care.ErrChildCareEnded
 	}
-	thread, err := s.MessageThreadRepo.GetOrCreate(txCtx, child.TenantID, studentID, accountID)
+	thread, err := s.guardianConversation(txCtx, child.TenantID, studentID, accountID, view)
 	if err != nil {
 		return err
 	}

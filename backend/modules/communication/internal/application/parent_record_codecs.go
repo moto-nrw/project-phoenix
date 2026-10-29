@@ -112,6 +112,7 @@ func InboxThreadFromRecord(v *communication.PortalInboxThread) (*InboxThread, er
 		GuardianAccountID:      v.GuardianAccountID,
 		GuardianName:           v.GuardianName,
 		RelationshipType:       v.RelationshipType,
+		Audience:               v.Audience,
 		LastMessageAt:          v.LastMessageAt,
 		LastSenderKind:         v.LastSenderKind,
 		LastMessageBody:        v.LastMessageBody,

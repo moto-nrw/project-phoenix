@@ -276,6 +276,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0132",
+      "id": "modules/settings/parentMessagingValues.ParentMessageLeadershipEnabled",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "modules/settings/parentMessagingValues.ParentMessageStaffNameVisible",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

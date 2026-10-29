@@ -5668,6 +5668,7 @@ export const parentGroupMessageTopic =
         "Keine Familie sieht, wer die Nachricht noch bekommt oder wer geantwortet hat.",
         "moto ermittelt die Empfänger bei jeder Nachricht neu. Wer später in die Gruppe kommt, liest nur die neuen Nachrichten.",
         "Unter `Gelesen` sehen Sie für jedes Kind, ob die Eltern die neueste Nachricht gelesen haben.",
+        "Über dem Schreibfeld steht bei `Ging an:`, an wen die Nachricht ging und wie viele Familien sie bekommen haben.",
       ],
       related: [HELP_TOPICS.parentMessage, HELP_TOPICS.leadParentAnnouncement],
     };
@@ -5699,6 +5700,7 @@ export const parentGroupMessagesTopic =
       notes: [
         "Sie sehen nicht, welche anderen Eltern die Nachricht bekommen.",
         "Haben mehrere Ihrer Kinder die Nachricht bekommen? Dann wählen Sie vor dem Senden das Kind.",
+        "Unter `Antwort an die OGS` steht, wer Ihre Antwort lesen kann.",
       ],
       differences: [
         "Steht dort `Diese Gruppennachricht ist geschlossen`? Dann können Sie nicht mehr antworten. Schreiben Sie der OGS im Chat zu Ihrem Kind.",
@@ -6077,6 +6079,17 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eine Unterhaltung nur für die Leitung beginnen",
+        description:
+          "Das geht nur mit dem Recht `Vertrauliche Elternnachrichten lesen` und wenn die Schule `Nachrichten nur an die Leitung (Eltern)` eingeschaltet hat.",
+        steps: [
+          "Wählen Sie unter `Nachrichten` den Knopf `Neue Nachricht`.",
+          "Wählen Sie das Kind und dann `Weiter`.",
+          "Wählen Sie bei `Wer liest auf Ihrer Seite mit?` den Punkt `Nur Leitung`.",
+          "Wählen Sie die Bezugsperson.",
+        ],
+      },
+      {
         title: "Auf eine Nachricht antworten",
         steps: [
           "Öffnen Sie die Unterhaltung im Posteingang.",
@@ -6125,8 +6138,11 @@ export const parentMessageTopic = function parentMessageTopic(): HelpTopic {
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
       "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
+      "Steht bei einer Unterhaltung `Nur Leitung`? Dann lesen sie nur die Bezugsperson und die Leitung. Begonnen hat sie die Bezugsperson oder jemand aus der Leitung. Ohne das Recht `Vertrauliche Elternnachrichten lesen` sehen Sie solche Unterhaltungen nicht.",
+      "Eltern können nur an die Leitung schreiben, wenn unter `Einstellungen` der Schalter `Nachrichten nur an die Leitung (Eltern)` an ist und jemand das Recht `Vertrauliche Elternnachrichten lesen` hat. Das Recht vergeben Sie unter `Rollen`.",
     ],
     notes: [
+      "Über dem Schreibfeld steht, wer die Unterhaltung lesen kann: die eine Bezugsperson und alle Mitarbeitenden oder nur die Leitung. Andere Bezugspersonen des Kindes lesen nicht mit.",
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
       "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",
@@ -6157,10 +6173,13 @@ export const parentMessagesTopic = function parentMessagesTopic(): HelpTopic {
     result: "Die OGS bekommt Ihre Nachricht sofort.",
     notes: [
       "Jedes Kind hat eine eigene Unterhaltung. Oben steht, für welches Kind sie gilt.",
+      "Oben und über dem Schreibfeld steht, wer mitliest, zum Beispiel `Lesen können: Sie und alle Mitarbeitenden der OGS.` Andere Bezugspersonen Ihres Kindes lesen Ihre Unterhaltung nicht.",
       "Unter Ihrer Nachricht steht `Gesendet` und später `Von der OGS gelesen`.",
     ],
     differences: [
       "Bei einem Kind steht `Für dieses Kind können Sie nicht schreiben`? Dann dürfen Sie den Verlauf nur lesen.",
+      "Sehen Sie oben `Ganzes OGS-Team` und `Nur die Leitung`? Dann bietet Ihre OGS das an. Tippen Sie auf `Nur die Leitung`, wenn nur die Leitung Ihre Nachricht lesen soll. Darunter stehen die Namen der Leitung.",
+      "Steht in der Unterhaltung mit der Leitung `Zurzeit liest niemand aus der Leitung mit`? Dann schreiben Sie an `Ganzes OGS-Team`. Den Verlauf können Sie weiter lesen.",
     ],
     troubleshootingDetails: [
       "moto sagt, Ihre Sitzung sei abgelaufen? Melden Sie sich neu an und schicken Sie die Nachricht erneut.",

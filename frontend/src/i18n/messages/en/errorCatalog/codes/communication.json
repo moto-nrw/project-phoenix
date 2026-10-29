@@ -19,6 +19,7 @@
   "survey_anonymous": "{object} could not be changed. Please check its current status.",
   "class_letter_class_not_reachable": "This class is not assigned to you. Please choose one of your own classes.",
   "class_letter_read_only": "A teacher wrote this parent letter. Only that teacher can change, send or delete it.",
+  "leadership_messages_unavailable": "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
   "staff_group_create_forbidden": "Teachers cannot start a group chat. Please ask the after-school team.",
   "staff_group_manage_forbidden": "Only the person who started the group chat and the leadership can change it.",
   "staff_group_name_invalid": "Please give the group chat a name of at most {max_characters} characters.",

@@ -8,6 +8,9 @@ name: Nightly full suite
 # The full lint run serves the same purpose for changed-package lint. It also
 # saves the development caches that the lint jobs on standard GitHub runners
 # restore in pull requests; a pull request cannot read another one's cache.
+# Backend tests run with the race detector (#5261), not on pull requests.
+# Keep the existing weekday schedule. Failures make this run red; like the
+# other nightly suites, there is no separate notification integration.
 
 on:
   schedule:
@@ -29,6 +32,7 @@ jobs:
       changed-scope: false
       base_ref: ""
       full-backend-suite: true
+      backend-race: true
       full-frontend-suite: true
 
   lint:

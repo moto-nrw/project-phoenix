@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 type messageObservation func(context.Context, string) (context.Context, func(error))
@@ -9,11 +11,11 @@ type ParentMessageService[I, T, M, G any] interface {
 	ListInbox(context.Context, bool) ([]*I, error)
 	UnreadMessageCount(context.Context) (int, error)
 	GetThread(context.Context, int64) (*T, error)
-	ListGuardians(context.Context, int64) ([]*G, error)
+	ListGuardians(context.Context, int64, string) ([]*G, communication.ParentMessageReaderPreview, error)
 	ListReachableStudentIDs(context.Context) ([]int64, error)
 	ListStudentThreads(context.Context, int64) ([]*I, error)
-	StartThread(context.Context, int64, int64, string) (*T, error)
-	OpenThread(context.Context, int64, int64) (*T, error)
+	StartThread(context.Context, int64, int64, string, string) (*T, error)
+	OpenThread(context.Context, int64, int64, string) (*T, error)
 	PostMessage(context.Context, int64, string, int64) ([]*M, error)
 	MarkUnread(context.Context, int64) error
 	MarkAllRead(context.Context) (int, error)

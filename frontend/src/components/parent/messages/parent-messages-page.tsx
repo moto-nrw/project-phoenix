@@ -25,7 +25,11 @@ import {
   listMessageThreads,
   listMyChildren,
 } from "~/lib/parent-api";
-import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
+import {
+  type MessageAudience,
+  childConversationPath,
+  parentThreadPreviewI18nDescriptor,
+} from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
 import { formatChatClockTime, formatChatDateTime } from "~/lib/date-helpers";
 import { parentPath } from "~/lib/parent-url";
@@ -47,6 +51,8 @@ const logger = createLogger({ component: "ParentMessagesPage" });
 
 interface ChildConversation {
   readonly studentId: string;
+  /** Team or leadership only (#5200); the leadership row exists once begun. */
+  readonly audience: MessageAudience;
   readonly studentName: string;
   readonly schoolName: string;
   readonly lastMessageAt?: string;
@@ -65,13 +71,30 @@ function buildRows(
   children: readonly Child[],
   threads: readonly ThreadSummary[],
 ): ChildConversation[] {
-  const byStudent = new Map<string, ThreadSummary>();
-  for (const thread of threads) byStudent.set(thread.student_id, thread);
+  // Je Kind die Team-Unterhaltung, auch noch ohne Nachricht, und die mit der
+  // Leitung, sobald es sie gibt (#5200).
+  const teamByStudent = new Map<string, ThreadSummary>();
+  const leadership: ThreadSummary[] = [];
+  for (const thread of threads) {
+    if (thread.audience === "leadership") leadership.push(thread);
+    else teamByStudent.set(thread.student_id, thread);
+  }
+  const childById = new Map(children.map((child) => [child.student_id, child]));
+  const entries: { child: Child; thread?: ThreadSummary }[] = [
+    ...children.map((child) => ({
+      child,
+      thread: teamByStudent.get(child.student_id),
+    })),
+    ...leadership.flatMap((thread) => {
+      const child = childById.get(thread.student_id);
+      return child ? [{ child, thread }] : [];
+    }),
+  ];
 
-  const rows = children.map((child): ChildConversation => {
-    const thread = byStudent.get(child.student_id);
+  const rows = entries.map(({ child, thread }): ChildConversation => {
     return {
       studentId: child.student_id,
+      audience: thread?.audience ?? "team",
       studentName: `${child.first_name} ${child.last_name}`.trim(),
       schoolName: thread?.school_name ?? child.school_name,
       lastMessageAt: thread?.last_message_at,
@@ -314,7 +337,7 @@ export function ParentMessagesPage() {
       </div>
       <ul className="moto-content-surface divide-y divide-gray-200 overflow-hidden rounded-2xl border shadow-sm">
         {rows.map((row) => (
-          <li key={row.studentId}>
+          <li key={`${row.studentId}:${row.audience}`}>
             <ConversationRow row={row} />
           </li>
         ))}
@@ -359,7 +382,7 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
 
   return (
     <NavigationLink
-      href={parentPath(`/parents/messages/${row.studentId}`)}
+      href={parentPath(childConversationPath(row.studentId, row.audience))}
       className="flex min-h-[88px] w-full items-center gap-3 px-4 py-3.5 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:-outline-offset-2 focus-visible:outline-none active:bg-gray-100 sm:px-5"
     >
       <ConceptIconTile
@@ -390,7 +413,9 @@ function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
           <span
             className={`min-w-0 truncate text-base text-gray-900 ${unread ? "font-bold" : "font-semibold"}`}
           >
-            {t("ogsTeam", { school: row.schoolName })}
+            {t(row.audience === "leadership" ? "ogsLeadership" : "ogsTeam", {
+              school: row.schoolName,
+            })}
           </span>
           <UnreadBadge count={row.unread} />
         </span>
