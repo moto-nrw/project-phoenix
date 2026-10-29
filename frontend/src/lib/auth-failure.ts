@@ -1,5 +1,6 @@
 import { signOut } from "next-auth/react";
 import { createLogger } from "~/lib/logger";
+import { isTenantSessionEnding } from "~/lib/tenant-session-end";
 
 const logger = createLogger({ component: "AuthAPI" });
 
@@ -74,6 +75,9 @@ export async function refreshToken(): Promise<boolean> {
  * or signing out if that fails
  */
 export async function handleAuthFailure(): Promise<boolean> {
+  // Revocation makes concurrent reads fail too. The explicit tenant exit
+  // owns the cookie and destination until it settles, including across tabs.
+  if (isTenantSessionEnding()) return false;
   // Check if we're in a server context
   if (globalThis.window === undefined) {
     logger.error("auth failure handling attempted from server context");
@@ -101,6 +105,7 @@ export async function handleAuthFailure(): Promise<boolean> {
 
     // Try to refresh the token one more time
     const refreshed = await refreshToken();
+    if (isTenantSessionEnding()) return false;
 
     if (refreshed) {
       // Token refresh successful. The /api/auth/token route called auth()
@@ -117,12 +122,12 @@ export async function handleAuthFailure(): Promise<boolean> {
     await signOut({ redirect: false });
 
     // Redirect to home page (login)
-    globalThis.window.location.href = "/";
+    if (!isTenantSessionEnding()) globalThis.window.location.href = "/";
 
     return false;
   } catch (error) {
     logger.error("auth failure handling error", { error: String(error) });
-    if (globalThis.window !== undefined) {
+    if (globalThis.window !== undefined && !isTenantSessionEnding()) {
       await signOut({ redirect: false });
     }
     return false;

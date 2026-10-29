@@ -115,15 +115,6 @@ const api = createServer(async (req, res) => {
       student_photos_enabled: true,
       timetable_enabled: false,
     });
-  } else if (sharedTenantCookie && path === "/__fixture/mint") {
-    // A fresh family of the given portal, as its login would open it.
-    const family = `family-${++familySequence}`;
-    liveFamilies.add(family);
-    const token = fixtureToken({
-      ...claims(url.searchParams.get("scope") ?? ""),
-      family_id: family,
-    });
-    data = { access_token: token, refresh_token: token };
   } else if (sharedTenantCookie && portalReads.has(path)) {
     data = envelope([]);
   } else if (sharedTenantCookie && path === "/operator/auth/logout") {
@@ -171,20 +162,34 @@ const api = createServer(async (req, res) => {
     });
     data = { access_token: token, refresh_token: token };
   } else if (
-    ["/auth/login", "/school/auth/login", "/parent/auth/login"].includes(path)
+    [
+      "/auth/login",
+      "/school/auth/login",
+      "/parent/auth/login",
+      "/operator/auth/login",
+      "/caterer/auth/login",
+    ].includes(path)
   ) {
     const scope = path.startsWith("/school")
       ? "school"
       : path.startsWith("/parent")
         ? "parent"
-        : "";
+        : path.startsWith("/operator")
+          ? "platform"
+          : path.startsWith("/caterer")
+            ? "caterer"
+            : "";
     const family = sharedTenantCookie
       ? `family-${++familySequence}`
       : undefined;
     if (family) liveFamilies.add(family);
     const token = fixtureToken({ ...claims(scope), family_id: family });
     const pair = { access_token: token, refresh_token: token };
-    data = scope === "parent" ? envelope(pair) : pair;
+    data = ["parent", "platform", "caterer"].includes(scope)
+      ? envelope(pair)
+      : scope === "school"
+        ? { status: "authenticated", ...pair }
+        : pair;
   } else if (path === "/auth/session/validate") {
     let body = "";
     for await (const chunk of req) body += chunk;

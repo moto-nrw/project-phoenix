@@ -44,12 +44,13 @@ vi.mock("~/lib/parent-url", () => ({
   parentAbsoluteUrl: (path: string) => path,
   parentPath: (path: string) => path,
 }));
-vi.mock("~/lib/staff-preview-api", () => ({ performEndStaffPreview: vi.fn() }));
+vi.mock("~/lib/staff-preview-api", () => ({ recordStaffPreviewEnd: vi.fn() }));
 vi.mock("~/lib/swr", () => ({ mutate: vi.fn() }));
 vi.mock("~/env.client", () => ({
   clientEnv: { NEXT_PUBLIC_TENANT_DOMAIN: "localhost" },
 }));
 vi.mock("~/lib/push-api", () => ({ unsubscribePushSilently: mockUnsubscribe }));
+vi.mock("~/lib/tenant-session-cookie", () => ({ signOutTenant: vi.fn() }));
 
 beforeEach(() => {
   // A push cleanup that never settles (#5260).
@@ -61,6 +62,9 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  // End the deliberately unfinished document-owned tenant logout before
+  // the next test installs a different session/fetch boundary.
+  window.dispatchEvent(new Event("pagehide"));
   vi.unstubAllGlobals();
   vi.clearAllMocks();
 });
