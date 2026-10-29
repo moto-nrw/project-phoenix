@@ -1215,16 +1215,14 @@ export async function listMessageThreads(): Promise<ThreadSummary[]> {
   return Array.isArray(threads) ? threads : [];
 }
 
-/**
- * Total number of conversations with unread staff-side activity, across all the
- * guardian's children's schools — the sidebar badge. A light COUNT endpoint, so
- * the badge does not fetch every thread's full projection just to sum unreads.
- */
+/** Counts visible conversations with unread staff-side activity for the badge. */
 export async function fetchMessagesUnreadCount(): Promise<number> {
-  const result = await getJson<{ unread_count: number }>(
-    "/api/parent/me/messages/unread-count",
-  );
-  return result.unread_count ?? 0;
+  // Use the same audience filter as the inbox until leadership navigation ships.
+  const [threads, groups] = await Promise.all([
+    listMessageThreads(),
+    listGroupThreads(),
+  ]);
+  return [...threads, ...groups].filter((thread) => thread.unread > 0).length;
 }
 
 /**

@@ -1069,21 +1069,35 @@ describe("listMessageThreads", () => {
 // --- fetchMessagesUnreadCount -------------------------------------------------
 
 describe("fetchMessagesUnreadCount", () => {
-  it("GETs /api/parent/me/messages/unread-count and returns the count", async () => {
-    let seenURL = "";
+  it("counts unread team and group conversations, excluding leadership", async () => {
+    const seenURLs: string[] = [];
     mockFetch(async (input) => {
-      seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ unread_count: 7 });
+      const url = typeof input === "string" ? input : input.toString();
+      seenURLs.push(url);
+      if (url.endsWith("/group-threads")) {
+        return jsonResponse({ data: [{ unread: 4 }, { unread: 0 }] });
+      }
+      return jsonResponse({
+        data: [
+          mkThreadSummary({ audience: "team", unread: 7 }),
+          mkThreadSummary({ unread: 2 }),
+          mkThreadSummary({ audience: "team", unread: 0 }),
+          mkThreadSummary({ audience: "leadership", unread: 3 }),
+        ],
+      });
     });
-    const count = await fetchMessagesUnreadCount();
-    expect(count).toBe(7);
-    expect(seenURL).toContain("/api/parent/me/messages/unread-count");
+    expect(await fetchMessagesUnreadCount()).toBe(3);
+    expect(seenURLs).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("/api/parent/me/messages"),
+        expect.stringContaining("/api/parent/me/messages/group-threads"),
+      ]),
+    );
   });
 
-  it("returns 0 when unread_count is missing from the response", async () => {
-    mockFetch(async () => jsonResponse({}));
-    const count = await fetchMessagesUnreadCount();
-    expect(count).toBe(0);
+  it("returns 0 when no conversations are returned", async () => {
+    mockFetch(async () => jsonResponse({ data: [] }));
+    expect(await fetchMessagesUnreadCount()).toBe(0);
   });
 
   it("throws on non-OK", async () => {
