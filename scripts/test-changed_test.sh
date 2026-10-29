@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/test-helpers/git-fixture.sh"
 repo_root=$(git rev-parse --show-toplevel)
 fixture=$(mktemp -d)
 cleanup() {
@@ -134,7 +135,7 @@ chmod +x \
   "$fixture/fake-bin/go"
 
 printf 'package probe\n' >"$fixture/backend/probe/probe.go"
-git -C "$fixture" init -q
+init_git_fixture "$fixture"
 git -C "$fixture" config user.email test-changed@example.invalid
 git -C "$fixture" config user.name test-changed
 git -C "$fixture" config commit.gpgSign false
