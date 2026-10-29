@@ -27,6 +27,7 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	reviewStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/requestreview/http"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -155,6 +156,21 @@ func requestReviewDependencies(
 	}, careReviews, nil
 }
 
+func newStudentRequestReview(
+	db transactionruntime.Database, persons peopledirectory.Capability, reviewPolicy *owners.ParentRequestReviewPolicy, caller *owners.CallerRows,
+	settings settingsCompose.SettingsService, excused *carePlanCompose.ExcusedAbsenceRequests,
+) (requestreview.Query, carePlanModule.CareScheduleReviewQuery, error) {
+	dependencies, careReviews, err := requestReviewDependencies(db, persons, reviewPolicy, caller, settings, excused)
+	if err != nil {
+		return nil, nil, err
+	}
+	projection, err := requestreviewcompose.NewProjection(dependencies)
+	if err != nil {
+		return nil, nil, fmt.Errorf("request review projection: %w", err)
+	}
+	return projection, careReviews, nil
+}
+
 // mountStudentRoutes serves /api/students.
 func mountStudentRoutes(
 	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, deviceAuth *deviceauth.Authenticators, presence studentpresence.Owner,
@@ -170,13 +186,9 @@ func mountStudentRoutes(
 	// Regeltermine like a grade transition does (#2147 review round 10); Care
 	// Plan's booking materialization provides the resync (#3560).
 	var studentClassResyncer schoolStructureCompose.OfferingSourceResyncer = requests.CareOfferings
-	reviewDependencies, careReviews, err := requestReviewDependencies(db, persons, reviewPolicy, caller, settings, requests.Excused)
+	requestReview, careReviews, err := newStudentRequestReview(db, persons, reviewPolicy, caller, settings, requests.Excused)
 	if err != nil {
 		return err
-	}
-	requestReview, err := requestreviewcompose.NewProjection(reviewDependencies)
-	if err != nil {
-		return fmt.Errorf("request review projection: %w", err)
 	}
 	students, careStudents, projectionStudents, presenceStudents, deletionStudents, requestStudents := NewStudentHTTPResources(
 		studentsAPI.ResourceConfig{
@@ -228,6 +240,7 @@ func mountStudentRoutes(
 			WeekdayPickupNotes:     carePlan,
 		},
 		projectionStudentsHTTP.ResourceConfig{
+			PrivacyConsents:        presence,
 			AbsenceOverview:        reports.AbsenceOverview,
 			ActiveEnrollments:      studentActiveEnrollments{enrollments: activities},
 			ActiveService:          active,
