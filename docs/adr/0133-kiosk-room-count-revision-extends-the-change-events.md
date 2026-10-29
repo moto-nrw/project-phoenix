@@ -199,12 +199,17 @@ and a settled session that is deleted later leaves only session rows, which
 the fold of deleted sessions removes without a room row: the rooms already
 carry its sum.
 
-**Locks.** Both new statements use `SKIP LOCKED` and never wait, and after
-them the holder waits for no row a writer holds, as before. A writer of an
-ended session can now wait for the nightly close's commit; that is an edge
-in one direction only and closes no cycle with the scan, checkout, transfer
-or reattach paths (#5206). Writers of running sessions meet none of these
-locks.
+**Locks.** Both new statements use `SKIP LOCKED` and never wait, and the
+compaction statement after them waits for no row a writer holds, as before.
+The locks last until the surrounding tenant transaction commits: the
+scheduler's session-end job runs `EndDailySessions` inside it and then
+completes the timetable instances of the sessions it ended that night. A
+writer of an ended session can wait for that commit. The only writer that
+also holds timetable rows, the recovery of a completed activity, locks the
+attendance of an instance that is already completed, not one the job
+completes, so this edge closes no cycle; neither does it with the scan,
+checkout, transfer or reattach paths (#5206). Writers of running sessions
+meet none of these locks.
 
 **Tests** (`modules/studentpresence/compose/room_revision_fold_test.go`): the
 fold keeps every room revision through end, second compaction, late write,
