@@ -206,7 +206,8 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	defer srv.Close()
 
 	step := parentEnrollmentSeedStep{}
-	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, 1, 2)
+	const schoolYearPhaseID, holidayPhaseID = 41, 42
+	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, schoolYearPhaseID, holidayPhaseID)
 	require.NoError(t, err)
 	require.Len(t, received, 6)
 
@@ -221,9 +222,9 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 		holiday := offering.Name == "Ferienbetreuung Herbst"
 		assert.Equal(t, holiday, offering.HolidayCare, offering.Name)
 		if holiday {
-			assert.Equal(t, int64(2), offering.PhaseID, offering.Name)
+			assert.EqualValues(t, holidayPhaseID, offering.PhaseID, offering.Name)
 		} else {
-			assert.Equal(t, int64(1), offering.PhaseID, offering.Name)
+			assert.EqualValues(t, schoolYearPhaseID, offering.PhaseID, offering.Name)
 		}
 		countsAsCare := expectedTime != ""
 		assert.Equal(t, countsAsCare, offering.CountsAsCare, offering.Name)

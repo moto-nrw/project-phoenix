@@ -115,3 +115,13 @@ func TestSeedParentPortalActionsReportSicknessFromTheMorning(t *testing.T) {
 	assert.Len(t, sick["dates"], 1)
 	assert.Equal(t, int64(3), actions[0].StudentID, "Aida Amini is reported sick; her brother Baran stays present")
 }
+
+// A request booking the holiday care goes to the holiday phase (#5139),
+// every other one to the school-year phase.
+func TestSeedSubmissionPhaseSendsHolidayCareToItsPhase(t *testing.T) {
+	t.Parallel()
+
+	const schoolYearPhaseID, holidayPhaseID = 41, 42
+	assert.EqualValues(t, holidayPhaseID, seedSubmissionPhase([]string{"ferienbetreuung"}, schoolYearPhaseID, holidayPhaseID))
+	assert.EqualValues(t, schoolYearPhaseID, seedSubmissionPhase([]string{"ogs-ganztag", "mittagessen"}, schoolYearPhaseID, holidayPhaseID))
+}
