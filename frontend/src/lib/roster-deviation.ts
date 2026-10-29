@@ -19,6 +19,12 @@ export interface RosterDeviation {
   missingCount: number;
   /** Every offering that passes the rule, best first. */
   candidates: Array<{ id: string; name: string }>;
+  /**
+   * Several candidates fit the children fully (#5138), typical for a Klasse
+   * or Jahrgang target. The school picks; nothing is preselected, and the
+   * counts belong to no named offering.
+   */
+  ambiguous: boolean;
 }
 
 /** An offering source with its Klassen- or Jahrgangsfilter. */
@@ -67,6 +73,7 @@ interface BackendRosterDeviation {
   unbooked_count: number;
   missing_count: number;
   candidates?: BackendOfferingRef[] | null;
+  ambiguous?: boolean;
 }
 
 export interface BackendRosterDeviationsResponse {
@@ -116,6 +123,7 @@ export function mapRosterDeviations(
     unbookedCount: deviation.unbooked_count,
     missingCount: deviation.missing_count,
     candidates: (deviation.candidates ?? []).map(offeringRef),
+    ambiguous: deviation.ambiguous ?? false,
   }));
 }
 
@@ -152,8 +160,21 @@ function childCount(count: number, singular: string, plural: string): string {
   return `${count} ${count === 1 ? singular : plural}`;
 }
 
+/** „A“, „B“ oder „C“: the names a choice is made between. */
+export function offeringChoiceNames(
+  offerings: ReadonlyArray<{ name: string }>,
+): string {
+  const names = offerings.map((offering) => `„${offering.name}“`);
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} oder ${names.at(-1)}`;
+}
+
 /** The hint text on the Regeltermin card and in the details. */
 export function describeRosterDeviation(deviation: RosterDeviation): string {
+  if (deviation.ambiguous) {
+    // The counts compare with one offering; none is chosen yet.
+    return `Weicht von Anmeldungen ab: passt zu ${offeringChoiceNames(deviation.candidates)}`;
+  }
   const parts: string[] = [];
   if (deviation.unbookedCount > 0) {
     parts.push(

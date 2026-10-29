@@ -1316,6 +1316,7 @@ describe("BetreuungsplanView", () => {
     unbookedCount: 1,
     missingCount: 0,
     candidates: [],
+    ambiguous: false,
   };
 
   it("opens „Mit Angebot verbinden“ once for the linked Regeltermin", async () => {

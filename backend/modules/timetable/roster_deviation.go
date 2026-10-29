@@ -76,6 +76,12 @@ type RosterDeviation struct {
 	MissingCount int
 	// Candidates are every offering passing the rule, best first.
 	Candidates []OfferingRef
+	// Ambiguous is set when several candidates cover the roster fully
+	// (#5138). A Klasse or Jahrgang target plans every child of the cohort,
+	// so every offering of it covers the roster and coverage decides
+	// nothing. Offering then only heads the candidates: the school picks,
+	// nothing is preselected, and the counts belong to no named offering.
+	Ambiguous bool
 }
 
 type rosterSlot struct {
@@ -124,6 +130,7 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 		UnbookedCount: unbooked,
 		MissingCount:  missing,
 		Candidates:    refs,
+		Ambiguous:     len(candidates) > 1 && candidates[1].coverage == 1,
 	}
 }
 
