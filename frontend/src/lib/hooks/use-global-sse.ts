@@ -46,6 +46,8 @@ import { isOwnAttendanceEvent } from "~/lib/sse-optimistic-mutations";
 
 const logger = createLogger({ component: "GlobalSSE" });
 
+const SSE_ENDPOINT = "/api/sse/events";
+
 export const DEBOUNCE_MS = 500;
 // Bounded random jitter added on top of the debounce (#2057). Every client of
 // a tenant receives the same broadcast at the same instant; without jitter all
@@ -1283,10 +1285,11 @@ export function useGlobalSSE(): SSEHookState {
   const streamCheckRef = useRef<AbortController | null>(null);
   const handleSSEError = useCallback((event: Event) => {
     const source = event.target as EventSource | null;
+    // 2 = EventSource.CLOSED, as in useSSE.
     if (source?.readyState !== 2 || streamCheckRef.current) return;
     const check = new AbortController();
     streamCheckRef.current = check;
-    void fetch("/api/sse/events", { cache: "no-store", signal: check.signal })
+    void fetch(SSE_ENDPOINT, { cache: "no-store", signal: check.signal })
       // The stream's own backoff stays the visible result; the check only
       // feeds the observer.
       .catch(() => undefined)
@@ -1303,7 +1306,7 @@ export function useGlobalSSE(): SSEHookState {
     [],
   );
 
-  const sseState = useSSE("/api/sse/events", {
+  const sseState = useSSE(SSE_ENDPOINT, {
     onMessage: handleSSEEvent,
     onError: handleSSEError,
     enabled: isAuthenticated,

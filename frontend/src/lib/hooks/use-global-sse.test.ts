@@ -998,7 +998,7 @@ describe("useGlobalSSE — stream refused for another school's session", () => {
     );
   });
 
-  it("reconnects with the school TenantGuard switched back to", async () => {
+  it("reconnects with each session the provider names during the switch back", async () => {
     fetchMock.mockResolvedValue(refusal());
     const { rerender } = renderHook(() => useGlobalSSE());
     streamError(2);
@@ -1023,15 +1023,17 @@ describe("useGlobalSSE — stream refused for another school's session", () => {
       () => Response.json({ code: "general.conflict" }, { status: 409 }),
     ],
   ])("starts no switch back after a %s answer", async (_status, answer) => {
-    fetchMock.mockResolvedValue(answer());
+    let signal: AbortSignal | undefined;
+    fetchMock.mockImplementation(async (_input, init) => {
+      signal = init?.signal ?? undefined;
+      return answer();
+    });
     renderHook(() => useGlobalSSE());
 
     streamError(2);
 
-    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
-    await act(async () => {
-      await Promise.resolve();
-    });
+    // The check aborts itself only after the observer read the answer.
+    await vi.waitFor(() => expect(signal?.aborted).toBe(true));
     expect(mismatch).not.toHaveBeenCalled();
   });
 
