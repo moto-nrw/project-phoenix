@@ -49,3 +49,10 @@ func NewHolidayHostParticipants(log enrollment.HolidayParticipantAccessLog, toda
 func NewHolidayGuests(people enrollment.HolidayGuestPeople, care enrollment.HolidayGuestCareDays, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) enrollment.HolidayGuests {
 	return applicationNative.NewHolidayGuests(postgres.NewHolidayGuestStore(), people, care, log, today)
 }
+
+// NewHolidayAccessTrail builds the access trail of the holiday registrations
+// for the access log of the Träger-Portal (#5326). It reads in the
+// administrative transaction of the Träger projection (ADR 0137).
+func NewHolidayAccessTrail() enrollment.HolidayAccessTrail {
+	return postgres.NewHolidayRegistrationStore()
+}
