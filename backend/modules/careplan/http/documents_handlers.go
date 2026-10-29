@@ -7,6 +7,7 @@ import (
 	strings "strings"
 	time "time"
 
+	render "github.com/go-chi/render"
 	common "github.com/moto-nrw/project-phoenix/api/common"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -60,6 +61,10 @@ type StudentDocumentResponse struct {
 	ContentType   string    `json:"content_type"`
 	UploadedAt    time.Time `json:"uploaded_at"`
 	Sensitive     bool      `json:"sensitive"`
+	// HasFile is false for an accident report without a paper copy: its
+	// PDF is rendered by the accident report route.
+	HasFile        bool                    `json:"has_file"`
+	AccidentReport *AccidentReportResponse `json:"accident_report,omitempty"`
 }
 
 // StudentDocumentListResponse is the list GET: the documents the caller may
@@ -89,6 +94,7 @@ func newStudentDocumentResponse(doc careplan.CareDocument) StudentDocumentRespon
 		ContentType:   doc.ContentType,
 		UploadedAt:    doc.CreatedAt,
 		Sensitive:     careplan.IsSensitiveStudentDocumentCategory(doc.Category),
+		HasFile:       doc.FilenameStored != "",
 	}
 }
 
@@ -107,17 +113,7 @@ func isStudentDocumentNotFound(err error) bool {
 
 // renderStudentDocumentError maps document service errors onto HTTP responses.
 func renderStudentDocumentError(w http.ResponseWriter, r *http.Request, err error) {
-	switch {
-	case errors.Is(err, careplan.ErrStudentDocumentForbidden),
-		errors.Is(err, careplan.ErrStudentDocumentNoAccess):
-		common.RenderError(w, r, common.ErrorForbidden(err))
-	case errors.Is(err, careplan.ErrStudentDocumentInvalid):
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-	case isStudentDocumentNotFound(err):
-		common.RenderError(w, r, common.ErrorNotFound(err))
-	default:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-	}
+	common.RenderError(w, r, studentDocumentErrorRenderer(err))
 }
 
 // listStudentDocuments serves GET /{id}/documents?category=x.
@@ -148,8 +144,15 @@ func (rs *Resource) listStudentDocuments(w http.ResponseWriter, r *http.Request)
 		Documents:         make([]StudentDocumentResponse, 0, len(docs)),
 		VisibleCategories: make([]StudentDocumentCategory, 0, len(visible)),
 	}
+	versions, successors := accidentReportVersions(docs)
 	for _, doc := range docs {
-		resp.Documents = append(resp.Documents, newStudentDocumentResponse(doc))
+		item := newStudentDocumentResponse(doc)
+		if successor, ok := successors[doc.ID]; ok {
+			item.AccidentReport = newAccidentReportResponse(doc, versions[doc.ID], &successor)
+		} else {
+			item.AccidentReport = newAccidentReportResponse(doc, versions[doc.ID], nil)
+		}
+		resp.Documents = append(resp.Documents, item)
 	}
 	for _, category := range visible {
 		resp.VisibleCategories = append(resp.VisibleCategories, StudentDocumentCategory{
@@ -212,7 +215,35 @@ func (rs *Resource) uploadStudentDocument(w http.ResponseWriter, r *http.Request
 	if !rs.queueStudentDocumentUpload(w, r, upload) {
 		return
 	}
-	rs.storeStudentDocumentUpload(w, r, upload)
+	rs.storeStudentDocumentObject(w, r, upload, func(ctx context.Context, size int64) (careplan.CareDocument, error) {
+		return rs.StudentDocumentService.CreateStudentDocument(ctx, careplan.CreateStudentDocumentInput{
+			StudentID:       upload.studentID,
+			Category:        upload.category,
+			FilenameDisplay: upload.uploaded.Filename,
+			FilenameStored:  upload.storedName,
+			SizeBytes:       size,
+			ContentType:     upload.uploaded.ContentType,
+		}, upload.actor)
+	}, func(err error) bool {
+		return errors.Is(err, careplan.ErrStudentDocumentInvalid) || errors.Is(err, careplan.ErrStudentDocumentForbidden)
+	}, studentDocumentErrorRenderer)
+}
+
+// studentDocumentErrorRenderer is renderStudentDocumentError as a renderer.
+func studentDocumentErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, careplan.ErrStudentDocumentForbidden),
+		errors.Is(err, careplan.ErrStudentDocumentNoAccess):
+		return common.ErrorForbidden(err)
+	case errors.Is(err, careplan.ErrStudentDocumentInvalid):
+		return common.ErrorInvalidRequest(err)
+	case errors.Is(err, careplan.ErrAccidentReportSigned):
+		return common.ErrorConflictWithCode(err, common.CodeStudentsAccidentReportSigned)
+	case isStudentDocumentNotFound(err):
+		return common.ErrorNotFound(err)
+	default:
+		return common.ErrorInternalServer(err)
+	}
 }
 
 // studentDocumentUpload is one child-document upload in flight.
@@ -275,7 +306,12 @@ func (rs *Resource) queueStudentDocumentUpload(w http.ResponseWriter, r *http.Re
 		renderStudentDocumentError(w, r, err)
 		return false
 	}
+	return rs.queueStudentDocumentObject(w, r, upload)
+}
 
+// queueStudentDocumentObject names the object of an authorized upload and
+// records its cleanup intent before anything is written.
+func (rs *Resource) queueStudentDocumentObject(w http.ResponseWriter, r *http.Request, upload *studentDocumentUpload) bool {
 	storedName, err := upload.coordinator.NewStoredName(common.DocumentFileExtension(upload.uploaded.ContentType))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -294,9 +330,15 @@ func (rs *Resource) queueStudentDocumentUpload(w http.ResponseWriter, r *http.Re
 	return true
 }
 
-// storeStudentDocumentUpload writes the object within the upload deadline and
-// commits its metadata, disposing of the object on failure.
-func (rs *Resource) storeStudentDocumentUpload(w http.ResponseWriter, r *http.Request, upload *studentDocumentUpload) {
+// storeStudentDocumentObject writes the object within the upload deadline and
+// commits its metadata through commit, disposing of the object on failure.
+// rejectedBeforeCommit names the failures commit decides before its
+// metadata transaction opens; only they let the bytes go immediately.
+func (rs *Resource) storeStudentDocumentObject(
+	w http.ResponseWriter, r *http.Request, upload *studentDocumentUpload,
+	commit func(ctx context.Context, size int64) (careplan.CareDocument, error),
+	rejectedBeforeCommit func(error) bool, renderFailure func(error) render.Renderer,
+) {
 	// The queued intent becomes eligible for the cleanup scheduler after a
 	// fixed delay, so every step that can still persist metadata for this
 	// object must be bounded well inside that delay: a stalled write or
@@ -323,24 +365,15 @@ func (rs *Resource) storeStudentDocumentUpload(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	doc, err := rs.StudentDocumentService.CreateStudentDocument(uploadCtx, careplan.CreateStudentDocumentInput{
-		StudentID:       upload.studentID,
-		Category:        upload.category,
-		FilenameDisplay: upload.uploaded.Filename,
-		FilenameStored:  upload.storedName,
-		SizeBytes:       size,
-		ContentType:     upload.uploaded.ContentType,
-	}, upload.actor)
+	doc, err := commit(uploadCtx, size)
 	if err != nil {
-		// Only the two request-shaped rejections are decided before the
-		// metadata transaction opens, so only they prove the row never landed
-		// and let the bytes go immediately. Anything deeper — including a
-		// commit whose acknowledgement never arrived — is in doubt and is left
-		// to the queued intent.
-		rejectedBeforeCommit := errors.Is(err, careplan.ErrStudentDocumentInvalid) ||
-			errors.Is(err, careplan.ErrStudentDocumentForbidden)
-		upload.coordinator.ReleaseFailedUpload(r.Context(), upload.tenantID, upload.studentID, upload.storedName, rejectedBeforeCommit, err)
-		renderStudentDocumentError(w, r, err)
+		// Only the request-shaped rejections are decided before the metadata
+		// transaction opens, so only they prove the row never landed and let
+		// the bytes go immediately. Anything deeper — including a commit whose
+		// acknowledgement never arrived — is in doubt and is left to the
+		// queued intent.
+		upload.coordinator.ReleaseFailedUpload(r.Context(), upload.tenantID, upload.studentID, upload.storedName, rejectedBeforeCommit(err), err)
+		common.RenderError(w, r, renderFailure(err))
 		return
 	}
 

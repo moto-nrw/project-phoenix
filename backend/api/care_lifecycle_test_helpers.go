@@ -7,8 +7,6 @@ import (
 
 	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
 
-	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -68,11 +66,33 @@ func NewStudentDocumentsTestModule(
 	userContext securitycontract.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
 ) (careplan.StudentDocuments, error) {
-	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
-	deps, err := owners.StudentDocumentDependencies(records, students, userContext, edits, accessLog, carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback})
+	deps, err := owners.StudentDocumentDependencies(records, students, userContext, edits, accessLog, studentDocumentPermissions())
 	if err != nil {
 		return nil, err
 	}
 	deps.DB = db.Pool()
-	return carePlanCompose.NewStudentDocuments(deps)
+	documents, err := carePlanCompose.NewStudentDocuments(deps)
+	if err != nil {
+		return nil, err
+	}
+	return documents, nil
+}
+
+// NewStudentAccidentReportsTestModule composes the accident reports kept
+// among the child documents (#4771) over the same collaborators.
+func NewStudentAccidentReportsTestModule(
+	db transactionruntime.Database, records careplan.Capability, students peoplePorts.StudentRepository,
+	userContext securitycontract.StudentAccessUserContext,
+	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
+) (careplan.StudentAccidentReports, error) {
+	deps, err := owners.StudentDocumentDependencies(records, students, userContext, edits, accessLog, studentDocumentPermissions())
+	if err != nil {
+		return nil, err
+	}
+	deps.DB = db.Pool()
+	reports, err := carePlanCompose.NewStudentDocuments(deps)
+	if err != nil {
+		return nil, err
+	}
+	return reports, nil
 }

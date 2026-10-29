@@ -265,7 +265,7 @@ function studentTabs(
     : base.filter((tab) => tab !== "betreuungsplan");
   // Dokumente (#777) mirrors the backend route gate exactly:
   // RequiresAnyPermission(users:update, student_documents:health,
-  // student_documents:legal). Gating on write access instead would disagree in
+  // student_documents:legal, student_accidents:read). Gating on write access instead would disagree in
   // both directions — a group supervisor without users:update would see a tab
   // that only answers 403, and a role holding just student_documents:health
   // (which the migration exists to make grantable) could never reach the tab
@@ -543,12 +543,16 @@ function StudentDetailPageContent() {
   const canViewCarePlan =
     sessionStatus === "authenticated" &&
     hasPermission(session, "schedules:read");
-  // Same three permissions the backend route gate accepts (#777).
+  // Same permissions the backend route gate accepts (#777, #4771).
   const canViewDocuments =
     sessionStatus === "authenticated" &&
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
-      hasPermission(session, "student_documents:legal"));
+      hasPermission(session, "student_documents:legal") ||
+      hasPermission(session, "student_accidents:read"));
+  const canRecordAccidents =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "student_accidents:manage");
   // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
   // sieht das Kind nur mit students:read (ADR 0091).
   const canReadParentData = sessionReadsChildDetails;
@@ -1748,6 +1752,7 @@ function StudentDetailPageContent() {
           tabs={visibleTabs}
           canViewEnrollments={canViewEnrollments}
           canViewCarePlan={canViewCarePlan}
+          canRecordAccidents={canRecordAccidents}
           canManageFamilyProtection={canViewEnrollments}
           onTabChange={handleTabChange}
           statusDays={statusDays}
@@ -2013,6 +2018,8 @@ interface FullAccessViewProps {
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
   canViewCarePlan: boolean;
+  /** student_accidents:manage: „Unfall erfassen“ (#4771). */
+  canRecordAccidents: boolean;
   canManageFamilyProtection: boolean;
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
@@ -2038,6 +2045,7 @@ function FullAccessView({
   tabs,
   canViewEnrollments,
   canViewCarePlan,
+  canRecordAccidents,
   canManageFamilyProtection,
   onTabChange,
   statusDays,
@@ -2242,7 +2250,12 @@ function FullAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
+        {documentsTabSeen && (
+          <StudentDokumenteTab
+            studentId={studentId}
+            canRecordAccidents={canRecordAccidents}
+          />
+        )}
       </StudentTabPanel>
 
       {tabs.includes("aenderungsprotokoll") && (

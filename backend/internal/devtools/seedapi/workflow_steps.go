@@ -328,6 +328,7 @@ func fullDemoSetupSteps(seeder *Seeder) []Step {
 		seedImportAuditStep{},
 		seedAuditLifecycleStep{},
 		seedPrivacyConsentsStep{},
+		seedAccidentReportsStep{},
 		seedFamilyProtectionStep{},
 		markStudentsSickStep{},
 		seedCareExitsStep{},

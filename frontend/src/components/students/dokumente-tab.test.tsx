@@ -93,4 +93,60 @@ describe("StudentDokumenteTab", () => {
     ).toBeInTheDocument();
     expect(upload).not.toHaveBeenCalled();
   });
+
+  it("lists an accident report by its time and status, linked to its page", () => {
+    swrResult.data = {
+      documents: [
+        {
+          id: "41",
+          studentId: "7",
+          category: "unfallanzeige",
+          categoryLabel: "Unfallanzeige",
+          filename: "Unfallanzeige_2026-09-08.pdf",
+          sizeBytes: 0,
+          contentType: "application/pdf",
+          uploadedAt: "2026-09-08T10:00:00Z",
+          sensitive: true,
+          hasFile: false,
+          accidentReport: {
+            status: "open",
+            version: 1,
+            supersedesId: null,
+            supersededById: null,
+            signedAt: null,
+            signedDigitally: false,
+            hasPaperCopy: false,
+            occurredAt: "2026-09-08T08:40:00Z",
+            location: "Schulhof",
+            description: "Gestürzt",
+            injuredBodyParts: "",
+            injuryKind: "Prellung",
+            witnesses: "",
+            firstAid: "",
+            doctorVisited: false,
+            doctor: "",
+            parentsNotified: "",
+            parentsNotifiedAt: null,
+            supervisor: "Frau Berger",
+          },
+        },
+      ],
+      visibleCategories: [
+        { value: "attest", label: "Attest" },
+        { value: "unfallanzeige", label: "Unfallanzeige" },
+      ],
+    };
+    renderTab();
+
+    const link = screen.getByRole("link", {
+      name: "Unfall am 08.09.2026, 10:40 Uhr",
+    });
+    expect(link).toHaveAttribute("href", "/students/7/unfallanzeigen/41");
+    expect(screen.getByText("Offen")).toBeInTheDocument();
+    // Without student_accidents:manage there is nothing to record.
+    expect(screen.getByText("Dokumente")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Unfall erfassen" }),
+    ).not.toBeInTheDocument();
+  });
 });

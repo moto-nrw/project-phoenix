@@ -6260,6 +6260,160 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.AttachAccidentPaperCopy",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.AttachAccidentPaperCopy",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through *modules/careplan/internal/application.StudentDocuments.AttachAccidentPaperCopy. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.AttachAccidentPaperCopy",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.AttachAccidentPaperCopy",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through modules/careplan/internal/application.StudentDocumentsBinding.AttachAccidentPaperCopy. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.AuthorizeAccidentPaperCopy",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.AuthorizeAccidentPaperCopy",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through *modules/careplan/internal/application.StudentDocuments.AuthorizeAccidentPaperCopy. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.AuthorizeAccidentPaperCopy",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.AuthorizeAccidentPaperCopy",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through modules/careplan/internal/application.StudentDocumentsBinding.AuthorizeAccidentPaperCopy. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.CorrectStudentAccidentReport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.CorrectStudentAccidentReport",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through *modules/careplan/internal/application.StudentDocuments.CorrectStudentAccidentReport. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.CorrectStudentAccidentReport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.CorrectStudentAccidentReport",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through modules/careplan/internal/application.StudentDocumentsBinding.CorrectStudentAccidentReport. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.CreateStudentAccidentReport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.CreateStudentAccidentReport",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through *modules/careplan/internal/application.StudentDocuments.CreateStudentAccidentReport. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.CreateStudentAccidentReport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.CreateStudentAccidentReport",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through modules/careplan/internal/application.StudentDocumentsBinding.CreateStudentAccidentReport. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.ResolveStudentAccidentReportFile",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.ResolveStudentAccidentReportFile",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through *modules/careplan/internal/application.StudentDocuments.ResolveStudentAccidentReportFile. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.ResolveStudentAccidentReportFile",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.ResolveStudentAccidentReportFile",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through modules/careplan/internal/application.StudentDocumentsBinding.ResolveStudentAccidentReportFile. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.SignStudentAccidentReport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.SignStudentAccidentReport",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through *modules/careplan/internal/application.StudentDocuments.SignStudentAccidentReport. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.SignStudentAccidentReport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.SignStudentAccidentReport",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through modules/careplan/internal/application.StudentDocumentsBinding.SignStudentAccidentReport. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.UpdateStudentAccidentReport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.UpdateStudentAccidentReport",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through *modules/careplan/internal/application.StudentDocuments.UpdateStudentAccidentReport. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.UpdateStudentAccidentReport",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.UpdateStudentAccidentReport",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.WithTenantTx (tenant-runtime) through modules/careplan/internal/application.StudentDocumentsBinding.UpdateStudentAccidentReport. The accident report command (#4771) opens its own tenant transaction like the child document commands; the per-child gate, the report row, its signature and its change-history row commit together. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.AuthorizeStudentDocumentUpload",
       "classification": "platform",
       "effect": "scope",
@@ -7802,6 +7956,66 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
       "target_owner": "document-rendering"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "reason": "Read-only already reviewed target: care-plan reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through api.studentSchoolDirectory.SchoolIdentity for the school name and address of an accident report (#4771)",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "reason": "Read-only already reviewed target: care-plan reaches modules/organizationtenancy.Capability.FindSchoolBySlug (organization-tenancy) through api.studentSchoolDirectory.SchoolIdentity for the school name and address of an accident report (#4771)",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "reason": "Read-only already reviewed target: care-plan reaches modules/organizationtenancy.Capability.FindSchoolBySubdomain (organization-tenancy) through api.studentSchoolDirectory.SchoolIdentity for the school name and address of an accident report (#4771)",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "reason": "Read-only already reviewed target: care-plan reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through api.studentSchoolDirectory.SchoolIdentity for the school name and address of an accident report (#4771)",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "reason": "Read-only already reviewed target: care-plan reaches modules/organizationtenancy.Query.FindSchoolBySlug (organization-tenancy) through api.studentSchoolDirectory.SchoolIdentity for the school name and address of an accident report (#4771)",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "reason": "Read-only already reviewed target: care-plan reaches modules/organizationtenancy.Query.FindSchoolBySubdomain (organization-tenancy) through api.studentSchoolDirectory.SchoolIdentity for the school name and address of an accident report (#4771)",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
+      "target_owner": "organization-tenancy"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentChangeHistory",
@@ -13869,6 +14083,37 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.AccidentReportSignatures.AccidentSignature",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.StudentAccidentSignatures.AccidentSignature",
+      "reason": "Reviewed read: the accident report PDF (#4771) reads its stored signature through modules/auditlog.SignatureLedger.Signatures (audit-platform) and checks it against the report",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.Signatures",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.AccidentReportSignatures.RecordAccidentSignature",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.StudentAccidentSignatures.RecordAccidentSignature",
+      "reason": "Reviewed pure check: care-plan validates the leadership's signature image of an accident report (#4771) through modules/auditlog.ParseSignatureImage (audit-platform)",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.ParseSignatureImage",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.AccidentReportSignatures.RecordAccidentSignature",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.StudentAccidentSignatures.RecordAccidentSignature",
+      "reason": "Platform protocol participation (mutation): care-plan reaches modules/auditlog.SignatureLedger.RecordSignature (audit-platform) through roots/owners.AccidentReportSignatures.RecordAccidentSignature. The leadership's signature of an accident report (#4771) is appended to the shared signature store inside Care Plan's tenant transaction, like the enrollment and pickup signatures (#4785). The caller enters the platform contract inside its own unit (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.RecordSignature",
+      "target_owner": "audit-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.studentDocumentAccess.CanAccessStudent",

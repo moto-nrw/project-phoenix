@@ -4433,6 +4433,118 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.AttachAccidentPaperCopy",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.AttachAccidentPaperCopy",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.AttachAccidentPaperCopy",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.AttachAccidentPaperCopy",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.AuthorizeAccidentPaperCopy",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.AuthorizeAccidentPaperCopy",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.AuthorizeAccidentPaperCopy",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.AuthorizeAccidentPaperCopy",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.CorrectStudentAccidentReport",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.CorrectStudentAccidentReport",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.CorrectStudentAccidentReport",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.CorrectStudentAccidentReport",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.CreateStudentAccidentReport",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.CreateStudentAccidentReport",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.CreateStudentAccidentReport",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.CreateStudentAccidentReport",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.ResolveStudentAccidentReportFile",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.ResolveStudentAccidentReportFile",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.ResolveStudentAccidentReportFile",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.ResolveStudentAccidentReportFile",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.SignStudentAccidentReport",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.SignStudentAccidentReport",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.SignStudentAccidentReport",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.SignStudentAccidentReport",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocuments.UpdateStudentAccidentReport",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.UpdateStudentAccidentReport",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.UpdateStudentAccidentReport",
+      "binding_digest": "784215b42825370e0a365c33b92623f7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentAccidentReports.UpdateStudentAccidentReport",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.StudentDocumentsBinding.AuthorizeStudentDocumentUpload",
       "binding_digest": "784215b42825370e0a365c33b92623f7",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentDocuments.AuthorizeStudentDocumentUpload",
@@ -5551,6 +5663,54 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
       "target_owner": "document-rendering"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "binding_digest": "a5a45e8157e49da404a8f0ed0a047578",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "binding_digest": "330735401fd7a24a5dca538a07ecda56",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySlug",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "binding_digest": "6a7272990112b378744d9c54fe476f73",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchoolBySubdomain",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "binding_digest": "97cf964358b4d8d2c4b9c9d3a8a24db2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "binding_digest": "d5c731893f6e8446cdef2514b8f39ba0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySlug",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentSchoolDirectory.SchoolIdentity",
+      "binding_digest": "f2bf520dbb8e507be84d19d7881767f1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.SchoolIdentity.SchoolIdentity",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchoolBySubdomain",
+      "target_owner": "organization-tenancy"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentChangeHistory",
@@ -10103,6 +10263,30 @@
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToTenant",
       "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.AccidentReportSignatures.AccidentSignature",
+      "binding_digest": "e85c6b5022c4648405d7bd6342654511",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.StudentAccidentSignatures.AccidentSignature",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.Signatures",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.AccidentReportSignatures.RecordAccidentSignature",
+      "binding_digest": "3b6028eff508f19137a599406a13b6c2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.StudentAccidentSignatures.RecordAccidentSignature",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.ParseSignatureImage",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.AccidentReportSignatures.RecordAccidentSignature",
+      "binding_digest": "9aba1f2c819df37e34c39e72f4a35a4a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.StudentAccidentSignatures.RecordAccidentSignature",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog.SignatureLedger.RecordSignature",
+      "target_owner": "audit-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.studentDocumentAccess.CanAccessStudent",

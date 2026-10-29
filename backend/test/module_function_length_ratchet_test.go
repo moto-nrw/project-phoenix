@@ -83,7 +83,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/iot/compose/compose.go:(*Resource).Router":                      105,
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
 	"api/root_serve.go:composeServeRoot":                                 511,
-	"api/root_test_root.go:composeTestRootWith":                          283,
+	"api/root_test_root.go:composeTestRootWith":                          282,
 	"api/serve_mounts_students.go:mountStudentRoutes":                    120,
 	"api/serve_mounts_students.go:requestReviewDependencies":             100,
 	"api/settings_composition.go:newSettingsResource":                    61,
