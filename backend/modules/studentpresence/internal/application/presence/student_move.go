@@ -623,3 +623,26 @@ func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visi
 	s.broadcastVisitCreated(ctx, visit, snapshot)
 	return nil
 }
+
+// PrepareOpenRoomMove is the workflow prefix, before its activity/session
+// INSERTs and room FK/advisory locks. The final move repeats its guards on
+// the same child/attendance/visit cohort under these transaction-held locks.
+func (s *service) PrepareOpenRoomMove(ctx context.Context, studentIDs []int64, roomID int64) error {
+	if err := tenant.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	if roomID <= 0 {
+		return &ActiveError{Op: opMoveStudents, Err: ErrInvalidData}
+	}
+	ids, err := normalizeMoveStudentIDs(studentIDs, opMoveStudents)
+	if err != nil {
+		return err
+	}
+	if err := s.rejectInactiveMoveStudents(ctx, ids); err != nil {
+		return err
+	}
+	if _, err := s.lockOpenAttendance(ctx, ids); err != nil {
+		return err
+	}
+	return s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{StudentIDs: ids, RoomID: roomID})
+}

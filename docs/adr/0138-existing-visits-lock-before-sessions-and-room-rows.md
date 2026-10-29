@@ -113,7 +113,10 @@ ending at `studentpresence/internal/application.Service.observe`, for the
 injected observation callback, not permission for another unresolved mutation.
 The tenant runtime's `CurrentTenantTransaction` binding is a context read. The
 six exposed Timetable → Student Presence preparations are owner-local locking
-leaf capabilities, classified `lock`, not queries. No ratchet budget, policy
+leaf capabilities, classified `lock`, not queries. The four exposed Facilities /
+School Structure → Student Presence `PrepareOpenRoomMove` identities likewise
+remain owner-local locking leaves; the open-room workflow owns orchestration.
+No ratchet budget, policy
 edge, composition allowance or data ownership changes.
 
 The hermetic setup scanner recognizes `SetupClosableTestDB`, the documented
@@ -127,3 +130,21 @@ can diverge. Historical edits retain their eligibility semantics: the lock does
 not apply the check-in guard. The stored child is rechecked after waiting.
 Bulk move re-reads visits after preparation before selecting source-session
 guards, so a lifecycle transfer during its wait cannot add a stale session lock.
+
+## Compound entry points
+
+The existing `open-room-move` workflow runs Student Presence's
+`PrepareOpenRoomMove` before activity provisioning or `EnsureOpenRoomSession`.
+The prefix owns child → attendance → visit → advisory/session locks. Preparing
+only inside the final bulk move is too late: session creation already holds
+its room advisory and implicit room FK lock. The workflow still owns release
+and authorization orchestration; its existing consumer-owned move port carries
+the prefix, with root binding to the existing Student Presence facade.
+
+An abandoned-session sweep sharing a scheduler/CLI tenant transaction freezes
+its eligible session IDs and prepares the entire cohort before ending its first
+session. Per-session preparation alone would retain A's session lock while
+waiting for B's visit. Without an ambient transaction, the original independent
+per-session units remain unchanged. Two-session tests drive cleanup ↔ scan B→A
+in both directions; open-room workflow tests drive both orders against an admin
+amendment. Both forward cycles reproduce PostgreSQL `40P01` without their fixes.

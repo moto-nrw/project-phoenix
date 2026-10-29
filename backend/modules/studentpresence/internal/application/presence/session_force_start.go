@@ -228,11 +228,8 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 		return nil, err
 	}
 
-	// Validate the complete discovery before locking any newly observed session.
-	for _, session := range existingSessions {
-		if session != nil && session.ID > 0 && !slices.Contains(preparedIDs, session.ID) {
-			return nil, ErrSessionConflict
-		}
+	if err := validateForceStartSources(existingSessions, preparedIDs); err != nil {
+		return nil, err
 	}
 	endedIDs := make([]int64, 0, len(existingSessions))
 	for _, session := range existingSessions {
@@ -490,4 +487,13 @@ func (s *service) getPlannedRoomID(ctx context.Context, activityID int64) (int64
 		return *activityGroup.PlannedRoomID, nil
 	}
 	return 0, nil
+}
+
+func validateForceStartSources(sessions []*ports.ActiveGroup, preparedIDs []int64) error {
+	for _, session := range sessions {
+		if session != nil && session.ID > 0 && !slices.Contains(preparedIDs, session.ID) {
+			return ErrSessionConflict
+		}
+	}
+	return nil
 }

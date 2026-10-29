@@ -159,28 +159,9 @@ func (s *service) UpdateVisit(ctx context.Context, visit *studentpresence.Visit)
 }
 
 func (s *service) updateVisit(ctx context.Context, visit *studentpresence.Visit) error {
-	if !validPresenceVisit(visit) {
-		return &ActiveError{Op: "UpdateVisit", Err: ErrInvalidData}
-	}
-
-	previous, err := s.findStoredVisit(ctx, visit.ID)
+	existing, err := s.prepareVisitRevision(ctx, visit)
 	if err != nil {
 		return err
-	}
-	if err := s.lockVisitRevisionStudents(ctx, previous.StudentID, visit.StudentID); err != nil {
-		return err
-	}
-	if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{VisitIDs: []int64{visit.ID}, SessionIDs: []int64{visit.ActiveGroupID}}); err != nil {
-		return &ActiveError{Op: "UpdateVisit", Err: err}
-	}
-
-	existing, err := s.findStoredVisit(ctx, visit.ID)
-	if err != nil {
-		return err
-	}
-
-	if existing.StudentID != previous.StudentID {
-		return &ActiveError{Op: "UpdateVisit", Err: studentpresence.ErrVisitWriteConflict}
 	}
 	isActiveGroupMove, transferAt, err := s.prepareVisitTransfer(ctx, existing, visit)
 	if err != nil {
@@ -217,6 +198,35 @@ func (s *service) updateVisit(ctx context.Context, visit *studentpresence.Visit)
 	}
 
 	return nil
+}
+
+// prepareVisitRevision freezes the affected child before locking and re-reading
+// the interval. All later attendance/visit writes use that locked state.
+func (s *service) prepareVisitRevision(ctx context.Context, visit *studentpresence.Visit) (*studentpresence.Visit, error) {
+	if !validPresenceVisit(visit) {
+		return nil, &ActiveError{Op: "UpdateVisit", Err: ErrInvalidData}
+	}
+
+	previous, err := s.findStoredVisit(ctx, visit.ID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.lockVisitRevisionStudents(ctx, previous.StudentID, visit.StudentID); err != nil {
+		return nil, err
+	}
+	if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{VisitIDs: []int64{visit.ID}, SessionIDs: []int64{visit.ActiveGroupID}}); err != nil {
+		return nil, &ActiveError{Op: "UpdateVisit", Err: err}
+	}
+
+	existing, err := s.findStoredVisit(ctx, visit.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if existing.StudentID != previous.StudentID {
+		return nil, &ActiveError{Op: "UpdateVisit", Err: studentpresence.ErrVisitWriteConflict}
+	}
+	return existing, nil
 }
 
 // findStoredVisit reads the interval; the caller prepares its locks separately.
