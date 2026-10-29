@@ -35,6 +35,12 @@ func (s *stubCareDayService) ResolveForRange(
 	panic("not used by the day-planning filter")
 }
 
+func (s *stubCareDayService) ResolvePlannedForRange(
+	context.Context, []int64, calendar.Date, calendar.Date,
+) (map[int64]map[calendar.Date]careplan.PlannedCareDay, error) {
+	panic("not used by the day-planning filter")
+}
+
 func timetableSet(ids ...int64) map[int64]struct{} {
 	out := make(map[int64]struct{}, len(ids))
 	for _, id := range ids {

@@ -106,6 +106,14 @@ type StatisticsRetention interface {
 	// RoomRetentionDays returns zero when room history is switched off.
 	RoomRetentionDays(context.Context) (int, error)
 	CourseRetentionDays(context.Context) (int, error)
+	// AttendanceRetentionDays is gdpr.attendance_retention_days.
+	AttendanceRetentionDays(context.Context) (int, error)
+}
+
+type PlannedCareDay = studentpresence.PlannedCareDay
+
+type PlannedCareDays interface {
+	PlannedCareDays(ctx context.Context, studentIDs []int64, from, to Date) (map[int64]map[Date]PlannedCareDay, error)
 }
 
 // Own presence facts the report reads through the application service.
@@ -116,6 +124,12 @@ type AttendanceDays interface {
 
 type RoomUtilizations interface {
 	RoomUtilization(context.Context, []studentpresence.StudentVisitWindow) ([]studentpresence.RoomUtilization, error)
+}
+
+// AttendanceIntervals are the check-in and check-out instants of the days,
+// read from the owner's own attendance store.
+type AttendanceIntervals interface {
+	ListAttendance(context.Context, studentpresence.AttendanceFilter) ([]*Attendance, Stats, error)
 }
 
 type RetentionSettings interface {

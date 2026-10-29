@@ -44,6 +44,12 @@ func (r StatisticsRetention) CourseRetentionDays(ctx context.Context) (int, erro
 	return r.source.ResolveInt(ctx, configModel.KeyGDPRTimetableRetentionDays)
 }
 
+// AttendanceRetentionDays caps the actual values of the occupancy by time of
+// day (#4764): daily attendance is kept that long.
+func (r StatisticsRetention) AttendanceRetentionDays(ctx context.Context) (int, error) {
+	return NewAttendanceRetention(r.source).Days(ctx)
+}
+
 // StatusDayRetention is the retention window of the student status days
 // (sick and excused days), the tenant's GDPR status day retention.
 type StatusDayRetention struct{ source StatisticsRetentionSource }

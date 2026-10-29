@@ -13967,6 +13967,16 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.ListAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.AttendanceIntervals.ListAttendance",
+      "reason": "Read-only target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.ListAttendance for the occupancy by time of day (#4764). The statistics call never sets ForUpdate; no persistent, lock or scope effect.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCareDayLocker.LockExceptionDay",
       "classification": "leaf",
@@ -14179,6 +14189,26 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsPlannedCareDays.PlannedCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
+      "reason": "Reviewed read: the root binding roots/owners.StatisticsPlannedCareDays maps Care Plan's planned care days for the occupancy by time of day (#4764). Target modules/careplan.CareDayQuery.ResolvePlannedForRange; modules/careplan/care_days.go. No owned-row mutation or locking read.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsPlannedCareDays.PlannedCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
+      "reason": "Reviewed value method: CareDayStatus.Expected is a pure derivation on the returned verdict (modules/careplan/care_days.go). No persistent, lock or scope effect (#4764).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayStatus.Expected",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/transactionruntime.RecordErrors.MissingRecordError",
       "classification": "query",
       "effect": "query",
@@ -14282,6 +14312,16 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.ExistsSince",
       "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.AttendanceRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.StatisticsRetention.AttendanceRetentionDays",
+      "reason": "Read-only target: student-presence reaches modules/settings.StatisticsRetention.AttendanceRetentionDays (settings-platform), which resolves gdpr.attendance_retention_days for the occupancy by time of day (#4764). No persistent, lock or scope effect.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.AttendanceRetentionDays",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/settings.StatisticsRetention.CourseRetentionDays",

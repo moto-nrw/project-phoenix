@@ -363,3 +363,39 @@ func TestWeekendFollowsFridayInResolvesOnlyForAWeekend(t *testing.T) {
 	assert.True(t, follows)
 	assert.Equal(t, 1, calls)
 }
+
+// The planned range read carries the clock times only for a day the child is
+// expected: a cancelled day ("Kommt heute nicht") and a withdrawn child keep
+// their status but no time (#4764).
+func TestResolvePlannedForRangeCarriesTimesOnlyForExpectedDays(t *testing.T) {
+	t.Parallel()
+	const comingID, cancelledID, withdrawnID int64 = 51, 52, 53
+	arrival, pickup := careDayClock("07:30"), careDayClock("16:00")
+	timed := careplan.CareDayFacts{
+		HasPlan: true, HasArrivalSchedule: true,
+		Arrival: &careplan.EffectiveArrivalTime{ArrivalTime: &arrival},
+		Pickup:  &careplan.EffectivePickupTime{PickupTime: &pickup},
+	}
+	cancelled := timed
+	cancelled.Arrival = &careplan.EffectiveArrivalTime{IsException: true}
+	var query careplan.CareDayQuery = NewCareDayQueries(careDayQueryFactsFixture{
+		CareParticipationResolver: fixedCareParticipation{comingID: true, cancelledID: true},
+		facts: map[int64]map[calendar.Date]careplan.CareDayFacts{
+			comingID:    {careDayMonday: timed},
+			cancelledID: {careDayMonday: cancelled},
+			withdrawnID: {careDayMonday: timed},
+		},
+	})
+	out, err := query.ResolvePlannedForRange(context.Background(), []int64{comingID, cancelledID, withdrawnID}, careDayMonday, careDayMonday)
+	require.NoError(t, err)
+
+	coming := out[comingID][careDayMonday]
+	assert.Equal(t, careplan.CareDayScheduled, coming.Status)
+	require.NotNil(t, coming.Arrival)
+	require.NotNil(t, coming.Pickup)
+	assert.Equal(t, arrival, *coming.Arrival)
+	assert.Equal(t, pickup, *coming.Pickup)
+
+	assert.Equal(t, careplan.PlannedCareDay{Status: careplan.CareDayCancelled}, out[cancelledID][careDayMonday])
+	assert.Equal(t, careplan.PlannedCareDay{Status: careplan.CareDayNotScheduled}, out[withdrawnID][careDayMonday])
+}
