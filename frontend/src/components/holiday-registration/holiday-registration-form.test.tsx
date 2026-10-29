@@ -80,7 +80,10 @@ vi.mock("@marsidev/react-turnstile", () => ({
   ),
 }));
 
-import { HolidayRegistrationForm } from "./holiday-registration-form";
+import {
+  HolidayRegistrationForm,
+  type HolidayRegistrationStep,
+} from "./holiday-registration-form";
 
 const offer: HolidayRegistrationOffer = {
   traegerName: "Träger Bissendorf",
@@ -134,6 +137,7 @@ function renderForm(
   known: HolidayKnownFamily | null = null,
   shown: HolidayRegistrationOffer = offer,
   onFormChanged?: () => Promise<void>,
+  onStepChange?: (step: HolidayRegistrationStep) => void,
 ) {
   return render(
     <NextIntlClientProvider locale="de" messages={deMessages}>
@@ -143,6 +147,7 @@ function renderForm(
           offer={shown}
           family={known}
           onFormChanged={onFormChanged}
+          onStepChange={onStepChange}
         />
       </ToastProvider>
     </NextIntlClientProvider>,
@@ -276,7 +281,9 @@ describe("HolidayRegistrationForm", () => {
 
   it("registers a holiday guest after the summary", async () => {
     mockSubmit.mockResolvedValue(undefined);
-    renderForm();
+    const onStepChange = vi.fn();
+    renderForm(null, offer, undefined, onStepChange);
+    expect(onStepChange).toHaveBeenLastCalledWith("form");
     fillRegistration();
     fireEvent.click(
       screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
@@ -285,6 +292,8 @@ describe("HolidayRegistrationForm", () => {
     expect(
       await screen.findByText("Bitte prüfen Sie Ihre Angaben"),
     ).toBeInTheDocument();
+    // The page shows the required-field hint only on the form step (#5334).
+    expect(onStepChange).toHaveBeenLastCalledWith("summary");
     expect(screen.getByText("Feriengast")).toBeInTheDocument();
     // The security check sits next to the send button and is solved there,
     // so its token is fresh when the registration leaves (quorum round 1).
@@ -322,6 +331,7 @@ describe("HolidayRegistrationForm", () => {
         "Wir schicken Ihnen eine Bestätigung an eva@example.org.",
       ),
     ).toBeInTheDocument();
+    expect(onStepChange).toHaveBeenLastCalledWith("done");
   });
 
   it("shows the contribution in the summary and sends the statement on benefits", async () => {
