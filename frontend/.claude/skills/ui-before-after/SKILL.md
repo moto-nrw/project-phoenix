@@ -28,8 +28,12 @@ not establish which state the browser shows.
   needs; preserve the database.
 - Use local seeded credentials from the seed state, without copying them into
   documentation, logs or screenshots. Complete any MFA through local Mailpit.
-- Use a dedicated `agent-browser --session <name>` session. Set its viewport
-  once, for example `agent-browser --session s set viewport 1440 900`.
+- Use a dedicated `agent-browser --session <name>` session. Capture each changed
+  surface at **desktop (1440×900)** and **mobile (390×844)**. Before reproducing
+  the interactions at each size, set `agent-browser --session s set viewport
+  1440 900` or `agent-browser --session s set viewport 390 844` respectively.
+  Match dimensions within each before/after pair; prefix filenames with
+  `desktop-` or `mobile-` so both pairs remain identifiable.
 
 ## Source-state gate (every switch, including final restoration)
 
@@ -86,9 +90,9 @@ not establish which state the browser shows.
 ## Workflow
 
 1. **Plan the shot list.** List URLs, exact interactions and required data for
-   each surface. Choose a rendered-state assertion for each target before
-   switching. Create needed data once; use the same data, viewport and
-   interactions throughout both passes.
+   each surface and viewport. Choose a rendered-state assertion for each target
+   before switching. Create needed data once; use the same data and interactions
+   throughout both passes, matching the viewport within each pair.
 2. **BEFORE:** restore only the comparison paths from the pinned baseline into
    the working tree, leaving the index at the branch state:
    ```bash
@@ -97,21 +101,23 @@ not establish which state the browser shows.
    Inspect added/deleted paths too: branch-only files must not leak into the
    baseline. If dependencies or configuration differ, include those inputs in
    the plan or use isolated checkouts; swapping `src` alone is not equivalent.
-   Run the source-state gate, then walk the shot list:
+   Run the source-state gate, then walk the shot list at **both viewports**.
+   Set the size before opening the URL and reproducing its interactions; take
+   fresh refs after resizing. Use `desktop` or `mobile` for `<viewport>`:
    ```bash
    agent-browser --session s open <url>
    agent-browser --session s snapshot -i -c
    agent-browser --session s click @eN
    # Re-snapshot and verify the target-specific rendered assertion here.
-   agent-browser --session s screenshot shots/before/<nn>-<name>.png
+   agent-browser --session s screenshot shots/before/<viewport>-<nn>-<name>.png
    ```
 3. **AFTER:** restore the comparison paths from the recorded branch commit:
    ```bash
    git restore --source=<branch-sha> --worktree -- frontend/src
    ```
-   Run the source-state gate again. Repeat the same URLs and interactions,
-   verifying the branch assertion before each image. Use identical filenames
-   under `shots/after/`.
+   Run the source-state gate again. Repeat the same URLs and interactions at
+   **both viewports**, verifying the branch assertion before each image. Use
+   identical viewport-prefixed filenames under `shots/after/`.
 4. **Composite pairs** with ImageMagick, left=before and right=after. Use a
    task-owned output directory and unique temporary filenames:
    ```bash
