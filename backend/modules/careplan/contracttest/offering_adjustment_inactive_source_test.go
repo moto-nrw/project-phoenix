@@ -240,7 +240,7 @@ func runInactiveSourceSwitchAway(t *testing.T, email string, periods divergingPe
 		assert.Equal(t, p.studentID, rows[0].StudentID)
 		assert.Equal(t, string(p.switchDate), rows[0].ValidFrom, "C plans from the switch")
 		assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
-		assert.Contains(t, p.participants(t, templateInstanceOn(t, p.env, cTemplate.ID, p.switchDate)), p.studentID,
+		assert.Contains(t, p.participants(t, templateInstanceOn(t, cTemplate.ID, p.switchDate)), p.studentID,
 			"the switch Monday of C's Regeltermin plans the child")
 	}
 	p.requireStable(t, monday(c), otherRows)
@@ -259,10 +259,10 @@ func (f inactiveSourceCorrection) singleSourceTemplate(t *testing.T, offering *o
 }
 
 // templateInstanceOn returns the template's materialized instance on date.
-func templateInstanceOn(t *testing.T, env *decisionTestEnv, templateID int64, date calendar.Date) int64 {
+func templateInstanceOn(t *testing.T, templateID int64, date calendar.Date) int64 {
 	t.Helper()
 	var ids []int64
-	require.NoError(t, env.db.NewSelect().Column("id").TableExpr("schedule.activity_instances").
+	require.NoError(t, testpkg.SetupTestDB(t).NewSelect().Column("id").TableExpr("schedule.activity_instances").
 		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("activity_group_id = ?", templateID).
 		Where("date = ?", date).
