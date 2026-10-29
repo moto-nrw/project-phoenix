@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Anhänge an Elternmitteilungen (#2890): Personal-Vorschau der angehängten
 // Datei. Spiegelt den Download-Proxy der Dateiablage: JWT serverseitig
@@ -75,4 +76,4 @@ async function GETHandler(
   return new NextResponse(upstream.body, { status: 200, headers });
 }
 
-export const GET = withTenantAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withTenantAuth(GETHandler));
