@@ -4790,7 +4790,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r communicationParentInbox) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.source.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)\n\tmapped, mapErr := inboxModels(rows)\n\tif err != nil {\n\t\treturn mapped, err\n\t}\n\treturn mapped, mapErr\n}",
+      "evidence": "func (r communicationParentInbox) ListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.source.ListInboxForStaff(ctx, accountID, staffReach(reach), onlyUnread)\n\tmapped, mapErr := inboxModels(rows)\n\tif err != nil {\n\t\treturn mapped, err\n\t}\n\treturn mapped, mapErr\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/communicationParentInbox.ListInboxForStaff",
       "owner": "roots"
@@ -4811,7 +4811,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r communicationParentInbox) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.source.ListThreadsForStudent(ctx, accountID, studentID)\n\tmapped, mapErr := inboxModels(rows)\n\tif err != nil {\n\t\treturn mapped, err\n\t}\n\treturn mapped, mapErr\n}",
+      "evidence": "func (r communicationParentInbox) ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.source.ListThreadsForStudent(ctx, accountID, studentID, staffReach(reach))\n\tmapped, mapErr := inboxModels(rows)\n\tif err != nil {\n\t\treturn mapped, err\n\t}\n\treturn mapped, mapErr\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/communicationParentInbox.ListThreadsForStudent",
       "owner": "roots"
@@ -4825,15 +4825,15 @@
     },
     {
       "build": "production",
-      "evidence": "func (r communicationParentInbox) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {\n\treturn r.source.UnreadMessageCountForStaff(ctx, accountID, allStudents)\n}",
-      "form": "forward-debt",
+      "evidence": "func (r communicationParentInbox) UnreadMessageCountForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach) (int, error) {\n\treturn r.source.UnreadMessageCountForStaff(ctx, accountID, staffReach(reach))\n}",
+      "form": "unclassified-evidence",
       "id": "roots/owners/communicationParentInbox.UnreadMessageCountForStaff",
       "owner": "roots"
     },
     {
       "build": "production",
-      "evidence": "func (r communicationParentInbox) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {\n\treturn r.source.UnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)\n}",
-      "form": "forward-debt",
+      "evidence": "func (r communicationParentInbox) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, groupIDs []int64) (int, error) {\n\treturn r.source.UnreadMessageCountForStaffInGroups(ctx, accountID, staffReach(reach), groupIDs)\n}",
+      "form": "unclassified-evidence",
       "id": "roots/owners/communicationParentInbox.UnreadMessageCountForStaffInGroups",
       "owner": "roots"
     },
@@ -6078,7 +6078,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (n parentMessageNotifier) NotifyStaffParentMessage(ctx context.Context, report parentportal.StaffParentMessageReport) error {\n\treturn n.notifier.NotifyStaffParentMessage(ctx, deliveryCompose.StaffParentMessageReport{TenantID: report.TenantID, ThreadID: report.ThreadID, MessageID: report.MessageID, StudentID: report.StudentID, ActorAccountID: report.ActorAccountID})\n}",
+      "evidence": "func (n parentMessageNotifier) NotifyStaffParentMessage(ctx context.Context, report parentportal.StaffParentMessageReport) error {\n\treturn n.notifier.NotifyStaffParentMessage(ctx, deliveryCompose.StaffParentMessageReport{TenantID: report.TenantID, ThreadID: report.ThreadID, MessageID: report.MessageID, StudentID: report.StudentID, ActorAccountID: report.ActorAccountID, Leadership: report.Leadership})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentMessageNotifier.NotifyStaffParentMessage",
       "owner": "roots"

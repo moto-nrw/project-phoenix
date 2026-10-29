@@ -1011,6 +1011,7 @@ export type ParentMessage = ChatMessage & {
 // guardian's unread (staff-sent) count and last-activity metadata.
 export interface ThreadSummary {
   readonly thread_id: string;
+  readonly audience?: "team" | "leadership";
   readonly student_id: string;
   readonly student_name: string;
   readonly school_name: string;
@@ -1174,21 +1175,24 @@ export interface ThreadView {
   readonly messages: ParentMessage[];
 }
 
-/** Lists the guardian's conversations (one per child written about). */
+/** Lists the team conversations supported by the current parent portal. */
 export async function listMessageThreads(): Promise<ThreadSummary[]> {
-  return getJson<ThreadSummary[]>("/api/parent/me/messages");
+  const threads = await getJson<ThreadSummary[]>("/api/parent/me/messages");
+  // Navigation, reads and replies still identify a conversation by child only.
+  // Keep leadership previews out until those paths preserve the audience (#5200).
+  return Array.isArray(threads)
+    ? threads.filter((thread) => !thread.audience || thread.audience === "team")
+    : [];
 }
 
-/**
- * Total number of conversations with unread staff-side activity, across all the
- * guardian's children's schools — the sidebar badge. A light COUNT endpoint, so
- * the badge does not fetch every thread's full projection just to sum unreads.
- */
+/** Counts visible conversations with unread staff-side activity for the badge. */
 export async function fetchMessagesUnreadCount(): Promise<number> {
-  const result = await getJson<{ unread_count: number }>(
-    "/api/parent/me/messages/unread-count",
-  );
-  return result.unread_count ?? 0;
+  // Use the same audience filter as the inbox until leadership navigation ships.
+  const [threads, groups] = await Promise.all([
+    listMessageThreads(),
+    listGroupThreads(),
+  ]);
+  return [...threads, ...groups].filter((thread) => thread.unread > 0).length;
 }
 
 /**

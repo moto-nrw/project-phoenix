@@ -140,3 +140,42 @@ func TestListReachableStudentsHandler(t *testing.T) {
 	rs.listReachableStudents(recorder, httptest.NewRequest(http.MethodGet, "/reachable-students", nil))
 	assert.Equal(t, http.StatusForbidden, recorder.Code)
 }
+
+// TestReadersWireContract pins the readers object of #5200 on the staff API:
+// the one guardian and the school side, leadership names as a JSON array that
+// is never null.
+func TestReadersWireContract(t *testing.T) {
+	t.Parallel()
+	detail := toThreadDetail(&communication.ParentMessageThread{
+		ThreadID: 7, StudentID: 8, Audience: communication.ParentMessageAudienceLeadership,
+		Readers: communication.ParentMessageReaders{
+			Guardian: communication.ParentMessageGuardianReader{AccountID: 9, Name: "Sabine Schneider", RelationshipType: "parent"},
+			School:   communication.ParentMessageSchoolReaders{Kind: communication.ParentMessageReadersLeadership, Names: []string{"Swantje M."}},
+		},
+	})
+	body, err := json.Marshal(struct {
+		Audience string          `json:"audience"`
+		Readers  ReadersResponse `json:"readers"`
+	}{detail.Audience, detail.Readers})
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"audience":"leadership","readers":{
+		"guardian":{"account_id":"9","name":"Sabine Schneider","relationship_type":"parent"},
+		"school":{"kind":"leadership","names":["Swantje M."]}}}`, string(body))
+
+	team, err := json.Marshal(toReadersResponse(communication.ParentMessageReaders{
+		School: communication.ParentMessageSchoolReaders{Kind: communication.ParentMessageReadersAllStaff},
+	}))
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"guardian":{"account_id":"","name":""},"school":{"kind":"all_staff","names":[]}}`, string(team))
+}
+
+func TestGroupThreadReadersWireContract(t *testing.T) {
+	t.Parallel()
+	detail := toGroupThreadDetail(&communication.ParentGroupThreadDetail{
+		Thread:      communication.ParentGroupThread{Target: communication.ParentGroupTarget{Type: communication.ParentGroupTargetClass, Label: "Klasse 3a"}},
+		FamilyCount: 17,
+	})
+	body, err := json.Marshal(detail.Readers)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"target_type":"class","target_label":"Klasse 3a","recipient_count":17}`, string(body))
+}

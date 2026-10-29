@@ -234,6 +234,9 @@ func (finalMemberBroadcaster) BroadcastToAll(realtime.Event) error { return nil 
 func (finalMemberBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
 	return nil
 }
+func (finalMemberBroadcaster) BroadcastLeadershipParentMessage(int64, int64, realtime.Event) error {
+	return nil
+}
 func (finalMemberBroadcaster) BroadcastToGuardian(int64, int64, realtime.Event) error {
 	return nil
 }

@@ -59,6 +59,22 @@ var reservedPermissions = []string{
 	"permissions:delete",
 }
 
+// explicitGrantPermissions are school-role permissions a template never
+// copies: a school grants them on purpose, role by role.
+//   - parent_messages:leadership opens the conversations parents address to
+//     the leadership only (#5200). A role created from the Verwaltung
+//     template must not read them silently; the system role admin keeps them
+//     through admin:*.
+var explicitGrantPermissions = []string{
+	"parent_messages:leadership",
+}
+
+// IsExplicitGrantPermission reports whether a template copy skips the
+// resource:action name; the school may still select it for a role.
+func IsExplicitGrantPermission(name string) bool {
+	return slices.Contains(explicitGrantPermissions, strings.ToLower(strings.TrimSpace(name)))
+}
+
 // IsReservedPermission reports whether the resource:action name is a
 // reserved permission.
 func IsReservedPermission(name string) bool {

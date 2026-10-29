@@ -352,7 +352,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r groupParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)\n\treturn enrichInboxGroups(ctx, r.groups, rows, err)\n}",
+      "evidence": "func (r groupParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, reach, onlyUnread)\n\treturn enrichInboxGroups(ctx, r.groups, rows, err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListInboxForStaff",
       "owner": "modules/communication"
@@ -373,7 +373,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r groupParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID)\n\treturn enrichInboxGroups(ctx, r.groups, rows, err)\n}",
+      "evidence": "func (r groupParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID, reach)\n\treturn enrichInboxGroups(ctx, r.groups, rows, err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/adapters/parentpostgres/groupParentMessageReadRepository.ListThreadsForStudent",
       "owner": "modules/communication"
@@ -415,7 +415,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r schoolParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)\n\treturn enrichInboxSchools(ctx, r.schools, rows, err)\n}",
+      "evidence": "func (r schoolParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, reach, onlyUnread)\n\treturn enrichInboxSchools(ctx, r.schools, rows, err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListInboxForStaff",
       "owner": "modules/communication"
@@ -436,7 +436,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r schoolParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID)\n\treturn enrichInboxSchools(ctx, r.schools, rows, err)\n}",
+      "evidence": "func (r schoolParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error) {\n\trows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID, reach)\n\treturn enrichInboxSchools(ctx, r.schools, rows, err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/adapters/parentpostgres/schoolParentMessageReadRepository.ListThreadsForStudent",
       "owner": "modules/communication"
@@ -464,14 +464,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *threadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {\n\tvalue, err := r.store.FindByStudentGuardian(ctx, studentID, guardianAccountID)\n\treturn threadModel(value), err\n}",
+      "evidence": "func (r *threadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error) {\n\tvalue, err := r.store.FindByStudentGuardian(ctx, studentID, guardianAccountID, audience)\n\treturn threadModel(value), err\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.FindByStudentGuardian",
       "owner": "modules/communication"
     },
     {
       "build": "production",
-      "evidence": "func (r *threadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {\n\tvalue, err := r.store.GetOrCreate(ctx, tenantID, studentID, guardianAccountID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn threadModel(value), nil\n}",
+      "evidence": "func (r *threadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error) {\n\tvalue, err := r.store.GetOrCreate(ctx, tenantID, studentID, guardianAccountID, audience)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn threadModel(value), nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/adapters/parentpostgres/threadRepository.GetOrCreate",
       "owner": "modules/communication"
@@ -772,7 +772,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (m *parentMessaging[I, T, M, G]) OpenParentMessageThread(ctx context.Context, studentID, guardianAccountID int64) (*communication.ParentMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.open_thread\", func(runCtx context.Context) (*communication.ParentMessageThread, error) {\n\t\tthread, err := m.service.OpenThread(runCtx, studentID, guardianAccountID)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\treturn mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)\n\t})\n}",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) OpenParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, audience string) (*communication.ParentMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.open_thread\", func(runCtx context.Context) (*communication.ParentMessageThread, error) {\n\t\tthread, err := m.service.OpenThread(runCtx, studentID, guardianAccountID, audience)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\treturn mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].OpenParentMessageThread",
       "owner": "modules/communication"
@@ -793,7 +793,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (m *parentMessaging[I, T, M, G]) StartParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*communication.ParentMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.start_thread\", func(runCtx context.Context) (*communication.ParentMessageThread, error) {\n\t\tthread, err := m.service.StartThread(runCtx, studentID, guardianAccountID, body)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\treturn mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)\n\t})\n}",
+      "evidence": "func (m *parentMessaging[I, T, M, G]) StartParentMessageThread(ctx context.Context, studentID, guardianAccountID int64, body, audience string) (*communication.ParentMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"parent_messages.start_thread\", func(runCtx context.Context) (*communication.ParentMessageThread, error) {\n\t\tthread, err := m.service.StartThread(runCtx, studentID, guardianAccountID, body, audience)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\treturn mapNativeParentThread(thread, m.rows.Thread, m.rows.Message)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/application/parentMessaging[I, T, M, G].StartParentMessageThread",
       "owner": "modules/communication"
@@ -926,13 +926,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ListGuardians(ctx context.Context, studentID int64) ([]*MessageableGuardian, error) {\n\tif err := s.canReadStudent(ctx, studentID); err != nil {\n\t\treturn nil, err\n\t}\n\tguardians, err := s.ThreadRepo.ListGuardiansForStudent(ctx, studentID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"messaging: list guardians: %w\", err)\n\t}\n\treturn guardians, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/communication/internal/parentmessages/Service.ListGuardians",
-      "owner": "modules/communication"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *Service) ListParentGroupThreads(ctx context.Context) ([]deliveryPorts.ParentGroupThreadSummary, error) {\n\tif err := s.requireGroupAuthor(ctx); err != nil {\n\t\treturn nil, err\n\t}\n\trows, err := s.GroupThreads.ListThreads(ctx)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"messaging: list group threads: %w\", err)\n\t}\n\treturn rows, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/parentmessages/Service.ListParentGroupThreads",
@@ -947,7 +940,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*InboxThread, error) {\n\tif err := s.canReadStudent(ctx, studentID); err != nil {\n\t\treturn nil, err\n\t}\n\trows, err := s.ReadRepo.ListThreadsForStudent(ctx, s.accountID(ctx), studentID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"messaging: list student threads: %w\", err)\n\t}\n\ts.suppressDisabledUnread(ctx, rows)\n\treturn rows, nil\n}",
+      "evidence": "func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*InboxThread, error) {\n\tif err := s.canReadStudent(ctx, studentID); err != nil {\n\t\treturn nil, err\n\t}\n\trows, err := s.ReadRepo.ListThreadsForStudent(ctx, s.accountID(ctx), studentID, s.reach(ctx))\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"messaging: list student threads: %w\", err)\n\t}\n\ts.suppressDisabledUnread(ctx, rows)\n\treturn rows, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/parentmessages/Service.ListStudentThreads",
       "owner": "modules/communication"
@@ -1031,14 +1024,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *nativeParentReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {\n\treturn r.source.ParentReadUnreadMessageCountForStaff(ctx, accountID, allStudents)\n}",
+      "evidence": "func (r *nativeParentReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, reach StaffReach) (int, error) {\n\treturn r.source.ParentReadUnreadMessageCountForStaff(ctx, accountID, reach)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.UnreadMessageCountForStaff",
       "owner": "modules/communication"
     },
     {
       "build": "production",
-      "evidence": "func (r *nativeParentReadRepository) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {\n\treturn r.source.ParentReadUnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)\n}",
+      "evidence": "func (r *nativeParentReadRepository) UnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach StaffReach, groupIDs []int64) (int, error) {\n\treturn r.source.ParentReadUnreadMessageCountForStaffInGroups(ctx, accountID, reach, groupIDs)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/communication/internal/parentmessages/nativeParentReadRepository.UnreadMessageCountForStaffInGroups",
       "owner": "modules/communication"
@@ -1052,14 +1045,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *nativeParentThreadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*ParentMessageThread, error) {\n\trow, err := r.source.ParentThreadFindByStudentGuardian(ctx, studentID, guardianAccountID)\n\treturn (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err\n}",
+      "evidence": "func (r *nativeParentThreadRepository) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error) {\n\trow, err := r.source.ParentThreadFindByStudentGuardian(ctx, studentID, guardianAccountID, audience)\n\treturn (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.FindByStudentGuardian",
       "owner": "modules/communication"
     },
     {
       "build": "production",
-      "evidence": "func (r *nativeParentThreadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*ParentMessageThread, error) {\n\trow, err := r.source.ParentThreadGetOrCreate(ctx, tenantID, studentID, guardianAccountID)\n\treturn (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err\n}",
+      "evidence": "func (r *nativeParentThreadRepository) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*ParentMessageThread, error) {\n\trow, err := r.source.ParentThreadGetOrCreate(ctx, tenantID, studentID, guardianAccountID, audience)\n\treturn (*ParentMessageThread)(values.ParentMessageThreadFromRecord(row)), err\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/parentmessages/nativeParentThreadRepository.GetOrCreate",
       "owner": "modules/communication"

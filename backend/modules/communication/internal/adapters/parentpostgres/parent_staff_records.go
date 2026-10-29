@@ -110,12 +110,12 @@ type groupParentMessageReadRepository struct {
 	groups recordports.GroupNames
 }
 
-func (r groupParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
-	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+func (r groupParentMessageReadRepository) ListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
+	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, reach, onlyUnread)
 	return enrichInboxGroups(ctx, r.groups, rows, err)
 }
-func (r groupParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
-	rows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID)
+func (r groupParentMessageReadRepository) ListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error) {
+	rows, err := r.ParentMessageReadRepository.ListThreadsForStudent(ctx, accountID, studentID, reach)
 	return enrichInboxGroups(ctx, r.groups, rows, err)
 }
 func (r groupParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {

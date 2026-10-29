@@ -91,3 +91,40 @@ func TestIsAnnouncementExpiredUsesStrictInstant(t *testing.T) {
 }
 
 func stringPointer(value string) *string { return &value }
+
+func TestParentMessageLeaderShortNameAndChoice(t *testing.T) {
+	t.Parallel()
+	for leader, want := range map[ParentMessageLeader]string{
+		{FirstName: "Swantje", LastName: "Meier"}: "Swantje M.",
+		{FirstName: "Ömer", LastName: "Özdemir"}:  "Ömer Ö.",
+		{FirstName: "Swantje"}:                    "Swantje",
+		{LastName: "Meier"}:                       "Meier",
+	} {
+		if got := leader.ShortName(); got != want {
+			t.Errorf("%+v: got %q, want %q", leader, got, want)
+		}
+	}
+	leaders := []ParentMessageLeader{{FirstName: "Swantje", LastName: "Meier"}}
+	for _, test := range []struct {
+		choice ParentMessageLeadershipChoice
+		want   bool
+	}{
+		{ParentMessageLeadershipChoice{Enabled: true, Leaders: leaders}, true},
+		{ParentMessageLeadershipChoice{Enabled: false, Leaders: leaders}, false},
+		{ParentMessageLeadershipChoice{Enabled: true}, false},
+	} {
+		if got := test.choice.Available(); got != test.want {
+			t.Errorf("%+v: available %v, want %v", test.choice, got, test.want)
+		}
+	}
+	unnamed := []ParentMessageLeader{{AccountID: 1, FirstName: "Swantje", LastName: "Meier"}, {AccountID: 2}, {AccountID: 3}}
+	if got := ParentMessageLeaderShortNames(unnamed); len(got) != 2 || got[1] != ParentMessageUnnamedLeaderLabel {
+		t.Errorf("unnamed readers appear once under the neutral label, got %v", got)
+	}
+	if audience, ok := NormalizeParentMessageAudience(""); !ok || audience != ParentMessageAudienceTeam {
+		t.Error("an empty audience stays the team conversation")
+	}
+	if _, ok := NormalizeParentMessageAudience("all"); ok {
+		t.Error("an unknown audience is rejected")
+	}
+}

@@ -18,6 +18,7 @@ type InboxThread struct {
 	GuardianAccountID      int64                      `json:"guardian_account_id"`
 	GuardianName           string                     `json:"guardian_name"`
 	RelationshipType       string                     `json:"relationship_type"`
+	Audience               string                     `json:"audience"`
 	LastMessageAt          *time.Time                 `json:"last_message_at,omitempty"`
 	LastSenderKind         string                     `json:"last_sender_kind,omitempty"`
 	LastMessageBody        string                     `json:"last_message_body,omitempty"`
@@ -65,6 +66,7 @@ type ParentMessageThread struct {
 	TenantID                       int64      `json:"tenant_id"`
 	StudentID                      int64      `json:"student_id"`
 	GuardianAccountID              int64      `json:"guardian_account_id"`
+	Audience                       string     `json:"audience"`
 	LastMessageAt                  *time.Time `json:"last_message_at,omitempty"`
 	LastMessageID                  *int64     `json:"last_message_id,omitempty"`
 	LastSenderKind                 *string    `json:"last_sender_kind,omitempty"`
