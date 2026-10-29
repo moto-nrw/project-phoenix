@@ -135,12 +135,17 @@ func (s *Service) reachablePushRecipients(ctx context.Context, thread *StaffMess
 }
 
 func (s *Service) sendStaffMessagePush(ctx context.Context, thread *StaffMessageThread, messageID int64, optedIn []int64) {
+	title, body := "Neue Nachricht aus dem Team", "Jemand aus dem Team hat Ihnen geschrieben."
+	if thread.Kind == groupKind {
+		// Not even the group name: it can say more than the lock screen should.
+		title, body = "Neue Nachricht im Gruppenchat", "Jemand hat in einer Gruppe des Teams geschrieben."
+	}
 	err := s.Notifier.Notify(ctx, deliveryPorts.NotificationEvent{
 		Type:           deliveryPorts.TypeStaffMessage,
 		IdempotencyKey: fmt.Sprintf("staff-message:%d:%d", thread.ID, messageID),
 		RelatedType:    "staff_message_thread", RelatedID: thread.ID,
-		Title:    "Neue Nachricht aus dem Team",
-		Body:     "Jemand aus dem Team hat Ihnen geschrieben.",
+		Title:    title,
+		Body:     body,
 		DeepLink: fmt.Sprintf("/team-chat/%d", thread.ID),
 		// The same conversation in "moto schule" (#2208); the school host
 		// strips the /school prefix itself.

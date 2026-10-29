@@ -239,7 +239,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // also prunes its deletion log and is no pass-through any more (-1).
 // Raised by ADR 0131: the kiosk count revision read of modules/studentpresence (+1).
 // Raised by ADR 0133: the kiosk room count revision read of modules/studentpresence (+1).
-const modulePassthroughOwnerBudgetTotal = 1414
+const modulePassthroughOwnerBudgetTotal = 1411
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -260,7 +260,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
 	// Raised by ADR 0079: the facade observes the reachable-children read.
-	"modules/communication": 58,
+	"modules/communication": 55,
 	"modules/dataimport":    1,
 	"modules/delivery":      5,
 	"modules/devicefleet":   33,

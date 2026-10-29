@@ -632,22 +632,7 @@
     },
     {
       "decision": "0090",
-      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].GetStaffMessageThread",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].ListMessageableStaff",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].OpenStaffMessageThread",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].PostStaffMessage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -978,11 +963,6 @@
     {
       "decision": "0090",
       "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Update",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/communication/internal/staffmessages/Service.UnreadMessageCount",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
