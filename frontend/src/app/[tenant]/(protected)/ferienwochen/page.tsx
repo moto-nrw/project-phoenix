@@ -14,6 +14,7 @@ import {
   downloadHolidayParticipants,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
+  formatHolidayHostAnswer,
   type HolidayHomeSchoolCount,
   type HolidayParticipant,
   type HolidayParticipantList,
@@ -41,6 +42,9 @@ const REFRESH = { revalidateOnFocus: true, refreshInterval: 60_000 };
 // Die Leitung wählt hier auch die Feriengruppe der Woche (#4666): Die
 // bestätigten Feriengäste kommen dann in diese Gruppe und in den Check-in.
 //
+// Gibt der Träger Fragen ohne Gesundheitsangabe frei, steht je Frage eine
+// Spalte in der Liste, dazu die zweite sorgeberechtigte Person (#5202).
+//
 // Bauart 3 (Werkzeug): eine Liste zum Vorbereiten und Ausdrucken, kein
 // Objekt, das hier bearbeitet wird.
 
@@ -53,10 +57,33 @@ function childCount(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
 }
 
+/** Die zweite sorgeberechtigte Person mit anrufbarer Nummer. */
+function secondGuardianCell(child: HolidayParticipant) {
+  const guardian = child.secondGuardian;
+  if (!guardian) return "–";
+  if (!guardian.phone) return guardian.name;
+  return (
+    <span className="flex flex-col">
+      <span>{guardian.name}</span>
+      <a
+        className="underline"
+        href={`tel:${guardian.phone.replaceAll(" ", "")}`}
+      >
+        {guardian.phone}
+      </a>
+    </span>
+  );
+}
+
 const participantColumns = (
-  timeModels: HolidayTimeModelCount[],
+  list: HolidayParticipantList,
 ): DataTableColumn<HolidayParticipant>[] => {
-  const names = new Map(timeModels.map((model) => [model.id, model.name]));
+  const names = new Map(list.timeModels.map((model) => [model.id, model.name]));
+  const withSecondGuardian = list.participants.some(
+    (child) => child.secondGuardian !== null,
+  );
+  const answer = (child: HolidayParticipant, key: string) =>
+    child.answers.find((entry) => entry.key === key);
   return [
     {
       key: "name",
@@ -84,6 +111,27 @@ const participantColumns = (
       render: (child) => names.get(child.timeModelId) ?? "–",
       sortValue: (child) => names.get(child.timeModelId) ?? null,
     },
+    ...(withSecondGuardian
+      ? [
+          {
+            key: "secondGuardian",
+            header: "Zweite sorgeberechtigte Person",
+            render: secondGuardianCell,
+            sortValue: (child: HolidayParticipant) =>
+              child.secondGuardian?.name ?? null,
+          },
+        ]
+      : []),
+    ...list.questions.map((question) => ({
+      key: `answer:${question.key}`,
+      header: question.label,
+      render: (child: HolidayParticipant) =>
+        formatHolidayHostAnswer(answer(child, question.key)),
+      sortValue: (child: HolidayParticipant) => {
+        const value = answer(child, question.key)?.value ?? null;
+        return typeof value === "boolean" ? String(value) : value;
+      },
+    })),
   ];
 };
 
@@ -256,10 +304,7 @@ export default function FerienwochenPage() {
 }
 
 function ParticipantList({ list }: { readonly list: HolidayParticipantList }) {
-  const columns = useMemo(
-    () => participantColumns(list.timeModels),
-    [list.timeModels],
-  );
+  const columns = useMemo(() => participantColumns(list), [list]);
   return (
     <div className="flex flex-col gap-6">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -283,7 +328,11 @@ function ParticipantList({ list }: { readonly list: HolidayParticipantList }) {
       </div>
       <SectionCard
         title="Kinder"
-        description="Nur zur Information. Anmeldungen prüft und bestätigt der Träger."
+        description={
+          list.questions.length > 0
+            ? "Nur zur Information. Anmeldungen prüft und bestätigt der Träger. Dazu kommen Antworten der Eltern, die der Träger für Sie freigibt."
+            : "Nur zur Information. Anmeldungen prüft und bestätigt der Träger."
+        }
       >
         <DataTable
           columns={columns}

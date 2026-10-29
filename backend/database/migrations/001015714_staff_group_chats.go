@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	staffGroupChatsVersion     = "1.15.712"
+	staffGroupChatsVersion     = "1.15.714"
 	staffGroupChatsDescription = "Team-Chat: Gruppenchats mit Namen, Ersteller und Verlauf ab Beitritt (#4776)"
 )
 
@@ -17,8 +17,8 @@ func init() {
 		Version:     staffGroupChatsVersion,
 		Description: staffGroupChatsDescription,
 		DependsOn: []string{
-			holidayFormDocumentsVersion, // the last migration before this one
-			staffMessagingVersion,       // the tables this extends
+			holidayGuestAnswerFilterVersion, // the last migration before this one
+			staffMessagingVersion,           // the tables this extends
 		},
 	})
 	Migrations.MustRegister(staffGroupChatsUp, staffGroupChatsDown)

@@ -3,7 +3,8 @@
 // Anmeldeformular eines Ferienzeitraums bauen (#5198): dieselben Bausteine
 // wie der Baukasten der Online-Anmeldung, beschränkt auf einfache Feldtypen
 // und Bedingungen auf andere Fragen. Jede Frage gilt je Familie oder je Kind
-// und kann eine Gesundheitsangabe sein. Speichern legt eine neue Version an.
+// und kann eine Gesundheitsangabe sein. Eine Frage ohne Gesundheitsangabe kann
+// die ausrichtende OGS sehen (#5202). Speichern legt eine neue Version an.
 
 import { FileText, Plus, TextCursorInput } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -61,10 +62,12 @@ const HOLIDAY_FREE_QUESTION_NOTE = {
   text: "Die Antwort sehen Sie in der Anmeldung. Ohne Gesundheitsangabe steht sie auch im Export.",
 } as const;
 
-/** Marks a health question in the preview. */
-function healthBadge(field: FormField) {
-  return (field as HolidayFormField).health ? (
-    <StatusBadge tone="orange" label="Gesundheit" />
+/** Marks a health question and a question the hosting OGS sees in the preview. */
+function questionBadge(field: FormField) {
+  const question = field as HolidayFormField;
+  if (question.health) return <StatusBadge tone="orange" label="Gesundheit" />;
+  return question.share_with_host ? (
+    <StatusBadge tone="blue" label="OGS sieht es" />
   ) : null;
 }
 
@@ -250,6 +253,15 @@ export function HolidayFormEditor({
                               onChange: (health) => update(index, { health }),
                             }
                       }
+                      hostShareToggle={
+                        field.type === "information"
+                          ? undefined
+                          : {
+                              checked: Boolean(field.share_with_host),
+                              onChange: (share_with_host) =>
+                                update(index, { share_with_host }),
+                            }
+                      }
                     />
                   ))}
                 </div>
@@ -356,7 +368,7 @@ export function HolidayFormEditor({
                 fields={childFields}
                 emptyTitle="Keine Fragen je Kind"
                 emptyText="Bei jedem Kind stehen nur die festen Angaben."
-                fieldBadge={healthBadge}
+                fieldBadge={questionBadge}
               />
               <PreviewSection
                 title="Elternteil"
@@ -367,7 +379,7 @@ export function HolidayFormEditor({
                 fields={familyFields}
                 emptyTitle="Keine Fragen zur Familie"
                 emptyText="Beim Elternteil stehen nur die festen Angaben."
-                fieldBadge={healthBadge}
+                fieldBadge={questionBadge}
               />
               <PreviewSection
                 title="Kontakte"

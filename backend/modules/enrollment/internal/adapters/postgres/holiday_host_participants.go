@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -62,13 +63,47 @@ type hostedTimeModelRow struct {
 }
 
 type hostedParticipantRow struct {
-	ChildID         int64         `bun:"child_id"`
-	FirstName       string        `bun:"first_name"`
-	LastName        string        `bun:"last_name"`
-	BirthDate       calendar.Date `bun:"birth_date"`
-	HomeSchoolID    *int64        `bun:"home_school_id"`
-	GuestSchoolName string        `bun:"guest_school_name"`
-	TimeModelID     int64         `bun:"time_model_id"`
+	ChildID             int64           `bun:"child_id"`
+	FirstName           string          `bun:"first_name"`
+	LastName            string          `bun:"last_name"`
+	BirthDate           calendar.Date   `bun:"birth_date"`
+	HomeSchoolID        *int64          `bun:"home_school_id"`
+	GuestSchoolName     string          `bun:"guest_school_name"`
+	TimeModelID         int64           `bun:"time_model_id"`
+	SecondGuardianName  *string         `bun:"second_guardian_name"`
+	SecondGuardianPhone *string         `bun:"second_guardian_phone"`
+	Answers             json.RawMessage `bun:"answers,type:jsonb"`
+}
+
+func (row hostedParticipantRow) participant() (enrollment.HolidayParticipant, error) {
+	answers, err := decodeHostAnswers(row.Answers)
+	if err != nil {
+		return enrollment.HolidayParticipant{}, err
+	}
+	participant := enrollment.HolidayParticipant{
+		ChildID: row.ChildID, FirstName: row.FirstName, LastName: row.LastName, BirthDate: row.BirthDate,
+		HomeSchoolID: row.HomeSchoolID, GuestSchoolName: row.GuestSchoolName, TimeModelID: row.TimeModelID, Answers: answers,
+	}
+	if row.SecondGuardianName != nil {
+		participant.SecondGuardian = &enrollment.HolidayHostGuardian{Name: *row.SecondGuardianName}
+		if row.SecondGuardianPhone != nil {
+			participant.SecondGuardian.Phone = *row.SecondGuardianPhone
+		}
+	}
+	return participant, nil
+}
+
+// decodeHostAnswers reads the shared answers the database's narrow
+// function built, or a guest copy stored; empty JSON reads as none.
+func decodeHostAnswers(raw json.RawMessage) ([]enrollment.HolidayHostAnswer, error) {
+	answers := []enrollment.HolidayHostAnswer{}
+	if len(raw) == 0 {
+		return answers, nil
+	}
+	if err := json.Unmarshal(raw, &answers); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: decode shared holiday answers: %w", err)
+	}
+	return answers, nil
 }
 
 const (
@@ -94,9 +129,12 @@ const (
 		WHERE organization_id = ? AND holiday_period_week_id = ?
 		ORDER BY starts_at, ends_at, id`
 	// hostedParticipantsQuery reads the minimum fields of the confirmed
-	// children through the database's own narrow function: the school has no
-	// row access to the children, so no column beyond these can leave.
-	hostedParticipantsQuery = `SELECT child_id, first_name, last_name, birth_date, home_school_id, guest_school_name, time_model_id
+	// children, the second guardian and the shared answers through the
+	// database's own narrow function: the school has no row access to the
+	// children, so no column beyond these can leave, and the function keeps
+	// every health question back (#5202).
+	hostedParticipantsQuery = `SELECT child_id, first_name, last_name, birth_date, home_school_id, guest_school_name, time_model_id,
+			second_guardian_name, second_guardian_phone, answers
 		FROM enrollment.holiday_host_participants(?, ?)
 		ORDER BY lower(last_name), lower(first_name), child_id`
 )
@@ -148,7 +186,9 @@ func (s *HolidayHostStore) ReadHostedHolidayWeek(ctx context.Context, schoolID, 
 	}
 	participants := make([]enrollment.HolidayParticipant, len(children))
 	for i, child := range children {
-		participants[i] = enrollment.HolidayParticipant(child)
+		if participants[i], err = child.participant(); err != nil {
+			return enrollment.HostedHolidayWeek{}, nil, nil, false, err
+		}
 	}
 	return hostedWeek(week), counted, participants, true, nil
 }
