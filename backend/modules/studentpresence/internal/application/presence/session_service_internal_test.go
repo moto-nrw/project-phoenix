@@ -933,13 +933,13 @@ func TestSessionStartErrorClassifiesConflicts(t *testing.T) {
 	t.Parallel()
 
 	for name, err := range map[string]error{
-		"joined stay ended twice": errJoinedSessionEnded,
-		"bare session conflict":   ErrSessionConflict,
+		"joined stay changed twice": errJoinedSessionChanged,
+		"bare session conflict":     ErrSessionConflict,
 	} {
 		var activeErr *ActiveError
 		require.ErrorAs(t, sessionStartError("StartActivitySession", err), &activeErr, name)
 		assert.ErrorIs(t, activeErr.Err, ErrSessionConflict, name)
-		assert.NotErrorIs(t, activeErr, errJoinedSessionEnded, name)
+		assert.NotErrorIs(t, activeErr, errJoinedSessionChanged, name)
 	}
 
 	wrapped := &ActiveError{Op: "StartActivitySession", Err: ErrRoomConflict}

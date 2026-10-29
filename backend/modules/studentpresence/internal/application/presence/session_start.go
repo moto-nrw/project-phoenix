@@ -130,14 +130,16 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 	return markRollbackOnFailure(ctx, err)
 }
 
-// errJoinedSessionEnded reports that the room stay a start joins ended while
-// the start took over the device's visits.
-var errJoinedSessionEnded = errors.New("joined session ended during the takeover")
+// errJoinedSessionChanged reports that the room stay a start joins ended,
+// left the room or switched its activity while the start took over the
+// device's visits.
+var errJoinedSessionChanged = errors.New("joined session changed during the takeover")
 
 // startInRoom checks the room's conflicts and creates or joins the session
-// under a savepoint. When the joined stay ended during the takeover
-// (#5206), the savepoint undoes the takeover and the start runs once more
-// against the room's new state, in which that stay is no longer joinable.
+// under a savepoint. When the joined stay ended, moved to another room or
+// switched its activity during the takeover (#5206), the savepoint undoes the
+// takeover and the start runs once more against the room's new state, in
+// which that stay is no longer joinable.
 func (s *service) startInRoom(ctx context.Context, activityID, deviceID, roomID int64, operation string, createSession func(context.Context, int64) (*ports.ActiveGroup, error)) error {
 	attempt := func() error {
 		return tenant.WithSavepoint(ctx, func(spCtx context.Context) error {
@@ -149,7 +151,7 @@ func (s *service) startInRoom(ctx context.Context, activityID, deviceID, roomID 
 		})
 	}
 	err := attempt()
-	if errors.Is(err, errJoinedSessionEnded) {
+	if errors.Is(err, errJoinedSessionChanged) {
 		err = attempt()
 	}
 	return sessionStartError(operation, err)
@@ -163,7 +165,7 @@ func sessionStartError(operation string, err error) error {
 	if errors.As(err, &activeErr) {
 		return err
 	}
-	if errors.Is(err, errJoinedSessionEnded) || errors.Is(err, ErrSessionConflict) {
+	if errors.Is(err, errJoinedSessionChanged) || errors.Is(err, ErrSessionConflict) {
 		return &ActiveError{Op: operation, Err: ErrSessionConflict}
 	}
 	return err
@@ -377,33 +379,43 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 // moves the device's open visits into it. A scan closes a child's visit, then
 // locks the session it checks into and then the room row for its capacity
 // check; the join takes the same rows in the same order (#5206). It moves the
-// visits first and locks the session afterwards, read again because it may
-// have ended while the takeover waited (startInRoom then undoes the takeover);
-// the device's room, whose foreign key shares the room row, follows in
-// finishSessionStart.
+// visits first and locks the session afterwards. While the takeover waited,
+// the session may have ended, moved to another room (UpdateActiveGroup locks
+// only the new room) or switched its activity; the locked row is checked
+// against what made it joinable, and startInRoom undoes the takeover when it
+// no longer matches. The device's room, whose foreign key shares the room
+// row, follows in finishSessionStart.
 func (s *service) joinOpenSession(ctx context.Context, existing *ports.ActiveGroup, deviceID, roomID int64) (*ports.ActiveGroup, int, error) {
 	transferredCount, err := s.SchoolPresence.TransferRecentDeviceVisits(ctx, existing.ID, deviceID)
 	if err != nil {
 		return nil, 0, err
 	}
-	group := existing
-	if existing.DeviceID == nil && deviceID > 0 {
-		group, err = s.lockActiveGroupOpenForUpdate(ctx, existing.ID)
-		if errors.Is(err, ErrActiveGroupNotFound) {
-			return nil, 0, errJoinedSessionEnded
-		}
-		if err != nil {
-			return nil, 0, err
-		}
-		if group.DeviceID != nil && *group.DeviceID != deviceID {
-			return nil, 0, ErrSessionConflict
-		}
+	group, err := s.lockActiveGroupOpenForUpdate(ctx, existing.ID)
+	if errors.Is(err, ErrActiveGroupNotFound) {
+		return nil, 0, errJoinedSessionChanged
+	}
+	if err != nil {
+		return nil, 0, err
+	}
+	if group.RoomID != roomID || !sameActivity(group, existing) {
+		return nil, 0, errJoinedSessionChanged
+	}
+	if group.DeviceID != nil && *group.DeviceID != deviceID {
+		return nil, 0, ErrSessionConflict
+	}
+	if group.DeviceID == nil && deviceID > 0 {
 		group.DeviceID = &deviceID
 		if err := s.GroupRepo.Update(ctx, group); err != nil {
 			return nil, 0, err
 		}
 	}
 	return s.finishSessionStart(ctx, group, deviceID, roomID, transferredCount)
+}
+
+func sameActivity(a, b *ports.ActiveGroup) bool {
+	aID, aOK := a.TemplateID()
+	bID, bOK := b.TemplateID()
+	return aOK == bOK && aID == bID
 }
 
 func (s *service) finishSessionStart(ctx context.Context, group *ports.ActiveGroup, deviceID, roomID, transferredCount int64) (*ports.ActiveGroup, int, error) {

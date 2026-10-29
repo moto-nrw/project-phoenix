@@ -58,18 +58,27 @@ func (f reattachScanFixture) startOverHTTP(t *testing.T) <-chan *httptest.Respon
 	return result
 }
 
-// endStayDuringTakeover holds one of the taken-over visits, starts the kiosk
-// session, waits until the takeover waits for that visit, then ends the stay
-// and runs between the session end's commit and the takeover's next step.
-func (f reattachScanFixture) endStayDuringTakeover(t *testing.T, between func(t *testing.T)) *httptest.ResponseRecorder {
+// changeStayDuringTakeover holds one of the taken-over visits, starts the
+// kiosk session, waits until the takeover waits for that visit, then lets
+// change commit before the takeover's next step.
+func (f reattachScanFixture) changeStayDuringTakeover(t *testing.T, change func(t *testing.T)) *httptest.ResponseRecorder {
 	t.Helper()
 	holder := holdRow(t, f.k.db, "SELECT id FROM active.visits WHERE id = ? FOR UPDATE", f.scannedV)
 	start := f.startOverHTTP(t)
 	awaitWaiterOf(t, f.k.db, holder.pid)
-	require.NoError(t, f.active.EndActivitySession(testpkg.Ctx(t), f.stay), "the stay ends while the takeover waits")
-	between(t)
+	change(t)
 	holder.commit(t)
 	return awaitScan(t, start)
+}
+
+// endStayDuringTakeover ends the stay while the takeover waits and runs
+// between the session end's commit and the takeover's next step.
+func (f reattachScanFixture) endStayDuringTakeover(t *testing.T, between func(t *testing.T)) *httptest.ResponseRecorder {
+	t.Helper()
+	return f.changeStayDuringTakeover(t, func(t *testing.T) {
+		require.NoError(t, f.active.EndActivitySession(testpkg.Ctx(t), f.stay), "the stay ends while the takeover waits")
+		between(t)
+	})
 }
 
 func (f reattachScanFixture) openVisitsOf(t *testing.T) map[int64]int64 {
@@ -132,6 +141,42 @@ func TestKioskStartRollsBackWhenTheJoinedStayEndsAndTheActivityRunsElsewhere(t *
 
 	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
 	f.assertStayEndedEmpty(t)
+	assert.Equal(t, map[int64]int64{f.scanned: f.ended, f.takenOver: f.ended}, f.openVisitsOf(t),
+		"the rolled back start left both children in the device's ended session")
+	var started int
+	require.NoError(t, f.k.db.NewRaw("SELECT count(*) FROM active.groups WHERE device_id = ? AND end_time IS NULL", f.device).
+		Scan(testpkg.Ctx(t), &started))
+	assert.Zero(t, started, "no session of the kiosk committed")
+}
+
+// TestKioskStartRollsBackWhenTheJoinedStayMovesRoom: while the takeover
+// waits, an admin moves the stay to another room (UpdateActiveGroup takes
+// only that room's lock). The start must not take the children into the
+// moved stay and count them against the kiosk's room. Run again, it finds the
+// activity's stay in another room, as a start after the move would, and
+// answers 409 without committing anything.
+func TestKioskStartRollsBackWhenTheJoinedStayMovesRoom(t *testing.T) {
+	t.Parallel()
+	f := newReattachScanFixture(t)
+	elsewhere := testpkg.CreateTestRoom(t, f.k.db, "Reattach Werkraum")
+	operations := api.NewActiveTestPresence(testpkg.NewDatabase(t, f.k.db), testpkg.TenantRuntime(t, f.k.db)).PresenceOperations()
+
+	rr := f.changeStayDuringTakeover(t, func(t *testing.T) {
+		groups, err := f.k.presence(t).ListLiveGroups(testpkg.Ctx(t), []int64{f.stay})
+		require.NoError(t, err)
+		require.Len(t, groups, 1)
+		moved := groups[0]
+		moved.RoomID = elsewhere.ID
+		_, err = operations.ReviseSession(testpkg.Ctx(t), moved)
+		require.NoError(t, err, "an admin moves the stay to another room")
+	})
+
+	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+	var stayRoom int64
+	var stayDevice *int64
+	require.NoError(t, f.k.db.NewRaw("SELECT room_id, device_id FROM active.groups WHERE id = ?", f.stay).Scan(testpkg.Ctx(t), &stayRoom, &stayDevice))
+	assert.Equal(t, elsewhere.ID, stayRoom)
+	assert.Nil(t, stayDevice, "the kiosk did not attach to the moved stay")
 	assert.Equal(t, map[int64]int64{f.scanned: f.ended, f.takenOver: f.ended}, f.openVisitsOf(t),
 		"the rolled back start left both children in the device's ended session")
 	var started int
