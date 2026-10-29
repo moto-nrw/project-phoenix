@@ -28,12 +28,13 @@ const maxDraftRosterChildren = 2000
 
 type offeringSuggestionResponse struct {
 	// Offerings is the suggested source; several offerings combine (#5139).
-	Offerings     []templateRosterMaintenanceOfferingResponse `json:"offerings"`
-	GradeLevels   []int                                       `json:"grade_levels"`
-	SchoolClasses []string                                    `json:"school_classes"`
-	UnbookedCount int                                         `json:"unbooked_count"`
-	MissingCount  int                                         `json:"missing_count"`
-	Candidates    []templateRosterMaintenanceOfferingResponse `json:"candidates"`
+	Offerings     []templateRosterMaintenanceOfferingResponse   `json:"offerings"`
+	GradeLevels   []int                                         `json:"grade_levels"`
+	SchoolClasses []string                                      `json:"school_classes"`
+	UnbookedCount int                                           `json:"unbooked_count"`
+	MissingCount  int                                           `json:"missing_count"`
+	Candidates    []templateRosterMaintenanceOfferingResponse   `json:"candidates"`
+	Combinations  [][]templateRosterMaintenanceOfferingResponse `json:"combinations"`
 	// Ambiguous: other offerings fit as well as suggested ones; the school
 	// picks.
 	Ambiguous bool `json:"ambiguous"`
@@ -79,6 +80,10 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 	envelope := offeringSuggestionEnvelope{}
 	if suggestion := timetable.SuggestOfferingSource(roster, bookings); suggestion != nil {
 		response := rosterDeviationResponseFrom(0, suggestion).withoutTemplate()
+		response.Combinations = make([][]templateRosterMaintenanceOfferingResponse, 0, len(suggestion.Combinations))
+		for _, combination := range suggestion.Combinations {
+			response.Combinations = append(response.Combinations, rosterMaintenanceOfferings(combination))
+		}
 		envelope.Suggestion = &response
 	}
 	common.Respond(w, r, http.StatusOK, envelope, "Offering suggestion retrieved")

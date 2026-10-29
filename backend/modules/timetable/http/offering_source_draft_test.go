@@ -120,6 +120,23 @@ func TestDraftOfferingSuggestionCombined(t *testing.T) {
 	assert.Equal(t, both, suggestion.Candidates)
 	assert.Equal(t, 1, suggestion.UnbookedCount, "only class[5] books neither offering")
 	assert.Zero(t, suggestion.MissingCount)
+
+	// An equal Ganztag alternative must retain Randstunde in both choices.
+	spaetID := ganztagID + 1
+	sources.bookings = append(sources.bookings, rosterReviewBookings(spaetID, "Ganztag spät", "1b", class[1:5], 1, 3)...)
+	suggestion = getDraftSuggestion(t, router, url.Values{
+		"period_id":      {fmt.Sprint(period.ID)},
+		"type":           {timetableModule.GroupTypeCare},
+		"list_kind":      {"edge_hours"},
+		"school_classes": {"1b"},
+		"roster":         {draftRosterParam(1, class), draftRosterParam(3, class)},
+	})
+	require.NotNil(t, suggestion)
+	assert.True(t, suggestion.Ambiguous)
+	assert.Equal(t, [][]templateRosterMaintenanceOfferingResponse{
+		both,
+		{{ID: spaetID, Name: "Ganztag spät"}, {ID: rosterReviewOfferingID, Name: "Randstunde"}},
+	}, suggestion.Combinations)
 }
 
 // TestDraftOfferingPreview: switching the planned Regeltermin to Randstunde

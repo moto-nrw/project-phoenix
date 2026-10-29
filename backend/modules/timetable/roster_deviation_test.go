@@ -534,6 +534,20 @@ func TestSuggestOfferingSourceCombination(t *testing.T) {
 
 		require.NotNil(t, deviation)
 		assert.True(t, deviation.Ambiguous)
+		assert.Equal(t, [][]timetable.OfferingRef{
+			{{ID: ganztagID, Name: "Ganztag bis 14.30 Uhr"}, {ID: randstundeID, Name: "Randstunde"}},
+			{{ID: spaetID, Name: "Ganztag bis 16 Uhr"}, {ID: randstundeID, Name: "Randstunde"}},
+		}, deviation.Combinations)
+		for _, combination := range deviation.Combinations {
+			ids := make([]int64, 0, len(combination))
+			for _, offering := range combination {
+				ids = append(ids, offering.ID)
+			}
+			preview := timetable.PreviewOfferingSource(roster, timetable.OfferingSourceFilter{OfferingIDs: ids, SchoolClasses: []string{"1a"}}, bookings)
+			for _, weekday := range preview {
+				assert.Empty(t, weekday.Removed, "every equal choice keeps all ten children")
+			}
+		}
 		assert.Equal(t, []timetable.OfferingRef{
 			{ID: ganztagID, Name: "Ganztag bis 14.30 Uhr"},
 			{ID: randstundeID, Name: "Randstunde"},

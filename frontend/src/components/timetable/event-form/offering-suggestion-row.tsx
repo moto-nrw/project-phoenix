@@ -2,7 +2,7 @@
 
 import { Button } from "~/components/ui/button";
 import type { OfferingSuggestion } from "~/lib/offering-suggestion";
-import { offeringNamesFor } from "~/lib/roster-deviation";
+import { offeringNamesFor, offeringSetNames } from "~/lib/roster-deviation";
 
 /**
  * Offers to take the children from the offerings whose bookings match the
@@ -19,12 +19,19 @@ export function OfferingSuggestionRow({
   suggestion: OfferingSuggestion;
   onApply: (offeringIds: string[]) => void;
 }>) {
-  const choices = suggestion.ambiguous ? suggestion.candidates : [];
+  const choices = suggestion.ambiguous
+    ? suggestion.combinations?.length
+      ? suggestion.combinations
+      : suggestion.candidates.map((offering) => [offering])
+    : [];
+  const combinedChoices = choices.some((choice) => choice.length > 1);
   return (
     <div className="mt-2 flex flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
       <p className="text-xs text-gray-700">
         {choices.length > 1
-          ? "Sollen nur Kinder kommen, die für ein Angebot angemeldet sind? Dazu passen mehrere Angebote. Wählen Sie eins."
+          ? combinedChoices
+            ? "Mehrere Angebotskombinationen passen zur Kinderliste. Wählen Sie eine Kombination."
+            : "Sollen nur Kinder kommen, die für ein Angebot angemeldet sind? Dazu passen mehrere Angebote. Wählen Sie eins."
           : suggestion.offerings.length > 1
             ? `Sollen nur die für ${offeringNamesFor(suggestion.offerings)} angemeldeten Kinder kommen? Dann verbinden Sie den Termin mit diesen Angeboten.`
             : `Sollen nur die für ${offeringNamesFor(suggestion.offerings)} angemeldeten Kinder kommen? Dann verbinden Sie den Termin mit dem Angebot.`}
@@ -33,13 +40,14 @@ export function OfferingSuggestionRow({
         <div className="flex flex-wrap gap-2">
           {choices.map((choice) => (
             <Button
-              key={choice.id}
+              key={choice.map((offering) => offering.id).join(",")}
               type="button"
               variant="outline"
               size="compact"
-              onClick={() => onApply([choice.id])}
+              className="h-auto min-h-8 max-w-full text-left break-words whitespace-normal"
+              onClick={() => onApply(choice.map((offering) => offering.id))}
             >
-              {`„${choice.name}“ übernehmen`}
+              {`${offeringSetNames(choice)} übernehmen`}
             </Button>
           ))}
         </div>

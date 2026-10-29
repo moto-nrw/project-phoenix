@@ -945,6 +945,46 @@ describe("StepPersonalKinder — mehrere passende Angebote (#5138)", () => {
 });
 
 describe("StepPersonalKinder — mehrere Angebote zusammen (#5139)", () => {
+  it.each(["4", "8"])(
+    "keeps Randstunde when choosing Ganztag %s",
+    async (id) => {
+      const randstunde = { id: "7", name: "Randstunde" };
+      const ganztag = { id: "4", name: "Ganztag bis 14.30 Uhr" };
+      const spaet = { id: "8", name: "Ganztag bis 16 Uhr" };
+      getOfferingSuggestion.mockReset().mockResolvedValue({
+        offerings: [ganztag, randstunde],
+        combinations: [
+          [ganztag, randstunde],
+          [spaet, randstunde],
+        ],
+        candidates: [ganztag, randstunde, spaet],
+        gradeLevels: [],
+        schoolClasses: ["1a"],
+        unbookedCount: 0,
+        missingCount: 0,
+        ambiguous: true,
+      });
+      const { changeSourceOfferings } = renderStep({
+        form: {
+          ...emptyForm("2026-09-14", "4"),
+          listKind: "edge_hours" as const,
+          targetGroupType: "klasse" as const,
+          targetSchoolClasses: ["1a"],
+          weekdays: [1, 3, 4],
+        },
+        targetCohort: { label: "Klasse 1a", memberIds: ["11", "12", "13"] },
+      });
+
+      const name = id === "4" ? ganztag.name : spaet.name;
+      const choice = await screen.findByRole("button", {
+        name: `„${name}“ und „Randstunde“ übernehmen`,
+      });
+      expect(changeSourceOfferings).not.toHaveBeenCalled();
+      fireEvent.click(choice);
+      expect(changeSourceOfferings).toHaveBeenCalledWith([id, "7"]);
+    },
+  );
+
   it("takes over Randstunde and Ganztag together for Klasse 1a", async () => {
     getOfferingSuggestion.mockReset().mockResolvedValue({
       offerings: [

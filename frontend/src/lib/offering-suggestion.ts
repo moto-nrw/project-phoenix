@@ -11,6 +11,8 @@ export type DraftRoster = Record<number, string[]>;
 export interface OfferingSuggestion {
   /** The suggested source; several offerings combine (#5139). */
   offerings: Array<{ id: string; name: string }>;
+  /** Complete equal choices, including complementary offerings. */
+  combinations?: Array<Array<{ id: string; name: string }>>;
   /** Klassen- or Jahrgangsfilter, taken from the Zielgruppe. */
   gradeLevels: number[];
   schoolClasses: string[];
@@ -44,6 +46,7 @@ export interface BackendOfferingSuggestionResponse {
     unbooked_count: number;
     missing_count: number;
     candidates?: BackendOfferingRef[] | null;
+    combinations?: BackendOfferingRef[][] | null;
     ambiguous?: boolean;
   } | null;
 }
@@ -106,6 +109,9 @@ export function mapOfferingSuggestion(
   if (!suggestion) return null;
   return {
     offerings: (suggestion.offerings ?? []).map(offeringRef),
+    combinations: (suggestion.combinations ?? []).map((combination) =>
+      combination.map(offeringRef),
+    ),
     gradeLevels: suggestion.grade_levels ?? [],
     schoolClasses: suggestion.school_classes ?? [],
     unbookedCount: suggestion.unbooked_count,
