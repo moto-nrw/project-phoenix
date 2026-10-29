@@ -15,6 +15,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strconv"
 	"testing"
 
@@ -388,4 +389,37 @@ func TestTraegerMasterDataQueryBudget(t *testing.T) {
 	addAccount("Mensa", "GB82WEST12345698765432")
 	assert.Len(t, read(), len(one), "the master data reads the same statements for any number of bank accounts")
 	testpkg.AssertQueryBudget(t, "api.traeger.master_data", one)
+}
+
+func TestTraegerLogoUploadNormalizesInterlacedPNG(t *testing.T) {
+	t.Parallel()
+	db, router := newMasterDataPortal(t)
+	office := newMasterDataOffice(t, db, router, "Träger Interlaced Logo", identityaccess.TraegerRoleAdministration)
+	logo, err := os.ReadFile("../testdata/interlaced-logo.png")
+	require.NoError(t, err)
+	require.Equal(t, byte(1), logo[28], "fixture must use Adam7 interlacing")
+	rec := uploadLogo(t, router, office.token, "logo", "logo.png", logo)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	stored := decodeSchoolPortalData[masterDataLogo](t, rec.Body.Bytes())
+	assert.Equal(t, "image/png", stored.ContentType)
+	assert.Equal(t, 32, stored.Width)
+	assert.Equal(t, 16, stored.Height)
+	req := httptest.NewRequest(http.MethodGet, "/traeger/master-data/logo", nil)
+	req.Header.Set("Authorization", "Bearer "+office.token)
+	served := httptest.NewRecorder()
+	router.ServeHTTP(served, req)
+	require.Equal(t, http.StatusOK, served.Code, served.Body.String())
+	normalized := served.Body.Bytes()
+	require.Greater(t, len(normalized), 28)
+	assert.Equal(t, byte(0), normalized[28], "stored PNG must not be interlaced")
+	assert.Equal(t, len(normalized), stored.SizeBytes)
+	originalImage, err := png.Decode(bytes.NewReader(logo))
+	require.NoError(t, err)
+	storedImage, err := png.Decode(bytes.NewReader(normalized))
+	require.NoError(t, err)
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 32; x++ {
+			assert.Equal(t, originalImage.At(x, y), storedImage.At(x, y), "pixel %d,%d including alpha", x, y)
+		}
+	}
 }
