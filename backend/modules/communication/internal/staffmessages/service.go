@@ -452,16 +452,21 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 
 // PostMessage appends a message to a conversation the caller takes part in.
 func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*StaffMessage, error) {
+	_, message, err := s.postMessage(ctx, threadID, body)
+	return message, err
+}
+
+func (s *Service) postMessage(ctx context.Context, threadID int64, body string) (*StaffMessageThread, *StaffMessage, error) {
 	if err := s.requireEnabled(ctx); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	accountID, err := s.actor(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	trimmed, err := validateBody(body)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Still a colleague? A JWT stays valid for its lifetime, so someone
 	// deactivated (or offboarded) mid-session keeps a usable token for up to
@@ -472,11 +477,11 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// Reads deliberately stay open: seeing the history one already had is
 	// harmless, adding to it after leaving the school is not.
 	if err := s.requireActiveMember(ctx, accountID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	thread, err := s.authorizeThread(ctx, threadID, accountID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Is the OTHER side still reachable? Membership in the thread is a
@@ -486,16 +491,16 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// person's still-valid token would keep DELIVERING them. Leaving history
 	// readable was meant for the past, not for ongoing traffic.
 	if err := s.requireReachableCounterparts(ctx, thread, accountID); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	thread, err = s.lockAndReauthorizeThread(ctx, threadID, accountID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	message, err := s.appendLockedMessage(ctx, threadID, accountID, trimmed)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Deliberately NO read-cursor advance here.
 	//
@@ -509,19 +514,22 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// TestSendingDoesNotSwallowIncomingUnread pins this.
 
 	s.notifyAfterCommit(ctx, thread, message, accountID)
-	return message, nil
+	return thread, message, nil
 }
 
 // PostMessageWithReceipt returns a new message together with its initial group
-// read receipt. The caller's transaction still holds PostMessage's thread lock.
+// read receipt. The caller's transaction still holds the thread lock.
 func (s *Service) PostMessageWithReceipt(ctx context.Context, threadID int64, body string) (*deliveryPorts.StaffMessagePostResult[StaffMessage], error) {
-	message, err := s.PostMessage(ctx, threadID, body)
+	thread, message, err := s.postMessage(ctx, threadID, body)
 	if err != nil || message == nil {
 		return nil, err
 	}
-	receipt, err := s.initialMessageReceipt(ctx, threadID, message)
-	if err != nil {
-		return nil, err
+	var receipt *deliveryPorts.StaffReadReceipt
+	if thread.Kind == groupKind {
+		receipt, err = s.groupMessageReceipt(ctx, threadID, message)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return &deliveryPorts.StaffMessagePostResult[StaffMessage]{Message: message, Receipt: receipt}, nil
 }

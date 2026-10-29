@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { EditActions } from "~/components/ui/edit-actions";
@@ -152,8 +153,6 @@ function useSelection() {
   return { selected, toggle };
 }
 
-const NO_ONE: ReadonlySet<string> = new Set();
-
 /**
  * Neue Gruppe im Team-Chat (#4776): Name und Personen der Schule, auch
  * Lehrkräfte. Wer anlegt, ist automatisch dabei.
@@ -167,11 +166,16 @@ export function NewTeamGroupModal({
   readonly onClose: () => void;
   readonly onCreated: (threadId: string) => void;
 }) {
+  const { data: session } = useSession();
   const [name, setName] = useState("");
   const { selected, toggle } = useSelection();
   const [saving, setSaving] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
   const formError = useApiFormError(formRef);
+  const creator = useMemo(
+    () => new Set(session?.user.id ? [session.user.id] : []),
+    [session?.user.id],
+  );
 
   const submit = async () => {
     const trimmed = name.trim();
@@ -248,7 +252,7 @@ export function NewTeamGroupModal({
         </div>
         <PeoplePicker
           api={api}
-          exclude={NO_ONE}
+          exclude={creator}
           selected={selected}
           onToggle={toggle}
         />

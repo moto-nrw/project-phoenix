@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -62,6 +63,66 @@ func (enabledStaffMessagingSettings) StaffMessageRetentionDaysKey() string { ret
 type staticStaffMessagingSession struct{}
 
 func (staticStaffMessagingSession) AccountID(context.Context) int64 { return 1 }
+
+type directMessageReceiptRepository struct {
+	StaffMessageThreadRepository
+	StaffMessageReadRepository
+	StaffMessageRepository
+	thread    *StaffMessageThread
+	findCalls int
+}
+
+func (r *directMessageReceiptRepository) FindByID(context.Context, int64) (*StaffMessageThread, error) {
+	r.findCalls++
+	return r.thread, nil
+}
+
+func (*directMessageReceiptRepository) IsParticipant(context.Context, int64, int64) (bool, error) {
+	return true, nil
+}
+
+func (*directMessageReceiptRepository) LockForMessageAppend(context.Context, int64) error {
+	return nil
+}
+
+func (*directMessageReceiptRepository) ParticipantAccountIDs(context.Context, int64) ([]int64, error) {
+	return []int64{1, 2}, nil
+}
+
+func (*directMessageReceiptRepository) IsMessageableStaff(context.Context, int64) (bool, error) {
+	return true, nil
+}
+
+func (*directMessageReceiptRepository) Create(_ context.Context, message *StaffMessage) error {
+	message.ID = 1
+	return nil
+}
+
+func (*directMessageReceiptRepository) TouchLastMessage(context.Context, int64, time.Time, int64, int64, string) error {
+	return nil
+}
+
+func TestPostMessageWithReceiptDoesNotReloadDirectThread(t *testing.T) {
+	t.Parallel()
+
+	repo := &directMessageReceiptRepository{
+		thread: &StaffMessageThread{ID: 1, Kind: directKind},
+	}
+	svc := &Service{Config: Config{
+		ThreadRepo:  repo,
+		MessageRepo: repo,
+		ReadRepo:    repo,
+		Settings:    enabledStaffMessagingSettings{},
+		Session:     staticStaffMessagingSession{},
+	}}
+
+	result, err := svc.PostMessageWithReceipt(t.Context(), 1, "Nachricht")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Nil(t, result.Receipt)
+	assert.Equal(t, 2, repo.findCalls)
+}
 
 func TestGroupMutationAndSendReauthorizeAfterThreadLock(t *testing.T) {
 	t.Parallel()

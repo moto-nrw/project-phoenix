@@ -26,6 +26,10 @@ vi.mock("~/lib/hooks/use-chat-viewport-lock", () => ({
   useChatViewportLock: () => ({ current: null }),
 }));
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: { user: { id: "1" } } }),
+}));
+
 function stubApi() {
   return {
     fetchInbox: vi.fn<StaffMessagesApi["fetchInbox"]>(),
@@ -298,5 +302,24 @@ describe("Team-Chat inbox with groups (#4776)", () => {
     expect(
       screen.queryByRole("button", { name: "Neuer Gruppenchat" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("does not offer the creator as an additional group member", async () => {
+    const api = stubApi();
+    api.fetchInbox.mockResolvedValue([]);
+    api.fetchRecipients.mockResolvedValue([
+      { account_id: "1", name: "Ben Becker", role_kind: "staff" },
+      { account_id: "2", name: "Anna Arndt", role_kind: "staff" },
+    ]);
+    render(<TeamChatInbox portal={portalFor(api, "tenant")} />, {
+      wrapper: Fresh,
+    });
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neuer Gruppenchat" }),
+    );
+
+    expect(await screen.findByText("Anna Arndt")).toBeInTheDocument();
+    expect(screen.queryByText("Ben Becker")).not.toBeInTheDocument();
   });
 });

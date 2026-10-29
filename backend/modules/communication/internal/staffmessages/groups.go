@@ -492,7 +492,7 @@ func (s *Service) refreshGroupReceipts(ctx context.Context, threadID int64, deta
 }
 
 // groupMessageReceipt returns the initial receipt for a message while the
-// caller still holds the thread lock from PostMessage.
+// caller still holds the thread lock from postMessage.
 func (s *Service) groupMessageReceipt(ctx context.Context, threadID int64, message *StaffMessage) (*values.StaffReadReceipt, error) {
 	records, err := s.Groups.StaffParticipantStates(ctx, threadID)
 	if err != nil {
@@ -500,14 +500,6 @@ func (s *Service) groupMessageReceipt(ctx context.Context, threadID int64, messa
 	}
 	receipt := readReceipts([]*StaffMessage{message}, values.StaffParticipantStatesFromRecords(records))[message.ID]
 	return &receipt, nil
-}
-
-func (s *Service) initialMessageReceipt(ctx context.Context, threadID int64, message *StaffMessage) (*values.StaffReadReceipt, error) {
-	thread, err := s.ThreadRepo.FindByID(ctx, threadID)
-	if err != nil || thread == nil || thread.Kind != groupKind {
-		return nil, err
-	}
-	return s.groupMessageReceipt(ctx, threadID, message)
 }
 
 func cursorAtOrPast(state *values.StaffParticipantState, message *StaffMessage) bool {
