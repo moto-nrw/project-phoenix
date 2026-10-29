@@ -267,12 +267,13 @@ type BookingDayChange struct {
 
 // RemainingDayBooking is one offering the child still books on one ISO
 // weekday after a booking change, with what decides whether it carries a
-// hand-maintained Regeltermin: whether it counts as care and its pickup time
-// that day ("HH:MM", empty when the offering sets none).
+// hand-maintained Regeltermin: its kind flags and its pickup time that day
+// ("HH:MM", empty when the offering sets none).
 type RemainingDayBooking struct {
-	Weekday      int
-	CountsAsCare bool
-	PickupTime   string
+	Weekday       int
+	CountsAsCare  bool
+	IncludesLunch bool
+	PickupTime    string
 }
 
 // ManualRosterTemplate is one hand-maintained Regeltermin series that keeps

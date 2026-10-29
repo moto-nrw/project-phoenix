@@ -108,8 +108,8 @@ func changedBookingWeekdays(work *offeringAdjustmentWork) (dropped, netLoss []in
 }
 
 // remainingDayBookings lists, per weekday, the offerings the child books
-// after the change from the date on, with the offering's pickup time that
-// day. A link whose days cannot be resolved names no weekday, as in
+// after the change from the date on, with the offering's kind flags and
+// pickup time that day. A link whose days cannot be resolved names no weekday, as in
 // bookedWeekdaysByOffering.
 func remainingDayBookings(links []*careplan.BookedOffering, offerings map[int64]*careplan.CareOffering, from calendar.Date) []careplan.RemainingDayBooking {
 	result := make([]careplan.RemainingDayBooking, 0, len(links))
@@ -128,7 +128,7 @@ func remainingDayBookings(links []*careplan.BookedOffering, offerings map[int64]
 				continue
 			}
 			result = append(result, careplan.RemainingDayBooking{
-				Weekday: weekday, CountsAsCare: offering.CountsAsCare,
+				Weekday: weekday, CountsAsCare: offering.CountsAsCare, IncludesLunch: offering.IncludesLunch,
 				PickupTime: offering.PickupTimes[strings.ToLower(strings.TrimSpace(day))],
 			})
 		}

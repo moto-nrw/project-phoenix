@@ -72,35 +72,43 @@ including the children who book only Ganztag: Ganztag care runs past 12:45.
 The rule also hid a real loss when a switch offset it, for example Ganztag
 until 16:00 switched to 14:30 beside a hand-kept block until 16:00.
 
-A booking now carries a Regeltermin on its weekday when the Regeltermin ends
-no later than the offering's pickup time that day. A care Regeltermin needs
-an offering that counts as care; other Regeltermine take any offering. The
-lunch flag does not decide for Mensa lists, because schools keep Mensa lists
-without flagging an offering with lunch. Care Plan names the weekdays on
-which the change drops a booking, those on which it drops more offerings
-than it newly books (net loss), and the bookings that remain, with their
-pickup times. Timetable reports a hand-maintained Regeltermin on a dropped
-weekday when no remaining booking carries it, also if none carried it
-before. The end of a Regeltermin is the end of its occurrence, or of its
-schedule for a hand roster row; a schedule that ended before the date gives
-no end, and the latest end of the weekday counts.
+A booking now carries a Regeltermin on its weekday when the offering fits the
+Regeltermin's kind and the Regeltermin ends no later than the offering's
+pickup time that day. The kind is the one the roster review (#5103) uses,
+`RosterOfferingKindFor`: a Mensa list takes offerings with lunch, another
+care block offerings that count as care, an AG course offerings, anything
+else every offering. Care Plan names the weekdays on which the change drops a
+booking, those on which it drops more offerings than it newly books (net
+loss), and the bookings that remain, with their kind flags and pickup times.
+Timetable reports a hand-maintained Regeltermin on a dropped weekday when no
+remaining booking carries it, also if none carried it before.
 
-When a fitting remaining booking has no pickup time, or the Regeltermin has
-no end, the times cannot decide. Such a day keeps the first rule: the
-Regeltermin counts as lost only on a net-loss weekday. Schools book a
-Randstunde and Ganztag variants without pickup times; there a booking
-without a pickup time proves nothing about the end of care, and treating it
-as carrying would drop notices the first rule gave. A remaining booking
-with a pickup time that reaches the end still carries the Regeltermin.
+The end of a Regeltermin is the end of its occurrence, or of its schedule for
+a hand roster row; the latest end of the weekday counts. A schedule names a
+weekday and an end only when it is valid on a date of that weekday from the
+Stichtag on, by materialization's own rule `scheduleValidOn` (validity dates,
+the series' last day, the planning period and the A/B week). A schedule whose
+validity or period has ended plans nothing the change touches.
 
-Decided for #5342: where both offerings set pickup times, a Randstunde
-dropped beside a Ganztag that stays is not reported: the Ganztag carries the
-class Randstunde, like the Ganztag children the class list already holds. The rule assumes that the booked care
-of a day runs without a gap until the pickup time. A care offering before
+The times decide only when the Regeltermin has an end and every remaining
+booking of the day has a pickup time. Otherwise the day keeps the first rule
+exactly, whatever the kinds: the Regeltermin counts as lost when the change
+drops more offerings on the day than it newly books. Schools book a
+Randstunde and Ganztag variants without pickup times; there the first
+rule's notices stay as they were. A day without any remaining booking is a
+net loss under both rules.
+
+Decided for #5342: where the bookings of the day set pickup times, a
+Randstunde dropped beside a Ganztag that stays is not reported: the Ganztag
+carries the class Randstunde, like the Ganztag children the class list
+already holds. The rule assumes that the booked care of a day runs without a
+gap until the pickup time. A care offering before
 lessons, such as a Frühbetreuung, would break that assumption; no school
 books one yet.
 
 The binding-flow diagnostics of this ADR are unchanged. The read gained query
-fields and a Timetable dependency on its timeframes, not a callable; the
-root binding that maps Care Plan's day change onto the query is reviewed
-again as a query.
+fields and Timetable dependencies on its timeframes and active calendar
+periods, not a callable; the root binding that maps Care Plan's day change
+onto the query is reviewed again as a query. Materialization's per-date rule
+`candidateSlot` now calls `scheduleValidOn` for its validity part, without a
+change in behaviour.

@@ -83,17 +83,40 @@ func (f *carryFixture) template(name string, weekday int, start, end, listKind s
 // from start to end and ended (exclusively) on validUntil.
 func (f *carryFixture) endedSchedule(templateID int64, weekday int, start, end string, validUntil calendar.Date) {
 	f.t.Helper()
+	f.extraSchedule(templateID, weekday, start, end, f.period.ID, &validUntil)
+}
+
+// expiredPeriodSchedule adds a schedule of the Regeltermin on the weekday,
+// without its own end, pinned to a planning period that ended a year before
+// the Stichtag.
+func (f *carryFixture) expiredPeriodSchedule(templateID int64, weekday int, start, end string) {
+	f.t.Helper()
+	expired := createCareOfferingTestPeriod(f.t, f.env.db, "carry-expired",
+		carryStichtag.AddDays(-730), carryStichtag.AddDays(-365))
+	f.extraSchedule(templateID, weekday, start, end, expired.ID, nil)
+}
+
+func (f *carryFixture) extraSchedule(templateID int64, weekday int, start, end string, periodID int64, validUntil *calendar.Date) {
+	f.t.Helper()
 	ctx := testpkg.Ctx(f.t)
 	var timeframeID int64
 	require.NoError(f.t, f.env.db.NewRaw(`INSERT INTO schedule.timeframes (tenant_id, start_time, end_time, is_active, description)
 		VALUES (?, ?::time, ?::time, TRUE, ?) RETURNING id`,
-		testpkg.Tenant(f.t), start, end, fmt.Sprintf("carry-ended-%s-%d", f.t.Name(), templateID)).Scan(ctx, &timeframeID))
+		testpkg.Tenant(f.t), start, end, fmt.Sprintf("carry-extra-%s-%d-%d", f.t.Name(), templateID, periodID)).Scan(ctx, &timeframeID))
 	schedule := &careTemplateSchedule{
-		Weekday: weekday, ActivityGroupID: templateID, CalendarPeriodID: &f.period.ID,
-		TimeframeID: &timeframeID, ValidUntil: &validUntil,
+		Weekday: weekday, ActivityGroupID: templateID, CalendarPeriodID: &periodID,
+		TimeframeID: &timeframeID, ValidUntil: validUntil,
 	}
 	schedule.SetTenantID(testpkg.Tenant(f.t))
 	require.NoError(f.t, createCareTemplateScheduleRow(ctx, f.env.db, schedule))
+}
+
+// asCourse turns the Regeltermin into an AG (Kurs).
+func (f *carryFixture) asCourse(templateID int64) {
+	f.t.Helper()
+	_, err := f.env.db.NewRaw(`UPDATE activities.groups SET type = ? WHERE id = ?`,
+		timetable.GroupTypeActivity, templateID).Exec(testpkg.Ctx(f.t))
+	require.NoError(f.t, err)
 }
 
 // target adds a Klasse, Jahrgang or Gruppe target to the Regeltermin.
@@ -417,6 +440,62 @@ func TestRosterImpact_EndedScheduleDoesNotDecide(t *testing.T) {
 	f.plan(studentID, block)
 
 	reported := f.change(requestID, childID, map[*offeringContract.CareOfferingRecord][]string{early: {"mon"}}, false)
+
+	assert.Empty(t, reported)
+}
+
+// Review finding 2: a schedule pinned to a planning period that has ended
+// gives no end. The Regeltermin ran until 16:00 in the old period and runs
+// until 12:45 now, so a switch to Ganztag until 14:30 keeps it carried and
+// adds no "Fertig" step.
+func TestRosterImpact_ScheduleOfAnEndedPeriodDoesNotDecide(t *testing.T) {
+	t.Parallel()
+	f := newCarryFixture(t)
+	late := f.offering("Ganztag bis 16 Uhr", "16:00", true)
+	early := f.offering("Ganztag bis 14.30", "14:30", true)
+	block := f.template("Mittagsblock", carryMonday, "11:45", "12:45", "")
+	f.expiredPeriodSchedule(block, carryMonday, "14:30", "16:00")
+	requestID, childID, studentID := f.child("1a", map[*offeringContract.CareOfferingRecord][]string{late: {"mon"}})
+	f.plan(studentID, block)
+
+	reported := f.change(requestID, childID, map[*offeringContract.CareOfferingRecord][]string{early: {"mon"}}, false)
+
+	assert.Empty(t, reported)
+}
+
+// Review finding 1: an AG needs a course offering (RosterOfferingKindFor).
+// The course is dropped, Ganztag until 16:00 stays: the hand-kept AG until
+// 15:00 lost the booking that carries it and is reported.
+func TestRosterImpact_CourseDroppedGanztagStays_ReportsAG(t *testing.T) {
+	t.Parallel()
+	f := newCarryFixture(t)
+	ganztag := f.offering("Ganztag bis 16 Uhr", "16:00", true)
+	course := f.offering("Fußball-AG", "16:00", false)
+	ag := f.template("Fußball-AG", carryMonday, "14:00", "15:00", "")
+	f.asCourse(ag)
+	requestID, childID, studentID := f.child("3a", map[*offeringContract.CareOfferingRecord][]string{
+		ganztag: {"mon"}, course: {"mon"},
+	})
+	f.plan(studentID, ag)
+
+	reported := f.change(requestID, childID, map[*offeringContract.CareOfferingRecord][]string{ganztag: {"mon"}}, false)
+
+	assert.Equal(t, map[int64][]int{ag: {carryMonday}}, reported)
+}
+
+// Review finding 3: without pickup times the earlier balance decides,
+// whatever the kinds. Care A is replaced by course B on Monday: no net loss,
+// so the hand-kept care block is not reported, as before.
+func TestRosterImpact_WithoutPickupTimes_SwitchToACourseKeepsTheEarlierRule(t *testing.T) {
+	t.Parallel()
+	f := newCarryFixture(t)
+	care := f.offering("Nachmittagsbetreuung", "", true)
+	course := f.offering("Schwimmkurs", "", false)
+	block := f.template("Hausaufgaben", carryMonday, "13:00", "14:00", "")
+	requestID, childID, studentID := f.child("3b", map[*offeringContract.CareOfferingRecord][]string{care: {"mon"}})
+	f.plan(studentID, block)
+
+	reported := f.change(requestID, childID, map[*offeringContract.CareOfferingRecord][]string{course: {"mon"}}, false)
 
 	assert.Empty(t, reported)
 }

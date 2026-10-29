@@ -55,7 +55,8 @@ func (p bookingManualPlans) ManualStudentPlan(
 	bookings := make([]timetable.StudentDayBooking, 0, len(change.Remaining))
 	for _, booking := range change.Remaining {
 		bookings = append(bookings, timetable.StudentDayBooking{
-			Weekday: booking.Weekday, CountsAsCare: booking.CountsAsCare, PickupTime: booking.PickupTime,
+			Weekday: booking.Weekday, CountsAsCare: booking.CountsAsCare, IncludesLunch: booking.IncludesLunch,
+			PickupTime: booking.PickupTime,
 		})
 	}
 	plans, err := p.days.ManualStudentPlan(ctx, timetable.ManualStudentPlanQuery{

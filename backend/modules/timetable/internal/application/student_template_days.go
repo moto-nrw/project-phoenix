@@ -30,9 +30,9 @@ var _ timetable.StudentTemplateDays = (*StudentTemplateDays)(nil)
 // NewStudentTemplateDays constructs the capability; every row dependency is
 // required.
 func NewStudentTemplateDays(deps ports.StudentTemplateDaysDependencies) (*StudentTemplateDays, error) {
-	if deps.Groups == nil || deps.Schedules == nil || deps.Timeframes == nil || deps.Enrollments == nil || deps.Instances == nil ||
-		deps.Participants.Reads == nil || deps.Participants.Plans == nil || deps.RecurrenceLock == nil {
-		return nil, errors.New("student template days: groups, schedules, timeframes, enrollments, instances, participants and recurrence lock are required")
+	if deps.Groups == nil || deps.Schedules == nil || deps.Timeframes == nil || deps.Periods == nil || deps.Enrollments == nil ||
+		deps.Instances == nil || deps.Participants.Reads == nil || deps.Participants.Plans == nil || deps.RecurrenceLock == nil {
+		return nil, errors.New("student template days: groups, schedules, timeframes, periods, enrollments, instances, participants and recurrence lock are required")
 	}
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
@@ -179,6 +179,7 @@ func bookingPlansOccurrence(rows []*activityContract.StudentEnrollment, occurren
 // addHandRowDays adds the weekdays the student's hand rows still plan from
 // the date on, unless a booking-created row of the same template covers the
 // weekday as well, with the end of the template's schedule on that weekday.
+// Only schedules still valid from the date on count.
 func (s *StudentTemplateDays) addHandRowDays(
 	ctx context.Context, rows []*activityContract.StudentEnrollment, from calendar.Date, wanted map[int]bool, days templateDays, ends templateDayEnds,
 ) error {
@@ -190,8 +191,11 @@ func (s *StudentTemplateDays) addHandRowDays(
 	if err != nil {
 		return err
 	}
+	if schedules, err = s.runningSchedules(ctx, schedules, from); err != nil {
+		return err
+	}
 	scheduleDays := weekdaysBySchedule(schedules)
-	scheduleEnds, err := s.scheduleEnds(ctx, schedules, from)
+	scheduleEnds, err := s.scheduleEnds(ctx, schedules)
 	if err != nil {
 		return err
 	}

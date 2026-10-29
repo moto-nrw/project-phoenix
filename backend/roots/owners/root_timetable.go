@@ -56,7 +56,7 @@ func BuildTimetableOwner(
 	if now != nil {
 		today = func() timezone.Date { return timezone.DateFromTime(now()) }
 	}
-	studentDays, err := NewTimetableStudentTemplateDays(repos, recurrenceLock, today, logger)
+	studentDays, err := NewTimetableStudentTemplateDays(repos, calendarPeriods, recurrenceLock, today, logger)
 	if err != nil {
 		return TimetableOwner{}, fmt.Errorf("compose timetable student template days: %w", err)
 	}
@@ -82,10 +82,10 @@ func BuildTimetableOwner(
 // NewTimetableStudentTemplateDays binds the student template days over the
 // retained rows and the recurrence gate; today bounds the removal.
 func NewTimetableStudentTemplateDays(
-	repos TimetableRepositories, lock timetable.RecurrenceWriteLock, today func() timezone.Date, logger *slog.Logger,
+	repos TimetableRepositories, periods timetablePorts.ActiveCalendarPeriods, lock timetable.RecurrenceWriteLock, today func() timezone.Date, logger *slog.Logger,
 ) (timetable.StudentTemplateDays, error) {
 	return arrivalTimetable.NewStudentTemplateDays(timetablePorts.StudentTemplateDaysDependencies{
-		Groups: repos.Timetable, Schedules: repos.ActivitySchedule, Timeframes: repos.Timeframe, Enrollments: repos.StudentEnrollment,
+		Groups: repos.Timetable, Schedules: repos.ActivitySchedule, Timeframes: repos.Timeframe, Periods: periods, Enrollments: repos.StudentEnrollment,
 		Instances: repos.ActivityInstance.Reads, Participants: repos.InstanceStudent, RecurrenceLock: lock,
 		Today: today, Logger: logger,
 	})

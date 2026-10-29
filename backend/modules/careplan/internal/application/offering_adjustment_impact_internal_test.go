@@ -108,8 +108,8 @@ func TestChangedBookingWeekdays_NewlyBookedRandstundeLosesNothing(t *testing.T) 
 }
 
 // The remaining bookings carry what decides about a hand-maintained
-// Regeltermin (#5342): the weekday, whether the offering counts as care and
-// its pickup time that day. A day without a pickup time stays empty, a link
+// Regeltermin (#5342): the weekday, the offering's kind flags and its pickup
+// time that day. A day without a pickup time stays empty, a link
 // that ends before the date and one without resolvable days name nothing.
 func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 	t.Parallel()
@@ -118,7 +118,7 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 	ended := calendar.NewDate(2026, 10, 26)
 	offerings := map[int64]*careplan.CareOffering{
 		5: {ID: 5, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true, PickupTimes: map[string]string{"mon": "12:45", "fri": "12:45"}},
-		6: {ID: 6, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true},
+		6: {ID: 6, DaysOfWeekMode: daysOfWeekModeParentChoice, CountsAsCare: true, IncludesLunch: true},
 		9: {ID: 9, DaysOfWeekMode: daysOfWeekModeParentChoice, PickupTimes: map[string]string{"tue": "15:00"}},
 	}
 	links := []*careplan.BookedOffering{
@@ -133,7 +133,7 @@ func TestRemainingDayBookings_NameWeekdayCareAndPickupTime(t *testing.T) {
 	assert.Equal(t, []careplan.RemainingDayBooking{
 		{Weekday: 1, CountsAsCare: true, PickupTime: "12:45"},
 		{Weekday: 5, CountsAsCare: true, PickupTime: "12:45"},
-		{Weekday: 5, CountsAsCare: true},
+		{Weekday: 5, CountsAsCare: true, IncludesLunch: true},
 		{Weekday: 2, PickupTime: "15:00"},
 	}, remainingDayBookings(links, offerings, from))
 }

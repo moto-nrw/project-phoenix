@@ -6626,7 +6626,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingManualPlans.ManualStudentPlan",
-      "binding_digest": "f9701085ce650ad9881f4af816d36c72",
+      "binding_digest": "44729056d7505a82123646ac15cd09e0",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingManualPlans.ManualStudentPlan",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.ManualStudentPlan",

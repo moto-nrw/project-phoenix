@@ -4,6 +4,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,95 +21,118 @@ const (
 	monday     = timetable.WeekdayMonday
 	endAt1245  = 12*60 + 45
 	endAt1345  = 13*60 + 45
+	endAt1500  = 15 * 60
 	endAt1600  = 16 * 60
 	unknownEnd = 0
 )
 
-func TestCarriedBy_RandstundeThatStaysCarriesTheClassRandstunde(t *testing.T) {
+// noNetLoss and netLossOn build the carry of the bookings left after a change.
+func noNetLoss(bookings ...timetable.StudentDayBooking) bookingCarry {
+	return bookingCarry{bookings: bookings, netLoss: map[int]bool{}}
+}
+
+func netLossOn(weekday int, bookings ...timetable.StudentDayBooking) bookingCarry {
+	return bookingCarry{bookings: bookings, netLoss: map[int]bool{weekday: true}}
+}
+
+var (
+	careKind   = timetable.RosterOfferingKindFor(timetable.GroupTypeCare, nil)
+	courseKind = timetable.RosterOfferingKindFor(timetable.GroupTypeActivity, nil)
+	mensa      = timetable.ListKindMensa
+	mensaKind  = timetable.RosterOfferingKindFor(timetable.GroupTypeCare, &mensa)
+)
+
+func TestBookingCarry_RandstundeThatStaysCarriesTheClassRandstunde(t *testing.T) {
 	t.Parallel()
 
 	// Ganztag dropped on Friday, the Randstunde stays: the class Randstunde
 	// until 12:45 keeps its booking.
-	assert.Equal(t, carried, carriedBy([]timetable.StudentDayBooking{careDay(friday, "12:45")}, friday, true, endAt1245, true))
+	assert.True(t, netLossOn(friday, careDay(friday, "12:45")).keeps(friday, careKind, endAt1245, true))
 }
 
-func TestCarriedBy_GanztagCarriesTheEarlierClassRandstunde(t *testing.T) {
+func TestBookingCarry_GanztagCarriesTheEarlierClassRandstunde(t *testing.T) {
 	t.Parallel()
 
 	// Randstunde dropped, Ganztag stays: Ganztag care runs past 12:45, like
 	// the Ganztag children the class Randstunde already lists.
-	assert.Equal(t, carried, carriedBy([]timetable.StudentDayBooking{careDay(monday, "14:30")}, monday, true, endAt1245, true))
+	assert.True(t, netLossOn(monday, careDay(monday, "14:30")).keeps(monday, careKind, endAt1245, true))
 }
 
-func TestCarriedBy_EarlierPickupDoesNotCarryALaterBlock(t *testing.T) {
+func TestBookingCarry_EarlierPickupDoesNotCarryALaterBlock(t *testing.T) {
 	t.Parallel()
 
-	// Ganztag until 16:00 switched to 14:30: a block until 16:00 loses its
-	// booking, a block until 13:45 keeps it.
-	bookings := []timetable.StudentDayBooking{careDay(monday, "14:30")}
-	assert.Equal(t, notCarried, carriedBy(bookings, monday, true, endAt1600, true))
-	assert.Equal(t, carried, carriedBy(bookings, monday, true, endAt1345, true))
+	// Ganztag until 16:00 switched to 14:30, no net loss: a block until 16:00
+	// loses its booking, a block until 13:45 keeps it.
+	carry := noNetLoss(careDay(monday, "14:30"))
+	assert.False(t, carry.keeps(monday, careKind, endAt1600, true))
+	assert.True(t, carry.keeps(monday, careKind, endAt1345, true))
 }
 
-func TestCarriedBy_OnlyTheSameWeekdayCarries(t *testing.T) {
+func TestBookingCarry_OnlyTheSameWeekdayCarries(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, notCarried, carriedBy([]timetable.StudentDayBooking{careDay(monday, "16:00")}, friday, true, endAt1245, true))
-	assert.Equal(t, notCarried, carriedBy(nil, friday, true, endAt1245, true), "a child without any booking keeps nothing")
+	assert.False(t, noNetLoss(careDay(monday, "16:00")).keeps(friday, careKind, endAt1245, true))
+	assert.False(t, netLossOn(friday).keeps(friday, careKind, endAt1245, true), "a child without any booking keeps nothing")
 }
 
-// Without a pickup time or a Regeltermin end the times cannot decide.
-func TestCarriedBy_MissingPickupOrEndLeavesItUndecided(t *testing.T) {
+// Review finding 1: an AG needs a course offering. The course is dropped,
+// Ganztag until 16:00 stays: the AG until 15:00 loses its booking.
+func TestBookingCarry_AGNeedsACourseOffering(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, undecided, carriedBy([]timetable.StudentDayBooking{careDay(friday, "")}, friday, true, endAt1600, true))
-	assert.Equal(t, undecided, carriedBy([]timetable.StudentDayBooking{careDay(friday, "12:45")}, friday, true, unknownEnd, false))
-	assert.Equal(t, carried, carriedBy([]timetable.StudentDayBooking{careDay(friday, ""), careDay(friday, "16:00")}, friday, true, endAt1600, true),
-		"a booking with a pickup time that reaches the end decides")
+	ganztag := careDay(monday, "16:00")
+	course := timetable.StudentDayBooking{Weekday: monday, PickupTime: "16:00"}
+	assert.False(t, netLossOn(monday, ganztag).keeps(monday, courseKind, endAt1500, true))
+	assert.True(t, noNetLoss(course).keeps(monday, courseKind, endAt1500, true))
+	assert.False(t, noNetLoss(course).keeps(monday, careKind, endAt1245, true), "a course carries no care block")
 }
 
-// A care Regeltermin needs an offering that counts as care; other
-// Regeltermine take any offering.
-func TestCarriedBy_CareRegelterminNeedsACareOffering(t *testing.T) {
+// A Mensa list needs an offering with lunch.
+func TestBookingCarry_MensaListNeedsLunch(t *testing.T) {
 	t.Parallel()
 
-	course := []timetable.StudentDayBooking{{Weekday: friday, PickupTime: "16:00"}}
-	assert.Equal(t, notCarried, carriedBy(course, friday, true, endAt1245, true))
-	assert.Equal(t, carried, carriedBy(course, friday, false, endAt1245, true))
+	lunch := timetable.StudentDayBooking{Weekday: friday, CountsAsCare: true, IncludesLunch: true, PickupTime: "14:30"}
+	assert.True(t, noNetLoss(lunch).keeps(friday, mensaKind, endAt1345, true))
+	assert.False(t, noNetLoss(careDay(friday, "14:30")).keeps(friday, mensaKind, endAt1345, true))
 }
 
-// Mensa lists are care Regeltermine. Schools that flag no offering with
-// lunch still have Mensa lists, so the lunch flag does not decide; the
-// pickup time does.
-func TestCarriedBy_MensaListDoesNotNeedTheLunchFlag(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, carried, carriedBy([]timetable.StudentDayBooking{careDay(friday, "14:30")}, friday, true, endAt1345, true))
-}
-
-// A school with a Randstunde and Ganztag variants but without pickup times
-// (missing data, #5342): the times cannot decide, so the day keeps the
-// earlier rule. Dropping Ganztag beside the Randstunde is a net loss and is
-// reported; a switch between Ganztag variants is none and is not.
+// Missing data: when a booking of the day has no pickup time, the earlier
+// rule decides exactly, whatever the kinds. A Randstunde and Ganztag without
+// pickup times: dropping Ganztag beside the Randstunde is a net loss and is
+// reported; a switch is none and is not.
 func TestBookingCarry_WithoutPickupTimesKeepsTheNetLossRule(t *testing.T) {
 	t.Parallel()
 
-	randstundeLeft := bookingCarry{bookings: []timetable.StudentDayBooking{careDay(friday, "")}, netLoss: map[int]bool{friday: true}}
-	assert.False(t, randstundeLeft.keeps(friday, true, endAt1600, true))
-	switched := bookingCarry{bookings: []timetable.StudentDayBooking{careDay(friday, "")}, netLoss: map[int]bool{}}
-	assert.True(t, switched.keeps(friday, true, endAt1600, true))
-	nothingLeft := bookingCarry{netLoss: map[int]bool{}}
-	assert.False(t, nothingLeft.keeps(friday, true, endAt1600, true), "no booking left is always reported")
+	assert.False(t, netLossOn(friday, careDay(friday, "")).keeps(friday, careKind, endAt1600, true))
+	assert.True(t, noNetLoss(careDay(friday, "")).keeps(friday, careKind, endAt1600, true))
+	assert.False(t, netLossOn(friday).keeps(friday, careKind, endAt1600, true), "no booking left is always reported")
 }
 
-// A Regeltermin without an end follows the same rule.
+// Review finding 3: care A is replaced by course B on the same day, both
+// without a pickup time. The earlier balance is even, so the care block is
+// not reported; the kind filter must not run before that decision.
+func TestBookingCarry_NetLossRuleIgnoresTheKinds(t *testing.T) {
+	t.Parallel()
+
+	course := timetable.StudentDayBooking{Weekday: monday}
+	assert.True(t, noNetLoss(course).keeps(monday, careKind, endAt1600, true))
+	assert.False(t, netLossOn(monday, course).keeps(monday, careKind, endAt1600, true))
+}
+
+// One booking of the day without a pickup time leaves the times undecided,
+// even beside a booking whose pickup time reaches the end.
+func TestBookingCarry_OneUnknownPickupTimeKeepsTheNetLossRule(t *testing.T) {
+	t.Parallel()
+
+	assert.False(t, netLossOn(friday, careDay(friday, ""), careDay(friday, "16:00")).keeps(friday, careKind, endAt1600, true))
+}
+
+// A Regeltermin without an end follows the earlier rule as well.
 func TestBookingCarry_RegelterminWithoutEndKeepsTheNetLossRule(t *testing.T) {
 	t.Parallel()
 
-	carry := bookingCarry{bookings: []timetable.StudentDayBooking{careDay(friday, "12:45")}, netLoss: map[int]bool{friday: true}}
-	assert.False(t, carry.keeps(friday, true, unknownEnd, false))
-	carry.netLoss = map[int]bool{}
-	assert.True(t, carry.keeps(friday, true, unknownEnd, false))
+	assert.False(t, netLossOn(friday, careDay(friday, "12:45")).keeps(friday, careKind, unknownEnd, false))
+	assert.True(t, noNetLoss(careDay(friday, "12:45")).keeps(friday, careKind, unknownEnd, false))
 }
 
 func TestNewBookingCarry_RejectsWeekdaysOutsideTheWeek(t *testing.T) {
@@ -119,20 +144,34 @@ func TestNewBookingCarry_RejectsWeekdaysOutsideTheWeek(t *testing.T) {
 	assert.ErrorIs(t, err, timetable.ErrStudentTemplateDaysInvalid)
 }
 
-// valid_until is exclusive: a schedule ending on the date plans nothing from
-// it on; an open or later end, or an unreadable date, keeps the schedule.
-func TestScheduleEndedBefore_UsesTheExclusiveValidUntil(t *testing.T) {
+// Review finding 2: a schedule counts only while materialization's validity
+// rule keeps it from the date on: valid_until is exclusive, and a period
+// that ended before the date ends the schedule too.
+func TestScheduleRunsFrom_UsesMaterializationValidity(t *testing.T) {
 	t.Parallel()
 
 	from := calendar.NewDate(2027, 5, 31)
-	ended := func(until string) bool {
-		return scheduleEndedBefore(timetable.Schedule{ValidUntil: &until}, from)
+	period := func(id int64, start, end calendar.Date) *schedule.CalendarPeriod {
+		p := &schedule.CalendarPeriod{StartDate: start, EndDate: end, IsActive: true, WeekCycleLength: 1}
+		p.ID = id
+		return p
 	}
-	assert.True(t, ended("2027-05-31"))
-	assert.True(t, ended("2027-05-24"))
-	assert.False(t, ended("2027-06-01"))
-	assert.False(t, ended("unbekannt"))
-	assert.False(t, scheduleEndedBefore(timetable.Schedule{}, from))
+	current := period(41, calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 7, 31))
+	expired := period(42, calendar.NewDate(2025, 8, 1), calendar.NewDate(2026, 7, 31))
+	periods := []*schedule.CalendarPeriod{current, expired}
+	template := &activityContract.Group{}
+	pinned := func(periodID int64) *activityContract.Schedule {
+		return &activityContract.Schedule{Weekday: monday, CalendarPeriodID: &periodID}
+	}
+
+	assert.True(t, scheduleRunsFrom(template, pinned(current.ID), from, periods))
+	assert.False(t, scheduleRunsFrom(template, pinned(expired.ID), from, periods), "expired period")
+	until := activityContract.Date(from)
+	assert.False(t, scheduleRunsFrom(template, &activityContract.Schedule{Weekday: monday, ValidUntil: &until}, from, periods), "valid_until is exclusive")
+	later := activityContract.Date(from.AddDays(1))
+	assert.True(t, scheduleRunsFrom(template, &activityContract.Schedule{Weekday: monday, ValidUntil: &later}, from, periods))
+	lastDay := activityContract.Date(from.AddDays(-1))
+	assert.False(t, scheduleRunsFrom(&activityContract.Group{SeriesLastDay: &lastDay}, pinned(current.ID), from, periods), "series ended")
 }
 
 func TestClockMinutes_ReadsPickupAndTimeframeClocks(t *testing.T) {
@@ -170,7 +209,7 @@ func TestDropCarriedDays_KeepsOnlyUncarriedWeekdays(t *testing.T) {
 		ends.addClock(afternoon, weekday, "16:00:00")
 	}
 	days.add(duty, friday)
-	carry := bookingCarry{bookings: []timetable.StudentDayBooking{careDay(friday, "12:45"), careDay(monday, "16:00")}, netLoss: map[int]bool{}}
+	carry := noNetLoss(careDay(friday, "12:45"), careDay(monday, "16:00"))
 
 	kept := carry.dropCarriedDays(groups, days, ends)
 

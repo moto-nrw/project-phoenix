@@ -37,15 +37,16 @@ type ManualStudentPlanQuery struct {
 
 // StudentDayBooking is one offering the student books on one ISO weekday.
 //
-// A booking carries a Regeltermin on that weekday when the Regeltermin ends
-// no later than the offering's pickup time: the booked care runs until the
-// child is picked up. A care Regeltermin needs an offering that counts as
-// care. Without a pickup time, or for a Regeltermin without an end, the
-// times cannot decide; then the Regeltermin counts as lost on a net-loss
-// weekday only (#5342).
+// A booking carries a Regeltermin on that weekday when the offering fits the
+// Regeltermin's kind (RosterOfferingKindFor) and the Regeltermin ends no
+// later than the offering's pickup time: the booked care runs until the child
+// is picked up. The times decide only when the Regeltermin has an end and
+// every booking of the day has a pickup time; otherwise the Regeltermin
+// counts as lost exactly on a net-loss weekday, whatever the kinds (#5342).
 type StudentDayBooking struct {
-	Weekday      int
-	CountsAsCare bool
+	Weekday       int
+	CountsAsCare  bool
+	IncludesLunch bool
 	// PickupTime is the offering's pickup time on the weekday as "HH:MM" or
 	// "HH:MM:SS"; empty when the offering sets none for that day.
 	PickupTime string
