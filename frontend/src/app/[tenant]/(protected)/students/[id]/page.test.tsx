@@ -2679,6 +2679,19 @@ describe("StudentDetailPage", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("shows the Dokumente tab with student_accidents:manage", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "1", permissions: ["student_accidents:manage"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(screen.getByRole("tab", { name: "Dokumente" })).toBeInTheDocument();
+    });
+
     it("shows the Betreuungsplan tab with schedules:read", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {

@@ -222,8 +222,8 @@ type AccidentReportFile struct {
 }
 
 // StudentAccidentReports is the accident report capability. Reading needs
-// student_accidents:read, every write student_accidents:manage; each command
-// commits its own tenant transaction with its change-history row.
+// student_accidents:read or :manage, every write student_accidents:manage;
+// each command commits its own tenant transaction with its change-history row.
 type StudentAccidentReports interface {
 	// CreateStudentAccidentReport records a new open report.
 	CreateStudentAccidentReport(ctx context.Context, studentID int64, report AccidentReport, actor StudentDocumentActor) (CareDocument, error)

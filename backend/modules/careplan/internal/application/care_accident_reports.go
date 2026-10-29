@@ -14,8 +14,8 @@ import (
 // category unfallanzeige that carry what was recorded. They follow the
 // document rules: the per-child gate and every change-history row run in the
 // command's own tenant transaction, and the PDF download is refused when its
-// data-access log row cannot be written. Reading needs student_accidents:read,
-// every write student_accidents:manage on top.
+// data-access log row cannot be written. Reading needs student_accidents:read
+// or :manage; every write needs student_accidents:manage.
 
 var _ careplan.StudentAccidentReports = (*StudentDocuments)(nil)
 

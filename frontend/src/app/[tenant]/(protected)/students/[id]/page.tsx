@@ -265,7 +265,7 @@ function studentTabs(
     : base.filter((tab) => tab !== "betreuungsplan");
   // Dokumente (#777) mirrors the backend route gate exactly:
   // RequiresAnyPermission(users:update, student_documents:health,
-  // student_documents:legal, student_accidents:read). Gating on write access instead would disagree in
+  // student_documents:legal, student_accidents:read, student_accidents:manage). Gating on write access instead would disagree in
   // both directions — a group supervisor without users:update would see a tab
   // that only answers 403, and a role holding just student_documents:health
   // (which the migration exists to make grantable) could never reach the tab
@@ -549,7 +549,8 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
       hasPermission(session, "student_documents:legal") ||
-      hasPermission(session, "student_accidents:read"));
+      hasPermission(session, "student_accidents:read") ||
+      hasPermission(session, "student_accidents:manage"));
   const canRecordAccidents =
     sessionStatus === "authenticated" &&
     hasPermission(session, "student_accidents:manage");

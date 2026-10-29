@@ -85,8 +85,8 @@ func (s *StudentDocuments) requireStudentAccess(ctx context.Context, studentID i
 	return nil
 }
 
-// categoryPermission returns the permission a category requires. The mapping
-// is the whole point of the permission design; keep it in one place.
+// categoryPermission returns the read permission a category requires. The
+// mapping is the whole point of the permission design; keep it in one place.
 func (s *StudentDocuments) categoryPermission(category string) string {
 	switch {
 	case careplan.IsHealthStudentDocumentCategory(category):
@@ -98,6 +98,17 @@ func (s *StudentDocuments) categoryPermission(category string) string {
 	default:
 		return s.permissions.Default
 	}
+}
+
+// hasCategoryPermission reports whether the actor may read a category. For
+// accident reports, managing is deliberately stronger than reading: a person
+// who may record, change or sign a report must be able to open that report.
+func (s *StudentDocuments) hasCategoryPermission(category string, granted []string) bool {
+	if careplan.IsAccidentStudentDocumentCategory(category) {
+		return s.access.HasPermission(s.permissions.AccidentRead, granted) ||
+			s.access.HasPermission(s.permissions.AccidentManage, granted)
+	}
+	return s.access.HasPermission(s.categoryPermission(category), granted)
 }
 
 // writePermission returns the permission adding or removing a document of
@@ -133,7 +144,7 @@ func (s *StudentDocuments) requireWritePermission(category string, actor carepla
 func (s *StudentDocuments) visibleCategories(actor careplan.StudentDocumentActor) []string {
 	visible := make([]string, 0, len(careplan.StudentDocumentCategories))
 	for _, category := range careplan.StudentDocumentCategories {
-		if s.access.HasPermission(s.categoryPermission(category), actor.Permissions) {
+		if s.hasCategoryPermission(category, actor.Permissions) {
 			visible = append(visible, category)
 		}
 	}
@@ -141,7 +152,7 @@ func (s *StudentDocuments) visibleCategories(actor careplan.StudentDocumentActor
 }
 
 func (s *StudentDocuments) CanSeeStudentDocumentCategory(category string, granted []string) bool {
-	return s.access.HasPermission(s.categoryPermission(category), granted)
+	return s.hasCategoryPermission(category, granted)
 }
 
 func (s *StudentDocuments) CanSeeEveryStudentDocumentCategory(granted []string) bool {
@@ -154,7 +165,7 @@ func (s *StudentDocuments) CanSeeEveryStudentDocumentCategory(granted []string) 
 }
 
 func (s *StudentDocuments) requireCategoryPermission(category string, actor careplan.StudentDocumentActor) error {
-	if !s.access.HasPermission(s.categoryPermission(category), actor.Permissions) {
+	if !s.hasCategoryPermission(category, actor.Permissions) {
 		return fmt.Errorf("%w: %s", careplan.ErrStudentDocumentForbidden, category)
 	}
 	return nil

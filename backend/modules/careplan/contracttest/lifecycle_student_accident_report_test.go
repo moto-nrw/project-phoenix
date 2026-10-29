@@ -22,8 +22,8 @@ import (
 )
 
 // Accident reports (#4771): an unfallanzeige document carries the recorded
-// accident. Reading needs student_accidents:read, every write
-// student_accidents:manage; a signed report never changes again, a
+// accident. Reading needs student_accidents:read or :manage, every write
+// needs student_accidents:manage; a signed report never changes again, a
 // correction is a new report and the old one stays; every write leaves a
 // change-history row and the PDF download a data-access log row.
 
@@ -162,6 +162,7 @@ func TestStudentAccidentReports_PermissionsAndValidation(t *testing.T) {
 	reports := newAccidentReports(t, s.db)
 	leader := s.actor("student_accidents:read", "student_accidents:manage")
 	reader := s.actor("student_accidents:read")
+	manager := s.actor("student_accidents:manage")
 	office := s.actor("users:update")
 
 	_, err := reports.CreateStudentAccidentReport(s.ctx, s.studentID, sampleAccidentReport(), office)
@@ -177,7 +178,7 @@ func TestStudentAccidentReports_PermissionsAndValidation(t *testing.T) {
 	report, err := reports.CreateStudentAccidentReport(s.ctx, s.studentID, sampleAccidentReport(), leader)
 	require.NoError(t, err)
 
-	// Without the read permission the category does not appear at all.
+	// Without either accident permission the category does not appear at all.
 	docs, visible, err := s.svc.ListStudentDocuments(s.ctx, s.studentID, "", office)
 	require.NoError(t, err)
 	assert.NotContains(t, visible, careplan.StudentDocumentCategoryUnfallanzeige)
@@ -190,6 +191,13 @@ func TestStudentAccidentReports_PermissionsAndValidation(t *testing.T) {
 	assert.Equal(t, []string{careplan.StudentDocumentCategoryUnfallanzeige}, visible)
 	_, err = reports.ResolveStudentAccidentReportFile(s.ctx, s.studentID, report.ID, reader)
 	require.NoError(t, err)
+
+	docs, visible, err = s.svc.ListStudentDocuments(s.ctx, s.studentID, "", manager)
+	require.NoError(t, err)
+	assert.Equal(t, []string{careplan.StudentDocumentCategoryUnfallanzeige}, visible)
+	assert.Equal(t, []string{careplan.StudentDocumentCategoryUnfallanzeige}, studentDocumentCategoriesOf(docs))
+	_, err = reports.ResolveStudentAccidentReportFile(s.ctx, s.studentID, report.ID, manager)
+	require.NoError(t, err, "managing an accident report includes opening it")
 
 	_, err = reports.SignStudentAccidentReport(s.ctx, s.studentID, report.ID, careplan.AccidentSignatureInput{
 		Method: "drawn", ImagePNG: base64.StdEncoding.EncodeToString([]byte("not a png")),

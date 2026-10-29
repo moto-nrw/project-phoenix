@@ -34,7 +34,7 @@ func (rs *Resource) registerAccidentReportRoutes(r chi.Router) {
 	r.With(manage).Post("/{id}/accident-reports/{documentId}/signature", rs.signAccidentReport)
 	r.With(manage).Post("/{id}/accident-reports/{documentId}/paper-copy", rs.uploadAccidentPaperCopy)
 	r.With(manage).Post("/{id}/accident-reports/{documentId}/corrections", rs.correctAccidentReport)
-	r.With(common.RequiresPermission(permissions.StudentAccidentsRead)).
+	r.With(common.RequiresAnyPermission(permissions.StudentAccidentsRead, permissions.StudentAccidentsManage)).
 		Get("/{id}/accident-reports/{documentId}/pdf", rs.downloadAccidentReportPDF)
 }
 
@@ -227,7 +227,7 @@ func (rs *Resource) createAccidentReport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	doc, err := rs.StudentAccidentReports.CreateStudentAccidentReport(r.Context(), studentID, req.report(), actor)
-	rs.respondAccidentReport(w, r, http.StatusCreated, doc, err, "Accident report recorded")
+	rs.respondAccidentReport(w, r, http.StatusCreated, doc, err, "Unfallanzeige erfasst")
 }
 
 // updateAccidentReport serves PUT /{id}/accident-reports/{documentId}.
@@ -242,7 +242,7 @@ func (rs *Resource) updateAccidentReport(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	doc, err := rs.StudentAccidentReports.UpdateStudentAccidentReport(r.Context(), studentID, documentID, req.report(), actor)
-	rs.respondAccidentReport(w, r, http.StatusOK, doc, err, "Accident report updated")
+	rs.respondAccidentReport(w, r, http.StatusOK, doc, err, "Unfallanzeige aktualisiert")
 }
 
 // correctAccidentReport serves POST /{id}/accident-reports/{documentId}/corrections.
@@ -257,7 +257,7 @@ func (rs *Resource) correctAccidentReport(w http.ResponseWriter, r *http.Request
 		return
 	}
 	doc, err := rs.StudentAccidentReports.CorrectStudentAccidentReport(r.Context(), studentID, documentID, req.report(), actor)
-	rs.respondAccidentReport(w, r, http.StatusCreated, doc, err, "Accident report corrected")
+	rs.respondAccidentReport(w, r, http.StatusCreated, doc, err, "Unfallanzeige korrigiert")
 }
 
 // signAccidentReport serves POST /{id}/accident-reports/{documentId}/signature.
@@ -274,7 +274,7 @@ func (rs *Resource) signAccidentReport(w http.ResponseWriter, r *http.Request) {
 	doc, err := rs.StudentAccidentReports.SignStudentAccidentReport(r.Context(), studentID, documentID, careplan.AccidentSignatureInput{
 		Method: req.Method, ImagePNG: req.ImagePNG, TypedName: req.TypedName,
 	}, actor)
-	rs.respondAccidentReport(w, r, http.StatusOK, doc, err, "Accident report signed")
+	rs.respondAccidentReport(w, r, http.StatusOK, doc, err, "Unfallanzeige unterschrieben")
 }
 
 // uploadAccidentPaperCopy serves POST

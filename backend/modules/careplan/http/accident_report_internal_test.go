@@ -65,7 +65,13 @@ func TestAccidentReportDocumentShowsSignatureAndItsCheck(t *testing.T) {
 	}
 	fields := reportFields(accidentReportDocument(file, accidentReportFacts{}, signedAt))
 	assert.Equal(t, "Petra Leitung", fields["Unterschrieben von"])
+	assert.Equal(t, "Einfache elektronische Signatur mit gezeichneter Unterschrift", fields["Verfahren"])
 	assert.Contains(t, fields["Prüfung"], "nachträglich verändert", "a broken checksum is printed, never hidden")
+
+	file.Signature.Method = "typed"
+	file.Signature.TypedName = "Petra Leitung"
+	fields = reportFields(accidentReportDocument(file, accidentReportFacts{}, signedAt))
+	assert.Equal(t, "Einfache elektronische Signatur mit getipptem Namen", fields["Verfahren"])
 
 	supersedes := int64(3)
 	file.Document.AccidentSupersedesID = &supersedes

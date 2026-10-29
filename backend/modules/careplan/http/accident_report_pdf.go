@@ -91,7 +91,7 @@ func accidentSignatureCard(file careplan.AccidentReportFile) ReportCard {
 			{Label: "Datum", Value: accidentStamp(file.Signature.SignedAt)},
 			{Label: "Unterschrieben von", Value: file.Signature.SignerName},
 			{Label: "Unterschrift", Value: typed, PNG: file.Signature.PNG},
-			{Label: "Verfahren", Value: "Einfache elektronische Signatur mit gezeichneter Unterschrift"},
+			{Label: "Verfahren", Value: accidentSignatureMethodLabel(file.Signature.Method)},
 			{Label: "Prüfung", Value: integrity},
 		}
 	case doc.AccidentSignatureID != nil:
@@ -108,6 +108,13 @@ func accidentSignatureCard(file careplan.AccidentReportFile) ReportCard {
 		}
 	}
 	return card
+}
+
+func accidentSignatureMethodLabel(method string) string {
+	if method == "typed" {
+		return "Einfache elektronische Signatur mit getipptem Namen"
+	}
+	return "Einfache elektronische Signatur mit gezeichneter Unterschrift"
 }
 
 func accidentStatusLabel(doc careplan.CareDocument) string {

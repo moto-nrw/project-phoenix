@@ -1136,13 +1136,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *StudentDocuments) CanSeeStudentDocumentCategory(category string, granted []string) bool {\n\treturn s.access.HasPermission(s.categoryPermission(category), granted)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/careplan/internal/application/StudentDocuments.CanSeeStudentDocumentCategory",
-      "owner": "modules/careplan"
-    },
-    {
-      "build": "production",
       "evidence": "func (s *StudentDocuments) ListDeletedStudentDocumentsPendingFileCleanup(ctx context.Context, studentID int64, actor careplan.StudentDocumentActor) ([]careplan.CareDocument, error) {\n\tif err := s.requireStudentAccess(ctx, studentID, actor); err != nil {\n\t\treturn nil, err\n\t}\n\tdocuments, err := s.records.ListDeletedCareDocuments(ctx, studentID, s.visibleCategories(actor))\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"care plan documents: list deleted student documents: %w\", err)\n\t}\n\treturn documents, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/careplan/internal/application/StudentDocuments.ListDeletedStudentDocumentsPendingFileCleanup",
