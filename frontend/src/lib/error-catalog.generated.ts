@@ -894,19 +894,19 @@ export const ERROR_CATALOG = {
       "students.absence_read_required":
         "Für {object} brauchen Sie zusätzlich das Recht „Kinder sehen“. Bitte fragen Sie die Schulleitung.",
       "students.accident_report_forbidden":
-        "Für Unfallanzeigen fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung.",
+        "Für Unfallanzeigen fehlt Ihnen die Berechtigung. Fragen Sie die Leitung.",
       "students.accident_report_invalid":
-        "Die Unfallanzeige ist unvollständig. Bitte füllen Sie alle Pflichtfelder aus.",
+        "Die Unfallanzeige ist unvollständig. Füllen Sie alle Pflichtfelder aus.",
       "students.accident_report_not_found":
-        "Diese Unfallanzeige gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+        "Diese Unfallanzeige gibt es nicht mehr. Laden Sie die Seite neu.",
       "students.accident_report_not_signed":
-        "Die Unfallanzeige ist noch nicht unterschrieben. Sie können sie direkt ändern.",
+        "Die Unfallanzeige ist nicht unterschrieben. Sie können sie ändern.",
       "students.accident_report_signed":
-        "Die Unfallanzeige ist schon unterschrieben und lässt sich nicht mehr ändern. Bitte legen Sie eine Korrektur an.",
+        "Die Unfallanzeige ist unterschrieben. Legen Sie eine Korrektur an.",
       "students.accident_report_superseded":
-        "Zu dieser Unfallanzeige gibt es schon eine Korrektur. Bitte bearbeiten Sie die neue Fassung.",
+        "Es gibt schon eine Korrektur. Bearbeiten Sie die neue Fassung.",
       "students.accident_signature_invalid":
-        "Die Unterschrift konnte nicht gespeichert werden. Bitte unterschreiben Sie noch einmal.",
+        "Die Unterschrift wurde nicht gespeichert. Unterschreiben Sie noch einmal.",
       "students.bulk_approval_ineligible":
         "Mindestens eine Anfrage muss einzeln geprüft werden. Es wurde nichts freigegeben.",
       "students.care_day_managed_by_booking":
