@@ -595,7 +595,7 @@ if (!TRAEGER_HOSTNAME) {
 // --- Träger subdomain handling ("moto träger", Träger-Büro portal, #4649) ---
 
 /** Paths the Träger subdomain serves (without /traeger prefix): the login,
- * the holiday periods (#4659), the Träger-Büro persons, the invitation
+ * the reset link (#5149), the holiday periods (#4659), the Träger-Büro persons, the invitation
  * link, which opens /invite (#4650), the access log (#4655), the
  * letterhead (#4653), the Träger settings (#4652), the contribution
  * rules (#4664) and the billing runs (#4668). The school list
@@ -604,6 +604,7 @@ if (!TRAEGER_HOSTNAME) {
  * login. */
 const TRAEGER_PUBLIC_PATHS = [
   "/login",
+  "/reset-password",
   "/ferien",
   "/invite",
   "/accounts",

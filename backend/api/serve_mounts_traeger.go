@@ -29,9 +29,9 @@ import (
 )
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
-// Access: the sign-in, the account second factor, the Träger-Büro account
-// management, the Träger-Büro members' addresses and the Absprung into a
-// school.
+// Access: the sign-in, the account second factor, the password reset, the
+// Träger-Büro account management, the Träger-Büro members' addresses and the
+// Absprung into a school.
 type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountLogin
 	identityaccess.AccountMFAChallenges
@@ -39,6 +39,7 @@ type TraegerPortalIdentity interface {
 	identityaccess.TraegerAccountManagement
 	identityaccess.TraegerRoles
 	identityaccess.TraegerSchoolSessions
+	identityaccess.PasswordResets
 }
 
 // TraegerPersons is the People Directory read the access log names people
@@ -99,7 +100,8 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	masterData := organizationTenancyTraeger.NewMasterDataResource(organizationTenancyCompose.NewTraegerMasterData(),
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
-	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity), overviewRoutes, holidayPeriods,
+	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
+		portalPasswordResets(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
 		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
 }
 

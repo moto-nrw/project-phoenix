@@ -3,18 +3,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 
-const { mockUseSession, mockRedirect, mockFetchOrganization } = vi.hoisted(
-  () => ({
+const { mockUseSession, mockRedirect, mockFetchOrganization, mockPathname } =
+  vi.hoisted(() => ({
     mockUseSession: vi.fn(),
     mockRedirect: vi.fn(),
     mockFetchOrganization: vi.fn(),
-  }),
-);
+    mockPathname: vi.fn(() => "/traeger"),
+  }));
 
 vi.mock("next-auth/react", () => ({ useSession: () => mockUseSession() }));
 vi.mock("next/navigation", () => ({
   redirect: (path: string) => mockRedirect(path),
-  usePathname: () => "/traeger",
+  usePathname: () => mockPathname(),
 }));
 vi.mock("~/components/traeger/traeger-shell", () => ({
   TraegerShell: ({
@@ -44,6 +44,7 @@ describe("TraegerAuthGuard", () => {
     mockUseSession.mockReset();
     mockRedirect.mockReset();
     mockFetchOrganization.mockReset();
+    mockPathname.mockReturnValue("/traeger");
     mockFetchOrganization.mockResolvedValue({
       id: "5",
       name: "Echter Träger",
@@ -58,6 +59,24 @@ describe("TraegerAuthGuard", () => {
     vi.unstubAllEnvs();
     _resetTraegerHostCache();
   });
+
+  // The reset link opens without a session (#5149), on the Träger host as
+  // /reset-password and elsewhere with its /traeger prefix.
+  it.each(["/traeger/reset-password", "/reset-password"])(
+    "shows %s without a session",
+    (path) => {
+      mockPathname.mockReturnValue(path);
+      mockUseSession.mockReturnValue({ status: "unauthenticated", data: null });
+      render(
+        <TraegerAuthGuard>
+          <p>Neues Passwort</p>
+        </TraegerAuthGuard>,
+      );
+
+      expect(screen.getByText("Neues Passwort")).toBeInTheDocument();
+      expect(mockRedirect).not.toHaveBeenCalled();
+    },
+  );
 
   it("renders the portal for a live Träger session", () => {
     mockUseSession.mockReturnValue(session({ scope: "org" }));

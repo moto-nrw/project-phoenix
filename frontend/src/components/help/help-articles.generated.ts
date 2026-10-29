@@ -9776,6 +9776,7 @@ export const traegerInvitationTopic =
 /**
  * `/traeger/login` (#4649): eigene Adresse, danach die Liste der Schulen.
  * Der Code per E-Mail ist Pflicht, beim ersten Mal mit Einrichtung (#4651).
+ * „Passwort vergessen?“ schickt den Link auf den Träger-Host (#5149).
  */
 export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
   return {
@@ -9802,7 +9803,10 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "Geben Sie den sechsstelligen Code ein. moto prüft ihn automatisch.",
     ],
     result: "moto öffnet die Seite `Schulen` mit allen Schulen Ihres Trägers.",
-    notes: ["Legen Sie sich die Adresse als Lesezeichen an."],
+    notes: [
+      "Legen Sie sich die Adresse als Lesezeichen an.",
+      "Ein neues Passwort gilt auch für Ihr Konto in der OGS.",
+    ],
     differences: [
       "Oben steht `Willkommen im Träger-Portal`. So erkennen Sie, dass Sie richtig sind.",
       "Haben Sie auch ein Konto in einer OGS? Dann nutzen Sie dasselbe Konto. Ein zweites Passwort brauchen Sie nicht.",
@@ -9819,6 +9823,8 @@ export const traegerLoginTopic = function traegerLoginTopic(): HelpTopic {
       "moto meldet Sie ab und lässt Sie nicht wieder hinein? Dann ist der Zugang Ihres Trägers ausgeschaltet. Wenden Sie sich an das moto-Team.",
       "Eine Schule fehlt in der Liste? Das moto-Team ordnet die Schulen Ihrem Träger zu.",
       "moto sagt `Die E-Mail-Adresse oder das Passwort stimmt nicht.`? Prüfen Sie beides und versuchen Sie es erneut.",
+      "Passwort vergessen? Wählen Sie `Passwort vergessen?`. Tragen Sie Ihre E-Mail-Adresse ein und wählen Sie `Link senden`. Öffnen Sie den Link aus der E-Mail und legen Sie ein neues Passwort fest.",
+      "Keine E-Mail zum Zurücksetzen? Schauen Sie im Spam-Ordner nach. Kommt keine, gehört Ihr Konto nicht zum Träger-Büro. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.errorMessages],
   };

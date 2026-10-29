@@ -51,10 +51,10 @@ func newTraegerPortal(t *testing.T) (*bun.DB, *traegerPortalHandler, identityacc
 
 // traegerPortalOn composes Identity & Access over db with a capturing
 // mailbox and mounts /traeger over it.
-func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork) (*traegerPortalHandler, identityaccess.Owner) {
+func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOption) (*traegerPortalHandler, identityaccess.Owner) {
 	t.Helper()
 	mail := testpkg.NewCapturingMailer()
-	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit, WithAuthTestMailer(mail))
+	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit, append([]AuthTestOption{WithAuthTestMailer(mail)}, options...)...)
 	require.NoError(t, err)
 	return &traegerPortalHandler{Handler: traegerPortalRouter(t, db, auth.Auth, unit), mail: mail}, auth.Auth
 }
@@ -140,6 +140,21 @@ func traegerLogin(t *testing.T, router http.Handler, email, password string, org
 // when one is given, and reads either answer shape.
 func traegerPost(t *testing.T, router http.Handler, path, bearer string, body any) (int, traegerLoginAnswer) {
 	t.Helper()
+	rec := traegerRequestWithBearer(t, router, path, bearer, body)
+	var answer traegerLoginAnswer
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &answer), rec.Body.String())
+	return rec.Code, answer
+}
+
+// traegerRequest sends a public JSON POST to the Träger router and hands
+// back the whole response, headers included.
+func traegerRequest(t *testing.T, router http.Handler, path string, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	return traegerRequestWithBearer(t, router, path, "", body)
+}
+
+func traegerRequestWithBearer(t *testing.T, router http.Handler, path, bearer string, body any) *httptest.ResponseRecorder {
+	t.Helper()
 	payload, err := json.Marshal(body)
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(payload))
@@ -149,9 +164,7 @@ func traegerPost(t *testing.T, router http.Handler, path, bearer string, body an
 	}
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	var answer traegerLoginAnswer
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &answer), rec.Body.String())
-	return rec.Code, answer
+	return rec
 }
 
 // lastTraegerCode reads the code of the newest MFA mail to address.

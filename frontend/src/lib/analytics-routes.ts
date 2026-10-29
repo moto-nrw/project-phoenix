@@ -200,6 +200,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/ferien/neu",
   "/invite",
   "/login",
+  "/reset-password",
 ] as const;
 
 /** Public pages of the bare domain: school choice, start, demo, help. */

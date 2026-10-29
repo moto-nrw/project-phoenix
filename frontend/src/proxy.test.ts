@@ -1224,6 +1224,20 @@ describe("proxy", () => {
       );
     });
 
+    it("rewrites the reset link to /traeger/reset-password (#5149)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/reset-password?token=abc`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/reset-password",
+      );
+    });
+
     it("rewrites /access-log to /traeger/access-log (#4655)", () => {
       const res = proxy(
         makeRequest(`http://${TRAEGER_HOSTNAME}/access-log`, TRAEGER_HOSTNAME),
