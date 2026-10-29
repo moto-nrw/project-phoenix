@@ -727,6 +727,27 @@ describe("session end barrier", () => {
       expect(steps.navigated).toBe(false);
     });
 
+    it("freezes the answer of a request that started before the logout", async () => {
+      const barrier = await loadBarrier();
+      // The SessionProvider's poll is in flight when the logout begins.
+      const poll = window.fetch("/api/auth/session");
+      let resumed = false;
+      poll.then(
+        () => (resumed = true),
+        () => (resumed = true),
+      );
+      void barrier.holdRequestsUntilSessionEnds().catch(() => undefined);
+      await flush();
+
+      restoreFromCache();
+      answers.get("/api/auth/session")?.();
+      await flush();
+      await flush();
+
+      expect(reload).toHaveBeenCalledOnce();
+      expect(resumed).toBe(false);
+    });
+
     it("without a running logout: no reload", async () => {
       await loadBarrier();
       restoreFromCache();

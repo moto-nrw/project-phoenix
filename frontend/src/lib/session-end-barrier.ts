@@ -333,15 +333,13 @@ export function installSessionEndBarrier(): void {
         ? init
         : withDeadline(input, init),
     );
-    // An answer arriving while the page reloads resumes nothing.
-    const response =
-      phase === "open"
-        ? sent
-        : sent.then(
-            (answer) => (reloading ? frozen<Response>() : answer),
-            (error: unknown) =>
-              reloading ? frozen<Response>() : Promise.reject(error),
-          );
+    // An answer arriving while the page reloads resumes nothing, also for a
+    // request that started before the session end (a session poll).
+    const response = sent.then(
+      (answer) => (reloading ? frozen<Response>() : answer),
+      (error: unknown) =>
+        reloading ? frozen<Response>() : Promise.reject(error),
+    );
     const settled: Promise<void> = response.then(
       () => undefined,
       () => undefined,
