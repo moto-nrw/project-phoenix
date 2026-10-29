@@ -63,6 +63,16 @@ func TestLocalCarePlanAccountIsLocalOnly(t *testing.T) {
 
 func TestLocalCarePlanAccountHasOnlyItsReadPlanningRole(t *testing.T) {
 	t.Parallel()
+	for _, scope := range []string{"", "ogs-nord", "lokaler-testmandant-5300"} {
+		t.Run("scope="+scope, func(t *testing.T) {
+			t.Parallel()
+			assertLocalCarePlanAccountRole(t, scope)
+		})
+	}
+}
+
+func assertLocalCarePlanAccountRole(t *testing.T, scope string) {
+	t.Helper()
 	var registration map[string]any
 	var granted []string
 	createdRoles := 0
@@ -103,13 +113,19 @@ func TestLocalCarePlanAccountHasOnlyItsReadPlanningRole(t *testing.T) {
 	defer srv.Close()
 	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{})
 	fs := NewFixedSeeder(s.client, false, "")
+	fs.accountScope = scope
 	fs.staffCredentials = []StaffCredentials{{Password: "example-test-password"}}
 	rt := &Runtime{Client: s.client, FixedSeeder: fs}
 	require.NoError(t, (seedLocalCarePlanAccountStep{seeder: s}).Run(t.Context(), rt))
 	assert.Equal(t, 1, createdRoles)
 	assert.EqualValues(t, 7300, registration["role_id"])
 	assert.NotContains(t, registration, "role_ids")
-	assert.Equal(t, "nachbearbeitung-ohne-planung@example.test", registration["email"])
+	assert.Equal(t, scopedEmail("nachbearbeitung-ohne-planung@example.test", scope), registration["email"])
+	username := registration["username"].(string)
+	assert.LessOrEqual(t, len(username), 30, "registration must accept scoped local accounts")
+	if scope != "" {
+		assert.Equal(t, "np-"+scope, username)
+	}
 	assert.Equal(t, fs.staffCredentials[0].Password, registration["password"])
 	assert.Equal(t, registration["password"], registration["confirm_password"])
 	for _, permission := range []string{"config:manage", "config:read", "users:read", "schedules:list", "schedules:read"} {

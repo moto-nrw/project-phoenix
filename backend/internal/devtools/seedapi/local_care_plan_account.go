@@ -64,7 +64,8 @@ func (s seedLocalCarePlanAccountStep) Run(_ context.Context, rt *Runtime) error 
 	email := scopedEmail(localCarePlanAccountKey+"@example.test", fs.accountScope)
 	username := localCarePlanAccountKey
 	if fs.accountScope != "" {
-		username += "-" + fs.accountScope
+		// Keep the scoped prefix shorter than demo20- of the existing staff.
+		username = "np-" + fs.accountScope
 	}
 	raw, err := rt.Client.Post("/auth/register", map[string]any{
 		"email": email, "username": username,
