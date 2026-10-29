@@ -85,7 +85,6 @@ export const KEPT_STORAGE_KEYS: readonly string[] = [
   "parent-first-steps:v1:*", // Fortschritt der ersten Schritte, Elternportal
   // Gewählte Sprache, die das Elternportal noch speichern muss.
   "phoenix_parent_unsynced_locale*",
-  "phoenix_parent_locale_save_failure",
   // Gerätelayout.
   "sidebar-collapsed",
   "sidebar-open-groups",

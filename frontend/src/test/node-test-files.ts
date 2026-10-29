@@ -183,7 +183,6 @@ export const nodeLogicTestFiles = [
   "src/lib/operator/provisioning-api.test.ts",
   "src/lib/own-dienstplan-helpers.test.ts",
   "src/lib/parent-announcements-api.test.ts",
-  "src/lib/parent-locale-navigation.test.ts",
   "src/lib/parent-messages-api.test.ts",
   "src/lib/parent-request-reason.test.ts",
   "src/lib/parent-session-snapshot.server.test.ts",
