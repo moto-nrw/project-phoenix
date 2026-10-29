@@ -212,6 +212,20 @@ in the dev tools binary `cmd/devtools` (ADR 0060): run them with
 the demo image does. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
 
+Local `vollbetrieb` seeds against localhost also create the separate role and
+account `nachbearbeitung-ohne-planung` (#5300). Find its login in
+`backend/.seed-state.json`, under
+`profiles.vollbetrieb.credentials.accounts.local` (key
+`nachbearbeitung-ohne-planung`); do not publish that credential file. It reuses
+the existing staff seed password, including `--staff-password`. The account can
+open enrollment follow-up work, correct offerings, and read the care plan
+(`config:manage`, `schedules:list`, `schedules:read`), but has no planning writes
+or wildcard permissions. After an offering correction, check both a manually
+maintained list and a class/year/group-based recurring activity: the impact
+remains readable, while “Mit Angebot verbinden” and manual removal are absent.
+The standing/visitor demo seeds and remote targets create neither this account
+nor its role; the public demo role switch and its two reduced roles stay unchanged.
+
 Seed and simulation commands keep refresh sessions in `.seed-sessions/` in
 their working directory (normally `backend/`, gitignored, private files).
 Separate commands renew the verified MFA session and switch schools through
