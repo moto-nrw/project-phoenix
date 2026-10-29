@@ -133,9 +133,18 @@ kill_tree() {
   for pid in $(tree_pids "$1"); do kill "$pid" 2>/dev/null || true; done
 }
 
+process_identity() {
+  local identity
+  identity=$(LC_ALL=C ps -o lstart= -p "$1" 2>/dev/null) || return 1
+  read -r identity <<< "$identity"
+  [ -n "$identity" ] || return 1
+  printf '%s\n' "$identity"
+}
+
 stop_native() {
-  local name pidfile pid pids='' pending state deadline i
-  local names=() roots=()
+  local name pidfile pid pending state deadline i identity current
+  local tracking="$STATE/stopping-pids"
+  local names=() roots=() pids=() identities=()
   require_tools pgrep ps
   # Snapshot both trees before TERM: children can outlive their launcher, and
   # the old supervisor may remove PID files as soon as a launcher exits.
@@ -146,23 +155,60 @@ stop_native() {
     [[ $pid =~ ^[1-9][0-9]*$ ]] || die "invalid PID in $pidfile"
     names+=("$name")
     roots+=("$pid")
-    pids="$pids $(tree_pids "$pid")"
   done
-  for pid in $pids; do kill "$pid" 2>/dev/null || true; done
+  if [ -f "$tracking" ]; then
+    # The supervisor owns launcher PID files, but never this shutdown snapshot.
+    # Do not recapture trees on retry: their roots may already be gone or reused.
+    while read -r pid identity; do
+      [[ $pid =~ ^[1-9][0-9]*$ ]] && [ -n "$identity" ] || die "invalid process identity in $tracking"
+      pids+=("$pid")
+      identities+=("$identity")
+    done < "$tracking"
+  else
+    for i in "${!roots[@]}"; do
+      for pid in $(tree_pids "${roots[$i]}"); do
+        if ! identity=$(process_identity "$pid"); then
+          ! kill -0 "$pid" 2>/dev/null || die "cannot identify native process $pid"
+          continue
+        fi
+        pids+=("$pid")
+        identities+=("$identity")
+      done
+    done
+    if [ "${#pids[@]}" -gt 0 ]; then
+      # Persist before signaling, so a timeout or interrupted stop is retryable.
+      for i in "${!pids[@]}"; do
+        printf '%s %s\n' "${pids[$i]}" "${identities[$i]}"
+      done > "$tracking.tmp"
+      mv -f "$tracking.tmp" "$tracking"
+    fi
+  fi
+  for i in "${!pids[@]}"; do
+    pid=${pids[$i]}
+    if ! current=$(process_identity "$pid"); then
+      ! kill -0 "$pid" 2>/dev/null || die "cannot identify native process $pid"
+      continue
+    fi
+    [ "$current" != "${identities[$i]}" ] || kill "$pid" 2>/dev/null || true
+  done
   deadline=$((SECONDS + 10))
   while true; do
     pending=''
-    for pid in $pids; do
+    for i in "${!pids[@]}"; do
+      pid=${pids[$i]}
       kill -0 "$pid" 2>/dev/null || continue
+      current=$(process_identity "$pid") || current=${identities[$i]}
+      [ "$current" = "${identities[$i]}" ] || continue
       # Zombies have exited and cannot write; their parent still has to reap
       # them. A failed ps lookup is inconclusive, so keep waiting in that case.
       state=$(ps -o stat= -p "$pid" 2>/dev/null) || state='unknown'
       [[ $state == *Z* ]] || pending="$pending $pid"
     done
     [ -n "$pending" ] || break
-    [ "$SECONDS" -lt "$deadline" ] || die "timed out waiting for native processes to stop (PIDs:$pending); PID files retained"
+    [ "$SECONDS" -lt "$deadline" ] || die "timed out waiting for native processes to stop (PIDs:$pending); shutdown tracking retained"
     sleep 0.1
   done
+  rm -f "$tracking"
   for i in "${!names[@]}"; do
     name=${names[$i]}
     pidfile="$STATE/$name.pid"

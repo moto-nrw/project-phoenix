@@ -14,7 +14,7 @@ function fixture(t, { tools = ['go', 'air', 'node'], env = {}, occupiedPort = ''
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const bin = join(root, 'bin');
   mkdirSync(bin);
-  for (const command of ['bash', 'mkdir', 'rm', 'cat', 'tee', 'sed', 'pgrep', 'ps', 'tail', 'awk', 'head', 'tr', 'sleep']) {
+  for (const command of ['bash', 'mkdir', 'rm', 'mv', 'cat', 'tee', 'sed', 'pgrep', 'ps', 'tail', 'awk', 'head', 'tr', 'sleep']) {
     const host = process.env.PATH.split(':').map(directory => join(directory, command)).find(existsSync);
     assert.ok(host, `Missing host utility ${command}`);
     symlinkSync(host, join(bin, command));
@@ -106,13 +106,15 @@ async function stop(runner) {
 
 // The launcher exits on TERM, but its child can keep writing during shutdown.
 // Use real processes and a private cache; no application or network is involved.
-function delayedFrontend(f, { ignoreTerm = false } = {}) {
+function delayedFrontend(f, { ignoreTerm = false, launcherExits = false } = {}) {
   mkdirSync(join(f.root, 'frontend/.next'));
   writeFileSync(join(f.root, 'frontend/.next/original'), 'keep on timeout');
   writeFileSync(join(f.root, 'dummy.mjs'), `
 import { spawn } from 'node:child_process';
 spawn(process.execPath, ['-e', ${JSON.stringify(`
 const { writeFileSync } = require('node:fs');
+writeFileSync(process.env.FIXTURE_ROOT + '/child.pid', String(process.pid));
+process.on('SIGUSR1', () => process.exit(0));
 process.on('SIGTERM', () => {
   ${ignoreTerm ? '' : `setTimeout(() => {
     writeFileSync(process.env.FIXTURE_ROOT + '/frontend/.next/late-write', 'shutdown');
@@ -123,7 +125,7 @@ process.on('SIGTERM', () => {
 setInterval(() => {}, 1000);
 console.log('fixture-ready:node');
 `)}], { stdio: 'inherit' });
-${ignoreTerm ? "process.on('SIGTERM', () => {});" : ''}
+${ignoreTerm && !launcherExits ? "process.on('SIGTERM', () => {});" : ''}
 `);
   f.tool('node', 'exec "$FIXTURE_NODE" "$FIXTURE_ROOT/dummy.mjs"');
 }
@@ -155,6 +157,45 @@ test('down timeout preserves the cache and PID file and prevents restart', { tim
   assert.equal(readFileSync(join(f.root, 'frontend/.next/original'), 'utf8'), 'keep on timeout');
   assert.equal(existsSync(join(f.root, 'restarted')), false);
   assert.equal(existsSync(join(f.root, 'tmp/dev-native/frontend.pid')), true);
+});
+
+test('down retries keep tracking a surviving child after its launcher and supervisor exit', { timeout: 35000 }, async t => {
+  const f = fixture(t, { tools: ['node'] });
+  delayedFrontend(f, { ignoreTerm: true, launcherExits: true });
+  const runner = f.start(['up', 'frontend'], ['node']);
+  await runner.ready;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const result = await f.resetCache(attempt === 0 ? '/bin/bash' : join(f.bin, 'bash'));
+    assert.equal(result.code, 1, `attempt ${attempt + 1}: ${result.output}`);
+    assert.match(result.output, /timed out.*stop/i);
+    assert.equal(readFileSync(join(f.root, 'frontend/.next/original'), 'utf8'), 'keep on timeout');
+    assert.equal(existsSync(join(f.root, 'restarted')), false);
+    assert.equal(existsSync(join(f.root, 'tmp/dev-native/stopping-pids')), true);
+  }
+  assert.equal(existsSync(join(f.root, 'tmp/dev-native/frontend.pid')), false, 'the supervisor removed the launcher PID');
+  process.kill(Number(readFileSync(join(f.root, 'child.pid'), 'utf8')), 'SIGUSR1');
+  await runner.closed;
+  const result = await f.resetCache();
+  assert.equal(result.code, 0, result.output);
+  assert.equal(existsSync(join(f.root, 'frontend/.next')), false);
+  assert.equal(readFileSync(join(f.root, 'restarted'), 'utf8'), 'restarted');
+  assert.equal(existsSync(join(f.root, 'tmp/dev-native/stopping-pids')), false);
+});
+
+test('down ignores a persisted PID whose start time no longer matches', async t => {
+  const f = fixture(t, { tools: [] });
+  const unrelated = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  const closed = new Promise(resolve => unrelated.on('close', resolve));
+  t.after(async () => { unrelated.kill('SIGKILL'); await closed; });
+  const state = join(f.root, 'tmp/dev-native');
+  mkdirSync(state, { recursive: true });
+  writeFileSync(join(state, 'stopping-pids'), `${unrelated.pid} Thu Jan 1 00:00:00 1970\n`);
+  const result = f.run('down');
+  assert.equal(result.status, 0, result.stderr);
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(unrelated.signalCode, null, 'an unrelated process must not be terminated');
+  assert.doesNotThrow(() => process.kill(unrelated.pid, 0), 'an unrelated process must not be signaled');
+  assert.equal(existsSync(join(state, 'stopping-pids')), false);
 });
 
 test('default up starts both services, bounds Go children and cleans up on termination', { timeout: 10000 }, async t => {
