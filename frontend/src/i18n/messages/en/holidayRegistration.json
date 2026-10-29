@@ -76,6 +76,8 @@
   "contributionTotal": "Total",
   "benefitsLabel": "We receive benefits, for example Bürgergeld, housing benefit (Wohngeld) or child supplement (Kinderzuschlag).",
   "benefitsHint": "Then holiday care is free. The provider needs proof of this.",
+  "benefitsProofLabel": "Proof of benefits",
+  "benefitsProofHint": "Optional. Upload the Bürgergeld notice here, for example. You can also hand it to the provider later.",
   "guest": "Holiday guest",
   "none": "Not given",
   "back": "Back and change",

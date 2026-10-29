@@ -18,6 +18,7 @@ import {
   schoolNames,
 } from "~/components/traeger/holiday-registration-format";
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
+import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
@@ -236,6 +237,10 @@ export default function TraegerHolidayRegistrationPage() {
             onExemptionChange={changeExemption}
             onChanged={changed}
             onConfirmed={load}
+          />
+          <HolidayRegistrationProofCard
+            periodId={periodId}
+            registration={registration}
           />
           {contribution &&
           (registration.status !== "cancelled" || contribution.frozen) ? (

@@ -280,6 +280,40 @@ describe("Träger file proxy (#4655)", () => {
     );
   });
 
+  it("keeps the sandbox of an inline file a parent uploaded (#5238)", async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response("%PDF-1.4", {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": 'inline; filename="bescheid.pdf"',
+          "Content-Security-Policy": "sandbox; default-src 'none'",
+          "X-Content-Type-Options": "nosniff",
+          "Cache-Control": "private, no-store",
+        },
+      }),
+    );
+
+    const response = await proxyFile(
+      "/traeger/holiday-periods/1/registrations/2/proofs/3",
+    )(
+      new NextRequest(
+        "http://localhost:3000/api/traeger/holiday-periods/1/registrations/2/proofs/3",
+      ),
+      context,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-security-policy")).toBe(
+      "sandbox; default-src 'none'",
+    );
+    expect(response.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(response.headers.get("content-disposition")).toBe(
+      'inline; filename="bescheid.pdf"',
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
   it("keeps the problem body of a refused export", async () => {
     mockFetch.mockResolvedValueOnce(
       Response.json(

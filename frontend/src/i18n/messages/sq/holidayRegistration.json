@@ -76,6 +76,8 @@
   "contributionTotal": "Gjithsej",
   "benefitsLabel": "Ne marrim ndihma, për shembull Bürgergeld, ndihmë për banesën (Wohngeld) ose shtesë për fëmijën (Kinderzuschlag).",
   "benefitsHint": "Atëherë kujdesi gjatë pushimeve është falas. Organizatori ka nevojë për një vërtetim.",
+  "benefitsProofLabel": "Dëshmia për ndihmat",
+  "benefitsProofHint": "Me dëshirë: mund ta ngarkoni dëshminë menjëherë këtu, për shembull vendimin për Bürgergeld. Mund ta dorëzoni edhe më vonë te organizatori.",
   "guest": "Mysafir për pushimet",
   "none": "Pa të dhëna",
   "back": "Kthehu dhe ndrysho",

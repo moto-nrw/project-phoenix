@@ -12,6 +12,7 @@ import type {
   HolidayFormField,
   HolidayFormVersion,
 } from "~/lib/holiday-form-field";
+import type { NewUploadValue } from "~/lib/enrollment-uploads";
 import type {
   HolidayContactPayload,
   HolidayKnownChild,
@@ -71,6 +72,11 @@ export interface RegistrationDraft {
   readonly bindingConfirmed: boolean;
   /** The family receives benefits; the Träger checks it (#4664). */
   readonly benefitsDeclared: boolean;
+  /**
+   * The proofs of the benefits the parent uploaded (#5238); optional, the
+   * Träger-Büro may still collect them later.
+   */
+  readonly benefitsProofs: readonly NewUploadValue[];
   /** Answers to the Träger's questions per family, by key (#5198). */
   readonly answers: Readonly<Record<string, unknown>>;
 }
@@ -125,6 +131,7 @@ export function emptyRegistration(): RegistrationDraft {
     healthConsent: false,
     bindingConfirmed: false,
     benefitsDeclared: false,
+    benefitsProofs: [],
     answers: {},
   };
 }
@@ -543,6 +550,9 @@ export function payloadFromDraft(
     health_consent: hasHealthInfo(draft, offer.form) && draft.healthConsent,
     binding_confirmed: offer.binding && draft.bindingConfirmed,
     benefits_declared: draft.benefitsDeclared,
+    benefits_proof_tokens: draft.benefitsDeclared
+      ? draft.benefitsProofs.map((proof) => proof.token)
+      : [],
     captcha_token: captchaToken,
     form_version: offer.form.version,
     custom_data: familyAnswersToSend(draft, offer.form),

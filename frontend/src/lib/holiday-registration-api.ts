@@ -16,6 +16,7 @@ import {
   contributionFromBackend,
   type HolidayContribution,
 } from "~/lib/holiday-contribution";
+import { type NewUploadValue, postUpload } from "~/lib/enrollment-uploads";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "HolidayRegistrationApi" });
@@ -123,6 +124,8 @@ export interface HolidayRegistrationPayload {
   readonly health_consent: boolean;
   readonly binding_confirmed: boolean;
   readonly benefits_declared: boolean;
+  /** Tokens of the uploaded proofs of benefits (#5238). */
+  readonly benefits_proof_tokens: readonly string[];
   readonly captcha_token: string;
   /** The form version the parent answered (#5198). */
   readonly legal_acceptances?: Readonly<Record<string, boolean>>;
@@ -207,6 +210,21 @@ export async function fetchHolidayRegistrationOffer(
   }
   const body = (await response.json()) as { data: BackendOffer };
   return offerFromBackend(body.data);
+}
+
+/**
+ * Uploads one proof of benefits through the public link (#5238). Like the
+ * uploads of the online registration, the answer's token is single-use and
+ * claimed by the registration.
+ */
+export function uploadHolidayProof(
+  token: string,
+  file: File,
+  signal?: AbortSignal,
+): Promise<NewUploadValue> {
+  const body = new FormData();
+  body.append("file", file);
+  return postUpload(`${registrationPath(token)}/uploads`, body, file, signal);
 }
 
 export async function submitHolidayRegistration(

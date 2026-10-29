@@ -76,6 +76,8 @@
   "contributionTotal": "Genel toplam",
   "benefitsLabel": "Sosyal yardım alıyoruz, örneğin Bürgergeld, konut yardımı (Wohngeld) veya çocuk ek ödeneği (Kinderzuschlag).",
   "benefitsHint": "O zaman tatil bakımı ücretsizdir. Kurumun bunun için bir belgeye ihtiyacı var.",
+  "benefitsProofLabel": "Yardım belgesi",
+  "benefitsProofHint": "İsteğe bağlı: Belgeyi hemen buraya yükleyebilirsiniz, örneğin Bürgergeld kararını. Belgeyi daha sonra kuruma da verebilirsiniz.",
   "guest": "Tatil misafiri",
   "none": "Bilgi yok",
   "back": "Geri dön ve değiştir",

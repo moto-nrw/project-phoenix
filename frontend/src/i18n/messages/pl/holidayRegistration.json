@@ -76,6 +76,8 @@
   "contributionTotal": "Razem",
   "benefitsLabel": "Otrzymujemy świadczenia, na przykład Bürgergeld, dodatek mieszkaniowy (Wohngeld) lub dodatek na dziecko (Kinderzuschlag).",
   "benefitsHint": "Wtedy opieka w ferie jest bezpłatna. Organizator potrzebuje na to dowodu.",
+  "benefitsProofLabel": "Dokument potwierdzający świadczenia",
+  "benefitsProofHint": "Dobrowolnie: możesz od razu przesłać tutaj dokument, na przykład decyzję o Bürgergeld. Możesz też przekazać go później organizatorowi.",
   "guest": "Gość na ferie",
   "none": "Brak danych",
   "back": "Wróć i zmień",

@@ -49,6 +49,8 @@ import { HolidayRegistrationSummary } from "./holiday-registration-summary";
 
 /** The code of a refusal because the Träger changed the form (#5198). */
 const FORM_CHANGED = "enrollment.holiday_registration_form_changed";
+/** The code of a proof whose upload no longer counts (#5238). */
+const UPLOAD_EXPIRED = "enrollment.upload_expired";
 
 const logger = createLogger({ component: "HolidayRegistrationForm" });
 
@@ -122,6 +124,10 @@ export function HolidayRegistrationForm({
         setDraft((current) => ({ ...current, legalAcceptances: {} }));
         await onFormChanged?.();
       }
+      // The parent uploads the proof again; the old token claims nothing.
+      if (err instanceof ApiError && err.code === UPLOAD_EXPIRED) {
+        setDraft((current) => ({ ...current, benefitsProofs: [] }));
+      }
       void errorPath.show(err, { object: t("errorObject") });
     } finally {
       setSubmitting(false);
@@ -170,6 +176,9 @@ export function HolidayRegistrationForm({
         onSubmit={() => void submit()}
         onBenefitsDeclaredChange={(benefitsDeclared) =>
           setDraft((current) => ({ ...current, benefitsDeclared }))
+        }
+        onBenefitsProofsChange={(benefitsProofs) =>
+          setDraft((current) => ({ ...current, benefitsProofs }))
         }
       />
     );

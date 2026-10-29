@@ -5805,6 +5805,7 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie `Weiter zur Zusammenfassung`.",
         "Prüfen Sie alles. Unter `Beitrag` steht, was die Ferienbetreuung kostet.",
         "Bekommen Sie Leistungen wie Bürgergeld, Wohngeld oder Kinderzuschlag? Dann setzen Sie den Haken unter `Beitrag`, wenn er angeboten wird.",
+        "Sie können den Nachweis gleich darunter hochladen. Wählen Sie bei `Nachweis über die Leistungen` den Knopf `Datei auswählen`. Erlaubt sind PDF, JPG und PNG.",
         "Wählen Sie dann `Anmeldung absenden`.",
       ],
       result:
@@ -5815,6 +5816,7 @@ export const parentHolidayRegistrationTopic =
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
         "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
+        "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
       ],
       differences: [
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
@@ -9572,7 +9574,7 @@ export const traegerHolidayRegistrationReviewTopic =
             "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
-            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, öffnen Sie ihn unter `Nachweis für den Leistungsbezug` mit `Öffnen`. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
             "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
           ],
@@ -9608,6 +9610,7 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
+        "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
         "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
       ],
