@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayFormDocumentsVersion = "1.15.707"
+const holidayFormDocumentsVersion = "1.15.711"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

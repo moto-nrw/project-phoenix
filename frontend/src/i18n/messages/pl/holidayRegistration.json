@@ -33,6 +33,8 @@
   "notBooked": "Bez zgłoszenia",
   "weekRange": "{starts} do {ends}",
   "timeModel": "{name} ({startsAt} do {endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt} do {endsAt})",
+  "weeksPriceText": "Cena dotyczy jednego tygodnia i jednego dziecka, bez zniżki ani zwolnienia. Twoją opłatę zobaczysz w podsumowaniu.",
   "healthTitle": "Zdrowie (dobrowolnie)",
   "healthText": "Te informacje widzi tylko opieka.",
   "allergies": "Alergie i nietolerancje",

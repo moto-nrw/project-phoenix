@@ -19,7 +19,7 @@ export function parentHolidayRegistrationTopic(): HelpTopic {
       "Öffnen Sie den Link.",
       "Tragen Sie unter `Kinder` Vorname, Nachname und Geburtsdatum ein.",
       "Wählen Sie die `Schule` Ihres Kindes. Steht sie nicht in der Liste? Wählen Sie `Eine andere Schule`.",
-      "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt.",
+      "Wählen Sie unter `Wochen` für jede Woche, wie lange Ihr Kind bleibt. Bei jeder Zeit steht der Preis pro Woche.",
       "Weitere Kinder fügen Sie mit `Geschwisterkind hinzufügen` hinzu.",
       "Tragen Sie `Ihre Angaben` und die `Notfallkontakte` ein.",
       "Sie können eine `Zweite sorgeberechtigte Person` angeben. Dann sind Vorname und Nachname nötig. E-Mail und Telefon sind freiwillig.",
@@ -36,6 +36,7 @@ export function parentHolidayRegistrationTopic(): HelpTopic {
       "Ein Elternkonto brauchen Sie nicht.",
       "Gesundheitsangaben sind freiwillig. Nur die Betreuung sieht sie.",
       "Ein Kind von einer anderen Schule kommt als Feriengast.",
+      "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
       "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
     ],
     differences: [

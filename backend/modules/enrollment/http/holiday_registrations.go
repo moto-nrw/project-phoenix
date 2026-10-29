@@ -51,14 +51,16 @@ type HolidayRegistrationSchool struct {
 	Name string `json:"name"`
 }
 
-// HolidayRegistrationTimeModel is a bookable care time of a week. Its price
-// reaches the parents only as part of the contribution the Elternabrechnung
-// computes for the summary (#4664).
+// HolidayRegistrationTimeModel is a bookable care time of a week with its
+// price per week (#5237). The price is the base line the Elternabrechnung
+// writes for this booking in the summary (#4664); sibling and exemption
+// rules apply only there.
 type HolidayRegistrationTimeModel struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	StartsAt string `json:"starts_at"`
-	EndsAt   string `json:"ends_at"`
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	StartsAt   string `json:"starts_at"`
+	EndsAt     string `json:"ends_at"`
+	PriceCents int64  `json:"price_cents"`
 }
 
 // HolidayRegistrationWeek is a bookable week with the name of its host school.
@@ -239,7 +241,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 	for _, week := range offer.Weeks {
 		models := make([]HolidayRegistrationTimeModel, 0, len(week.TimeModels))
 		for _, model := range week.TimeModels {
-			models = append(models, HolidayRegistrationTimeModel{ID: model.ID, Name: model.Name, StartsAt: model.StartsAt, EndsAt: model.EndsAt})
+			models = append(models, HolidayRegistrationTimeModel(model))
 		}
 		weeks = append(weeks, HolidayRegistrationWeek{
 			ID: week.ID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolName: names[week.HostSchoolID], TimeModels: models,
