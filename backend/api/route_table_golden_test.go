@@ -402,6 +402,7 @@ func TestFullProductionRouterGolden(t *testing.T) {
 		require.NotNil(t, runtime.worker)
 		handler, ok := runtime.Handler().(*serveHandler)
 		require.True(t, ok)
+		testpkg.AdoptPrivatePool(t, runtime.db.Pool()) // before any request or Worker uses the pool
 		api := &goldenRuntime{handler: handler, router: handler.router, db: runtime.db}
 		if *runtimeCheckpointOutput != "" {
 			measureRuntimeCheckpoint(t, runtime)

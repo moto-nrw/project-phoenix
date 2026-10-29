@@ -378,7 +378,8 @@ const seedHolidayRegistrationsSkippedKey = "traeger.holiday_registrations_skippe
 
 // seedHolidayRegistration builds the public registration of two siblings for
 // the published period: a child of homeSchool for the first week and a
-// holiday guest for both weeks. All names are invented.
+// holiday guest for both weeks, with answers to the questions of the
+// period's standard template (#5198). All names are invented.
 func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[string]any, error) {
 	var envelope struct {
 		Data struct {
@@ -406,9 +407,13 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"guardian":        map[string]any{"first_name": "Sabine", "last_name": "Ferienkind", "email": "sabine.ferienkind@example.org", "phone": "0151 0000001"},
 		"children": []map[string]any{
 			{"first_name": "Lotta", "last_name": "Ferienkind", "birth_date": "2018-04-12", "home_school_id": homeSchool,
-				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)}},
+				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)},
+				"custom_data": map[string]any{"lebensmittelunvertraeglichkeiten": "Laktose", "tetanus_impfschutz": "ja",
+					"darf_allein_nach_hause": false, "darf_an_ausfluegen_teilnehmen": true}},
 			{"first_name": "Jonas", "last_name": "Ferienkind", "birth_date": "2016-09-03", "home_school_id": 0,
-				"guest_school_name": "Grundschule am See", "bookings": []map[string]any{booking(0, 0), booking(1, 0)}},
+				"guest_school_name": "Grundschule am See", "bookings": []map[string]any{booking(0, 0), booking(1, 0)},
+				"custom_data": map[string]any{"tetanus_impfschutz": "weiss_nicht", "darf_allein_nach_hause": true,
+					"darf_an_ausfluegen_teilnehmen": true}},
 		},
 		"emergency_contacts": []map[string]any{{"name": "Helga Ferienkind", "phone": "05402 000002", "relationship": "Großmutter"}},
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},

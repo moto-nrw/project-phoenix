@@ -91,6 +91,10 @@
     "weeks": "Lütfen en az bir hafta seçin.",
     "privacy": "Lütfen onay verin. Aksi halde kurum kaydı işleyemez.",
     "health": "Lütfen onay verin veya sağlık bilgilerini silin.",
-    "binding": "Lütfen kaydın bağlayıcı olduğunu onaylayın."
-  }
+    "binding": "Lütfen kaydın bağlayıcı olduğunu onaylayın.",
+    "yesNo": "Lütfen evet veya hayır seçin.",
+    "choose": "Lütfen bir cevap seçin."
+  },
+  "childQuestionsTitle": "Diğer bilgiler",
+  "familyQuestionsTitle": "Aileniz hakkında diğer bilgiler"
 }

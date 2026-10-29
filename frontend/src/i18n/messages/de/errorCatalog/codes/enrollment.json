@@ -133,5 +133,7 @@
   "holiday_week_booked": "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen.",
   "hosted_holiday_week_not_found": "Für diese Woche gibt es keine Teilnehmerliste mehr. Sie ist nur bis zum letzten Tag der Woche da.",
   "holiday_guest_not_found": "Die Angaben zu diesem Feriengast sind nicht mehr da. Sie bleiben nur bis 7 Tage nach der Ferienwoche.",
-  "holiday_guest_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe."
+  "holiday_guest_group_invalid": "Diese Gruppe gibt es nicht mehr. Bitte wählen Sie eine andere Gruppe.",
+  "holiday_form_field_not_allowed": "Diese Frage geht im Formular der Ferienanmeldung nicht. Bitte wählen Sie einen anderen Typ oder eine andere Bedingung.",
+  "holiday_registration_form_changed": "Der Träger hat das Formular gerade geändert. Bitte prüfen Sie Ihre Angaben und senden Sie die Anmeldung noch einmal."
 }

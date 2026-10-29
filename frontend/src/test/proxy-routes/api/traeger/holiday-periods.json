@@ -33,5 +33,9 @@
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/reopen": [
     "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/reopen"
+  ],
+  "api/traeger/holiday-periods/[id]/form": [
+    "GET traeger /traeger/holiday-periods/id%2F1/form",
+    "PUT traeger /traeger/holiday-periods/id%2F1/form"
   ]
 }

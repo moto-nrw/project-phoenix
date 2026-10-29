@@ -14,14 +14,18 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import {
   type HolidayKnownFamily,
   type HolidayRegistrationOffer,
   submitHolidayRegistration,
 } from "~/lib/holiday-registration-api";
 import { createLogger } from "~/lib/logger";
+import { isFieldVisible } from "~/lib/enrollment-field-visibility";
 import {
+  childContext,
   emptyChild,
+  familyContext,
   type FieldErrorKey,
   hasHealthInfo,
   MAX_CHILDREN,
@@ -39,7 +43,11 @@ import {
   KnownChildPicker,
   SecondGuardianCard,
 } from "./holiday-registration-sections";
+import { HolidayQuestions } from "./holiday-registration-questions";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
+
+/** The code of a refusal because the Träger changed the form (#5198). */
+const FORM_CHANGED = "enrollment.holiday_registration_form_changed";
 
 const logger = createLogger({ component: "HolidayRegistrationForm" });
 
@@ -49,11 +57,17 @@ export function HolidayRegistrationForm({
   token,
   offer,
   family = null,
+  onFormChanged,
 }: Readonly<{
   token: string;
   offer: HolidayRegistrationOffer;
   /** What the schools know of a parent with an account (#4662). */
   family?: HolidayKnownFamily | null;
+  /**
+   * Loads the offer again after the Träger changed the form (#5198). The
+   * answers stay: they are kept by the key of their question.
+   */
+  onFormChanged?: () => Promise<void>;
 }>) {
   const t = useTranslations("holidayRegistration");
   const formRef = useRef<HTMLFormElement>(null);
@@ -103,6 +117,9 @@ export function HolidayRegistrationForm({
       // The answer may name a field; the form shows it where it is.
       setStep("form");
       setCaptchaToken("");
+      if (err instanceof ApiError && err.code === FORM_CHANGED) {
+        await onFormChanged?.();
+      }
       void errorPath.show(err, { object: t("errorObject") });
     } finally {
       setSubmitting(false);
@@ -156,6 +173,12 @@ export function HolidayRegistrationForm({
     );
   }
 
+  const familyQuestions = offer.form.fields.filter(
+    (field) => !field.applies_to_child,
+  );
+  const childQuestions = offer.form.fields.filter(
+    (field) => field.applies_to_child,
+  );
   const setGuardian = (patch: Partial<RegistrationDraft["guardian"]>) =>
     setDraft({ ...draft, guardian: { ...draft.guardian, ...patch } });
 
@@ -190,6 +213,8 @@ export function HolidayRegistrationForm({
               child={child}
               offer={offer}
               removable={draft.children.length > 1}
+              questions={childQuestions}
+              questionContext={childContext(draft, child, offer.form)}
               fieldError={fieldError}
               onChange={(next) =>
                 setDraft({
@@ -277,6 +302,25 @@ export function HolidayRegistrationForm({
         fieldError={fieldError}
         onChange={(secondGuardian) => setDraft({ ...draft, secondGuardian })}
       />
+      {familyQuestions.some((field) =>
+        isFieldVisible(field, familyContext(draft, offer.form)),
+      ) ? (
+        <SectionCard title={t("familyQuestionsTitle")}>
+          <HolidayQuestions
+            fields={familyQuestions}
+            answers={draft.answers}
+            context={familyContext(draft, offer.form)}
+            prefix=""
+            fieldError={fieldError}
+            onChange={(key, value) =>
+              setDraft({
+                ...draft,
+                answers: { ...draft.answers, [key]: value },
+              })
+            }
+          />
+        </SectionCard>
+      ) : null}
 
       <ContactList
         kind="emergency_contacts"
@@ -307,7 +351,7 @@ export function HolidayRegistrationForm({
               setDraft({ ...draft, privacyConsent })
             }
           />
-          {hasHealthInfo(draft) ? (
+          {hasHealthInfo(draft, offer.form) ? (
             <ConsentCheckbox
               required
               name="health_consent"

@@ -91,6 +91,10 @@
     "weeks": "Ju lutemi zgjidhni të paktën një javë.",
     "privacy": "Ju lutemi jepni pëlqimin. Përndryshe organizatori nuk mund ta përpunojë regjistrimin.",
     "health": "Ju lutemi jepni pëlqimin ose fshini të dhënat shëndetësore.",
-    "binding": "Ju lutemi konfirmoni që regjistrimi është detyrues."
-  }
+    "binding": "Ju lutemi konfirmoni që regjistrimi është detyrues.",
+    "yesNo": "Ju lutemi zgjidhni po ose jo.",
+    "choose": "Ju lutemi zgjidhni një përgjigje."
+  },
+  "childQuestionsTitle": "Të dhëna të tjera",
+  "familyQuestionsTitle": "Të dhëna të tjera për familjen"
 }

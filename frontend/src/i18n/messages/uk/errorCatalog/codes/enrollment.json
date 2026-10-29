@@ -133,5 +133,7 @@
   "holiday_week_booked": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "hosted_holiday_week_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "holiday_guest_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-  "holiday_guest_group_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані."
+  "holiday_guest_group_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "holiday_form_field_not_allowed": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "holiday_registration_form_changed": "Організатор щойно змінив форму. Будь ласка, перевірте дані й надішліть заявку ще раз."
 }
