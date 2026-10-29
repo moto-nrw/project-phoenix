@@ -165,7 +165,7 @@ describe("TraegerHolidayRegistrationPage", () => {
             required: true,
             title: "Damals gültiger Ferienbrief",
             label: "Gelesen",
-            text: "",
+            text: "Der **historische Ferienbrief** bleibt verbindlich.",
             sort_order: 0,
             attachments: [{ label: "Ferienbrief", document_url: "81" }],
           },
@@ -208,6 +208,11 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(
       evidence.getByText("Damals gültiger Ferienbrief"),
     ).toBeInTheDocument();
+    expect(evidence.getByText("Gelesen")).toBeInTheDocument();
+    expect(evidence.getByText("historische Ferienbrief")).toHaveProperty(
+      "tagName",
+      "STRONG",
+    );
     expect(
       evidence.getByText("Zugestimmt am 03.11.2026, 11:12 Uhr"),
     ).toBeInTheDocument();

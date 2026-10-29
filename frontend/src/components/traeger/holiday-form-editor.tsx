@@ -315,6 +315,7 @@ export function HolidayFormEditor({
                 }}
                 onSave={() => void save()}
                 saving={saving}
+                cancelDisabled={uploads > 0}
                 disabled={!dirty || uploads > 0}
                 cancelLabel="Änderungen verwerfen"
                 saveLabel="Als neue Version speichern"

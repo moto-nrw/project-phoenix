@@ -26,6 +26,7 @@ import {
   type AttachmentLabels,
 } from "~/components/enrollment/attachment-list";
 import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
+import { LegalMarkdown } from "~/components/enrollment/enrollment-form-consent";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -331,6 +332,12 @@ export default function TraegerHolidayRegistrationPage() {
                         <h3 className="text-sm font-semibold text-gray-900">
                           {block.title}
                         </h3>
+                        <p className="text-sm text-gray-700">{block.label}</p>
+                        {block.text.trim() ? (
+                          <div className="mt-2 text-sm text-gray-700">
+                            <LegalMarkdown text={block.text} />
+                          </div>
+                        ) : null}
                         {block.kind === "notice" && !block.required ? null : (
                           <p className="text-sm text-gray-700">
                             {at

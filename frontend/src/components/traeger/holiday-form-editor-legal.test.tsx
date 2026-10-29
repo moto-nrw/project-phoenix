@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { FormLegalBlock } from "~/lib/enrollment-form-schema-api";
 import type { HolidayFormField } from "~/lib/holiday-form-field";
@@ -31,6 +37,71 @@ const form = {
 };
 
 describe("Holiday form legal blocks", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // Invariants: pending uploads block save and discard. Once settled,
+  // discarding resets the saved form and removes every uploaded draft.
+  it("blocks discarding until an in-flight PDF is settled, then discards its draft", async () => {
+    let finishUpload!: (id: string) => void;
+    upload.mockReturnValueOnce(
+      new Promise<string>((resolve) => {
+        finishUpload = resolve;
+      }),
+    );
+    remove.mockResolvedValue(undefined);
+    const savedBlock: FormLegalBlock = {
+      key: "brief",
+      kind: "consent",
+      source: "custom",
+      enabled: true,
+      required: false,
+      title: "Ferienbrief",
+      label: "Brief gelesen",
+      text: "Der gespeicherte Wortlaut.",
+      sort_order: 0,
+      attachments: [],
+    };
+    render(
+      <ToastProvider>
+        <HolidayFormEditor
+          periodId="5"
+          form={{ ...form, legalBlocks: [savedBlock] }}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    const discard = screen.getByRole("button", {
+      name: "Änderungen verwerfen",
+    });
+    expect(discard).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "entwurf.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    expect(screen.getByText("PDFs werden hochgeladen…")).toBeInTheDocument();
+    expect(discard).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    ).toBeDisabled();
+    await act(async () => finishUpload("90"));
+    expect(screen.getByDisplayValue("entwurf")).toBeInTheDocument();
+    expect(discard).toBeEnabled();
+    fireEvent.click(discard);
+    await waitFor(() =>
+      expect(remove).toHaveBeenCalledWith("5", "90", { keepalive: true }),
+    );
+    expect(screen.getByLabelText("Rechtstext / Erklärung")).toHaveValue(
+      "Der gespeicherte Wortlaut.",
+    );
+    expect(screen.getByText("Noch keine PDFs angehängt.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    ).toBeDisabled();
+  });
+
   it("saves two required PDF notices and a voluntary text consent through the Träger upload adapter", async () => {
     upload.mockResolvedValueOnce("81").mockResolvedValueOnce("82");
     save.mockImplementation(
@@ -105,5 +176,35 @@ describe("Holiday form legal blocks", () => {
     expect(upload).toHaveBeenNthCalledWith(1, "5", expect.any(File));
     expect(upload).toHaveBeenNthCalledWith(2, "5", expect.any(File));
     expect(schoolUpload).not.toHaveBeenCalled();
+  });
+
+  it("allows discarding again when an upload fails", async () => {
+    let failUpload!: (error: Error) => void;
+    upload.mockReturnValueOnce(
+      new Promise<string>((_resolve, reject) => {
+        failUpload = reject;
+      }),
+    );
+    render(
+      <ToastProvider>
+        <HolidayFormEditor periodId="5" form={form} onSaved={vi.fn()} />
+      </ToastProvider>,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+    );
+    fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "fehler.pdf", { type: "application/pdf" }),
+        ],
+      },
+    });
+    const discard = screen.getByRole("button", {
+      name: "Änderungen verwerfen",
+    });
+    expect(discard).toBeDisabled();
+    await act(async () => failUpload(new Error("Upload fehlgeschlagen")));
+    expect(discard).toBeEnabled();
   });
 });
