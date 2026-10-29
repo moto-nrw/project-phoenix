@@ -11,7 +11,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
+// countRevisionEvents counts a school's session events. Since 1.15.710 the
+// table also holds the entry and room rows of the room scope (#5205), which
+// countAllRevisionRows includes.
 func countRevisionEvents(t *testing.T, db *bun.DB, schoolID int64) int {
+	t.Helper()
+	var rows int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM active.visit_revision_events WHERE tenant_id = ? AND active_group_id IS NOT NULL`, schoolID).Scan(t.Context(), &rows))
+	return rows
+}
+
+func countAllRevisionRows(t *testing.T, db *bun.DB, schoolID int64) int {
 	t.Helper()
 	var rows int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM active.visit_revision_events WHERE tenant_id = ?`, schoolID).Scan(t.Context(), &rows))
@@ -45,6 +55,7 @@ func TestSchoolErasureRemovesVisitRevisionEvents(t *testing.T) {
 
 	require.Equal(t, "db_done", result.Status, "preflight, deletion and residual checks pass: %v", result.ErrorCode)
 	assert.Zero(t, countRevisionEvents(t, db, school))
+	assert.Zero(t, countAllRevisionRows(t, db, school))
 	assert.Equal(t, 1, countRevisionEvents(t, db, other))
 }
 

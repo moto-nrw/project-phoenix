@@ -63,6 +63,37 @@ func moveSessionToRoom(t *testing.T, ctx context.Context, module studentpresence
 	}))
 }
 
+// roomTracker reads a room after each step and checks the step against the
+// previous read: a step that changes the room's count must raise its
+// revision, a step that changes neither count nor membership must keep it.
+type roomTracker struct {
+	t      *testing.T
+	ctx    context.Context
+	module studentpresence.Owner
+	roomID int64
+	last   countSnapshot
+}
+
+func trackRoom(t *testing.T, ctx context.Context, module studentpresence.Owner, roomID int64) *roomTracker {
+	t.Helper()
+	return &roomTracker{t: t, ctx: ctx, module: module, roomID: roomID, last: readRoomSnapshot(t, ctx, module, roomID)}
+}
+
+func (r *roomTracker) rose(count int, msg string) {
+	r.t.Helper()
+	now := readRoomSnapshot(r.t, r.ctx, r.module, r.roomID)
+	assert.Equal(r.t, count, now.count, msg)
+	assert.Greater(r.t, now.revision, r.last.revision, msg)
+	r.last = now
+}
+
+func (r *roomTracker) kept(msg string) {
+	r.t.Helper()
+	now := readRoomSnapshot(r.t, r.ctx, r.module, r.roomID)
+	assert.Equal(r.t, r.last, now, msg)
+	r.last = now
+}
+
 func TestRoomRevisionFollowsEveryRoomCountChange(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -70,54 +101,64 @@ func TestRoomRevisionFollowsEveryRoomCountChange(t *testing.T) {
 	module := newRevisionModule(t, db)
 	room := testpkg.CreateTestRoom(t, db, "Room revision")
 	elsewhere := testpkg.CreateTestRoom(t, db, "Room revision elsewhere")
+	assert.Equal(t, countSnapshot{count: 0, revision: 0}, readRoomSnapshot(t, ctx, module, room.ID), "a room without sessions starts at revision 0")
 	first := sessionInRoom(t, db, room.ID, "Room first")
 	second := sessionInRoom(t, db, room.ID, "Room second")
 	away := sessionInRoom(t, db, elsewhere.ID, "Room away")
-
-	assert.Equal(t, countSnapshot{count: 0, revision: 0}, readRoomSnapshot(t, ctx, module, room.ID), "a room starts at revision 0")
+	tracked := trackRoom(t, ctx, module, room.ID)
+	other := trackRoom(t, ctx, module, elsewhere.ID)
 
 	moving := openVisit(t, ctx, module, db, first.ID, "Moving")
+	tracked.rose(1, "a check-in into the first session raises the room")
 	openVisit(t, ctx, module, db, second.ID, "Staying")
-	assert.Equal(t, countSnapshot{count: 2, revision: 2}, readRoomSnapshot(t, ctx, module, room.ID), "both sessions raise their room")
+	tracked.rose(2, "a check-in into the second session raises the room")
 
 	exit := time.Now().Add(-time.Minute)
 	closedStudent := testpkg.CreateTestStudent(t, db, "Closed", "Room", "3a")
 	_, err := module.RecordVisit(ctx, studentpresence.Visit{StudentID: closedStudent.ID, ActiveGroupID: first.ID, EntryTime: time.Now().Add(-time.Hour), ExitTime: &exit})
 	require.NoError(t, err)
 	execSQL(t, ctx, db, "UPDATE active.groups SET last_activity = NOW() WHERE id = ?", first.ID)
-	assert.Equal(t, countSnapshot{count: 2, revision: 2}, readRoomSnapshot(t, ctx, module, room.ID), "a closed visit and a heartbeat keep the room")
+	tracked.kept("a closed visit and a heartbeat keep the room")
 
 	moved := moving
 	moved.ActiveGroupID = away.ID
 	_, err = module.ReviseVisit(ctx, moved)
 	require.NoError(t, err)
-	assert.Equal(t, countSnapshot{count: 1, revision: 3}, readRoomSnapshot(t, ctx, module, room.ID), "a visit moved out raises the room")
-	assert.Equal(t, countSnapshot{count: 1, revision: 1}, readRoomSnapshot(t, ctx, module, elsewhere.ID), "and the room it moved into")
+	tracked.rose(1, "a visit moved out raises the room")
+	other.rose(1, "and the room it moved into")
 
 	sessionBefore := readSnapshot(t, ctx, module, second.ID)
 	require.NoError(t, module.EndGroup(ctx, second.ID, time.Now()))
-	assert.Equal(t, countSnapshot{count: 0, revision: 4}, readRoomSnapshot(t, ctx, module, room.ID), "ending a session with an open visit raises the room")
+	tracked.rose(0, "ending a session with an open visit raises the room")
 	assert.Equal(t, sessionBefore, readSnapshot(t, ctx, module, second.ID), "a session end without a visit change keeps the session revision")
 
 	execSQL(t, ctx, db, "UPDATE active.groups SET end_time = NULL WHERE id = ?", second.ID)
-	assert.Equal(t, countSnapshot{count: 1, revision: 5}, readRoomSnapshot(t, ctx, module, room.ID), "reopening the session raises the room")
+	tracked.rose(1, "reopening the session raises the room")
 
 	moveSessionToRoom(t, ctx, module, db, second.ID, elsewhere.ID)
-	assert.Equal(t, countSnapshot{count: 0, revision: 6}, readRoomSnapshot(t, ctx, module, room.ID), "a session leaving the room raises it")
-	assert.Equal(t, countSnapshot{count: 2, revision: 2}, readRoomSnapshot(t, ctx, module, elsewhere.ID), "a session entering a room raises it")
+	tracked.rose(0, "a session leaving the room raises it")
+	other.rose(2, "a session entering a room raises it")
+	openVisit(t, ctx, module, db, second.ID, "After the move")
+	other.rose(3, "a check-in after the move raises the new room")
+	tracked.rose(0, "and the old room, which keeps every session it held; it never falls")
 
 	gone := sessionInRoom(t, db, room.ID, "Room deleted")
 	openVisit(t, ctx, module, db, gone.ID, "Deleted")
-	assert.Equal(t, countSnapshot{count: 1, revision: 7}, readRoomSnapshot(t, ctx, module, room.ID))
+	tracked.rose(1, "a new session's check-in raises the room")
 	require.NoError(t, module.DeleteGroup(ctx, gone.ID))
-	assert.Equal(t, countSnapshot{count: 0, revision: 8}, readRoomSnapshot(t, ctx, module, room.ID),
-		"deleting an open session with open visits raises the room once")
+	tracked.rose(0, "deleting an open session with open visits raises the room")
 
 	ended := sessionInRoom(t, db, room.ID, "Room ended deleted")
 	execSQL(t, ctx, db, "UPDATE active.groups SET end_time = NOW() WHERE id = ?", ended.ID)
-	afterEnd := readRoomSnapshot(t, ctx, module, room.ID)
+	tracked.rose(0, "starting and ending an empty session may raise the room")
 	require.NoError(t, module.DeleteGroup(ctx, ended.ID))
-	assert.Equal(t, afterEnd, readRoomSnapshot(t, ctx, module, room.ID), "deleting an ended session keeps the room")
+	tracked.kept("deleting an ended session keeps the room")
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		_, err := module.EndGroupSessions(txCtx, nil, time.Now())
+		return err
+	}))
+	tracked.kept("folding the deleted sessions into room rows keeps the room")
+	other.kept("and the other room")
 }
 
 func TestRoomRevisionStaysInsideTheSchool(t *testing.T) {
@@ -132,7 +173,9 @@ func TestRoomRevisionStaysInsideTheSchool(t *testing.T) {
 		foreignRoom = testpkg.CreateTestRoom(t, db, "Foreign room revision").ID
 		group := sessionInRoom(t, db, foreignRoom, "Foreign room")
 		openVisit(t, foreignCtx, module, db, group.ID, "Foreign")
-		require.Equal(t, countSnapshot{count: 1, revision: 1}, readRoomSnapshot(t, foreignCtx, module, foreignRoom))
+		foreign := readRoomSnapshot(t, foreignCtx, module, foreignRoom)
+		require.Equal(t, 1, foreign.count)
+		require.Positive(t, foreign.revision)
 	})
 	assert.Equal(t, countSnapshot{count: 0, revision: 0}, readRoomSnapshot(t, ctx, module, foreignRoom),
 		"another school's room shows neither its count nor its revision")
@@ -155,7 +198,7 @@ func TestRoomRevisionUnderConcurrentWriters(t *testing.T) {
 		{"poll before the scan committed", roomPollBeforeTheScanCommitted},
 		{"concurrent writers meet on the next read", roomWritersMeetOnTheNextRead},
 		{"session lifecycle racing visit writes", roomLifecycleRacingVisitWrites},
-		{"room change racing a visit write", roomChangeRacingAVisitWrite},
+		{"room change racing visit writes", roomChangeRacingVisitWrites},
 		{"room lifecycle takes no visit lock", roomLifecycleTakesNoVisitLock},
 		{"nightly close keeps room revisions", roomNightlyCloseKeepsRevisions},
 	} {
@@ -299,39 +342,71 @@ func roomLifecycleRacingVisitWrites(t *testing.T, ctx context.Context, db *bun.D
 	})
 }
 
-// roomChangeRacingAVisitWrite pins the one blur ADR
-// 0133 accepts beyond overlapping writers: a check-in that runs before its
-// session's room change commits raises the room it saw. The new room then
-// names its count before and after the check-in with one revision until its
-// next change; no revision falls.
-func roomChangeRacingAVisitWrite(t *testing.T, ctx context.Context, db *bun.DB, module studentpresence.Owner) {
-	from := testpkg.CreateTestRoom(t, db, "Room blur from")
-	to := testpkg.CreateTestRoom(t, db, "Room blur to")
-	group := sessionInRoom(t, db, from.ID, "Room blur")
-	openVisit(t, ctx, module, db, group.ID, "Present")
-	fromBefore := readRoomSnapshot(t, ctx, module, from.ID)
-	arriving := testpkg.CreateTestStudent(t, db, "Arriving", "Room blur", "3a")
+// roomChangeRacingVisitWrites drives the review finding of #5232: a visit
+// write whose statement runs before its session's room change commits, and
+// which commits after it. Every write changes the count of the room the
+// session moved into, so that room's next read must carry a higher revision
+// than the read between both commits; the room it left must not fall.
+func roomChangeRacingVisitWrites(t *testing.T, ctx context.Context, db *bun.DB, module studentpresence.Owner) {
+	for _, race := range []struct {
+		name  string
+		write func(t *testing.T, group, other *testpkg.ActiveGroupRow, present studentpresence.Visit) func(context.Context) error
+		delta int
+	}{
+		{"checkout", func(t *testing.T, _, _ *testpkg.ActiveGroupRow, present studentpresence.Visit) func(context.Context) error {
+			return func(txCtx context.Context) error {
+				_, err := module.CloseVisits(txCtx, []int64{present.ID}, time.Now())
+				return err
+			}
+		}, -1},
+		{"check-in", func(t *testing.T, group, _ *testpkg.ActiveGroupRow, _ studentpresence.Visit) func(context.Context) error {
+			arriving := testpkg.CreateTestStudent(t, db, "Arriving", "Room race", "3a")
+			return func(txCtx context.Context) error {
+				_, err := module.RecordVisit(txCtx, studentpresence.Visit{StudentID: arriving.ID, ActiveGroupID: group.ID, EntryTime: time.Now()})
+				return err
+			}
+		}, +1},
+		{"transfer into the session", func(t *testing.T, group, other *testpkg.ActiveGroupRow, _ studentpresence.Visit) func(context.Context) error {
+			openVisit(t, ctx, module, db, other.ID, "Transferred")
+			return func(txCtx context.Context) error {
+				_, err := module.TransferOpenVisits(txCtx, other.ID, group.ID)
+				return err
+			}
+		}, +1},
+	} {
+		t.Run(race.name, func(t *testing.T) {
+			from := testpkg.CreateTestRoom(t, db, "Room race from")
+			to := testpkg.CreateTestRoom(t, db, "Room race to")
+			elsewhere := testpkg.CreateTestRoom(t, db, "Room race elsewhere")
+			group := sessionInRoom(t, db, from.ID, "Room race")
+			other := sessionInRoom(t, db, elsewhere.ID, "Room race other")
+			present := openVisit(t, ctx, module, db, group.ID, "Present")
+			openVisit(t, ctx, module, db, group.ID, "Staying")
+			write := race.write(t, group, other, present)
+			fromBefore := readRoomSnapshot(t, ctx, module, from.ID)
 
-	checkin := startTx(t, ctx, db)
-	move := startTx(t, ctx, db)
-	awaitStep(t, checkin.run(func(txCtx context.Context) error {
-		_, err := module.RecordVisit(txCtx, studentpresence.Visit{StudentID: arriving.ID, ActiveGroupID: group.ID, EntryTime: time.Now()})
-		return err
-	}))
-	awaitStep(t, move.run(func(txCtx context.Context) error {
-		_, err := move.tx.NewRaw("UPDATE active.groups SET room_id = ? WHERE id = ?", to.ID, group.ID).Exec(txCtx)
-		return err
-	}))
-	move.commit(t)
-	toBetween := readRoomSnapshot(t, ctx, module, to.ID)
-	checkin.commit(t)
-	toAfter := readRoomSnapshot(t, ctx, module, to.ID)
+			writer := startTx(t, ctx, db)
+			move := startTx(t, ctx, db)
+			awaitStep(t, writer.run(write))
+			awaitStep(t, move.run(func(txCtx context.Context) error {
+				_, err := move.tx.NewRaw("UPDATE active.groups SET room_id = ? WHERE id = ?", to.ID, group.ID).Exec(txCtx)
+				return err
+			}))
+			move.commit(t)
+			fromBetween := readRoomSnapshot(t, ctx, module, from.ID)
+			toBetween := readRoomSnapshot(t, ctx, module, to.ID)
+			writer.commit(t)
+			toAfter := readRoomSnapshot(t, ctx, module, to.ID)
+			fromAfter := readRoomSnapshot(t, ctx, module, from.ID)
 
-	assert.Equal(t, countSnapshot{count: 1, revision: 1}, toBetween)
-	assert.Equal(t, countSnapshot{count: 2, revision: 1}, toAfter, "the blur: one revision of the new room names two counts")
-	assert.Greater(t, readRoomSnapshot(t, ctx, module, from.ID).revision, fromBefore.revision, "the old room rose with the move and the check-in")
-	openVisit(t, ctx, module, db, group.ID, "Later")
-	assert.Equal(t, countSnapshot{count: 3, revision: 2}, readRoomSnapshot(t, ctx, module, to.ID), "the room's next change ends the blur")
+			assert.Equal(t, 2, toBetween.count, "the moved session brought both open visits")
+			assert.Equal(t, 2+race.delta, toAfter.count)
+			assert.Greater(t, toAfter.revision, toBetween.revision, "the write changed the new room's count and raises its revision")
+			assert.Equal(t, 0, fromAfter.count)
+			assert.Greater(t, fromBetween.revision, fromBefore.revision, "the move raised the old room")
+			assert.GreaterOrEqual(t, fromAfter.revision, fromBetween.revision, "the old room never falls")
+		})
+	}
 }
 
 // roomLifecycleTakesNoVisitLock pins that the room events add no lock
@@ -380,10 +455,10 @@ func roomLifecycleTakesNoVisitLock(t *testing.T, ctx context.Context, db *bun.DB
 	assert.Equal(t, 0, readRoomSnapshot(t, ctx, module, room.ID).count)
 }
 
-// roomNightlyCloseKeepsRevisions pins the compaction for rooms: it
-// folds the events of ended sessions, of deleted sessions and the room
-// events of each room into one row per scope, keeps every room revision,
-// and leaves a concurrent writer's event as its own row.
+// roomNightlyCloseKeepsRevisions pins the compaction for rooms: it folds a
+// deleted session's events into room rows, collapses the rows of each scope,
+// keeps every room revision, and leaves a concurrent writer's event as its
+// own row, which still counts for every room its session held.
 func roomNightlyCloseKeepsRevisions(t *testing.T, ctx context.Context, db *bun.DB, module studentpresence.Owner) {
 	room := testpkg.CreateTestRoom(t, db, "Room compact")
 	other := testpkg.CreateTestRoom(t, db, "Room compact other")
@@ -400,8 +475,14 @@ func roomNightlyCloseKeepsRevisions(t *testing.T, ctx context.Context, db *bun.D
 	execSQL(t, ctx, db, "UPDATE active.groups SET end_time = NOW() WHERE id = ?", ended.ID)
 	require.NoError(t, module.DeleteGroup(ctx, deleted.ID))
 	moveSessionToRoom(t, ctx, module, db, moved.ID, other.ID)
-	roomBefore := readRoomSnapshot(t, ctx, module, room.ID)
-	otherBefore := readRoomSnapshot(t, ctx, module, other.ID)
+	roomTracked := trackRoom(t, ctx, module, room.ID)
+	otherTracked := trackRoom(t, ctx, module, other.ID)
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		_, err := module.EndGroupSessions(txCtx, []int64{running.ID, moved.ID}, time.Now())
+		return err
+	}))
+	roomTracked.rose(0, "closing and ending the running session raises the room")
+	otherTracked.rose(0, "closing and ending the moved session raises its new room")
 
 	writer := startTx(t, ctx, db)
 	awaitStep(t, writer.run(func(txCtx context.Context) error {
@@ -409,35 +490,31 @@ func roomNightlyCloseKeepsRevisions(t *testing.T, ctx context.Context, db *bun.D
 		return err
 	}))
 	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
-		_, err := module.EndGroupSessions(txCtx, []int64{running.ID, moved.ID}, time.Now())
-		return err
-	}))
-	writer.commit(t)
-
-	assert.Equal(t, countSnapshot{count: 0, revision: roomBefore.revision + 3}, readRoomSnapshot(t, ctx, module, room.ID),
-		"the compaction keeps the room revision; closing and ending the running session and the concurrent checkout raised it")
-	assert.Equal(t, countSnapshot{count: 0, revision: otherBefore.revision + 2}, readRoomSnapshot(t, ctx, module, other.ID),
-		"closing and ending the moved session raised its new room")
-	var rows []struct {
-		Session *int64 `bun:"active_group_id"`
-		Rows    int    `bun:"n"`
-	}
-	require.NoError(t, db.NewRaw(`SELECT active_group_id, count(*) AS n FROM active.visit_revision_events
-		WHERE room_id = ? GROUP BY active_group_id`, room.ID).Scan(ctx, &rows))
-	perSession := map[int64]int{}
-	for _, row := range rows {
-		key := int64(0)
-		if row.Session != nil {
-			key = *row.Session
-		}
-		perSession[key] = row.Rows
-	}
-	assert.Equal(t, map[int64]int{0: 1, ended.ID: 2, running.ID: 1, moved.ID: 1}, perSession,
-		"one row per ended session and one room row; the deleted session's events joined the room row; the concurrent writer keeps its own")
-
-	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context) error {
 		_, err := module.EndGroupSessions(txCtx, nil, time.Now())
 		return err
 	}))
-	assert.Equal(t, roomBefore.revision+3, readRoomSnapshot(t, ctx, module, room.ID).revision, "a second compaction changes no revision")
+	writer.commit(t)
+	roomAfter := readRoomSnapshot(t, ctx, module, room.ID)
+	assert.Equal(t, countSnapshot{count: 0, revision: roomTracked.last.revision + 1}, roomAfter,
+		"the compaction keeps the room revision; the concurrent late checkout of the ended session adds its own change")
+	otherTracked.kept("the compaction keeps the other room")
+
+	var rows []struct {
+		Entered *int64 `bun:"entered_group_id"`
+		Rows    int    `bun:"n"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT entered_group_id, count(*) AS n FROM active.visit_revision_events
+		WHERE room_id = ? GROUP BY entered_group_id`, room.ID).Scan(ctx, &rows))
+	perEntry := map[int64]int{}
+	for _, row := range rows {
+		key := int64(0)
+		if row.Entered != nil {
+			key = *row.Entered
+		}
+		perEntry[key] = row.Rows
+	}
+	assert.Equal(t, map[int64]int{0: 1, ended.ID: 1, running.ID: 1, moved.ID: 1}, perEntry,
+		"one entry per session the room held and one room row; the deleted session's events joined the room row")
+	assert.Equal(t, 2, countEventRows(t, db, ended.ID), "the ended session's compacted row and the concurrent writer's event")
+	assert.Zero(t, countEventRows(t, db, deleted.ID), "a deleted session's events are folded away")
 }

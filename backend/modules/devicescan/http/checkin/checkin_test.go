@@ -523,6 +523,9 @@ func TestDeviceCheckin_RoomWideCountCarriesRoomRevision(t *testing.T) {
 	staff, _, _ := k.staff(t, "Room", "Wide")
 	tag, _, _ := k.studentCard(t, "Room", "Counter", "1a")
 	roomID, _, _ := k.roomWithSession(t, "Room Wide Count Room")
+	presence := k.presence(t)
+	_, before, err := presence.CountOpenVisitsInRoomWithRevision(testpkg.Ctx(t), roomID)
+	require.NoError(t, err)
 
 	rr := k.call(t, "POST", "/checkin", checkinBody(tag, roomID), k.device(t, "room-wide-count"), staff)
 
@@ -532,10 +535,11 @@ func TestDeviceCheckin_RoomWideCountCarriesRoomRevision(t *testing.T) {
 	assert.NotContains(t, data, "active_students_revision")
 	assert.NotContains(t, data, "active_students_session_id")
 	assert.Equal(t, float64(roomID), data["active_students_room_id"])
-	var stored int64
-	require.NoError(t, k.db.NewRaw("SELECT COALESCE(sum(changes), 0) FROM active.visit_revision_events WHERE room_id = ?", roomID).Scan(testpkg.Ctx(t), &stored))
-	assert.Equal(t, float64(1), data["active_students_room_revision"], "the scan's check-in is the room's first change")
-	assert.EqualValues(t, stored, data["active_students_room_revision"], "the answer carries the committed room revision")
+	count, committed, err := presence.CountOpenVisitsInRoomWithRevision(testpkg.Ctx(t), roomID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+	assert.EqualValues(t, committed, data["active_students_room_revision"], "the answer carries the committed room revision")
+	assert.Greater(t, committed, before, "the scan's check-in raised the room revision")
 }
 
 // backdateLastActivity moves a session's heartbeat an hour into the past, so
