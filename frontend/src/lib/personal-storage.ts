@@ -89,6 +89,7 @@ export const KEPT_STORAGE_KEYS: readonly string[] = [
   "sidebar-collapsed",
   "sidebar-open-groups",
   "sidebar-accordion-expanded",
+  "traeger-sidebar-settings-open", // Träger-Einstellungen auf- oder zugeklappt (#5331)
   // Steuerwerte ohne Konto. deliberateLogout muss den Logout überleben: die
   // Login-Seite liest daraus, dass er gewollt war.
   "deliberateLogout",

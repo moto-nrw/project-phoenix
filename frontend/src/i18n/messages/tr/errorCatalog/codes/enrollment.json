@@ -86,6 +86,7 @@
   "legal_block_required_not_allowed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "legal_document_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "form_field_file_options_invalid": "Lütfen dosya sorusunu kontrol edin. En az bir dosya türü ve 1 ile 10 MB arasında bir boyut seçin.",
+  "upload_content_mismatch": "“{filename}” dosyasının içeriği dosya türüyle uyuşmuyor. Lütfen başka bir dosya seçin. Adını değiştirmek yeterli değildir.",
   "upload_invalid": "Bu dosya uygun değil. Lütfen en fazla {max_mb} MB olan izin verilen bir dosya türü seçin.",
   "upload_expired": "Yüklenen bir dosyanın süresi doldu. Lütfen dosyayı tekrar yükleyin.",
   "upload_rate_limited": "Çok fazla dosya yüklendi. Lütfen daha sonra tekrar deneyin.",

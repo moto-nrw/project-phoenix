@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { _resetTraegerHostCache } from "~/lib/traeger-url";
 import {
@@ -49,6 +55,7 @@ function settingsLinks() {
 
 describe("TraegerSidebar", () => {
   beforeEach(() => {
+    localStorage.clear();
     mockPathname.mockReturnValue("/");
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
     _resetTraegerHostCache();
@@ -155,6 +162,36 @@ describe("TraegerSidebar", () => {
     fireEvent.click(section);
     expect(section).toHaveAttribute("aria-expanded", "false");
     expect(section).toHaveAttribute("data-active", "true");
+  });
+
+  it("keeps the section collapsed after a reload on one of its pages (#5331)", async () => {
+    sessionUser.permissions = ALL_RIGHTS;
+    mockPathname.mockReturnValue("/access-log");
+    const { unmount } = render(<TraegerSidebar />);
+    fireEvent.click(bottomNav().getByRole("button", { name: "Einstellungen" }));
+    unmount();
+
+    render(<TraegerSidebar />);
+    const section = bottomNav().getByRole("button", { name: "Einstellungen" });
+    await waitFor(() =>
+      expect(section).toHaveAttribute("aria-expanded", "false"),
+    );
+    // Zugeklappt bleibt die aktive Seite an der Kopfzeile erkennbar.
+    expect(section).toHaveAttribute("data-active", "true");
+  });
+
+  it("keeps the section open after a reload outside its pages (#5331)", async () => {
+    sessionUser.permissions = ALL_RIGHTS;
+    const { unmount } = render(<TraegerSidebar />);
+    fireEvent.click(bottomNav().getByRole("button", { name: "Einstellungen" }));
+    unmount();
+
+    render(<TraegerSidebar />);
+    await waitFor(() =>
+      expect(
+        bottomNav().getByRole("button", { name: "Einstellungen" }),
+      ).toHaveAttribute("aria-expanded", "true"),
+    );
   });
 
   // Render-Budget (#2939): die Leiste ist auf jeder Seite des Portals

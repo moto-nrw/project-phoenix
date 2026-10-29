@@ -110,7 +110,18 @@ describe("mapOfferingSuggestion", () => {
       unbookedCount: 2,
       missingCount: 0,
       candidates: [{ id: "7", name: "Randstunde" }],
+      ambiguous: false,
     });
+    expect(
+      mapOfferingSuggestion({
+        suggestion: {
+          offering: { id: 7, name: "Randstunde" },
+          unbooked_count: 2,
+          missing_count: 0,
+          ambiguous: true,
+        },
+      })?.ambiguous,
+    ).toBe(true);
     expect(suggestionSelection(suggestion!)).toEqual({
       offeringIds: ["7"],
       gradeLevels: [],

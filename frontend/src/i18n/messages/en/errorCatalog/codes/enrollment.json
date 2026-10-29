@@ -86,6 +86,7 @@
   "legal_block_required_not_allowed": "{object} could not be saved. Please check your entries.",
   "legal_document_invalid": "{object} could not be saved. Please check your entries.",
   "form_field_file_options_invalid": "Please check the file question. Choose at least one file type and a size from 1 to 10 MB.",
+  "upload_content_mismatch": "The contents of “{filename}” do not match its file type. Please choose another file. Renaming it is not enough.",
   "upload_invalid": "This file does not fit. Please choose an allowed file type of at most {max_mb} MB.",
   "upload_expired": "An uploaded file has expired. Please upload it again.",
   "upload_rate_limited": "Too many files were uploaded. Please try again later.",

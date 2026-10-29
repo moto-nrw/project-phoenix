@@ -135,6 +135,7 @@ const CodeEnrollmentSignatureRequired = "enrollment.signature_required"
 const CodeEnrollmentStatusLinkInvalid = "enrollment.status_link_invalid"
 const CodeEnrollmentStudentExists = "enrollment.student_exists"
 const CodeEnrollmentSubmissionRateLimited = "enrollment.submission_rate_limited"
+const CodeEnrollmentUploadContentMismatch = "enrollment.upload_content_mismatch"
 const CodeEnrollmentUploadExpired = "enrollment.upload_expired"
 const CodeEnrollmentUploadInvalid = "enrollment.upload_invalid"
 const CodeEnrollmentUploadNotFound = "enrollment.upload_not_found"
@@ -278,6 +279,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentStatusLinkInvalid, "business_rejection"},
 	{CodeEnrollmentStudentExists, "business_rejection"},
 	{CodeEnrollmentSubmissionRateLimited, "unavailable"},
+	{CodeEnrollmentUploadContentMismatch, "input"},
 	{CodeEnrollmentUploadExpired, "input"},
 	{CodeEnrollmentUploadInvalid, "input"},
 	{CodeEnrollmentUploadNotFound, "business_rejection"},
