@@ -161,7 +161,7 @@ function childCount(count: number, singular: string, plural: string): string {
 }
 
 /** „A“, „B“ oder „C“: the names a choice is made between. */
-export function offeringChoiceNames(
+function offeringChoiceNames(
   offerings: ReadonlyArray<{ name: string }>,
 ): string {
   const names = offerings.map((offering) => `„${offering.name}“`);
