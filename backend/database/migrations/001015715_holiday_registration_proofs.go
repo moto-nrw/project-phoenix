@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayRegistrationProofsVersion = "1.15.714"
+const holidayRegistrationProofsVersion = "1.15.715"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayRegistrationProofsVersion,
 		Description: "Ferienanmeldung: Nachweis für den Leistungsbezug direkt hochladen (#5238)",
 		DependsOn: []string{
-			holidayGuestAnswerFilterVersion,          // the last migration before this one
+			staffGroupChatsVersion,                   // the last migration before this one
 			holidayRegistrationsVersion,              // the registrations and the abuse counters
 			holidayRegistrationReviewVersion,         // the audit trail that records each opened proof
 			parentBillingHolidayContributionsVersion, // holiday_registrations.benefits_declared
