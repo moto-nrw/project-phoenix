@@ -25,6 +25,17 @@ export function parentMessageTopic(): HelpTopic {
         ],
       },
       {
+        title: "Eine Unterhaltung nur für die Leitung beginnen",
+        description:
+          "Das geht nur mit dem Recht `Vertrauliche Elternnachrichten lesen` und wenn die Schule `Nachrichten nur an die Leitung (Eltern)` eingeschaltet hat.",
+        steps: [
+          "Wählen Sie unter `Nachrichten` den Knopf `Neue Nachricht`.",
+          "Wählen Sie das Kind und dann `Weiter`.",
+          "Wählen Sie bei `Wer liest auf Ihrer Seite mit?` den Punkt `Nur Leitung`.",
+          "Wählen Sie die Bezugsperson.",
+        ],
+      },
+      {
         title: "Auf eine Nachricht antworten",
         steps: [
           "Öffnen Sie die Unterhaltung im Posteingang.",
@@ -73,8 +84,11 @@ export function parentMessageTopic(): HelpTopic {
       "Möglicherweise fehlt Ihnen auch der Zugriff auf die betroffenen Kinder.",
       "Fehlen bei einer Anfrage `Anfrage ansehen` oder `Anfrage bearbeiten`? Dann dürfen Sie die Anfrage für dieses Kind nicht prüfen.",
       "Steht beim Kind `Kein Eltern-Zugang`? Dann kann niemand die Nachricht in der Eltern-App lesen. Den Zugang der Eltern legen Sie beim Kind fest.",
+      "Steht bei einer Unterhaltung `Nur Leitung`? Dann lesen sie nur die Bezugsperson und die Leitung. Begonnen hat sie die Bezugsperson oder jemand aus der Leitung. Ohne das Recht `Vertrauliche Elternnachrichten lesen` sehen Sie solche Unterhaltungen nicht.",
+      "Eltern können nur an die Leitung schreiben, wenn unter `Einstellungen` der Schalter `Nachrichten nur an die Leitung (Eltern)` an ist und jemand das Recht `Vertrauliche Elternnachrichten lesen` hat. Das Recht vergeben Sie unter `Rollen`.",
     ],
     notes: [
+      "Über dem Schreibfeld steht, wer die Unterhaltung lesen kann: die eine Bezugsperson und alle Mitarbeitenden oder nur die Leitung. Andere Bezugspersonen des Kindes lesen nicht mit.",
       "Schreiben Sie persönliche Angaben nur in die Unterhaltung der richtigen Bezugsperson.",
       "Mit `Nur ungelesen` sehen Sie nur neue Unterhaltungen.",
       "Eine als ungelesen markierte Unterhaltung bleibt für alle ungelesen, bis jemand aus dem Team sie öffnet oder antwortet.",

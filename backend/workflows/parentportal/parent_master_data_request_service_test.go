@@ -337,7 +337,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	// Every created row must have its OWN request_created pill (found by its id),
 	// so the decision path (keyed on the decided row's id) can always resolve it.
 	err = testpkg.WithTenantTx(t, testpkg.WithPackageTenantRuntime(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		thread, gErr := testpkg.TenantQuery3(t, txCtx, db, reposMessages.ParentMessageThread.GetOrCreate, chain.TenantID, chain.StudentID, chain.AccountID)
+		thread, gErr := testpkg.TenantQuery4(t, txCtx, db, reposMessages.ParentMessageThread.GetOrCreate, chain.TenantID, chain.StudentID, chain.AccountID, "team")
 		if gErr != nil {
 			return gErr
 		}

@@ -47,6 +47,11 @@ var (
 	ErrGuardianAccessRevoked = errors.New("messaging: recipient no longer has access to this child")
 	// ErrMessagingDisabled means the feature flag is off for the tenant.
 	ErrMessagingDisabled = errors.New("messaging: messaging disabled for this school")
+	// ErrInvalidAudience means the audience is neither team nor leadership.
+	ErrInvalidAudience = deliveryPorts.ErrParentMessageInvalidAudience
+	// ErrLeadershipUnavailable means no new leadership conversation may begin:
+	// the school switched the choice off or nobody holds the permission.
+	ErrLeadershipUnavailable = deliveryPorts.ErrParentMessageLeadershipUnavailable
 )
 
 // ThreadDetail is the chat-window payload: conversation header (child,
@@ -58,13 +63,19 @@ type ThreadDetail struct {
 	GuardianAccountID int64
 	GuardianName      string
 	RelationshipType  string
+	// Audience is the conversation's audience; LeadershipReaders the short
+	// names of the leadership persons when it is a leadership conversation.
+	Audience          string
+	LeadershipReaders []string
 	Messages          []*ParentMessage
 }
 
 // PersonLookup is the slice of People Directory the staff side reads: the
-// child behind a thread and the person behind a staff account.
+// child behind a thread, the person behind a staff account and the
+// leadership persons who read the leadership conversations (#5200).
 type PersonLookup interface {
 	deliveryPorts.ParentMessagePeople
+	deliveryPorts.ParentMessageLeaderDirectory
 }
 
 // Service is the staff-side messaging service.
@@ -112,6 +123,11 @@ type Config struct {
 	// audience resolves a group, class or AG to its reachable families.
 	GroupThreads  GroupThreadStore
 	GroupAudience deliveryPorts.ParentGroupAudienceReads
+
+	// Leaders lists the persons who read leadership conversations (#5200).
+	// Without it every leadership read fails as misconfigured; team
+	// conversations do not need it.
+	Leaders deliveryPorts.ParentMessageLeaderDirectory
 }
 
 // NewService wires a staff messaging service.
@@ -129,17 +145,18 @@ func NewService(cfg Config, runtime Runtime, policy deliveryPorts.ParentDelivery
 // caller: whether the caller reads children tenant-wide, and whether it may
 // read one child. The root binds it over the caller context. Without it the
 // service reads no child.
+//
+// ReadsLeadershipMessages reports whether the caller reads the conversations
+// parents addressed to the leadership only (#5200): parent_messages:leadership
+// through a role, or admin:*.
 type StudentReadAccess interface {
 	ReadsAllStudents(ctx context.Context, permissions []string) bool
 	CanReadStudent(ctx context.Context, permissions []string, student interface{ IsAuthorizationStudent() bool }) bool
+	ReadsLeadershipMessages(ctx context.Context, permissions []string) bool
 }
 
 func (s *Service) scope(ctx context.Context) bool {
-	if s.UserContext == nil {
-		return false
-	}
-	perms := s.Session.Permissions(ctx)
-	return s.UserContext.ReadsAllStudents(ctx, perms)
+	return s.reach(ctx).AllStudents
 }
 
 func (s *Service) accountID(ctx context.Context) int64 {
@@ -148,8 +165,7 @@ func (s *Service) accountID(ctx context.Context) int64 {
 
 func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*InboxThread, error) {
 	accountID := s.accountID(ctx)
-	allStudents := s.scope(ctx)
-	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, s.reach(ctx), onlyUnread)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}
@@ -215,10 +231,9 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 		return 0, nil
 	}
 	accountID := s.accountID(ctx)
-	allStudents := s.scope(ctx)
 	// The counter follows the caller's personal count scope (#3673); the inbox
 	// and the per-conversation marks do not.
-	count, err := s.scopedUnreadCount(ctx, accountID, allStudents)
+	count, err := s.scopedUnreadCount(ctx, accountID, s.reach(ctx))
 	if err != nil {
 		return 0, fmt.Errorf("messaging: unread count: %w", err)
 	}
@@ -262,6 +277,12 @@ func (s *Service) loadAuthorizedThread(ctx context.Context, threadID int64) (*Pa
 		return nil, fmt.Errorf("messaging: find thread: %w", err)
 	}
 	if thread == nil {
+		return nil, ErrThreadNotFound
+	}
+	// A leadership conversation does not exist for a caller without the
+	// permission: answer as for a missing id, before any child check could
+	// tell the two apart.
+	if thread.Audience == deliveryPorts.ParentAudienceLeadership && !s.readsLeadership(ctx) {
 		return nil, ErrThreadNotFound
 	}
 	if err := s.canReadStudent(ctx, thread.StudentID); err != nil {
@@ -311,7 +332,15 @@ func (s *Service) buildDetailFromMessages(ctx context.Context, thread *ParentMes
 		ThreadID:          thread.ID,
 		StudentID:         thread.StudentID,
 		GuardianAccountID: thread.GuardianAccountID,
+		Audience:          threadAudience(thread),
 		Messages:          messages,
+	}
+	if detail.Audience == deliveryPorts.ParentAudienceLeadership {
+		names, err := s.leaderNames(ctx)
+		if err != nil {
+			return nil, err
+		}
+		detail.LeadershipReaders = names
 	}
 	// A lookup error is a request failure, not blank metadata: GetThread has
 	// already advanced the read cursor by this point, so silently returning an
@@ -438,33 +467,10 @@ func requireHandledBoundary(visibleMessages []*ParentMessage, handledUpToMessage
 	return nil
 }
 
-// authorizeThreadParticipants enforces the shared precondition for opening or
-// starting a conversation: the staffer may read the child, messaging is enabled
-// for the tenant, and the chosen recipient is an account-holding guardian of the
-// child. StartThread and OpenThread both run it so their access rules cannot
-// drift apart. Must run inside the tenant transaction.
-func (s *Service) authorizeThreadParticipants(ctx context.Context, studentID, guardianAccountID int64) error {
-	if err := s.canReadStudent(ctx, studentID); err != nil {
-		return err
-	}
-	if err := s.requireEnabled(ctx); err != nil {
-		return err
-	}
-	// The recipient must be an account-holding guardian of this child.
-	guardians, err := s.ThreadRepo.ListGuardiansForStudent(ctx, studentID)
-	if err != nil {
-		return fmt.Errorf("messaging: list guardians: %w", err)
-	}
-	if !containsGuardian(guardians, guardianAccountID) {
-		return ErrInvalidGuardian
-	}
-	return nil
-}
-
 // StartThread sends the OGS's first message to a guardian about a child. The
 // conversation is get-or-create: if one already exists for the (student,
 // guardian) pair the message is appended to it instead of opening a second.
-func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*ThreadDetail, error) {
+func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID int64, body, audience string) (*ThreadDetail, error) {
 	body = strings.TrimSpace(body)
 	if body == "" {
 		return nil, ErrEmptyBody
@@ -477,9 +483,9 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	}
 
 	accountID := s.accountID(ctx)
-	thread, err := s.ThreadRepo.GetOrCreate(ctx, s.runtime.TenantID(ctx), studentID, guardianAccountID)
+	thread, err := s.conversationForWrite(ctx, studentID, guardianAccountID, audience)
 	if err != nil {
-		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
+		return nil, err
 	}
 	message, err := s.appendStaffMessage(ctx, thread, accountID, body)
 	if err != nil {
@@ -522,14 +528,14 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 // point for the staff WhatsApp-style flow. No message is sent; a freshly
 // created thread has no messages and is filtered out of the inbox until the
 // first reply, so opening a chat never litters the inbox.
-func (s *Service) OpenThread(ctx context.Context, studentID, guardianAccountID int64) (*ThreadDetail, error) {
+func (s *Service) OpenThread(ctx context.Context, studentID, guardianAccountID int64, audience string) (*ThreadDetail, error) {
 	if err := s.authorizeThreadParticipants(ctx, studentID, guardianAccountID); err != nil {
 		return nil, err
 	}
 
-	thread, err := s.ThreadRepo.GetOrCreate(ctx, s.runtime.TenantID(ctx), studentID, guardianAccountID)
+	thread, err := s.conversationForWrite(ctx, studentID, guardianAccountID, audience)
 	if err != nil {
-		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
+		return nil, err
 	}
 	detail, advanced, err := s.markReadAndBuild(ctx, thread)
 	if err != nil {
@@ -543,32 +549,6 @@ func (s *Service) OpenThread(ctx context.Context, studentID, guardianAccountID i
 	return detail, nil
 }
 
-func (s *Service) ListGuardians(ctx context.Context, studentID int64) ([]*MessageableGuardian, error) {
-	if err := s.canReadStudent(ctx, studentID); err != nil {
-		return nil, err
-	}
-	guardians, err := s.ThreadRepo.ListGuardiansForStudent(ctx, studentID)
-	if err != nil {
-		return nil, fmt.Errorf("messaging: list guardians: %w", err)
-	}
-	return guardians, nil
-}
-
-// ListReachableStudentIDs returns the school's children that ListGuardians
-// would offer at least one recipient for, so the child list of „Neue
-// Nachricht“ can mark the others before a child is picked (#4362). It answers
-// for every child at once, so only a caller who reads every child may ask.
-func (s *Service) ListReachableStudentIDs(ctx context.Context) ([]int64, error) {
-	if !s.scope(ctx) {
-		return nil, ErrForbidden
-	}
-	ids, err := s.ThreadRepo.ListStudentIDsWithMessageableGuardian(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("messaging: list reachable students: %w", err)
-	}
-	return ids, nil
-}
-
 // ListStudentThreads returns the staff view of one child's conversations
 // (newest activity first), for the student-detail card. Authorizes read
 // access to the child, then filters server-side instead of having the card
@@ -577,7 +557,7 @@ func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*I
 	if err := s.canReadStudent(ctx, studentID); err != nil {
 		return nil, err
 	}
-	rows, err := s.ReadRepo.ListThreadsForStudent(ctx, s.accountID(ctx), studentID)
+	rows, err := s.ReadRepo.ListThreadsForStudent(ctx, s.accountID(ctx), studentID, s.reach(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list student threads: %w", err)
 	}
@@ -676,13 +656,10 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *ParentMessag
 	guardianAccountID := thread.GuardianAccountID
 	threadID := thread.ID
 	studentID := thread.StudentID
+	audience := threadAudience(thread)
 	s.runtime.RegisterAfterCommit(ctx, func() {
-		s.broadcastValues(tenantID, guardianAccountID, threadID, studentID)
+		Broadcast(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID, audience)
 	})
-}
-
-func (s *Service) broadcastValues(tenantID, guardianAccountID, threadID, studentID int64) {
-	Broadcast(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 }
 
 // notifyGuardianDevice pushes a staff reply to the guardian's registered devices
@@ -764,16 +741,8 @@ func (s *Service) broadcastReadAfterCommit(ctx context.Context, thread *ParentMe
 	guardianAccountID := thread.GuardianAccountID
 	threadID := thread.ID
 	studentID := thread.StudentID
+	audience := threadAudience(thread)
 	s.runtime.RegisterAfterCommit(ctx, func() {
-		BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
+		BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID, audience)
 	})
-}
-
-func containsGuardian(guardians []*MessageableGuardian, accountID int64) bool {
-	for _, g := range guardians {
-		if g != nil && g.AccountID == accountID {
-			return true
-		}
-	}
-	return false
 }

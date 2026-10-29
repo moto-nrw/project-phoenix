@@ -10,6 +10,7 @@ const CodeCommunicationClassLetterReadOnly = "communication.class_letter_read_on
 const CodeCommunicationDeclarationHasSubmissions = "communication.declaration_has_submissions"
 const CodeCommunicationGroupThreadClosed = "communication.group_thread_closed"
 const CodeCommunicationGroupThreadNoRecipients = "communication.group_thread_no_recipients"
+const CodeCommunicationLeadershipMessagesUnavailable = "communication.leadership_messages_unavailable"
 const CodeCommunicationNotificationsDisabled = "communication.notifications_disabled"
 const CodeCommunicationParentNewsDisabled = "communication.parent_news_disabled"
 const CodeCommunicationPollNotOpen = "communication.poll_not_open"
@@ -37,6 +38,7 @@ var errorCodeClassesCommunication = []errorCodeClass{
 	{CodeCommunicationDeclarationHasSubmissions, "business_rejection"},
 	{CodeCommunicationGroupThreadClosed, "business_rejection"},
 	{CodeCommunicationGroupThreadNoRecipients, "business_rejection"},
+	{CodeCommunicationLeadershipMessagesUnavailable, "permission"},
 	{CodeCommunicationNotificationsDisabled, "business_rejection"},
 	{CodeCommunicationParentNewsDisabled, "permission"},
 	{CodeCommunicationPollNotOpen, "business_rejection"},

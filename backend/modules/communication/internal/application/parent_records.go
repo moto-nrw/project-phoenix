@@ -19,6 +19,7 @@ type InboxThread struct {
 	GuardianAccountID      int64            `json:"guardian_account_id"`
 	GuardianName           string           `json:"guardian_name"`
 	RelationshipType       string           `json:"relationship_type"`
+	Audience               string           `json:"audience"`
 	LastMessageAt          *time.Time       `json:"last_message_at,omitempty"`
 	LastSenderKind         string           `json:"last_sender_kind,omitempty"`
 	LastMessageBody        string           `json:"last_message_body,omitempty"`
@@ -30,7 +31,24 @@ type InboxThread struct {
 	LastMessageReadByStaff bool             `json:"-"`
 	UnreadCount            int              `json:"unread_count"`
 	ReadBound              *ReadCursorBound `json:"-"`
+	// LeadershipReaders are the short names of the leadership persons, set on
+	// a leadership conversation the caller opened (#5200).
+	LeadershipReaders []string `json:"-"`
 }
+
+// Readers says who can read the conversation: its one guardian and the school
+// side its audience names.
+func (t InboxThread) Readers() communication.ParentMessageReaders {
+	return communication.ParentMessageReaders{
+		Guardian: communication.ParentMessageGuardianReader{
+			AccountID: t.GuardianAccountID, Name: t.GuardianName, RelationshipType: t.RelationshipType,
+		},
+		School: communication.ParentMessageSchoolReaders{
+			Kind: communication.ParentMessageSchoolReadersKind(t.Audience), Names: t.LeadershipReaders,
+		},
+	}
+}
+
 type MessageableGuardian communication.ParentGuardianRecipient
 type ParentMessage struct {
 	ID               int64          `json:"id"`

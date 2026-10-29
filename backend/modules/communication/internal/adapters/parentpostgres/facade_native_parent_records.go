@@ -22,17 +22,17 @@ func (r parentMessageStaffRepository) ParentReadMarkStaffUnread(ctx context.Cont
 func (r parentMessageStaffRepository) ParentReadClearStaffUnreadMark(ctx context.Context, tenantID, threadID int64, observedAt time.Time) (bool, error) {
 	return r.ClearStaffUnreadMark(ctx, tenantID, threadID, observedAt)
 }
-func (r parentMessageStaffRepository) ParentReadUnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool) (int, error) {
-	return r.UnreadMessageCountForStaff(ctx, accountID, allStudents)
+func (r parentMessageStaffRepository) ParentReadUnreadMessageCountForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach) (int, error) {
+	return r.UnreadMessageCountForStaff(ctx, accountID, reach)
 }
-func (r parentMessageStaffRepository) ParentReadUnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
-	return r.UnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)
+func (r parentMessageStaffRepository) ParentReadUnreadMessageCountForStaffInGroups(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, groupIDs []int64) (int, error) {
+	return r.UnreadMessageCountForStaffInGroups(ctx, accountID, reach, groupIDs)
 }
-func (r parentMessageStaffRepository) ParentReadListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
-	return r.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+func (r parentMessageStaffRepository) ParentReadListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
+	return r.ListInboxForStaff(ctx, accountID, reach, onlyUnread)
 }
-func (r parentMessageStaffRepository) ParentReadListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
-	return r.ListThreadsForStudent(ctx, accountID, studentID)
+func (r parentMessageStaffRepository) ParentReadListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error) {
+	return r.ListThreadsForStudent(ctx, accountID, studentID, reach)
 }
 func (r parentMessageStaffRepository) ParentReadFindThreadHeader(ctx context.Context, threadID int64) (*communication.ParentThreadHeaderRecord, error) {
 	return r.FindThreadHeader(ctx, threadID)
@@ -43,17 +43,17 @@ func (r parentMessageStaffRepository) ParentReadLatestReadCursorByOther(ctx cont
 func (r parentMessageStaffRepository) ParentReadGuardianReadCursor(ctx context.Context, threadID int64) (*communication.ParentReadCursorRecord, error) {
 	return r.GuardianReadCursor(ctx, threadID)
 }
-func (r schoolParentMessageReadRepository) ParentReadListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
-	return r.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+func (r schoolParentMessageReadRepository) ParentReadListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
+	return r.ListInboxForStaff(ctx, accountID, reach, onlyUnread)
 }
-func (r schoolParentMessageReadRepository) ParentReadListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
-	return r.ListThreadsForStudent(ctx, accountID, studentID)
+func (r schoolParentMessageReadRepository) ParentReadListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error) {
+	return r.ListThreadsForStudent(ctx, accountID, studentID, reach)
 }
-func (r groupParentMessageReadRepository) ParentReadListInboxForStaff(ctx context.Context, accountID int64, allStudents bool, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
-	return r.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+func (r groupParentMessageReadRepository) ParentReadListInboxForStaff(ctx context.Context, accountID int64, reach communication.ParentMessageStaffReach, onlyUnread bool) ([]*communication.PortalInboxThread, error) {
+	return r.ListInboxForStaff(ctx, accountID, reach, onlyUnread)
 }
-func (r groupParentMessageReadRepository) ParentReadListThreadsForStudent(ctx context.Context, accountID, studentID int64) ([]*communication.PortalInboxThread, error) {
-	return r.ListThreadsForStudent(ctx, accountID, studentID)
+func (r groupParentMessageReadRepository) ParentReadListThreadsForStudent(ctx context.Context, accountID, studentID int64, reach communication.ParentMessageStaffReach) ([]*communication.PortalInboxThread, error) {
+	return r.ListThreadsForStudent(ctx, accountID, studentID, reach)
 }
 
 func (r *messageRepository) ParentMessageCreate(ctx context.Context, message *communication.PortalParentMessage) error {
@@ -74,11 +74,11 @@ func (r *threadRepository) ParentThreadTouchLastMessage(ctx context.Context, thr
 func (r *threadRepository) ParentThreadFindByID(ctx context.Context, id int64) (*communication.PortalParentMessageThread, error) {
 	return r.FindByID(ctx, id)
 }
-func (r *threadRepository) ParentThreadFindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {
-	return r.FindByStudentGuardian(ctx, studentID, guardianAccountID)
+func (r *threadRepository) ParentThreadFindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error) {
+	return r.FindByStudentGuardian(ctx, studentID, guardianAccountID, audience)
 }
-func (r *threadRepository) ParentThreadGetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*communication.PortalParentMessageThread, error) {
-	return r.GetOrCreate(ctx, tenantID, studentID, guardianAccountID)
+func (r *threadRepository) ParentThreadGetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*communication.PortalParentMessageThread, error) {
+	return r.GetOrCreate(ctx, tenantID, studentID, guardianAccountID, audience)
 }
 func (r *threadRepository) ParentThreadListGuardiansForStudent(ctx context.Context, studentID int64) ([]*communication.ParentGuardianRecipient, error) {
 	return r.ListGuardiansForStudent(ctx, studentID)

@@ -20413,6 +20413,28 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "classification": "platform",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Hub.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Hub.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "classification": "platform",
+      "effect": "notice",
+      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "reason": "Platform protocol participation (notice): care-plan reaches realtime.Broadcaster.BroadcastLeadershipParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastLeadershipParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastLeadershipParentMessage",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastParentMessage",
       "classification": "platform",
       "effect": "notice",

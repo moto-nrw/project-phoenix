@@ -387,6 +387,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (v parentMessagingValues) ParentMessageLeadershipEnabled(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyParentMessageLeadershipEnabled)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/settings/parentMessagingValues.ParentMessageLeadershipEnabled",
+      "owner": "modules/settings"
+    },
+    {
+      "build": "production",
       "evidence": "func (v parentMessagingValues) ParentMessageStaffNameVisible(ctx context.Context) (bool, error) {\n\treturn v.source.ResolveBool(ctx, configModel.KeyParentMessageStaffNameVisible)\n}",
       "form": "unclassified-evidence",
       "id": "modules/settings/parentMessagingValues.ParentMessageStaffNameVisible",

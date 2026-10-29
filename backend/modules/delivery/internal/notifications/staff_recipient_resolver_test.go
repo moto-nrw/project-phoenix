@@ -44,3 +44,37 @@ func TestStaffRecipientResolverReachesGroupTeamAndAdmins(t *testing.T) {
 	assert.Equal(t, []int64{absenceStudentA}, byAccount[absenceAccountA])
 	assert.Equal(t, []int64{absenceStudentA}, byAccount[absenceAdmin])
 }
+
+// TestStaffRecipientResolverOnlyAccountsSkipsGroupTeamAndAdmins pins the
+// leadership conversation's push (#5200): exactly the named accounts are
+// responsible, never the group supervisors or the admins, and consent still
+// applies.
+func TestStaffRecipientResolverOnlyAccountsSkipsGroupTeamAndAdmins(t *testing.T) {
+	t.Parallel()
+
+	const leader, leaderWithoutConsent = int64(9101), int64(9102)
+	resolver := notifications.NewStaffRecipientResolver(
+		&stubConsent{allowed: map[int64]struct{}{absenceAccountA: {}, absenceAdmin: {}, leader: {}}},
+		&fakeStudentReader{groups: map[int64]int64{absenceStudentA: absenceGroupA}},
+		&fakeGroupReader{staffByGroup: map[int64][]int64{absenceGroupA: {absenceStaffA}}},
+		&fakeStaffAccountReader{accounts: map[int64]int64{absenceStaffA: absenceAccountA, absenceAdminStaff: absenceAdmin}},
+		&fakeAdminReader{ids: []int64{absenceAdmin}},
+		&fakeOnDutySetting{enabled: false},
+		&fakeDutyReader{},
+	)
+
+	scopes, err := resolver.Resolve(context.Background(), notifications.StaffRecipientRequest{
+		StudentIDs:       []int64{absenceStudentA},
+		NotificationType: notifications.TypeStaffParentMessage,
+		OnlyAccounts:     true,
+		AccountIDs:       []int64{leader, leaderWithoutConsent},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, []notifications.StaffRecipientScope{{AccountID: leader, StudentIDs: []int64{absenceStudentA}}}, scopes)
+
+	none, err := resolver.Resolve(context.Background(), notifications.StaffRecipientRequest{
+		StudentIDs: []int64{absenceStudentA}, NotificationType: notifications.TypeStaffParentMessage, OnlyAccounts: true,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, none, "an empty leadership reaches nobody, not the team")
+}

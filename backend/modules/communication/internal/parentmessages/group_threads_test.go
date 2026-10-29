@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -41,6 +43,7 @@ func newGroupFixture(t *testing.T) (*groupFixture, func(context.Context, func(co
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
+		Leaders:       communicationtest.Leaders{},
 		UserContext:   owners.StaffStudentReads{},
 		Session:       api.CommunicationSession{},
 		ThreadRepo:    messaging.NewThreadRepository(reposMessages.ParentMessageThread),

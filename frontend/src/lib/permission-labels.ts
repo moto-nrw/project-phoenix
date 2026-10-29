@@ -41,6 +41,7 @@ export const resourceLabels: Record<string, string> = {
   display: "Info-Point",
   vacation: "Urlaub",
   meals: "Mittagessen",
+  parent_messages: "Elternnachrichten",
   "*": "Alle Bereiche",
 };
 
@@ -76,6 +77,7 @@ export const actionLabels: Record<string, string> = {
   handover_write: "Klasse an die OGS übergeben",
   parent_letter_write: "Elternbriefe an die Klasse",
   absence_report_write: "Meldung nachtragen",
+  leadership: "Vertrauliche Elternnachrichten lesen",
   "*": "Alle",
 };
 
@@ -280,6 +282,11 @@ const permissionDescriptions: Record<string, string> = {
   // anonymen Umfrage was geantwortet hat.
   "surveys:manage":
     "Umfragen an Eltern oder das Team anlegen, veröffentlichen und auswerten",
+  // Leitungs-Unterhaltungen (#5200): Eltern schreiben nur an die Leitung.
+  // Wer dieses Recht hat, liest und beantwortet sie; alle anderen sehen sie
+  // nicht.
+  "parent_messages:leadership":
+    "Vertrauliche Elternnachrichten lesen, die nur an die Leitung gehen",
   "supervision:own": "Eigene Aufsichten aus dem Betreuungsplan durchführen",
 
   // Guardian payment data
