@@ -33,6 +33,8 @@
   "notBooked": "Not registered",
   "weekRange": "{starts} to {ends}",
   "timeModel": "{name} ({startsAt} to {endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt} to {endsAt})",
+  "weeksPriceText": "The price is per week and child, without any discount or exemption. You can see your fee in the summary.",
   "healthTitle": "Health (optional)",
   "healthText": "Only the care staff can see this information.",
   "allergies": "Allergies and intolerances",
@@ -96,5 +98,8 @@
     "choose": "Please choose an answer."
   },
   "childQuestionsTitle": "More details",
-  "familyQuestionsTitle": "More details about your family"
+  "familyQuestionsTitle": "More details about your family",
+  "legalTitle": "Notices and consent",
+  "legalAccepted": "Confirmed",
+  "legalNotAccepted": "Not confirmed"
 }

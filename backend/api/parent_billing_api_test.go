@@ -203,6 +203,10 @@ func TestPublicHolidayFormShowsTheContributionWithItsLines(t *testing.T) {
 	plain := decodeSchoolPortalData[contributionBody](t, rec.Body.Bytes())
 	assert.Equal(t, int64(6750+9000), plain.TotalCents, "without rules the contribution is the sum of the time models")
 	assert.False(t, plain.ExemptionAvailable)
+	require.Len(t, plain.Children, 2)
+	assert.Equal(t, []int64{f.offer.Weeks[0].TimeModels[1].PriceCents, f.offer.Weeks[0].TimeModels[0].PriceCents, f.offer.Weeks[1].TimeModels[0].PriceCents},
+		[]int64{plain.Children[0].Lines[0].AmountCents, plain.Children[1].Lines[0].AmountCents, plain.Children[1].Lines[1].AmountCents},
+		"the price the form shows at each time model is the base line of the summary (#5237)")
 
 	createContributionRule(t, f, billing, siblingHalf())
 	createContributionRule(t, f, billing, benefitsExemption())

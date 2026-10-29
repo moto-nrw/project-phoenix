@@ -2350,9 +2350,11 @@ function SignatureRequirementSection({
   );
 }
 
-function LegalBlocksSection({
+export function LegalBlocksSection({
   blocks,
   standardBlocks,
+  customOnly = false,
+  uploadAdapter,
   onChange,
   disabled,
   draftDocumentURLs,
@@ -2363,6 +2365,8 @@ function LegalBlocksSection({
 }: Readonly<{
   blocks: FormLegalBlock[];
   standardBlocks: FormLegalBlock[];
+  customOnly?: boolean;
+  uploadAdapter?: import("./attachment-editor").AttachmentUploadAdapter;
   onChange: Dispatch<SetStateAction<FormLegalBlock[]>>;
   disabled: boolean;
   draftDocumentURLs: ReadonlySet<string>;
@@ -2615,7 +2619,11 @@ function LegalBlocksSection({
             id={`legal-block-label-${block.key}`}
             name={labelError.controlProps.name}
             error={labelError.message}
-            label="Text neben der Checkbox oder dem Hinweis"
+            label={
+              customOnly
+                ? "Text neben dem Häkchen oder Hinweis"
+                : "Text neben der Checkbox oder dem Hinweis"
+            }
             value={block.label}
             disabled={disabled}
             rows={2}
@@ -2654,15 +2662,26 @@ function LegalBlocksSection({
 
         <div className="mt-3">
           <AttachmentEditor
+            uploadAdapter={uploadAdapter}
             fieldPath={`legal_blocks.${index}.attachments`}
             fieldError={fieldError}
             attachments={block.attachments}
-            onChange={(attachments) => updateBlock(index, { attachments })}
+            onChange={(attachments) =>
+              updateBlock(index, {
+                attachments,
+                ...(customOnly &&
+                block.display_mode === "pdf" &&
+                attachments.length === 0
+                  ? { display_mode: "text" as const }
+                  : {}),
+              })
+            }
             disabled={disabled}
           />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <LegalBlockModeControl
+            checkboxLabel={customOnly ? "Mit Häkchen" : "Mit Checkbox"}
             isNotice={block.kind === "notice"}
             disabled={disabled}
             onModeChange={(isNotice) =>
@@ -2723,18 +2742,20 @@ function LegalBlocksSection({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h2 className="text-base font-semibold text-gray-900">
-            Rechtstexte und Einwilligungen
+            {customOnly
+              ? "Hinweise und Einwilligungen"
+              : "Rechtstexte und Einwilligungen"}
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Die vier Standardblöcke starten mit den Texten aus den
-            Einstellungen. Hier blenden Sie sie für diese Vorlage aus oder
-            bearbeiten bewusst eine Abweichung. Eigene Zustimmungen bleiben
-            direkt an diese Vorlage gebunden.
+            {customOnly
+              ? "Hier ergänzen Sie Hinweise, PDFs und freiwillige Einwilligungen. Die festen Zustimmungen bleiben bestehen."
+              : "Die vier Standardblöcke starten mit den Texten aus den Einstellungen. Hier blenden Sie sie für diese Vorlage aus oder bearbeiten bewusst eine Abweichung. Eigene Zustimmungen bleiben direkt an diese Vorlage gebunden."}
           </p>
         </div>
       </div>
 
-      {blocks.some((block) => block.enabled) &&
+      {!customOnly &&
+      blocks.some((block) => block.enabled) &&
       !blocks.some(
         (block) => block.key === "data_processing" && block.enabled,
       ) ? (
@@ -2825,16 +2846,18 @@ function LegalBlocksSection({
           renderBlockEditor({
             block,
             index,
-            helperText:
-              "Eigene Zustimmung für diese Vorlage. Sie erscheint als zusätzliche Checkbox im Anmeldeformular.",
+            helperText: customOnly
+              ? "Eigener Hinweis oder Einwilligung für diesen Zeitraum."
+              : "Eigene Zustimmung für diese Vorlage. Sie erscheint als zusätzliche Checkbox im Anmeldeformular.",
             onRemove: () => removeBlock(index),
           }),
         )}
 
         {customEntries.length === 0 ? (
           <div className="rounded-xl border border-dashed border-gray-200 bg-white/70 p-4 text-sm leading-6 text-gray-600">
-            Noch keine eigenen Zustimmungen. Füge hier nur zusätzliche Inhalte
-            hinzu, die nicht in den allgemeinen Einstellungen stehen.
+            {customOnly
+              ? "Noch keine eigenen Hinweise oder Einwilligungen."
+              : "Noch keine eigenen Zustimmungen. Füge hier nur zusätzliche Inhalte hinzu, die nicht in den allgemeinen Einstellungen stehen."}
           </div>
         ) : null}
       </div>
@@ -3024,10 +3047,12 @@ function AGBTemplateSourceEditor({
 }
 
 function LegalBlockModeControl({
+  checkboxLabel = "Mit Checkbox",
   isNotice,
   disabled,
   onModeChange,
 }: Readonly<{
+  checkboxLabel?: string;
   isNotice: boolean;
   disabled: boolean;
   onModeChange: (isNotice: boolean) => void;
@@ -3038,7 +3063,7 @@ function LegalBlockModeControl({
       value={isNotice ? "hinweis" : "checkbox"}
       onChange={(next) => onModeChange(next === "hinweis")}
       items={[
-        { value: "checkbox", label: "Mit Checkbox", disabled },
+        { value: "checkbox", label: checkboxLabel, disabled },
         { value: "hinweis", label: "Nur Hinweis", disabled },
       ]}
     />

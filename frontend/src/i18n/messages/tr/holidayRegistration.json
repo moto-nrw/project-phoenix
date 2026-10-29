@@ -33,6 +33,8 @@
   "notBooked": "Kayıt yok",
   "weekRange": "{starts} – {ends}",
   "timeModel": "{name} ({startsAt}–{endsAt})",
+  "timeModelPrice": "{name} · {price} ({startsAt}–{endsAt})",
+  "weeksPriceText": "Fiyat bir hafta ve bir çocuk içindir, indirim veya muafiyet hariç. Ücretinizi özette görürsünüz.",
   "healthTitle": "Sağlık (isteğe bağlı)",
   "healthText": "Bu bilgileri sadece bakım personeli görür.",
   "allergies": "Alerjiler ve intoleranslar",
@@ -96,5 +98,8 @@
     "choose": "Lütfen bir cevap seçin."
   },
   "childQuestionsTitle": "Diğer bilgiler",
-  "familyQuestionsTitle": "Aileniz hakkında diğer bilgiler"
+  "familyQuestionsTitle": "Aileniz hakkında diğer bilgiler",
+  "legalTitle": "Bilgiler ve onaylar",
+  "legalAccepted": "Onaylandı",
+  "legalNotAccepted": "Onaylanmadı"
 }

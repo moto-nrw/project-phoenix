@@ -452,6 +452,7 @@ func (h *HolidayRegistrationReview) detailAnswers(ctx context.Context, organizat
 		return fmt.Errorf("enrollment: holiday registration %d keeps the missing form version %d", detail.ID, registration.FormVersion)
 	}
 	detail.Form = &form
+	detail.LegalAcceptances = registration.LegalAcceptances
 	detail.CustomData = registration.CustomData
 	detail.ChildCustomData = registration.Children
 	return nil

@@ -153,7 +153,7 @@ B7). Punkt 3 gilt mit dieser Erweiterung:
   Person, wenn ein Kind eine hat. Ohne beides bleiben sie wie bisher. Das
   Zugriffsprotokoll (Punkt 6) und das Ende nach der Woche (Punkt 4) bleiben
   unverändert.
-- **Register.** Migration `1.15.707` ersetzt die Funktion; der Down-Pfad
+- **Register.** Migration `1.15.712` ersetzt die Funktion; der Down-Pfad
   stellt die alte Signatur wieder her. Keine neue Tabelle, keine neue Regel
   in `policy.json`.
 

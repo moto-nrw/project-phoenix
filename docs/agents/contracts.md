@@ -195,10 +195,10 @@ request transaction up to its commit or rollback) and `after-commit` (the
 hooks after a commit). Sections that did not run are left out. Code:
 `backend/api/iot_http_metrics.go`.
 
-### Student count revision (#5128)
+### Student count revision (#5128, #5205)
 
 The kiosk orders its student counter by a server revision, not by the start
-order of its requests. Both fields are additive; an older kiosk ignores them.
+order of its requests. All fields are additive; an older kiosk ignores them.
 
 - **Wire.** `GET /api/iot/session/current` returns `active_students_revision`
   exactly when it returns `active_students`; its scope is the
@@ -206,32 +206,43 @@ order of its requests. Both fields are additive; an older kiosk ignores them.
   mode) returns `active_students_session_id` and `active_students_revision`
   together, only with an `active_students` of the scanning device's own
   session in the scanned room. A room-wide count (the device runs no session
-  there), a failed count and a binary-mode or supervisor scan carry neither.
-- **Scope and monotonicity.** The revision of one session (Student
-  Presence) is the sum of its rows in `active.visit_revision_events` that a
-  read sees. Every statement on `active.visits` that opens, closes, moves or
-  deletes an open visit inserts one event for each session whose count it
-  changed, in the same transaction (statement trigger of migration 1.15.705).
-  Events are never updated, so the revision never falls, also for deletes
-  and moves. Revisions compare only within one session; a new session starts
-  at 0.
+  there) returns `active_students_room_id` and `active_students_room_revision`
+  together instead, never the session fields. A failed count and a
+  binary-mode or supervisor scan carry neither pair.
+- **Scope and monotonicity.** Both revisions are sums over the append-only
+  rows of `active.visit_revision_events` (Student Presence) that a read sees.
+  A session's revision sums its session events: every statement on
+  `active.visits` that opens, closes, moves or deletes an open visit inserts
+  one for each session whose count it changed (migration 1.15.705). A room's
+  revision sums its entry rows (a session started, moved or reopened there)
+  and room rows (a session left or ended there) plus the session revision of
+  every session the room ever held (migration 1.15.710). The read, not the
+  writer, decides which sessions a room held, so a visit write racing a room
+  change raises both rooms. Every committed change of a count raises the
+  revision of its scope; events are never updated, so neither revision
+  falls, also for deletes, moves and removed sessions. Revisions compare
+  only within one session or one room of one school, never across scopes; a
+  new session or an empty room starts at 0.
 - **Snapshot.** Count and revision come from one statement. A read that
   started before a write committed does not see the write's events and
   carries a lower revision than the writer's answer, which sees them.
-- **Concurrent writers.** Two writers of one session that overlap can each
-  answer the same revision with a different count; the kiosk keeps the one it
-  has, and the next poll after both commits carries both changes with a
-  higher revision. The blur is at most one poll interval (ADR 0131).
-- **No session lock.** The trigger only inserts and the event table has no
-  key to the session row; visit writers take the same locks as before
-  #5128. The nightly close compacts the events of ended sessions into one row
-  each without changing a revision and drops those of deleted sessions.
+- **Concurrent writers.** Two writers of one session or room that overlap
+  can each answer the same revision with a different count; the kiosk keeps
+  the one it has, and the next read after both commits carries both changes
+  with a higher revision. The blur is at most one poll interval (ADR 0131);
+  a room has no further blur (ADR 0133).
+- **No session lock.** The triggers only insert and the event table has no
+  key to a session or room row; visit and session writers take the same locks
+  as before #5128. The nightly close collapses the rows of each scope without
+  changing a revision and folds a deleted session's events into room rows of
+  the rooms it entered.
 - **Restarts and processes.** The events live in the database. Neither a
   backend restart nor several backend processes reset or fork a revision.
 - **Kiosk rule.** Within one scope (activity, room, session), accept a count
   whose revision is greater than the shown one, ignore a smaller or equal one,
-  and never take a revision from another session. A count without a revision
-  (room-wide count, older backend) keeps the kiosk's previous rule.
+  and never take a revision from another session or room, or a room revision
+  for a session one. A count without a revision (older backend) keeps the
+  kiosk's previous rule.
 
 Deploy the backend first; the kiosk change in PyrePortal follows.
 

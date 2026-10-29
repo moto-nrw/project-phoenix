@@ -173,8 +173,8 @@ zu ADR 0116) gilt Punkt 4 mit dieser Erweiterung:
   wie die Teilnehmerliste. Stuft der Träger eine Frage später als
   Gesundheitsangabe ein, ist die kopierte Antwort sofort verborgen, auch in den
   sieben Tagen nur lesend, in denen kein Abgleich die Kopie mehr erneuert.
-- **Register.** Migration `1.15.707` ergänzt die Spalte und ersetzt die
+- **Register.** Migration `1.15.712` ergänzt die Spalte und ersetzt die
   Funktion; der Down-Pfad stellt die alte Signatur wieder her. Migration
-  `1.15.708` ergänzt die Prüfung beim Lesen. Der Eintrag
+  `1.15.713` ergänzt die Prüfung beim Lesen. Der Eintrag
   `enrollment.holiday_guests` im Datenkatalog nennt die Antworten. Keine neue
   Tabelle, kein neuer `data_objects`-Eintrag.

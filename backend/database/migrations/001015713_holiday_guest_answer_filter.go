@@ -7,7 +7,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayGuestAnswerFilterVersion = "1.15.708"
+const holidayGuestAnswerFilterVersion = "1.15.713"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

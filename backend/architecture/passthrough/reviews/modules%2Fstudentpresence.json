@@ -216,6 +216,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0133",
+      "id": "modules/studentpresence/internal/application/Service.CountOpenVisitsInRoomWithRevision",
+      "reason": "ADR 0133 (#5205): Transaction and observation wrapper (ADR 0075) of the kiosk room count read; it refuses an invalid room ID and reads the open visit count and the visit revision of one room in one statement."
+    },
+    {
       "decision": "0090",
       "id": "modules/studentpresence/internal/application/Service.CountStudentVisitsForDeletion",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

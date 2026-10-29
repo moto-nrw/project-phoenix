@@ -125,6 +125,8 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return fmt.Errorf("publish the holiday period: %w", err)
 	}
+	rt.Values[seedHolidayLegalPeriodKey] = periodID
+	rt.Values[seedHolidayLegalPublishedKey] = published
 	fmt.Println("  Träger-Büro: holiday period with two weeks published")
 	if err := seedContributionRules(rt.Client, auth, calendar.TodayDate()); err != nil {
 		return err

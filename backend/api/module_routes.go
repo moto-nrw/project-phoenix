@@ -45,6 +45,9 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/public/request-feed", moduleRouteBasis},
 	{"/public/enrollment-legal-documents", settings.ModuleOnlineAnmeldung},
 	{"/public/enrollment-form-legal-documents", settings.ModuleOnlineAnmeldung},
+	// #5199: public period PDFs, no person data or school membership.
+	// Enrollment resolves the published link and its current form under Träger RLS.
+	{"/traeger/holiday-registrations/*/documents", moduleRouteBasis},
 
 	// Portals and devices (#4895, #4896).
 	{"/auth/guardian-invitations", settings.ModuleElternApp},

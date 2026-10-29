@@ -7,14 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayHostSharedAnswersVersion = "1.15.707"
+const holidayHostSharedAnswersVersion = "1.15.712"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayHostSharedAnswersVersion,
 		Description: "Ausrichtende OGS sieht freigegebene Antworten und die zweite sorgeberechtigte Person ihrer Ferienkinder (#5202)",
 		DependsOn: []string{
-			holidayPeriodFormsVersion,    // the last migration before this one, with the form versions and answers
+			holidayFormDocumentsVersion,  // the last migration before this one (#5199)
+			holidayPeriodFormsVersion,    // the form versions and answers (#5198)
 			holidaySecondGuardianVersion, // the second guardian of a registration (#5197)
 			holidayGuestsVersion,         // the guest copy and enrollment.holiday_host_guest_contacts
 		},

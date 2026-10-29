@@ -77,8 +77,9 @@ type holidayOfferBody struct {
 		StartsOn       string `json:"starts_on"`
 		HostSchoolName string `json:"host_school_name"`
 		TimeModels     []struct {
-			ID   int64  `json:"id"`
-			Name string `json:"name"`
+			ID         int64  `json:"id"`
+			Name       string `json:"name"`
+			PriceCents int64  `json:"price_cents"`
 		} `json:"time_models"`
 	} `json:"weeks"`
 	Schools []struct {
@@ -186,7 +187,6 @@ func TestHolidayRegistrationLinkServesThePublishedPeriodForAllSchools(t *testing
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	rec = publicJSON(t, f.public, http.MethodGet, registrationPath(link.PublicToken), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	assert.NotContains(t, rec.Body.String(), "price_cents", "the contribution follows with #4664, no raw price")
 	offer := decodeSchoolPortalData[holidayOfferBody](t, rec.Body.Bytes())
 	assert.Equal(t, "Träger Bissendorf Link", offer.TraegerName)
 	assert.Equal(t, "Winterferien 2027", offer.Name)
@@ -196,6 +196,9 @@ func TestHolidayRegistrationLinkServesThePublishedPeriodForAllSchools(t *testing
 	require.Len(t, offer.Weeks, 2)
 	assert.Equal(t, "Träger Bissendorf Link OGS Nord", offer.Weeks[0].HostSchoolName)
 	assert.Equal(t, "Träger Bissendorf Link OGS Süd", offer.Weeks[1].HostSchoolName, "one link covers the weeks of every school")
+	require.Len(t, offer.Weeks[0].TimeModels, 2)
+	assert.Equal(t, []int64{4500, 6750}, []int64{offer.Weeks[0].TimeModels[0].PriceCents, offer.Weeks[0].TimeModels[1].PriceCents},
+		"every time model shows its price per week at the choice (#5237)")
 	assert.Len(t, offer.Schools, 2)
 
 	rec = publicJSON(t, f.public, http.MethodGet, registrationPath("unknown-token"), nil)

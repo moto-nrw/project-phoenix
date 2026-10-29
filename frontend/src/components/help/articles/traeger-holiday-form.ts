@@ -8,17 +8,30 @@ export function traegerHolidayFormTopic(): HelpTopic {
     question: "Wie lege ich eigene Fragen für die Ferienanmeldung fest?",
     summary:
       "Jeder Ferienzeitraum hat ein eigenes Formular. Sie wählen, welche Fragen Eltern zusätzlich beantworten.",
+    image: "/help/screens/ferienformular-hinweise.webp",
+    imageAlt:
+      "Eigene Hinweise mit PDF und Pflichtbestätigung im Ferienformular.",
     group: "anmeldeverwaltung",
     audience: "traeger",
     icon: "NotePencil",
-    image: "/help/screens/ferienformular-ogs-sieht-antwort.webp",
-    imageAlt:
-      "Eine Frage mit den Schaltern Gesundheitsangabe und OGS sieht die Antwort.",
     requirements: [
       "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
     ],
     steps: [],
     instructionGroups: [
+      {
+        title: "Hinweise und Einwilligungen ergänzen",
+        steps: [
+          "Wählen Sie unter `Hinweise und Einwilligungen` die Aktion `Eigene Zustimmung hinzufügen`.",
+          "Tragen Sie `Titel` und `Text neben dem Häkchen oder Hinweis` ein.",
+          "Ergänzen Sie den Text unter `Rechtstext / Erklärung`.",
+          "Für ein PDF wählen Sie `PDFs hinzufügen`. Höchstens 10 MB je Datei.",
+          "Tragen Sie unter `Bezeichnung für Eltern` einen passenden Namen ein.",
+          "Müssen Eltern den Hinweis bestätigen? Wählen Sie `Muss bestätigt werden`.",
+          "Eine freiwillige Einwilligung lassen Sie ohne diese Pflicht.",
+          "Wählen Sie `Als neue Version speichern`.",
+        ],
+      },
       {
         title: "Fragen festlegen",
         steps: [
@@ -58,6 +71,7 @@ export function traegerHolidayFormTopic(): HelpTopic {
     notes: [
       "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
       "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Die OGS sieht dort die Antworten zu `Darf allein nach Hause gehen` und `Darf an Ausflügen teilnehmen`.",
+      "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
       "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
       "Mit `Änderungen verwerfen` holen Sie die gespeicherten Fragen zurück. Das gilt auch für Auswahloptionen.",
       "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nur in der Anmeldung, nicht in Liste und Export.",
