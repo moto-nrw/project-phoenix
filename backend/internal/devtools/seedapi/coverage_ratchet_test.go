@@ -131,7 +131,6 @@ var seedCoverageExemptions = map[string]string{
 	"users.student_care_exit_removals":        "transient by design (#2487): holds a planned exit's removed plan only until the exit is cancelled or takes effect",
 	"users.student_care_exit_source_removals": "transient by design: holds source bookings and weekly plans only until a planned care exit is cancelled or takes effect",
 	"users.student_document_file_cleanup":     "empty in prod too",
-	"users.student_documents":                 "empty in prod too",
 }
 
 // Coverage debt is deliberately separate from durable exemptions. Adding an

@@ -116,6 +116,7 @@ function leadTopics(
     articles.manageStudentTopic(),
     articles.studentNotesTopic(),
     articles.endCareTopic(),
+    articles.accidentReportTopic(),
     articles.deleteStudentTopic(),
     articles.gradeTransitionTopic(),
     articles.classListEntriesTopic(),

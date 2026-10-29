@@ -11,9 +11,6 @@ import (
 	"testing"
 	"time"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-
 	"github.com/moto-nrw/project-phoenix/analytics"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
@@ -152,11 +149,10 @@ func TestStandaloneWorkerComposesItsJobsWithoutTheAPIRouter(t *testing.T) {
 	env, err := newProductionEnvironment(logger, "http://api.invalid")
 	require.NoError(t, err)
 	hub := deliveryCompose.NewRealtimeHub(logger)
-	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
 	tracker := analytics.NewNoop()
 	worker, err := owners.ComposeWorker(db, env, hub, newRuntimeTracer(logger), tracker,
 		newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal,
-		deviceauth.WithAttendanceStaff, carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback},
+		deviceauth.WithAttendanceStaff, studentDocumentPermissions(),
 		workerAnalytics, analyticsSchoolNames, PlannedStaffExitsJob(db, hub, logger))
 	require.NoError(t, err)
 	require.NotNil(t, worker)

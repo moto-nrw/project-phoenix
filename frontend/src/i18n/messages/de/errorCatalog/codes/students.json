@@ -1,5 +1,12 @@
 {
   "absence_read_required": "Für {object} brauchen Sie zusätzlich das Recht „Kinder sehen“. Bitte fragen Sie die Schulleitung.",
+  "accident_report_forbidden": "Für Unfallanzeigen fehlt Ihnen die Berechtigung. Fragen Sie die Leitung.",
+  "accident_report_invalid": "Die Unfallanzeige ist unvollständig. Füllen Sie alle Pflichtfelder aus.",
+  "accident_report_not_found": "Diese Unfallanzeige gibt es nicht mehr. Laden Sie die Seite neu.",
+  "accident_report_not_signed": "Die Unfallanzeige ist nicht unterschrieben. Sie können sie ändern.",
+  "accident_report_signed": "Die Unfallanzeige ist unterschrieben. Legen Sie eine Korrektur an.",
+  "accident_report_superseded": "Es gibt schon eine Korrektur. Bearbeiten Sie die neue Fassung.",
+  "accident_signature_invalid": "Die Unterschrift wurde nicht gespeichert. Unterschreiben Sie noch einmal.",
   "bulk_approval_ineligible": "Mindestens eine Anfrage muss einzeln geprüft werden. Es wurde nichts freigegeben.",
   "care_day_managed_by_booking": "Dieser Tag gehört zu einem gebuchten Angebot. Bitte ändern Sie zuerst die Buchung.",
   "care_exception_raced": "{object} wurde inzwischen geändert. Bitte prüfen Sie Ihre Angaben erneut.",

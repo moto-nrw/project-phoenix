@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileText, FileImage, File as FileIcon, Upload } from "lucide-react";
+import { AccidentReportCreateModal } from "~/components/students/accident-report-create-modal";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import NavigationLink from "~/components/ui/navigation-link";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -19,9 +21,17 @@ import {
   useApiFormError,
   useApiLoadError,
 } from "~/contexts/ToastContext";
-import { formatDate } from "~/lib/date-helpers";
+import {
+  berlinClockFromISO,
+  formatBerlinDate,
+  formatDate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { formatFileSize } from "~/lib/staff-documents-api";
+import {
+  accidentReportPath,
+  studentAccidentReportsService,
+} from "~/lib/student-accident-reports-api";
 import {
   studentDocumentsService,
   type StudentDocument,
@@ -39,7 +49,31 @@ import { useSWRAuth } from "~/lib/swr";
 const logger = createLogger({ component: "StudentDokumenteTab" });
 
 const ACCEPTED_FILE_TYPES = ".pdf,.docx,.png,.jpg,.jpeg";
+// Accident reports (#4771) are recorded with „Unfall erfassen“ and carry
+// their paper copy on their own page, so the plain upload leaves them out.
+const ACCIDENT_CATEGORY = "unfallanzeige";
 const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
+
+function accidentReportTitle(doc: StudentDocument): string {
+  const occurredAt = doc.accidentReport?.occurredAt;
+  if (!occurredAt) return doc.filename;
+  const title = `Unfall am ${formatBerlinDate(occurredAt)}, ${berlinClockFromISO(occurredAt)} Uhr`;
+  const version = doc.accidentReport?.version ?? 0;
+  return version > 1 ? `${title} · Fassung ${version}` : title;
+}
+
+function AccidentReportStatus({ doc }: Readonly<{ doc: StudentDocument }>) {
+  const report = doc.accidentReport;
+  if (!report) return null;
+  if (report.supersededById) {
+    return <StatusBadge tone="gray" label="Korrigiert" />;
+  }
+  return report.status === "signed" ? (
+    <StatusBadge tone="green" label="Unterschrieben" />
+  ) : (
+    <StatusBadge tone="orange" label="Offen" />
+  );
+}
 
 function documentIcon(contentType: string) {
   if (contentType.startsWith("image/")) {
@@ -62,9 +96,13 @@ function documentIcon(contentType: string) {
 
 export function StudentDokumenteTab({
   studentId,
+  canRecordAccidents = false,
 }: {
   readonly studentId: string;
+  /** student_accidents:manage: shows „Unfall erfassen“ (#4771). */
+  readonly canRecordAccidents?: boolean;
 }) {
+  const [accidentOpen, setAccidentOpen] = useState(false);
   const { data, isLoading, error, mutate } = useSWRAuth<StudentDocumentList>(
     `student-documents-${studentId}`,
     () => studentDocumentsService.list(studentId),
@@ -99,9 +137,17 @@ export function StudentDokumenteTab({
     () => data?.visibleCategories ?? [],
     [data],
   );
+  const uploadCategories = useMemo(
+    () =>
+      visibleCategories.filter(
+        (category) => category.value !== ACCIDENT_CATEGORY,
+      ),
+    [visibleCategories],
+  );
+  const canUploadDocuments = uploadCategories.length > 0;
   const documents = data?.documents ?? [];
   const effectiveUploadCategory =
-    uploadCategory ?? visibleCategories[0]?.value ?? null;
+    uploadCategory ?? uploadCategories[0]?.value ?? null;
 
   const filterItems: readonly { value: string; label: string }[] = [
     { value: "alle", label: "Alle Kategorien" },
@@ -186,17 +232,29 @@ export function StudentDokumenteTab({
       // statt die Tabelle über die Karte hinaus zu verbreitern (#4975).
       // min-w-40 hält auf dem Handy Platz für den Anfang des Namens.
       className: "w-full max-w-0 min-w-40",
-      render: (doc) => (
-        <span className="flex min-w-0 items-center gap-2">
-          {documentIcon(doc.contentType)}
-          <span
-            title={doc.filename}
-            className="truncate text-sm font-medium text-gray-900"
-          >
-            {doc.filename}
+      render: (doc) =>
+        doc.accidentReport ? (
+          <span className="flex min-w-0 flex-wrap items-center gap-2">
+            {documentIcon(doc.contentType)}
+            <NavigationLink
+              href={accidentReportPath(studentId, doc.id)}
+              className="min-w-0 text-sm font-medium break-words text-gray-900 underline-offset-2 hover:underline"
+            >
+              {accidentReportTitle(doc)}
+            </NavigationLink>
+            <AccidentReportStatus doc={doc} />
           </span>
-        </span>
-      ),
+        ) : (
+          <span className="flex min-w-0 items-center gap-2">
+            {documentIcon(doc.contentType)}
+            <span
+              title={doc.filename}
+              className="truncate text-sm font-medium text-gray-900"
+            >
+              {doc.filename}
+            </span>
+          </span>
+        ),
       sortValue: (doc) => doc.filename.toLowerCase(),
     },
     {
@@ -221,7 +279,8 @@ export function StudentDokumenteTab({
       className: "whitespace-nowrap",
       render: (doc) => (
         <span className="text-xs text-gray-500">
-          {formatFileSize(doc.sizeBytes)}
+          {/* A report without paper copy has no file, only its PDF. */}
+          {doc.hasFile ? formatFileSize(doc.sizeBytes) : "–"}
         </span>
       ),
       sortValue: (doc) => doc.sizeBytes,
@@ -242,23 +301,7 @@ export function StudentDokumenteTab({
       header: "",
       align: "right",
       render: (doc) => {
-        const items: readonly OverflowMenuEntry[] = [
-          {
-            label: "Herunterladen",
-            href: studentDocumentsService.downloadUrl(studentId, doc.id),
-            external: true,
-            onClick: () => undefined,
-          },
-          { kind: "separator" },
-          {
-            label: "Löschen",
-            destructive: true,
-            onClick: () => {
-              deleteErrors.clear();
-              setDeleteTarget(doc);
-            },
-          },
-        ];
+        const items = documentMenu(doc);
         return (
           <OverflowMenu
             items={items}
@@ -269,6 +312,48 @@ export function StudentDokumenteTab({
     },
   ];
 
+  function documentMenu(doc: StudentDocument): readonly OverflowMenuEntry[] {
+    const remove: readonly OverflowMenuEntry[] = [
+      { kind: "separator" },
+      {
+        label: "Löschen",
+        destructive: true,
+        onClick: () => {
+          deleteErrors.clear();
+          setDeleteTarget(doc);
+        },
+      },
+    ];
+    if (!doc.accidentReport) {
+      return [
+        {
+          label: "Herunterladen",
+          href: studentDocumentsService.downloadUrl(studentId, doc.id),
+          external: true,
+          onClick: () => undefined,
+        },
+        ...remove,
+      ];
+    }
+    // A signed report stays as a record; only an open one can be deleted.
+    return [
+      {
+        label: "Öffnen",
+        href: accidentReportPath(studentId, doc.id),
+        onClick: () => undefined,
+      },
+      {
+        label: "PDF herunterladen",
+        href: studentAccidentReportsService.pdfUrl(studentId, doc.id),
+        external: true,
+        onClick: () => undefined,
+      },
+      ...(doc.accidentReport.status === "open" && canRecordAccidents
+        ? remove
+        : []),
+    ];
+  }
+
   if (error) {
     return <LoadErrorAlert error={load.error} />;
   }
@@ -278,77 +363,90 @@ export function StudentDokumenteTab({
       <SectionCard
         title="Dokumente"
         description="Dateien zum Kind. Uploads und Löschungen werden im Änderungsprotokoll festgehalten. Beim Löschen wird die Datei sofort entfernt, der Protokolleintrag bleibt."
-      >
-        {/* Upload row: category choice + drop zone */}
-        <div className="mb-5 space-y-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <label
-              htmlFor="kind-dokument-kategorie"
-              className="text-xs font-medium text-gray-600"
+        action={
+          canRecordAccidents ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setAccidentOpen(true)}
             >
-              Kategorie
-            </label>
-            <CustomSelect
-              id="kind-dokument-kategorie"
-              value={effectiveUploadCategory ?? ""}
-              options={visibleCategories.map((category) => ({
-                value: category.value,
-                label: category.label,
-              }))}
-              onChange={(value) => setUploadCategory(value)}
-              disabled={visibleCategories.length === 0}
-              // triggerClassName REPLACES the default trigger classes, and the
-              // base class carries a colorless `border` — without
-              // moto-content-surface the Tailwind-4 default (currentColor)
-              // paints it black.
-              triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
-            />
-          </div>
-
-          <div
-            className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
-              dragActive
-                ? "border-moto-green bg-moto-green/5"
-                : "border-gray-200 bg-gray-50/50"
-            }`}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragActive(true);
-            }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={(e) => {
-              e.preventDefault();
-              setDragActive(false);
-              void handleFiles(e.dataTransfer.files);
-            }}
-          >
-            <Upload className="h-5 w-5 text-gray-400" aria-hidden="true" />
-            <p className="text-sm text-gray-600">
-              Datei hierher ziehen oder{" "}
-              <Button
-                type="button"
-                variant="ghost"
-                size="compact"
-                className="text-moto-blue"
-                disabled={uploading || !effectiveUploadCategory}
-                onClick={() => fileInputRef.current?.click()}
+              Unfall erfassen
+            </Button>
+          ) : undefined
+        }
+      >
+        {canUploadDocuments && (
+          /* Upload row: category choice + drop zone */
+          <div className="mb-5 space-y-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <label
+                htmlFor="kind-dokument-kategorie"
+                className="text-xs font-medium text-gray-600"
               >
-                {uploading ? "Wird hochgeladen…" : "Datei auswählen"}
-              </Button>
-            </p>
-            <p className="text-xs text-gray-400">
-              PDF, DOCX, PNG oder JPG · max. 10 MB
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={ACCEPTED_FILE_TYPES}
-              className="hidden"
-              aria-label="Dokument auswählen"
-              onChange={(e) => void handleFiles(e.target.files)}
-            />
+                Kategorie
+              </label>
+              <CustomSelect
+                id="kind-dokument-kategorie"
+                value={effectiveUploadCategory ?? ""}
+                options={uploadCategories.map((category) => ({
+                  value: category.value,
+                  label: category.label,
+                }))}
+                onChange={(value) => setUploadCategory(value)}
+                // triggerClassName REPLACES the default trigger classes, and the
+                // base class carries a colorless `border` — without
+                // moto-content-surface the Tailwind-4 default (currentColor)
+                // paints it black.
+                triggerClassName="moto-content-surface h-9 w-56 hover:border-gray-300"
+              />
+            </div>
+
+            <div
+              className={`flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-4 py-6 text-center transition-colors ${
+                dragActive
+                  ? "border-moto-green bg-moto-green/5"
+                  : "border-gray-200 bg-gray-50/50"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setDragActive(false);
+                void handleFiles(e.dataTransfer.files);
+              }}
+            >
+              <Upload className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              <p className="text-sm text-gray-600">
+                Datei hierher ziehen oder{" "}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="compact"
+                  className="text-moto-blue"
+                  disabled={uploading || !effectiveUploadCategory}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {uploading ? "Wird hochgeladen…" : "Datei auswählen"}
+                </Button>
+              </p>
+              <p className="text-xs text-gray-400">
+                PDF, DOCX, PNG oder JPG · max. 10 MB
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept={ACCEPTED_FILE_TYPES}
+                className="hidden"
+                aria-label="Dokument auswählen"
+                onChange={(e) => void handleFiles(e.target.files)}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Category filter */}
         {documents.length > 0 && filterItems.length > 2 && (
@@ -385,22 +483,43 @@ export function StudentDokumenteTab({
               icon={<FileText className="h-12 w-12" aria-hidden="true" />}
               title={
                 filter === "alle"
-                  ? "Noch keine Dokumente"
+                  ? canUploadDocuments
+                    ? "Noch keine Dokumente"
+                    : "Noch keine Unfallanzeigen"
                   : "Keine Dokumente in dieser Kategorie"
               }
-              description="Lade die erste Datei über den Bereich oben hoch."
+              description={
+                canUploadDocuments
+                  ? "Lade die erste Datei über den Bereich oben hoch."
+                  : undefined
+              }
             />
           }
         />
       </SectionCard>
+
+      {canRecordAccidents && (
+        <AccidentReportCreateModal
+          isOpen={accidentOpen}
+          onClose={() => setAccidentOpen(false)}
+          studentId={studentId}
+          onCreated={() => {
+            setAccidentOpen(false);
+            void mutate();
+          }}
+          openCreated
+        />
+      )}
 
       <ConfirmDeleteModal
         isOpen={deleteTarget !== null}
         title="Dokument löschen"
         description={
           <>
-            <span className="font-medium">{deleteTarget?.filename}</span> wird
-            endgültig gelöscht. Der Vorgang wird im Änderungsprotokoll
+            <span className="font-medium">
+              {deleteTarget ? accidentReportTitle(deleteTarget) : ""}
+            </span>{" "}
+            wird endgültig gelöscht. Der Vorgang wird im Änderungsprotokoll
             festgehalten.
           </>
         }
