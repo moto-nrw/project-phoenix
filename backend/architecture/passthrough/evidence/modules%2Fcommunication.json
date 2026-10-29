@@ -884,30 +884,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (m *staffMessaging[I, T, M, G, R]) GetStaffMessageThread(ctx context.Context, threadID int64) (*communication.StaffMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"staff_messages.get_thread\", func(runCtx context.Context) (*communication.StaffMessageThread, error) {\n\t\tthread, err := m.service.GetThread(runCtx, threadID)\n\t\treturn mapNativeStaffThread(thread, m.rows.Thread, m.rows.Message), m.mapError(err)\n\t})\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].GetStaffMessageThread",
-      "owner": "modules/communication"
-    },
-    {
-      "build": "production",
       "evidence": "func (m *staffMessaging[I, T, M, G, R]) ListMessageableStaff(ctx context.Context) ([]communication.MessageableStaff, error) {\n\treturn observeMessageResult(ctx, m.observe, \"staff_messages.list_recipients\", func(runCtx context.Context) ([]communication.MessageableStaff, error) {\n\t\trows, err := m.service.ListMessageableStaff(runCtx)\n\t\tif err != nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\tresult := make([]communication.MessageableStaff, 0, len(rows))\n\t\tfor _, row := range projectMessageRows(rows, m.rows.Colleague) {\n\t\t\tresult = append(result, communication.MessageableStaff{AccountID: row.AccountID, Name: row.Name, RoleKind: row.RoleKind})\n\t\t}\n\t\treturn result, nil\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].ListMessageableStaff",
-      "owner": "modules/communication"
-    },
-    {
-      "build": "production",
-      "evidence": "func (m *staffMessaging[I, T, M, G, R]) OpenStaffMessageThread(ctx context.Context, counterpartAccountID int64) (*communication.StaffMessageThread, error) {\n\treturn observeMessageResult(ctx, m.observe, \"staff_messages.open_thread\", func(runCtx context.Context) (*communication.StaffMessageThread, error) {\n\t\tthread, err := m.service.OpenThread(runCtx, counterpartAccountID)\n\t\treturn mapNativeStaffThread(thread, m.rows.Thread, m.rows.Message), m.mapError(err)\n\t})\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].OpenStaffMessageThread",
-      "owner": "modules/communication"
-    },
-    {
-      "build": "production",
-      "evidence": "func (m *staffMessaging[I, T, M, G, R]) PostStaffMessage(ctx context.Context, threadID int64, body string) (*communication.StaffMessage, error) {\n\treturn observeMessageResult(ctx, m.observe, \"staff_messages.post_message\", func(runCtx context.Context) (*communication.StaffMessage, error) {\n\t\tmessage, err := m.service.PostMessage(runCtx, threadID, body)\n\t\tif message == nil {\n\t\t\treturn nil, m.mapError(err)\n\t\t}\n\t\tmapped := mapNativeStaffMessage(message, m.rows.Message)\n\t\treturn \u0026mapped, m.mapError(err)\n\t})\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/communication/internal/application/staffMessaging[I, T, M, G, R].PostStaffMessage",
       "owner": "modules/communication"
     },
     {
@@ -1363,13 +1342,6 @@
       "evidence": "func (r *nativeAnnouncementRepository) Update(ctx context.Context, a *values.StaffParentAnnouncement) error {\n\trecorda := values.ParentAnnouncementToAnnouncementRecord(values.StaffAnnouncementParentAnnouncementToValue(a))\n\terr := r.source.AnnouncementUpdate(ctx, recorda)\n\tif a != nil \u0026\u0026 recorda != nil {\n\t\t*a = *values.StaffAnnouncementParentAnnouncementFromValue(values.ParentAnnouncementFromAnnouncementRecord(recorda))\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.Update",
-      "owner": "modules/communication"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {\n\tif err := s.requireEnabled(ctx); err != nil {\n\t\treturn 0, err\n\t}\n\taccountID, err := s.actor(ctx)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn s.ReadRepo.UnreadCount(ctx, accountID)\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/communication/internal/staffmessages/Service.UnreadMessageCount",
       "owner": "modules/communication"
     },
     {

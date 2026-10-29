@@ -5,17 +5,15 @@ import {
   appendFileSync,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  readdirSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { perfServerEnv } from "./env.mjs";
+import { measureBase } from "./bundle-base.mjs";
 import { validBytes } from "./bundle-policy.mjs";
 
 const MEASUREMENT_FORMAT = "moto-bundle-measurement/v1";
@@ -96,6 +94,7 @@ export function buildConfiguration(directory = process.cwd(), environment) {
     ".env.production",
     ".env.production.local",
     "scripts/perf/bundle-routes.mjs",
+    "scripts/perf/bundle-base.mjs",
     "scripts/perf/bundle-measurement.mjs",
     "scripts/perf/env.mjs",
   ];
@@ -227,14 +226,12 @@ export function readBaseComparison(directory = process.cwd(), currentIdentity) {
   }
   const file = join(directory, BASE_MEASUREMENT);
   if (!existsSync(file))
-    return {
-      routes: null,
-      status:
-        "Keine passende Basismessung vorhanden; Basis-Regressionsvergleich nicht durchgeführt. Genehmigte absolute Budgets werden vollständig geprüft.",
-    };
+    throw new Error(
+      "Required merge-base measurement missing; run node scripts/perf/bundle-measurement.mjs --build-base. PR delta cannot be skipped.",
+    );
   return {
     routes: readMeasurement(file, identity),
-    status: `Basismessung für Quellbaum ${identity.sourceTree} wiederverwendet; Delta ist informativ, genehmigte absolute Budgets sind verbindlich.`,
+    status: `Verifizierte Basismessung für Quellbaum ${identity.sourceTree}; eigenes PR-Delta (2 % oder 10 KiB) und feste absolute Budgets werden getrennt geprüft.`,
   };
 }
 
@@ -251,127 +248,23 @@ function prepareCI(baseRevision) {
     writeMeasurement(BASE_IDENTITY, identityForRevision(baseRevision));
 }
 
-function github(endpoint) {
-  return JSON.parse(
-    execFileSync("gh", ["api", endpoint], { encoding: "utf8" }),
+function buildBase() {
+  const requested = JSON.parse(readFileSync(BASE_IDENTITY, "utf8"));
+  const current = identityForRevision(requested.sourceRevision);
+  if (measurementKey(current.identity) !== measurementKey(requested.identity))
+    throw new Error("Base source/configuration changed since preparation");
+  const routes = measureBase(current.sourceRevision);
+  writeMeasurement(
+    BASE_MEASUREMENT,
+    makeMeasurement(
+      current.identity,
+      current.sourceRevision,
+      routes,
+      process.env.GITHUB_RUN_ID ?? null,
+    ),
   );
-}
-
-function eligibleProducerRun(repository, run) {
-  return (
-    run?.repository?.full_name === repository &&
-    run?.head_repository?.full_name === repository &&
-    [".github/workflows/main.yml", ".github/workflows/nightly.yml"].includes(
-      run.path?.split("@")[0],
-    )
-  );
-}
-
-export function assertProducerRun(repository, run) {
-  if (!eligibleProducerRun(repository, run)) {
-    throw new Error("Foreign bundle measurement producer repository/workflow");
-  }
-}
-
-export function assertProducerSource(
-  repository,
-  run,
-  measurement,
-  commit,
-  tree,
-) {
-  assertProducerRun(repository, run);
-  if (measurement.runId !== String(run.id))
-    throw new Error("Bundle measurement run identity mismatch");
-  if (
-    commit?.sha !== measurement.sourceRevision ||
-    (measurement.sourceRevision !== run.head_sha &&
-      !commit.parents?.some((parent) => parent.sha === run.head_sha))
-  ) {
-    throw new Error(
-      "Bundle producer revision does not belong to its workflow run",
-    );
-  }
-  if (
-    tree?.sha !== commit.tree?.sha ||
-    !tree.tree?.some(
-      (entry) =>
-        entry.path === "frontend" &&
-        entry.type === "tree" &&
-        entry.sha === measurement.identity.sourceTree,
-    )
-  ) {
-    throw new Error(
-      "Bundle producer source tree does not match the requested base",
-    );
-  }
-}
-
-/** Cross-run artifacts are accessible across PR refs, unlike PR-scoped caches. */
-function fetchBase() {
-  if (!existsSync(BASE_IDENTITY)) {
-    process.stdout.write(
-      "No base revision; absolute bundle budgets remain mandatory.\n",
-    );
-    return;
-  }
-  const expected = JSON.parse(readFileSync(BASE_IDENTITY, "utf8")).identity;
-  const name = `bundle-measured-${measurementKey(expected)}`;
-  const repository = process.env.GITHUB_REPOSITORY;
-  if (!/^[\w.-]+\/[\w.-]+$/.test(repository ?? ""))
-    throw new Error("GITHUB_REPOSITORY is required for bundle artifact reuse");
-  const listed = github(
-    `repos/${repository}/actions/artifacts?name=${encodeURIComponent(name)}&per_page=100`,
-  );
-  if (!Array.isArray(listed.artifacts))
-    throw new Error("Invalid GitHub bundle artifact listing");
-  for (const artifact of listed.artifacts.filter(
-    (entry) => entry.name === name && !entry.expired,
-  )) {
-    const run = github(
-      `repos/${repository}/actions/runs/${artifact.workflow_run.id}`,
-    );
-    if (!eligibleProducerRun(repository, run)) continue;
-    if (run.status !== "completed" || run.conclusion !== "success") continue;
-    const temporary = mkdtempSync(join(tmpdir(), "moto-bundle-measurement-"));
-    try {
-      execFileSync(
-        "gh",
-        [
-          "run",
-          "download",
-          String(run.id),
-          "--repo",
-          repository,
-          "--name",
-          name,
-          "--dir",
-          temporary,
-        ],
-        { stdio: "pipe" },
-      );
-      if (readdirSync(temporary).join(",") !== "bundle-measured.json")
-        throw new Error("Unexpected files in bundle measurement artifact");
-      const measurement = JSON.parse(
-        readFileSync(join(temporary, "bundle-measured.json"), "utf8"),
-      );
-      validateMeasurement(measurement, expected);
-      const commit = github(
-        `repos/${repository}/git/commits/${measurement.sourceRevision}`,
-      );
-      const tree = github(`repos/${repository}/git/trees/${commit.tree.sha}`);
-      assertProducerSource(repository, run, measurement, commit, tree);
-      writeMeasurement(BASE_MEASUREMENT, measurement);
-      process.stdout.write(
-        `Reused bundle observation from run ${run.id}; no base build.\n`,
-      );
-      return;
-    } finally {
-      rmSync(temporary, { recursive: true, force: true });
-    }
-  }
   process.stdout.write(
-    "No compatible successful base observation found; no base build was started. Absolute budgets remain mandatory.\n",
+    `Cold merge-base measurement completed: ${current.sourceRevision}, ${routes.size} routes.\n`,
   );
 }
 
@@ -380,6 +273,6 @@ if (
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   if (process.argv[2] === "--prepare-ci") prepareCI(process.argv[3]);
-  else if (process.argv[2] === "--fetch-base") fetchBase();
-  else throw new Error("Expected --prepare-ci [base-revision] or --fetch-base");
+  else if (process.argv[2] === "--build-base") buildBase();
+  else throw new Error("Expected --prepare-ci [base-revision] or --build-base");
 }

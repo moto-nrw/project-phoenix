@@ -37,11 +37,16 @@ func NewResource(svc communication.StaffMessagingCapability) *Resource {
 // not have.
 func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	protectedTenantRoutes(r, rs.registerRoutes)
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+		rs.registerRoutes(r, withTx)
+		rs.registerGroupAdminRoutes(r, withTx)
+	})
 	return r
 }
 
-// SchoolRouter is the school-portal mantle of the same surface (#2208):
+// SchoolRouter is the school-portal mantle of the same surface (#2208).
+// Lehrkräfte take part in group chats (#4776) but neither start nor manage
+// them, so the school portal gets the shared routes and leaving only:
 // identical handlers and authorization (participation + active staff row),
 // gated to school-scope tokens by ProtectedSchoolRoutes. A Lehrkraft holds a
 // users.staff row (services/auth/school_identity.go), so the staffJoin that
@@ -59,6 +64,17 @@ func (rs *Resource) registerRoutes(r chi.Router, withTx common.Middleware) {
 	r.With(withTx).Post("/threads/open", rs.openThread)
 	r.With(withTx).Get("/threads/{threadID}", rs.getThread)
 	r.With(withTx).Post("/threads/{threadID}", rs.postMessage)
+	r.With(withTx).Post("/threads/{threadID}/leave", rs.leaveGroup)
+}
+
+// registerGroupAdminRoutes mounts starting and managing group chats (#4776).
+// The service decides who may: the creator or the leadership manage, a
+// Lehrkraft never starts a group.
+func (rs *Resource) registerGroupAdminRoutes(r chi.Router, withTx common.Middleware) {
+	r.With(withTx).Post("/groups", rs.createGroup)
+	r.With(withTx).Put("/threads/{threadID}/name", rs.renameGroup)
+	r.With(withTx).Post("/threads/{threadID}/members", rs.addGroupMembers)
+	r.With(withTx).Delete("/threads/{threadID}/members/{accountID}", rs.removeGroupMember)
 }
 
 // ---------------------------------------------------------------------------
@@ -76,6 +92,12 @@ type InboxThreadResponse struct {
 	LastMessageBody     string `json:"last_message_body,omitempty"`
 	LastMessageMine     bool   `json:"last_message_mine"`
 	UnreadCount         int    `json:"unread_count"`
+	// Kind: "direct" | "group" (#4776). A group row carries group_name and
+	// member_count; its counterpart fields are empty.
+	Kind           string `json:"kind"`
+	GroupName      string `json:"group_name,omitempty"`
+	MemberCount    int    `json:"member_count"`
+	LastSenderName string `json:"last_sender_name,omitempty"`
 }
 
 // MessageResponse is one chat message.
@@ -85,6 +107,11 @@ type MessageResponse struct {
 	SenderName      string `json:"sender_name"`
 	Body            string `json:"body"`
 	CreatedAt       string `json:"created_at"`
+	// Group chats only (#4776): who of the members read the message and how
+	// many members could have.
+	ReadByAccountIDs         []string `json:"read_by_account_ids,omitempty"`
+	EligibleReaderAccountIDs []string `json:"eligible_reader_account_ids,omitempty"`
+	ReaderCount              int      `json:"reader_count"`
 }
 
 // ThreadDetailResponse is the chat window payload.
@@ -94,6 +121,18 @@ type ThreadDetailResponse struct {
 	CounterpartName      string            `json:"counterpart_name"`
 	CounterpartRoleKind  string            `json:"counterpart_role_kind"`
 	Messages             []MessageResponse `json:"messages"`
+	// Group chats (#4776).
+	Kind      string           `json:"kind"`
+	GroupName string           `json:"group_name,omitempty"`
+	CanManage bool             `json:"can_manage"`
+	Members   []MemberResponse `json:"members"`
+}
+
+// MemberResponse is one person in a group chat.
+type MemberResponse struct {
+	AccountID string `json:"account_id"`
+	Name      string `json:"name"`
+	RoleKind  string `json:"role_kind"`
 }
 
 // RecipientResponse is one addressable colleague.
@@ -108,24 +147,53 @@ func toMessageResponses(messages []communication.StaffMessage) []MessageResponse
 	out := make([]MessageResponse, 0, len(messages))
 	for _, m := range messages {
 		out = append(out, MessageResponse{
-			ID:              strconv.FormatInt(m.ID, 10),
-			SenderAccountID: strconv.FormatInt(m.SenderAccountID, 10),
-			SenderName:      m.SenderName,
-			Body:            m.Body,
-			CreatedAt:       m.CreatedAt.Format(time.RFC3339),
+			ID:                       strconv.FormatInt(m.ID, 10),
+			SenderAccountID:          strconv.FormatInt(m.SenderAccountID, 10),
+			SenderName:               m.SenderName,
+			Body:                     m.Body,
+			CreatedAt:                m.CreatedAt.Format(time.RFC3339),
+			ReadByAccountIDs:         formatIDs(m.ReadByAccountIDs),
+			EligibleReaderAccountIDs: formatIDs(m.EligibleReaderAccountIDs),
+			ReaderCount:              m.ReaderCount,
 		})
 	}
 	return out
 }
 
-func toThreadDetail(d *communication.StaffMessageThread) ThreadDetailResponse {
-	return ThreadDetailResponse{
-		ThreadID:             strconv.FormatInt(d.ThreadID, 10),
-		CounterpartAccountID: strconv.FormatInt(d.CounterpartAccountID, 10),
-		CounterpartName:      d.CounterpartName,
-		CounterpartRoleKind:  d.CounterpartRoleKind,
-		Messages:             toMessageResponses(d.Messages),
+func formatIDs(ids []int64) []string {
+	if ids == nil {
+		return nil
 	}
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, strconv.FormatInt(id, 10))
+	}
+	return out
+}
+
+func toThreadDetail(d *communication.StaffMessageThread) ThreadDetailResponse {
+	response := ThreadDetailResponse{
+		ThreadID:  strconv.FormatInt(d.ThreadID, 10),
+		Messages:  toMessageResponses(d.Messages),
+		Kind:      d.Kind,
+		GroupName: d.GroupName,
+		CanManage: d.CanManage,
+		Members:   toMemberResponses(d.Members),
+	}
+	if d.Kind == "direct" {
+		response.CounterpartAccountID = strconv.FormatInt(d.CounterpartAccountID, 10)
+		response.CounterpartName = d.CounterpartName
+		response.CounterpartRoleKind = d.CounterpartRoleKind
+	}
+	return response
+}
+
+func toMemberResponses(members []communication.StaffThreadMember) []MemberResponse {
+	out := make([]MemberResponse, 0, len(members))
+	for _, m := range members {
+		out = append(out, MemberResponse{AccountID: strconv.FormatInt(m.AccountID, 10), Name: m.Name, RoleKind: m.RoleKind})
+	}
+	return out
 }
 
 // ---------------------------------------------------------------------------
@@ -150,6 +218,13 @@ func (rs *Resource) listInbox(w http.ResponseWriter, r *http.Request) {
 			LastMessageBody:      row.LastMessageBody,
 			UnreadCount:          row.UnreadCount,
 			LastMessageMine:      row.LastSenderAccountID != nil && *row.LastSenderAccountID == actor,
+			Kind:                 row.Kind,
+			GroupName:            row.GroupName,
+			MemberCount:          row.MemberCount,
+			LastSenderName:       row.LastSenderName,
+		}
+		if row.CounterpartAccountID == 0 {
+			item.CounterpartAccountID = ""
 		}
 		if row.LastMessageAt != nil {
 			item.LastMessageAt = row.LastMessageAt.Format(time.RFC3339)

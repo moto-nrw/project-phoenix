@@ -330,7 +330,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationStaffInbox.ListInbox",
-      "binding_digest": "a4f0dcd2fbfa54a3294f1f5300aba7a7",
+      "binding_digest": "62aa2dcc22f1369d4842e8828ec748ec",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication.StaffInboxReads.ListInbox",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/staffmessageinbox/internal/adapters/postgres.Projection.ListInbox",

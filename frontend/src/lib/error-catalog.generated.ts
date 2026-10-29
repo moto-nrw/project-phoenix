@@ -217,6 +217,16 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.poll_not_open":
         "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
+      "communication.staff_group_create_forbidden":
+        "Lehrkräfte können keinen Gruppenchat anlegen. Bitten Sie die OGS darum.",
+      "communication.staff_group_manage_forbidden":
+        "Nur wer den Gruppenchat angelegt hat und die OGS-Leitung können ihn ändern.",
+      "communication.staff_group_members_required":
+        "Bitte wählen Sie mindestens eine Person aus, die noch nicht in der Gruppe ist.",
+      "communication.staff_group_name_invalid":
+        "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens {max_characters} Zeichen.",
+      "communication.staff_group_too_large":
+        "Ein Gruppenchat hat höchstens {max_members} Mitglieder.",
       "communication.staff_messaging_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
@@ -1630,6 +1640,16 @@ export const ERROR_CATALOG = {
         "No child in this group has parents with access to moto. The message was not sent.",
       "communication.leadership_messages_unavailable":
         "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
+      "communication.staff_group_create_forbidden":
+        "Teachers cannot start a group chat. Please ask the after-school team.",
+      "communication.staff_group_manage_forbidden":
+        "Only the person who started the group chat and the leadership can change it.",
+      "communication.staff_group_members_required":
+        "Please choose at least one person who is not in the group yet.",
+      "communication.staff_group_name_invalid":
+        "Please give the group chat a name of at most {max_characters} characters.",
+      "communication.staff_group_too_large":
+        "A group chat has at most {max_members} members.",
       "communication.survey_already_answered":
         "You have already taken part in this survey. Your answer cannot be changed.",
       "communication.survey_not_open": "This survey no longer accepts answers.",

@@ -56,6 +56,91 @@ test("the absolute ceiling still fails when a rolling PR delta is tiny", () => {
   assert.match(result.failures[0], /Obergrenze/);
 });
 
+test("own PR delta over tolerance fails even with plenty of absolute headroom", () => {
+  const policies = new Map([
+    ["/parents/children", { referenceBytes: 100_000, maxBytes: 200_000 }],
+  ]);
+  const result = compareBudgets(
+    policies,
+    new Map([["/parents/children", 110_241]]),
+    new Map([["/parents/children", 100_000]]),
+  );
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0], /eigenes PR-Delta/);
+});
+
+test("historical baseline drift plus 512 B own growth passes (#5181/#5213)", () => {
+  const route = "/[tenant]/home";
+  const policies = new Map([
+    [route, { referenceBytes: 1_058_646, maxBytes: legacyCeiling(1_058_646) }],
+  ]);
+  const result = compareBudgets(
+    policies,
+    new Map([[route, 1_079_590 + 512]]),
+    new Map([[route, 1_079_590]]),
+  );
+  assert.equal(result.rows[0].delta, 512);
+  // Crossing a previously intact absolute budget is still a separate failure.
+  assert.equal(result.failures.length, 1);
+  assert.match(result.failures[0], /Obergrenze/);
+  policies.get(route).maxBytes = 1_100_000;
+  assert.deepEqual(
+    compareBudgets(
+      policies,
+      new Map([[route, 1_079_590 + 512]]),
+      new Map([[route, 1_079_590]]),
+    ).failures,
+    [],
+  );
+});
+
+test("only inherited absolute excess warns on PRs but remains red on development", () => {
+  const measured = new Map([["/parents/children", 120_512]]);
+  const result = compareBudgets(
+    approved,
+    measured,
+    new Map([["/parents/children", 120_000]]),
+  );
+  assert.deepEqual(result.failures, []);
+  assert.equal(result.warnings.length, 1);
+  assert.match(result.warnings[0], /Obergrenze/);
+  assert.equal(compareBudgets(approved, measured).failures.length, 1);
+  assert.ok(
+    compareBudgets(
+      approved,
+      new Map([["/parents/children", 131_000]]),
+      new Map([["/parents/children", 120_000]]),
+    ).failures.some((failure) => /eigenes PR-Delta/.test(failure)),
+  );
+});
+
+test("PR delta accepts equality, rejects one byte more and secures improvements automatically", () => {
+  const policies = new Map([
+    ["/parents/children", { referenceBytes: 100_000, maxBytes: 200_000 }],
+  ]);
+  const base = new Map([["/parents/children", 100_000]]);
+  assert.deepEqual(
+    compareBudgets(policies, new Map([["/parents/children", 110_240]]), base)
+      .failures,
+    [],
+  );
+  assert.equal(
+    compareBudgets(policies, new Map([["/parents/children", 110_241]]), base)
+      .failures.length,
+    1,
+  );
+  assert.deepEqual(
+    compareBudgets(policies, new Map([["/parents/children", 60_000]]), base)
+      .failures,
+    [],
+  );
+  assert.equal(
+    compareBudgets(policies, base, new Map([["/parents/children", 60_000]]))
+      .failures.length,
+    1,
+  );
+});
+
 test("a cached observation cannot grant a budget to a new route", () => {
   const route = "/parents/new";
   const result = compareBudgets(
