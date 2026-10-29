@@ -5,22 +5,9 @@ import { createLogger } from "~/lib/logger";
 import { SESSION_ACCOUNT_HEADER } from "~/lib/session-account";
 import type { SentryPortal } from "~/lib/sentry-context";
 import type { ServerSession } from "./shared";
-import { MISMATCH_EXEMPT_PATHS } from "./tenant-host-check";
+import { ACCOUNT_CHECK_EXEMPT_PATHS } from "./session-check-exempt-paths";
 
 const logger = createLogger({ component: "SessionAccountCheck" });
-
-/**
- * Routes that must work while the cookie holds another account than the
- * tab: the tenant routes that end a school mismatch (switch, token refresh,
- * logout, end of a staff preview, log lines, invitation acceptance) and the
- * logout of every other portal that has its own.
- */
-const ACCOUNT_CHECK_EXEMPT_PATHS: ReadonlySet<string> = new Set([
-  ...MISMATCH_EXEMPT_PATHS,
-  "/api/school/auth/logout",
-  "/api/caterer/auth/logout",
-  "/api/traeger/auth/logout",
-]);
 
 /**
  * Refuses a request whose tab names another account than the session cookie

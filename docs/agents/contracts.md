@@ -379,7 +379,7 @@ origin never gets it. Every portal's route wrapper
 names another account than the cookie with 409
 `identity.session_account_mismatch` before the route runs
 (`frontend/src/server/auth/session-account-check.ts`). Exempt are the tenant
-routes above and the school, caterer and Träger logouts. The refusal takes
+routes above and the logout of every other portal. The refusal takes
 the path of the school refusal: the session cache wakes the provider,
 `TenantGuard` hides the page, and the provider's new account resets the SWR
 scope and leaves the page (`PersonalStorageGuard`). A request without the

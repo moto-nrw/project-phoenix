@@ -249,6 +249,8 @@ describe("routes that must work with another account in the cookie", () => {
   });
 
   it.each([
+    ["operator", "operator.localhost:3000", "/api/operator/auth/logout"],
+    ["parent", "eltern.localhost:3000", "/api/parent/auth/logout"],
     ["school", "schule.localhost:3000", "/api/school/auth/logout"],
     ["caterer", "caterer.localhost:3000", "/api/caterer/auth/logout"],
     ["traeger", "traeger.localhost:3000", "/api/traeger/auth/logout"],
