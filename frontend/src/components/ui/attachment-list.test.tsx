@@ -21,6 +21,7 @@ describe("AttachmentList", () => {
       />,
     );
 
+    // Anker: die Zeile ist gerendert und zeigt das Öffnen-Symbol.
     const link = screen.getByRole("link", { name: "nachweis.pdf" });
     expect(link).toHaveAttribute("href", "/files/1?inline=1");
     expect(link).toHaveAttribute("target", "_blank");
@@ -45,6 +46,7 @@ describe("AttachmentList", () => {
       />,
     );
 
+    // Anker: die Zeile ist gerendert und zeigt den Download-Pfeil.
     const link = screen.getByRole("link", { name: "liste.xlsx" });
     expect(link).toHaveAttribute("href", "/files/2");
     expect(link).not.toHaveAttribute("target");
