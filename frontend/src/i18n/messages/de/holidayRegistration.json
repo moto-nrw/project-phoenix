@@ -96,5 +96,8 @@
     "choose": "Bitte wählen Sie eine Antwort."
   },
   "childQuestionsTitle": "Weitere Angaben",
-  "familyQuestionsTitle": "Weitere Angaben zur Familie"
+  "familyQuestionsTitle": "Weitere Angaben zur Familie",
+  "legalTitle": "Hinweise und Einwilligungen",
+  "legalAccepted": "Bestätigt",
+  "legalNotAccepted": "Nicht bestätigt"
 }

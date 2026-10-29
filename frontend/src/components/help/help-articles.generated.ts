@@ -9385,6 +9385,9 @@ export const traegerHolidayFormTopic =
       question: "Wie lege ich eigene Fragen für die Ferienanmeldung fest?",
       summary:
         "Jeder Ferienzeitraum hat ein eigenes Formular. Sie wählen, welche Fragen Eltern zusätzlich beantworten.",
+      image: "/help/screens/ferienformular-hinweise.webp",
+      imageAlt:
+        "Eigene Hinweise mit PDF und Pflichtbestätigung im Ferienformular.",
       group: "anmeldeverwaltung",
       audience: "traeger",
       icon: "NotePencil",
@@ -9393,6 +9396,19 @@ export const traegerHolidayFormTopic =
       ],
       steps: [],
       instructionGroups: [
+        {
+          title: "Hinweise und Einwilligungen ergänzen",
+          steps: [
+            "Wählen Sie unter `Hinweise und Einwilligungen` die Aktion `Eigene Zustimmung hinzufügen`.",
+            "Tragen Sie `Titel` und `Text neben dem Häkchen oder Hinweis` ein.",
+            "Ergänzen Sie den Text unter `Rechtstext / Erklärung`.",
+            "Für ein PDF wählen Sie `PDFs hinzufügen`. Höchstens 10 MB je Datei.",
+            "Tragen Sie unter `Bezeichnung für Eltern` einen passenden Namen ein.",
+            "Müssen Eltern den Hinweis bestätigen? Wählen Sie `Muss bestätigt werden`.",
+            "Eine freiwillige Einwilligung lassen Sie ohne diese Pflicht.",
+            "Wählen Sie `Als neue Version speichern`.",
+          ],
+        },
         {
           title: "Fragen festlegen",
           steps: [
@@ -9431,6 +9447,7 @@ export const traegerHolidayFormTopic =
       notes: [
         "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
         "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig.",
+        "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
         "Jedes Speichern legt eine neue Version an. Schon abgeschickte Anmeldungen behalten ihre Version und ihre Fragen.",
         "Mit `Änderungen verwerfen` holen Sie die gespeicherten Fragen zurück. Das gilt auch für Auswahloptionen.",
         "Eine Antwort mit Gesundheitsangabe braucht die Zustimmung der Eltern. Sie steht nur in der Anmeldung, nicht in Liste und Export.",
@@ -9552,6 +9569,7 @@ export const traegerHolidayRegistrationReviewTopic =
           title: "Bestätigen oder stornieren",
           steps: [
             "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
+            "Unter `Hinweise und Einwilligungen` sehen Sie die Bestätigungen mit Zeitpunkt. Dort öffnen Sie auch die damaligen PDFs.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
             "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
             "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
@@ -9632,6 +9650,7 @@ export const traegerHolidayRegistrationTopic =
       result:
         "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
       notes: [
+        "Unter `Hinweise und Einwilligungen` öffnen Sie die PDFs. Setzen Sie die nötigen Häkchen. Die Zusammenfassung zeigt Ihre Bestätigungen.",
         "Eltern brauchen kein Elternkonto.",
         "Eltern können eine `Zweite sorgeberechtigte Person` angeben. Die Bestätigung geht nur an die anmeldende Person.",
         "Ein Kind ohne Schule Ihres Trägers melden Eltern als Feriengast an. Es wird dadurch kein Schulkind einer OGS.",

@@ -65,6 +65,7 @@
     }
   ],
   "data_objects": [
+    { "name": "enrollment.holiday_form_documents", "write_owner": "enrollment" },
     {
       "name": "enrollment.change_request_messages",
       "write_owner": "enrollment"

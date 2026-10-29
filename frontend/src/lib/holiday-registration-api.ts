@@ -1,3 +1,7 @@
+import {
+  holidayLegalBlocks,
+  type HolidayLegalBlockWire,
+} from "~/lib/holiday-form-field";
 // Öffentliche Ferienanmeldung (#4661): der eine Link eines Ferienzeitraums
 // für alle Schulen des Trägers, ohne Elternkonto.
 
@@ -73,7 +77,11 @@ interface BackendOffer {
     | null;
   schools?: { id: number; name: string }[] | null;
   captcha_site_key: string;
-  form?: { version: number; fields?: HolidayFormField[] | null } | null;
+  form?: {
+    version: number;
+    fields?: HolidayFormField[] | null;
+    legal_blocks?: HolidayLegalBlockWire[] | null;
+  } | null;
 }
 
 /** The registration as the backend reads it; IDs travel as numbers. */
@@ -109,6 +117,7 @@ export interface HolidayRegistrationPayload {
   readonly benefits_declared: boolean;
   readonly captcha_token: string;
   /** The form version the parent answered (#5198). */
+  readonly legal_acceptances?: Readonly<Record<string, boolean>>;
   readonly form_version: number;
   /** Answers to the questions per family, by key (#5198). */
   readonly custom_data: Readonly<Record<string, unknown>>;
@@ -147,6 +156,7 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
     })),
     captchaSiteKey: offer.captcha_site_key,
     form: {
+      legalBlocks: holidayLegalBlocks(offer.form?.legal_blocks),
       version: offer.form?.version ?? 0,
       fields: offer.form?.fields ?? [],
     },

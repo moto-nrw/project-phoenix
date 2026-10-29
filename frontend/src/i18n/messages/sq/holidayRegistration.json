@@ -96,5 +96,8 @@
     "choose": "Ju lutemi zgjidhni një përgjigje."
   },
   "childQuestionsTitle": "Të dhëna të tjera",
-  "familyQuestionsTitle": "Të dhëna të tjera për familjen"
+  "familyQuestionsTitle": "Të dhëna të tjera për familjen",
+  "legalTitle": "Njoftime dhe pëlqime",
+  "legalAccepted": "Konfirmuar",
+  "legalNotAccepted": "Jo e konfirmuar"
 }

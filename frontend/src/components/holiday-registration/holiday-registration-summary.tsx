@@ -190,6 +190,21 @@ export function HolidayRegistrationSummary({
         </SectionCard>
       ) : null}
 
+      {(offer.form.legalBlocks ?? []).some((b) => b.enabled) ? (
+        <SectionCard title={t("legalTitle")}>
+          <DataGrid>
+            {offer.form.legalBlocks
+              ?.filter((b) => b.enabled)
+              .map((block) => (
+                <DataField key={block.key} label={block.title}>
+                  {draft.legalAcceptances?.[block.key]
+                    ? t("legalAccepted")
+                    : t("legalNotAccepted")}
+                </DataField>
+              ))}
+          </DataGrid>
+        </SectionCard>
+      ) : null}
       <HolidayRegistrationContribution
         token={token}
         draft={draft}

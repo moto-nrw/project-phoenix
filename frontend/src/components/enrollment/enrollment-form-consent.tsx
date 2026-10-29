@@ -118,7 +118,7 @@ export function EmailContactNotice({
   );
 }
 
-function LegalDetailsButton({
+export function LegalDetailsButton({
   title,
   label,
   ariaLabel,

@@ -65,6 +65,7 @@ export interface RegistrationDraft {
   readonly children: readonly ChildDraft[];
   readonly emergencyContacts: readonly ContactDraft[];
   readonly pickupPersons: readonly ContactDraft[];
+  readonly legalAcceptances?: Readonly<Record<string, boolean>>;
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;
   readonly bindingConfirmed: boolean;
@@ -467,6 +468,10 @@ export function validateRegistration(
   if (offer.binding && !draft.bindingConfirmed) {
     errors.binding_confirmed = "binding";
   }
+  for (const block of offer.form.legalBlocks ?? []) {
+    if (block.enabled && block.required && !draft.legalAcceptances?.[block.key])
+      errors[`legal_acceptances.${block.key}`] = "required";
+  }
   return errors;
 }
 
@@ -529,6 +534,11 @@ export function payloadFromDraft(
     }),
     emergency_contacts: draft.emergencyContacts.map(contactPayload),
     pickup_persons: draft.pickupPersons.map(contactPayload),
+    legal_acceptances: Object.fromEntries(
+      (offer.form.legalBlocks ?? [])
+        .filter((b) => b.enabled)
+        .map((b) => [b.key, draft.legalAcceptances?.[b.key] === true]),
+    ),
     privacy_consent: draft.privacyConsent,
     health_consent: hasHealthInfo(draft, offer.form) && draft.healthConsent,
     binding_confirmed: offer.binding && draft.bindingConfirmed,

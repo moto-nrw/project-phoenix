@@ -6,7 +6,7 @@
 // und kann eine Gesundheitsangabe sein. Speichern legt eine neue Version an.
 
 import { FileText, Plus, TextCursorInput } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FieldEditorRow,
   FieldErrorContext,
@@ -15,6 +15,8 @@ import {
   PreviewFieldsSection,
   PreviewSection,
 } from "~/components/enrollment/form-field-builder";
+import { LegalBlocksSection } from "~/components/enrollment/enrollment-form-editor";
+import { AttachmentUploadContext } from "~/components/enrollment/attachment-editor";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -27,6 +29,7 @@ import {
   blankInfoField,
   type ConditionSource,
   type FormField,
+  type FormLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
 import {
@@ -34,6 +37,8 @@ import {
   type HolidayForm,
   type HolidayFormField,
   saveHolidayForm,
+  uploadHolidayDocument,
+  deleteHolidayDocument,
 } from "~/lib/traeger-holiday-form-api";
 import {
   copyStableObjectKey,
@@ -77,6 +82,43 @@ export function HolidayFormEditor({
   const [fields, setFields] = useState<HolidayFormField[]>(() => [
     ...form.fields,
   ]);
+  const [legalBlocks, setLegalBlocks] = useState<FormLegalBlock[]>(() => [
+    ...(form.legalBlocks ?? []),
+  ]);
+  const drafts = useRef(new Set<string>());
+  const [uploads, setUploads] = useState(0);
+  const adapter = useMemo(
+    () => ({
+      upload: (file: File) => uploadHolidayDocument(periodId, file),
+      remove: (id: string, options?: { keepalive?: boolean }) =>
+        deleteHolidayDocument(periodId, id, options),
+    }),
+    [periodId],
+  );
+  const lifecycle = useMemo(
+    () => ({
+      remember: (id: string) => {
+        drafts.current.add(id);
+      },
+      begin: () => setUploads((n) => n + 1),
+      end: () => setUploads((n) => Math.max(0, n - 1)),
+    }),
+    [],
+  );
+  const cleanup = useCallback(async () => {
+    await Promise.allSettled(
+      [...drafts.current].map(async (id) => {
+        await adapter.remove(id, { keepalive: true });
+        drafts.current.delete(id);
+      }),
+    );
+  }, [adapter]);
+  useEffect(
+    () => () => {
+      void cleanup();
+    },
+    [cleanup],
+  );
   const [saving, setSaving] = useState(false);
   const { fieldError: readFieldError } = errorPath;
   const fieldError = useCallback(
@@ -84,7 +126,8 @@ export function HolidayFormEditor({
     [readFieldError],
   );
   const dirty =
-    holidayFieldsSignature(fields) !== holidayFieldsSignature(form.fields);
+    holidayFieldsSignature(fields) !== holidayFieldsSignature(form.fields) ||
+    JSON.stringify(legalBlocks) !== JSON.stringify(form.legalBlocks ?? []);
   const missingTemplateFields = templateFieldsMissing(fields, form.template);
 
   const update = (index: number, patch: Partial<HolidayFormField>) =>
@@ -119,8 +162,15 @@ export function HolidayFormEditor({
       const saved = await saveHolidayForm(
         periodId,
         prepareHolidayFieldsForSave(fields),
+        legalBlocks,
       );
+      for (const block of saved.legalBlocks ?? []) {
+        for (const attachment of block.attachments ?? [])
+          drafts.current.delete(attachment.document_url);
+      }
+      await cleanup();
       setFields([...saved.fields]);
+      setLegalBlocks([...(saved.legalBlocks ?? [])]);
       onSaved(saved);
     } catch (err) {
       logger.error("traeger_holiday_form_save_failed", {
@@ -136,185 +186,210 @@ export function HolidayFormEditor({
   const childFields = fields.filter((field) => field.applies_to_child);
 
   return (
-    <FieldErrorContext.Provider value={fieldError}>
-      <div
-        ref={formRef}
-        className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]"
-      >
-        <SectionCard
-          title="Fragen"
-          description="Diese Fragen stehen in der Ferienanmeldung zusätzlich zu den festen Angaben."
-          action={
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              disabled={saving || missingTemplateFields === 0}
-              onClick={() =>
-                setFields((current) =>
-                  insertTemplateFields(current, form.template),
-                )
-              }
-            >
-              Standardvorlage einfügen
-            </Button>
-          }
+    <AttachmentUploadContext.Provider value={lifecycle}>
+      <FieldErrorContext.Provider value={fieldError}>
+        <div
+          ref={formRef}
+          className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_380px]"
         >
-          <div className="space-y-4">
-            <FormErrorAlert message={errorPath.error} />
-            {missingTemplateFields === 0 && form.template.length > 0 ? (
-              <p className="text-sm text-gray-600">
-                Alle Fragen der Standardvorlage sind im Formular.
-              </p>
-            ) : null}
-            {fields.length === 0 ? (
-              <EmptyState
-                variant="compact"
-                title="Noch keine Fragen"
-                description="Eltern sehen nur die festen Angaben. Fügen Sie eine Frage oder die Standardvorlage hinzu."
-              />
-            ) : (
-              <div className="space-y-3">
-                {fields.map((field, index) => (
-                  <FieldEditorRow
-                    key={getStableObjectKey(field, "holiday-field")}
-                    field={field}
-                    index={index}
-                    total={fields.length}
-                    allFields={fields}
-                    onChange={(patch) => update(index, patch)}
-                    onRemove={() => remove(index)}
-                    onMoveUp={() => move(index, -1)}
-                    onMoveDown={() => move(index, 1)}
-                    disabled={saving}
-                    fieldTypes={HOLIDAY_FORM_FIELD_TYPES}
-                    conditionSources={HOLIDAY_CONDITION_SOURCES}
-                    allowAttachments={false}
-                    freeQuestionNote={HOLIDAY_FREE_QUESTION_NOTE}
-                    healthToggle={
-                      field.type === "information"
-                        ? undefined
-                        : {
-                            checked: Boolean(field.health),
-                            onChange: (health) => update(index, { health }),
-                          }
-                    }
-                  />
-                ))}
-              </div>
-            )}
-            <div className="flex flex-wrap gap-2">
+          <SectionCard
+            title="Fragen"
+            description="Diese Fragen stehen in der Ferienanmeldung zusätzlich zu den festen Angaben."
+            action={
               <Button
                 type="button"
                 variant="outline"
                 size="md"
-                disabled={saving}
-                className="inline-flex items-center gap-2"
+                disabled={saving || uploads > 0 || missingTemplateFields === 0}
                 onClick={() =>
-                  setFields((current) => [
-                    ...current,
-                    blankField(current.length),
-                  ])
+                  setFields((current) =>
+                    insertTemplateFields(current, form.template),
+                  )
                 }
               >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                <TextCursorInput className="h-4 w-4" aria-hidden="true" />
-                Frage hinzufügen
+                Standardvorlage einfügen
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={saving}
-                className="inline-flex items-center gap-2"
-                onClick={() =>
-                  setFields((current) => [
-                    ...current,
-                    blankInfoField(current.length),
-                  ])
-                }
-              >
-                <Plus className="h-4 w-4" aria-hidden="true" />
-                <FileText className="h-4 w-4" aria-hidden="true" />
-                Infotext hinzufügen
-              </Button>
-            </div>
-            <EditActions
-              onCancel={() => {
-                errorPath.clear();
-                // New row identities also discard row-local input drafts.
-                setFields(form.fields.map((field) => ({ ...field })));
-              }}
-              onSave={() => void save()}
-              saving={saving}
-              disabled={!dirty}
-              cancelLabel="Änderungen verwerfen"
-              saveLabel="Als neue Version speichern"
-              className="border-t border-gray-100 pt-4"
-            />
-          </div>
-        </SectionCard>
-
-        <aside>
-          <FormPreview
-            title="Ferienanmeldung"
-            header={
-              <FormPreviewHeading
-                title="Vorschau für Eltern"
-                hint={
-                  dirty
-                    ? "Noch nicht gespeichert. Eltern sehen weiter die gespeicherte Version."
-                    : "So sehen Eltern das Formular."
-                }
-              />
             }
           >
-            <PreviewSection
-              title="Kind"
-              fields={[
-                "Vorname *",
-                "Nachname *",
-                "Geburtsdatum *",
-                "Schule *",
-                "Wochen und Zeitmodell *",
-                "Allergien",
-                "Medikamente",
-                "Weitere Hinweise zur Gesundheit",
-              ]}
-            />
-            <PreviewFieldsSection
-              title="Fragen je Kind"
-              fields={childFields}
-              emptyTitle="Keine Fragen je Kind"
-              emptyText="Bei jedem Kind stehen nur die festen Angaben."
-              fieldBadge={healthBadge}
-            />
-            <PreviewSection
-              title="Elternteil"
-              fields={["Vorname *", "Nachname *", "E-Mail *", "Telefon *"]}
-            />
-            <PreviewFieldsSection
-              title="Fragen zur Familie"
-              fields={familyFields}
-              emptyTitle="Keine Fragen zur Familie"
-              emptyText="Beim Elternteil stehen nur die festen Angaben."
-              fieldBadge={healthBadge}
-            />
-            <PreviewSection
-              title="Kontakte"
-              fields={["Notfallkontakt *", "Abholberechtigte"]}
-            />
-            <PreviewSection
-              title="Zustimmungen"
-              fields={[
-                "Datenschutz *",
-                "Gesundheitsangaben (wenn angegeben) *",
-                "Verbindliche Anmeldung (wenn verbindlich) *",
-              ]}
-            />
-          </FormPreview>
-        </aside>
-      </div>
-    </FieldErrorContext.Provider>
+            <div className="space-y-4">
+              <FormErrorAlert message={errorPath.error} />
+              {missingTemplateFields === 0 && form.template.length > 0 ? (
+                <p className="text-sm text-gray-600">
+                  Alle Fragen der Standardvorlage sind im Formular.
+                </p>
+              ) : null}
+              {fields.length === 0 ? (
+                <EmptyState
+                  variant="compact"
+                  title="Noch keine Fragen"
+                  description="Eltern sehen nur die festen Angaben. Fügen Sie eine Frage oder die Standardvorlage hinzu."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {fields.map((field, index) => (
+                    <FieldEditorRow
+                      key={getStableObjectKey(field, "holiday-field")}
+                      field={field}
+                      index={index}
+                      total={fields.length}
+                      allFields={fields}
+                      onChange={(patch) => update(index, patch)}
+                      onRemove={() => remove(index)}
+                      onMoveUp={() => move(index, -1)}
+                      onMoveDown={() => move(index, 1)}
+                      disabled={saving || uploads > 0}
+                      fieldTypes={HOLIDAY_FORM_FIELD_TYPES}
+                      conditionSources={HOLIDAY_CONDITION_SOURCES}
+                      allowAttachments={false}
+                      freeQuestionNote={HOLIDAY_FREE_QUESTION_NOTE}
+                      healthToggle={
+                        field.type === "information"
+                          ? undefined
+                          : {
+                              checked: Boolean(field.health),
+                              onChange: (health) => update(index, { health }),
+                            }
+                      }
+                    />
+                  ))}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={saving || uploads > 0}
+                  className="inline-flex items-center gap-2"
+                  onClick={() =>
+                    setFields((current) => [
+                      ...current,
+                      blankField(current.length),
+                    ])
+                  }
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  <TextCursorInput className="h-4 w-4" aria-hidden="true" />
+                  Frage hinzufügen
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={saving || uploads > 0}
+                  className="inline-flex items-center gap-2"
+                  onClick={() =>
+                    setFields((current) => [
+                      ...current,
+                      blankInfoField(current.length),
+                    ])
+                  }
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  <FileText className="h-4 w-4" aria-hidden="true" />
+                  Infotext hinzufügen
+                </Button>
+              </div>
+              <LegalBlocksSection
+                blocks={legalBlocks}
+                standardBlocks={[]}
+                customOnly
+                uploadAdapter={adapter}
+                onChange={setLegalBlocks}
+                disabled={saving || uploads > 0}
+                draftDocumentURLs={drafts.current}
+                onDraftDocumentUploaded={lifecycle.remember}
+                onDraftDocumentDeleted={(id) => {
+                  drafts.current.delete(id);
+                }}
+                onUploadStart={lifecycle.begin}
+                onUploadEnd={lifecycle.end}
+              />
+              <EditActions
+                onCancel={() => {
+                  errorPath.clear();
+                  void cleanup();
+                  setLegalBlocks([...(form.legalBlocks ?? [])]);
+                  // New row identities also discard row-local input drafts.
+                  setFields(form.fields.map((field) => ({ ...field })));
+                }}
+                onSave={() => void save()}
+                saving={saving}
+                disabled={!dirty || uploads > 0}
+                cancelLabel="Änderungen verwerfen"
+                saveLabel="Als neue Version speichern"
+                className="border-t border-gray-100 pt-4"
+              />
+            </div>
+          </SectionCard>
+
+          <aside>
+            <FormPreview
+              title="Ferienanmeldung"
+              header={
+                <FormPreviewHeading
+                  title="Vorschau für Eltern"
+                  hint={
+                    dirty
+                      ? "Noch nicht gespeichert. Eltern sehen weiter die gespeicherte Version."
+                      : "So sehen Eltern das Formular."
+                  }
+                />
+              }
+            >
+              <PreviewSection
+                title="Kind"
+                fields={[
+                  "Vorname *",
+                  "Nachname *",
+                  "Geburtsdatum *",
+                  "Schule *",
+                  "Wochen und Zeitmodell *",
+                  "Allergien",
+                  "Medikamente",
+                  "Weitere Hinweise zur Gesundheit",
+                ]}
+              />
+              <PreviewFieldsSection
+                title="Fragen je Kind"
+                fields={childFields}
+                emptyTitle="Keine Fragen je Kind"
+                emptyText="Bei jedem Kind stehen nur die festen Angaben."
+                fieldBadge={healthBadge}
+              />
+              <PreviewSection
+                title="Elternteil"
+                fields={["Vorname *", "Nachname *", "E-Mail *", "Telefon *"]}
+              />
+              <PreviewFieldsSection
+                title="Fragen zur Familie"
+                fields={familyFields}
+                emptyTitle="Keine Fragen zur Familie"
+                emptyText="Beim Elternteil stehen nur die festen Angaben."
+                fieldBadge={healthBadge}
+              />
+              <PreviewSection
+                title="Kontakte"
+                fields={["Notfallkontakt *", "Abholberechtigte"]}
+              />
+              <PreviewSection
+                title="Hinweise und Einwilligungen"
+                fields={legalBlocks
+                  .filter((b) => b.enabled)
+                  .map((b) => `${b.title}${b.required ? " *" : ""}`)}
+              />
+              <PreviewSection
+                title="Zustimmungen"
+                fields={[
+                  "Datenschutz *",
+                  "Gesundheitsangaben (wenn angegeben) *",
+                  "Verbindliche Anmeldung (wenn verbindlich) *",
+                ]}
+              />
+            </FormPreview>
+          </aside>
+        </div>
+      </FieldErrorContext.Provider>
+    </AttachmentUploadContext.Provider>
   );
 }

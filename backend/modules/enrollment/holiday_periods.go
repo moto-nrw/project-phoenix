@@ -129,6 +129,9 @@ type HolidayPeriodInput struct {
 // names the Träger of the session and runs in its Träger transaction, which
 // the caller opens.
 type HolidayPeriods interface {
+	UploadHolidayFormDocument(context.Context, int64, int64, int64, string, []byte) (HolidayFormDocument, error)
+	HolidayFormDocument(context.Context, int64, int64, string) (HolidayFormDocument, error)
+	DeleteHolidayFormDocument(context.Context, int64, int64, string) error
 	ListHolidayPeriods(ctx context.Context, organizationID int64) ([]HolidayPeriod, error)
 	HolidayPeriod(ctx context.Context, organizationID, periodID int64) (HolidayPeriod, error)
 	CreateHolidayPeriod(ctx context.Context, organizationID int64, input HolidayPeriodInput) (HolidayPeriod, error)
@@ -139,5 +142,5 @@ type HolidayPeriods interface {
 	HolidayPeriodForm(ctx context.Context, organizationID, periodID int64) (HolidayFormEditor, error)
 	// SaveHolidayPeriodForm writes the next version of the period's form
 	// and returns it. accountID is the person of the Träger-Büro who saves.
-	SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []HolidayFormField) (HolidayFormEditor, error)
+	SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []HolidayFormField, blocks []FormLegalBlock) (HolidayFormEditor, error)
 }

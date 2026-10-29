@@ -15,9 +15,7 @@ import (
 // of the form changes no submitted registration. The form belongs to the
 // period and lives in the Träger transaction (ADR 0105).
 //
-// A version carries fields only. Notices and consents with a PDF (#5199)
-// will be a second list of the version next to Fields; the wire shape of a
-// version is an object for that reason.
+// Legal blocks and their document references belong to the same immutable version.
 
 // HolidayFormField is one question of a holiday period's form: a FormField
 // of the online registration that may be marked as health information.
@@ -41,9 +39,10 @@ type HolidayAnswers map[string]json.RawMessage
 
 // HolidayPeriodForm is one version of the form of a period.
 type HolidayPeriodForm struct {
-	Version   int                `json:"version"`
-	Fields    []HolidayFormField `json:"fields"`
-	CreatedAt time.Time          `json:"created_at"`
+	LegalBlocks []FormLegalBlock   `json:"legal_blocks"`
+	Version     int                `json:"version"`
+	Fields      []HolidayFormField `json:"fields"`
+	CreatedAt   time.Time          `json:"created_at"`
 }
 
 // HolidayFormMaxFields bounds one version: the paper forms of a Träger

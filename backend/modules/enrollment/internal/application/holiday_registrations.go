@@ -207,6 +207,9 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 		return enrollment.HolidayRegistrationReceipt{}, enrollment.ErrHolidayRegistrationFormChanged
 	}
 	input.FormVersion = form.Version
+	if err := validateHolidayLegalAcceptances(form, input.LegalAcceptances); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
 	input = normalizeHolidayRegistration(input)
 	answers := sanitizeHolidayAnswers(form, decodeHolidayAnswers(input))
 	if err := validateHolidayRegistration(input, period, form, answers, link.Traeger.Schools, today); err != nil {

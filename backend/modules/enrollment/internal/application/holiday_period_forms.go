@@ -39,12 +39,15 @@ const (
 // HolidayFormStore persists the versions of the forms of a Träger's
 // periods in the Träger transaction.
 type HolidayFormStore interface {
+	InsertHolidayFormDocument(context.Context, int64, int64, int64, string, []byte) (enrollment.HolidayFormDocument, error)
+	ReadHolidayFormDocument(context.Context, int64, int64, string) (enrollment.HolidayFormDocument, bool, error)
+	DeleteHolidayFormDocument(context.Context, int64, int64, string) (bool, error)
 	CurrentHolidayPeriodForm(ctx context.Context, organizationID, periodID int64) (enrollment.HolidayPeriodForm, bool, error)
 	// HolidayPeriodForms reads selected versions, or all versions when versions is empty.
 	HolidayPeriodForms(ctx context.Context, organizationID, periodID int64, versions []int) (map[int]enrollment.HolidayPeriodForm, error)
 	// InsertHolidayPeriodForm writes the next version; a zero createdBy
 	// names no author.
-	InsertHolidayPeriodForm(ctx context.Context, organizationID, periodID, createdBy int64, fields []enrollment.HolidayFormField) (enrollment.HolidayPeriodForm, error)
+	InsertHolidayPeriodForm(ctx context.Context, organizationID, periodID, createdBy int64, fields []enrollment.HolidayFormField, blocks []enrollment.FormLegalBlock) (enrollment.HolidayPeriodForm, error)
 }
 
 // HolidayPeriodForm returns the current version of a period's form with the
@@ -65,7 +68,7 @@ func (h *HolidayPeriods) HolidayPeriodForm(ctx context.Context, organizationID, 
 
 // SaveHolidayPeriodForm checks the fields and writes them as the next
 // version under the lock of the period's row.
-func (h *HolidayPeriods) SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []enrollment.HolidayFormField) (enrollment.HolidayFormEditor, error) {
+func (h *HolidayPeriods) SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []enrollment.HolidayFormField, blocks []enrollment.FormLegalBlock) (enrollment.HolidayFormEditor, error) {
 	if err := holidayPeriodKey(organizationID, periodID); err != nil {
 		return enrollment.HolidayFormEditor{}, err
 	}
@@ -78,10 +81,13 @@ func (h *HolidayPeriods) SaveHolidayPeriodForm(ctx context.Context, organization
 	if err := enrollment.ValidateHolidayFormFields(fields); err != nil {
 		return enrollment.HolidayFormEditor{}, err
 	}
+	if err := h.validateHolidayLegalBlocks(ctx, organizationID, periodID, blocks); err != nil {
+		return enrollment.HolidayFormEditor{}, err
+	}
 	for i := range fields {
 		fields[i].SortOrder = i + 1
 	}
-	form, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, accountID, fields)
+	form, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, accountID, fields, blocks)
 	if err != nil {
 		return enrollment.HolidayFormEditor{}, err
 	}

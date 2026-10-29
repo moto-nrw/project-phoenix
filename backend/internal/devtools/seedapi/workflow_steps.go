@@ -255,7 +255,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 			seedEnrollmentBookingsProfileStep{seeder: seeder},
 		)
 	}
-	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerBillingLettersStep{}, seedTestTraegerStep{})
+	steps = append(steps, seedStaffPersonMergeStep{}, seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{}, seedTraegerBillingLettersStep{}, seedTestTraegerStep{})
 	if !seeder.options.DeferHistory {
 		// Erst jetzt sind alle Kinder der Schule angelegt (#5031).
 		steps = append(steps, seedPresenceHistoryStep{seeder: seeder}, seedFeedbackHistoryStep{seeder: seeder}, seedChildQuotaStep{}, seedBillingKeyDateCountsStep{})

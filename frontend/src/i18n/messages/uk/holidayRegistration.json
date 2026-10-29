@@ -96,5 +96,8 @@
     "choose": "Будь ласка, виберіть відповідь."
   },
   "childQuestionsTitle": "Додаткові відомості",
-  "familyQuestionsTitle": "Додаткові відомості про сім’ю"
+  "familyQuestionsTitle": "Додаткові відомості про сім’ю",
+  "legalTitle": "Повідомлення та згоди",
+  "legalAccepted": "Підтверджено",
+  "legalNotAccepted": "Не підтверджено"
 }
