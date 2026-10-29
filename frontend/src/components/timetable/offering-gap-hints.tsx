@@ -157,7 +157,7 @@ export function OfferingGapHints({
         >
           {createWithheld ? (
             // Einmal über der Liste, auch bei nur einer solchen Zeile.
-            <p className="mb-3 text-sm text-gray-600">
+            <p className="mb-3 max-w-2xl text-sm text-gray-600">
               Fehlt „Regeltermin anlegen“? Dann sind einige Kinder an diesen
               Tagen schon eingeplant oder noch im Unterricht. Tragen Sie die
               übrigen Kinder in einen Regeltermin ein.
