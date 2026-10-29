@@ -127,7 +127,7 @@ with a running native dev loop.
 The config, server and specs read the same variables, so origins, readiness
 URL, fixture calls and route matchers follow the chosen ports. Two runs of the
 same suite in separate worktrees need different ports; each worktree has its
-own `.next`, so do not run one suite twice in the same checkout:
+own `.next`, so run the second copy in another worktree:
 
 ```bash
 # worktree A

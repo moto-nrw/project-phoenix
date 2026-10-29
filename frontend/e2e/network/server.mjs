@@ -320,7 +320,7 @@ next.on("error", (error) => {
 next.on("exit", (code, signal) => {
   if (code !== 0 && signal === null) {
     process.stderr.write(
-      `Network evidence: frontend on port ${frontendPort} exited with code ${code}. Another next dev in this checkout holds its build lock, or the port is taken (choose another with ${ports.names.frontend}).\n`,
+      `Network evidence: frontend on port ${frontendPort} exited with code ${code}. Common causes: another next dev in this checkout holds its build lock, or the port is taken (choose another with ${ports.names.frontend}).\n`,
     );
   }
   api.close();
