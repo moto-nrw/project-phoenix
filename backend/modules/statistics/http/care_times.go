@@ -104,13 +104,16 @@ func (rs *Resource) logCareTimeFailure(msg string, err error) {
 	rs.logFailure(msg, err)
 }
 
-// parseCareTimeFilters reads from, to (YYYY-MM-DD, required) and group_id.
+// parseCareTimeFilters reads from, to (YYYY-MM-DD, required), group_id and
+// school_class.
 func parseCareTimeFilters(r *http.Request) (studentpresence.CareTimeFilters, error) {
 	filters, err := parseFilters(r)
 	if err != nil {
 		return studentpresence.CareTimeFilters{}, err
 	}
-	return studentpresence.CareTimeFilters{From: filters.From, To: filters.To, GroupIDs: filters.GroupIDs}, nil
+	return studentpresence.CareTimeFilters{
+		From: filters.From, To: filters.To, GroupIDs: filters.GroupIDs, SchoolClasses: filters.SchoolClasses,
+	}, nil
 }
 
 type careTimeSummaryResponse struct {
@@ -143,6 +146,7 @@ type studentCareTimesResponse struct {
 	StudentID        string                  `json:"student_id"`
 	From             string                  `json:"from"`
 	To               string                  `json:"to"`
+	DataFrom         string                  `json:"data_from"`
 	ToleranceMinutes int                     `json:"tolerance_minutes"`
 	Summary          careTimeSummaryResponse `json:"summary"`
 	Days             []careTimeDayResponse   `json:"days"`
@@ -160,6 +164,7 @@ type careTimeOverrunRowResponse struct {
 type careTimeOverrunsResponse struct {
 	From             string                       `json:"from"`
 	To               string                       `json:"to"`
+	DataFrom         string                       `json:"data_from"`
 	ToleranceMinutes int                          `json:"tolerance_minutes"`
 	Students         []careTimeOverrunRowResponse `json:"students"`
 }
@@ -193,6 +198,7 @@ func toStudentCareTimesResponse(result *studentpresence.StudentCareTimes) studen
 	}
 	return studentCareTimesResponse{
 		StudentID: strconv.FormatInt(result.StudentID, 10), From: result.From.String(), To: result.To.String(),
+		DataFrom:         result.DataFrom.String(),
 		ToleranceMinutes: result.ToleranceMinutes, Summary: toCareTimeSummaryResponse(result.Summary), Days: days,
 	}
 }
@@ -206,7 +212,8 @@ func toCareTimeOverrunsResponse(result *studentpresence.CareTimeOverruns) careTi
 		})
 	}
 	return careTimeOverrunsResponse{
-		From: result.From.String(), To: result.To.String(), ToleranceMinutes: result.ToleranceMinutes, Students: students,
+		From: result.From.String(), To: result.To.String(), DataFrom: result.DataFrom.String(),
+		ToleranceMinutes: result.ToleranceMinutes, Students: students,
 	}
 }
 
@@ -237,6 +244,9 @@ func buildCareTimeExportDocument(result *studentpresence.CareTimeOverruns) Expor
 			fmt.Sprintf("Überschreitung = mehr als %d Minuten früher oder später als gebucht oder da ohne Buchung", result.ToleranceMinutes),
 		},
 		Footer: exportConfidentialityNote,
+	}
+	if result.DataFrom.After(result.From) {
+		doc.Filters = append(doc.Filters, fmt.Sprintf("Verglichen ab %s; ältere Anwesenheiten sind nicht mehr gespeichert.", result.DataFrom.Format("02.01.2006")))
 	}
 	for _, row := range result.Students {
 		doc.Rows = append(doc.Rows, ExportRow{Values: map[string]string{

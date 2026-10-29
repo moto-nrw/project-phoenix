@@ -16,7 +16,7 @@ import {
   resendChallenge,
   verifyMFA,
   type LoginScope,
-  type MFATokenResponse,
+  type MFAResult,
 } from "~/lib/mfa-api";
 import { OTPInputGrid, type OTPInputGridHandle } from "./otp-input-grid";
 
@@ -25,12 +25,12 @@ const logger = createLogger({ component: "MFAChallengeForm" });
 const CODE_LENGTH = 6;
 const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
 
-interface MFAChallengeFormProps {
-  readonly scope: LoginScope;
+interface MFAChallengeFormProps<Scope extends LoginScope> {
+  readonly scope: Scope;
   readonly challengeToken: string;
   readonly maskedEmail: string;
   readonly resendCooldownSeconds?: number;
-  readonly onSuccess: (tokens: MFATokenResponse) => void | Promise<void>;
+  readonly onSuccess: (result: MFAResult<Scope>) => void | Promise<void>;
   /**
    * Gives the embedding login flow a chance to handle a terminal verify
    * error, such as a portal handoff. Return true when the error is handled.
@@ -55,7 +55,7 @@ interface MFAChallengeFormProps {
   readonly organizationId?: string;
 }
 
-export function MFAChallengeForm({
+export function MFAChallengeForm<Scope extends LoginScope>({
   scope,
   challengeToken,
   maskedEmail,
@@ -66,7 +66,7 @@ export function MFAChallengeForm({
   trustedDeviceEnabled = true,
   trustedDeviceDays = 90,
   organizationId,
-}: MFAChallengeFormProps) {
+}: MFAChallengeFormProps<Scope>) {
   const [rememberDevice, setRememberDevice] = useState(false);
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
   // Formular (MFA_STEP_REFUSALS); jeder andere 401 ist eine abgelaufene

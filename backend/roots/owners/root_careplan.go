@@ -102,7 +102,6 @@ type CarePlanSchedules struct {
 	PickupBaselines  careplan.PickupBaselineReader
 	ArrivalBaselines careplan.ArrivalBaselineReader
 	CareDay          careplan.CareDayQuery
-	CareTimes        careplan.CareTimeQuery
 	AutoExcusal      careplan.PickupAutoExcusal
 	Pickups          careplan.PickupScheduleService
 	PartialAbsences  careplan.PartialAbsenceService
@@ -161,7 +160,7 @@ func BuildCarePlanSchedules(
 		return CarePlanSchedules{}, err
 	}
 	schedules := CarePlanSchedules{
-		Lifecycle: lifecycle, PickupBaselines: pickupBaselines, ArrivalBaselines: arrivalBaselines, CareDay: careDay, CareTimes: careDay,
+		Lifecycle: lifecycle, PickupBaselines: pickupBaselines, ArrivalBaselines: arrivalBaselines, CareDay: careDay,
 		OfferingDays: offeringDays,
 	}
 	return buildCarePlanPlans(db, logger, carePlan, rows, presence, schedules)

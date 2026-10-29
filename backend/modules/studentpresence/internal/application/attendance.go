@@ -183,24 +183,6 @@ func (s *Service) ListAttendanceDays(ctx context.Context, from, to string) ([]st
 	return result, nil
 }
 
-// ListAttendanceSpans reads the Ist of the Soll-und-Ist comparison (#4774).
-func (s *Service) ListAttendanceSpans(ctx context.Context, from, to calendar.Date, studentIDs []int64) ([]ports.AttendanceSpan, error) {
-	var spans []ports.AttendanceSpan
-	err := s.runWrite(ctx, "list_attendance_spans", func(ctx context.Context) (ports.Stats, error) {
-		if from.IsZero() || to.IsZero() || to.Before(from) {
-			return ports.Stats{}, errors.New("student presence: invalid attendance span range")
-		}
-		var stats ports.Stats
-		var err error
-		spans, stats, err = s.store.ListAttendanceSpans(ctx, from, to, studentIDs)
-		return stats, err
-	})
-	if err != nil {
-		return nil, err
-	}
-	return spans, nil
-}
-
 func (s *Service) RoomUtilization(ctx context.Context, windows []studentpresence.StudentVisitWindow) (result []studentpresence.RoomUtilization, err error) {
 	err = s.runWrite(ctx, "room_utilization", func(ctx context.Context) (ports.Stats, error) {
 		ends := make(map[int64]time.Time, len(windows))

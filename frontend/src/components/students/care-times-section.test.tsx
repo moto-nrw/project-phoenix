@@ -54,6 +54,7 @@ function result(days: CareTimeDay[]): StudentCareTimes {
     student_id: "7",
     from: "2026-09-01",
     to: "2026-09-09",
+    data_from: "2026-09-01",
     tolerance_minutes: 15,
     summary: {
       overrun_count: 2,

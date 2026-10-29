@@ -251,18 +251,9 @@ func runDivergingPeriodCycle(t *testing.T, email string, c divergingPeriodCase) 
 	f.requirePlannedOn(t, "template-save resync", monday.AddDays(14))
 
 	switchDate := phaseStart.AddDays(60)
+	// On a multi-source template this drops one source while the other
+	// keeps the Monday: the union is unchanged, so the row is too (#5234).
 	f.correct(t, "Ferienbetreuung", &switchDate)
-	if c.multiSource {
-		// A dated correction dropping one source of a multi-source template
-		// caps the row at the switch date and re-seeds it, with or without
-		// any period (also on development). Here only the period matters:
-		// every segment carries the materialization period.
-		f.requireRowsCarryPeriod(t, "dated correction")
-		f.resyncTenant(t)
-		f.requireRowsCarryPeriod(t, "tenant-wide resync after dated correction")
-		f.requirePlannedOn(t, "tenant-wide resync after dated correction", monday.AddDays(21))
-		return
-	}
 	requireUnchanged(t, "dated correction", corrected, f.requireSingleRow(t, "dated correction"))
 
 	f.resyncTenant(t)
@@ -270,22 +261,6 @@ func runDivergingPeriodCycle(t *testing.T, email string, c divergingPeriodCase) 
 	f.resyncOffering(t)
 	requireUnchanged(t, "offering-scoped resync", corrected, f.requireSingleRow(t, "offering-scoped resync"))
 	f.requirePlannedOn(t, "tenant-wide resync after dated correction", monday.AddDays(21))
-}
-
-// requireRowsCarryPeriod checks that every row of the template carries the
-// period its instances materialize under.
-func (f divergingPeriodFixture) requireRowsCarryPeriod(t *testing.T, step string) {
-	t.Helper()
-	rows := loadTemplateEnrollments(t, f.env, f.template.ID)
-	require.NotEmpty(t, rows, "%s", step)
-	for _, row := range rows {
-		assert.Equal(t, f.studentID, row.StudentID, "%s", step)
-		if f.wantPeriodID == nil {
-			assert.Nil(t, row.CalendarPeriodID, "%s", step)
-		} else if assert.NotNil(t, row.CalendarPeriodID, "%s", step) {
-			assert.Equal(t, *f.wantPeriodID, *row.CalendarPeriodID, "%s", step)
-		}
-	}
 }
 
 func TestSourcedRowPeriod_SchedulePeriodWinsOverDivergingTemplatePeriod(t *testing.T) {

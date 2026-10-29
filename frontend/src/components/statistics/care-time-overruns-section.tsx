@@ -6,6 +6,7 @@
 
 import { Download, FileSpreadsheet } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Alert } from "~/components/ui/alert";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -22,6 +23,7 @@ import {
   type CareTimeOverrunRow,
   type CareTimeOverruns,
 } from "~/lib/care-times";
+import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob, filenameFromDisposition } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -41,7 +43,13 @@ export function CareTimeOverrunsSection({
   fromISO,
   toISO,
   groupIds,
-}: Readonly<{ fromISO: string; toISO: string; groupIds: readonly string[] }>) {
+  schoolClasses,
+}: Readonly<{
+  fromISO: string;
+  toISO: string;
+  groupIds: readonly string[];
+  schoolClasses: readonly string[];
+}>) {
   const tenantPath = useTenantAwarePath();
   const [data, setData] = useState<CareTimeOverruns | null>(null);
   const [loading, setLoading] = useState(true);
@@ -51,13 +59,18 @@ export function CareTimeOverrunsSection({
   const { show: showLoadError, clear: clearLoadError } = load;
   const { show: showExportError } = useApiErrorDisplay();
   const retryExportRef = useRef<() => void>(() => undefined);
-  const groupKey = groupIds.join(",");
+  // Klassennamen dürfen Kommas enthalten; der Schlüssel bleibt deshalb JSON.
+  const filterKey = JSON.stringify([groupIds, schoolClasses]);
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     clearLoadError();
-    fetchCareTimeOverruns(fromISO, toISO, groupKey ? groupKey.split(",") : [])
+    const [groups, classes] = JSON.parse(filterKey) as [string[], string[]];
+    fetchCareTimeOverruns(fromISO, toISO, {
+      groupIds: groups,
+      schoolClasses: classes,
+    })
       .then((result) => {
         if (!cancelled) setData(result);
       })
@@ -80,14 +93,17 @@ export function CareTimeOverrunsSection({
     return () => {
       cancelled = true;
     };
-  }, [fromISO, toISO, groupKey, reloadKey, showLoadError, clearLoadError]);
+  }, [fromISO, toISO, filterKey, reloadKey, showLoadError, clearLoadError]);
 
   const downloadExport = useCallback(
     async (format: CareTimeExportFormat) => {
       setExporting(format);
       try {
         const res = await transportFetch(
-          careTimeOverrunsExportUrl(fromISO, toISO, format, groupIds),
+          careTimeOverrunsExportUrl(fromISO, toISO, format, {
+            groupIds,
+            schoolClasses,
+          }),
         );
         if (!res.ok) {
           throw await apiErrorFromResponse(res, "care time export failed");
@@ -110,7 +126,7 @@ export function CareTimeOverrunsSection({
         setExporting(null);
       }
     },
-    [fromISO, toISO, groupIds, showExportError],
+    [fromISO, toISO, groupIds, schoolClasses, showExportError],
   );
 
   const exportMenu: OverflowMenuEntry[] = [
@@ -191,6 +207,12 @@ export function CareTimeOverrunsSection({
     >
       <div className="space-y-3">
         <LoadErrorAlert error={load.error} />
+        {data && data.data_from > fromISO ? (
+          <Alert
+            type="info"
+            message={`Anwesenheiten werden nicht unbegrenzt aufbewahrt. Verglichen wird ab ${formatDate(data.data_from)}.`}
+          />
+        ) : null}
         <DataTable
           columns={columns}
           rows={data?.students ?? []}
@@ -199,7 +221,7 @@ export function CareTimeOverrunsSection({
           defaultSortDirection="desc"
           isLoading={loading && data === null}
           pageSize={25}
-          paginationResetKey={`${fromISO}-${toISO}-${groupKey}`}
+          paginationResetKey={`${fromISO}-${toISO}-${filterKey}`}
           stackedOnMobile
           emptyState={
             <EmptyState

@@ -108,8 +108,7 @@ func (r StatisticsReportStudents) FindOverlappingWithGroups(ctx context.Context,
 }
 
 type StatisticsStatusDays struct {
-	Query     careplan.StudentStatusDaysQuery
-	CareTimes careplan.CareTimeQuery
+	Query careplan.StudentStatusDaysQuery
 }
 
 func (a StatisticsStatusDays) StatusDays(ctx context.Context, from, to timezone.Date) ([]presenceCompose.StatusDay, error) {
@@ -124,52 +123,34 @@ func (a StatisticsStatusDays) StatusDays(ctx context.Context, from, to timezone.
 	return result, nil
 }
 
-// CareTimeTargets binds the Soll of the Soll-und-Ist comparison to the care
-// plan's booked times (#4774). A Träger contract can replace it (#4683).
-func (a StatisticsStatusDays) CareTimeTargets(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]studentpresence.CareTimeTarget, error) {
-	values, err := a.CareTimes.ResolveCareTimes(ctx, studentIDs, from, to)
-	if err != nil {
-		return nil, err
-	}
-	result := make(map[int64]map[timezone.Date]studentpresence.CareTimeTarget, len(values))
-	for studentID, days := range values {
-		targets := make(map[timezone.Date]studentpresence.CareTimeTarget, len(days))
-		for date, value := range days {
-			targets[date] = studentpresence.CareTimeTarget{
-				Status: statisticsCareTimeStatus(value.Status), Arrival: statisticsWallClock(value.Arrival), Pickup: statisticsWallClock(value.Pickup),
-			}
-		}
-		result[studentID] = targets
-	}
-	return result, nil
-}
-
-func statisticsCareTimeStatus(status careplan.CareDayStatus) studentpresence.CareTimeStatus {
-	switch status {
-	case careplan.CareDayScheduled:
-		return studentpresence.CareTimeScheduled
-	case careplan.CareDayNotScheduled:
-		return studentpresence.CareTimeNotScheduled
-	case careplan.CareDayCancelled:
-		return studentpresence.CareTimeCancelled
-	default:
-		return studentpresence.CareTimeUnknown
-	}
-}
-
-// statisticsWallClock keeps the clock of a plan TIME value; it is a wall
-// clock already and is not converted to Berlin.
-func statisticsWallClock(value *time.Time) *timezone.WallClock {
-	if value == nil {
-		return nil
-	}
-	clock := timezone.WallClockFromTime(*value)
-	return &clock
-}
-
 // AccessLogLedger is the Audit Platform's data access log a report appends
 // to and checks for a recent entry.
 type AccessLogLedger interface {
 	Create(context.Context, *auditModels.DataAccessLog) error
 	ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error)
+}
+
+// StatisticsPlannedCareDays reads Care Plan's verdict with the planned clock
+// times for the occupancy by time of day (#4764) and Soll und Ist (#4774).
+type StatisticsPlannedCareDays struct {
+	CareDays careplan.CareDayQuery
+}
+
+func (a StatisticsPlannedCareDays) PlannedCareDays(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]studentpresence.PlannedCareDay, error) {
+	values, err := a.CareDays.ResolvePlannedForRange(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]map[timezone.Date]studentpresence.PlannedCareDay, len(values))
+	for studentID, days := range values {
+		byDate := make(map[timezone.Date]studentpresence.PlannedCareDay, len(days))
+		for date, day := range days {
+			byDate[date] = studentpresence.PlannedCareDay{
+				Expected: day.Status.Expected(), NoPlan: day.Status == careplan.CareDayUnknown,
+				Cancelled: day.Status == careplan.CareDayCancelled, Arrival: day.Arrival, Pickup: day.Pickup,
+			}
+		}
+		result[studentID] = byDate
+	}
+	return result, nil
 }

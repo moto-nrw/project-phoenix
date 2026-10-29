@@ -460,8 +460,8 @@ func ComposeWorker(db transactionruntime.Database, env RootEnvironment, hub *rea
 			return
 		},
 		func() error {
-			reports = BuildPresenceReports(db, env, presence, carePlanRows, carePlan, schedules.CareTimes, services.Users, timetableRows, rooms, calendar,
-				people, audit, settings.Service)
+			reports = BuildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
+				people, audit, settings.Service, schedules.CareDay)
 			return nil
 		},
 		func() (err error) {

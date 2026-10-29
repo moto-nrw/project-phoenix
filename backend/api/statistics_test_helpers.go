@@ -12,6 +12,8 @@ import (
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -56,15 +58,24 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	// The booked care times come from the same care-day derivation the
-	// presence test graph builds (#4774).
-	active, err := NewActiveTestModule(db, unit, clocks...)
+	// The occupancy reads the plan with the stored weekly rows and booking
+	// authority off: no booked offering exists in these fixtures.
+	care, _, err := NewCareLifecycleTestModule(db, unit)
+	if err != nil {
+		return StatisticsTestModule{}, err
+	}
+	pickups, err := careplanCompose.NewPickupBaselines(r.CarePlan, noApprovedBookings{}, func(context.Context) (bool, error) { return false, nil })
+	if err != nil {
+		return StatisticsTestModule{}, err
+	}
+	careDays, err := careplanCompose.NewCareDayQuery(careplanCompose.CareDayDependencies{Records: r.CarePlan, PickupBaselines: pickups, CareParticipation: care.CareLifecycle})
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
 	service := owners.NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
-		DB:         db.Pool(),
-		StatusDays: owners.StatisticsStatusDays{Query: r.CarePlan, CareTimes: active.CareDay}, Courses: owners.NewCourseStatistics(db),
+		PlannedCareDays: owners.StatisticsPlannedCareDays{CareDays: careDays},
+		DB:              db.Pool(),
+		StatusDays:      owners.StatisticsStatusDays{Query: r.CarePlan}, Courses: owners.NewCourseStatistics(db),
 		Holidays:    schoolCalendarCompose.NewTenantHolidays(calendar),
 		ClosingDays: schoolCalendarCompose.NewTenantClosingDays(calendar), Periods: owners.StatisticsReportPeriods{Periods: calendar}, Students: owners.StatisticsReportStudents{Students: students}, Rooms: owners.StatisticsReportRooms{Rooms: rooms},
 		AccessLog: owners.StatisticsAuditLog{Log: owners.NewTestAuditPersistence(db, command).DataAccessLog}, Retention: settingsModule.NewStatisticsRetention(settings.Settings), Logger: slog.Default(), Now: OptionalClock(clocks),
@@ -76,4 +87,12 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 		return err
 	}
 	return StatisticsTestModule{Statistics: service, CreateClosingDay: createClosingDay}, nil
+}
+
+// noApprovedBookings is the approved-booking read of a school without
+// enrollment bookings.
+type noApprovedBookings struct{}
+
+func (noApprovedBookings) ListApprovedByStudentIDsInRange(context.Context, []int64, timezone.Date, timezone.Date) ([]*careplan.ApprovedBooking, error) {
+	return nil, nil
 }

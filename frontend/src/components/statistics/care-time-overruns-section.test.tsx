@@ -60,6 +60,7 @@ describe("Soll und Ist — Liste für die Leitung (#4774)", () => {
     mockFetch.mockResolvedValue({
       from: "2026-09-01",
       to: "2026-09-09",
+      data_from: "2026-09-01",
       tolerance_minutes: 15,
       students: [
         {
@@ -85,6 +86,7 @@ describe("Soll und Ist — Liste für die Leitung (#4774)", () => {
         fromISO="2026-09-01"
         toISO="2026-09-09"
         groupIds={["3"]}
+        schoolClasses={["2a, Nord"]}
       />,
     );
 
@@ -92,7 +94,10 @@ describe("Soll und Ist — Liste für die Leitung (#4774)", () => {
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
     const table = within(await screen.findByRole("table"));
     const mia = await table.findByRole("link", { name: "Berg, Mia" });
-    expect(mockFetch).toHaveBeenCalledWith("2026-09-01", "2026-09-09", ["3"]);
+    expect(mockFetch).toHaveBeenCalledWith("2026-09-01", "2026-09-09", {
+      groupIds: ["3"],
+      schoolClasses: ["2a, Nord"],
+    });
     expect(mia).toHaveAttribute("href", "/students/7?tab=betreuungszeiten");
     const ben = table.getByRole("link", { name: "Arnold, Ben" });
     // Mia hat mehr Überschreitungen und steht deshalb oben.
@@ -109,6 +114,7 @@ describe("Soll und Ist — Liste für die Leitung (#4774)", () => {
     mockFetch.mockResolvedValue({
       from: "2026-09-01",
       to: "2026-09-09",
+      data_from: "2026-09-01",
       tolerance_minutes: 15,
       students: [],
     });
@@ -117,6 +123,7 @@ describe("Soll und Ist — Liste für die Leitung (#4774)", () => {
         fromISO="2026-09-01"
         toISO="2026-09-09"
         groupIds={[]}
+        schoolClasses={[]}
       />,
     );
 

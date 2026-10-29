@@ -44,8 +44,18 @@ interface MFAEnrollmentRequiredLoginResponse {
   mfa_enrollment_required: true;
 }
 
-type LoginResponse =
-  | AuthenticatedLoginResponse
+interface AuthenticatedSessionResponse {
+  status: "authenticated";
+}
+
+export type MFAResult<Scope extends LoginScope> = Scope extends "tenant"
+  ? AuthenticatedSessionResponse
+  : MFATokenResponse;
+
+type LoginResponse<Scope extends LoginScope> =
+  | (Scope extends "tenant"
+      ? AuthenticatedSessionResponse
+      : AuthenticatedLoginResponse)
   | MFARequiredLoginResponse
   | MFAEnrollmentRequiredLoginResponse;
 
@@ -152,10 +162,10 @@ interface LoginParams {
   tenantSlug?: string;
 }
 
-export async function login(
-  scope: LoginScope,
+export async function login<Scope extends LoginScope>(
+  scope: Scope,
   params: LoginParams,
-): Promise<LoginResponse> {
+): Promise<LoginResponse<Scope>> {
   const url = loginUrl(scope);
   // Tenant login requires a tenant slug. School login accepts one only for
   // a handoff from the OGS portal, where it pins a multi-school Lehrkraft to
@@ -170,13 +180,13 @@ export async function login(
       : { email: params.email, password: params.password };
 
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<LoginResponse>>(
+    const envelope = await postJson<OperatorEnvelope<LoginResponse<Scope>>>(
       url,
       payload,
     );
     return envelope.data;
   }
-  return postJson<LoginResponse>(url, payload);
+  return postJson<LoginResponse<Scope>>(url, payload);
 }
 
 interface VerifyParams {
@@ -193,10 +203,10 @@ function organizationField(organizationId?: string) {
   return organizationId ? { organization_id: Number(organizationId) } : {};
 }
 
-export async function verifyMFA(
-  scope: LoginScope,
+export async function verifyMFA<Scope extends LoginScope>(
+  scope: Scope,
   params: VerifyParams,
-): Promise<MFATokenResponse> {
+): Promise<MFAResult<Scope>> {
   const url = mfaUrl(scope, "verify");
   const payload = {
     challenge_token: params.challengeToken,
@@ -205,13 +215,13 @@ export async function verifyMFA(
     ...organizationField(params.organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
+    const envelope = await postJson<OperatorEnvelope<MFAResult<Scope>>>(
       url,
       payload,
     );
     return envelope.data;
   }
-  return postJson<MFATokenResponse>(url, payload);
+  return postJson<MFAResult<Scope>>(url, payload);
 }
 
 interface ResendParams {
@@ -284,14 +294,14 @@ export async function enrollStart(
  * `rememberDevice: true` additionally issues a trusted-device cookie so
  * the next login on this browser skips MFA.
  */
-export async function enrollConfirm(
-  scope: LoginScope,
+export async function enrollConfirm<Scope extends LoginScope>(
+  scope: Scope,
   bearerToken: string,
   code: string,
   rememberDevice = false,
   challengeToken?: string,
   organizationId?: string,
-): Promise<MFATokenResponse> {
+): Promise<MFAResult<Scope>> {
   const url = mfaUrl(scope, "enroll/confirm");
   // The school confirm is bound to the exact challenge enroll/start minted
   // (see enrollStart); tenant/operator ignore the extra field.
@@ -302,14 +312,14 @@ export async function enrollConfirm(
     ...organizationField(organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
+    const envelope = await postJson<OperatorEnvelope<MFAResult<Scope>>>(
       url,
       payload,
       { bearerToken },
     );
     return envelope.data;
   }
-  return postJson<MFATokenResponse>(url, payload, { bearerToken });
+  return postJson<MFAResult<Scope>>(url, payload, { bearerToken });
 }
 
 // ----- Self-service trusted devices (Tenant-only) -----

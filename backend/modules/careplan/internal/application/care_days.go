@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
@@ -32,25 +33,26 @@ func (q *CareDayQueries) ResolveForDate(ctx context.Context, ids []int64, date c
 }
 
 func (q *CareDayQueries) ResolveForRange(ctx context.Context, ids []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.CareDayStatus, error) {
-	times, err := q.ResolveCareTimes(ctx, ids, from, to)
+	planned, err := q.ResolvePlannedForRange(ctx, ids, from, to)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64]map[calendar.Date]careplan.CareDayStatus, len(times))
-	for id, byDate := range times {
+	result := make(map[int64]map[calendar.Date]careplan.CareDayStatus, len(planned))
+	for id, byDate := range planned {
 		days := make(map[calendar.Date]careplan.CareDayStatus, len(byDate))
-		for date, careTime := range byDate {
-			days[date] = careTime.Status
+		for date, day := range byDate {
+			days[date] = day.Status
 		}
 		result[id] = days
 	}
 	return result, nil
 }
 
-// ResolveCareTimes is ResolveForRange with the effective times each verdict
-// was derived from (#4774), so both read one derivation.
-func (q *CareDayQueries) ResolveCareTimes(ctx context.Context, ids []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.CareTime, error) {
-	result := make(map[int64]map[calendar.Date]careplan.CareTime, len(ids))
+// ResolvePlannedForRange resolves the verdict per child and day together with
+// the planned arrival and pickup times. A child who is not expected carries no
+// times: the plan's clock values only mean something on a day they come.
+func (q *CareDayQueries) ResolvePlannedForRange(ctx context.Context, ids []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.PlannedCareDay, error) {
+	result := make(map[int64]map[calendar.Date]careplan.PlannedCareDay, len(ids))
 	if len(ids) == 0 || to.Before(from) {
 		return result, nil
 	}
@@ -63,33 +65,39 @@ func (q *CareDayQueries) ResolveCareTimes(ctx context.Context, ids []int64, from
 		return nil, err
 	}
 	for _, id := range ids {
-		days := make(map[calendar.Date]careplan.CareTime)
+		days := make(map[calendar.Date]careplan.PlannedCareDay)
 		for date := from; !date.After(to); date = date.AddDays(1) {
-			days[date] = careTimeOf(facts[id][date], participating[date][id])
+			days[date] = plannedCareDay(facts[id][date], participating[date][id])
 		}
 		result[id] = days
 	}
 	return result, nil
 }
 
-// careTimeOf is the verdict of one child-day with the times it rests on; a
-// child outside care participation is not scheduled whatever the plan says.
-func careTimeOf(fact careplan.CareDayFacts, participating bool) careplan.CareTime {
-	status := careplan.ResolveCareDay(fact)
+func plannedCareDay(facts careplan.CareDayFacts, participating bool) careplan.PlannedCareDay {
+	day := careplan.PlannedCareDay{Status: careplan.ResolveCareDay(facts)}
 	if !participating {
-		status = careplan.CareDayNotScheduled
+		day.Status = careplan.CareDayNotScheduled
 	}
-	careTime := careplan.CareTime{Status: status}
-	if fact.Arrival != nil {
-		careTime.Arrival = fact.Arrival.ArrivalTime
+	if !day.Status.Expected() {
+		return day
 	}
-	if fact.Pickup != nil {
-		careTime.Pickup = fact.Pickup.PickupTime
+	if facts.Arrival != nil {
+		day.Arrival = wallClockOf(facts.Arrival.ArrivalTime)
 	}
-	return careTime
+	if facts.Pickup != nil {
+		day.Pickup = wallClockOf(facts.Pickup.PickupTime)
+	}
+	return day
 }
 
-var (
-	_ careplan.CareDayQuery  = (*CareDayQueries)(nil)
-	_ careplan.CareTimeQuery = (*CareDayQueries)(nil)
-)
+// wallClockOf keeps only the time of day of a scanned TIME value.
+func wallClockOf(t *time.Time) *calendar.WallClock {
+	if t == nil {
+		return nil
+	}
+	clock := calendar.WallClockFromTime(*t)
+	return &clock
+}
+
+var _ careplan.CareDayQuery = (*CareDayQueries)(nil)

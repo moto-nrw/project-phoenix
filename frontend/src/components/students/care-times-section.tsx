@@ -6,6 +6,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { DateRange } from "react-day-picker";
+import { Alert } from "~/components/ui/alert";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import {
@@ -28,6 +29,7 @@ import {
 } from "~/lib/care-times";
 import {
   berlinTodayISO,
+  formatDate,
   formatStatusDate,
   parseISODate,
   toISODate,
@@ -187,6 +189,12 @@ export function StudentCareTimesSection({
     >
       <div className="space-y-4">
         <LoadErrorAlert error={load.error} />
+        {data && fromISO && data.data_from > fromISO ? (
+          <Alert
+            type="info"
+            message={`Anwesenheiten werden nicht unbegrenzt aufbewahrt. Verglichen wird ab ${formatDate(data.data_from)}.`}
+          />
+        ) : null}
         {summary ? (
           <DataGrid columns={4}>
             <DataField label="Überschreitungen">

@@ -123,7 +123,8 @@ func (rs *Resource) logFailure(msg string, err error) {
 	rs.logger().Error(msg, slog.String("error", err.Error()))
 }
 
-// parseFilters reads from, to (YYYY-MM-DD, required) and group_id (repeatable).
+// parseFilters reads from, to (YYYY-MM-DD, required), group_id and
+// school_class (both repeatable).
 func parseFilters(r *http.Request) (studentpresence.StatisticsFilters, error) {
 	q := r.URL.Query()
 	from, err := calendar.ParseDate(strings.TrimSpace(q.Get("from")))
@@ -140,20 +141,43 @@ func parseFilters(r *http.Request) (studentpresence.StatisticsFilters, error) {
 		return studentpresence.StatisticsFilters{}, err
 	}
 	filters.Sections = sections
-	for _, raw := range q["group_id"] {
-		for _, part := range strings.Split(raw, ",") {
+	if filters.GroupIDs, err = parseGroupIDs(q["group_id"]); err != nil {
+		return studentpresence.StatisticsFilters{}, err
+	}
+	filters.SchoolClasses = parseSchoolClasses(q["school_class"])
+	return filters, nil
+}
+
+// parseGroupIDs reads group_id, repeatable and comma-separated; 0 is the
+// pseudo group of children without a group.
+func parseGroupIDs(raw []string) ([]int64, error) {
+	var ids []int64
+	for _, value := range raw {
+		for _, part := range strings.Split(value, ",") {
 			part = strings.TrimSpace(part)
 			if part == "" {
 				continue
 			}
 			id, err := strconv.ParseInt(part, 10, 64)
 			if err != nil || id < 0 {
-				return studentpresence.StatisticsFilters{}, fmt.Errorf("invalid group_id %q", part)
+				return nil, fmt.Errorf("invalid group_id %q", part)
 			}
-			filters.GroupIDs = append(filters.GroupIDs, id)
+			ids = append(ids, id)
 		}
 	}
-	return filters, nil
+	return ids, nil
+}
+
+// parseSchoolClasses reads school_class. Class names may contain commas in
+// theory, so the parameter is only repeatable, never comma-separated.
+func parseSchoolClasses(raw []string) []string {
+	var classes []string
+	for _, value := range raw {
+		if class := strings.TrimSpace(value); class != "" {
+			classes = append(classes, class)
+		}
+	}
+	return classes
 }
 
 const (
@@ -161,6 +185,7 @@ const (
 	sectionRooms          = "rooms"
 	sectionCourses        = "courses"
 	sectionCourseStudents = "course-students"
+	sectionOccupancy      = "occupancy"
 )
 
 // parseSection picks the export document: the child/group table (default),
@@ -171,7 +196,7 @@ func parseSection(r *http.Request) (string, error) {
 	switch section {
 	case "", sectionAttendance:
 		return sectionAttendance, nil
-	case sectionRooms, sectionCourses, sectionCourseStudents:
+	case sectionRooms, sectionCourses, sectionCourseStudents, sectionOccupancy:
 		return section, nil
 	default:
 		return "", fmt.Errorf("unsupported export section %q", section)
@@ -196,6 +221,8 @@ func parseReportSections(raw []string) ([]studentpresence.StatisticsSection, err
 				sections = append(sections, studentpresence.StatisticsSectionRooms)
 			case sectionCourses, sectionCourseStudents:
 				sections = append(sections, studentpresence.StatisticsSectionCourses)
+			case sectionOccupancy:
+				sections = append(sections, studentpresence.StatisticsSectionOccupancy)
 			default:
 				return nil, fmt.Errorf("unsupported section %q", part)
 			}

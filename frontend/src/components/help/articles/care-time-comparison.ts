@@ -33,7 +33,7 @@ export function careTimeComparisonTopic(): HelpTopic {
         steps: [
           "Öffnen Sie in der Seitenleiste `Verwaltung` und danach `Statistik`.",
           "Wählen Sie oben den Bereich `Soll und Ist`.",
-          "Wählen Sie den Zeitraum und, wenn nötig, die Gruppen.",
+          "Wählen Sie den Zeitraum und, wenn nötig, Klassen oder Gruppen.",
           "Tippen Sie auf eine Spalte, um nach ihr zu sortieren.",
           "Über das Menü mit den drei Punkten geht `Exportieren` als `PDF` oder `Excel`.",
         ],

@@ -9,27 +9,19 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolveForDate",
+      "binding_digest": "f299d4130d486130f1dea3f8456eecd8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolveForDate",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
       "binding_digest": "7e5f1ac786ab7f677709678147f2a3dc",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
-      "target_owner": "care-plan"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
-      "binding_digest": "f777d5789b85cd5179131ce678b03f65",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
-      "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForDate",
-      "target_owner": "care-plan"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForDate",
-      "binding_digest": "f777d5789b85cd5179131ce678b03f65",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForDate",
-      "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForDate",
       "target_owner": "care-plan"
     },
     {
@@ -41,6 +33,14 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolveForRange",
+      "binding_digest": "9c055bc268aab06cdc47b5861b8f020a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolveForRange",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
       "binding_digest": "24355219e8cf43cc0a8cbe7da2a10231",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
@@ -49,19 +49,27 @@
       "target_owner": "care-plan"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
-      "binding_digest": "b247c49503a962bb44db07cb4503b054",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareDayQueries.ResolvePlannedForRange",
+      "binding_digest": "e028c25ba71fd83efac4cefd4242ba0e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForRange",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareDayQueries.ResolvePlannedForRange",
       "target_owner": "care-plan"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForRange",
-      "binding_digest": "b247c49503a962bb44db07cb4503b054",
-      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolvePlannedForRange",
+      "binding_digest": "84703cd6dab9a8970f02d5b1a62adb66",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
       "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForRange",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.careDayService.ResolvePlannedForRange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "binding_digest": "79823fce6b7ec7de24cabc3c259315bb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
       "target_owner": "care-plan"
     },
     {
@@ -13121,27 +13129,11 @@
       "target_owner": "care-plan"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableCareDays.ResolveForDate",
-      "binding_digest": "be967e21fbbeb97c193df7c273581a7a",
-      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CareDays.ResolveForDate",
-      "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForDate",
-      "target_owner": "care-plan"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableCareDays.ResolveForRange",
       "binding_digest": "d557f847cbef49970bc32d95a74e67e2",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CareDays.ResolveForRange",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolveForRange",
-      "target_owner": "care-plan"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.timetableCareDays.ResolveForRange",
-      "binding_digest": "dd156e401be1f78ce1cefdbb136a2a3b",
-      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.CareDays.ResolveForRange",
-      "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDays.ResolveForRange",
       "target_owner": "care-plan"
     },
     {

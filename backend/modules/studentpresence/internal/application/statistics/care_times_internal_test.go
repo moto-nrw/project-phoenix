@@ -19,51 +19,23 @@ func (s careTimeStudents) FindOverlappingWithGroups(context.Context, calendar.Da
 	return s, nil
 }
 
-type careTimeTargets map[int64]map[calendar.Date]studentpresence.CareTimeTarget
+type statusDayList []ports.StatusDay
 
-func (t careTimeTargets) CareTimeTargets(_ context.Context, ids []int64, _, _ calendar.Date) (map[int64]map[calendar.Date]studentpresence.CareTimeTarget, error) {
-	result := make(map[int64]map[calendar.Date]studentpresence.CareTimeTarget, len(ids))
-	for _, id := range ids {
-		result[id] = t[id]
-	}
-	return result, nil
+func (s statusDayList) StatusDays(context.Context, calendar.Date, calendar.Date) ([]ports.StatusDay, error) {
+	return s, nil
 }
 
-type attendanceSpans []ports.AttendanceSpan
+// shortRetention keeps attendance for days days and status days for a year.
+type shortRetention struct{ days int }
 
-func (s attendanceSpans) ListAttendanceSpans(_ context.Context, _, _ calendar.Date, ids []int64) ([]ports.AttendanceSpan, error) {
-	if len(ids) == 0 {
-		return s, nil
-	}
-	wanted := map[int64]bool{}
-	for _, id := range ids {
-		wanted[id] = true
-	}
-	var out []ports.AttendanceSpan
-	for _, span := range s {
-		if wanted[span.StudentID] {
-			out = append(out, span)
-		}
-	}
-	return out, nil
+func (shortRetention) RoomRetentionDays(context.Context) (int, error)   { return 30, nil }
+func (shortRetention) CourseRetentionDays(context.Context) (int, error) { return 365, nil }
+func (r shortRetention) AttendanceRetentionDays(context.Context) (int, error) {
+	return r.days, nil
 }
+func (shortRetention) StatusDayRetentionDays(context.Context) (int, error) { return 365, nil }
 
-func (attendanceSpans) ListAttendanceDays(context.Context, string, string) ([]studentpresence.AttendanceDay, error) {
-	return nil, nil
-}
-
-// carePlanFacts is the care plan as the report reads it: status days and
-// booked care times.
-type carePlanFacts struct {
-	careTimeTargets
-	statusDays []ports.StatusDay
-}
-
-func (f carePlanFacts) StatusDays(context.Context, calendar.Date, calendar.Date) ([]ports.StatusDay, error) {
-	return f.statusDays, nil
-}
-
-func clock(hour, minute int) *calendar.WallClock {
+func wallClockAt(hour, minute int) *calendar.WallClock {
 	c, err := calendar.NewWallClock(hour, minute, 0, 0)
 	if err != nil {
 		panic(err)
@@ -71,17 +43,17 @@ func clock(hour, minute int) *calendar.WallClock {
 	return &c
 }
 
-func booked(start, end *calendar.WallClock) studentpresence.CareTimeTarget {
-	return studentpresence.CareTimeTarget{Status: studentpresence.CareTimeScheduled, Arrival: start, Pickup: end}
+func booked(start, end *calendar.WallClock) ports.PlannedCareDay {
+	return ports.PlannedCareDay{Expected: true, Arrival: start, Pickup: end}
 }
 
 func berlin(date calendar.Date, hour, minute int) time.Time {
 	return time.Date(date.Year(), date.Month(), date.Day(), hour, minute, 0, 0, calendar.Berlin)
 }
 
-func span(studentID int64, date calendar.Date, fromHour, fromMinute, toHour, toMinute int) ports.AttendanceSpan {
+func span(studentID int64, date calendar.Date, fromHour, fromMinute, toHour, toMinute int) *ports.Attendance {
 	out := berlin(date, toHour, toMinute)
-	return ports.AttendanceSpan{StudentID: studentID, Date: date, FirstCheckIn: berlin(date, fromHour, fromMinute), LastCheckOut: &out}
+	return &ports.Attendance{StudentID: studentID, Date: date, CheckInTime: berlin(date, fromHour, fromMinute), CheckOutTime: &out}
 }
 
 func minutes(n int) *int { return &n }
@@ -93,22 +65,25 @@ func careTimeWeek() (Config, calendar.Date, calendar.Date) {
 	mon := calendar.NewDate(2026, 8, 17)
 	tue, wed, thu, fri := mon.AddDays(1), mon.AddDays(2), mon.AddDays(3), mon.AddDays(4)
 	sat, sun, nextMon := mon.AddDays(5), mon.AddDays(6), mon.AddDays(7)
-	week := booked(clock(8, 0), clock(15, 0))
-	open := ports.AttendanceSpan{StudentID: child, Date: nextMon, FirstCheckIn: berlin(nextMon, 8, 0)}
+	week := booked(wallClockAt(8, 0), wallClockAt(15, 0))
+	open := &ports.Attendance{StudentID: child, Date: nextMon, CheckInTime: berlin(nextMon, 8, 0)}
 	cfg := Config{
 		Students: careTimeStudents{{ID: child, FirstName: "Mia", LastName: "Berg", SchoolClass: "2a", GroupName: "Füchse", EnrolledOn: enrolledEveryDay}},
-		StatusDays: carePlanFacts{careTimeTargets: careTimeTargets{child: {
+		PlannedCareDays: plannedStub{child: {
 			mon: week, tue: week, wed: week, thu: week, fri: week,
-			sat:     {Status: studentpresence.CareTimeNotScheduled},
-			sun:     {Status: studentpresence.CareTimeNotScheduled},
-			nextMon: week,
-		}}, statusDays: []ports.StatusDay{{StudentID: child, Date: wed, Status: "sick"}}},
-		Attendance: attendanceSpans{
-			span(child, mon, 7, 50, 15, 10),
+			sat: {}, sun: {}, nextMon: week,
+		}},
+		StatusDays: statusDayList{{StudentID: child, Date: wed, Status: "sick"}},
+		AttendanceIntervals: &attendanceRowsStub{rows: []*ports.Attendance{
+			// Monday has two rows: the span runs from the first check-in to
+			// the last check-out.
+			span(child, mon, 7, 50, 11, 0),
+			span(child, mon, 12, 0, 15, 10),
 			span(child, tue, 7, 30, 15, 0),
 			span(child, sat, 10, 0, 12, 0),
 			open,
-		},
+		}},
+		Retention:   reportRetention{},
 		ClosingDays: dateSet{fri: true},
 		Now:         func() time.Time { return berlin(nextMon, 12, 0) },
 	}
@@ -172,17 +147,18 @@ func TestCareTimeOverrunsListsChildrenWithOverrunsMostFirst(t *testing.T) {
 	t.Parallel()
 	cfg, from, to := careTimeWeek()
 	// Ben overruns on both Monday and Tuesday; Lea keeps to her booking.
-	week := booked(clock(8, 0), clock(15, 0))
+	week := booked(wallClockAt(8, 0), wallClockAt(15, 0))
 	students := cfg.Students.(careTimeStudents)
 	students = append(students,
 		&ports.StatisticsStudent{ID: 8, FirstName: "Ben", LastName: "Arnold", EnrolledOn: enrolledEveryDay},
 		&ports.StatisticsStudent{ID: 9, FirstName: "Lea", LastName: "Adam", EnrolledOn: enrolledEveryDay},
 	)
 	cfg.Students = students
-	targets := cfg.StatusDays.(carePlanFacts).careTimeTargets
-	targets[8] = map[calendar.Date]studentpresence.CareTimeTarget{from: week, from.AddDays(1): week}
-	targets[9] = map[calendar.Date]studentpresence.CareTimeTarget{from: week}
-	cfg.Attendance = append(cfg.Attendance.(attendanceSpans),
+	planned := cfg.PlannedCareDays.(plannedStub)
+	planned[8] = map[calendar.Date]ports.PlannedCareDay{from: week, from.AddDays(1): week}
+	planned[9] = map[calendar.Date]ports.PlannedCareDay{from: week}
+	rows := cfg.AttendanceIntervals.(*attendanceRowsStub)
+	rows.rows = append(rows.rows,
 		span(8, from, 7, 0, 15, 0), span(8, from.AddDays(1), 8, 0, 16, 0), span(9, from, 8, 0, 15, 15))
 	audit := &reportAudit{}
 	cfg.AccessLog = audit
@@ -211,4 +187,50 @@ func TestStudentCareTimesRejectsAChildOutsideTheSchoolAndBadWindows(t *testing.T
 	require.ErrorIs(t, err, studentpresence.ErrInvalidStatisticsRange)
 	_, err = service.StudentCareTimes(context.Background(), 7, from, to.AddDays(1))
 	require.ErrorIs(t, err, studentpresence.ErrInvalidStatisticsRange, "the window may not reach into the future")
+}
+
+// A cancelled day and a day without any care plan are no shortfall and no
+// overrun; older days than the attendance retention are not compared.
+func TestStudentCareTimesSkipsDaysBeyondRetentionAndNamesCancelledDays(t *testing.T) {
+	t.Parallel()
+	cfg, from, to := careTimeWeek()
+	planned := cfg.PlannedCareDays.(plannedStub)
+	planned[7][from.AddDays(3)] = ports.PlannedCareDay{Cancelled: true}
+	planned[7][from.AddDays(5)] = ports.PlannedCareDay{Expected: true, NoPlan: true}
+	cfg.Retention = shortRetention{days: 4}
+
+	result, err := NewService(cfg).StudentCareTimes(context.Background(), 7, from, to)
+	require.NoError(t, err)
+
+	assert.Equal(t, to.AddDays(-4), result.DataFrom)
+	kinds := map[calendar.Date]studentpresence.CareTimeDayKind{}
+	for _, day := range result.Days {
+		kinds[day.Date] = day.Kind
+	}
+	assert.Equal(t, map[calendar.Date]studentpresence.CareTimeDayKind{
+		from.AddDays(3): studentpresence.CareTimeDayCancelled,
+		from.AddDays(4): studentpresence.CareTimeDayClosed,
+		from.AddDays(5): studentpresence.CareTimeDayNoPlan,
+		to:              studentpresence.CareTimeDayOpen,
+	}, kinds, "Monday to Wednesday lie before the retention cutoff")
+	assert.Zero(t, result.Summary.OverrunCount(), "attendance without any care plan is no overrun")
+}
+
+func TestCareTimeOverrunsFollowsTheClassFilter(t *testing.T) {
+	t.Parallel()
+	cfg, from, to := careTimeWeek()
+	students := cfg.Students.(careTimeStudents)
+	cfg.Students = append(students, &ports.StatisticsStudent{ID: 8, FirstName: "Ben", LastName: "Arnold", SchoolClass: "1a", EnrolledOn: enrolledEveryDay})
+	planned := cfg.PlannedCareDays.(plannedStub)
+	planned[8] = map[calendar.Date]ports.PlannedCareDay{from: booked(wallClockAt(8, 0), wallClockAt(15, 0))}
+	rows := cfg.AttendanceIntervals.(*attendanceRowsStub)
+	rows.rows = append(rows.rows, span(8, from, 7, 0, 15, 0))
+	cfg.AccessLog = &reportAudit{}
+
+	result, err := NewService(cfg).CareTimeOverruns(context.Background(),
+		studentpresence.CareTimeFilters{From: from, To: to, SchoolClasses: []string{"1a"}}, studentpresence.StatisticsActor{AccountID: 3})
+	require.NoError(t, err)
+
+	require.Len(t, result.Students, 1)
+	assert.Equal(t, int64(8), result.Students[0].StudentID)
 }

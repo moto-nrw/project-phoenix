@@ -47,6 +47,7 @@ export interface StudentCareTimes {
   student_id: string;
   from: string;
   to: string;
+  data_from: string;
   tolerance_minutes: number;
   summary: CareTimeSummary;
   days: CareTimeDay[];
@@ -64,6 +65,7 @@ export interface CareTimeOverrunRow {
 export interface CareTimeOverruns {
   from: string;
   to: string;
+  data_from: string;
   tolerance_minutes: number;
   students: CareTimeOverrunRow[];
 }
@@ -73,13 +75,21 @@ export type CareTimeExportFormat = "pdf" | "xlsx";
 /** Tone of the day's status pill; matches the kit's StatusBadge tones. */
 export type CareTimeTone = "blue" | "green" | "orange" | "red" | "gray";
 
+/** Gruppen- und Klassenfilter der Statistik, beide wiederholbar. */
+export interface CareTimeFilter {
+  groupIds?: readonly string[];
+  schoolClasses?: readonly string[];
+}
+
 function windowParams(
   fromISO: string,
   toISO: string,
-  groupIds: readonly string[] = [],
+  filter: CareTimeFilter = {},
 ): URLSearchParams {
   const params = new URLSearchParams({ from: fromISO, to: toISO });
-  for (const id of groupIds) params.append("group_id", id);
+  for (const id of filter.groupIds ?? []) params.append("group_id", id);
+  for (const name of filter.schoolClasses ?? [])
+    params.append("school_class", name);
   return params;
 }
 
@@ -109,10 +119,10 @@ export function fetchStudentCareTimes(
 export function fetchCareTimeOverruns(
   fromISO: string,
   toISO: string,
-  groupIds: readonly string[] = [],
+  filter: CareTimeFilter = {},
 ): Promise<CareTimeOverruns> {
   return readData<CareTimeOverruns>(
-    `/api/statistics/care-time-overruns?${windowParams(fromISO, toISO, groupIds).toString()}`,
+    `/api/statistics/care-time-overruns?${windowParams(fromISO, toISO, filter).toString()}`,
     "care time overruns request failed",
   );
 }
@@ -121,9 +131,9 @@ export function careTimeOverrunsExportUrl(
   fromISO: string,
   toISO: string,
   format: CareTimeExportFormat,
-  groupIds: readonly string[] = [],
+  filter: CareTimeFilter = {},
 ): string {
-  const params = windowParams(fromISO, toISO, groupIds);
+  const params = windowParams(fromISO, toISO, filter);
   params.set("format", format);
   return `/api/statistics/care-time-overruns/export?${params.toString()}`;
 }

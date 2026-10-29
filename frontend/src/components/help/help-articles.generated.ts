@@ -1114,7 +1114,7 @@ export const careTimeComparisonTopic =
           steps: [
             "Öffnen Sie in der Seitenleiste `Verwaltung` und danach `Statistik`.",
             "Wählen Sie oben den Bereich `Soll und Ist`.",
-            "Wählen Sie den Zeitraum und, wenn nötig, die Gruppen.",
+            "Wählen Sie den Zeitraum und, wenn nötig, Klassen oder Gruppen.",
             "Tippen Sie auf eine Spalte, um nach ihr zu sortieren.",
             "Über das Menü mit den drei Punkten geht `Exportieren` als `PDF` oder `Excel`.",
           ],
@@ -7500,13 +7500,16 @@ export const statisticsTopic = function statisticsTopic(): HelpTopic {
     steps: [
       "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
       "Öffnen Sie `Statistik`.",
-      "Wählen Sie oben den Bereich: `Gruppen`, `Kinder`, `Räume`, `Kurse` oder `Soll und Ist`.",
+      "Wählen Sie oben den Bereich: `Gruppen`, `Kinder`, `Räume`, `Kurse`, `Uhrzeit` oder `Soll und Ist`.",
       "Wählen Sie den Zeitraum.",
       "Lesen Sie die Zahlen der Tabelle.",
     ],
     result: "Die Zahlen gelten für den gewählten Bereich und Zeitraum.",
     notes: [
       "Bei `Kurse` wählen Sie zusätzlich zwischen `Je Kurs` und `Je Kind`.",
+      "`Uhrzeit` zeigt, wie viele Kinder in jeder halben Stunde da sind: `Geplant` und `Da`. Für einen Tag sehen Sie die Zahlen dieses Tages. Für einen Zeitraum wählen Sie den Wochentag und sehen Durchschnitt und Höchstwert.",
+      "Bei `Geplant` zählen kranke und entschuldigte Kinder nicht mit, Kinder mit „Kommt heute nicht“ auch nicht.",
+      "Mit `Alle Klassen` und `Alle Gruppen` grenzen Sie die Kinder ein.",
       "Über das Menü mit den drei Punkten geht `Exportieren` als `PDF`, `Excel` oder `Word`. `Soll und Ist` hat ein eigenes Menü an der Liste, mit `PDF` und `Excel`.",
       "Die Pfeile schieben den Zeitraum um seine eigene Länge weiter.",
     ],
@@ -7515,6 +7518,7 @@ export const statisticsTopic = function statisticsTopic(): HelpTopic {
       "Ohne `Anwesenheitsprotokoll` fehlt dort auch das Menü zum Exportieren.",
       "Ist die Raumhistorie ausgeschaltet? Ihre Administration kann das `Anwesenheitsprotokoll` einschalten. Die Einstellung steht unter `Einstellungen` und `Datenschutz`.",
       "`Kurse` zeigt nur dann Zahlen, wenn Ihre OGS damit arbeitet.",
+      "`Geplant` und `Da` fehlen für Tage, deren Krankmeldungen oder Anwesenheiten nicht mehr gespeichert sind. Die Seite nennt das Datum, ab dem es Zahlen gibt.",
     ],
     troubleshootingDetails: [
       "Fehlt `Statistik` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",

@@ -11,8 +11,9 @@ import (
 // the screen and in the help guide:
 //
 //   - Soll = the care time on file in moto: arrival to pickup of the weekly
-//     plan, day exceptions included (Care Plan resolves it; the source is a
-//     port so a contract in the Träger module can replace it, #4683)
+//     plan, day exceptions included (Care Plan resolves it as PlannedCareDay;
+//     the source is a port so a contract in the Träger module can replace
+//     it, #4683)
 //   - Ist = first check-in to last check-out of the day (active.attendance)
 //   - overrun = Ist start earlier than Soll start or Ist end later than Soll
 //     end by more than CareTimeToleranceMinutes, or attendance on a day
@@ -27,25 +28,6 @@ const CareTimeToleranceMinutes = 15
 // ErrCareTimeStudentNotFound is returned when the child is not enrolled in
 // the caller's school during the window.
 var ErrCareTimeStudentNotFound = errors.New("care time student not found")
-
-// CareTimeStatus is the booking verdict of one child-day as the Soll source
-// states it.
-type CareTimeStatus string
-
-const (
-	CareTimeScheduled    CareTimeStatus = "scheduled"
-	CareTimeNotScheduled CareTimeStatus = "not_scheduled"
-	CareTimeCancelled    CareTimeStatus = "cancelled"
-	CareTimeUnknown      CareTimeStatus = "unknown"
-)
-
-// CareTimeTarget is the Soll of one child-day: the booking verdict and the
-// booked arrival and pickup wall clocks, nil where the plan has none.
-type CareTimeTarget struct {
-	Status  CareTimeStatus
-	Arrival *calendar.WallClock
-	Pickup  *calendar.WallClock
-}
 
 // CareTimeDayKind classifies one child-day of the comparison.
 type CareTimeDayKind string
@@ -119,20 +101,25 @@ type CareTimeSummary struct {
 
 // StudentCareTimes is the Soll-und-Ist comparison of one child.
 type StudentCareTimes struct {
-	StudentID        int64
-	From             calendar.Date
-	To               calendar.Date
+	StudentID int64
+	From      calendar.Date
+	To        calendar.Date
+	// DataFrom is the first compared day: the attendance and status-day
+	// retention may cut the window short, older days are not listed.
+	DataFrom         calendar.Date
 	ToleranceMinutes int
 	Days             []CareTimeDay
 	Summary          CareTimeSummary
 }
 
-// CareTimeFilters selects the window and an optional group restriction of
-// the overrun list; group 0 means children without a group.
+// CareTimeFilters selects the window and the optional group and class
+// restriction of the overrun list; group 0 means children without a group.
 type CareTimeFilters struct {
 	From     calendar.Date
 	To       calendar.Date
 	GroupIDs []int64
+	// SchoolClasses restricts the children to these classes; empty means all.
+	SchoolClasses []string
 }
 
 // CareTimeOverrunRow is one child with at least one overrun in the window.
@@ -150,6 +137,7 @@ type CareTimeOverrunRow struct {
 type CareTimeOverruns struct {
 	From             calendar.Date
 	To               calendar.Date
+	DataFrom         calendar.Date
 	ToleranceMinutes int
 	Students         []CareTimeOverrunRow
 }

@@ -10,7 +10,7 @@ const logger = createLogger({ component: "StatisticsDownloadProxy" });
 
 /**
  * Query of a Statistik download: the single-valued keys plus every
- * group_id, which the backend reads as a repeatable filter.
+ * group_id and school_class, which the backend reads as repeatable filters.
  */
 function statisticsDownloadQuery(
   request: NextRequest,
@@ -21,8 +21,10 @@ function statisticsDownloadQuery(
     const value = request.nextUrl.searchParams.get(key);
     if (value) params.set(key, value);
   }
-  for (const groupId of request.nextUrl.searchParams.getAll("group_id")) {
-    if (groupId) params.append("group_id", groupId);
+  for (const key of ["group_id", "school_class"] as const) {
+    for (const value of request.nextUrl.searchParams.getAll(key)) {
+      if (value) params.append(key, value);
+    }
   }
   const query = params.toString();
   return query ? `?${query}` : "";
