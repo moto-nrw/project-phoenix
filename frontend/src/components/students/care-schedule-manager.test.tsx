@@ -701,6 +701,61 @@ describe("CareScheduleManager", () => {
     );
   });
 
+  it("returns to the current week through Heute and the week return action", async () => {
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        statusDays={statusDays}
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+    expect(screen.getByText("Aktuelle Woche")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
+    expect(
+      screen.queryByRole("button", { name: "Zurück zur aktuellen Woche" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+    const heute = screen.getByRole("button", { name: "Heute" });
+    expect(heute).toHaveAttribute("type", "button");
+    expect(heute).toBeEnabled();
+    fireEvent.click(heute);
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+    expect(screen.getByText("Aktuelle Woche")).toBeInTheDocument();
+
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+    const back = screen.getByRole("button", {
+      name: "Zurück zur aktuellen Woche",
+    });
+    expect(back).toHaveAttribute("type", "button");
+    fireEvent.click(back);
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+    );
+    // Anker: der Bearbeiten-Zustand ist offen.
+    expect(
+      screen.getByText("Wochenplan im Test speichern"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Heute" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zurück zur aktuellen Woche" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the week Mo–Fr on a weekday although the weekend follows Friday", async () => {
     render(<CareScheduleManager studentId="42" weekendFollowsFriday />);
     await screen.findByText("Betreuungszeiten");
