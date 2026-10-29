@@ -384,6 +384,30 @@ func (s *service) deleteVisit(ctx context.Context, id int64) error {
 	return nil
 }
 
+// LockStudent takes the child's row lock in the caller's transaction. A
+// presence write that holds a child locks it before any of the child's
+// visits, as the bulk move and the check-in guard do (#5278); a caller that
+// ends the child's visit and opens the next one locks the child before it
+// reads that visit.
+func (s *service) LockStudent(ctx context.Context, studentID int64) error {
+	if err := tenant.RequireTransaction(ctx); err != nil {
+		return &ActiveError{Op: "LockStudent", Err: err}
+	}
+	if studentID <= 0 {
+		return &ActiveError{Op: "LockStudent", Err: ErrStudentNotFound}
+	}
+	if s.StudentRepo == nil {
+		return nil
+	}
+	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
+		if IsNoRows(err) {
+			return &ActiveError{Op: "LockStudent", Err: ErrStudentNotFound}
+		}
+		return &ActiveError{Op: "LockStudent", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	return nil
+}
+
 func (s *service) EndVisit(ctx context.Context, id int64) error {
 	return s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		return s.endVisit(txCtx, id)
@@ -439,8 +463,17 @@ func (s *service) endVisitWithAttendanceSync(
 	return endedVisit, snapshot, nil
 }
 
-// endVisitRecord ends the visit record and returns the updated visit
+// endVisitRecord ends the visit record and returns the updated visit. The
+// close only touches an open visit; a close that ends nothing reads the visit
+// to tell a missing visit from an ended one.
 func (s *service) endVisitRecord(ctx context.Context, id int64) (*studentpresence.Visit, error) {
+	closed, err := s.SchoolPresence.CloseVisits(ctx, []int64{id}, time.Now())
+	if err != nil {
+		return nil, &ActiveError{Op: "EndVisit", Err: errors.Join(ErrDatabaseOperation, err)}
+	}
+	if len(closed) > 0 {
+		return &closed[0], nil
+	}
 	visit, err := s.SchoolPresence.FindVisit(ctx, id)
 	if err != nil {
 		if errors.Is(err, studentpresence.ErrVisitNotFound) {
@@ -451,17 +484,7 @@ func (s *service) endVisitRecord(ctx context.Context, id int64) (*studentpresenc
 	if visit == nil {
 		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitNotFound}
 	}
-	if visit.ExitTime != nil {
-		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
-	}
-	closed, err := s.SchoolPresence.CloseVisits(ctx, []int64{id}, time.Now())
-	if err != nil {
-		return nil, &ActiveError{Op: "EndVisit", Err: errors.Join(ErrDatabaseOperation, err)}
-	}
-	if len(closed) == 0 {
-		return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
-	}
-	return &closed[0], nil
+	return nil, &ActiveError{Op: "EndVisit", Err: ErrVisitAlreadyEnded}
 }
 
 // visitSSEData holds data needed for SSE broadcasts after a visit is ended

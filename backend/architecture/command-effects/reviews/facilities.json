@@ -1090,6 +1090,28 @@
     },
     {
       "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.LockStudent",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence/internal/application/presence.presenceFacade.LockStudent; modules/studentpresence/internal/application/presence/visit_service.go:392. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "facilities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.LockStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "reason": "Owner-provided locking read/gate, never labelled query. Caller scope and target-local guard remain required; no separate source-defined cohort protocol established for this binding. Target modules/studentpresence.Presence.LockStudent; modules/studentpresence.Presence (supplied contract method). Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "facilities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Presence.LockStudent",
+      "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.presenceFacade.MoveStudentsToActiveGroupAuthorized",
       "classification": "leaf",
       "effect": "mutation",

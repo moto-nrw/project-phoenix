@@ -9441,6 +9441,18 @@
       "target_owner": "school-membership"
     },
     {
+      "adr": "0067",
+      "approval_adr": "0136",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres.StudentStore.LockRecord",
+      "classification": "E3",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentStore.LockRecord",
+      "reason": "E3 named People student/companion or staff-identity edit protocol. Preserve class gate, foreign row/cohort locks, in-lock checks and composite savepoint/best-effort caregiver behavior; hand rows 14-19, People student_write.go, student_enrollment.go, staff_directory.go. The locking student read takes School Membership's shared class-writes gate as a materialized CTE of the row-lock statement, gate before row (ADR 0136, #5278). Target modules/schoolmembership/compose.StudentClassWriteGate; modules/peopledirectory/internal/adapters/postgres/student_read_projection.go LockRecord.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose.StudentClassWriteGate",
+      "target_owner": "school-membership"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/peoplepostgres.caregiverBindingLocker.LockCaregiverCapabilityBindings",

@@ -101,6 +101,31 @@ func (s *StudentStore) FindRecord(
 	return domain.StudentRecord(row), found, domain.OperationStats(stats), projectionError(err)
 }
 
+// LockRecord takes the shared class-writes gate and then the row lock. With
+// the gate query wired both run in one statement; otherwise the gate is a
+// statement of its own before the row lock.
+func (s *StudentStore) LockRecord(
+	ctx context.Context,
+	studentID int64,
+	lock string,
+) (domain.StudentRecord, bool, domain.OperationStats, error) {
+	if s.classGateQuery == nil {
+		stats, err := s.LockEnrollmentClassWrites(ctx)
+		if err != nil {
+			return domain.StudentRecord{}, false, stats, err
+		}
+		record, found, queryStats, err := s.FindRecord(ctx, studentID, lock)
+		stats.Add(queryStats)
+		return record, found, stats, err
+	}
+	gate, err := s.classGateQuery(ctx)
+	if err != nil {
+		return domain.StudentRecord{}, false, domain.OperationStats{}, err
+	}
+	row, found, stats, err := s.reads.findRecord(ctx, studentID, lock, gate)
+	return domain.StudentRecord(row), found, domain.OperationStats(stats), projectionError(err)
+}
+
 func (s *StudentStore) ListRecordsByIDs(
 	ctx context.Context,
 	ids []int64,
