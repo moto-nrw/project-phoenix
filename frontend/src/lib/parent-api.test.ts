@@ -1025,7 +1025,7 @@ function mkThreadView(overrides: Partial<ThreadView> = {}): ThreadView {
 // --- listMessageThreads -------------------------------------------------------
 
 describe("listMessageThreads", () => {
-  it("keeps only team conversations until navigation and replies support audiences", async () => {
+  it("returns team and leadership conversations; links and replies carry the audience", async () => {
     const team = mkThreadSummary({ audience: "team" });
     const legacy = mkThreadSummary({ thread_id: "legacy", student_id: "43" });
     const leadership = mkThreadSummary({
@@ -1036,7 +1036,7 @@ describe("listMessageThreads", () => {
     });
     mockFetch(async () => jsonResponse({ data: [team, legacy, leadership] }));
 
-    expect(await listMessageThreads()).toEqual([team, legacy]);
+    expect(await listMessageThreads()).toEqual([team, legacy, leadership]);
   });
 
   it("GETs /api/parent/me/messages and returns the data array", async () => {
