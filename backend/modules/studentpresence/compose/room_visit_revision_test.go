@@ -188,7 +188,7 @@ func TestRoomRevisionStaysInsideTheSchool(t *testing.T) {
 // open at once, and in sequence they stay within the shared test pool.
 func TestRoomRevisionUnderConcurrentWriters(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	for _, race := range []struct {
@@ -521,7 +521,7 @@ func roomNightlyCloseKeepsRevisions(t *testing.T, ctx context.Context, db *bun.D
 
 func TestRoomRevisionSurvivesOverlappingCompactionsAndSessionDeletion(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := lockScenarioDB(t)
 	ctx := testpkg.Ctx(t)
 	module := newRevisionModule(t, db)
 	room := testpkg.CreateTestRoom(t, db, "Room overlapping compactions")
