@@ -26,22 +26,28 @@ void invalidateFamily(rooms.family);
    global cache or a package-level preload. Without session access there is
    no cache key, fetch, preload or mutation. Discarded preloads resolve to
    `undefined`; failures of the current generation still reject.
-2. Use `useSWRCacheKey()` to resolve the same identity for a cache read or
-   list-overlay ID. A cache-derived detail seed must retain its source's
-   generation stamp. Do not restamp old data as a fresh fallback. A partial
-   seed must still revalidate; `revalidateIfStale: false` would suppress the
-   request in SWR 2.5.1.
+2. Use `useSWRCacheKey()` to resolve the same identity for a list-overlay ID.
+   Seed through the helpers of `seed.ts`: `useSWRSeedFrom()` derives a detail
+   seed from current cached data and keeps its source's generation stamp;
+   `stampSWRSeeds` and `writeSWRSeeds` carry a server snapshot. Do not restamp
+   old data as a fresh fallback. A partial seed must still revalidate;
+   `revalidateIfStale: false` would suppress the request in SWR 2.5.1.
 3. The callback returned by `useTenantMutate()` supports optimistic
    data, rollback and `populateCache` under the generation lock. Prefer the
    reader's bound `mutate` when it already owns that key.
 4. Family prefixes end in `-`. `useInvalidateFamily` matches that prefix
    within the current scope, including `$inf$` keys and preloads. The existing
    `useTenantMutateMatching([factory.family])` remains available for combined
-   invalidations. Session boundaries also clear all list overlays.
+   invalidations, `useInvalidateMatching()` for a predicate over the unscoped
+   key (`() => true` refreshes the whole session). Session boundaries also
+   clear all list overlays.
 5. Keys describe the **response**, not its screen. Different parameters or
    projections stay separate: system rooms, paginated room lists, the staff
    directory and its teacher projection must not overwrite one another.
    Filter/sort display transformations belong outside the shared cache.
+6. Outside this directory there is no unlocked cache access: `cache.ts` only
+   exports `SWRConfig`, the global `mutate` only revalidates or clears, and
+   `swr/no-cache-access` rejects `useSWRConfig` and the generation internals.
 
 Migrated direct readers explicitly retain SWR’s former `keepPreviousData: false`
 default unless they already opted in. Do not carry a previous child, thread or

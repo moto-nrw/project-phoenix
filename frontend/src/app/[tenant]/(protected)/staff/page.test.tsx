@@ -32,6 +32,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
+  useInvalidateMatching: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/lib/hooks/use-staff-pending-absences", () => ({

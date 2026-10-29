@@ -18,9 +18,12 @@ import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { primeSessionCache } from "~/lib/session-cache";
 import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
-import { scopedSWRKey, tenantSWRScope } from "~/lib/swr";
-import { mutate } from "~/lib/swr/mutate";
-import { dataGenerationOf, stampSWRValue } from "~/lib/swr/generation";
+import {
+  scopedSWRKey,
+  stampSWRSeeds,
+  tenantSWRScope,
+  writeSWRSeeds,
+} from "~/lib/swr";
 import { authGeneration, useSWRSessionRefresh } from "~/lib/swr/scope";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { staffNoticesTodayKey } from "~/lib/staff-notices-api";
@@ -125,11 +128,7 @@ export function ShellCacheSeeder({
   entries,
 }: Readonly<{ entries: Record<string, unknown> }>) {
   useLayoutEffect(() => {
-    for (const [key, data] of Object.entries(entries)) {
-      void mutate(key, (current: unknown) => current ?? data, {
-        revalidate: false,
-      });
-    }
+    writeSWRSeeds(entries);
   }, [entries]);
   return null;
 }
@@ -208,9 +207,7 @@ export function TenantProviders({
     const config = shellSwrConfig(shell, tenantSlug);
     // The seed belongs to the generation it was built in (#5006): after a
     // drop of one of its keys no reader shows it, also not as fallback.
-    for (const [key, value] of Object.entries(config.fallback)) {
-      stampSWRValue(key, value, dataGenerationOf(key));
-    }
+    stampSWRSeeds(config.fallback);
     return { config, owned: shellOwnedEntries(shell, tenantSlug) };
   }, [shell, tenantSlug]);
   // The seed belongs to the session the server rendered with.

@@ -18,6 +18,7 @@ vi.mock("~/lib/swr", () => ({
     mutate: vi.fn(),
   }),
   useTenantMutateMatching: () => vi.fn(),
+  useInvalidateMatching: () => vi.fn(),
 }));
 
 vi.mock("~/lib/hooks/use-period-metrics", () => ({

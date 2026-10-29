@@ -45,11 +45,8 @@ vi.mock("~/lib/tenant-router", () => ({
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: berlinToday,
 }));
-vi.mock("swr", () => ({
-  useSWRConfig: () => ({ mutate: globalMutate }),
-}));
-
 vi.mock("~/lib/swr", () => ({
+  useInvalidateMatching: () => globalMutate,
   useSWRAuth: (key: string | null, fetcher: () => Promise<unknown>) => {
     swrKeys.push(key);
     // Genau wie useSWRAuth selbst: ein null-Key fetcht nicht.

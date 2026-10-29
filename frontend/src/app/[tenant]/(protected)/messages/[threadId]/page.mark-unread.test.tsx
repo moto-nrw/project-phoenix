@@ -40,9 +40,9 @@ vi.mock("next-auth/react", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: (...args: unknown[]) => mockUseSWR(...args),
-  useSWRCacheKey: () => (key: string) => `schule:account-1:${key}`,
+  // An empty inbox cache: no seed.
+  useSWRSeedFrom: () => () => undefined,
   unstable_serialize: (key: unknown) => JSON.stringify(key),
-  useSWRConfig: () => ({ cache: new Map() }),
 }));
 
 const loadedThread = {

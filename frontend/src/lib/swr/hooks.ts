@@ -656,6 +656,32 @@ export function useSWRPreload() {
   );
 }
 
+/**
+ * Invalidate every entry of the session's scope whose resource key `matches`,
+ * wherever SWR keeps it (invalidateSWRKeys). `matches` gets the key without
+ * the scope prefix, as the factories build it; `() => true` refreshes every
+ * entry of the session. The predicate form of useTenantMutateMatching: the
+ * cache of another school or account is never touched, and without a
+ * signed-in session nothing matches. Components outside ~/lib/swr have no
+ * other access to the cache (#5007).
+ */
+export function useInvalidateMatching() {
+  const { prefix } = useSWRScope();
+  const { cache } = useSWRConfig();
+  return useCallback(
+    (matches: (key: string) => boolean, options?: { clear?: boolean }) => {
+      if (prefix === null || isSWRSessionPending()) return Promise.resolve([]);
+      const scope = scopedSWRKey(prefix, "");
+      return invalidateSWRKeys(
+        cache,
+        (key) => key.startsWith(scope) && matches(key.slice(scope.length)),
+        options?.clear ? "clear" : "revalidate",
+      );
+    },
+    [prefix, cache],
+  );
+}
+
 /** Invalidate a resource family, including unmounted, infinite and preloaded keys. */
 export function useInvalidateFamily() {
   const { prefix } = useSWRScope();

@@ -23,11 +23,13 @@ export {
   useSWRCacheKey,
   useSWRPreload,
   useInvalidateFamily,
+  useInvalidateMatching,
   useImmutableSWR,
   useTenantMutate,
   useTenantMutateMatching,
 } from "./hooks";
 export { scopedSWRKey, tenantSWRScope } from "./scope";
+export { stampSWRSeeds, writeSWRSeeds, useSWRSeedFrom } from "./seed";
 
 // Re-export SWR utilities that consumers might need
 export {

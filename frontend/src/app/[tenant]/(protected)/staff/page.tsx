@@ -38,7 +38,7 @@ import {
   sortStaff,
   getStaffLocationStatus,
 } from "~/lib/staff-helpers";
-import { useSWRAuth } from "~/lib/swr";
+import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -55,7 +55,6 @@ import {
 } from "~/components/staff/staff-time-accounts-table";
 import { MonthCloseReasonModal } from "~/components/staff/month-close-modal";
 import { StaffTimeExportModal } from "~/components/staff/staff-time-export-modal";
-import { useSWRConfig } from "~/lib/swr/cache";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
@@ -443,7 +442,16 @@ function StaffPageContent() {
     });
   };
 
-  const { mutate: globalMutate } = useSWRConfig();
+  // Folgemonate rechnen ab jetzt vom eingefrorenen Übertrag — die schulweite
+  // Tabelle und beide Monatskarten-Familien sind potenziell veraltet.
+  const invalidate = useInvalidateMatching();
+  const refreshAfterMonthClose = () =>
+    invalidate(
+      (key) =>
+        key.includes("staff-time-accounts") ||
+        key.includes("staff-month-summary-") ||
+        key.includes("time-tracking-month-summary-"),
+    );
   const handleCloseMonth = async (reason: string) => {
     await staffMonthCloseService.closeMonth({
       year: monthAnchor.year,
@@ -451,16 +459,7 @@ function StaffPageContent() {
       reason,
     });
     await mutateMonthClose();
-    // Folgemonate rechnen ab jetzt vom eingefrorenen Übertrag — die schulweite
-    // Tabelle und beide Monatskarten-Familien sind potenziell veraltet.
-    // includes statt startsWith: useSWRAuth präfixt die Keys mit dem Tenant.
-    await globalMutate(
-      (key) =>
-        typeof key === "string" &&
-        (key.includes("staff-time-accounts") ||
-          key.includes("staff-month-summary-") ||
-          key.includes("time-tracking-month-summary-")),
-    );
+    await refreshAfterMonthClose();
   };
 
   const accountRows = useMemo(() => {

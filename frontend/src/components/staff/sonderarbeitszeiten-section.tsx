@@ -2,7 +2,6 @@
 
 import { Plus } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useSWRConfig } from "~/lib/swr/cache";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -30,7 +29,7 @@ import {
   staffTargetOverrideService,
   type StaffTargetOverride,
 } from "~/lib/staff-target-overrides-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
 
 import {
   formatDecimalHours,
@@ -181,7 +180,7 @@ export function SonderarbeitszeitenSection({
   } = useSWRAuth(`staff-target-overrides-${staffId}`, () =>
     staffTargetOverrideService.list(staffId),
   );
-  const { mutate } = useSWRConfig();
+  const invalidate = useInvalidateMatching();
   const toast = useToast();
 
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -209,7 +208,7 @@ export function SonderarbeitszeitenSection({
   // A Sonderarbeitszeit changes the Soll of its days like a model change.
   const refresh = () => {
     void mutateList();
-    void mutate(isStaleAfterModelSave);
+    void invalidate(isStaleAfterModelSave);
   };
 
   const openCreate = () => {

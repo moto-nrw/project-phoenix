@@ -6,7 +6,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { RotateCw, Check } from "lucide-react";
-import { useSWRConfig } from "~/lib/swr/cache";
+import { useInvalidateMatching } from "~/lib/swr";
 import { useTranslations } from "next-intl";
 import { Button } from "~/components/ui/button";
 
@@ -23,7 +23,8 @@ export function RefreshButton({
   const t = useTranslations("parentNav");
   const [state, setState] = useState<ButtonState>("idle");
   const pendingStopRef = useRef(false);
-  const { mutate } = useSWRConfig();
+  // Every entry of the signed-in session, never another school or account.
+  const invalidate = useInvalidateMatching();
 
   const handleRefresh = useCallback(async () => {
     if (state !== "idle") return;
@@ -32,12 +33,12 @@ export function RefreshButton({
     setState("spinning");
 
     try {
-      await mutate(() => true);
+      await invalidate(() => true);
     } finally {
       // Signal stop, animation will finish current rotation first
       pendingStopRef.current = true;
     }
-  }, [state, mutate]);
+  }, [state, invalidate]);
 
   const handleAnimationIteration = useCallback(() => {
     if (pendingStopRef.current) {

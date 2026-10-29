@@ -41,7 +41,8 @@ vi.mock("~/lib/swr", () => ({
     key?.includes("message-thread-")
       ? mockUseSWR(key, ...args)
       : mockUseSWRAuth(key, ...args),
-  useSWRCacheKey: () => (key: string) => `schule:account-1:${key}`,
+  // An empty inbox cache: no seed.
+  useSWRSeedFrom: () => () => undefined,
 }));
 
 const thread = {

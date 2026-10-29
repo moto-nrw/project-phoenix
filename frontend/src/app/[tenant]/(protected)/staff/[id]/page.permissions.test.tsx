@@ -103,6 +103,7 @@ vi.mock("~/lib/database/service-factory", () => ({
 vi.mock("~/lib/swr", () => ({
   useTenantMutate: () => vi.fn(),
   useTenantMutateMatching: () => vi.fn(),
+  useInvalidateMatching: () => vi.fn(),
   useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
     if (key?.startsWith("staff-history-"))
       return { data: [], isLoading: false, error: null };

@@ -54,6 +54,7 @@ vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(() => mockTenantMutate),
   useTenantMutateMatching: vi.fn(() => vi.fn()),
+  useInvalidateMatching: () => vi.fn(),
 }));
 
 // The own staff ID comes from the preloaded user context (#4992); the hook's

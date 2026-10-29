@@ -1,18 +1,32 @@
 // swr/no-direct-import permits package imports inside this shared wrapper only.
 import { mutate as swrMutate } from "swr";
-import { lockMutation } from "./generation";
+
+type Matcher = string | ((key: unknown) => boolean);
 
 /**
- * SWR's global mutate under the generation lock (#5006): a write to a key
- * is stamped with the generation it started in, and an answer that settles
- * after that generation ended is not kept. Revalidations and key filters
- * pass through unchanged.
+ * SWR's global mutate, limited to revalidating or clearing (#5007): a key or
+ * key filter without data. A write of data has no originating generation
+ * here, so a retained call after a scope bump would land in the next
+ * session; data goes through useTenantMutate, the bound mutate of
+ * useSWRAuth or the seed helpers instead.
  */
-export const mutate = ((...args: Parameters<typeof swrMutate>) => {
+export function mutate(
+  ...args: [
+    key: Matcher,
+    data?: undefined,
+    options?: boolean | { revalidate?: boolean },
+  ]
+): Promise<unknown> {
   const [key, data, options] = args;
-  if (typeof key !== "string" || args.length < 2 || data === undefined) {
-    return swrMutate(...args);
+  // SWR counts the arguments: `mutate(key)` revalidates, while an explicit
+  // `undefined` clears the entry. Pass the call through as given.
+  if (args.length < 2) return swrMutate(key);
+  if (data !== undefined) {
+    return Promise.reject(
+      new TypeError(
+        "~/lib/swr mutate only revalidates or clears; write data through useTenantMutate",
+      ),
+    );
   }
-  const [locked, lockedOptions] = lockMutation(key, data, options);
-  return swrMutate(key, locked, lockedOptions as never);
-}) as typeof swrMutate;
+  return swrMutate(key, undefined, options as never);
+}

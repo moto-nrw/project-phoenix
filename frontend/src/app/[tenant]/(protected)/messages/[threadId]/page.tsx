@@ -1,10 +1,5 @@
 "use client";
 
-import {
-  isCurrentSWRValue,
-  stampSWRValue,
-  dataGenerationOf,
-} from "~/lib/swr/generation";
 import { messageKeys } from "~/lib/swr/portal-keys";
 
 import {
@@ -17,8 +12,7 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSWRCacheKey } from "~/lib/swr";
-import { useSWRConfig } from "~/lib/swr/cache";
+import { useSWRSeedFrom } from "~/lib/swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
@@ -119,8 +113,7 @@ function MessageThreadContent() {
   // stays visible.
   const messagingEnabled = tenant?.messagingEnabled === true;
 
-  const { cache } = useSWRConfig();
-  const cacheKey = useSWRCacheKey();
+  const seedFrom = useSWRSeedFrom();
   const leavingAsUnreadRef = useRef(false);
   const pendingThreadLoadsRef = useRef(new Set<Promise<ThreadDetail>>());
 
@@ -131,29 +124,28 @@ function MessageThreadContent() {
     // The inbox is keyed ["messages-inbox", onlyUnread], so the seed must search
     // every filter combination that may be cached.
     for (const unread of [false, true]) {
-      const key = cacheKey(messageKeys.messagesInbox(unread));
-      if (key === null) continue;
-      const entry = cache.get(key) as { data?: InboxThread[] } | undefined;
-      if (!entry?.data || isCurrentSWRValue(key, entry.data) !== true) continue;
-      const row = entry.data.find((t) => t.thread_id === threadId);
-      if (row) {
-        const seeded: ThreadDetail = {
-          thread_id: row.thread_id,
-          student_id: row.student_id,
-          student_name: row.student_name,
-          guardian_name: row.guardian_name,
-          relationship_type: row.relationship_type,
-          audience: row.audience,
-          messages: [],
-        };
-        const targetKey = cacheKey(messageKeys.messageThread(threadId));
-        if (targetKey !== null)
-          stampSWRValue(targetKey, seeded, dataGenerationOf(key));
-        return seeded;
-      }
+      const seeded = seedFrom(
+        messageKeys.messagesInbox(unread),
+        messageKeys.messageThread(threadId),
+        (inbox: InboxThread[]): ThreadDetail | undefined => {
+          const row = inbox.find((t) => t.thread_id === threadId);
+          return row
+            ? {
+                thread_id: row.thread_id,
+                student_id: row.student_id,
+                student_name: row.student_name,
+                guardian_name: row.guardian_name,
+                relationship_type: row.relationship_type,
+                audience: row.audience,
+                messages: [],
+              }
+            : undefined;
+        },
+      );
+      if (seeded) return seeded;
     }
     return undefined;
-  }, [cache, threadId, cacheKey]);
+  }, [seedFrom, threadId]);
 
   const {
     data: thread,
