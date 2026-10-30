@@ -2,7 +2,7 @@ import { act, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { shellSwrConfig } from "~/app/[tenant]/providers";
 import type { ShellBootstrap } from "~/lib/shell-seed";
-import { SWRConfig } from "~/lib/swr/cache";
+import { SWRConfig } from "~/lib/swr/testing";
 import { resetSWRScope } from "~/lib/swr/scope";
 import { useAnnouncements } from "./use-announcements";
 

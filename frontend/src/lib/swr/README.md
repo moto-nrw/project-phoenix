@@ -45,9 +45,17 @@ void invalidateFamily(rooms.family);
    projections stay separate: system rooms, paginated room lists, the staff
    directory and its teacher projection must not overwrite one another.
    Filter/sort display transformations belong outside the shared cache.
-6. Outside this directory there is no unlocked cache access: `cache.ts` only
-   exports `SWRConfig`, the global `mutate` only revalidates or clears, and
-   `swr/no-cache-access` rejects `useSWRConfig` and the generation internals.
+6. Outside this directory there is no unlocked cache access. Only the
+   public modules are reachable (`index`, `hooks`, `mutate`,
+   `config-boundaries`, `scope-boundary`, the key and factory modules), and
+   none of their exports hands out the cache, a provider or a raw mutate:
+   readers and writers pass the generation lock, `mutate` only revalidates
+   or clears and keeps only `revalidate` of its options, and
+   `SWRSeedBoundary` / `IsolatedSWRCache` take data or nothing.
+   `swr/no-cache-access` judges every module reference by its resolved
+   target and every imported name by the module's actual exports;
+   `cache-boundary.test.tsx` holds the reviewed export list. Tests reach
+   SWR's provider through `testing.ts`.
 
 Migrated direct readers explicitly retain SWR’s former `keepPreviousData: false`
 default unless they already opted in. Do not carry a previous child, thread or

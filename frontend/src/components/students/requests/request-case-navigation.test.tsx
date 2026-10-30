@@ -24,7 +24,7 @@ import {
   listEnrollmentChangeRequests,
 } from "~/lib/change-request-list-api";
 import { ToastProvider } from "~/contexts/ToastContext";
-import { SWRConfig } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 
 import { fetchCareWithdrawals } from "~/lib/care-exit-api";
 

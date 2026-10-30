@@ -9,7 +9,7 @@ vi.mock("next-auth/react", () => ({
 }));
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { SWRConfig } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";

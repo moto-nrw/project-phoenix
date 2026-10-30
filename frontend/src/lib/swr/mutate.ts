@@ -5,7 +5,7 @@ type Matcher = string | ((key: unknown) => boolean);
 
 /**
  * SWR's global mutate, limited to revalidating or clearing (#5007): a key or
- * key filter without data. A write of data has no originating generation
+ * key filter without data, and of the options only `revalidate`. A write of data has no originating generation
  * here, so a retained call after a scope bump would land in the next
  * session; data goes through useTenantMutate, the bound mutate of
  * useSWRAuth or the seed helpers instead.
@@ -28,5 +28,13 @@ export function mutate(
       ),
     );
   }
-  return swrMutate(key, undefined, options as never);
+  // Only `revalidate` passes: optimisticData, populateCache or a custom
+  // rollback would turn the clear into a write past the generation lock.
+  const revalidate =
+    typeof options === "boolean" ? options : options?.revalidate;
+  return swrMutate(
+    key,
+    undefined,
+    revalidate === undefined ? {} : { revalidate },
+  );
 }

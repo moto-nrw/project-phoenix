@@ -3,8 +3,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import type { Session } from "next-auth";
 import { SessionProvider, useSession } from "next-auth/react";
-// eslint-disable-next-line no-restricted-imports -- SWRConfig only; hooks stay on ~/lib/swr
-import { SWRConfig } from "~/lib/swr/cache";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
@@ -19,13 +17,15 @@ import { primeSessionCache } from "~/lib/session-cache";
 import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import {
+  authGeneration,
   scopedSWRKey,
   stampSWRSeeds,
+  SWRScopeBoundary,
+  SWRSeedBoundary,
   tenantSWRScope,
+  useSWRSessionRefresh,
   writeSWRSeeds,
 } from "~/lib/swr";
-import { authGeneration, useSWRSessionRefresh } from "~/lib/swr/scope";
-import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { staffNoticesTodayKey } from "~/lib/staff-notices-api";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
 import { tenantAwarePath } from "~/lib/tenant-path";
@@ -167,10 +167,10 @@ function ShellSwrSeed({
     if (invalidated || current !== generation) left.current = true;
   }, [invalidated, current, generation]);
   return (
-    <SWRConfig value={active ? seed.config : NO_SEED}>
+    <SWRSeedBoundary seed={active ? seed.config : NO_SEED}>
       <ShellCacheSeeder entries={active ? seed.owned : NO_ENTRIES} />
       {children}
-    </SWRConfig>
+    </SWRSeedBoundary>
   );
 }
 

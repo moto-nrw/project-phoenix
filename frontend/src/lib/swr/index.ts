@@ -28,15 +28,16 @@ export {
   useTenantMutate,
   useTenantMutateMatching,
 } from "./hooks";
-export { scopedSWRKey, tenantSWRScope } from "./scope";
-export { stampSWRSeeds, writeSWRSeeds, useSWRSeedFrom } from "./seed";
-
-// Re-export SWR utilities that consumers might need
 export {
-  SWRConfig,
-  type Cache,
-  type SWRConfiguration,
-  type SWRResponse,
-  type KeyedMutator,
-} from "swr";
+  authGeneration,
+  scopedSWRKey,
+  tenantSWRScope,
+  useSWRSessionRefresh,
+} from "./scope";
+export { stampSWRSeeds, writeSWRSeeds, useSWRSeedFrom } from "./seed";
+export { IsolatedSWRCache, SWRSeedBoundary } from "./config-boundaries";
+export { SWRScopeBoundary } from "./scope-boundary";
+
+// Types only: no export of this module hands out the cache (#5007).
+export type { SWRConfiguration, SWRResponse, KeyedMutator } from "swr";
 export { mutate } from "./mutate";

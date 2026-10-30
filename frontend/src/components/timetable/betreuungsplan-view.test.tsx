@@ -2088,8 +2088,9 @@ describe("BetreuungsplanView", () => {
   });
 
   it("refreshes the open block's notes even when the slim week is unchanged", async () => {
-    const { useSWRAuth: useRealSWRAuth, SWRConfig } =
+    const { useSWRAuth: useRealSWRAuth } =
       await vi.importActual<typeof import("~/lib/swr")>("~/lib/swr");
+    const { SWRConfig } = await import("~/lib/swr/testing");
     const { timetableService } = await import("~/lib/timetable-api");
     const base = mockUseSWRAuth.getMockImplementation()!;
     const revalidators = new Map<string, () => Promise<unknown>>();
@@ -2166,8 +2167,9 @@ describe("BetreuungsplanView", () => {
   });
 
   it("does not reuse the previous day's children while the selected day loads", async () => {
-    const { useSWRAuth: useRealSWRAuth, SWRConfig } =
+    const { useSWRAuth: useRealSWRAuth } =
       await vi.importActual<typeof import("~/lib/swr")>("~/lib/swr");
+    const { SWRConfig } = await import("~/lib/swr/testing");
     const { timetableService } = await import("~/lib/timetable-api");
     const nextInstance = { ...instance, id: "43", date: "2026-05-05" };
     setupSWR({ instances: [instance, nextInstance] });

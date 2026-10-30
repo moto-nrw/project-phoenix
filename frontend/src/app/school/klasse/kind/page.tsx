@@ -34,8 +34,7 @@ import {
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
-import { useSWRAuth } from "~/lib/swr";
-import { SWRConfig } from "~/lib/swr/cache";
+import { IsolatedSWRCache, useSWRAuth } from "~/lib/swr";
 
 /** Wann und von wem: der beschriebene Tag oder „Dauerhafter Hinweis“. */
 function noteMeta(note: SharedNote): string {
@@ -56,16 +55,13 @@ function SharedNotesFromAddress() {
   return (
     // Each opening (including a change of child) must make its own audited
     // request before disclosing data. Never reuse the portal's notes cache.
-    <SWRConfig
-      key={`${schoolClass}-${studentId}`}
-      value={{ provider: () => new Map() }}
-    >
+    <IsolatedSWRCache key={`${schoolClass}-${studentId}`}>
       <SharedNotes
         schoolClass={schoolClass}
         studentId={studentId}
         dateISO={dateISO}
       />
-    </SWRConfig>
+    </IsolatedSWRCache>
   );
 }
 

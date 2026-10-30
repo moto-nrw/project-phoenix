@@ -1,7 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSWRConfig } from "swr";
-import * as cacheModule from "./cache";
 import { messageKeys } from "./portal-keys";
 import { roomKeys } from "./rooms-keys";
 import { resetSWRScope, resumeSWRSession, suspendSWRSession } from "./scope";
@@ -35,10 +34,128 @@ beforeEach(() => {
 
 const own = (key: string) => `school-a:account-7:${key}`;
 
+// The reviewed public surface (#5007): swr/no-cache-access lets code outside
+// ~/lib/swr reach these modules only. A new export lands here in review; none
+// may hand out the cache, a provider or a raw mutate.
+const PUBLIC_SURFACE: Record<string, () => Promise<object>> = {
+  index: () => import("./index"),
+  hooks: () => import("./hooks"),
+  mutate: () => import("./mutate"),
+  "config-boundaries": () => import("./config-boundaries"),
+  "scope-boundary": () => import("./scope-boundary"),
+  "portal-keys": () => import("./portal-keys"),
+  "rooms-keys": () => import("./rooms-keys"),
+  "groups-keys": () => import("./groups-keys"),
+  "staff-keys": () => import("./staff-keys"),
+  "me-keys": () => import("./me-keys"),
+  rooms: () => import("./rooms"),
+  groups: () => import("./groups"),
+  staff: () => import("./staff"),
+  me: () => import("./me"),
+  "search-students-key": () => import("./search-students-key"),
+  "room-derived-caches": () => import("./room-derived-caches"),
+};
+const REVIEWED_EXPORTS: Record<string, string[]> = {
+  index: [
+    "IsolatedSWRCache",
+    "SWRScopeBoundary",
+    "SWRSeedBoundary",
+    "authGeneration",
+    "mutate",
+    "scopedSWRKey",
+    "stampSWRSeeds",
+    "tenantSWRScope",
+    "useImmutableSWR",
+    "useInvalidateFamily",
+    "useInvalidateMatching",
+    "useSWRAuth",
+    "useSWRCacheKey",
+    "useSWRPreload",
+    "useSWRSeedFrom",
+    "useSWRSessionRefresh",
+    "useTenantMutate",
+    "useTenantMutateMatching",
+    "writeSWRSeeds",
+  ],
+  hooks: [
+    "useDiscardRefusedEntity",
+    "useImmutableSWR",
+    "useInvalidateFamily",
+    "useInvalidateMatching",
+    "useSWRAuth",
+    "useSWRCacheKey",
+    "useSWRPreload",
+    "useSWRWithId",
+    "useScopedSWRKey",
+    "useTenantMutate",
+    "useTenantMutateMatching",
+  ],
+  mutate: ["mutate"],
+  "config-boundaries": ["IsolatedSWRCache", "SWRSeedBoundary"],
+  "scope-boundary": ["SWRScopeBoundary"],
+  "portal-keys": [
+    "announcementKeys",
+    "dashboardKeys",
+    "databaseKeys",
+    "homeLayoutKeys",
+    "messageKeys",
+    "operatorAnnouncementKeys",
+    "operatorBillingKeys",
+    "operatorInvitationKeys",
+    "operatorProvisioningKeys",
+    "parentKeys",
+    "payrollKeys",
+    "schoolSetupKeys",
+    "staffMergeKeys",
+    "staffOnboardingKeys",
+    "studentKeys",
+    "timetableKeys",
+  ],
+  "rooms-keys": ["roomKeys"],
+  "groups-keys": ["groupKeys"],
+  "staff-keys": ["staffKeys"],
+  "me-keys": ["meKeys"],
+  rooms: ["rooms"],
+  groups: ["groups"],
+  staff: ["staff"],
+  me: ["me"],
+  "search-students-key": [
+    "SEARCH_STUDENTS_ALL_GROUPS_KEY",
+    "SEARCH_STUDENTS_KEY_PREFIX",
+    "normalizeSearchStudentsGroupId",
+    "searchStudentsGroupScope",
+    "searchStudentsKeyTargetsGroup",
+  ],
+  "room-derived-caches": ["ROOM_DERIVED_CACHE_KEY_FRAGMENTS"],
+};
+
 // #5007: outside ~/lib/swr no cache access bypasses the generation lock.
 describe("cache boundary of ~/lib/swr", () => {
-  it("exposes only the provider, not useSWRConfig", () => {
-    expect(Object.keys(cacheModule)).toEqual(["SWRConfig"]);
+  it.each(Object.keys(PUBLIC_SURFACE))(
+    "keeps the reviewed exports of the public module %s",
+    async (name) => {
+      const exports = await PUBLIC_SURFACE[name]!();
+      expect(Object.keys(exports).sort()).toEqual(REVIEWED_EXPORTS[name]);
+      // Neither SWR's provider nor anything carrying its cache or mutate.
+      for (const value of Object.values(exports)) {
+        expect(value).not.toHaveProperty("defaultValue");
+        expect(value).not.toHaveProperty("cache");
+      }
+    },
+  );
+
+  it("passes only revalidate to a clear, never written data", async () => {
+    const { result } = renderHook(() => useSWRConfig().cache);
+    result.current.set(own("held"), { data: "server" });
+    const options = {
+      revalidate: false,
+      optimisticData: "smuggled",
+      populateCache: false,
+    };
+    await act(async () => {
+      await mutate(own("held"), undefined, options);
+    });
+    expect(result.current.get(own("held"))?.data).toBeUndefined();
   });
 
   it("refuses a raw data write, also after a scope bump", async () => {
