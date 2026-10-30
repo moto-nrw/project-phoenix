@@ -4,15 +4,16 @@ import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 // Vitest's module graph cannot discover dependencies created by filesystem scans.
-// Only product modules may use its changed-file selection. Everything else in
-// frontend/ fails closed to a full run; runtime scans still need the guards.
+// Only allowlisted source paths use changed-file selection. Except Markdown
+// documentation (guards only), other frontend inputs fail closed to full.
 // Usage: node scripts/test-frontend-changed.mjs BASE [Vitest project/options]
-const modeOnly = process.argv[2] === "--mode";
+const modeFiles = process.argv[2] === "--mode-files";
+const modeOnly = modeFiles || process.argv[2] === "--mode";
 const [base, ...options] = process.argv.slice(modeOnly ? 3 : 2);
-if (!base) throw new Error("base ref required");
+if (!base && !modeFiles) throw new Error("base ref required");
 const cwd = fileURLToPath(new URL("../frontend/", import.meta.url));
 
 // Shared by local dispatch and CI. Use NUL-separated paths and disable rename
@@ -23,27 +24,37 @@ function git(args) {
   if (result.status !== 0) throw new Error(result.stderr);
   return result.stdout;
 }
-function selectionMode() {
-  const mergeBase = git(["merge-base", "HEAD", base]).trim();
-  const changed = new Set([
-    ...git(["diff", "--no-renames", "--name-only", "-z", mergeBase]).split("\0"),
-    ...git(["ls-files", "--others", "--exclude-standard", "-z"]).split("\0"),
-  ]);
-  // This is an allowlist, not an enumeration of unsafe input classes. Tests,
-  // fixtures, config helpers and unknown file types default to the full suite.
-  const productModule = /^frontend\/src\/(?:app|components|contexts|hooks|i18n|lib|server)\/.+\.(?:[cm]?[jt]s|[jt]sx)$/;
-  const testOrDeclaration = /(?:\.(?:test|spec)\.[^/]+|\.d\.[cm]?ts)$/;
-  const frontend = [...changed].filter(file => file.startsWith("frontend/"));
-  if (frontend.some(file => !productModule.test(file) || testOrDeclaration.test(file)) ||
+function selectionMode(files) {
+  let changed;
+  if (files !== undefined) {
+    assert.ok(Array.isArray(files) && files.every(file => typeof file === "string"), "changed paths must be a JSON string array");
+    changed = new Set(files);
+  } else {
+    const mergeBase = git(["merge-base", "HEAD", base]).trim();
+    changed = new Set([
+      ...git(["diff", "--no-renames", "--name-only", "-z", mergeBase]).split("\0"),
+      ...git(["ls-files", "--others", "--exclude-standard", "-z"]).split("\0"),
+    ]);
+  }
+  // Tests in these source areas use Vitest's changed graph too. Declaration
+  // files have no runtime emission; source-scanning guards still run with them.
+  // Markdown skips lint/build, but tests may read it. Keep its guard-only
+  // route aligned with the workflow filters; never silently skip consumers.
+  // Every other path/type outside this allowlist defaults to the full suite.
+  const sourceModule = /^frontend\/src\/(?:app|components|contexts|hooks|i18n|lib|server)\/.+\.(?:[cm]?[jt]s|[jt]sx)$/;
+  const frontend = [...changed].filter(file => file.startsWith("frontend/") && !file.endsWith(".md"));
+  if (frontend.some(file => !sourceModule.test(file)) ||
     ["scripts/test-frontend-changed.mjs", "scripts/test-frontend-changed.test.mjs",
       "scripts/test-changed.sh", "scripts/test-changed_test.sh",
       ".github/workflows/main.yml", ".github/workflows/test.yml"].some(file => changed.has(file))) return "full";
   if (frontend.length) return "incremental";
-  if ([...changed].some(file => file.startsWith("backend/") && !file.endsWith(".md") ||
-    file === "scripts/dev-native.sh" || file === ".github/workflows/e2e.yml")) return "guards";
+  if ([...changed].some(file => file.startsWith("frontend/") && file.endsWith(".md") ||
+    file.startsWith("backend/") && !file.endsWith(".md") ||
+    file === "scripts/dev-native.sh" || file === ".github/workflows/e2e.yml" ||
+    file === ".github/workflows/lint.yml")) return "guards";
   return "none";
 }
-const mode = base === "--check-guards" ? undefined : selectionMode();
+const mode = base === "--check-guards" ? undefined : selectionMode(modeFiles ? JSON.parse(readFileSync(0, "utf8")) : undefined);
 if (modeOnly) {
   process.stdout.write(mode + "\n");
   process.exit(0);
@@ -51,7 +62,7 @@ if (modeOnly) {
 
 if (mode === "none") process.exit(0);
 if (mode === "full") {
-  console.log("==> vitest full (input outside product-module allowlist)");
+  console.log("==> vitest full (input outside source-path allowlist)");
   vitest(["run", ...options]);
   process.exit(0);
 }
@@ -133,12 +144,24 @@ if (base === "--check-guards") {
         io = true;
       } else if (/^(?:\.|~\/|@\/)/.test(specifier)) {
         const imported = localFile(file, specifier);
-        if (imported) dependencies.push(imported);
-        else io = true; // Unresolved local imports must never opt a test out.
+        if (imported) {
+          const path = relative(cwd, imported);
+          // Backend/catalog imports are outside Vitest's frontend graph.
+          if (isAbsolute(path) || path === ".." || path.startsWith(".." + sep)) io = true;
+          else dependencies.push(imported);
+        } else io = true; // Unresolved local imports must never opt a test out.
       }
     }
+    function isImportMeta(expression) {
+      if (ts.isMetaProperty(expression)) return expression.keywordToken === ts.SyntaxKind.ImportKeyword;
+      if (ts.isParenthesizedExpression(expression)) return isImportMeta(expression.expression);
+      return (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) &&
+        isImportMeta(expression.expression);
+    }
     function visit(node) {
-      if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      if (ts.isCallExpression(node) && isImportMeta(node.expression)) {
+        io = true; // Vite glob/resolve calls can read files beyond its module graph.
+      } else if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
         if (node.moduleSpecifier) dependency(node.moduleSpecifier);
       } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
         dependency(node.moduleReference.expression);

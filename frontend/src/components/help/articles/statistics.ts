@@ -14,7 +14,7 @@ export function statisticsTopic(): HelpTopic {
     steps: [
       "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
       "Öffnen Sie `Statistik`.",
-      "Wählen Sie oben den Bereich: `Gruppen`, `Kinder`, `Räume`, `Kurse` oder `Uhrzeit`.",
+      "Wählen Sie oben den Bereich: `Gruppen`, `Kinder`, `Räume`, `Kurse`, `Uhrzeit` oder `Soll und Ist`.",
       "Wählen Sie den Zeitraum.",
       "Lesen Sie die Zahlen der Tabelle.",
     ],
@@ -24,7 +24,7 @@ export function statisticsTopic(): HelpTopic {
       "`Uhrzeit` zeigt, wie viele Kinder in jeder halben Stunde da sind: `Geplant` und `Da`. Für einen Tag sehen Sie die Zahlen dieses Tages. Für einen Zeitraum wählen Sie den Wochentag und sehen Durchschnitt und Höchstwert.",
       "Bei `Geplant` zählen kranke und entschuldigte Kinder nicht mit, Kinder mit „Kommt heute nicht“ auch nicht.",
       "Mit `Alle Klassen` und `Alle Gruppen` grenzen Sie die Kinder ein.",
-      "Über das Menü mit den drei Punkten geht `Exportieren` als `PDF`, `Excel` oder `Word`.",
+      "Über das Menü mit den drei Punkten geht `Exportieren` als `PDF`, `Excel` oder `Word`. `Soll und Ist` hat ein eigenes Menü an der Liste, mit `PDF` und `Excel`.",
       "Die Pfeile schieben den Zeitraum um seine eigene Länge weiter.",
     ],
     differences: [
@@ -40,6 +40,7 @@ export function statisticsTopic(): HelpTopic {
     related: [
       HELP_TOPICS.leadAbsenceReport,
       HELP_TOPICS.leadExports,
+      HELP_TOPICS.careTimeComparison,
       HELP_TOPICS.dayLog,
     ],
   };

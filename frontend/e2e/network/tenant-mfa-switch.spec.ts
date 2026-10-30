@@ -1,9 +1,12 @@
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { join } from "node:path";
+import { networkPorts } from "./ports.mjs";
 
-const source = "http://school-a.mfa.localhost:13845";
-const target = "http://school-b.mfa.localhost:13845";
+const ports = networkPorts("tenantSwitch");
+const source = `http://school-a.mfa.localhost:${ports.frontend}`;
+const target = `http://school-b.mfa.localhost:${ports.frontend}`;
+const fixtureState = `http://127.0.0.1:${ports.api}/__fixture/switch-state`;
 
 // Chromium resolves *.localhost even when the CI Node process cannot. Read
 // only session metadata in a browser tab; never render/dump the session JSON.
@@ -282,7 +285,7 @@ test("tenant reauthentication preserves the independent school-portal session", 
   page,
   context,
 }) => {
-  const school = "http://schule.mfa.localhost:13845";
+  const school = `http://schule.mfa.localhost:${ports.frontend}`;
   await login(page, context);
   await page.goto(`${school}/login`);
   await page.locator('input[type="email"]').fill("fixture@example.invalid");
@@ -313,9 +316,7 @@ for (const entry of ["switcher", "guard"] as const) {
     request,
   }) => {
     await login(page, context);
-    const before = await (
-      await request.get("http://127.0.0.1:18445/__fixture/switch-state")
-    ).json();
+    const before = await (await request.get(fixtureState)).json();
     if (entry === "switcher") {
       await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
       await page.getByText("School B", { exact: true }).click();
@@ -336,9 +337,7 @@ for (const entry of ["switcher", "guard"] as const) {
     await relogin.click();
     await page.waitForURL(`${target}/`);
     await expect(page.locator('input[type="email"]')).toBeVisible();
-    const after = await (
-      await request.get("http://127.0.0.1:18445/__fixture/switch-state")
-    ).json();
+    const after = await (await request.get(fixtureState)).json();
     expect(after.logoutRequests - before.logoutRequests).toBe(1);
     expect(after.switchRequests - before.switchRequests).toBe(1);
     expect(

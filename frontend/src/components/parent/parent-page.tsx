@@ -105,20 +105,22 @@ export function ParentPageHeader({
  * whole block.
  */
 export function ParentPageSkeleton({ rows = 2 }: Readonly<{ rows?: number }>) {
+  const t = useTranslations("parentNav");
   return (
     <ParentPage>
       <div
         data-testid="parent-page-header-skeleton"
         className="moto-content-surface rounded-2xl border p-5 shadow-sm backdrop-blur-md"
-        aria-hidden="true"
+        role="status"
       >
-        <Skeleton className="h-3 w-24" />
-        <Skeleton className="mt-2 h-7 w-56 max-w-3/4" />
-        <Skeleton className="mt-2 h-4 w-full max-w-xl" />
-        <Skeleton className="mt-2 h-4 w-2/3 max-w-md" />
+        <span className="sr-only">{t("sectionLoading")}</span>
+        <Skeleton aria-hidden="true" className="h-3 w-24" />
+        <Skeleton aria-hidden="true" className="mt-2 h-7 w-56 max-w-3/4" />
+        <Skeleton aria-hidden="true" className="mt-2 h-4 w-full max-w-xl" />
+        <Skeleton aria-hidden="true" className="mt-2 h-4 w-2/3 max-w-md" />
       </div>
       {Array.from({ length: rows }, (_, index) => (
-        <ParentSectionSkeleton key={index} />
+        <ParentSectionSkeleton key={index} announce={false} />
       ))}
     </ParentPage>
   );
@@ -128,10 +130,13 @@ export function ParentSectionSkeleton({
   rows = 3,
   showHeader = true,
   className = "",
+  announce = true,
 }: Readonly<{
   rows?: number;
   showHeader?: boolean;
   className?: string;
+  /** False only when another status covers the same loading phase. */
+  announce?: boolean;
 }>) {
   const t = useTranslations("parentNav");
   // Die Fläche selbst ist nur Grafik. Der Status sagt Screenreadern, dass
@@ -140,9 +145,10 @@ export function ParentSectionSkeleton({
     <div
       data-testid="parent-page-section-skeleton"
       className={`moto-content-surface overflow-hidden rounded-2xl border shadow-sm ${className}`}
-      role="status"
+      role={announce ? "status" : undefined}
+      aria-hidden={announce ? undefined : true}
     >
-      <span className="sr-only">{t("sectionLoading")}</span>
+      {announce ? <span className="sr-only">{t("sectionLoading")}</span> : null}
       <div aria-hidden="true">
         {showHeader ? (
           <div className="flex items-center gap-3 border-b border-gray-100 p-4 sm:px-5">

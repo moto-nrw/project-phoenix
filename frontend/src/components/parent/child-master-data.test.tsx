@@ -177,6 +177,34 @@ describe("ChildMasterDataView", () => {
     });
   });
 
+  it.each(["details", "departure", "contact"] as const)(
+    "exposes one loading status for the %s area",
+    (area) => {
+      render(
+        <ChildMasterDataView
+          studentId="42"
+          childName="Lina Muster"
+          area={area}
+          masterData={{
+            data: null,
+            features: null,
+            loading: true,
+            error: null,
+            setData: vi.fn(),
+          }}
+        />,
+      );
+
+      expect(screen.getAllByRole("status")).toHaveLength(1);
+      expect(screen.getByRole("status")).toHaveTextContent(
+        "Inhalt wird geladen",
+      );
+      expect(
+        screen.getAllByTestId("parent-page-section-skeleton"),
+      ).toHaveLength(area === "details" ? 2 : 1);
+    },
+  );
+
   it("loads and renders the editable child details", async () => {
     render(<ChildMasterDataView studentId="42" childName="Lina Muster" />);
 

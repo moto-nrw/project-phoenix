@@ -21,8 +21,14 @@ const OccupancySlotMinutes = 30
 // Arrival and Pickup are nil where the plan names no time.
 type PlannedCareDay struct {
 	Expected bool
-	Arrival  *calendar.WallClock
-	Pickup   *calendar.WallClock
+	// NoPlan marks a day without any care plan on file: the child is
+	// expected because nothing says otherwise, not because it is booked.
+	// Cancelled marks a booked day cancelled for this child. Soll und Ist
+	// (#4774) tells both apart from a day that was never booked.
+	NoPlan    bool
+	Cancelled bool
+	Arrival   *calendar.WallClock
+	Pickup    *calendar.WallClock
 }
 
 // StatisticsOccupancySlot is one raster cell of one weekday. Minutes are Berlin

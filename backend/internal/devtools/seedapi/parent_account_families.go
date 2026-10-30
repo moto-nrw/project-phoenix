@@ -208,14 +208,16 @@ func firstFamilyChildren(rt *Runtime) map[string]bool {
 }
 
 // relatedAccountInvite is the invitation a parent sends to the child's
-// grandmother. It stays open, so its contact card carries only the name.
-func relatedAccountInvite(parent ParentCredentials) map[string]any {
+// grandmother. Its contact card carries only the name while it is open. The
+// family app accounts accept it, so its address carries the school's account
+// scope like every other account of the school (#5151).
+func relatedAccountInvite(parent ParentCredentials, scope string) map[string]any {
 	lastName := parent.Name
 	if fields := strings.Fields(parent.Name); len(fields) > 0 {
 		lastName = fields[len(fields)-1]
 	}
 	return map[string]any{
-		"email":      "renate." + asciiMailPart(lastName) + "@mail.example",
+		"email":      scopedEmail("renate."+asciiMailPart(lastName)+"@mail.example", scope),
 		"first_name": "Renate",
 		"last_name":  lastName,
 	}

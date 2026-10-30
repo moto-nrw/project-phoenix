@@ -8658,7 +8658,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
-      "binding_digest": "fcbd0e0cba9b0837d53256a4134b718a",
+      "binding_digest": "6b2fd6e3db82b775c54f4613b0c737b6",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
@@ -8690,7 +8690,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
-      "binding_digest": "faf0b8f46842c287fb99a0b046b87225",
+      "binding_digest": "1e5d3db8cbaa25aef71434077223c131",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
@@ -8698,7 +8698,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.CreateTemplate",
-      "binding_digest": "f925c93b2172d52ac8c7b4eda2d85781",
+      "binding_digest": "61a91f403f4364eeedb117b11d8b3faa",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster",
@@ -8714,7 +8714,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
-      "binding_digest": "7a42405c05be3b8032912c78ad52e455",
+      "binding_digest": "740cb461ef55d28e9d6da288004dd419",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
@@ -8770,7 +8770,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
-      "binding_digest": "a2433cbd0587557216fa6087cfba3658",
+      "binding_digest": "422aa720db3af800e1d28b11f1b1515c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
@@ -8914,7 +8914,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
-      "binding_digest": "b0880561cb48f8a53fb7d9cf5f6f2988",
+      "binding_digest": "fe01078eb53411f64808d1d5ec271f93",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster",
@@ -8938,7 +8938,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
-      "binding_digest": "7a42405c05be3b8032912c78ad52e455",
+      "binding_digest": "740cb461ef55d28e9d6da288004dd419",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
@@ -8994,7 +8994,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
-      "binding_digest": "a2433cbd0587557216fa6087cfba3658",
+      "binding_digest": "422aa720db3af800e1d28b11f1b1515c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
@@ -9146,7 +9146,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
-      "binding_digest": "b0880561cb48f8a53fb7d9cf5f6f2988",
+      "binding_digest": "fe01078eb53411f64808d1d5ec271f93",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster",
@@ -9154,7 +9154,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
-      "binding_digest": "f925c93b2172d52ac8c7b4eda2d85781",
+      "binding_digest": "61a91f403f4364eeedb117b11d8b3faa",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitDependencies.ResyncOfferingRoster",
@@ -9282,7 +9282,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.UpdateTemplate",
-      "binding_digest": "fcbd0e0cba9b0837d53256a4134b718a",
+      "binding_digest": "6b2fd6e3db82b775c54f4613b0c737b6",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.UpdateTemplate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
@@ -9338,7 +9338,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.UpdateTemplate",
-      "binding_digest": "faf0b8f46842c287fb99a0b046b87225",
+      "binding_digest": "1e5d3db8cbaa25aef71434077223c131",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.UpdateTemplate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
@@ -9466,7 +9466,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.UpdateTemplate",
-      "binding_digest": "f925c93b2172d52ac8c7b4eda2d85781",
+      "binding_digest": "61a91f403f4364eeedb117b11d8b3faa",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.UpdateTemplate",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster",
@@ -9490,7 +9490,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource",
-      "binding_digest": "fcbd0e0cba9b0837d53256a4134b718a",
+      "binding_digest": "6b2fd6e3db82b775c54f4613b0c737b6",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.ConnectOfferingSource",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
@@ -9546,7 +9546,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource",
-      "binding_digest": "faf0b8f46842c287fb99a0b046b87225",
+      "binding_digest": "1e5d3db8cbaa25aef71434077223c131",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.ConnectOfferingSource",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
@@ -9610,7 +9610,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.ConnectOfferingSource",
-      "binding_digest": "f925c93b2172d52ac8c7b4eda2d85781",
+      "binding_digest": "61a91f403f4364eeedb117b11d8b3faa",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.ConnectOfferingSource",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster",
@@ -12770,7 +12770,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
-      "binding_digest": "7a42405c05be3b8032912c78ad52e455",
+      "binding_digest": "740cb461ef55d28e9d6da288004dd419",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
@@ -12826,7 +12826,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
-      "binding_digest": "a2433cbd0587557216fa6087cfba3658",
+      "binding_digest": "422aa720db3af800e1d28b11f1b1515c",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
@@ -12970,7 +12970,7 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
-      "binding_digest": "b0880561cb48f8a53fb7d9cf5f6f2988",
+      "binding_digest": "fe01078eb53411f64808d1d5ec271f93",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster",
@@ -16074,7 +16074,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
-      "binding_digest": "fcbd0e0cba9b0837d53256a4134b718a",
+      "binding_digest": "6b2fd6e3db82b775c54f4613b0c737b6",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.ResyncTemplateOfferingRoster",
@@ -16106,7 +16106,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
-      "binding_digest": "faf0b8f46842c287fb99a0b046b87225",
+      "binding_digest": "1e5d3db8cbaa25aef71434077223c131",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.SourcedRosters.ResyncTemplateOfferingRoster",
@@ -16114,7 +16114,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.CreateTemplate",
-      "binding_digest": "f925c93b2172d52ac8c7b4eda2d85781",
+      "binding_digest": "61a91f403f4364eeedb117b11d8b3faa",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.TemplateSeriesSeeding.CreateTemplate",
       "source_owner": "timetable-activities",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateServiceDependencies.ResyncOfferingRoster",

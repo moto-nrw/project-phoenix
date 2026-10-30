@@ -127,6 +127,20 @@ beforeEach(() => {
 });
 
 describe("BookedCareSection", () => {
+  it("exposes one status while offerings and the care schedule load", async () => {
+    renderSection();
+
+    expect(screen.getAllByTestId("parent-page-section-skeleton")).toHaveLength(
+      2,
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Inhalt wird geladen");
+
+    // Anker: die gebuchte Betreuung ist geladen.
+    expect(await screen.findByText("Ganztag bis 16 Uhr")).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
   it("zeigt die gebuchte Betreuung mit Wochentagen", async () => {
     renderSection();
     expect(await screen.findByText("Ganztag bis 16 Uhr")).toBeInTheDocument();
