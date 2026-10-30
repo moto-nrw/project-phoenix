@@ -167,7 +167,13 @@ func (e weekProtocolEvening) targets(ctx context.Context) ([]weekProtocolTarget,
 
 func anyWeekProtocolActivity(facts map[int64]timetable.WeekProtocolDayFacts) bool {
 	for _, day := range facts {
-		if day.Present > 0 || len(day.Blocks) > 0 {
+		if day.Present > 0 ||
+			day.Sick > 0 ||
+			day.Excused > 0 ||
+			day.ClassTrip > 0 ||
+			day.Absent > 0 ||
+			len(day.Missing) > 0 ||
+			len(day.Blocks) > 0 {
 			return true
 		}
 	}

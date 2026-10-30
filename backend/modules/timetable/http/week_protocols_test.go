@@ -234,6 +234,7 @@ func TestWeekProtocolRoutesNotesCloseAndPDF(t *testing.T) {
 	closed := weekProtocolBody(t, rr)
 	assert.Equal(t, "closed", closed["status"])
 	assert.Equal(t, "Lea Leitung", closed["closed_by_name"])
+	require.Len(t, routes.accessLog.entries, 2, "the note and close responses are recorded as disclosures")
 
 	rr = routes.call(t, member, http.MethodPut, path+"/notes", `{"week_note":"später"}`, weekProtocolRead)
 	assert.Equal(t, http.StatusConflict, rr.Code, "a closed protocol takes no notes")
@@ -247,6 +248,7 @@ func TestWeekProtocolRoutesNotesCloseAndPDF(t *testing.T) {
 		assert.Contains(t, rr.Header().Get("Content-Disposition"), "wochenprotokoll-baeren-2027-09-06.pdf")
 		assert.Equal(t, "%PDF-1.4", rr.Body.String(), "the stored file")
 	}
+	require.Len(t, routes.accessLog.entries, 4, "each PDF response is recorded as a disclosure")
 	require.Len(t, routes.renderer.docs, 1, "a download serves the stored file and renders nothing")
 	doc := routes.renderer.docs[0]
 	assert.Equal(t, "Wochenprotokoll", doc.Title)

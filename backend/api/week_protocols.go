@@ -112,8 +112,8 @@ type weekProtocolAccessTrail interface {
 }
 
 // weekProtocolAccessLog binds the weekly protocols' data access entries
-// (#4769) to the Audit Platform: one entry per opening of a protocol or its
-// PDF, over the week, with the group as scope.
+// (#4769) to the Audit Platform: one entry per disclosure of a protocol or
+// its PDF, over the week, with the group as scope.
 type weekProtocolAccessLog struct{ Trail weekProtocolAccessTrail }
 
 func (l weekProtocolAccessLog) RecordWeekProtocolAccess(ctx context.Context, access timetableAPI.WeekProtocolAccess) error {

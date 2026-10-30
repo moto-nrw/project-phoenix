@@ -35,7 +35,7 @@ type WeekProtocolCaller interface {
 	MyGroupIDs(ctx context.Context) ([]int64, error)
 }
 
-// WeekProtocolAccess is one opening of a protocol or its PDF: the protocol
+// WeekProtocolAccess is one disclosure of a protocol or its PDF: the protocol
 // names the missing children of a whole group for a week.
 type WeekProtocolAccess struct {
 	ActorAccountID int64
@@ -46,7 +46,7 @@ type WeekProtocolAccess struct {
 	At             time.Time
 }
 
-// WeekProtocolAccessLog records the opening in the data access log; the root
+// WeekProtocolAccessLog records the disclosure in the data access log; the root
 // binds the Audit Platform.
 type WeekProtocolAccessLog interface {
 	RecordWeekProtocolAccess(ctx context.Context, access WeekProtocolAccess) error
@@ -219,6 +219,10 @@ func (rs *WeekProtocolResource) saveNotes(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, renderWeekProtocolError(err))
 		return
 	}
+	if err := rs.recordAccess(ctx, protocol); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to record audit trail", err))
+		return
+	}
 	render.JSON(w, r, map[string]any{"data": weekProtocolResponseOf(protocol, true)})
 }
 
@@ -242,6 +246,10 @@ func (rs *WeekProtocolResource) close(w http.ResponseWriter, r *http.Request) {
 	protocol, err := rs.cfg.Service.CloseWeekProtocol(ctx, reach, id, actor, rs.cfg.Renderer)
 	if err != nil {
 		common.RenderError(w, r, renderWeekProtocolError(err))
+		return
+	}
+	if err := rs.recordAccess(ctx, protocol); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to record audit trail", err))
 		return
 	}
 	render.JSON(w, r, map[string]any{"data": weekProtocolResponseOf(protocol, true)})

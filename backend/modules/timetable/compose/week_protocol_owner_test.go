@@ -186,6 +186,36 @@ func TestWeekProtocolRecordsADayOnce(t *testing.T) {
 	assert.Equal(t, 4, weekProtocolDay(weekProtocolOfGroup(t, module, ctx, 9002), weekProtocolMonday).Facts.Present)
 }
 
+// An open weekend with absence facts still belongs in the protocol, even
+// when nobody was present and there were no activity blocks.
+func TestWeekProtocolRecordsWeekendAbsences(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	saturday := weekProtocolFriday.AddDays(1)
+	sources := &weekProtocolSources{groups: []timetable.WeekProtocolGroup{{ID: 9012, Name: "Dachse"}}}
+	sources.days = map[calendar.Date][]timetable.WeekProtocolGroupDay{
+		saturday: {{
+			GroupID: 9012, Sick: 1, Excused: 1, ClassTrip: 1, Absent: 1,
+			Missing: []timetable.WeekProtocolMissingChild{
+				missingChild(1, "A", "sick", "Krank"),
+				missingChild(2, "B", "excused", "Entschuldigt"),
+				missingChild(3, "C", "class_trip", "Klassenfahrt"),
+				missingChild(4, "D", "absent", "Unentschuldigt"),
+			},
+		}},
+	}
+
+	assert.Equal(t, 1, runWeekProtocolEvening(t, module, ctx, weekProtocolEvening(saturday), sources.of(db)).DaysCaptured)
+	facts := weekProtocolDay(weekProtocolOfGroup(t, module, ctx, 9012), saturday).Facts
+	require.NotNil(t, facts)
+	assert.Equal(t, 1, facts.Sick)
+	assert.Equal(t, 1, facts.Excused)
+	assert.Equal(t, 1, facts.ClassTrip)
+	assert.Equal(t, 1, facts.Absent)
+	assert.Len(t, facts.Missing, 4)
+}
+
 // A group change during the week: each evening records the children in the
 // group they belong to that day, so the earlier days keep the old group.
 func TestWeekProtocolKeepsTheGroupOfEachDay(t *testing.T) {
