@@ -58,11 +58,16 @@ func BuildWorkSessionSide(
 	if err != nil {
 		return nil, fmt.Errorf("compose time tracking: %w", err)
 	}
+	// The payroll dispatch (#4805) builds its files with the time export.
+	complete, err := side.TimeTracking()
+	if err != nil {
+		return nil, fmt.Errorf("compose time tracking: %w", err)
+	}
 	transfer, err := BuildExportTransfer(settings, db, logger)
 	if err != nil {
 		return nil, fmt.Errorf("compose export transfer for the payroll dispatch: %w", err)
 	}
-	side.PayrollDispatch, err = BuildPayrollDispatch(db, settings, side.Clock.TimeExport(), transfer, durable,
+	side.PayrollDispatch, err = BuildPayrollDispatch(db, settings, complete.TimeExport, transfer, durable,
 		mailFrom, mailIdentity, organizations, people.Staff, env.Links.FrontendURL, env.Logger)
 	if err != nil {
 		return nil, fmt.Errorf("compose payroll dispatch: %w", err)

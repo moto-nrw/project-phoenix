@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Export ans Lohnbüro (#4805). The month close queues a dispatch in its own
@@ -33,67 +34,6 @@ const (
 // attempt of a failed SFTP send.
 var payrollRetryBackoff = []time.Duration{5 * time.Minute, 30 * time.Minute, 2 * time.Hour}
 
-// PayrollDispatchConfig is the Lohnbüro of the school.
-type PayrollDispatchConfig struct {
-	Auto    bool
-	Channel string
-	Format  string
-	Email   string
-}
-
-// PayrollDispatchSettings answers the Lohnbüro settings of the tenant in the
-// context. The root binds it to the Settings Platform.
-type PayrollDispatchSettings interface {
-	PayrollDispatchConfig(ctx context.Context) (PayrollDispatchConfig, error)
-}
-
-// PayrollTransferRequest is one SFTP send of the month file. Prepare builds
-// the file in the transfer's own transaction, with its access audit.
-type PayrollTransferRequest struct {
-	Format         string
-	Period         string
-	Prepare        func(context.Context) (filename string, data []byte, err error)
-	ActorAccountID int64
-	ActorName      string
-}
-
-// PayrollTransferOutcome is the result of one SFTP attempt.
-type PayrollTransferOutcome struct {
-	Transferred bool
-	// NotConfigured: the counterpart is off or incomplete; nothing was sent
-	// and nothing was journaled.
-	NotConfigured bool
-	Reason        string
-}
-
-// PayrollEmailResult is one settled e-mail send for the transfer journal.
-type PayrollEmailResult struct {
-	Format, Period, Filename string
-	ByteSize                 int64
-	Recipient                string
-	Delivered                bool
-	ActorAccountID           int64
-	ActorName                string
-}
-
-// PayrollTransfer is the Export Transfer journal and its SFTP transport.
-type PayrollTransfer interface {
-	Transfer(context.Context, PayrollTransferRequest) (PayrollTransferOutcome, error)
-	RecordEmail(context.Context, PayrollEmailResult) error
-}
-
-// PayrollExport builds the month file; it is Workforce's own time export.
-type PayrollExport interface {
-	ExportStaffTime(ctx context.Context, request workforce.TimeExportRequest, actorAccountID int64, actorRole string) (*workforce.ExportFile, error)
-	DatevReport(ctx context.Context, request workforce.TimeExportRequest) (*workforce.DatevExportReport, error)
-}
-
-// PayrollTokens creates download link tokens and their fingerprints.
-type PayrollTokens interface {
-	NewToken() (raw, fingerprint string, err error)
-	Fingerprint(raw string) string
-}
-
 // PayrollRuntime opens the transactions of the dispatch. Within runs fn in a
 // fresh transaction of the tenant in the context, WithinTenant in one of the
 // given tenant; Detached masks an ambient transaction so each step commits on
@@ -105,26 +45,39 @@ type PayrollRuntime struct {
 	Detached     func(context.Context) context.Context
 }
 
-// PayrollDispatchDependencies are the collaborators of the dispatch.
+// PayrollDispatchDependencies are the collaborators of the dispatch: the
+// owner's store, the bound ports and the transaction runtime.
 type PayrollDispatchDependencies struct {
-	Store    ports.PayrollDispatchStore
-	Settings PayrollDispatchSettings
-	Export   PayrollExport
-	Transfer PayrollTransfer
-	Mail     PayrollMail
-	Schools  PayrollSchools
-	Managers PayrollManagers
-	Tokens   PayrollTokens
-	// FrontendURL is the base of the download link and the notice's link.
-	FrontendURL string
-	Runtime  PayrollRuntime
-	Now      func() time.Time
-	Logger   *slog.Logger
+	Store ports.PayrollDispatchStore
+	workforce.PayrollDispatchPorts
+	Runtime PayrollRuntime
 }
 
 // PayrollDispatch carries the month file to the payroll office.
 type PayrollDispatch struct {
 	deps PayrollDispatchDependencies
+}
+
+// NewTenantPayrollDispatch builds the dispatch on the tenant runtime: every
+// step of a pass commits in its own transaction of the school.
+func NewTenantPayrollDispatch(store ports.PayrollDispatchStore, bound workforce.PayrollDispatchPorts) (*PayrollDispatch, error) {
+	return NewPayrollDispatch(PayrollDispatchDependencies{Store: store, PayrollDispatchPorts: bound, Runtime: PayrollRuntime{
+		TenantID: func(ctx context.Context) (int64, error) {
+			id, err := tenant.TenantFromContext(ctx)
+			return id.Int64(), err
+		},
+		Within: tenant.WithinCurrentTenant,
+		WithinTenant: func(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
+			id, err := tenant.NewTenantID(tenantID)
+			if err != nil {
+				return err
+			}
+			return tenant.WithinTenant(ctx, id, fn)
+		},
+		Detached: func(ctx context.Context) context.Context {
+			return tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
+		},
+	}})
 }
 
 // NewPayrollDispatch requires every collaborator: a missing transport is a
@@ -193,7 +146,7 @@ func (s *PayrollDispatch) QueueAfterMonthClose(ctx context.Context, trigger work
 	return nil
 }
 
-func validPayrollConfig(config PayrollDispatchConfig) error {
+func validPayrollConfig(config workforce.PayrollDispatchConfig) error {
 	switch config.Channel {
 	case workforce.PayrollChannelSFTP, workforce.PayrollChannelEmail:
 	default:
@@ -330,14 +283,14 @@ func payrollFilename(filename string, sequence int) string {
 // sendSFTP checks the DATEV configuration, then lets Export Transfer build the
 // file with its audit and send it. Each attempt is one journal entry.
 func (s *PayrollDispatch) sendSFTP(ctx context.Context, claim domain.PayrollDispatch) (bool, error) {
-	var outcome PayrollTransferOutcome
+	var outcome workforce.PayrollTransferOutcome
 	var blocked string
 	err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
 		var err error
 		if blocked, err = s.datevCheck(txCtx, claim); err != nil || blocked != "" {
 			return err
 		}
-		outcome, err = s.deps.Transfer.Transfer(txCtx, PayrollTransferRequest{
+		outcome, err = s.deps.Transfer.Transfer(txCtx, workforce.PayrollTransferRequest{
 			Format: claim.Format, Period: claim.Period(),
 			ActorAccountID: claim.ActorAccountID, ActorName: claim.ActorName,
 			Prepare: func(prepareCtx context.Context) (string, []byte, error) {
@@ -461,23 +414,23 @@ func (s *PayrollDispatch) settleMail(ctx context.Context, claim domain.PayrollDi
 		}
 		now := s.deps.Now()
 		switch state {
-		case PayrollMailSent:
+		case workforce.PayrollMailSent:
 			claim.State, claim.FinishedAt = workforce.PayrollDispatchSent, &now
-		case PayrollMailFailed:
+		case workforce.PayrollMailFailed:
 			claim.State, claim.Reason, claim.FinishedAt, claim.FileData = workforce.PayrollDispatchFailed, workforce.PayrollReasonMailFailed, &now, nil
 		default:
 			claim.NextAttemptAt = now.Add(payrollMailPollInterval)
 			return s.finishInTx(txCtx, claim, false)
 		}
 		done = true
-		if err := s.deps.Transfer.RecordEmail(txCtx, PayrollEmailResult{
+		if err := s.deps.Transfer.RecordEmail(txCtx, workforce.PayrollEmailResult{
 			Format: claim.Format, Period: claim.Period(), Filename: claim.Filename, ByteSize: claim.ByteSize,
-			Recipient: claim.Recipient, Delivered: state == PayrollMailSent,
+			Recipient: claim.Recipient, Delivered: state == workforce.PayrollMailSent,
 			ActorAccountID: claim.ActorAccountID, ActorName: claim.ActorName,
 		}); err != nil {
 			return fmt.Errorf("journal the e-mail send: %w", err)
 		}
-		return s.finishInTx(txCtx, claim, state == PayrollMailFailed)
+		return s.finishInTx(txCtx, claim, state == workforce.PayrollMailFailed)
 	})
 	return done, err
 }

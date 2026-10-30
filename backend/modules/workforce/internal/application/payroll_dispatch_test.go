@@ -12,7 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const payrollTestTenant = int64(7)
+// payrollTestTenant is a fake school of the in-memory store, not a row.
+const payrollTestTenant = int64(4805)
 
 var payrollTestNow = time.Date(2026, 10, 5, 9, 0, 0, 0, time.UTC)
 
@@ -110,11 +111,11 @@ func (f *fakePayrollStore) PurgePayrollDispatches(context.Context, time.Time, ti
 }
 
 type fakePayrollSettings struct {
-	config PayrollDispatchConfig
+	config workforce.PayrollDispatchConfig
 	err    error
 }
 
-func (f fakePayrollSettings) PayrollDispatchConfig(context.Context) (PayrollDispatchConfig, error) {
+func (f fakePayrollSettings) PayrollDispatchConfig(context.Context) (workforce.PayrollDispatchConfig, error) {
 	return f.config, f.err
 }
 
@@ -148,14 +149,14 @@ func (f *fakePayrollExport) DatevReport(context.Context, workforce.TimeExportReq
 }
 
 type fakePayrollTransfer struct {
-	outcomes []PayrollTransferOutcome
+	outcomes []workforce.PayrollTransferOutcome
 	sent     []string
 	periods  []string
-	emails   []PayrollEmailResult
+	emails   []workforce.PayrollEmailResult
 }
 
-func (f *fakePayrollTransfer) Transfer(ctx context.Context, request PayrollTransferRequest) (PayrollTransferOutcome, error) {
-	outcome := PayrollTransferOutcome{Transferred: true}
+func (f *fakePayrollTransfer) Transfer(ctx context.Context, request workforce.PayrollTransferRequest) (workforce.PayrollTransferOutcome, error) {
+	outcome := workforce.PayrollTransferOutcome{Transferred: true}
 	if len(f.outcomes) > 0 {
 		outcome, f.outcomes = f.outcomes[0], f.outcomes[1:]
 	}
@@ -164,25 +165,25 @@ func (f *fakePayrollTransfer) Transfer(ctx context.Context, request PayrollTrans
 	}
 	filename, _, err := request.Prepare(ctx)
 	if err != nil {
-		return PayrollTransferOutcome{}, err
+		return workforce.PayrollTransferOutcome{}, err
 	}
 	f.sent = append(f.sent, filename)
 	f.periods = append(f.periods, request.Period)
 	return outcome, nil
 }
 
-func (f *fakePayrollTransfer) RecordEmail(_ context.Context, result PayrollEmailResult) error {
+func (f *fakePayrollTransfer) RecordEmail(_ context.Context, result workforce.PayrollEmailResult) error {
 	f.emails = append(f.emails, result)
 	return nil
 }
 
 type fakePayrollMail struct {
-	links    []PayrollMailMessage
+	links    []workforce.PayrollMailMessage
 	state    string
-	problems []PayrollMailMessage
+	problems []workforce.PayrollMailMessage
 }
 
-func (f *fakePayrollMail) Enqueue(_ context.Context, message PayrollMailMessage) (int64, error) {
+func (f *fakePayrollMail) Enqueue(_ context.Context, message workforce.PayrollMailMessage) (int64, error) {
 	if message.Type == PayrollLinkMailType {
 		f.links = append(f.links, message)
 	} else {
@@ -195,14 +196,14 @@ func (f *fakePayrollMail) State(context.Context, int64) (string, error) { return
 
 type fakePayrollSchools struct{}
 
-func (fakePayrollSchools) School(context.Context, int64) (PayrollSchool, error) {
-	return PayrollSchool{Name: "OGS Am Park", Subdomain: "park"}, nil
+func (fakePayrollSchools) School(context.Context, int64) (workforce.PayrollSchool, error) {
+	return workforce.PayrollSchool{Name: "OGS Am Park", Subdomain: "park"}, nil
 }
 
 type fakePayrollManagers struct{}
 
-func (fakePayrollManagers) TimeTrackingManagers(context.Context) ([]PayrollContact, error) {
-	return []PayrollContact{
+func (fakePayrollManagers) TimeTrackingManagers(context.Context) ([]workforce.PayrollContact, error) {
+	return []workforce.PayrollContact{
 		{StaffID: 3, FirstName: "Lea", LastName: "Leitung", Email: "lea@ogs-am-park.de"},
 		{StaffID: 4, FirstName: "Ohne", LastName: "Adresse"},
 	}, nil
@@ -224,17 +225,20 @@ type payrollHarness struct {
 	now      *time.Time
 }
 
-func newPayrollHarness(t *testing.T, config PayrollDispatchConfig) payrollHarness {
+func newPayrollHarness(t *testing.T, config workforce.PayrollDispatchConfig) payrollHarness {
 	t.Helper()
 	now := payrollTestNow
 	h := payrollHarness{store: &fakePayrollStore{}, export: &fakePayrollExport{}, transfer: &fakePayrollTransfer{},
-		mail: &fakePayrollMail{state: PayrollMailPending}, now: &now}
+		mail: &fakePayrollMail{state: workforce.PayrollMailPending}, now: &now}
 	inTx := func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
 	service, err := NewPayrollDispatch(PayrollDispatchDependencies{
-		Store: h.store, Settings: fakePayrollSettings{config: config}, Export: h.export,
-		Transfer: h.transfer, Mail: h.mail, Schools: fakePayrollSchools{}, Managers: fakePayrollManagers{},
-		Tokens: fakePayrollTokens{}, FrontendURL: "https://moto.example/",
-		Now: func() time.Time { return *h.now },
+		Store: h.store,
+		PayrollDispatchPorts: workforce.PayrollDispatchPorts{
+			Settings: fakePayrollSettings{config: config}, Export: h.export,
+			Transfer: h.transfer, Mail: h.mail, Schools: fakePayrollSchools{}, Managers: fakePayrollManagers{},
+			Tokens: fakePayrollTokens{}, FrontendURL: "https://moto.example/",
+			Now: func() time.Time { return *h.now },
+		},
 		Runtime: PayrollRuntime{
 			TenantID: func(context.Context) (int64, error) { return payrollTestTenant, nil },
 			Within:   inTx,
@@ -266,14 +270,14 @@ func (h payrollHarness) run(t *testing.T) int {
 	return finished
 }
 
-func sftpConfig(format string) PayrollDispatchConfig {
-	return PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: format}
+func sftpConfig(format string) workforce.PayrollDispatchConfig {
+	return workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: format}
 }
 
 func TestPayrollDispatch_NothingQueuedWithoutTheSwitchOrAClosedPerson(t *testing.T) {
 	t.Parallel()
 
-	off := newPayrollHarness(t, PayrollDispatchConfig{Auto: false, Channel: "sftp", Format: "csv"})
+	off := newPayrollHarness(t, workforce.PayrollDispatchConfig{Auto: false, Channel: "sftp", Format: "csv"})
 	off.close(t)
 	assert.Empty(t, off.store.rows, "the switch is off: nothing leaves the school")
 
@@ -357,7 +361,7 @@ func TestPayrollDispatch_IncompleteDatevBlocksAndNotifies(t *testing.T) {
 			assert.Empty(t, h.transfer.sent, "nothing is sent")
 			assert.Empty(t, export.exports, "no file is even built")
 			require.Len(t, h.mail.problems, 1)
-			assert.Equal(t, payrollReasonText(workforce.PayrollReasonDatevIncomplete), h.mail.problems[0].Content["ReasonText"])
+			assert.Equal(t, payrollReasonText(workforce.PayrollReasonDatevIncomplete), h.mail.problems[0].Content.ReasonText)
 		})
 	}
 }
@@ -366,7 +370,7 @@ func TestPayrollDispatch_UnconfiguredSFTPBlocks(t *testing.T) {
 	t.Parallel()
 
 	h := newPayrollHarness(t, sftpConfig("csv"))
-	h.transfer.outcomes = []PayrollTransferOutcome{{NotConfigured: true}}
+	h.transfer.outcomes = []workforce.PayrollTransferOutcome{{NotConfigured: true}}
 	h.close(t)
 	h.run(t)
 
@@ -379,8 +383,8 @@ func TestPayrollDispatch_RetriesThreeTimesThenNotifies(t *testing.T) {
 	t.Parallel()
 
 	h := newPayrollHarness(t, sftpConfig("csv"))
-	failure := PayrollTransferOutcome{Reason: "connection_failed"}
-	h.transfer.outcomes = []PayrollTransferOutcome{failure, failure, failure, failure}
+	failure := workforce.PayrollTransferOutcome{Reason: "connection_failed"}
+	h.transfer.outcomes = []workforce.PayrollTransferOutcome{failure, failure, failure, failure}
 	h.close(t)
 
 	waits := []time.Duration{5 * time.Minute, 30 * time.Minute, 2 * time.Hour}
@@ -405,15 +409,15 @@ func TestPayrollDispatch_RetriesThreeTimesThenNotifies(t *testing.T) {
 	assert.Equal(t, payrollTestTenant, notice.TenantID)
 	assert.Equal(t, "lea@ogs-am-park.de", notice.ToAddress)
 	assert.Equal(t, "Monatsdatei September 2026 nicht verschickt", notice.Subject)
-	assert.Equal(t, "Die Übertragung an das Lohnbüro hat viermal nicht geklappt.", notice.Content["ReasonText"])
-	assert.Equal(t, "https://park.moto.example/payroll", notice.Content["LinkURL"])
+	assert.Equal(t, "Die Übertragung an das Lohnbüro hat viermal nicht geklappt.", notice.Content.ReasonText)
+	assert.Equal(t, "https://park.moto.example/payroll", notice.Content.LinkURL)
 }
 
 func TestPayrollDispatch_SecondAttemptSucceeds(t *testing.T) {
 	t.Parallel()
 
 	h := newPayrollHarness(t, sftpConfig("csv"))
-	h.transfer.outcomes = []PayrollTransferOutcome{{Reason: "upload_failed"}, {Transferred: true}}
+	h.transfer.outcomes = []workforce.PayrollTransferOutcome{{Reason: "upload_failed"}, {Transferred: true}}
 	h.close(t)
 	h.run(t)
 	*h.now = h.store.rows[0].NextAttemptAt
@@ -423,8 +427,8 @@ func TestPayrollDispatch_SecondAttemptSucceeds(t *testing.T) {
 	assert.Empty(t, h.mail.problems)
 }
 
-func emailConfig(address string) PayrollDispatchConfig {
-	return PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelEmail, Format: "csv", Email: address}
+func emailConfig(address string) workforce.PayrollDispatchConfig {
+	return workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelEmail, Format: "csv", Email: address}
 }
 
 func TestPayrollDispatch_EmailSendsALinkNotTheFile(t *testing.T) {
@@ -441,16 +445,16 @@ func TestPayrollDispatch_EmailSendsALinkNotTheFile(t *testing.T) {
 	assert.NotEmpty(t, row.FileData)
 	require.Len(t, h.mail.links, 1)
 	link := h.mail.links[0]
-	assert.Equal(t, "https://moto.example/lohnbuero/7.raw-token", link.Content["LinkURL"])
+	assert.Equal(t, "https://moto.example/lohnbuero/4805.raw-token", link.Content.LinkURL)
 	assert.Equal(t, payrollTestTenant, link.TenantID)
 	assert.Equal(t, "lohn@steuerbuero-beispiel.de", link.ToAddress)
 	assert.Equal(t, "Monatsdatei September 2026", link.Subject)
-	assert.Equal(t, "OGS Am Park", link.Content["SchoolName"])
+	assert.Equal(t, "OGS Am Park", link.Content.SchoolName)
 	assert.Equal(t, *row.DownloadExpiresAt, link.ExpiresAt, "Delivery drops the mail once the link expired")
 	assert.Equal(t, workforce.PayrollDispatchMaxAttempts, link.MaxAttempts, "the first send and three retries")
 	assert.Empty(t, h.transfer.emails, "the journal entry waits for the mail server's answer")
 
-	h.mail.state = PayrollMailSent
+	h.mail.state = workforce.PayrollMailSent
 	*h.now = row.NextAttemptAt
 	assert.Equal(t, 1, h.run(t))
 	assert.Equal(t, workforce.PayrollDispatchSent, h.store.rows[0].State)
@@ -475,7 +479,7 @@ func TestPayrollDispatch_FailedLinkMailIsJournaledAndNotified(t *testing.T) {
 	h := newPayrollHarness(t, emailConfig("lohn@steuerbuero-beispiel.de"))
 	h.close(t)
 	h.run(t)
-	h.mail.state = PayrollMailFailed
+	h.mail.state = workforce.PayrollMailFailed
 	*h.now = h.store.rows[0].NextAttemptAt
 	h.run(t)
 

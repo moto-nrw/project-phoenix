@@ -26,61 +26,6 @@ const (
 	PayrollDownloadPath = "/lohnbuero/"
 )
 
-// PayrollMailMessage is one rendered-on-send mail for Delivery's outbox.
-type PayrollMailMessage struct {
-	TenantID       int64
-	ToName         string
-	ToAddress      string
-	Subject        string
-	Template       string
-	Content        map[string]any
-	Type           string
-	ReferenceID    int64
-	IdempotencyKey string
-	// ExpiresAt drops a mail that was not sent before its link expired.
-	ExpiresAt   time.Time
-	MaxAttempts int
-	Backoff     []time.Duration
-}
-
-// Mail states Delivery's answer maps to.
-const (
-	PayrollMailPending = "pending"
-	PayrollMailSent    = "sent"
-	PayrollMailFailed  = "failed"
-)
-
-// PayrollMail is Delivery's durable outbox. Enqueue joins the caller's
-// transaction; State reads the mail's state by its outbox ID.
-type PayrollMail interface {
-	Enqueue(context.Context, PayrollMailMessage) (outboxID int64, err error)
-	State(ctx context.Context, outboxID int64) (string, error)
-}
-
-// PayrollSchool is what the mails name of the school.
-type PayrollSchool struct {
-	Name      string
-	Subdomain string
-}
-
-// PayrollSchools reads the school of a tenant.
-type PayrollSchools interface {
-	School(ctx context.Context, tenantID int64) (PayrollSchool, error)
-}
-
-// PayrollContact is one person the notice goes to.
-type PayrollContact struct {
-	StaffID   int64
-	FirstName string
-	LastName  string
-	Email     string
-}
-
-// PayrollManagers lists the staff who manage time tracking.
-type PayrollManagers interface {
-	TimeTrackingManagers(context.Context) ([]PayrollContact, error)
-}
-
 // payrollLink is the link mail of one dispatch.
 type payrollLink struct {
 	TenantID   int64
@@ -113,12 +58,12 @@ func (s *PayrollDispatch) enqueueLink(ctx context.Context, link payrollLink) (in
 	if link.Correction {
 		subject = "Korrektur der Monatsdatei " + month
 	}
-	return s.deps.Mail.Enqueue(ctx, PayrollMailMessage{
+	return s.deps.Mail.Enqueue(ctx, workforce.PayrollMailMessage{
 		TenantID: link.TenantID, ToAddress: link.Recipient, Subject: subject, Template: payrollLinkTemplate,
-		Content: map[string]any{
-			"LogoURL": s.logoURL(), "SchoolName": school.Name, "MonthLabel": month, "Correction": link.Correction,
-			"LinkURL":   fmt.Sprintf("%s%s%d.%s", s.frontendURL(), PayrollDownloadPath, link.TenantID, link.Token),
-			"ExpiresAt": link.ExpiresAt.In(calendar.Berlin).Format("02.01.2006, 15:04 Uhr"),
+		Content: workforce.PayrollMailContent{
+			LogoURL: s.logoURL(), SchoolName: school.Name, MonthLabel: month, Correction: link.Correction,
+			LinkURL:   fmt.Sprintf("%s%s%d.%s", s.frontendURL(), PayrollDownloadPath, link.TenantID, link.Token),
+			ExpiresAt: link.ExpiresAt.In(calendar.Berlin).Format("02.01.2006, 15:04 Uhr"),
 		},
 		Type: PayrollLinkMailType, ReferenceID: link.DispatchID,
 		IdempotencyKey: fmt.Sprintf("payroll-export-link-%d", link.DispatchID),
@@ -147,12 +92,12 @@ func (s *PayrollDispatch) notifyManagers(ctx context.Context, problem payrollPro
 		if strings.TrimSpace(manager.Email) == "" {
 			continue
 		}
-		if _, err := s.deps.Mail.Enqueue(ctx, PayrollMailMessage{
+		if _, err := s.deps.Mail.Enqueue(ctx, workforce.PayrollMailMessage{
 			TenantID: problem.TenantID, ToName: strings.TrimSpace(manager.FirstName + " " + manager.LastName), ToAddress: manager.Email,
 			Subject: "Monatsdatei " + month + " nicht verschickt", Template: payrollProblemTemplate,
-			Content: map[string]any{
-				"LogoURL": s.logoURL(), "FirstName": manager.FirstName, "MonthLabel": month,
-				"Correction": problem.Correction, "ReasonText": payrollReasonText(problem.Reason), "LinkURL": linkURL,
+			Content: workforce.PayrollMailContent{
+				LogoURL: s.logoURL(), FirstName: manager.FirstName, MonthLabel: month,
+				Correction: problem.Correction, ReasonText: payrollReasonText(problem.Reason), LinkURL: linkURL,
 			},
 			Type: PayrollProblemMailType, ReferenceID: problem.DispatchID,
 			IdempotencyKey: fmt.Sprintf("payroll-dispatch-problem-%d-%d", problem.DispatchID, manager.StaffID),

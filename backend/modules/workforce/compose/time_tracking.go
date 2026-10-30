@@ -107,9 +107,7 @@ func NewTimeTrackingCleanup(deps TimeTrackingCleanupDependencies) (TimeTrackingC
 
 type WorkSessionSide struct {
 	timetracking.WorkSessionSide
-	// PayrollDispatch is the automatic send of the month file (#4805); the
-	// root composes it over the clock's export.
-	PayrollDispatch workforce.PayrollDispatch
+	PayrollDispatch workforce.PayrollDispatch // #4805, composed by the root
 }
 type TimeTracking timetracking.TimeTracking
 type AutoCheckIn interface {

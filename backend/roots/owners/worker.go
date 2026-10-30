@@ -146,8 +146,7 @@ func NewWorker(
 		InstanceStudentRepo:          timetableRepos.ParticipantCheckouts(),
 		StudentStatusDayRepo:         NewStudentStatusDayRepository(carePlan),
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
-		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
-		ReminderNotifications:        reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff),
-		PayrollDispatch: workforce.PayrollDispatch.RunDue,
+		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), PayrollDispatch: workforce.PayrollDispatch.RunDue,
+		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff),
 	})
 }

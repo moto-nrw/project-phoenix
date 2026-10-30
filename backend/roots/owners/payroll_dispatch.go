@@ -55,7 +55,7 @@ type PayrollDispatchStaff interface {
 // BuildPayrollDispatch composes the automatic send of the month file over the
 // clock's export.
 func BuildPayrollDispatch(
-	db transactionruntime.Database, settings settingsCompose.SettingsService, export workforceCompose.PayrollExport,
+	db transactionruntime.Database, settings settingsCompose.SettingsService, export workforce.PayrollExport,
 	transfer exporttransfer.Capability, outbox OutboxEnqueuer, mailFrom email.Email, mailIdentity email.ReplyToResolver,
 	schools organizationtenancy.Query, staff PayrollDispatchStaff, frontendURL string, logger *slog.Logger,
 ) (workforce.PayrollDispatch, error) {
@@ -63,8 +63,8 @@ func BuildPayrollDispatch(
 		return nil, errors.New("payroll dispatch: settings, transfer, delivery, schools and staff are required")
 	}
 	logger = logger.With("service", "payroll_dispatch")
-	return workforceCompose.NewPayrollDispatch(workforceCompose.PayrollDispatchDependencies{
-		DB: db.Pool(), Settings: payrollDispatchSettings{settings: settings}, Export: export,
+	return workforceCompose.NewPayrollDispatch(db.Pool(), workforce.PayrollDispatchPorts{
+		Settings: payrollDispatchSettings{settings: settings}, Export: export,
 		Transfer: payrollTransfer{module: transfer},
 		Mail:     payrollMailOutbox{outbox: outbox, from: mailFrom, identity: mailIdentity, logger: logger},
 		Schools:  payrollSchools{schools: schools}, Managers: payrollManagers{staff: staff},
@@ -76,8 +76,8 @@ type payrollDispatchSettings struct {
 	settings settingsCompose.SettingsService
 }
 
-func (s payrollDispatchSettings) PayrollDispatchConfig(ctx context.Context) (workforceCompose.PayrollDispatchConfig, error) {
-	var config workforceCompose.PayrollDispatchConfig
+func (s payrollDispatchSettings) PayrollDispatchConfig(ctx context.Context) (workforce.PayrollDispatchConfig, error) {
+	var config workforce.PayrollDispatchConfig
 	var err error
 	if config.Auto, err = s.settings.ResolveBool(ctx, settingsValues.KeyPayrollDispatchAuto); err != nil {
 		return config, err
@@ -96,22 +96,22 @@ type payrollTransfer struct {
 	module exporttransfer.Capability
 }
 
-func (t payrollTransfer) Transfer(ctx context.Context, request workforceCompose.PayrollTransferRequest) (workforceCompose.PayrollTransferOutcome, error) {
+func (t payrollTransfer) Transfer(ctx context.Context, request workforce.PayrollTransferRequest) (workforce.PayrollTransferOutcome, error) {
 	outcome, err := t.module.Transfer(ctx, exporttransfer.Request{
 		Kind: exporttransfer.KindStaffTimeTracking, Format: request.Format, Period: request.Period,
 		PrepareFile: request.Prepare, ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
 	})
 	if err != nil {
-		return workforceCompose.PayrollTransferOutcome{}, err
+		return workforce.PayrollTransferOutcome{}, err
 	}
-	return workforceCompose.PayrollTransferOutcome{
+	return workforce.PayrollTransferOutcome{
 		Transferred:   outcome.Transferred,
 		NotConfigured: outcome.Reason == exporttransfer.ReasonNotConfigured,
 		Reason:        outcome.Reason,
 	}, nil
 }
 
-func (t payrollTransfer) RecordEmail(ctx context.Context, result workforceCompose.PayrollEmailResult) error {
+func (t payrollTransfer) RecordEmail(ctx context.Context, result workforce.PayrollEmailResult) error {
 	record := exporttransfer.EmailRecord{
 		Kind: exporttransfer.KindStaffTimeTracking, Format: result.Format, Period: result.Period,
 		Filename: result.Filename, ByteSize: result.ByteSize, Recipient: result.Recipient,
@@ -142,10 +142,10 @@ type payrollMailOutbox struct {
 	logger   *slog.Logger
 }
 
-func (o payrollMailOutbox) Enqueue(ctx context.Context, message workforceCompose.PayrollMailMessage) (int64, error) {
+func (o payrollMailOutbox) Enqueue(ctx context.Context, message workforce.PayrollMailMessage) (int64, error) {
 	mail := email.Message{
 		From: o.from, To: email.NewEmail(message.ToName, message.ToAddress),
-		Subject: message.Subject, Template: message.Template, Content: message.Content,
+		Subject: message.Subject, Template: message.Template, Content: payrollTemplateData(message.Content),
 	}
 	identity := email.ResolveReplyToIdentity(ctx, o.identity, message.TenantID, o.logger)
 	mail.ReplyTo = email.NewEmail(identity.Name, identity.Address)
@@ -155,6 +155,15 @@ func (o payrollMailOutbox) Enqueue(ctx context.Context, message workforceCompose
 		MaxAttempts: message.MaxAttempts, Backoff: message.Backoff,
 	})
 	return enqueued.ID, err
+}
+
+// payrollTemplateData is the template data of the payroll mails.
+func payrollTemplateData(content workforce.PayrollMailContent) map[string]any {
+	return map[string]any{
+		"LogoURL": content.LogoURL, "SchoolName": content.SchoolName, "FirstName": content.FirstName,
+		"MonthLabel": content.MonthLabel, "Correction": content.Correction, "LinkURL": content.LinkURL,
+		"ExpiresAt": content.ExpiresAt, "ReasonText": content.ReasonText,
+	}
 }
 
 // State reads Delivery's state of a mail. A mail Delivery gave up on or
@@ -169,13 +178,13 @@ func (o payrollMailOutbox) State(ctx context.Context, outboxID int64) (string, e
 	case err != nil:
 		return "", err
 	case !found:
-		return workforceCompose.PayrollMailFailed, nil
+		return workforce.PayrollMailFailed, nil
 	case state == deliveryContract.StateSent:
-		return workforceCompose.PayrollMailSent, nil
+		return workforce.PayrollMailSent, nil
 	case state == deliveryContract.StateDeadLetter || state == deliveryContract.StateCancelled:
-		return workforceCompose.PayrollMailFailed, nil
+		return workforce.PayrollMailFailed, nil
 	default:
-		return workforceCompose.PayrollMailPending, nil
+		return workforce.PayrollMailPending, nil
 	}
 }
 
@@ -183,24 +192,24 @@ type payrollSchools struct {
 	schools organizationtenancy.Query
 }
 
-func (s payrollSchools) School(ctx context.Context, tenantID int64) (workforceCompose.PayrollSchool, error) {
+func (s payrollSchools) School(ctx context.Context, tenantID int64) (workforce.PayrollSchool, error) {
 	school, _, err := LookupSchool(ctx, s.schools, tenantID)
-	return workforceCompose.PayrollSchool{Name: school.Name, Subdomain: school.Subdomain}, err
+	return workforce.PayrollSchool{Name: school.Name, Subdomain: school.Subdomain}, err
 }
 
 type payrollManagers struct {
 	staff PayrollDispatchStaff
 }
 
-func (m payrollManagers) TimeTrackingManagers(ctx context.Context) ([]workforceCompose.PayrollContact, error) {
+func (m payrollManagers) TimeTrackingManagers(ctx context.Context) ([]workforce.PayrollContact, error) {
 	rows, err := m.staff.ListStaffWithPermission(ctx, permissions.TimeTrackingManage)
 	if err != nil {
 		return nil, err
 	}
-	contacts := make([]workforceCompose.PayrollContact, 0, len(rows))
+	contacts := make([]workforce.PayrollContact, 0, len(rows))
 	for _, row := range rows {
 		if row != nil {
-			contacts = append(contacts, workforceCompose.PayrollContact{StaffID: row.StaffID, FirstName: row.FirstName, LastName: row.LastName, Email: row.Email})
+			contacts = append(contacts, workforce.PayrollContact{StaffID: row.StaffID, FirstName: row.FirstName, LastName: row.LastName, Email: row.Email})
 		}
 	}
 	return contacts, nil

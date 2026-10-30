@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type payrollTestSettings struct{ config PayrollDispatchConfig }
+type payrollTestSettings struct{ config workforce.PayrollDispatchConfig }
 
-func (s payrollTestSettings) PayrollDispatchConfig(context.Context) (PayrollDispatchConfig, error) {
+func (s payrollTestSettings) PayrollDispatchConfig(context.Context) (workforce.PayrollDispatchConfig, error) {
 	return s.config, nil
 }
 
@@ -33,42 +33,42 @@ type payrollTestTransfer struct {
 	sent []string
 }
 
-func (t *payrollTestTransfer) Transfer(ctx context.Context, request PayrollTransferRequest) (PayrollTransferOutcome, error) {
+func (t *payrollTestTransfer) Transfer(ctx context.Context, request workforce.PayrollTransferRequest) (workforce.PayrollTransferOutcome, error) {
 	name, _, err := request.Prepare(ctx)
 	if err != nil {
-		return PayrollTransferOutcome{}, err
+		return workforce.PayrollTransferOutcome{}, err
 	}
 	t.mu.Lock()
 	t.sent = append(t.sent, name)
 	t.mu.Unlock()
-	return PayrollTransferOutcome{Transferred: true}, nil
+	return workforce.PayrollTransferOutcome{Transferred: true}, nil
 }
 
-func (*payrollTestTransfer) RecordEmail(context.Context, PayrollEmailResult) error { return nil }
+func (*payrollTestTransfer) RecordEmail(context.Context, workforce.PayrollEmailResult) error { return nil }
 
 type payrollTestMail struct {
 	mu    sync.Mutex
-	links []PayrollMailMessage
+	links []workforce.PayrollMailMessage
 }
 
-func (m *payrollTestMail) Enqueue(_ context.Context, message PayrollMailMessage) (int64, error) {
+func (m *payrollTestMail) Enqueue(_ context.Context, message workforce.PayrollMailMessage) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.links = append(m.links, message)
 	return int64(len(m.links)), nil
 }
 
-func (*payrollTestMail) State(context.Context, int64) (string, error) { return PayrollMailSent, nil }
+func (*payrollTestMail) State(context.Context, int64) (string, error) { return workforce.PayrollMailSent, nil }
 
 type payrollTestSchools struct{}
 
-func (payrollTestSchools) School(context.Context, int64) (PayrollSchool, error) {
-	return PayrollSchool{Name: "OGS", Subdomain: "ogs"}, nil
+func (payrollTestSchools) School(context.Context, int64) (workforce.PayrollSchool, error) {
+	return workforce.PayrollSchool{Name: "OGS", Subdomain: "ogs"}, nil
 }
 
 type payrollTestManagers struct{}
 
-func (payrollTestManagers) TimeTrackingManagers(context.Context) ([]PayrollContact, error) {
+func (payrollTestManagers) TimeTrackingManagers(context.Context) ([]workforce.PayrollContact, error) {
 	return nil, nil
 }
 
@@ -79,15 +79,15 @@ func (payrollTestTokens) NewToken() (string, string, error) {
 }
 func (payrollTestTokens) Fingerprint(raw string) string { return "fp:" + raw }
 
-func newPayrollTestDispatch(t *testing.T, config PayrollDispatchConfig, clock ...func() time.Time) (workforce.PayrollDispatch, *payrollTestTransfer, *payrollTestMail) {
+func newPayrollTestDispatch(t *testing.T, config workforce.PayrollDispatchConfig, clock ...func() time.Time) (workforce.PayrollDispatch, *payrollTestTransfer, *payrollTestMail) {
 	t.Helper()
 	var now func() time.Time
 	if len(clock) > 0 {
 		now = clock[0]
 	}
 	transfer, mail := &payrollTestTransfer{}, &payrollTestMail{}
-	dispatch, err := NewPayrollDispatch(PayrollDispatchDependencies{
-		DB: testpkg.SetupTestDB(t), Settings: payrollTestSettings{config: config}, Export: payrollTestExport{},
+	dispatch, err := NewPayrollDispatch(testpkg.SetupTestDB(t), workforce.PayrollDispatchPorts{
+		Settings: payrollTestSettings{config: config}, Export: payrollTestExport{},
 		Transfer: transfer, Mail: mail, Schools: payrollTestSchools{}, Managers: payrollTestManagers{},
 		Tokens: payrollTestTokens{}, FrontendURL: "https://moto.example", Now: now,
 	})
@@ -127,7 +127,7 @@ func TestPayrollDispatchStaysInsideItsSchool(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, otherID)
 	other := testpkg.TenantContext(otherID)
 
-	sftp, transfer, _ := newPayrollTestDispatch(t, PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: "csv"})
+	sftp, transfer, _ := newPayrollTestDispatch(t, workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: "csv"})
 	closeSeptember(t, ctx, sftp)
 
 	finished, err := sftp.RunDue(other)
@@ -166,7 +166,7 @@ func TestPayrollDispatchLinkOpensOnceInItsSchool(t *testing.T) {
 	// The public route carries the runtime but no school: the link names it.
 	public := testpkg.WithTestTenantRuntime(t, context.Background())
 	later := time.Duration(0)
-	dispatch, _, mail := newPayrollTestDispatch(t, PayrollDispatchConfig{
+	dispatch, _, mail := newPayrollTestDispatch(t, workforce.PayrollDispatchConfig{
 		Auto: true, Channel: workforce.PayrollChannelEmail, Format: "xlsx", Email: "lohn@steuerbuero-beispiel.de",
 	}, func() time.Time { return time.Now().Add(later) })
 	closeSeptember(t, ctx, dispatch)
@@ -209,7 +209,7 @@ func TestPayrollDispatchLinkOpensOnceInItsSchool(t *testing.T) {
 func TestPayrollDispatchNumbersCorrections(t *testing.T) {
 	t.Parallel()
 	ctx := testpkg.Ctx(t)
-	dispatch, transfer, _ := newPayrollTestDispatch(t, PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: "csv"})
+	dispatch, transfer, _ := newPayrollTestDispatch(t, workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: "csv"})
 
 	rollback := context.Canceled
 	err := testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {

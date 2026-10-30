@@ -192,7 +192,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/careplan/compose (+1).
 // ADR 0137: the holiday access trail constructor of modules/enrollment/compose
 // adds exactly 7 LOC.
-const moduleComposeBudgetTotal = 12725
+// ADR 0140: the payroll dispatch constructor and composition field of
+// modules/workforce/compose add exactly 9 LOC.
+const moduleComposeBudgetTotal = 12734
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -271,7 +273,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableprojection/compose":           7,
 	// Raised by ADR 0105: the Träger transaction binding (+4).
 	"modules/transactionruntime/compose": 137,
-	"modules/workforce/compose":          887,
+	// Raised by ADR 0140: the payroll dispatch constructor (+9).
+	"modules/workforce/compose":          896,
 	"workflows/catererportal/compose":    37, // added by ADR 0077
 	"workflows/gradetransition/compose":  49,
 	"workflows/openroommove/compose":     46,
