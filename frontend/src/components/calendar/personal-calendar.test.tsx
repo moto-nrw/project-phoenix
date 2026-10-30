@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { useState } from "react";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
@@ -165,7 +168,9 @@ describe("PersonalCalendar", () => {
       />,
     );
 
-    expect(screen.getAllByText("Heilige Drei Könige").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Heilige Drei Könige").length).toBeGreaterThan(
+      0,
+    );
     expect(
       screen.queryByRole("button", { name: /Heilige Drei Könige/ }),
     ).not.toBeInTheDocument();
@@ -561,3 +566,22 @@ describe("PersonalCalendar", () => {
     ).toBeGreaterThan(0);
   });
 });
+
+it.each(schoolDateCases("2026-05-27"))(
+  "navigates to Berlin today in %s",
+  (zone, instant) => {
+    setSchoolDateClock(zone, instant, "2026-05-27");
+    const onDateChange = vi.fn();
+    render(
+      <PersonalCalendarChrome
+        events={[]}
+        referenceDate={new Date(2026, 0, 5)}
+        onDateChange={onDateChange}
+        showWeekend={false}
+        onShowWeekendChange={vi.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Heute" }));
+    expect(onDateChange).toHaveBeenCalledWith(new Date(2026, 4, 27));
+  },
+);

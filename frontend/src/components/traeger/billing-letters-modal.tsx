@@ -14,7 +14,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { toISODate, berlinTodayISO } from "~/lib/date-helpers";
+import { toISODate, berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -31,7 +31,7 @@ const MAX_CONTACTS = 10;
 
 /** Two weeks after today, the Bissendorf payment term. */
 function defaultDueDate(): string {
-  const date = new Date();
+  const date = parseISODate(berlinTodayISO());
   date.setDate(date.getDate() + 14);
   return toISODate(date);
 }

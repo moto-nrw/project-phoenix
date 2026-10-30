@@ -22,7 +22,7 @@ import {
   type CalendarEvent,
   type CalendarResponseStatus,
 } from "~/lib/personal-calendar-api";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { parseISODate, toISODate, berlinTodayISO } from "~/lib/date-helpers";
 import {
   formatDayHeader,
   formatWeekLabel,
@@ -514,7 +514,7 @@ export function calendarEmptyLabel(viewMode: CalendarViewMode): string {
 
 /** Zeigt die Fläche bereits den heutigen Tag? Dann bleibt "Heute" inaktiv. */
 function showsToday(referenceDate: Date, viewMode: CalendarViewMode): boolean {
-  const today = new Date();
+  const today = parseISODate(berlinTodayISO());
   if (viewMode === "month") {
     return (
       referenceDate.getFullYear() === today.getFullYear() &&
@@ -569,7 +569,8 @@ export function PersonalCalendar({
     busyAppointmentId,
     icsHrefBase,
   };
-  const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
+  const referenceDate =
+    rawReferenceDate ?? weekStart ?? parseISODate(berlinTodayISO());
   const { from } = getWeekRange(referenceDate);
   const days = getWeekdays(from);
   const monthDays = monthGridDays(referenceDate);
@@ -1582,7 +1583,8 @@ export function PersonalCalendarChrome({
   onCreate?: () => void;
   subtitle?: string;
 }>) {
-  const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
+  const referenceDate =
+    rawReferenceDate ?? weekStart ?? parseISODate(berlinTodayISO());
   const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
   const handleViewModeChange = onViewModeChange ?? (() => undefined);
   const { from, to } = getWeekRange(referenceDate);
@@ -1609,7 +1611,7 @@ export function PersonalCalendarChrome({
       onToday={
         showsToday(referenceDate, viewMode)
           ? undefined
-          : () => handleDateChange(new Date())
+          : () => handleDateChange(parseISODate(berlinTodayISO()))
       }
       viewSwitcher={
         <SegmentedControl

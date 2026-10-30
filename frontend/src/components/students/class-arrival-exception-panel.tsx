@@ -33,7 +33,12 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
-import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  formatDate,
+  parseISODate,
+  toISODate,
+  berlinTodayISO,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type ClassArrivalException,
@@ -200,7 +205,7 @@ function isWeekend(date: Date): boolean {
 }
 
 function startOfToday(): Date {
-  const today = new Date();
+  const today = parseISODate(berlinTodayISO());
   today.setHours(0, 0, 0, 0);
   return today;
 }

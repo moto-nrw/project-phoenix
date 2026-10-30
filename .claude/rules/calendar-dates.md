@@ -109,6 +109,14 @@ not bind it as a date or use it as a sentinel. An optional date is
    Berlin instant converts it to UTC and can reverse the clock interval around
    UTC midnight.
 
+6. **oxlint** `date-safety/no-browser-today` flags zero-argument `new Date()`
+   and `todayISO()` calls (including import aliases and namespace calls) outside
+   the central date helpers and tests. It checks the source, so aliases, date-fns
+   formatting and local getters cannot hide a new school-day derivation. Reviewed
+   instants and genuinely browser-local inputs live in
+   `frontend/scripts/school-today-baseline.mjs`. Entries are source-bound and
+   consumed once; stale entries fail. Keep this baseline shrink-only.
+
 ## Detection
 
 ```bash

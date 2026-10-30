@@ -5,6 +5,35 @@ import { availableParallelism } from "node:os";
 import { nodeLogicTestFiles } from "./src/test/node-test-files.ts";
 import { phosphorPerIconImports } from "./src/test/phosphor-imports-plugin.ts";
 
+const schoolDateTestFiles = [
+  "src/components/students/care-weekly-plan-editor.test.tsx",
+  "src/app/[tenant]/(protected)/calendar/page.test.tsx",
+  "src/app/[tenant]/(protected)/time-tracking/page.test.tsx",
+  "src/components/students/class-trip-bulk-status-modal.test.tsx",
+  "src/components/students/care-schedule-manager.test.tsx",
+  "src/components/timetable/period-switcher-dropdown.test.tsx",
+  "src/components/traeger/billing-letters-modal.test.tsx",
+  "src/components/staff/arbeitszeitmodell-tab.preview.test.tsx",
+  "src/components/database/grade-transitions/grade-transitions-manager.test.tsx",
+  "src/components/students/class-arrival-exception-panel.test.tsx",
+  "src/components/students/planned-status-days-modal.test.tsx",
+  "src/components/calendar/personal-calendar.test.tsx",
+  "src/app/school/kalender/page.test.tsx",
+  "src/components/time-tracking/vacation-request-modal.test.tsx",
+  "src/components/ui/date-picker.test.tsx",
+  "src/components/enrollment/enrollment-admin-editors.test.tsx",
+  "src/components/time-tracking/leave-requests-card.test.tsx",
+  "src/components/staff/stammdaten-tab.test.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/room-history/page.test.tsx",
+  "src/components/class-day/class-day-class.test.tsx",
+  "src/components/staff/abwesenheiten-tab.allowances.test.tsx",
+  "src/components/ui/date-range-picker.test.tsx",
+  "src/components/display/display-clock.test.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/page.test.tsx",
+  "src/app/[tenant]/(protected)/staff/[id]/page.permissions.test.tsx",
+  "src/components/staff/sick-report-modal.test.tsx",
+];
+
 const apiTestFiles = ["src/app/api/**/*.{test,spec}.ts"];
 const baseTestExcludes = ["**/node_modules/**", "**/e2e/**"];
 
@@ -85,7 +114,7 @@ export default defineConfig({
             ...baseTestExcludes,
             ...apiTestFiles,
             ...nodeLogicTestFiles,
-            "src/components/staff/sick-report-modal.test.tsx",
+            ...schoolDateTestFiles,
           ],
           environment: "happy-dom",
           // happy-dom simuliert sonst 1024x768; Komponenten mit
@@ -119,7 +148,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: "school-date-dom",
-          include: ["src/components/staff/sick-report-modal.test.tsx"],
+          include: schoolDateTestFiles,
           environment: "happy-dom",
           // Node only applies runtime TZ changes in processes, not threads.
           // Keep real non-Berlin browser zones in this regression suite.

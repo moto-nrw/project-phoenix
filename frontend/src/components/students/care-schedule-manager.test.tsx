@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   act,
   fireEvent,
@@ -892,46 +895,51 @@ describe("CareScheduleManager", () => {
     expect(mockApplyStudentPickupAdjustment).not.toHaveBeenCalled();
   });
 
-  it("keeps direct saving when review is off even if an offering matches", async () => {
-    const onUpdate = vi.fn();
+  it.each(schoolDateCases("2026-05-27"))(
+    "keeps direct saving when review is off even if an offering matches in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-27");
 
-    render(
-      <CareScheduleManager
-        studentId="42"
-        statusDays={statusDays}
-        onUpdate={onUpdate}
-      />,
-    );
-    await screen.findByText("Betreuungszeiten");
+      const onUpdate = vi.fn();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
-    );
-    fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
+      render(
+        <CareScheduleManager
+          studentId="42"
+          statusDays={statusDays}
+          onUpdate={onUpdate}
+        />,
+      );
+      await screen.findByText("Betreuungszeiten");
 
-    await waitFor(() => {
-      expect(mockPreviewStudentPickupAdjustment).toHaveBeenCalledWith("42", {
-        schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
-        care_days: [1],
-        arrival_schedules: [
-          { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
-        ],
-        effective_from: "2026-05-27",
+      fireEvent.click(
+        screen.getByRole("button", { name: "Wochenplan bearbeiten" }),
+      );
+      fireEvent.click(screen.getByText("Wochenplan im Test speichern"));
+
+      await waitFor(() => {
+        expect(mockPreviewStudentPickupAdjustment).toHaveBeenCalledWith("42", {
+          schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
+          care_days: [1],
+          arrival_schedules: [
+            { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+          ],
+          effective_from: "2026-05-27",
+        });
+        expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith("42", {
+          schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
+          care_days: [1],
+          arrival_schedules: [
+            { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
+          ],
+          effective_from: "2026-05-27",
+          preview_token: "preview-token",
+          resolution: "exception",
+        });
+        expect(mockUpdateArrivalSchedules).not.toHaveBeenCalled();
+        expect(onUpdate).toHaveBeenCalled();
       });
-      expect(mockApplyStudentPickupAdjustment).toHaveBeenCalledWith("42", {
-        schedules: [{ weekday: 1, pickup_time: "15:30", notes: "Bus" }],
-        care_days: [1],
-        arrival_schedules: [
-          { weekday: 1, expected_arrival: "08:30", notes: "Tor" },
-        ],
-        effective_from: "2026-05-27",
-        preview_token: "preview-token",
-        resolution: "exception",
-      });
-      expect(mockUpdateArrivalSchedules).not.toHaveBeenCalled();
-      expect(onUpdate).toHaveBeenCalled();
-    });
-  });
+    },
+  );
 
   it("saves an arrival-only edit without reopening pickup review", async () => {
     render(<CareScheduleManager studentId="42" statusDays={statusDays} />);

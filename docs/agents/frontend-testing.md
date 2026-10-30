@@ -14,8 +14,10 @@ node environment with only `setup-common.ts`. Everything else runs in
 next-intl, SWR or tenant-context mock, and confirm it passes with
 `pnpm vitest run --project logic-node`.
 
-`school-date-dom` runs `sick-report-modal.test.tsx` in happy-dom with forked
-processes. Its regression cases change `TZ` to UTC and Asia/Tokyo at runtime;
+`school-date-dom` runs the school-date component suites listed in
+`schoolDateTestFiles` in `frontend/vitest.config.ts`, using happy-dom and forked
+processes. Its regression cases change `TZ` to UTC, Pacific/Honolulu and
+Pacific/Kiritimati at runtime (the original sick-report suite also uses Tokyo);
 Node worker threads do not apply those timezone changes. The cases assert the
 local date first so an ineffective timezone change cannot hide the defect.
 
