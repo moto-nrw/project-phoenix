@@ -417,7 +417,7 @@ export default function WeekProtocolPage() {
   return (
     <RoleGuard
       variant="staffOrAdmin"
-      permission="groups:read"
+      permission={["groups:update", "groups:manage"]}
       fallback={<TenantPage title="Wochenprotokoll" loading />}
     >
       <WeekProtocolContent />

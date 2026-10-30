@@ -84,10 +84,13 @@ func (rs *WeekProtocolResource) Router(protectedTenantRoutes func(chi.Router, fu
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		read := common.RequiresPermission(permissions.GroupsRead)
+		// Ergänzen und Abschließen ist Arbeit an der Gruppe: Gäste haben nur
+		// groups:read und schreiben nichts.
+		write := common.RequiresPermission(permissions.GroupsUpdate)
 		r.With(read, withTx).Get("/", rs.list)
 		r.With(read, withTx).Get("/{protocolId}", rs.get)
-		r.With(read, withTx).Put("/{protocolId}/notes", rs.saveNotes)
-		r.With(read, withTx).Post("/{protocolId}/close", rs.close)
+		r.With(write, withTx).Put("/{protocolId}/notes", rs.saveNotes)
+		r.With(write, withTx).Post("/{protocolId}/close", rs.close)
 		r.With(read, withTx).Get("/{protocolId}/pdf", rs.pdf)
 	})
 	return r
@@ -108,11 +111,16 @@ var weekProtocolErrorRules = []common.ErrorRule{
 var renderWeekProtocolError = common.RulesRenderer(weekProtocolErrorRules, common.ErrorInternalServer)
 
 // reach resolves which protocols the caller sees. A failed lookup is an
-// error, never a narrower reach.
+// error, never a narrower reach. Without groups:update (the view-only guest
+// role, ADR 0091) the caller is no group staff and sees no protocol: the
+// protocols name missing children and their reason.
 func (rs *WeekProtocolResource) reach(ctx context.Context) (timetable.WeekProtocolReach, error) {
 	granted := sessiontoken.PermissionsFromCtx(ctx)
 	if securityruntime.HasAdminWildcard(granted) || securityruntime.HasPermission(permissions.GroupsManage, granted) {
 		return timetable.WeekProtocolReach{Leadership: true, Staff: true}, nil
+	}
+	if !securityruntime.HasPermission(permissions.GroupsUpdate, granted) {
+		return timetable.WeekProtocolReach{}, nil
 	}
 	staff, err := rs.cfg.Caller.HasCurrentStaff(ctx)
 	if err != nil {

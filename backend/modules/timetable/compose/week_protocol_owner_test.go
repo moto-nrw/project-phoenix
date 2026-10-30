@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -311,4 +312,32 @@ func TestWeekProtocolRetentionCountsFromTheSunday(t *testing.T) {
 	listed, err := module.ListWeekProtocols(ctx, weekProtocolLeadership, timetable.WeekProtocolFilter{GroupID: &sources.groups[0].ID})
 	require.NoError(t, err)
 	assert.Empty(t, listed)
+}
+
+// The list of the weekly protocols stays one query however many groups the
+// school has (#4769, query budget #2940).
+func TestWeekProtocolListQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	sources := &weekProtocolSources{}
+	countList := func(groups int) int {
+		for id := len(sources.groups); id < groups; id++ {
+			sources.groups = append(sources.groups, timetable.WeekProtocolGroup{ID: int64(9100 + id), Name: fmt.Sprintf("Gruppe %d", id)})
+		}
+		runWeekProtocolEvening(t, module, ctx, weekProtocolEvening(weekProtocolMonday), sources.of(db))
+		var statements int
+		require.NoError(t, tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {
+			counter := testpkg.CaptureQueries(t, db)
+			listed, err := module.ListWeekProtocols(ctx, weekProtocolLeadership, timetable.WeekProtocolFilter{})
+			require.NoError(t, err)
+			require.Len(t, listed, groups)
+			counter.Stop()
+			statements = len(counter.Queries())
+			testpkg.AssertQueryBudget(t, "modules.timetable.week_protocols.list", counter.Queries())
+			return nil
+		}))
+		return statements
+	}
+	assert.Equal(t, countList(3), countList(8), "more groups add no statements")
 }

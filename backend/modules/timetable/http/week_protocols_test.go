@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -152,7 +151,10 @@ func weekProtocolBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]an
 }
 
 var (
-	weekProtocolRead       = []string{permissions.GroupsRead}
+	// The staff role "user" holds groups:update; the view-only guest only
+	// groups:read (ADR 0091).
+	weekProtocolRead       = []string{permissions.GroupsRead, permissions.GroupsUpdate}
+	weekProtocolGuest      = []string{permissions.GroupsRead}
 	weekProtocolLeadership = []string{permissions.GroupsRead, permissions.GroupsManage}
 )
 
@@ -167,7 +169,7 @@ func TestWeekProtocolRoutesReach(t *testing.T) {
 	stranger := weekProtocolCaller{staff: true, groups: []int64{1}}
 	rr = routes.call(t, stranger, http.MethodGet, path, "", weekProtocolRead)
 	assert.Equal(t, http.StatusNotFound, rr.Code, rr.Body.String())
-	assert.Contains(t, rr.Body.String(), common.CodeTimetableWeekProtocolNotFound)
+	assert.Contains(t, rr.Body.String(), "timetable.week_protocol_not_found")
 	rr = routes.call(t, stranger, http.MethodGet, "/", "", weekProtocolRead)
 	require.Equal(t, http.StatusOK, rr.Code)
 	assert.JSONEq(t, `{"data":[]}`, rr.Body.String(), "staff of another group list nothing")
@@ -186,6 +188,18 @@ func TestWeekProtocolRoutesReach(t *testing.T) {
 	assert.Len(t, friday["missing"], 2)
 	assert.Equal(t, false, days[0].(map[string]any)["captured"], "Monday was not recorded")
 
+	// A guest has a staff record and may even supervise the group, but
+	// reads no protocol and writes nothing.
+	rr = routes.call(t, member, http.MethodGet, "/", "", weekProtocolGuest)
+	require.Equal(t, http.StatusOK, rr.Code)
+	assert.JSONEq(t, `{"data":[]}`, rr.Body.String(), "a guest lists nothing")
+	rr = routes.call(t, member, http.MethodGet, path, "", weekProtocolGuest)
+	assert.Equal(t, http.StatusNotFound, rr.Code, "a guest opens nothing")
+	rr = routes.call(t, member, http.MethodPut, path+"/notes", `{"week_note":"x"}`, weekProtocolGuest)
+	assert.Equal(t, http.StatusForbidden, rr.Code, "a guest writes no notes")
+	rr = routes.call(t, member, http.MethodPost, path+"/close", "", weekProtocolGuest)
+	assert.Equal(t, http.StatusForbidden, rr.Code, "a guest closes nothing")
+
 	rr = routes.call(t, weekProtocolCaller{}, http.MethodGet, path, "", weekProtocolLeadership)
 	assert.Equal(t, http.StatusOK, rr.Code, "the leadership sees every protocol without a group of its own")
 
@@ -202,11 +216,11 @@ func TestWeekProtocolRoutesNotesCloseAndPDF(t *testing.T) {
 
 	rr := routes.call(t, member, http.MethodGet, path+"/pdf", "", weekProtocolRead)
 	assert.Equal(t, http.StatusConflict, rr.Code, "no PDF before the protocol is closed")
-	assert.Contains(t, rr.Body.String(), common.CodeTimetableWeekProtocolNotClosed)
+	assert.Contains(t, rr.Body.String(), "timetable.week_protocol_not_closed")
 
 	rr = routes.call(t, member, http.MethodPut, path+"/notes", `{"week_note":"x","days":[{"date":"10.09.2027","note":"y"}]}`, weekProtocolRead)
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
-	assert.Contains(t, rr.Body.String(), common.CodeTimetableWeekProtocolNotesInvalid)
+	assert.Contains(t, rr.Body.String(), "timetable.week_protocol_notes_invalid")
 	rr = routes.call(t, member, http.MethodPut, path+"/notes", `{"week_note":"x","days":[{"date":"2027-09-13","note":"y"}]}`, weekProtocolRead)
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "a day of the following week is refused")
 
@@ -222,7 +236,7 @@ func TestWeekProtocolRoutesNotesCloseAndPDF(t *testing.T) {
 
 	rr = routes.call(t, member, http.MethodPut, path+"/notes", `{"week_note":"später"}`, weekProtocolRead)
 	assert.Equal(t, http.StatusConflict, rr.Code, "a closed protocol takes no notes")
-	assert.Contains(t, rr.Body.String(), common.CodeTimetableWeekProtocolNotDraft)
+	assert.Contains(t, rr.Body.String(), "timetable.week_protocol_not_draft")
 
 	rr = routes.call(t, member, http.MethodGet, path+"/pdf", "", weekProtocolRead)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

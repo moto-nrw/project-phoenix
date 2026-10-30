@@ -112,8 +112,9 @@ export default function WeekProtocolsPage() {
   return (
     <RoleGuard
       variant="staffOrAdmin"
-      // Die Protokolle liest das Backend mit groups:read, wie die Gruppen.
-      permission="groups:read"
+      // Wochenprotokolle sind Arbeit an der Gruppe (#4769): Gäste mit nur
+      // groups:read sehen keine.
+      permission={["groups:update", "groups:manage"]}
       fallback={<TenantPage title="Wochenprotokolle" loading />}
     >
       <Suspense fallback={<TenantPage title="Wochenprotokolle" loading />}>
