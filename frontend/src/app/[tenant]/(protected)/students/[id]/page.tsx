@@ -90,6 +90,7 @@ import { canReviewCareWithdrawals } from "~/lib/change-request-access";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
 import { CarePlanView } from "~/components/students/care-plan-view";
 import { CareScheduleManager } from "~/components/students/care-schedule-manager";
+import { StudentCareTimesSection } from "~/components/students/care-times-section";
 import { CareExitModal } from "~/components/students/care-exit-modal";
 import { PlannedStatusDaysModal } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
@@ -1772,6 +1773,7 @@ function StudentDetailPageContent() {
           canViewCarePlan={canViewCarePlan}
           canRecordAccidents={canRecordAccidents}
           canManageFamilyProtection={canViewEnrollments}
+          canViewCareTimes={canReadParentData}
           onTabChange={handleTabChange}
           statusDays={statusDays}
           onDeleteStatusDay={handleDeletePlannedStatus}
@@ -2064,6 +2066,8 @@ interface FullAccessViewProps {
   /** student_accidents:manage: „Unfall erfassen“ (#4771). */
   canRecordAccidents: boolean;
   canManageFamilyProtection: boolean;
+  /** Soll und Ist (#4774) reads with users:read, as the backend route does. */
+  canViewCareTimes: boolean;
   onTabChange: (tab: string) => void;
   statusDays: StudentStatusDay[];
   onDeleteStatusDay: (statusDayId: string) => Promise<void>;
@@ -2090,6 +2094,7 @@ function FullAccessView({
   canViewCarePlan,
   canRecordAccidents,
   canManageFamilyProtection,
+  canViewCareTimes,
   onTabChange,
   statusDays,
   onDeleteStatusDay,
@@ -2276,6 +2281,12 @@ function FullAccessView({
           onVisibleDateRangeChange={onVisibleDateRangeChange}
           weeklyDepartureModes={student.allowed_departure_modes}
         />
+        {canViewCareTimes ? (
+          <StudentCareTimesSection
+            studentId={studentId}
+            active={activeTab === "betreuungszeiten"}
+          />
+        ) : null}
       </StudentTabPanel>
 
       {canViewEnrollments ? (

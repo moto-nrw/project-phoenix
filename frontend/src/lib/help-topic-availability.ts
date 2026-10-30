@@ -205,6 +205,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.leadWorkTimeReview]: "lead",
   [HELP_TOPICS.leadAbsenceReport]: "lead",
   [HELP_TOPICS.leadStatistics]: "lead",
+  [HELP_TOPICS.careTimeComparison]: ["caregiver", "lead"],
   [HELP_TOPICS.leadExports]: "lead",
   [HELP_TOPICS.leadPayroll]: "lead",
   [HELP_TOPICS.leadParentVisibility]: "lead",

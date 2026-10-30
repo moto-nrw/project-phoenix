@@ -164,6 +164,7 @@ function leadTopics(
     // --- Auswerten und exportieren ---
     articles.absenceReportTopic(),
     articles.statisticsTopic(),
+    articles.careTimeComparisonTopic(),
     articles.holidayWeeksTopic(),
     articles.holidayGuestGroupTopic(),
     articles.exportsTopic(),

@@ -131,7 +131,7 @@ type AccessLogLedger interface {
 }
 
 // StatisticsPlannedCareDays reads Care Plan's verdict with the planned clock
-// times for the occupancy by time of day (#4764).
+// times for the occupancy by time of day (#4764) and Soll und Ist (#4774).
 type StatisticsPlannedCareDays struct {
 	CareDays careplan.CareDayQuery
 }
@@ -145,7 +145,10 @@ func (a StatisticsPlannedCareDays) PlannedCareDays(ctx context.Context, studentI
 	for studentID, days := range values {
 		byDate := make(map[timezone.Date]studentpresence.PlannedCareDay, len(days))
 		for date, day := range days {
-			byDate[date] = studentpresence.PlannedCareDay{Expected: day.Status.Expected(), Arrival: day.Arrival, Pickup: day.Pickup}
+			byDate[date] = studentpresence.PlannedCareDay{
+				Expected: day.Status.Expected(), NoPlan: day.Status == careplan.CareDayUnknown,
+				Cancelled: day.Status == careplan.CareDayCancelled, Arrival: day.Arrival, Pickup: day.Pickup,
+			}
 		}
 		result[studentID] = byDate
 	}
