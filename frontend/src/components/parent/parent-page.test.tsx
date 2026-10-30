@@ -16,6 +16,18 @@ function withIntl(children: ReactNode) {
 }
 
 describe("ParentPageSkeleton", () => {
+  it.each([0, 2])("exposes one loading status with %s sections", (rows) => {
+    render(withIntl(<ParentPageSkeleton rows={rows} />));
+
+    expect(screen.getAllByRole("status", { hidden: true })).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Inhalt wird geladen");
+    for (const section of screen.queryAllByTestId(
+      "parent-page-section-skeleton",
+    )) {
+      expect(section).toHaveAttribute("aria-hidden", "true");
+    }
+  });
+
   it("reserves the header and section internals instead of using solid blocks", () => {
     render(withIntl(<ParentPageSkeleton rows={2} />));
 
@@ -32,6 +44,19 @@ describe("ParentPageSkeleton", () => {
 });
 
 describe("ParentSectionSkeleton", () => {
+  it("keeps separate loading statuses for independent sections by default", () => {
+    render(
+      withIntl(
+        <>
+          <ParentSectionSkeleton />
+          <ParentSectionSkeleton />
+        </>,
+      ),
+    );
+
+    expect(screen.getAllByRole("status")).toHaveLength(2);
+  });
+
   // Beim ersten Öffnen eines Reiters steht nur der Platzhalter da. Ein
   // Screenreader muss hören, dass Inhalt kommt, statt nichts (#4994).
   it("sagt Screenreadern, dass Inhalt geladen wird", () => {
