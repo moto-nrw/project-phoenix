@@ -65,13 +65,9 @@ func NewWorker(
 	if err != nil {
 		return nil, fmt.Errorf("compose worker billing: %w", err)
 	}
-	lease, err := newWorkerLease(db.UnitOfWork())
+	lease, runtime, err := newWorkerRuntime(db.UnitOfWork())
 	if err != nil {
-		return nil, fmt.Errorf("compose worker lease: %w", err)
-	}
-	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(db.UnitOfWork())
-	if err != nil {
-		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
+		return nil, err
 	}
 	resolver, err := schedulerSettings(settings)
 	if err != nil {
