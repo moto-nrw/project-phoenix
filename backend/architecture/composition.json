@@ -16413,7 +16413,8 @@
       "timetable-cleanup",
       "timetable-materialization",
       "token-cleanup",
-      "visit-cleanup"
+      "visit-cleanup",
+      "week-protocols"
     ],
     "backend_test_suite_seconds": 108.76,
     "measurement_environment": "macOS, local Docker PostgreSQL 17; cold Serve-root timing from three isolated test processes; full suite with Go test -p 6 -parallel 8",
@@ -16512,6 +16513,7 @@
     "timetable-cleanup",
     "timetable-materialization",
     "token-cleanup",
-    "visit-cleanup"
+    "visit-cleanup",
+    "week-protocols"
   ]
 }
