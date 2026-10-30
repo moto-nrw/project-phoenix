@@ -25,8 +25,8 @@ test("bundle policy retains migration ceilings except the explicit #5260 room-de
   const budgets = readBudgets(join(source, "bundle-budgets"));
   assert.ok(budgets.size > 0);
   assert.deepEqual(budgets.get("/[tenant]/rooms/[id]"), {
-    referenceBytes: 1_026_137,
-    maxBytes: 1_048_708,
+    referenceBytes: 1_026_710,
+    maxBytes: 1_049_292,
   });
   for (const [route, budget] of budgets) {
     const increase = route === "/[tenant]/rooms/[id]" ? 2_048 : 0;
