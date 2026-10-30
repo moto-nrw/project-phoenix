@@ -1,0 +1,28 @@
+{{define "payroll-dispatch-problem.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Monatsdatei {{.MonthLabel}} nicht verschickt</h1>
+
+    <p>Hallo {{.FirstName}},</p>
+
+    <p>{{if .Correction}}Die Korrektur der Monatsdatei{{else}}Die Monatsdatei{{end}} für {{.MonthLabel}} ist nicht beim Lohnbüro angekommen.</p>
+
+    <div class="highlight-box">
+        <p>{{.ReasonText}}</p>
+    </div>
+
+    <p>Unter Abrechnung sehen Sie, was fehlt. Die Datei können Sie danach auch selbst exportieren.</p>
+
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.LinkURL}}">Abrechnung öffnen</a>
+    </div>
+
+    <div class="link-box">
+        <a href="{{.LinkURL}}">{{.LinkURL}}</a>
+    </div>
+</div>
+
+{{template "footer" .}}
+{{end}}

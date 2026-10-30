@@ -54,6 +54,7 @@ export function workTimeReviewTopic(): HelpTopic {
       "Wochensaldo und Stundenkonto rechnen gegen das hinterlegte Arbeitszeitmodell.",
       "`Team` → `Zeiterfassung` zeigt nur Ihre eigene Stempeluhr, nicht die des Teams.",
       "Mit `Monat abschließen` frieren Sie den Stand ein. Das geht ab dem 1. des Folgemonats.",
+      "Ist unter `Abrechnung` der `Versand an das Lohnbüro` eingeschaltet, geht die Monatsdatei danach von selbst an das Lohnbüro.",
     ],
     differences: [
       "Fehlt der Reiter `Mitarbeitende`? Dann dürfen Sie keine Anträge entscheiden.",

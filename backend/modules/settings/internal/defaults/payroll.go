@@ -23,6 +23,7 @@ func init() {
 	registerPayrollWageTypes()
 	registerPayrollUnits()
 	registerPayrollIdentity()
+	registerPayrollDispatch()
 }
 
 func registerPayrollWageTypes() {
@@ -97,6 +98,60 @@ func registerPayrollIdentity() {
 	})
 }
 
+// registerPayrollDispatch holds the Lohnbüro of the school (#4805): whether
+// the month file goes out on its own after the Monatsabschluss, how, in which
+// format and, for e-mail, to whom. The switch defaults to off: a school sends
+// nothing until somebody chose a way. The e-mail address has no default for
+// the same reason a SFTP host has none.
+func registerPayrollDispatch() {
+	for _, definition := range []config.Definition{
+		{
+			Key:         config.KeyPayrollDispatchAuto,
+			Label:       "Automatisch nach dem Monatsabschluss senden",
+			Description: "Nach dem Monatsabschluss schickt moto die Monatsdatei aller Mitarbeitenden an das Lohnbüro.",
+			Type:        config.FieldBoolean, Default: false, SortOrder: 10,
+		},
+		{
+			Key:         config.KeyPayrollDispatchChannel,
+			Label:       "Versandweg",
+			Description: "Per SFTP an die Gegenstelle aus den Einstellungen oder per E-Mail mit einem Link zum Herunterladen.",
+			Type:        config.FieldSelect, Default: config.PayrollDispatchChannelSFTP, SortOrder: 20,
+			Options: &config.SelectOptions{Static: []config.SelectOption{
+				{Label: "SFTP", Value: config.PayrollDispatchChannelSFTP},
+				{Label: "E-Mail", Value: config.PayrollDispatchChannelEmail},
+			}},
+		},
+		{
+			Key:         config.KeyPayrollDispatchFormat,
+			Label:       "Dateiformat",
+			Description: "In diesem Format bekommt das Lohnbüro die Monatsdatei.",
+			Type:        config.FieldSelect, Default: config.PayrollDispatchFormatCSV, SortOrder: 30,
+			Options: &config.SelectOptions{Static: []config.SelectOption{
+				{Label: "CSV", Value: config.PayrollDispatchFormatCSV},
+				{Label: "Excel", Value: config.PayrollDispatchFormatXLSX},
+				{Label: "DATEV LODAS", Value: config.PayrollDispatchFormatDatevLodas},
+				{Label: "DATEV Lohn und Gehalt", Value: config.PayrollDispatchFormatDatevLug},
+			}},
+		},
+		{
+			Key:         config.KeyPayrollDispatchEmail,
+			Label:       "E-Mail-Adresse des Lohnbüros",
+			Description: "An diese Adresse geht der Link zur Monatsdatei. Die Datei selbst hängt nicht an der E-Mail.",
+			Type:        config.FieldText, Default: "", SortOrder: 40,
+			Validation: &config.ValidationRules{Pattern: &payrollEmailPattern, AllowEmpty: true},
+			DependsOn:  config.DependsOnEq(config.KeyPayrollDispatchChannel, config.PayrollDispatchChannelEmail),
+		},
+	} {
+		definition.ReadPermission = payrollReadPermission
+		definition.WritePermission = payrollWritePermission
+		definition.Tab = "abrechnung"
+		definition.Category = "lohnbuero"
+		definition.AccessPolicy = config.AccessAdminOnly
+		config.Register(definition)
+	}
+}
+
+var payrollEmailPattern = `^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$`
 var lohnartPattern = `^\d{1,4}$`
 var beraterPattern = `^\d{1,7}$`
 var mandantPattern = `^\d{1,5}$`

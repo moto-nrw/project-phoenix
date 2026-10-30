@@ -1537,6 +1537,32 @@ describe("proxy", () => {
       expect(rewrite).toBeNull();
     });
 
+    it("serves the payroll download page on the bare domain without a tenant rewrite (#4805)", () => {
+      // The e-mail to the payroll office links FRONTEND_URL/lohnbuero/<link>;
+      // the static app/lohnbuero segment must not be read as a tenant slug.
+      const res = proxy(
+        makeRequest(
+          `http://localhost:3000/lohnbuero/7.abcdefghijklmnopqrstuvwxyz`,
+          "localhost:3000",
+        ),
+      );
+
+      expect(res.headers.get("x-middleware-rewrite")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+    });
+
+    it("returns null slug for the reserved 'lohnbuero' subdomain so it never rewrites to /lohnbuero/*", () => {
+      const res = proxy(
+        makeRequest(
+          `http://lohnbuero.localhost:3000/dashboard`,
+          "lohnbuero.localhost:3000",
+        ),
+      );
+
+      const rewrite = res.headers.get("x-middleware-rewrite");
+      expect(rewrite).toBeNull();
+    });
+
     it("attaches security headers to rewritten tenant responses", () => {
       const res = proxy(
         makeRequest(

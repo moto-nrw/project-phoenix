@@ -66,5 +66,6 @@
   "vacation_quota_exceeded": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "vacation_quota_reason_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "vacation_request_in_past": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-  "work_session_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+  "work_session_overlap": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "payroll_download_unavailable": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }
