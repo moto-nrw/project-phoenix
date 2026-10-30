@@ -73,6 +73,10 @@ type SeedOptions struct {
 	// session sits at the seed time, since the simulated day fills the
 	// Statistik. The public demo keeps both.
 	ProductScreenshots bool
+	// SeedWeekProtocols asks the local development server to run the weekly
+	// protocol lifecycle after the regular seed data exists. Command roots set
+	// it; focused test servers keep their narrower API contracts.
+	SeedWeekProtocols bool
 }
 
 // Seeder orchestrates the complete API-based seeding process

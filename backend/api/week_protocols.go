@@ -3,14 +3,18 @@ package api
 import (
 	"context"
 	"log/slog"
+	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
@@ -22,16 +26,38 @@ import (
 // under /api/week-protocols: Timetable's protocols over its own tables, the
 // caller's groups from Identity & Access, the Audit Platform's data access log
 // and the People Directory names of the closing person.
-func mountWeekProtocolRoutes(tenant chi.Router, protocols timetableModule.WeekProtocols, logger *slog.Logger, caller *owners.CallerRows, accessLog owners.DataAccessAppender, persons peopledirectory.Query) {
+func mountWeekProtocolRoutes(tenant chi.Router, protocols timetableModule.WeekProtocols, logger *slog.Logger, caller *owners.CallerRows, accessLog owners.DataAccessAppender, persons peopledirectory.Query, appEnv string, seed schedulerPorts.WeekProtocolEvenings) {
+	var seedLifecycle func(context.Context) error
+	var isLocalSeed func(*http.Request) bool
+	if seed != nil {
+		seedLifecycle = func(ctx context.Context) error { return seedWeekProtocols(ctx, time.Now(), seed) }
+		isLocalSeed = func(r *http.Request) bool { return common.IsLocalSeedRequest(r, appEnv) }
+	}
 	resource := timetableAPI.NewWeekProtocolResource(timetableAPI.WeekProtocolResourceConfig{
-		Service:   protocols,
-		Caller:    caller,
-		AccessLog: weekProtocolAccessLog{Trail: accessLog},
-		Renderer:  newDeclarationReports(),
-		Names:     staffNoticeNames(persons),
-		Logger:    logger.With("handler", "week_protocols"),
+		Service:     protocols,
+		Caller:      caller,
+		AccessLog:   weekProtocolAccessLog{Trail: accessLog},
+		Renderer:    newDeclarationReports(),
+		Names:       staffNoticeNames(persons),
+		Logger:      logger.With("handler", "week_protocols"),
+		Seed:        seedLifecycle,
+		IsLocalSeed: isLocalSeed,
 	})
 	tenant.Mount("/week-protocols", resource.Router(ProtectedTenantRoutes))
+}
+
+// seedWeekProtocols first captures today's live day after the evening hour,
+// then advances to its Sunday without another capture so the protocols are
+// editable drafts. The seed client closes one of them through the ordinary
+// endpoint, which stores the PDF through the normal lifecycle as well.
+func seedWeekProtocols(ctx context.Context, now time.Time, seed schedulerPorts.WeekProtocolEvenings) error {
+	day := calendar.DateFromTime(now)
+	evening := day.BerlinMidnight().Add(21 * time.Hour)
+	if err := seed(ctx, evening); err != nil {
+		return err
+	}
+	sunday := day.StartOfISOWeek().AddDays(6).BerlinMidnight().Add(12 * time.Hour)
+	return seed(ctx, sunday)
 }
 
 // WeekProtocolDayLog builds the weekly protocols' port onto the presence

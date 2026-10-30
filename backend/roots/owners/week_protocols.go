@@ -36,12 +36,12 @@ type WeekProtocolDayLogBuilder func(
 // keeps protocols for; School Structure refuses larger listings.
 const weekProtocolGroupLimit = 1000
 
-// newWeekProtocolEvenings builds the Worker's evening run of the weekly
+// NewWeekProtocolEvenings builds the Worker's evening run of the weekly
 // protocols (#4769) over the owners the Worker root built: Timetable's own
 // blocks and staff notices, the School Calendar, School Structure's groups,
 // the presence projection's day log, the group mode setting and Document
 // Rendering for the PDF of an automatically closed protocol.
-func newWeekProtocolEvenings(
+func NewWeekProtocolEvenings(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService,
 	persons peopledirectory.Capability, services PeopleServices, reports PresenceReports,
 	schedules CarePlanSchedules, carePlan carePlanModule.Owner, timetableRepos timetableCompose.Repositories,

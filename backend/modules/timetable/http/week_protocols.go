@@ -62,6 +62,10 @@ type WeekProtocolResourceConfig struct {
 	// kept by name, so a later account change does not rewrite the record.
 	Names  func(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	Logger *slog.Logger
+	// Seed runs the local demo's Worker lifecycle. It and IsLocalSeed are
+	// optional and supplied only by the development root.
+	Seed        func(context.Context) error
+	IsLocalSeed func(*http.Request) bool
 }
 
 // WeekProtocolResource is the HTTP resource of the weekly protocols.
@@ -71,6 +75,9 @@ type WeekProtocolResource struct{ cfg WeekProtocolResourceConfig }
 func NewWeekProtocolResource(cfg WeekProtocolResourceConfig) *WeekProtocolResource {
 	if cfg.Service == nil || cfg.Caller == nil || cfg.AccessLog == nil || cfg.Renderer == nil || cfg.Names == nil {
 		panic("week protocol resource: service, caller, access log, renderer and names are required")
+	}
+	if (cfg.Seed == nil) != (cfg.IsLocalSeed == nil) {
+		panic("week protocol resource: seed and local seed check must be set together")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -83,17 +90,32 @@ func (rs *WeekProtocolResource) Router(protectedTenantRoutes func(chi.Router, fu
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
-		read := common.RequiresPermission(permissions.GroupsRead)
+		read := common.RequiresAnyPermission(permissions.GroupsRead, permissions.GroupsUpdate, permissions.GroupsManage)
 		// Ergänzen und Abschließen ist Arbeit an der Gruppe: Gäste haben nur
 		// groups:read und schreiben nichts.
-		write := common.RequiresPermission(permissions.GroupsUpdate)
+		write := common.RequiresAnyPermission(permissions.GroupsUpdate, permissions.GroupsManage)
 		r.With(read, withTx).Get("/", rs.list)
 		r.With(read, withTx).Get("/{protocolId}", rs.get)
 		r.With(write, withTx).Put("/{protocolId}/notes", rs.saveNotes)
 		r.With(write, withTx).Post("/{protocolId}/close", rs.close)
 		r.With(read, withTx).Get("/{protocolId}/pdf", rs.pdf)
+		if rs.cfg.Seed != nil {
+			r.With(common.RequiresPermission(permissions.GroupsManage), withTx).Post("/seed", rs.seed)
+		}
 	})
 	return r
+}
+
+func (rs *WeekProtocolResource) seed(w http.ResponseWriter, r *http.Request) {
+	if !rs.cfg.IsLocalSeed(r) {
+		http.NotFound(w, r)
+		return
+	}
+	if err := rs.cfg.Seed(r.Context()); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("seed week protocols", err))
+		return
+	}
+	render.JSON(w, r, map[string]any{"data": map[string]bool{"seeded": true}})
 }
 
 var weekProtocolErrorRules = []common.ErrorRule{

@@ -154,9 +154,9 @@ func weekProtocolBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]an
 var (
 	// The staff role "user" holds groups:update; the view-only guest only
 	// groups:read (ADR 0091).
-	weekProtocolRead       = []string{permissions.GroupsRead, permissions.GroupsUpdate}
+	weekProtocolRead       = []string{permissions.GroupsUpdate}
 	weekProtocolGuest      = []string{permissions.GroupsRead}
-	weekProtocolLeadership = []string{permissions.GroupsRead, permissions.GroupsManage}
+	weekProtocolLeadership = []string{permissions.GroupsManage}
 )
 
 func TestWeekProtocolRoutesReach(t *testing.T) {
@@ -165,7 +165,7 @@ func TestWeekProtocolRoutesReach(t *testing.T) {
 	path := "/" + strconv.FormatInt(routes.protocolID, 10)
 
 	rr := routes.call(t, weekProtocolCaller{staff: true, groups: []int64{weekProtocolTestGroup}}, http.MethodGet, path, "", nil)
-	assert.Equal(t, http.StatusForbidden, rr.Code, "groups:read is required")
+	assert.Equal(t, http.StatusForbidden, rr.Code, "a group permission is required")
 
 	stranger := weekProtocolCaller{staff: true, groups: []int64{1}}
 	rr = routes.call(t, stranger, http.MethodGet, path, "", weekProtocolRead)
@@ -259,4 +259,20 @@ func TestWeekProtocolRoutesNotesCloseAndPDF(t *testing.T) {
 	assert.Equal(t, "Unentschuldigt", friday.Cards[0].Blocks[0].Fields[1].Value, "the child's line uses the counter's word, not the stored label")
 	assert.Equal(t, "Ausflug in den Park", friday.Cards[len(friday.Cards)-1].Fields[0].Value)
 	assert.Equal(t, "Ruhige Woche", doc.Sections[5].Cards[0].Fields[0].Value)
+}
+
+func TestWeekProtocolLeadershipCanWriteWithoutGroupMembership(t *testing.T) {
+	t.Parallel()
+	routes := setupWeekProtocolRoutes(t)
+	path := "/" + strconv.FormatInt(routes.protocolID, 10)
+
+	rr := routes.call(t, weekProtocolCaller{}, http.MethodPut, path+"/notes", `{"week_note":"Leitungsnotiz"}`, weekProtocolLeadership)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	assert.Equal(t, "Leitungsnotiz", weekProtocolBody(t, rr)["week_note"])
+
+	rr = routes.call(t, weekProtocolCaller{}, http.MethodPost, path+"/close", "", weekProtocolLeadership)
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+
+	rr = routes.call(t, weekProtocolCaller{}, http.MethodGet, path+"/pdf", "", weekProtocolLeadership)
+	assert.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 }
