@@ -1,31 +1,38 @@
 import { onOtherTabOwnerChange } from "./personal-storage";
+import {
+  allowConfirmedUnload,
+  attemptNavigation,
+} from "./hooks/navigation-guard-store";
 
 let pending: {
   controller: AbortController;
   promise: Promise<void>;
-  navigating: boolean;
+  phase: "confirming" | "working" | "navigating";
 } | null = null;
 
-/** Automatic expiry handlers must not compete with this explicit exit. */
+/** Automatic expiry handlers must not compete once the explicit exit starts. */
 export function isTenantSessionEnding(): boolean {
-  return pending !== null;
+  return pending !== null && pending.phase !== "confirming";
 }
 
 /** Navigation started, but the old document still owns its explicit exit. */
 export function markTenantSessionNavigation(signal: AbortSignal): void {
-  if (pending?.controller.signal === signal) pending.navigating = true;
+  if (pending?.controller.signal === signal) pending.phase = "navigating";
 }
 
 /** One tenant logout/relogin per document; stale attempts never own a new slot. */
 export function runTenantSessionEnd(
   endSession: (signal: AbortSignal) => Promise<void>,
+  destination = "/",
 ): Promise<void> {
   if (pending) return pending.promise;
   const controller = new AbortController();
   const { signal } = controller;
+  let restoreUnloadGuard: (() => void) | undefined;
   const cancel = () => {
     controller.abort();
     if (pending?.controller === controller) pending = null;
+    restoreUnloadGuard?.();
     dispose();
   };
   const onPageShow = (event: PageTransitionEvent) => {
@@ -47,19 +54,48 @@ export function runTenantSessionEnd(
   const promise = Promise.resolve()
     .then(() => {
       signal.throwIfAborted();
-      return endSession(signal);
+      return new Promise<void>((resolve, reject) => {
+        const stopWaiting = () => resolve();
+        signal.addEventListener("abort", stopWaiting, { once: true });
+        const proceed = (confirmed: boolean) => {
+          signal.removeEventListener("abort", stopWaiting);
+          if (signal.aborted || pending?.controller !== controller) {
+            resolve();
+            return;
+          }
+          pending.phase = "working";
+          if (confirmed) restoreUnloadGuard = allowConfirmedUnload();
+          try {
+            resolve(endSession(signal));
+          } catch (error) {
+            reject(error);
+          }
+        };
+        const blocked = attemptNavigation(
+          () => proceed(true),
+          destination,
+          () => {
+            cancel();
+            resolve();
+          },
+        );
+        if (!blocked) proceed(false);
+      });
     })
     .catch((error: unknown) => {
       // Leaving/restoring the document is not a failed logout to report.
       if (!signal.aborted) throw error;
     })
     .finally(() => {
-      if (pending?.controller === controller && pending.navigating) {
+      if (
+        pending?.controller === controller &&
+        pending.phase === "navigating"
+      ) {
         // Stop push cleanup and other completed work immediately, but keep the
         // exit slot until pagehide. Assigning href does not leave the document.
         controller.abort();
       } else cancel();
     });
-  pending = { controller, promise, navigating: false };
+  pending = { controller, promise, phase: "confirming" };
   return promise;
 }
