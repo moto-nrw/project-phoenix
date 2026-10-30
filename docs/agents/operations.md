@@ -29,6 +29,7 @@ through `devbox run` when the current process has not loaded the project environ
 | Full container stack | `docker compose --profile full up -d`, logs via `docker compose logs -f server` |
 | Frontend quality | `cd frontend && pnpm run check` |
 | Frontend E2E flows | seeded native stack, then `scripts/dev-native.sh frontend pnpm run test:e2e` |
+| Synthetic network E2E suites | `cd frontend && pnpm run test:network` / `pnpm run test:tenant-switch`, no stack needed ([ports](#synthetic-network-e2e-suites)) |
 | Backend suite | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
@@ -109,6 +110,56 @@ After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
 machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).
+
+### Synthetic network E2E suites
+
+`test:network` and `test:tenant-switch` start their own synthetic fixture API
+and `next dev` through `frontend/e2e/network/server.mjs`. They need no seeded
+database, backend or native app server, unlike the seeded `test:e2e`. They also
+ignore `PORT` and the worktree's `FRONTEND_HOST_PORT`, so they never compete
+with a running native dev loop.
+
+| Suite | Frontend port | Fixture API port |
+|---|---|---|
+| `test:network` | `NETWORK_E2E_PORT` (13843) | `NETWORK_E2E_API_PORT` (18443) |
+| `test:tenant-switch` | `TENANT_SWITCH_PORT` (13845) | `TENANT_SWITCH_API_PORT` (18445) |
+
+The config, server and specs read the same variables, so origins, readiness
+URL, fixture calls and route matchers follow the chosen ports. Two runs of the
+same suite in separate worktrees need different ports; each worktree has its
+own `.next`, so run the second copy in another worktree:
+
+```bash
+# worktree A
+cd frontend && pnpm run test:tenant-switch
+# worktree B, at the same time
+cd frontend && TENANT_SWITCH_PORT=23845 TENANT_SWITCH_API_PORT=28445 pnpm run test:tenant-switch
+```
+
+A taken port fails the run before any test, without switching ports or reusing
+the other server:
+
+- Frontend port answering the readiness URL: Playwright reports
+  `http://127.0.0.1:<port>/api/health is already used`.
+- Any other listener on either port, on `127.0.0.1` or `::1`: the server
+  reports `Network evidence: <fixture API|frontend> port <port> is already in
+  use on <host>` and names the variable to change.
+- An invalid value: `<variable> must be a port between 1024 and 65535`.
+- A second `next dev` in the same checkout (native dev loop or another run)
+  holds the `.next` build lock: `Network evidence: frontend on port <port>
+  exited with code 1`. Run the suite in another worktree or stop your own
+  dev server first.
+
+Both suites share the checkout's `frontend/.next` with different public env
+values. After switching suite or ports, the first run can time out in login
+steps until the dev cache is rebuilt ([#5371](https://github.com/moto-nrw/project-phoenix/issues/5371)).
+
+Cleanup touches only the run's own processes. Playwright stops the server's
+process group, which holds the fixture API and its Next child; the server also
+stops when the Playwright runner ends and closes its stdin. Neither path sends
+signals to processes by port or name, so a foreign listener stays reachable.
+If a port is still taken, check with `lsof -nP -iTCP:<port> -sTCP:LISTEN`
+whose process it is; stop only your own run, otherwise choose another port.
 
 ### Worktrees
 
