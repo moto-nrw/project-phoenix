@@ -77,6 +77,7 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
+import { weekProtocolsPath } from "~/lib/week-protocols-api";
 import { usePresenceMode } from "~/lib/tenant-context";
 import {
   StudentTable,
@@ -1101,6 +1102,12 @@ function OGSGroupPageContent() {
         canTransfer: canAdministerGroups || currentGroup.isPersonal === true,
         activeTransfersCount: groupTransfer.transfers.length,
         onOpenTransfer: () => groupTransfer.setOpen(true),
+        onOpenWeekProtocols:
+          canAdministerGroups ||
+          currentGroup.isPersonal === true ||
+          currentGroup.viaSubstitution === true
+            ? () => router.push(weekProtocolsPath(currentGroup.id))
+            : undefined,
       })
     : [];
 

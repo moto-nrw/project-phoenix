@@ -332,12 +332,16 @@ describe("getParentHelpTopicForPath", () => {
     expect(caregiverTopics[16]).toMatchObject({
       id: HELP_TOPICS.transferGroup,
     });
+    expect(caregiverTopics[17]).toMatchObject({
+      id: HELP_TOPICS.weekProtocol,
+    });
     // 42 seit #3821 („Eigenen Dienstplan ansehen“), 45 seit #4901
     // („Nutzungsanalyse erlauben oder ablehnen“, alle Rollen).
     // 46 seit #4781 („An einer Umfrage im Team teilnehmen“).
     // 47 seit #4804 („Hinweise zu Pausen und Höchstarbeitszeit“).
     // 48 seit #4666 („Feriengäste betreuen“, Betreuung und Leitung).
-    expect(caregiverTopics).toHaveLength(48);
+    // 49 seit #4769 („Das Wochenprotokoll ergänzen“, Betreuung und Leitung).
+    expect(caregiverTopics).toHaveLength(49);
     expect([...new Set(caregiverTopics.map((topic) => topic.group))]).toEqual([
       "einstieg",
       "tagesplanung",
@@ -544,7 +548,7 @@ describe("getParentHelpTopicForPath", () => {
           // unter die NFC- und die Anwesenheitsregel, wird also nur
           // einmal abgezogen.
           const expectedLength =
-            48 -
+            49 -
             (nfcEnabled ? 0 : 7) -
             (presenceMode === "binary" ? (nfcEnabled ? 6 : 5) : 0) -
             (groupMode === "open_care" ? 2 : 0);
@@ -593,7 +597,8 @@ describe("getParentHelpTopicForPath", () => {
     // 94 seit #4665: Die Kinder einer Ferienwoche ansehen.
     // 96 seit #4666: Die Feriengruppe wählen und das geteilte Feriengäste
     // betreuen.
-    expect(leadTopics).toHaveLength(98);
+    // 99 seit #4769: das geteilte Wochenprotokoll.
+    expect(leadTopics).toHaveLength(99);
     expect(
       leadTopics.every(
         (topic) =>

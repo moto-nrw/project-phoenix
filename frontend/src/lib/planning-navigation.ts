@@ -5,6 +5,7 @@ export type PlanningPageHref =
   | "/dienstplan"
   | "/vertretung"
   | "/lists"
+  | "/wochenprotokolle"
   | "/calendar-periods"
   | "/payroll";
 
@@ -77,6 +78,16 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     showInMobileNav: true,
     requiresTimetable: true,
     nonAdminPermission: "schedules:manage",
+  },
+  {
+    // Wochenprotokolle (#4769): die Protokolle aller Gruppen für die Leitung,
+    // die alle Gruppen führt (groups:manage). Die Gruppenleitung öffnet die
+    // Protokolle ihrer Gruppe von der Gruppenseite aus.
+    href: "/wochenprotokolle",
+    label: "Wochenprotokolle",
+    showInMobileNav: true,
+    requiresTimetable: false,
+    nonAdminPermission: "groups:manage",
   },
   {
     // Die Seite verwaltet Schuljahr, Halbjahre, Ferien und Schließtage. Der

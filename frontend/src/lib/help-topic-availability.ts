@@ -123,6 +123,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.dayLog]: ["caregiver", "lead"],
   [HELP_TOPICS.ownGroups]: ["caregiver", "lead"],
   [HELP_TOPICS.transferGroup]: ["caregiver", "lead"],
+  [HELP_TOPICS.weekProtocol]: ["caregiver", "lead"],
   [HELP_TOPICS.rooms]: ["caregiver", "lead"],
   [HELP_TOPICS.activeSupervision]: ["caregiver", "lead"],
   [HELP_TOPICS.homeworkFeedback]: ["caregiver", "lead"],
