@@ -7,9 +7,9 @@ import { apiErrorFromResponse } from "./api-error";
 import { sessionFetch } from "./session-cache";
 
 export type WeekProtocolStatus = "collecting" | "draft" | "closed";
-export type WeekProtocolDayKind = "care" | "holiday" | "closing";
+type WeekProtocolDayKind = "care" | "holiday" | "closing";
 
-export interface WeekProtocolMissingChild {
+interface WeekProtocolMissingChild {
   studentId: string;
   name: string;
   reason: string;
@@ -24,7 +24,7 @@ export interface WeekProtocolBlock {
   cancelReason: string;
 }
 
-export interface WeekProtocolNotice {
+interface WeekProtocolNotice {
   title: string;
   body: string;
 }
@@ -92,7 +92,7 @@ interface BackendDay {
   note: string;
 }
 
-export interface BackendWeekProtocol {
+interface BackendWeekProtocol {
   id: string;
   scope: "group" | "school";
   group_id?: string;
@@ -140,7 +140,7 @@ function mapDay(day: BackendDay): WeekProtocolDay {
   };
 }
 
-export function mapWeekProtocol(data: BackendWeekProtocol): WeekProtocol {
+function mapWeekProtocol(data: BackendWeekProtocol): WeekProtocol {
   return {
     id: data.id,
     scope: data.scope,
