@@ -85,11 +85,10 @@ describe("tenant exit ownership through real cookie deletion", () => {
     await csrfStarted;
     releaseCsrf(Response.json({ csrfToken }));
     try {
-      await vi.waitFor(() =>
-        expect(window.location.href).toBe(
-          "http://school-b.mfa.localhost:13845/",
-        ),
-      );
+      await flight;
+      expect(window.location.href).toBe("http://school-b.mfa.localhost:13845/");
+      // Push cleanup must stop now, without releasing redirect ownership.
+      expect(csrfSignal.aborted).toBe(true);
       expect(isTenantSessionEnding()).toBe(true);
       expect(reloginAtTenant("school-c")).toBe(flight);
       window.dispatchEvent(new Event("pagehide"));

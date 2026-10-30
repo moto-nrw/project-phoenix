@@ -1,4 +1,4 @@
-import { act, render, waitFor } from "@testing-library/react";
+import { act, render } from "@testing-library/react";
 import { SessionProvider } from "next-auth/react";
 import { afterEach, expect, it, vi } from "vitest";
 import { signOutTenant } from "./tenant-session-cookie";
@@ -43,7 +43,6 @@ it("does not refresh the real current provider while destination navigation is s
     ),
   );
   vi.stubGlobal("fetch", fetch);
-  const controller = new AbortController();
   try {
     render(
       <SessionProvider session={session} refetchOnWindowFocus={false}>
@@ -60,18 +59,10 @@ it("does not refresh the real current provider while destination navigation is s
     );
     fetch.mockClear();
     await act(async () => {
-      const exit = signOutTenant(
+      await signOutTenant(
         { callbackUrl: "http://school-b.localhost/" },
-        controller.signal,
+        new AbortController().signal,
       );
-      await waitFor(() =>
-        expect(window.location.href).toBe("http://school-b.localhost/"),
-      );
-      expect(
-        fetch.mock.calls.filter(([url]) => url.endsWith("/session")),
-      ).toHaveLength(0);
-      window.dispatchEvent(new Event("pagehide"));
-      await exit;
     });
     expect(window.location.href).toBe("http://school-b.localhost/");
     expect(
@@ -79,7 +70,6 @@ it("does not refresh the real current provider while destination navigation is s
     ).toHaveLength(0);
     otherTab.close();
   } finally {
-    controller.abort();
     Object.defineProperty(window, "location", {
       configurable: true,
       value: originalLocation,
