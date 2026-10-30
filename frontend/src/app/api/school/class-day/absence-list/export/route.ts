@@ -1,3 +1,4 @@
+import { withPrivateDownloadNoStore } from "~/lib/private-no-store";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 // Fehlzeitenliste einer Klasse in moto schule (#4793) als PDF oder Excel
 // herunterladen, mit der Sitzung von moto schule. Welche Klasse die Person
@@ -73,4 +74,4 @@ async function GETHandler(request: NextRequest) {
   return pdfDownloadResponse(upstream);
 }
 
-export const GET = withSchoolAuth(GETHandler);
+export const GET = withPrivateDownloadNoStore(withSchoolAuth(GETHandler));
