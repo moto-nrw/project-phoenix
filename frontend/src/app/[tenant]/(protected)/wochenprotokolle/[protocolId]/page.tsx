@@ -325,6 +325,9 @@ function DayCard({
           <Textarea
             id={`note-${day.date}`}
             label="Ergänzung"
+            // Fünf Felder heißen sichtbar gleich; der Tag macht sie für
+            // Screenreader unterscheidbar.
+            aria-label={`Ergänzung für ${dayTitle(day.date)}`}
             rows={3}
             maxLength={2000}
             value={note}

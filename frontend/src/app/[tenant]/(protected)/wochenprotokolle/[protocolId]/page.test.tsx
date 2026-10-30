@@ -155,7 +155,7 @@ describe("WeekProtocolPage", () => {
     state.saveNotes.mockResolvedValue(protocol({ weekNote: "Ruhig" }));
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Ergänzen" }));
-    fireEvent.change(screen.getAllByLabelText("Ergänzung")[0]!, {
+    fireEvent.change(screen.getByLabelText("Ergänzung für Montag, 07.09."), {
       target: { value: "Elternabend" },
     });
     fireEvent.change(screen.getByLabelText("Ergänzung für die Woche"), {

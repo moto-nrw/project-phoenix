@@ -97,7 +97,9 @@ function WeekProtocolsContent() {
         rows={protocols}
         getRowKey={(protocol) => protocol.id}
         onRowClick={(protocol) => router.push(weekProtocolPath(protocol.id))}
-        caption="Wochenprotokolle"
+        stackedOnMobile
+        stackedLayout="row"
+        stackedDetailKey="group"
         defaultSortKey="week"
         defaultSortDirection="desc"
         pageSize={20}
