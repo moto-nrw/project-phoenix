@@ -2,6 +2,9 @@ import { createServer } from "node:http";
 import { connect } from "node:net";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { createAppWorkspace } from "./app-workspace.mjs";
 import { networkPorts } from "./ports.mjs";
 
 const sharedTenantCookie = process.env.TENANT_SWITCH_EVIDENCE === "1";
@@ -263,6 +266,8 @@ await new Promise((resolve) => {
 
 // Do not inherit user-specific service configuration or credentials. Explicit
 // empty values also take precedence over Next's automatic .env.local loading.
+const frontendDirectory = fileURLToPath(new URL("../../", import.meta.url));
+const workspace = createAppWorkspace(frontendDirectory);
 const env = {
   PATH: process.env.PATH,
   HOME: process.env.HOME,
@@ -292,15 +297,22 @@ const env = {
   SENTRY_DSN: "",
   SENTRY_AUTH_TOKEN: "",
   NEXT_PUBLIC_LOG_LEVEL: "error",
-  NODE_OPTIONS: "--require ./e2e/network/local-only.cjs",
+  NODE_OPTIONS: `--require ${JSON.stringify(fileURLToPath(new URL("./local-only.cjs", import.meta.url)))}`,
 };
 const next = spawn(
   process.execPath,
-  ["node_modules/next/dist/bin/next", "dev", "--port", String(frontendPort)],
-  { env, stdio: "ignore" },
+  [
+    join(frontendDirectory, "node_modules/next/dist/bin/next"),
+    "dev",
+    "--port",
+    String(frontendPort),
+  ],
+  { cwd: workspace.directory, env, stdio: "ignore" },
 );
 // Only this run's own children: the Next child and the fixture listener.
+let stopping = false;
 const stop = () => {
+  stopping = true;
   next.kill("SIGTERM");
   api.close();
   api.closeAllConnections();
@@ -315,17 +327,19 @@ if (process.argv.includes("--stop-with-stdin")) {
 }
 next.on("error", (error) => {
   api.close();
+  workspace.cleanup();
   fail(`frontend could not start (${error.message})`);
 });
-next.on("exit", (code, signal) => {
-  if (code !== 0 && signal === null) {
+next.on("close", (code, signal) => {
+  workspace.cleanup();
+  if (!stopping && code !== 0 && signal === null) {
     process.stderr.write(
-      `Network evidence: frontend on port ${frontendPort} exited with code ${code}. Common causes: another next dev in this checkout holds its build lock, or the port is taken (choose another with ${ports.names.frontend}).\n`,
+      `Network evidence: frontend on port ${frontendPort} exited with code ${code}. Check the frontend configuration or choose another port with ${ports.names.frontend}.\n`,
     );
   }
   api.close();
   api.closeAllConnections();
   // The open stdin pipe would otherwise keep this process alive.
   process.stdin.destroy();
-  process.exitCode = code ?? 1;
+  process.exitCode = stopping ? 0 : (code ?? 1);
 });
