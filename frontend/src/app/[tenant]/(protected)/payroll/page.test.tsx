@@ -12,13 +12,16 @@ import PayrollPage from "./page";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
-const { mutateMock, setSettingValueMock, swrData } = vi.hoisted(() => ({
-  mutateMock: vi.fn(),
-  setSettingValueMock: vi.fn(),
-  // Per SWR key: the page loads the status, the latest dispatch and, for
-  // the SFTP way, whether the counterpart is ready.
-  swrData: {} as Record<string, { data?: unknown; error?: unknown }>,
-}));
+const { mutateMock, setSettingValueMock, swrData, swrKeys, tenantSlug } =
+  vi.hoisted(() => ({
+    mutateMock: vi.fn(),
+    setSettingValueMock: vi.fn(),
+    // Per SWR key: the page loads the status, the latest dispatch and, for
+    // the SFTP way, whether the counterpart is ready.
+    swrData: {} as Record<string, { data?: unknown; error?: unknown }>,
+    swrKeys: [] as Array<string | null>,
+    tenantSlug: { current: "test-tenant" },
+  }));
 
 function payrollStatus(dispatch: Record<string, unknown> = {}) {
   return {
@@ -51,11 +54,23 @@ function payrollStatus(dispatch: Record<string, unknown> = {}) {
 }
 
 vi.mock("swr", () => ({
-  default: (key: string | null) => ({
-    data: key ? swrData[key]?.data : undefined,
-    error: key ? swrData[key]?.error : undefined,
-    mutate: mutateMock,
-  }),
+  default: (key: string | null) => {
+    swrKeys.push(key);
+    const unscopedKey = key?.replace(`${tenantSlug.current}:`, "") ?? null;
+    return {
+      data: key
+        ? (swrData[key] ?? swrData[unscopedKey ?? key])?.data
+        : undefined,
+      error: key
+        ? (swrData[key] ?? swrData[unscopedKey ?? key])?.error
+        : undefined,
+      mutate: mutateMock,
+    };
+  },
+}));
+
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => tenantSlug.current,
 }));
 
 vi.mock("~/lib/hooks/use-require-permission", () => ({
@@ -90,6 +105,8 @@ function deferred<T>() {
 describe("PayrollPage autosave", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    swrKeys.length = 0;
+    tenantSlug.current = "test-tenant";
     mutateMock.mockResolvedValue(undefined);
     resetSwr();
   });
@@ -178,6 +195,8 @@ describe("PayrollPage autosave", () => {
 describe("PayrollPage Versand an das Lohnbüro (#4805)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    swrKeys.length = 0;
+    tenantSlug.current = "test-tenant";
     mutateMock.mockResolvedValue(undefined);
     // Like the backend: a saved Lohnbüro value comes back with the next load.
     setSettingValueMock.mockImplementation((key: string, value: unknown) => {
@@ -191,6 +210,14 @@ describe("PayrollPage Versand an das Lohnbüro (#4805)", () => {
       return Promise.resolve(undefined);
     });
     resetSwr();
+  });
+
+  it("scopes payroll reads to the current school", () => {
+    render(<PayrollPage />);
+
+    expect(swrKeys).toContain("test-tenant:payroll-status");
+    expect(swrKeys).toContain("test-tenant:payroll-dispatch");
+    expect(swrKeys).toContain("test-tenant:payroll-sftp-status");
   });
 
   it("saves the switch as a boolean", async () => {

@@ -75,14 +75,18 @@ func newTestService(resolver fakeResolver, uploader *fakeUploader, journal *fake
 }
 
 type fakeJournal struct {
-	entries []domain.JournalEntry
-	err     error
+	entries     []domain.JournalEntry
+	err         error
+	completeErr error
 }
 
 func (f *fakeJournal) Begin(context.Context, domain.JournalEntry) (int64, error) { return 1, f.err }
 func (f *fakeJournal) Claim(context.Context, int64) (string, error)              { return "one-shot-fence", nil }
 func (f *fakeJournal) Complete(_ context.Context, _ int64, _ string, entry domain.JournalEntry) error {
 	f.entries = append(f.entries, entry)
+	if f.completeErr != nil {
+		return f.completeErr
+	}
 	return f.err
 }
 func (f *fakeJournal) Record(_ context.Context, entry domain.JournalEntry) error {
@@ -162,6 +166,23 @@ func TestTransfer_FailureIsRecordedAsFailureWithItsReason(t *testing.T) {
 	require.Len(t, journal.entries, 1)
 	assert.False(t, journal.entries[0].Success)
 	assert.Equal(t, domain.ReasonHostKey, journal.entries[0].Reason)
+}
+
+func TestTransfer_UnsettledAttemptIsNotAnOrdinaryUnavailableTransfer(t *testing.T) {
+	t.Parallel()
+
+	completeErr := errors.New("journal outcome unavailable")
+	journal := &fakeJournal{completeErr: completeErr}
+	uploader := &fakeUploader{}
+	service := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
+
+	_, err := service.Transfer(context.Background(), testRequest())
+	require.ErrorIs(t, err, completeErr)
+	assert.ErrorIs(t, err, exporttransfer.ErrUnknownSettlement)
+	assert.NotErrorIs(t, err, ErrUnavailable,
+		"the recovery worker, not a caller retry, must settle an attempt whose remote outcome may be unknown")
+	assert.Equal(t, 1, uploader.calls)
+	assert.Equal(t, 1, uploader.pending.commits)
 }
 
 // An unrecognized transport error must not be presented as a known, harmless

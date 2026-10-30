@@ -38,6 +38,9 @@ type PayrollTransferRequest struct {
 // PayrollTransferOutcome is the result of one SFTP attempt.
 type PayrollTransferOutcome struct {
 	Transferred bool
+	// Uncertain means the remote operation may have succeeded, but its journal
+	// settlement did not persist. It must never be retried automatically.
+	Uncertain bool
 	// NotConfigured: the counterpart is off or incomplete; nothing was sent
 	// and nothing was journaled.
 	NotConfigured bool

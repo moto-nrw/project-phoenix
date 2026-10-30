@@ -6155,13 +6155,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (t payrollTransfer) Transfer(ctx context.Context, request workforce.PayrollTransferRequest) (workforce.PayrollTransferOutcome, error) {\n\toutcome, err := t.module.Transfer(ctx, exporttransfer.Request{Kind: exporttransfer.KindStaffTimeTracking, Format: request.Format, Period: request.Period, PrepareFile: request.Prepare, ActorAccountID: request.ActorAccountID, ActorName: request.ActorName})\n\tif err != nil {\n\t\treturn workforce.PayrollTransferOutcome{}, err\n\t}\n\treturn workforce.PayrollTransferOutcome{Transferred: outcome.Transferred, NotConfigured: outcome.Reason == exporttransfer.ReasonNotConfigured, Reason: outcome.Reason}, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/payrollTransfer.Transfer",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (s pendingApplicantSource) PendingAnnouncementApplicants(ctx context.Context) ([]recordports.PendingAnnouncementApplicant, error) {\n\trows, err := s.enrollment.PendingAnnouncementApplicants(ctx)\n\treturn pendingApplicants(rows), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/pendingApplicantSource.PendingAnnouncementApplicants",

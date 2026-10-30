@@ -2762,7 +2762,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTransfer.Transfer",
-      "binding_digest": "2cb35446aa2de2454194df7b05bb686c",
+      "binding_digest": "2ad85c111363420d7674bdd7e97384c8",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollTransfer.Transfer",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.Capability.Transfer",

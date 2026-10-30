@@ -17,6 +17,12 @@ import (
 	"errors"
 )
 
+// ErrUnknownSettlement marks an attempt whose remote outcome may have been
+// decided, but whose journal outcome could not be persisted. The recovery
+// worker terminalizes its already committed fence without retrying the remote
+// operation.
+var ErrUnknownSettlement = errors.New("export transfer settlement is unknown")
+
 // Export kinds. One value per export surface that may be transferred, so the
 // journal says WHICH export left the school, not just that a file did.
 const (

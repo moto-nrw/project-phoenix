@@ -4397,11 +4397,6 @@
     },
     {
       "decision": "0090",
-      "id": "roots/owners/payrollTransfer.Transfer",
-      "reason": "Root translation of Workforce's SFTP port onto Export Transfer (#4805): sets the export kind and maps the outcome, including not_configured, onto the dispatch's vocabulary; no forwarding without translation."
-    },
-    {
-      "decision": "0090",
       "id": "roots/owners/pendingApplicantSource.PendingAnnouncementApplicants",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

@@ -102,6 +102,9 @@ func (t payrollTransfer) Transfer(ctx context.Context, request workforce.Payroll
 		PrepareFile: request.Prepare, ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
 	})
 	if err != nil {
+		if errors.Is(err, exporttransfer.ErrUnknownSettlement) {
+			return workforce.PayrollTransferOutcome{Uncertain: true}, nil
+		}
 		return workforce.PayrollTransferOutcome{}, err
 	}
 	return workforce.PayrollTransferOutcome{

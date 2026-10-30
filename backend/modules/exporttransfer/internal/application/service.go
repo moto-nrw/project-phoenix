@@ -103,7 +103,7 @@ func (s *Service) Transfer(ctx context.Context, request exporttransfer.Request) 
 	if err := s.runtime.WithinTenant(finalizeCtx, func(txCtx context.Context) error {
 		return s.journal.Complete(txCtx, id, token, entry)
 	}); err != nil {
-		return exporttransfer.Outcome{}, fmt.Errorf("%w: record outcome: %w", ErrUnavailable, err)
+		return exporttransfer.Outcome{}, fmt.Errorf("%w: record outcome: %w", exporttransfer.ErrUnknownSettlement, err)
 	}
 	return result, nil
 }

@@ -434,6 +434,25 @@ func TestPayrollDispatch_SecondAttemptSucceeds(t *testing.T) {
 	assert.Empty(t, h.mail.problems)
 }
 
+func TestPayrollDispatch_UncertainSFTPResultDoesNotRetry(t *testing.T) {
+	t.Parallel()
+
+	h := newPayrollHarness(t, sftpConfig("csv"))
+	h.transfer.outcomes = []workforce.PayrollTransferOutcome{{Uncertain: true}, {Transferred: true}}
+	h.close(t)
+
+	assert.Equal(t, 1, h.run(t))
+	row := h.store.rows[0]
+	assert.Equal(t, workforce.PayrollDispatchFailed, row.State)
+	assert.Equal(t, 1, row.Attempts)
+	assert.Equal(t, workforce.PayrollReasonInternal, row.Reason)
+	require.Len(t, h.mail.problems, 1)
+
+	*h.now = row.NextAttemptAt.Add(24 * time.Hour)
+	assert.Zero(t, h.run(t), "an unknown remote outcome must never trigger a second upload")
+	assert.Len(t, h.transfer.sent, 1)
+}
+
 func emailConfig(address string) workforce.PayrollDispatchConfig {
 	return workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelEmail, Format: "csv", Email: address}
 }

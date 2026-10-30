@@ -325,6 +325,8 @@ func (s *PayrollDispatch) sendSFTP(ctx context.Context, claim domain.PayrollDisp
 		return s.block(ctx, claim, blocked)
 	case outcome.NotConfigured:
 		return s.block(ctx, claim, workforce.PayrollReasonSFTPNotConfigured)
+	case outcome.Uncertain:
+		return s.failUncertainAttempt(ctx, claim)
 	case outcome.Transferred:
 		claim.Attempts++
 		claim.State, claim.Reason, claim.FinishedAt = workforce.PayrollDispatchSent, "", &now
@@ -336,6 +338,18 @@ func (s *PayrollDispatch) sendSFTP(ctx context.Context, claim domain.PayrollDisp
 		}
 		return s.failAttempt(ctx, claim, reason)
 	}
+}
+
+// failUncertainAttempt ends an SFTP dispatch after one attempt when Export
+// Transfer cannot persist whether the remote upload finished. Its recovery
+// fence settles the journal separately; retrying here could send the same
+// payroll file twice.
+func (s *PayrollDispatch) failUncertainAttempt(ctx context.Context, claim domain.PayrollDispatch) (bool, error) {
+	claim.Attempts++
+	claim.Reason = workforce.PayrollReasonInternal
+	now := s.deps.Now()
+	claim.State, claim.FinishedAt = workforce.PayrollDispatchFailed, &now
+	return s.finish(ctx, claim, true)
 }
 
 // errPayrollBlockedWhileBuilding rolls the transfer's intent back when the

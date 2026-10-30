@@ -34,6 +34,7 @@ import { errorStatus } from "~/lib/expected-failure";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
+import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
   duplicateLohnartNumbers,
   fetchPayrollDispatch,
@@ -84,12 +85,16 @@ export default function PayrollPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
     "config:manage",
   ]);
+  const tenantSlug = useTenantSlugSafe();
 
   const {
     data: status,
     error,
     mutate,
-  } = useSWR(isReady ? "payroll-status" : null, fetchPayrollStatus);
+  } = useSWR(
+    isReady && tenantSlug ? `${tenantSlug}:payroll-status` : null,
+    fetchPayrollStatus,
+  );
 
   const loadError = useSwrLoadError(
     error,
@@ -103,7 +108,10 @@ export default function PayrollPage() {
     data: latestDispatch,
     error: dispatchError,
     mutate: mutateDispatch,
-  } = useSWR(isReady ? "payroll-dispatch" : null, fetchPayrollDispatch);
+  } = useSWR(
+    isReady && tenantSlug ? `${tenantSlug}:payroll-dispatch` : null,
+    fetchPayrollDispatch,
+  );
   const dispatchLoadError = useSwrLoadError(
     dispatchError,
     "die Übersicht zum letzten Versand",
@@ -114,8 +122,8 @@ export default function PayrollPage() {
   // das Recht oder scheitert die Abfrage, entfällt nur der Hinweis: Der
   // Versand meldet eine fehlende Gegenstelle ohnehin selbst.
   const { data: sftpStatus } = useSWR(
-    isReady && status?.dispatch.channel === "sftp"
-      ? "payroll-sftp-status"
+    isReady && tenantSlug && status?.dispatch.channel === "sftp"
+      ? `${tenantSlug}:payroll-sftp-status`
       : null,
     fetchSFTPStatus,
     {
@@ -530,9 +538,7 @@ function LohnbueroCard({
         } Sie steht in den Einstellungen unter Kalender und Export bei Zeitkonten übertragen. Bis dahin sendet moto nichts.`
       : "";
   const emailMissing =
-    current.auto &&
-    current.channel === "email" &&
-    status.dispatch.email === "";
+    current.auto && current.channel === "email" && status.dispatch.email === "";
 
   return (
     <SectionCard
@@ -613,8 +619,8 @@ function LohnbueroCard({
           </div>
         ) : (
           <p className="text-xs text-gray-500">
-            moto legt die Datei auf der Gegenstelle ab, die in den
-            Einstellungen bei Zeitkonten übertragen steht.
+            moto legt die Datei auf der Gegenstelle ab, die in den Einstellungen
+            bei Zeitkonten übertragen steht.
           </p>
         )}
 
