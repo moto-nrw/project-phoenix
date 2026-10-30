@@ -35,6 +35,9 @@ const (
 	ReasonUpload        = "upload_failed"
 	ReasonTooLarge      = "file_too_large"
 	ReasonInternal      = "internal_error"
+	// ReasonMailFailed: the mail with the download link was not accepted
+	// after the delivery retries (#4805).
+	ReasonMailFailed = "mail_failed"
 )
 
 // ErrTransferUnavailable marks a transfer that could not even be attempted
@@ -47,6 +50,9 @@ type Request struct {
 	// Kind and Format describe the export for the journal.
 	Kind   string
 	Format string
+	// Period names the exported month as YYYY-MM, empty when the export
+	// has none (#4805).
+	Period string
 	// Filename and Data are the finished export, byte for byte as the
 	// download serves it.
 	Filename string
@@ -99,10 +105,31 @@ type Status struct {
 	MissingSettings []string `json:"missing_settings,omitempty"`
 }
 
+// EmailRecord is one settled e-mail send of an export (#4805). The mail
+// carries a download link, never the file; the producing domain delivers it
+// and records the result here, so the one transfer journal lists every send.
+type EmailRecord struct {
+	Kind      string
+	Format    string
+	Period    string
+	Filename  string
+	ByteSize  int64
+	Recipient string
+	// Delivered says whether the mail server accepted the mail. A failed
+	// send names ReasonMailFailed.
+	Delivered      bool
+	Reason         string
+	ActorAccountID int64
+	ActorName      string
+}
+
 // Capability is the Export Transfer capability compose.New returns.
 type Capability interface {
 	// Transfer sends the export and records the attempt.
 	Transfer(context.Context, Request) (Outcome, error)
 	// Status reports whether a transfer can be offered, and to where.
 	Status(context.Context) (Status, error)
+	// RecordEmail writes a settled e-mail send into the journal, in the
+	// caller's tenant transaction.
+	RecordEmail(context.Context, EmailRecord) error
 }

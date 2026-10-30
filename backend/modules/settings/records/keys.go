@@ -661,6 +661,28 @@ const (
 	PayrollUnitDays  = "tage"
 )
 
+// Export ans Lohnbüro (#4805): the automatic send of the month file after the
+// Monatsabschluss. Definitions live in defaults/payroll.go next to the
+// payroll identity; the /payroll page edits them.
+const (
+	KeyPayrollDispatchAuto    = "payroll.dispatch_auto"
+	KeyPayrollDispatchChannel = "payroll.dispatch_channel"
+	KeyPayrollDispatchFormat  = "payroll.dispatch_format"
+	KeyPayrollDispatchEmail   = "payroll.dispatch_email"
+)
+
+// Payroll dispatch channel and format select values. The format values are
+// the export formats of the time-tracking export.
+const (
+	PayrollDispatchChannelSFTP  = "sftp"
+	PayrollDispatchChannelEmail = "email"
+
+	PayrollDispatchFormatCSV        = "csv"
+	PayrollDispatchFormatXLSX       = "xlsx"
+	PayrollDispatchFormatDatevLodas = "datev_lodas"
+	PayrollDispatchFormatDatevLug   = "datev_lug"
+)
+
 // SFTP target for the manual transfer of Zeitwirtschafts-/DATEV exports
 // (#3050). Exactly ONE target per school; the file transferred is the
 // unchanged export file the download produces.
