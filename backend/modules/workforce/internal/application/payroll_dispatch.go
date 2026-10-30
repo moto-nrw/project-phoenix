@@ -380,7 +380,7 @@ func (s *PayrollDispatch) datevCheck(ctx context.Context, claim domain.PayrollDi
 // enqueues the link mail, all in one transaction with the claim's outcome.
 // Delivery retries the mail; settleMail reads its result.
 func (s *PayrollDispatch) sendLink(ctx context.Context, claim domain.PayrollDispatch) (bool, error) {
-	done := false
+	done, notice := false, false
 	err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
 		file, blocked, err := s.buildFile(txCtx, claim)
 		if err != nil {
@@ -389,8 +389,8 @@ func (s *PayrollDispatch) sendLink(ctx context.Context, claim domain.PayrollDisp
 		now := s.deps.Now()
 		if blocked != "" {
 			claim.State, claim.Reason, claim.FinishedAt = workforce.PayrollDispatchBlocked, blocked, &now
-			done = true
-			return s.finishInTx(txCtx, claim, true)
+			done, notice = true, true
+			return s.finishInTx(txCtx, claim)
 		}
 		tenantID, err := s.deps.Runtime.TenantID(txCtx)
 		if err != nil {
@@ -414,8 +414,11 @@ func (s *PayrollDispatch) sendLink(ctx context.Context, claim domain.PayrollDisp
 		claim.Filename, claim.ContentType, claim.FileData, claim.ByteSize = file.Filename, file.ContentType, file.Data, int64(len(file.Data))
 		claim.DownloadTokenHash, claim.DownloadExpiresAt, claim.MailOutboxID = fingerprint, &expires, &outboxID
 		claim.NextAttemptAt = now.Add(payrollMailPollInterval)
-		return s.finishInTx(txCtx, claim, false)
+		return s.finishInTx(txCtx, claim)
 	})
+	if err == nil && notice {
+		s.notifyAfterFinish(ctx, claim)
+	}
 	return done, err
 }
 
@@ -426,7 +429,7 @@ func (s *PayrollDispatch) settleMail(ctx context.Context, claim domain.PayrollDi
 	if claim.MailOutboxID == nil {
 		return false, errors.New("payroll dispatch: a mailed dispatch without its mail")
 	}
-	done := false
+	done, notice := false, false
 	err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
 		state, err := s.deps.Mail.State(txCtx, *claim.MailOutboxID)
 		if err != nil {
@@ -438,9 +441,10 @@ func (s *PayrollDispatch) settleMail(ctx context.Context, claim domain.PayrollDi
 			claim.State, claim.FinishedAt = workforce.PayrollDispatchSent, &now
 		case workforce.PayrollMailFailed:
 			claim.State, claim.Reason, claim.FinishedAt, claim.FileData = workforce.PayrollDispatchFailed, workforce.PayrollReasonMailFailed, &now, nil
+			notice = true
 		default:
 			claim.NextAttemptAt = now.Add(payrollMailPollInterval)
-			return s.finishInTx(txCtx, claim, false)
+			return s.finishInTx(txCtx, claim)
 		}
 		done = true
 		if err := s.deps.Transfer.RecordEmail(txCtx, workforce.PayrollEmailResult{
@@ -450,8 +454,11 @@ func (s *PayrollDispatch) settleMail(ctx context.Context, claim domain.PayrollDi
 		}); err != nil {
 			return fmt.Errorf("journal the e-mail send: %w", err)
 		}
-		return s.finishInTx(txCtx, claim, state == workforce.PayrollMailFailed)
+		return s.finishInTx(txCtx, claim)
 	})
+	if err == nil && notice {
+		s.notifyAfterFinish(ctx, claim)
+	}
 	return done, err
 }
 
@@ -477,16 +484,24 @@ func (s *PayrollDispatch) block(ctx context.Context, claim domain.PayrollDispatc
 	return s.finish(ctx, claim, true)
 }
 
-// finish writes the pass outcome in a fresh transaction; with notice the
-// managers' notice commits with it.
+// finish commits a pass outcome before attempting its manager notice. A
+// notice failure cannot reopen a terminal dispatch, particularly after an
+// SFTP transfer whose remote result may be unknown.
 func (s *PayrollDispatch) finish(ctx context.Context, claim domain.PayrollDispatch, notice bool) (bool, error) {
 	err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
-		return s.finishInTx(txCtx, claim, notice)
+		return s.finishInTx(txCtx, claim)
 	})
-	return err == nil && claim.FinishedAt != nil, err
+	if err != nil {
+		return false, err
+	}
+	finished := claim.FinishedAt != nil
+	if notice && finished {
+		s.notifyAfterFinish(ctx, claim)
+	}
+	return finished, nil
 }
 
-func (s *PayrollDispatch) finishInTx(ctx context.Context, claim domain.PayrollDispatch, notice bool) error {
+func (s *PayrollDispatch) finishInTx(ctx context.Context, claim domain.PayrollDispatch) error {
 	kept, err := s.deps.Store.FinishPayrollDispatch(ctx, claim, s.deps.Now())
 	if err != nil {
 		return fmt.Errorf("payroll dispatch: record the outcome: %w", err)
@@ -494,10 +509,21 @@ func (s *PayrollDispatch) finishInTx(ctx context.Context, claim domain.PayrollDi
 	if !kept {
 		return errors.New("payroll dispatch: the lease expired before the outcome was recorded")
 	}
-	if notice {
-		return s.notify(ctx, claim)
-	}
 	return nil
+}
+
+// notifyAfterFinish attempts to write the durable notice in a separate
+// transaction. The terminal dispatch stays fenced if Delivery is unavailable;
+// its visible state remains the recovery path for the leadership.
+func (s *PayrollDispatch) notifyAfterFinish(ctx context.Context, claim domain.PayrollDispatch) {
+	if err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
+		return s.notify(txCtx, claim)
+	}); err != nil {
+		s.deps.Logger.Error("payroll dispatch notice failed after outcome was recorded",
+			"dispatch_id", claim.ID,
+			"error", err.Error(),
+		)
+	}
 }
 
 func (s *PayrollDispatch) notify(ctx context.Context, dispatch domain.PayrollDispatch) error {

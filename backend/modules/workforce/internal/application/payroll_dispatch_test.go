@@ -188,9 +188,13 @@ type fakePayrollMail struct {
 	links    []workforce.PayrollMailMessage
 	state    string
 	problems []workforce.PayrollMailMessage
+	err      error
 }
 
 func (f *fakePayrollMail) Enqueue(_ context.Context, message workforce.PayrollMailMessage) (int64, error) {
+	if f.err != nil {
+		return 0, f.err
+	}
 	if message.Type == PayrollLinkMailType {
 		f.links = append(f.links, message)
 	} else {
@@ -466,6 +470,27 @@ func TestPayrollDispatch_UncertainSFTPResultDoesNotRetry(t *testing.T) {
 	assert.Len(t, h.transfer.sent, 1)
 }
 
+func TestPayrollDispatch_NoticeFailureDoesNotRetryAnUncertainSFTPResult(t *testing.T) {
+	t.Parallel()
+
+	h := newPayrollHarness(t, sftpConfig("csv"))
+	h.transfer.outcomes = []workforce.PayrollTransferOutcome{{Uncertain: true}, {Transferred: true}}
+	h.mail.err = errors.New("delivery unavailable")
+	h.close(t)
+
+	finished, err := h.service.RunDue(context.Background())
+	require.NoError(t, err, "a notice failure must not turn a terminal dispatch into a retry")
+	assert.Equal(t, 1, finished)
+	row := h.store.rows[0]
+	assert.Equal(t, workforce.PayrollDispatchFailed, row.State)
+	assert.Equal(t, 1, row.Attempts)
+	assert.Len(t, h.transfer.sent, 1)
+
+	*h.now = row.NextAttemptAt.Add(24 * time.Hour)
+	assert.Zero(t, h.run(t))
+	assert.Len(t, h.transfer.sent, 1, "an uncertain remote upload must never be repeated after its notice fails")
+}
+
 func emailConfig(address string) workforce.PayrollDispatchConfig {
 	return workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelEmail, Format: "csv", Email: address}
 }
@@ -529,6 +554,27 @@ func TestPayrollDispatch_FailedLinkMailIsJournaledAndNotified(t *testing.T) {
 	require.Len(t, h.transfer.emails, 1)
 	assert.False(t, h.transfer.emails[0].Delivered)
 	require.Len(t, h.mail.problems, 1)
+}
+
+func TestPayrollDispatch_NoticeFailureDoesNotRetryAFailedLinkMail(t *testing.T) {
+	t.Parallel()
+
+	h := newPayrollHarness(t, emailConfig("lohn@steuerbuero-beispiel.de"))
+	h.close(t)
+	assert.Zero(t, h.run(t))
+	h.mail.state = workforce.PayrollMailFailed
+	h.mail.err = errors.New("delivery unavailable")
+	*h.now = h.store.rows[0].NextAttemptAt
+
+	finished, err := h.service.RunDue(context.Background())
+	require.NoError(t, err, "a notice failure must not repeat a terminal mail result")
+	assert.Equal(t, 1, finished)
+	assert.Equal(t, workforce.PayrollDispatchFailed, h.store.rows[0].State)
+	require.Len(t, h.transfer.emails, 1)
+
+	*h.now = h.store.rows[0].NextAttemptAt.Add(24 * time.Hour)
+	assert.Zero(t, h.run(t))
+	assert.Len(t, h.transfer.emails, 1, "the failed link mail must be journaled once")
 }
 
 func TestPayrollDispatch_MissingAddressIsBlockedAtTheClose(t *testing.T) {
