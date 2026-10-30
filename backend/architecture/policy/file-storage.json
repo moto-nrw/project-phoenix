@@ -1,0 +1,220 @@
+{
+  "packages": [
+    {
+      "path": "modules/filestorage/internal/adapters/documents",
+      "owner": "file-storage",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage",
+      "owner": "file-storage",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/compose",
+      "owner": "file-storage",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/internal/application",
+      "owner": "file-storage",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/internal/domain",
+      "owner": "file-storage",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/internal/ports",
+      "owner": "file-storage",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/internal/adapters/postgres",
+      "owner": "file-storage",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/filestorage/http/files",
+      "owner": "file-storage",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "documents.announcement_attachment_cleanup",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.announcement_attachments",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.files",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.file_cleanup",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.folder_accounts",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.folder_roles",
+      "write_owner": "file-storage"
+    },
+    {
+      "name": "documents.folders",
+      "write_owner": "file-storage"
+    }
+  ],
+  "rules": [
+    {
+      "id": "file-storage.port-domain",
+      "description": "File Storage ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "file-storage.compose.orm-sql",
+      "description": "File Storage composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "file-storage.compose.tenant-runtime",
+      "description": "File Storage composition resolves the ambient tenant transaction, advisory locks and after-commit hooks through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "file-storage.http.to.file-storage",
+      "description": "inbound-filestore calls exactly one public capability (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "http",
+      "target_owner": "file-storage",
+      "target_role": "public"
+    },
+    {
+      "id": "file-storage.http.http-common.tenant-runtime-common",
+      "description": "File handlers reuse common HTTP rendering, the tenant and parent route groups, the permission gates and the multipart document validation (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "file-storage.http.security-contract",
+      "description": "File handlers name the files:manage and admin permissions (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "file-storage.http.identity-adapter",
+      "description": "File handlers read the acting account and its permissions from the JWT claims (#2707).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "file-storage.http.adapter-test.tenant-runtime.common",
+      "description": "File route tests decode the string ids and resolve the uploads directory through the common HTTP helpers (#2707).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "adapter-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "file-storage.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "postgres",
+      "source_package": "modules/filestorage/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "file-storage.application.compose-extraction.identity-access.identityaccess",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "application",
+      "source_package": "modules/filestorage/internal/application",
+      "target_owner": "identity-access",
+      "target_role": "public",
+      "target_package": "modules/identityaccess"
+    },
+    {
+      "id": "file-storage.application.compose-extraction.people-directory.peopledirectory",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "file-storage",
+      "source_role": "application",
+      "source_package": "modules/filestorage/internal/application",
+      "target_owner": "people-directory",
+      "target_role": "public",
+      "target_package": "modules/peopledirectory"
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 # Läuft nur die Tests, die von den Änderungen gegenüber BASE betroffen sind.
 # Backend: geänderte Go-Packages PLUS alle Packages, deren Produktions- oder
 #   Test-Abhängigkeiten sie transitiv importieren.
-# Frontend: vitest --changed (derselbe Modus, den CI für PRs benutzt).
+# Frontend: Dateisystem-Guards plus vitest --changed (wie im PR-Check).
 #
 # Usage: scripts/test-changed.sh [--fast] [base-ref]   (Default: origin/development)
 #   --fast: nur direkt geänderte Packages plus ihre direkten Importer
@@ -20,8 +20,6 @@ if [ "${1:-}" = --fast ]; then
   shift
 fi
 BASE=${1:-origin/development}
-# Merge-Base statt Drei-Punkt-Diff, damit auch uncommittete Änderungen zählen.
-MB=$(git merge-base HEAD "$BASE")
 
 affected=()
 if [ "$FAST" = true ]; then
@@ -87,32 +85,14 @@ else
   echo "==> backend: keine Go-Änderungen"
 fi
 
-frontend_changes=$(
-  {
-    git diff --name-only "$MB" -- frontend
-    git ls-files --others --exclude-standard -- frontend
-  } | awk '!/\.md$/' | sort -u
-)
-run_frontend_vitest() {
+# One fail-closed policy owns local and CI selection, including untracked files.
+frontend_mode=$(node scripts/test-frontend-changed.mjs --mode "$BASE")
+if [ "$frontend_mode" != none ]; then
   (
     cd frontend
-    # The changed-test command is unattended. CI mode lets pnpm recreate a
-    # stale generated modules directory from the frozen lockfile.
     CI=true pnpm install --frozen-lockfile
-    pnpm vitest run "$@"
+    node ../scripts/test-frontend-changed.mjs "$BASE"
   )
-}
-
-if printf '%s\n' "$frontend_changes" | grep -qxE \
-  'frontend/(package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|vitest\.config\.ts|src/test/setup(-common)?\.ts)'; then
-  echo "==> vitest (frontend test infrastructure changed)"
-  run_frontend_vitest
-elif [ -n "$frontend_changes" ]; then
-  # Vitest 4 includes committed, staged, unstaged, and untracked files in its
-  # dependency traversal. A separate full-suite fallback only duplicates work
-  # for new test files.
-  echo "==> vitest --changed $BASE"
-  run_frontend_vitest --changed "$BASE"
 else
   echo "==> frontend: keine Änderungen"
 fi

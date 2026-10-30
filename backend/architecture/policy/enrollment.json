@@ -1,0 +1,481 @@
+{
+  "packages": [
+    {
+      "path": "modules/enrollment/enrollmenttest",
+      "owner": "enrollment",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/integration",
+      "owner": "enrollment",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment",
+      "owner": "enrollment",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/compose",
+      "owner": "enrollment",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/internal/application",
+      "owner": "enrollment",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/internal/adapters/turnstile",
+      "owner": "enrollment",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/enrollment/internal/adapters/postgres",
+      "owner": "enrollment",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/enrollment/http",
+      "owner": "enrollment",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/enrollment/offeringcontract",
+      "owner": "enrollment",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    { "name": "enrollment.holiday_form_documents", "write_owner": "enrollment" },
+    {
+      "name": "enrollment.change_request_messages",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.change_requests",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.form_schemas",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_guest_contacts",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_guests",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_host_groups",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_period_weeks",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_periods",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_audit",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_deletions",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_bookings",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_children",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_contacts",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_proofs",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_rate_limits",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registrations",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_week_time_models",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.late_invites",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.phases",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_child_offering_selections",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_child_offerings",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_children",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_guardians",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_reads",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_upload_cleanup",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.request_uploads",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.requests",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.submission_rate_limits",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_period_forms",
+      "write_owner": "enrollment"
+    }
+  ],
+  "rules": [
+    {
+      "id": "enrollment.module-internal-test.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-internal-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.application.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.application.student-enrollment",
+      "description": "Enrollment decisions consume only the new student enrollment command contract (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.integration-test.enrollment.postgres",
+      "description": "Enrollment rollback tests inject failures around real owner writes while exercising the public command.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "postgres"
+    },
+    {
+      "id": "enrollment.integration-test.tenant-runtime.public",
+      "description": "Enrollment integration tests exercise the facade with real tenant transactions.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.integration-test.test-support.test-support",
+      "description": "Enrollment integration tests exercise the facade with real tenant transactions.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "enrollment.compose.to.tenant-runtime.public",
+      "description": "enrollment compose uses the Enrollment cutover's tenant-runtime public boundary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.compose.orm-sql",
+      "description": "Enrollment composition resolves the ambient Bun transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "enrollment.http.public",
+      "description": "The enrollment routes drive the Enrollment owner through its public capability (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.http.tenant-runtime.common",
+      "description": "The enrollment routes reuse the shared HTTP runtime of api/common: the tenant route group, the permission gates, request parsing, response rendering and the shared error codes, like the other owners' HTTP adapters (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "enrollment.http.identity-adapter",
+      "description": "The enrollment routes read the authenticated claims from the session token adapter (ADR 0031, #2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http.security-contract",
+      "description": "The enrollment routes gate on the permission registry (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.http.tenant-runtime",
+      "description": "The enrollment routes run their steps in the tenant and administrative transactions of the tenant runtime and read the request tenant (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.http.document-rendering-lists",
+      "description": "The phase, student and care-usage exports fill and render the Document Rendering list contract (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "document-rendering",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.http.people-directory-contract",
+      "description": "The change-request routes render the companion refusals of the People Directory departure contract (#2734).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "http",
+      "target_owner": "people-directory",
+      "target_role": "contract"
+    },
+    {
+      "id": "enrollment.http-integration-test.subject",
+      "description": "The enrollment route suites drive the routes they test (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "enrollment",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http-integration-test.identity-adapter",
+      "description": "The enrollment route suites mint the claims the routes read from the session token adapter (ADR 0031, #2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "enrollment.http-integration-test.identity-access-compose",
+      "description": "The enrollment decision suites compose the real Identity & Access capability (#2734).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "enrollment.application.to.identity-access.public",
+      "description": "Enrollment acceptance recognises a parent's platform account and grants it guardian access through the public Identity & Access capability (#2699).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.internal-test.identity-access-public",
+      "description": "Enrollment decision unit tests stub the guardian-access seam with the public Identity & Access values.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "module-internal-test",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.application.school-calendar.public",
+      "description": "Enrollment validates calendar-period links and renders proposed periods through the School Calendar's public contract (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.application.timetable-activities.public",
+      "description": "Enrollment keeps the offering-sourced template rosters in step through the Timetable owner's public roster maintenance, recurrence gate and offering resync contract (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "enrollment.application.offering-contract",
+      "description": "The implementation uses native availability and offering values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "enrollment.public.offering-contract",
+      "description": "Enrollment preserves its existing days-required error identity from the actual native offering contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "public",
+      "source_package": "modules/enrollment",
+      "target_owner": "enrollment",
+      "target_role": "contract",
+      "target_package": "modules/enrollment/offeringcontract"
+    },
+    {
+      "id": "enrollment.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "postgres",
+      "source_package": "modules/enrollment/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "enrollment.application.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "enrollment",
+      "source_role": "application",
+      "source_package": "modules/enrollment/internal/application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    }
+  ]
+}

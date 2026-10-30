@@ -4,6 +4,8 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { LEADERSHIP_AUDIENCE_LABEL } from "~/lib/messaging-status";
 import { TileCard } from "~/components/ui/tile-card";
 import { Button } from "~/components/ui/button";
 import { formErrorMessage } from "~/components/ui/form-error";
@@ -277,6 +279,13 @@ function MessagesInboxContent() {
                     <h3 className="truncate text-base font-semibold text-gray-900">
                       {thread.guardian_name}
                     </h3>
+                    {thread.audience === "leadership" && (
+                      <StatusBadge
+                        tone="blue"
+                        label={LEADERSHIP_AUDIENCE_LABEL}
+                        compact
+                      />
+                    )}
                     <UnreadBadge count={thread.unread_count} />
                     {thread.last_message_at && (
                       <span className="ml-auto flex-shrink-0 pl-1 text-xs whitespace-nowrap text-gray-400">

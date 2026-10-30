@@ -1,0 +1,5 @@
+GET /api/statistics/care-time-overruns -> basis
+GET /api/statistics/care-time-overruns/export -> basis
+GET /api/statistics/export -> basis
+GET /api/statistics/report -> basis
+GET /api/statistics/students/{id}/care-times -> basis

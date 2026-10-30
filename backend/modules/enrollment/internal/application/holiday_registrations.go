@@ -59,11 +59,17 @@ type HolidayRegistrationStore interface {
 type HolidayRegistrationDependencies struct {
 	Registrations HolidayRegistrationStore
 	Periods       HolidayPeriodStore
+	Forms         HolidayFormStore
+	Proofs        HolidayProofStore
 	Traeger       enrollment.HolidayTraegerDirectory
 	Mail          enrollment.TraegerMailOutbox
 	// Today is the calendar day the registration window is checked against.
-	Today  func() calendar.Date
-	Logger *slog.Logger
+	Today func() calendar.Date
+	// Random fills the token of an uploaded proof and Fingerprint names it
+	// in the store (#5238); without them no proof is uploaded.
+	Random      func([]byte) error
+	Fingerprint func([]byte) string
+	Logger      *slog.Logger
 }
 
 // HolidayRegistrations serves enrollment.HolidayRegistrations.
@@ -75,8 +81,8 @@ var _ enrollment.HolidayRegistrations = (*HolidayRegistrations)(nil)
 
 // NewHolidayRegistrations builds the public registration over deps.
 func NewHolidayRegistrations(deps HolidayRegistrationDependencies) *HolidayRegistrations {
-	if deps.Registrations == nil || deps.Periods == nil || deps.Traeger == nil || deps.Mail == nil {
-		panic("enrollment: the holiday registration store, periods, Träger directory and mail outbox are required")
+	if deps.Registrations == nil || deps.Periods == nil || deps.Forms == nil || deps.Proofs == nil || deps.Traeger == nil || deps.Mail == nil {
+		panic("enrollment: the holiday registration store, periods, forms, proofs, Träger directory and mail outbox are required")
 	}
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
@@ -117,11 +123,15 @@ func (h *HolidayRegistrations) HolidayRegistrationOffer(ctx context.Context, lin
 	if err != nil {
 		return enrollment.HolidayRegistrationOffer{}, err
 	}
+	form, err := foundHolidayForm(link.PeriodID)(h.deps.Forms.CurrentHolidayPeriodForm(ctx, link.OrganizationID, link.PeriodID))
+	if err != nil {
+		return enrollment.HolidayRegistrationOffer{}, err
+	}
 	today := h.deps.Today()
 	return enrollment.HolidayRegistrationOffer{
 		Name: period.Name, RegistrationOpensOn: period.RegistrationOpensOn, RegistrationClosesOn: period.RegistrationClosesOn,
 		Binding: period.Binding, Notes: period.Notes, Weeks: period.Weeks,
-		Open: !today.Before(period.RegistrationOpensOn) && !today.After(period.RegistrationClosesOn),
+		Open: !today.Before(period.RegistrationOpensOn) && !today.After(period.RegistrationClosesOn), Form: form,
 	}, nil
 }
 
@@ -181,7 +191,10 @@ func (h *HolidayRegistrations) CountHolidayRegistrationAttempt(ctx context.Conte
 }
 
 // SubmitHolidayRegistration checks and stores a registration and enqueues
-// its receipt mail in the same Träger transaction.
+// its receipt mail in the same Träger transaction. The answers are checked
+// against the current version of the period's form, and the registration
+// keeps that version. A parent who filled in an older version is told the
+// form changed instead of being refused at fields the page did not show.
 func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, link enrollment.HolidayRegistrationLink, input enrollment.HolidayRegistrationInput) (enrollment.HolidayRegistrationReceipt, error) {
 	period, err := h.publishedPeriod(ctx, link)
 	if err != nil {
@@ -191,16 +204,40 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 	if today.Before(period.RegistrationOpensOn) || today.After(period.RegistrationClosesOn) {
 		return enrollment.HolidayRegistrationReceipt{}, enrollment.ErrHolidayRegistrationClosed
 	}
-	input = normalizeHolidayRegistration(input)
-	if err := validateHolidayRegistration(input, period, link.Traeger.Schools, today); err != nil {
+	form, err := foundHolidayForm(link.PeriodID)(h.deps.Forms.CurrentHolidayPeriodForm(ctx, link.OrganizationID, link.PeriodID))
+	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
-	if !holidayRegistrationHasHealth(input) {
+	// Consent evidence must name its exact form; only legacy submissions
+	// without acknowledgements may default to the current version.
+	if len(input.LegalAcceptances) > 0 && input.FormVersion != form.Version {
+		return enrollment.HolidayRegistrationReceipt{}, enrollment.InvalidInput(enrollment.CodeHolidayRegistrationFormChanged, "form_version", enrollment.ErrHolidayRegistrationFormChanged)
+	}
+	if input.FormVersion != 0 && input.FormVersion != form.Version {
+		return enrollment.HolidayRegistrationReceipt{}, enrollment.ErrHolidayRegistrationFormChanged
+	}
+	input.FormVersion = form.Version
+	if err := validateHolidayLegalAcceptances(form, input.LegalAcceptances); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	input = normalizeHolidayRegistration(input)
+	input.BenefitsProofTokens = normalizeHolidayProofTokens(input.BenefitsProofTokens)
+	answers := sanitizeHolidayAnswers(form, decodeHolidayAnswers(input))
+	if err := validateHolidayRegistration(input, period, form, answers, link.Traeger.Schools, today); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	if !holidayRegistrationHasHealth(input, form, answers) {
 		input.HealthConsent = false
+	}
+	if input, err = withHolidayAnswers(input, answers); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input)
 	if err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, fmt.Errorf("enrollment: store holiday registration: %w", err)
+	}
+	if err := h.claimHolidayProofs(ctx, link, receipt.ID, input.BenefitsProofTokens); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	if err := h.enqueueReceipt(ctx, link, period, input, receipt); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
@@ -283,6 +320,7 @@ func normalizeHolidayRegistration(input enrollment.HolidayRegistrationInput) enr
 		child.HealthNotes = strings.TrimSpace(child.HealthNotes)
 		children[i] = child
 	}
+	input.SecondGuardian = normalizeHolidaySecondGuardian(input.SecondGuardian)
 	input.Children = children
 	input.EmergencyContacts = normalizeHolidayContacts(input.EmergencyContacts)
 	input.PickupPersons = normalizeHolidayContacts(input.PickupPersons)
@@ -300,22 +338,36 @@ func normalizeHolidayContacts(contacts []enrollment.HolidayContactInput) []enrol
 	return out
 }
 
-func holidayRegistrationHasHealth(input enrollment.HolidayRegistrationInput) bool {
+// holidayRegistrationHasHealth reports whether the registration carries
+// health information: a fixed health field of a child or an answer to a
+// question of the form marked as health information.
+func holidayRegistrationHasHealth(input enrollment.HolidayRegistrationInput, form enrollment.HolidayPeriodForm, answers holidayAnswerSet) bool {
 	for _, child := range input.Children {
 		if child.Allergies != "" || child.Medication != "" || child.HealthNotes != "" {
 			return true
 		}
 	}
-	return false
+	return holidayAnswersHaveHealth(form, answers)
 }
 
-// validateHolidayRegistration checks a registration against the period and
-// the Träger's schools. Field keys follow the request body, such as
-// "children.1.bookings".
-func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, period enrollment.HolidayPeriod, schools []enrollment.HolidaySchool, today calendar.Date) error {
+// validateHolidayRegistration checks a registration against the period, the
+// version of its form and the Träger's schools. Field keys follow the
+// request body, such as "children.1.bookings" or
+// "children.0.custom_data.tetanus_impfschutz".
+func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, period enrollment.HolidayPeriod, form enrollment.HolidayPeriodForm, answers holidayAnswerSet, schools []enrollment.HolidaySchool, today calendar.Date) error {
 	errs := validation.Errors{}
 	if guardianErrs := validateHolidayGuardian(input.Guardian); len(guardianErrs) > 0 {
 		errs["guardian"] = guardianErrs
+	}
+	if input.SecondGuardian != nil {
+		if guardianErrs := validateHolidaySecondGuardian(*input.SecondGuardian); len(guardianErrs) > 0 {
+			errs["second_guardian"] = guardianErrs
+		}
+	}
+	byKey := buildFieldsByKey(holidayFormSchema(form))
+	if answerErrs := validateHolidayAnswers(form, false, answers.family,
+		fieldVisibilityContext{guardianAnswers: answers.family, fieldsByKey: byKey}); len(answerErrs) > 0 {
+		errs["custom_data"] = answerErrs
 	}
 	switch {
 	case len(input.Children) == 0:
@@ -323,7 +375,9 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 	case len(input.Children) > enrollment.HolidayRegistrationMaxChildren:
 		errs["children"] = fmt.Errorf("at most %d children", enrollment.HolidayRegistrationMaxChildren)
 	default:
-		if childErrs := validateHolidayChildren(input.Children, period, schools, today); len(childErrs) > 0 {
+		childErrs := validateHolidayChildren(input.Children, period, schools, today)
+		addHolidayChildAnswerErrors(childErrs, form, answers, byKey)
+		if len(childErrs) > 0 {
 			errs["children"] = childErrs
 		}
 	}
@@ -335,18 +389,39 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 	if contactErrs := validateHolidayContacts(input.PickupPersons, enrollment.HolidayRegistrationMaxPickupPersons, false); contactErrs != nil {
 		errs["pickup_persons"] = contactErrs
 	}
-	validateHolidayConsents(input, period, errs)
+	validateHolidayConsents(input, period, form, answers, errs)
+	validateHolidayProofTokens(input, errs)
 	if len(errs) == 0 {
 		return nil
 	}
 	return errs
 }
 
-func validateHolidayConsents(input enrollment.HolidayRegistrationInput, period enrollment.HolidayPeriod, errs validation.Errors) {
+// addHolidayChildAnswerErrors adds the refused answers of each child below
+// its other errors, as "children.<i>.custom_data.<key>".
+func addHolidayChildAnswerErrors(childErrs validation.Errors, form enrollment.HolidayPeriodForm, answers holidayAnswerSet, byKey map[string]*enrollment.FormField) {
+	for i, child := range answers.children {
+		answerErrs := validateHolidayAnswers(form, true, child, fieldVisibilityContext{
+			guardianAnswers: answers.family, childAnswers: child, fieldsByKey: byKey,
+		})
+		if len(answerErrs) == 0 {
+			continue
+		}
+		key := fmt.Sprint(i)
+		nested, _ := childErrs[key].(validation.Errors)
+		if nested == nil {
+			nested = validation.Errors{}
+		}
+		nested["custom_data"] = answerErrs
+		childErrs[key] = nested
+	}
+}
+
+func validateHolidayConsents(input enrollment.HolidayRegistrationInput, period enrollment.HolidayPeriod, form enrollment.HolidayPeriodForm, answers holidayAnswerSet, errs validation.Errors) {
 	if !input.PrivacyConsent {
 		errs["privacy_consent"] = errors.New("the consent to the data processing is required")
 	}
-	if holidayRegistrationHasHealth(input) && !input.HealthConsent {
+	if holidayRegistrationHasHealth(input, form, answers) && !input.HealthConsent {
 		errs["health_consent"] = errors.New("the consent to the health information is required")
 	}
 	if period.Binding && !input.BindingConfirmed {
@@ -482,12 +557,16 @@ type HolidayRegistrationRetentionStore interface {
 	// DeleteExpiredHolidayRegistrationDeletions deletes the rows of the
 	// deletion log older than years.
 	DeleteExpiredHolidayRegistrationDeletions(ctx context.Context, years int) (int, error)
+	// DeleteUnclaimedHolidayProofs deletes the proofs no registration
+	// claimed that were uploaded before createdBefore (#5238).
+	DeleteUnclaimedHolidayProofs(ctx context.Context, createdBefore time.Time) (int, error)
 }
 
 // HolidayRegistrationRetention serves enrollment.HolidayRegistrationRetention.
 type HolidayRegistrationRetention struct {
 	store HolidayRegistrationRetentionStore
 	today func() calendar.Date
+	now   func() time.Time
 }
 
 // NewHolidayRegistrationRetention builds the retention over store; a nil
@@ -499,13 +578,14 @@ func NewHolidayRegistrationRetention(store HolidayRegistrationRetentionStore, to
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayRegistrationRetention{store: store, today: today}
+	return &HolidayRegistrationRetention{store: store, today: today, now: time.Now}
 }
 
 // DeleteExpiredHolidayRegistrations deletes the registrations of every
 // period whose last week ended more than the retention window ago, with an
-// entry in the deletion log of its Träger, and the expired entries of that
-// log.
+// entry in the deletion log of its Träger, the expired entries of that log
+// and the proofs no registration claimed within a day (#5238). The claimed
+// proofs go with their registration.
 func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error) {
 	cutoff := r.today().AddDays(-enrollment.HolidayRegistrationRetentionDays)
 	deleted, err := r.store.DeleteHolidayRegistrationsEndedBefore(ctx, cutoff)
@@ -516,5 +596,9 @@ func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx con
 	if err != nil {
 		return 0, fmt.Errorf("enrollment: delete expired holiday registration deletion log: %w", err)
 	}
-	return deleted + logged, nil
+	proofs, err := r.store.DeleteUnclaimedHolidayProofs(ctx, r.now().Add(-enrollment.UnclaimedUploadLifetime))
+	if err != nil {
+		return 0, fmt.Errorf("enrollment: delete unclaimed holiday proofs: %w", err)
+	}
+	return deleted + logged + proofs, nil
 }

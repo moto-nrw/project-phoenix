@@ -203,7 +203,10 @@ vi.mock("~/lib/dashboard-helpers", () => ({
   getGroupStatusColor: vi.fn(() => "bg-moto-green"),
 }));
 
-vi.mock("~/lib/swr/hooks", () => ({ useSWRAuth: vi.fn() }));
+vi.mock("~/lib/swr/hooks", () => ({
+  useSWRAuth: vi.fn(),
+  useScopedSWRKey: () => null,
+}));
 
 const layoutState = {
   blocks: [] as readonly HomeBlockPlacement[],

@@ -144,10 +144,10 @@ describe("staff navigation tree", () => {
       expect(getStaffNavGroupForPathname("/messages/42")).toBe("eltern");
     });
 
-    it("counts the planning legacy paths", () => {
-      expect(getStaffNavGroupForPathname("/staff/dienstplan")).toBe("planung");
-      expect(getStaffNavGroupForPathname("/timetables")).toBe("planung");
-      expect(getStaffNavGroupForPathname("/vertretungsplan")).toBe("planung");
+    it("counts the canonical planning paths", () => {
+      expect(getStaffNavGroupForPathname("/dienstplan")).toBe("planung");
+      expect(getStaffNavGroupForPathname("/betreuungsplan")).toBe("planung");
+      expect(getStaffNavGroupForPathname("/vertretung")).toBe("planung");
     });
 
     it("does not let /calendar swallow /calendar-periods", () => {

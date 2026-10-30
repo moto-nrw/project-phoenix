@@ -1,0 +1,60 @@
+# Each unindented line is a middleware chain, outermost first.
+# The indented routes below it run through exactly that chain.
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.ParentScopeMiddleware > api.SecurityPrincipalMiddleware
+	DELETE /parent/me/children/{studentId}/parent-conferences/{conferenceId}/booking
+	GET /parent/me/children/{studentId}/parent-conferences
+	GET /parent/me/children/{studentId}/pickup-permission-requests
+	GET /parent/me/children/{studentId}/pickup-requests/{requestId}/proof
+	POST /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup-permission-requests
+	POST /parent/me/children/{studentId}/pickup-signature-statement
+	PUT /parent/me/children/{studentId}/meal-participation/weeks/{date}
+	PUT /parent/me/children/{studentId}/parent-conferences/{conferenceId}/booking
+
+api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRuntimeMiddleware.# > api/common.AuthorizationObserverMiddleware.# > api/common.TenantRuntimeObserverMiddleware.# > api/common.TenantRequestObserverMiddleware.# > github.com/go-chi/chi/v5/middleware.ClientIPFromXFFTrustedProxies.# > api.syncClientIPToRemoteAddr > api.(*httpMetrics).middleware-fm > github.com/samber/slog-chi.NewWithConfig.# > github.com/go-chi/chi/v5/middleware.Recoverer > api.ServerErrorReporting > middleware.SecurityHeaders > api.RequestSettingsCacheMiddleware > api.RequestIdentityCacheMiddleware > github.com/go-chi/jwtauth/v5.Verify.# > modules/identityaccess/sessiontoken.RequireLiveSession.# > api.moduleRoutesMiddleware.# > api.SentrySessionContext > analytics.CoreActionMiddleware.# > github.com/go-chi/render.SetContentType.# > modules/identityaccess/sessiontoken.Authenticator > api.ReadOnlyPreviewMiddleware > api.ParentScopeMiddleware > api.SecurityPrincipalMiddleware
+	DELETE /parent/me/children/{studentId}/care-exception
+	DELETE /parent/me/children/{studentId}/consents/photo
+	DELETE /parent/me/children/{studentId}/meal-participation/{date}
+	DELETE /parent/me/children/{studentId}/related-accounts/{guardianProfileId}
+	GET /parent/me/children
+	GET /parent/me/children/{studentId}/care-exception
+	GET /parent/me/children/{studentId}/care-offerings
+	GET /parent/me/children/{studentId}/care-offerings/catalog
+	GET /parent/me/children/{studentId}/care-schedule
+	GET /parent/me/children/{studentId}/consents
+	GET /parent/me/children/{studentId}/courses
+	GET /parent/me/children/{studentId}/excused-requests
+	GET /parent/me/children/{studentId}/features
+	GET /parent/me/children/{studentId}/guardians
+	GET /parent/me/children/{studentId}/master-data
+	GET /parent/me/children/{studentId}/master-data/requests
+	GET /parent/me/children/{studentId}/meal-participation
+	GET /parent/me/children/{studentId}/meal-plan
+	GET /parent/me/children/{studentId}/pickup-change-requests
+	GET /parent/me/children/{studentId}/related-accounts
+	GET /parent/me/children/{studentId}/request-sharing-options
+	GET /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}
+	GET /parent/me/children/{studentId}/requests/{requestType}/{requestId}/events
+	GET /parent/me/children/{studentId}/sick-note
+	GET /parent/me/children/{studentId}/today
+	PATCH /parent/me/children/{studentId}/master-data/{target}/{field}
+	POST /parent/me/children/{studentId}/care-exception
+	POST /parent/me/children/{studentId}/care-offerings/requests
+	POST /parent/me/children/{studentId}/care-schedule/requests
+	POST /parent/me/children/{studentId}/courses/requests
+	POST /parent/me/children/{studentId}/courses/requests/{requestId}/withdraw
+	POST /parent/me/children/{studentId}/guardians
+	POST /parent/me/children/{studentId}/master-data/requests
+	POST /parent/me/children/{studentId}/related-accounts
+	POST /parent/me/children/{studentId}/sick-note
+	PUT /parent/me/children/{studentId}/care-offerings/requests/{requestId}
+	PUT /parent/me/children/{studentId}/care-schedule/requests/{requestId}
+	PUT /parent/me/children/{studentId}/consents/photo
+	PUT /parent/me/children/{studentId}/excused-requests/{requestId}
+	PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
+	PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
+	PUT /parent/me/children/{studentId}/master-data/requests/{requestId}
+	PUT /parent/me/children/{studentId}/meal-participation
+	PUT /parent/me/children/{studentId}/meal-participation/{date}
+	PUT /parent/me/children/{studentId}/pickup-change-requests/{requestId}
+	PUT /parent/me/children/{studentId}/request-sharing/{requestType}/{requestId}

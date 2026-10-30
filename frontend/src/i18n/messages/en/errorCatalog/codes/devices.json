@@ -1,0 +1,4 @@
+{
+  "tag_scan_not_found": "{object} could not be changed. Please check its current status.",
+  "tag_scan_already_resolved": "{object} could not be changed. Please check its current status."
+}

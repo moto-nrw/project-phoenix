@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -232,4 +235,128 @@ func TestOfferingReviewRechecksVersionAfterWaitingForGate(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, careplan.OfferingChangePending, stored.Status)
 	require.Equal(t, fx.switchDate.AddDays(1).String(), stored.EffectiveFrom)
+}
+
+// Each request-locking offering writer follows class -> recurrence -> child ->
+// request. The holder keeps only the child, so the earlier gates stay free and
+// cannot hide a missing child lock. While PostgreSQL reports the writer
+// waiting on the holder, the writer's latest statement must be its child lock,
+// it must not have written or locked its request, and the request must still
+// be free for the holder (NOWAIT). Without the child lock before the request,
+// the writer would wait at the child only after locking the request, or not at
+// all.
+func TestOfferingWritersTakeChildBeforeRequest(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	for _, operation := range []string{"approve", "reject", "mark done", "conflict"} {
+		t.Run(operation, func(t *testing.T) {
+			testpkg.OwnCtx(t)
+			env := setupDecisionTest(t)
+			fx := setupOfferingChangeFixture(t, env, "ChildFirst")
+			database := testpkg.NewDatabase(t, env.db)
+			recurrence := owners.MustNewTimetableRecurrenceLock(database)
+			env.bookings = newBookingsForTest(env, nil, recurrence.LockRecurrenceWrites, nil)
+			svc := newOfferingChangeServiceForTest(t, env)
+			ctx := offeringChangeAdminContext(t)
+			request, err := testpkg.TenantQuery1(t, ctx, env.db, svc.SubmitOfferingChange, careplan.CreateOfferingChangeInput{
+				StudentID: fx.studentID, AccountID: env.creatorID, EffectiveFrom: fx.switchDate,
+				Selections: []careplan.OfferingChangeSelection{{OfferingID: fx.newOffering.ID, SelectedDays: []string{"mon"}}},
+			})
+			require.NoError(t, err)
+			want := map[string]string{"approve": careplan.OfferingChangeApproved, "reject": careplan.OfferingChangeRejected, "mark done": careplan.OfferingChangeDone, "conflict": careplan.OfferingChangeRejected}[operation]
+			if operation == "mark done" {
+				_, err := env.db.NewUpdate().TableExpr("enrollment.offering_change_requests").Set("effective_from = ?", decisionTestToday.AddDays(-1)).Where("id = ?", request.ID).Exec(ctx)
+				require.NoError(t, err)
+			}
+			write := func(writeCtx context.Context) error {
+				switch operation {
+				case "mark done":
+					return svc.MarkDone(writeCtx, request.ID, "", "Completed externally", env.creatorID)
+				case "conflict":
+					if err := svc.LockConflictRequest(writeCtx, request.ID); err != nil {
+						return err
+					}
+					return svc.DecideConflictRequest(writeCtx, careplan.OfferingConflictDecision{RequestID: request.ID, Reason: "Resolve conflict", ReviewerID: env.creatorID})
+				default:
+					return decideOfferingChange(writeCtx, svc, careplan.OfferingChangeDecisionInput{RequestID: request.ID, Approve: operation == "approve", Reason: "Reviewed", ReviewedBy: env.creatorID, ActorRole: "admin"})
+				}
+			}
+			people := owners.MustNewPeopleDirectory(database)
+
+			var running sync.WaitGroup
+			release := make(chan struct{})
+			var releaseOnce sync.Once
+			releaseChild := func() { releaseOnce.Do(func() { close(release) }) }
+			// Failure paths end both transactions before the subtest returns.
+			t.Cleanup(func() {
+				releaseChild()
+				running.Wait()
+			})
+			locked := make(chan studentLockHolder, 1)
+			lockDone := make(chan error, 1)
+			running.Go(func() {
+				lockDone <- testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(lockCtx context.Context, tx bun.Tx) error {
+					if err := people.LockStudent(lockCtx, fx.studentID); err != nil {
+						return err
+					}
+					holder := studentLockHolder{tx: tx}
+					if err := tx.NewRaw("SELECT pg_backend_pid()").Scan(lockCtx, &holder.pid); err != nil {
+						return err
+					}
+					locked <- holder
+					<-release
+					return nil
+				})
+			})
+			var holder studentLockHolder
+			select {
+			case holder = <-locked:
+			case err := <-lockDone:
+				require.NoError(t, err)
+				t.Fatal("child transaction ended before holding the lock")
+			}
+
+			writerQueries := testpkg.CaptureQueriesForContext(t, env.db)
+			writeDone := make(chan error, 1)
+			running.Go(func() {
+				writeDone <- testpkg.WithTenantTx(t, writerQueries.Context(ctx), env.db, testpkg.Tenant(t), func(writeCtx context.Context, _ bun.Tx) error { return write(writeCtx) })
+			})
+			holder.awaitWaiter(t, ctx, writeDone)
+			requireWaitAtChildBeforeRequest(t, ctx, holder, writerQueries, request.ID)
+			releaseChild()
+			require.NoError(t, <-lockDone)
+			require.NoError(t, <-writeDone, "offering writer must finish after the child is released")
+			stored, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.CarePlan().FindOfferingChange, request.ID, false)
+			require.NoError(t, err)
+			require.Equal(t, want, stored.Status)
+		})
+	}
+}
+
+var offeringRequestLockPattern = regexp.MustCompile(`enrollment\.offering_change_requests[\s\S]*\bfor (update|no key update|share|key share)\b`)
+
+// requireWaitAtChildBeforeRequest checks a writer PostgreSQL reports waiting
+// on the child holder: it waits for a row lock, its latest statement is the
+// child lock, it has neither written nor locked its request, and the request
+// is still free for the holder.
+func requireWaitAtChildBeforeRequest(t *testing.T, ctx context.Context, holder studentLockHolder, writer *testpkg.QueryCounter, requestID int64) {
+	t.Helper()
+	var waits []string
+	require.NoError(t, holder.tx.NewRaw(`SELECT l.locktype FROM pg_locks l WHERE NOT l.granted AND ? = ANY(pg_blocking_pids(l.pid))`, holder.pid).Scan(ctx, &waits))
+	require.NotEmpty(t, waits)
+	for _, locktype := range waits {
+		require.Contains(t, []string{"transactionid", "tuple"}, locktype, "the writer must wait for the held child row, not another lock")
+	}
+	queries := writer.Queries()
+	require.NotEmpty(t, queries)
+	last := queries[len(queries)-1]
+	require.True(t, strings.Contains(last, "FROM users.student_profiles") && strings.HasSuffix(strings.TrimSpace(last), "FOR UPDATE"),
+		"the writer must wait at its child lock, latest statement: %.200s", last)
+	for _, operation := range []string{"INSERT", "UPDATE", "DELETE", "MERGE"} {
+		require.Empty(t, writer.Operation(operation), "the writer must not write before it holds the child")
+	}
+	require.Empty(t, writer.Matching(offeringRequestLockPattern.MatchString), "the writer must not lock its request before the child")
+	var id int64
+	require.NoError(t, holder.tx.NewSelect().TableExpr("enrollment.offering_change_requests").Column("id").Where("id = ?", requestID).For("UPDATE NOWAIT").Scan(ctx, &id),
+		"a child-waiting offering writer must not hold its request")
 }

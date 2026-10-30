@@ -25,6 +25,8 @@ type testTimetable struct {
 	corrections timetableModule.AttendanceCorrections
 	lock        timetableModule.RecurrenceWriteLock
 	review      timetableModule.TemplateRosterReview
+	// materialization is the composed one unless the suite replaced it.
+	materialization timetableModule.MaterializationCapability
 }
 
 func (t *testTimetable) RosterReview() timetableModule.TemplateRosterReview { return t.review }
@@ -50,6 +52,7 @@ type testTimetableOptions struct {
 	validateOfferingSource     func(context.Context, []int64, []int64, *int64) error
 	resyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
 	materialization            timetableModule.MaterializationCapability
+	nonWorkingDays             timetableModule.NonWorkingDayCalendar
 	instances                  timetableModule.InstanceLifecycleCapability
 }
 
@@ -91,6 +94,7 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		ValidateOfferingSource:     options.validateOfferingSource,
 		ResyncOfferingRoster:       options.resyncOfferingRoster,
 		Materialization:            options.materialization,
+		NonWorkingDays:             options.nonWorkingDays,
 		Instances:                  options.instances,
 	}
 	if len(clocks) > 0 && clocks[0] != nil {
@@ -107,6 +111,7 @@ func testTimetableWith(db *bun.DB, options testTimetableOptions, clocks ...func(
 		lock:                   module.RecurrenceLock,
 		corrections:            module.AttendanceCorrections,
 		review:                 module.RosterReview,
+		materialization:        module.Materialization,
 	}
 }
 
@@ -118,6 +123,7 @@ type TimetableOptions struct {
 	ValidateOfferingSource     func(context.Context, []int64, []int64, *int64) error
 	ResyncOfferingRoster       func(context.Context, timetableModule.OfferingRosterResyncInput) error
 	Materialization            timetableModule.MaterializationCapability
+	NonWorkingDays             timetableModule.NonWorkingDayCalendar
 	Instances                  timetableModule.InstanceLifecycleCapability
 	Clock                      func() time.Time
 }
@@ -132,6 +138,7 @@ type TimetableHTTPModule struct {
 	ConflictDetection     timetableModule.ConflictDetectionCapability
 	AttendanceCorrections timetableModule.AttendanceCorrections
 	RecurrenceLock        timetableModule.RecurrenceWriteLock
+	Materialization       timetableModule.MaterializationCapability
 }
 
 // TimetableModule is what the route suites take from the root's timetable

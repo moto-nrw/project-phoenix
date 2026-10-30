@@ -157,6 +157,8 @@ var (
 	ErrNoDates                          = care.ErrNoDates
 	ErrNoteTooLong                      = care.ErrNoteTooLong
 	ErrNotesDisabled                    = care.ErrNotesDisabled
+	ErrInvalidMessageAudience           = messaging.ErrInvalidAudience
+	ErrLeadershipMessagesUnavailable    = messaging.ErrLeadershipUnavailable
 	ErrPastCareDate                     = care.ErrPastCareDate
 	ErrPhotoConsentNotWithdrawn         = care.ErrPhotoConsentNotWithdrawn
 	ErrPickupChangeCutoffPassed         = care.ErrPickupChangeCutoffPassed

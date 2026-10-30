@@ -1,0 +1,7 @@
+{
+  "no_school_portal_role": "You cannot access {object}. Please contact the school.",
+  "setup_completed": "{object} could not be changed. Please check its current status.",
+  "setup_incomplete": "{object} could not be changed. Please check its current status.",
+  "parent_conference_slot_taken": "Someone has just booked this time. Please choose another time.",
+  "parent_conference_change_closed": "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly."
+}

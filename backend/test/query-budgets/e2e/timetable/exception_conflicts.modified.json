@@ -1,0 +1,6 @@
+{
+  "scenario": "e2e.timetable.exception_conflicts.modified",
+  "max": 22,
+  "exact": false,
+  "description": "test/e2e/timetable — end-to-end counts include TenantTxMiddleware overhead."
+}

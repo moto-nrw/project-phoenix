@@ -1,0 +1,7 @@
+{
+  "no_school_portal_role": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
+  "setup_completed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "setup_incomplete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "parent_conference_slot_taken": "Kjo orë sapo u rezervua. Ju lutemi zgjidhni një orë tjetër.",
+  "parent_conference_change_closed": "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin."
+}

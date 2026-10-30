@@ -2,13 +2,6 @@ import { ApiError, apiErrorFromBody, transportFetch } from "./api-error";
 
 export type LoginScope = "tenant" | "operator" | "school" | "traeger";
 
-interface AuthenticatedLoginResponse {
-  status: "authenticated";
-  access_token: string;
-  refresh_token: string;
-  mfa_enrollment_required?: boolean;
-}
-
 interface MFARequiredLoginResponse {
   status: "mfa_required";
   challenge_token: string;
@@ -44,15 +37,12 @@ interface MFAEnrollmentRequiredLoginResponse {
   mfa_enrollment_required: true;
 }
 
-type LoginResponse =
-  | AuthenticatedLoginResponse
-  | MFARequiredLoginResponse
-  | MFAEnrollmentRequiredLoginResponse;
-
-export interface MFATokenResponse {
-  access_token: string;
-  refresh_token: string;
+export interface MFAResult {
+  status: "authenticated";
 }
+
+type LoginResponse =
+  MFAResult | MFARequiredLoginResponse | MFAEnrollmentRequiredLoginResponse;
 
 interface OperatorEnvelope<T> {
   status: string;
@@ -196,7 +186,7 @@ function organizationField(organizationId?: string) {
 export async function verifyMFA(
   scope: LoginScope,
   params: VerifyParams,
-): Promise<MFATokenResponse> {
+): Promise<MFAResult> {
   const url = mfaUrl(scope, "verify");
   const payload = {
     challenge_token: params.challengeToken,
@@ -205,13 +195,10 @@ export async function verifyMFA(
     ...organizationField(params.organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
-      url,
-      payload,
-    );
+    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload);
     return envelope.data;
   }
-  return postJson<MFATokenResponse>(url, payload);
+  return postJson<MFAResult>(url, payload);
 }
 
 interface ResendParams {
@@ -291,7 +278,7 @@ export async function enrollConfirm(
   rememberDevice = false,
   challengeToken?: string,
   organizationId?: string,
-): Promise<MFATokenResponse> {
+): Promise<MFAResult> {
   const url = mfaUrl(scope, "enroll/confirm");
   // The school confirm is bound to the exact challenge enroll/start minted
   // (see enrollStart); tenant/operator ignore the extra field.
@@ -302,14 +289,12 @@ export async function enrollConfirm(
     ...organizationField(organizationId),
   };
   if (isOperator(scope)) {
-    const envelope = await postJson<OperatorEnvelope<MFATokenResponse>>(
-      url,
-      payload,
-      { bearerToken },
-    );
+    const envelope = await postJson<OperatorEnvelope<MFAResult>>(url, payload, {
+      bearerToken,
+    });
     return envelope.data;
   }
-  return postJson<MFATokenResponse>(url, payload, { bearerToken });
+  return postJson<MFAResult>(url, payload, { bearerToken });
 }
 
 // ----- Self-service trusted devices (Tenant-only) -----

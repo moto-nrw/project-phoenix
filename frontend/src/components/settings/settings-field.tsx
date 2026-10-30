@@ -38,7 +38,7 @@ import { NumberField } from "./fields/number-field";
 import { SettingsTimeField } from "./fields/time-field";
 import { DateField } from "./fields/date-field";
 import { TextField } from "./fields/text-field";
-import { ColorField } from "./fields/color-field";
+import { type ColorPreset, ColorField } from "./fields/color-field";
 import { TextareaField } from "./fields/textarea-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
@@ -1033,6 +1033,9 @@ export function SettingsField({
     return null;
   }
 
+  const hasColorPresets =
+    setting.type === "color" && colorPresets(setting).length > 0;
+  const fieldLayout = hasColorPresets ? "" : "sm:flex-row sm:justify-between";
   const fieldAlignment =
     setting.type === "boolean" ? "sm:items-center" : "sm:items-start";
 
@@ -1040,7 +1043,7 @@ export function SettingsField({
     <div
       ref={fieldRef}
       id={settingsFieldId(setting.key)}
-      className={`flex scroll-mt-24 flex-col gap-3 rounded-xl border px-3 py-4 transition-[background-color,border-color,box-shadow] sm:flex-row sm:justify-between sm:gap-4 ${fieldAlignment} ${
+      className={`flex scroll-mt-24 flex-col gap-3 rounded-xl border px-3 py-4 transition-[background-color,border-color,box-shadow] sm:gap-4 ${fieldLayout} ${fieldAlignment} ${
         showHighlight
           ? "border-moto-green/35 bg-moto-green/10 shadow-sm duration-500"
           : "border-transparent"
@@ -1087,7 +1090,11 @@ export function SettingsField({
         {hint && <p className="text-moto-red mt-1 text-xs">{hint}</p>}
       </div>
 
-      <div className="flex min-w-0 shrink-0 flex-wrap items-center gap-3 sm:flex-nowrap">
+      <div
+        className={`flex min-w-0 flex-wrap items-center gap-3 ${
+          hasColorPresets ? "w-full" : "shrink-0 sm:flex-nowrap"
+        }`}
+      >
         {isEnrollmentLegalTextSetting
           ? renderEnrollmentLegalTextEditor(
               localValue,
@@ -1852,6 +1859,15 @@ async function persistSetting(
   }
 }
 
+/** The preset colours a colour setting offers (registry `options.static`). */
+function colorPresets(setting: ResolvedSetting): ColorPreset[] {
+  return (setting.options?.static ?? []).flatMap((option) =>
+    typeof option.value === "string"
+      ? [{ label: option.label, value: option.value }]
+      : [],
+  );
+}
+
 function renderField(
   setting: ResolvedSetting,
   localValue: unknown,
@@ -1927,6 +1943,7 @@ function renderField(
           onChange={onLocalChange}
           onBlur={onBlur}
           disabled={disabled}
+          presets={colorPresets(setting)}
         />
       );
     case "textarea":

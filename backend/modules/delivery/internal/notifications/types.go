@@ -15,6 +15,8 @@ package notifications
 import (
 	"sort"
 	"sync"
+
+	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 )
 
 // Portals a notification type can belong to.
@@ -40,6 +42,11 @@ const (
 	// only while holding the type's Permission.
 	ChannelEmail = "email"
 )
+
+// permissionUsersDelete restates the permission registry's name, which this
+// package may not import: the exit notices go to whoever may plan an exit
+// (#4809). TestStaffPlannedExitNoticeFollowsTheRight pins it to the registry.
+const permissionUsersDelete = "users:delete"
 
 // Groups the profile page renders as headings, in this order.
 const (
@@ -80,6 +87,9 @@ const (
 	TypeStaffMessage = "staff_message"
 	// TypeStaffSurvey announces a new or still open staff survey (#4781).
 	TypeStaffSurvey = "staff_survey"
+	// TypeStaffPlannedExit reminds the Leitung of a planned staff exit and
+	// tells it when the exit is blocked (#4809).
+	TypeStaffPlannedExit = contract.NotificationStaffPlannedExit
 	// TypeSchoolClassAbsenceReported tells a Lehrkraft or the
 	// Schulverwaltung in moto schule that a child of one of their classes was
 	// reported sick or excused for today (#4792).
@@ -365,6 +375,19 @@ func registerStaffMessageTypes() {
 		Group:       GroupMessages,
 		Portal:      PortalStaff,
 		SortOrder:   3,
+	})
+
+	// The Leitung's task (#4809): on until the person switches it off, and
+	// only offered to the holders of users:delete, who plan the exits.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffPlannedExit,
+		Label:       "Austritte aus dem Team",
+		Description: "Eine Woche vor dem letzten Arbeitstag einer Person, am Tag selbst und wenn ihr Austritt warten muss.",
+		Group:       GroupMessages,
+		Portal:      PortalStaff,
+		Permission:  permissionUsersDelete,
+		DefaultOn:   true,
+		SortOrder:   4,
 	})
 }
 

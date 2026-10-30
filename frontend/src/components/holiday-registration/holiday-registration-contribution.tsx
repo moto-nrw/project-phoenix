@@ -3,15 +3,25 @@
 // Beitrag in der Zusammenfassung der Ferienanmeldung (#4664): die
 // Elternabrechnung rechnet ihn aus den Buchungen mit den Regeln des Trägers.
 // Bietet der Träger eine Befreiung bei Leistungsbezug an, geben Eltern hier an,
-// dass sie Leistungen bekommen.
+// dass sie Leistungen bekommen, und können den Nachweis gleich hochladen
+// (#5238). Der Upload ist freiwillig; ohne ihn sammelt das Träger-Büro den
+// Nachweis wie bisher ein.
 
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
+import { FileUploadInput } from "~/components/enrollment/enrollment-file-upload";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
+import type { FormField } from "~/lib/enrollment-form-schema-api";
+import {
+  ENROLLMENT_FILE_TYPES,
+  MAX_UPLOAD_MB,
+  type NewUploadValue,
+  type UploadValue,
+} from "~/lib/enrollment-uploads";
 import type {
   ContributionLine,
   HolidayContribution,
@@ -28,19 +38,46 @@ import {
 
 const logger = createLogger({ component: "HolidayRegistrationContribution" });
 
+/** The uploads of this form session; a proof is never stored before. */
+function newUploads(values: readonly UploadValue[]): NewUploadValue[] {
+  return values.filter((value): value is NewUploadValue => "token" in value);
+}
+
 export function HolidayRegistrationContribution({
   token,
   draft,
   offer,
   onBenefitsDeclaredChange,
+  onBenefitsProofsChange,
 }: Readonly<{
   token: string;
   draft: RegistrationDraft;
   offer: HolidayRegistrationOffer;
   onBenefitsDeclaredChange: (declared: boolean) => void;
+  /** The upload sits in an `EnrollmentUploadScope` of the summary. */
+  onBenefitsProofsChange: (proofs: NewUploadValue[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
+  // The upload control speaks with the texts of the online registration's
+  // uploads (#4783).
+  const uploadText = useTranslations("enrollmentForm");
   const locale = useLocale();
+  const proofField = useMemo<FormField>(
+    () => ({
+      key: "benefits_proofs",
+      label: t("benefitsProofLabel"),
+      help_text: t("benefitsProofHint"),
+      type: "file",
+      required: false,
+      sort_order: 0,
+      file_options: {
+        allowed_types: [...ENROLLMENT_FILE_TYPES],
+        max_size_mb: MAX_UPLOAD_MB,
+        multiple: true,
+      },
+    }),
+    [t],
+  );
   const [contribution, setContribution] = useState<HolidayContribution | null>(
     null,
   );
@@ -174,6 +211,17 @@ export function HolidayRegistrationContribution({
               <span className="block text-gray-600">{t("benefitsHint")}</span>
             </span>
           </label>
+        ) : null}
+        {benefitsDeclared ? (
+          <div className="pl-8">
+            <FileUploadInput
+              field={proofField}
+              inputName="benefits_proofs"
+              value={draft.benefitsProofs}
+              onChange={(next) => onBenefitsProofsChange(newUploads(next))}
+              tr={(key, values) => uploadText(key, values)}
+            />
+          </div>
         ) : null}
       </div>
     </SectionCard>

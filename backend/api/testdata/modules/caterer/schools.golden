@@ -1,0 +1,3 @@
+GET /caterer/schools -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+GET /caterer/schools/{schoolId}/orders -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)
+POST /caterer/schools/{schoolId}/orders/{orderId}/confirm -> mittagessen  (#4895 Caterer-Portal: schulübergreifende Sitzung, Belieferung je Schule)

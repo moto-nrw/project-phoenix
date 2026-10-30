@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -72,8 +70,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 	activities activityContract.ActivityService, structureViews StructureServices, facilitiesRooms FacilitiesRooms,
 	deviceFleet devicefleetModule.Capability, notices owners.EnrollmentNotices, settingsWrites SettingsWrites, outbox *deliveryModule.Worker, statusDays studentpresence.StatusDays, err error,
 ) {
-	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
-	documentPermissions := carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback}
+	documentPermissions := studentDocumentPermissions()
 	env, err = newRootEnvironment(cfg, logger, OptionalClock(clocks), observe)
 	if err != nil {
 		return
@@ -310,7 +307,7 @@ func composeTestRootWith(db transactionruntime.Database, logger *slog.Logger, cf
 		},
 		func() error {
 			reports = owners.BuildPresenceReports(db, env, presence, carePlanRows, carePlan, services.Users, timetableRows, rooms, calendar,
-				people, audit, settings.Service)
+				people, audit, settings.Service, schedules.CareDay)
 			return nil
 		},
 		func() (err error) {

@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import de from "~/i18n/messages/de.json";
-import en from "~/i18n/messages/en.json";
-import pl from "~/i18n/messages/pl.json";
-import ru from "~/i18n/messages/ru.json";
-import sq from "~/i18n/messages/sq.json";
-import tr from "~/i18n/messages/tr.json";
-import uk from "~/i18n/messages/uk.json";
+import de from "~/i18n/messages/de.generated";
+import en from "~/i18n/messages/en.generated";
+import pl from "~/i18n/messages/pl.generated";
+import ru from "~/i18n/messages/ru.generated";
+import sq from "~/i18n/messages/sq.generated";
+import tr from "~/i18n/messages/tr.generated";
+import uk from "~/i18n/messages/uk.generated";
 
 import {
   MEAL_ALLERGENS,

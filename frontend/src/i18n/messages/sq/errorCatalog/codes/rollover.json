@@ -1,0 +1,9 @@
+{
+  "deadline_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "duplicate_name": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "invalid_request": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "review_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "review_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "source_already_rolled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "source_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
+}

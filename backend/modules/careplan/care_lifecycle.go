@@ -125,6 +125,10 @@ type CareExitResult struct {
 	StudentsEnded     int
 	RosterRowsRemoved int
 	BookingsEnded     int
+	// ReappliedStudentIDs are the children whose earlier planned exit this
+	// confirmation replaced: their removed plan was put back before the new
+	// last care day applied (#5235).
+	ReappliedStudentIDs []int64
 }
 
 // CareResumeInput reopens one child's care.

@@ -203,7 +203,7 @@ export function BillingLettersModal({
       logger.error("billing_letters_create_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Schreiben" });
+      void formErrors.show(err, { object: "das Erstellen der Schreiben" });
     } finally {
       setSaving(false);
     }

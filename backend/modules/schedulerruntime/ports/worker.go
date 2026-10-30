@@ -60,6 +60,7 @@ type WorkerDependencies struct {
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        BookingConsistencyAudit
 	HolidayGuests             HolidayGuestReconciliation
+	PlannedStaffExits         PlannedStaffExits
 	MealOrders                MealOrderSettlement
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
 	AutoStart                 InstanceAutoStart

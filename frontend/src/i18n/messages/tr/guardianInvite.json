@@ -1,0 +1,31 @@
+{
+  "eyebrow": "Veli portalı",
+  "title": "Hoş geldiniz",
+  "fallbackSchool": "okulunuz",
+  "subtitle": "{school} için davetinizi onaylayın ve kişisel şifrenizi belirleyin.",
+  "errorHelpBefore": "Okuldan yeni bir davet isteyebilir veya",
+  "startPage": "ana sayfa",
+  "errorHelpAfter": "üzerinden giriş yapabilirsiniz.",
+  "formErrors": {
+    "passwordRules": "Şifre henüz tüm güvenlik kurallarına uymuyor.",
+    "passwordMismatch": "Şifreler birbiriyle uyuşmuyor."
+  },
+  "acceptedTitle": "Hesap oluşturuldu",
+  "acceptedText": "Lütfen yeni giriş bilgilerinizle giriş yapın.",
+  "invitationFor": "Davet edilen",
+  "passwordLabel": "Şifre",
+  "confirmPasswordLabel": "Şifreyi onaylayın",
+  "showPassword": "Şifreyi göster",
+  "hidePassword": "Şifreyi gizle",
+  "requirementsTitle": "Şifre kuralları",
+  "submitting": "Kaydediliyor...",
+  "submit": "Daveti kabul et",
+  "passwordRules": {
+    "0": "En az 8 karakter",
+    "1": "Bir büyük harf",
+    "2": "Bir küçük harf",
+    "3": "Bir rakam",
+    "4": "Bir özel karakter"
+  },
+  "errorObject": "davet"
+}

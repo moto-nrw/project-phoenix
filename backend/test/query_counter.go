@@ -6,6 +6,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/uptrace/bun"
 )
@@ -15,12 +16,12 @@ import (
 // (statements inside tenant transactions included) while enabled, so a test
 // can bound the total, one operation, or the statements touching one table.
 //
-// Attach it with CaptureQueries (db.AddQueryHook, disabled again at cleanup)
-// or hand NewQueryCounter to db.WithQueryHook for a private bun clone. bun
-// never removes hooks, so a counter on a shared package DB keeps seeing every
-// later statement; Stop() at cleanup is what keeps tests from counting each
-// other. Tests that share a package DB must use CaptureQueriesForContext and
-// pass counter.Context(ctx) to the operation under test.
+// Attach it with CaptureQueries (registered with the pool's testQueryHooks
+// dispatcher, removed again at cleanup) or hand NewQueryCounter to
+// db.WithQueryHook for a private bun clone. An unscoped counter sees every
+// statement on its pool while it is registered. Tests that share a package DB
+// must use CaptureQueriesForContext and pass counter.Context(ctx) to the
+// operation under test.
 type QueryCounter struct {
 	enabled            atomic.Bool
 	mu                 sync.Mutex
@@ -38,6 +39,8 @@ var queryCounterScopeID atomic.Uint64
 type countedQuery struct {
 	operation string
 	sql       string
+	deadline  time.Time
+	issuedAt  time.Time
 }
 
 // NewQueryCounter returns an enabled counter that is not attached yet.
@@ -51,8 +54,7 @@ func NewQueryCounter() *QueryCounter {
 func CaptureQueries(tb testing.TB, db *bun.DB) *QueryCounter {
 	tb.Helper()
 	c := NewQueryCounter()
-	db.AddQueryHook(c) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
-	tb.Cleanup(c.Stop)
+	registerTestQueryHook(tb, db, c, c.Stop)
 	return c
 }
 
@@ -62,8 +64,7 @@ func CaptureQueriesForContext(tb testing.TB, db *bun.DB) *QueryCounter {
 	tb.Helper()
 	c := NewQueryCounter()
 	c.scope = queryCounterScopeID.Add(1)
-	db.AddQueryHook(c) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
-	tb.Cleanup(c.Stop)
+	registerTestQueryHook(tb, db, c, c.Stop)
 	return c
 }
 
@@ -77,9 +78,9 @@ func (c *QueryCounter) Context(ctx context.Context) context.Context {
 }
 
 // CaptureSettingValueSelects counts config.setting_values SELECTs (#2065).
-func CaptureSettingValueSelects(db *bun.DB) func() int32 {
-	c := NewQueryCounter()
-	db.AddQueryHook(c)                                                            //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
+func CaptureSettingValueSelects(tb testing.TB, db *bun.DB) func() int32 {
+	tb.Helper()
+	c := CaptureQueries(tb, db)
 	return func() int32 { return int32(len(c.Selects("config.setting_values"))) } //nolint:gosec // test-only count
 }
 
@@ -91,7 +92,8 @@ func (c *QueryCounter) BeforeQuery(ctx context.Context, event *bun.QueryEvent) c
 		return ctx
 	}
 	c.mu.Lock()
-	c.queries = append(c.queries, countedQuery{operation: event.Operation(), sql: event.Query})
+	deadline, _ := ctx.Deadline()
+	c.queries = append(c.queries, countedQuery{operation: event.Operation(), sql: event.Query, deadline: deadline, issuedAt: time.Now()})
 	c.mu.Unlock()
 	return ctx
 }
@@ -158,6 +160,27 @@ func (c *QueryCounter) Total() int {
 // Queries returns every recorded statement in issue order.
 func (c *QueryCounter) Queries() []string {
 	return c.Matching(func(string) bool { return true })
+}
+
+// StatementDeadline is a recorded statement with the moment it was issued and
+// the deadline of the context it ran under; Deadline is zero when that
+// context had none.
+type StatementDeadline struct {
+	SQL      string
+	IssuedAt time.Time
+	Deadline time.Time
+}
+
+// Deadlines returns every recorded statement with its context deadline, in
+// issue order.
+func (c *QueryCounter) Deadlines() []StatementDeadline {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := make([]StatementDeadline, len(c.queries))
+	for i, q := range c.queries {
+		out[i] = StatementDeadline{SQL: q.sql, IssuedAt: q.issuedAt, Deadline: q.deadline}
+	}
+	return out
 }
 
 // Operation returns the statements of one bun operation ("SELECT", "INSERT", ...).

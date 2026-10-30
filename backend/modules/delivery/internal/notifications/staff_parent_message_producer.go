@@ -22,6 +22,17 @@ type StaffParentMessageReport struct {
 	MessageID      int64
 	StudentID      int64
 	ActorAccountID int64
+	// Leadership marks a message in a conversation only the leadership reads
+	// (#5200): only the leadership persons are told, never the group
+	// supervisors.
+	Leadership bool
+}
+
+// LeadershipAccounts lists the accounts of the leadership persons of the
+// school in context: the staff whose account holds parent_messages:leadership.
+// The root binds it.
+type LeadershipAccounts interface {
+	LeadershipAccountIDs(ctx context.Context) ([]int64, error)
 }
 
 // StaffParentMessageNotifier tells responsible staff that a guardian wrote in
@@ -44,15 +55,18 @@ type staffParentMessageNotifier struct {
 	notifier   Service
 	recipients StaffRecipientResolver
 	threads    StaffMessageClaims
+	leaders    LeadershipAccounts
 	db         *bun.DB
 	logger     *slog.Logger
 }
 
 // NewStaffParentMessageNotifier builds the parent-message producer.
+// Without leaders a leadership message reaches nobody rather than the team.
 func NewStaffParentMessageNotifier(
 	notifier Service,
 	recipients StaffRecipientResolver,
 	threads StaffMessageClaims,
+	leaders LeadershipAccounts,
 	db *bun.DB,
 	logger *slog.Logger,
 ) StaffParentMessageNotifier {
@@ -60,6 +74,7 @@ func NewStaffParentMessageNotifier(
 		notifier:   notifier,
 		recipients: recipients,
 		threads:    threads,
+		leaders:    leaders,
 		db:         db,
 		logger:     logger,
 	}
@@ -118,11 +133,19 @@ func (n *staffParentMessageNotifier) notify(ctx context.Context, report StaffPar
 }
 
 func (n *staffParentMessageNotifier) resolveAccountIDs(ctx context.Context, report StaffParentMessageReport) ([]int64, error) {
-	scopes, err := n.recipients.Resolve(ctx, StaffRecipientRequest{
+	request := StaffRecipientRequest{
 		StudentIDs:         []int64{report.StudentID},
 		NotificationType:   TypeStaffParentMessage,
 		ExcludedAccountIDs: []int64{report.ActorAccountID},
-	})
+	}
+	if report.Leadership {
+		leaders, err := n.leadershipAccountIDs(ctx)
+		if err != nil {
+			return nil, err
+		}
+		request.OnlyAccounts, request.AccountIDs = true, leaders
+	}
+	scopes, err := n.recipients.Resolve(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -131,6 +154,17 @@ func (n *staffParentMessageNotifier) resolveAccountIDs(ctx context.Context, repo
 		accountIDs = append(accountIDs, scope.AccountID)
 	}
 	return accountIDs, nil
+}
+
+func (n *staffParentMessageNotifier) leadershipAccountIDs(ctx context.Context) ([]int64, error) {
+	if n.leaders == nil {
+		return nil, nil
+	}
+	ids, err := n.leaders.LeadershipAccountIDs(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("resolve leadership accounts: %w", err)
+	}
+	return ids, nil
 }
 
 func staffParentMessageEvent(report StaffParentMessageReport, accountIDs []int64) Event {

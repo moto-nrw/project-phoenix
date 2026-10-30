@@ -69,6 +69,10 @@ func (s *careDayService) ResolveForRange(ctx context.Context, studentIDs []int64
 	return NewCareDayQueries(s).ResolveForRange(ctx, studentIDs, from, to)
 }
 
+func (s *careDayService) ResolvePlannedForRange(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.PlannedCareDay, error) {
+	return NewCareDayQueries(s).ResolvePlannedForRange(ctx, studentIDs, from, to)
+}
+
 func (s *careDayService) LoadCareDayFacts(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]careplan.CareDayFacts, error) {
 	plans, err := s.loadCarePlans(ctx, studentIDs, from, to)
 	if err != nil {

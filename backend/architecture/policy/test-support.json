@@ -1,0 +1,371 @@
+{
+  "packages": [
+    {
+      "path": "api/testutil",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "api/testutil/routetest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/gitfixture",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/passthrough",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "internal/ptrtest",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/testdb",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/testdb/cmd/bootstrap",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "internal/testdb/cmd/sweep",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "test",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "test/e2e/calendar",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "test/e2e/timetable",
+      "owner": "test-support",
+      "role": "test-support",
+      "internal_test_role": "e2e-test",
+      "external_test_role": "e2e-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "test-support.test-support.workforce-public",
+      "description": "The shared staff-absence fixtures seed the canonical absence type and status values (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.e2e.student-presence",
+      "description": "End-to-end timetable scenarios create visits through the public presence DTO contract.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.timetable-http",
+      "description": "The timetable end-to-end fixture constructs the timetable routes it drives (#2732).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "http"
+    },
+    {
+      "id": "test-support.to.student-presence-public",
+      "description": "Shared presence fixtures return public attendance and visit DTOs.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.timetable-public",
+      "description": "Timetable test support returns the real public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.to.enrollment-support",
+      "description": "Shared enrollment fixtures create owner records through Enrollment test support instead of legacy ORM models.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "enrollment",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.to.device-fleet-device-auth",
+      "description": "API test composition constructs the real device authenticators for device-authenticated handler tests.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "device-fleet",
+      "target_role": "http"
+    },
+    {
+      "id": "test-support.to.delivery-platform-support",
+      "description": "The shared fixtures re-export the Delivery Platform's mail and broadcaster test doubles (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "delivery-platform",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.to.security-runtime-support",
+      "description": "The shared fixtures hash throwaway credentials with the Security Runtime's cheap Argon2id profile (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "security-runtime",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.to.device-fleet-support",
+      "description": "API test helpers bind kiosk principals through the Device Fleet's test support (#3944).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "device-fleet",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.fixtures.care-plan-absence-rows",
+      "description": "The shared fixture catalog inserts and re-exports the Care Plan absence-table fixture rows of modules/careplan/absencerecordstest (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "care-plan",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.fixtures.student-presence-session-rows",
+      "description": "test/fixtures.go inserts and re-exports the session and supervision fixture rows, so its consumers need no rule of their own (#3422).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "student-presence",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.e2e-test.student-presence-session-rows",
+      "description": "The end-to-end timetable flow reads the stored supervision rows it asserts on (#3422).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "student-presence",
+      "target_role": "test-support"
+    },
+    {
+      "id": "test-support.e2e-test.school-calendar.public",
+      "description": "The timetable end-to-end flows (an internal-test suite beside its own setup) create calendar periods through the School Calendar's public contract (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "test-support.e2e-test.timetable-activities.public",
+      "description": "The timetable end-to-end flows assert the Timetable owner's public retention cleanup and planner reads (timetable planning dissolution, ADR 0038).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.own-tooling",
+      "description": "The shared fixtures wire their own tooling: the fixture catalog opens the test database lifecycle, the API helpers build on the catalog, and the bootstrap and sweep commands drive the lifecycle (ADR 0039).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "shared-fixtures.tenant-runtime-public",
+      "description": "The shared fixtures create rows inside a tenant through the shared tenant runtime (ADR 0039).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.e2e.tenant-runtime-public",
+      "description": "The shared end-to-end suites verify tenant isolation through the shared tenant runtime (ADR 0039).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.e2e.permission-constants",
+      "description": "The shared end-to-end suites mint tokens with the permission constants the routes check, instead of spelling the wire strings (ADR 0039).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "shared-fixtures.security-runtime-public",
+      "description": "The shared fixtures apply the guardian role presets and decide student updates through the Security Runtime contract (ADR 0047).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "security-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.e2e.settings-platform-public",
+      "description": "The shared end-to-end suites store tenant settings under the Settings Platform contract's keys and values (ADR 0047).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "settings-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "shared-fixtures.transaction-runtime-compose",
+      "description": "The shared fixtures build the PostgreSQL tenant runtime and open their pools through the Transaction Runtime bootstrap instead of its adapter (ADR 0047, #3970).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "shared-fixtures.identity-access-adapter",
+      "description": "ADR 0053 point 7.3: the shared fixtures mint session tokens through Identity's session token adapter, the HTTP session runtime (ADR 0031, ADR 0046).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "e2e-calendar.to.school-calendar-http",
+      "description": "The calendar E2E flows drive the staff calendar HTTP adapter (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "http"
+    },
+    {
+      "id": "test-support.architecture-artifact-contract",
+      "description": "Engineering test scanners read authored policy metadata through the architecture tool storage contract; architectural permission decisions stay in the architecture application (ADR 0132).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "target_owner": "architecture-check",
+      "target_role": "contract",
+      "source_role": "test-support"
+    },
+    {
+      "id": "test-support.architecture-artifact-tests",
+      "description": "Engineering global scanners read the complete authored policy through its new public storage contract; they do not import the architecture application (ADR 0132).",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "architecture-check",
+      "target_role": "contract"
+    }
+  ]
+}

@@ -114,6 +114,7 @@ const BAUART: Readonly<Record<string, Bauart>> = {
   "staff/[id]/page.tsx": "objekt",
   "students/[id]/page.tsx": "objekt",
   "students/[id]/change-history/page.tsx": "objekt",
+  "students/[id]/unfallanzeigen/[reportId]/page.tsx": "objekt",
   "students/[id]/feedback-history/page.tsx": "objekt",
   "students/[id]/room-history/page.tsx": "objekt",
   "team-chat/[threadID]/page.tsx": "objekt",

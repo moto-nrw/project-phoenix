@@ -1,0 +1,39 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (r *SickReports) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {\n\treturn r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {\n\t\treturn r.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, request)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/shiftplansync/SickReports.CreateAbsenceFor",
+      "owner": "workflows/shiftplansync"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SickReports) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {\n\treturn r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {\n\t\treturn r.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, request)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/shiftplansync/SickReports.CreateOwnAbsence",
+      "owner": "workflows/shiftplansync"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SickReports) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {\n\treturn r.deletion(ctx, func(ctx context.Context) (workforce.SickCascadePlan, error) {\n\t\treturn r.absences.DeleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/shiftplansync/SickReports.DeleteAbsenceFor",
+      "owner": "workflows/shiftplansync"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SickReports) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {\n\treturn r.deletion(ctx, func(ctx context.Context) (workforce.SickCascadePlan, error) {\n\t\treturn r.absences.DeleteOwnAbsence(ctx, staffID, actorAccountID, absenceID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/shiftplansync/SickReports.DeleteOwnAbsence",
+      "owner": "workflows/shiftplansync"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *SickReports) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {\n\treturn r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {\n\t\treturn r.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, request)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "workflows/shiftplansync/SickReports.UpdateAbsence",
+      "owner": "workflows/shiftplansync"
+    }
+  ]
+}

@@ -38,6 +38,8 @@ import {
 } from "~/components/ui/form-error-alert";
 import type { FormError } from "~/components/ui/form-error";
 import { Button, ButtonLink } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
@@ -915,27 +917,28 @@ function RenewalBanners({
             {t("renewalRequiredText")}
           </p>
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <button
+            <Button
               type="button"
               onClick={handleConfirmRenewal}
               disabled={confirmingRenewal}
-              className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+              size="md"
             >
               {confirmingRenewal ? t("confirming") : t("confirmEnrollment")}
-            </button>
+            </Button>
             {adjustHref && (
               <ButtonLink href={adjustHref} variant="surface" size="md">
                 {t("renewalAdjust")}
               </ButtonLink>
             )}
-            <button
+            <Button
               type="button"
               onClick={handleWithdraw}
               disabled={withdrawingAll}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+              variant="surface"
+              size="md"
             >
               {withdrawingAll ? t("declining") : t("declineEnrollment")}
-            </button>
+            </Button>
           </div>
           <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
         </section>
@@ -952,14 +955,15 @@ function RenewalBanners({
                 {t("renewalAdjust")}
               </ButtonLink>
             )}
-            <button
+            <Button
               type="button"
               onClick={handleWithdraw}
               disabled={withdrawingAll}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+              variant="surface"
+              size="md"
             >
               {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
-            </button>
+            </Button>
           </div>
           <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
         </section>
@@ -1096,14 +1100,16 @@ function EnrollmentChildRow({
           {t(childStatusTextKey(child, canWithdraw))}
         </p>
         {canWithdraw ? (
-          <button
+          <Button
             type="button"
             onClick={handleWithdraw}
             disabled={isWithdrawing}
-            className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
+            variant="surface"
+            size="md"
+            className="w-full sm:w-auto"
           >
             {isWithdrawing ? t("withdrawing") : t("withdrawChild")}
-          </button>
+          </Button>
         ) : null}
       </div>
     </li>
@@ -1231,14 +1237,16 @@ function GuardianSection({
           </ButtonLink>
         ) : null}
         {allEditable && !editing && !status.signature_required ? (
-          <button
+          <Button
             type="button"
             onClick={() => setEditing(true)}
-            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
+            variant="outline"
+            size="md"
+            className="w-full gap-2 sm:w-auto"
           >
             <Pencil className="h-4 w-4" aria-hidden="true" />
             {t("edit")}
-          </button>
+          </Button>
         ) : null}
       </div>
       {!editing ? (
@@ -1247,116 +1255,50 @@ function GuardianSection({
         <form onSubmit={onEdit} className="space-y-4 text-sm">
           <FormErrorAlert message={editError} />
           <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="block">
-                <span className="text-sm font-semibold text-gray-700">
-                  {t("firstNameLabel")}
-                </span>
-                <input
-                  type="text"
-                  name="guardian_first_name"
-                  value={editFirstName}
-                  onChange={(event) => setEditFirstName(event.target.value)}
-                  aria-describedby={
-                    editFieldError("guardian_first_name")
-                      ? "status-edit-guardian_first_name-error"
-                      : undefined
-                  }
-                  aria-invalid={
-                    editFieldError("guardian_first_name") ? true : undefined
-                  }
-                  required
-                  className={`mt-2 h-10 w-full rounded-lg border ${editFieldError("guardian_first_name") ? "border-moto-red" : "border-gray-200"} bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none`}
-                />
-              </label>
-              {editFieldError("guardian_first_name") ? (
-                <p
-                  id="status-edit-guardian_first_name-error"
-                  className="text-moto-red mt-1 text-xs"
-                >
-                  {editFieldError("guardian_first_name")}
-                </p>
-              ) : null}
-            </div>
-            <div>
-              <label className="block">
-                <span className="text-sm font-semibold text-gray-700">
-                  {t("lastNameLabel")}
-                </span>
-                <input
-                  type="text"
-                  name="guardian_last_name"
-                  value={editLastName}
-                  onChange={(event) => setEditLastName(event.target.value)}
-                  aria-describedby={
-                    editFieldError("guardian_last_name")
-                      ? "status-edit-guardian_last_name-error"
-                      : undefined
-                  }
-                  aria-invalid={
-                    editFieldError("guardian_last_name") ? true : undefined
-                  }
-                  required
-                  className={`mt-2 h-10 w-full rounded-lg border ${editFieldError("guardian_last_name") ? "border-moto-red" : "border-gray-200"} bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none`}
-                />
-              </label>
-              {editFieldError("guardian_last_name") ? (
-                <p
-                  id="status-edit-guardian_last_name-error"
-                  className="text-moto-red mt-1 text-xs"
-                >
-                  {editFieldError("guardian_last_name")}
-                </p>
-              ) : null}
-            </div>
+            <Input
+              id="status-edit-guardian_first_name"
+              type="text"
+              name="guardian_first_name"
+              label={t("firstNameLabel")}
+              value={editFirstName}
+              onChange={(event) => setEditFirstName(event.target.value)}
+              error={editFieldError("guardian_first_name")}
+              required
+            />
+            <Input
+              id="status-edit-guardian_last_name"
+              type="text"
+              name="guardian_last_name"
+              label={t("lastNameLabel")}
+              value={editLastName}
+              onChange={(event) => setEditLastName(event.target.value)}
+              error={editFieldError("guardian_last_name")}
+              required
+            />
           </div>
-          <div>
-            <label className="block">
-              <span className="text-sm font-semibold text-gray-700">
-                {t("phoneOptionalLabel")}
-              </span>
-              <input
-                type="tel"
-                name="guardian_phone"
-                value={editPhone}
-                onChange={(event) => setEditPhone(event.target.value)}
-                aria-describedby={
-                  editFieldError("guardian_phone")
-                    ? "status-edit-guardian_phone-error"
-                    : undefined
-                }
-                aria-invalid={
-                  editFieldError("guardian_phone") ? true : undefined
-                }
-                className={`mt-2 h-10 w-full rounded-lg border ${editFieldError("guardian_phone") ? "border-moto-red" : "border-gray-200"} bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none`}
-              />
-            </label>
-            {editFieldError("guardian_phone") ? (
-              <p
-                id="status-edit-guardian_phone-error"
-                className="text-moto-red mt-1 text-xs"
-              >
-                {editFieldError("guardian_phone")}
-              </p>
-            ) : null}
-          </div>
+          <Input
+            id="status-edit-guardian_phone"
+            type="tel"
+            name="guardian_phone"
+            label={t("phoneOptionalLabel")}
+            value={editPhone}
+            onChange={(event) => setEditPhone(event.target.value)}
+            error={editFieldError("guardian_phone")}
+          />
           <p className="text-sm text-gray-500">{t("emailImmutable")}</p>
           <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <button
-              type="submit"
-              disabled={savingEdit}
-              className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-            >
+            <Button type="submit" disabled={savingEdit} size="md">
               {savingEdit ? t("saving") : t("save")}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
               onClick={handleCancel}
               disabled={savingEdit}
-              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+              variant="surface"
+              size="md"
             >
               {t("cancel")}
-            </button>
+            </Button>
           </div>
         </form>
       )}
@@ -1675,30 +1617,26 @@ function ChangeRequestsPanel({
                     {replyErrorId === request.id ? (
                       <FormErrorAlert message={replyError} />
                     ) : null}
-                    <label className="block">
-                      <span className="text-sm font-semibold text-gray-700">
-                        {t("changeRequestReplyLabel")}
-                      </span>
-                      <textarea
-                        name="body"
-                        value={replyDrafts[request.id] ?? ""}
-                        onChange={(event) =>
-                          onReplyDraftChange(request.id, event.target.value)
-                        }
-                        rows={3}
-                        required
-                        className="mt-2 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                      />
-                    </label>
-                    <button
+                    <Textarea
+                      id={`change-request-reply-${request.id}`}
+                      name="body"
+                      label={t("changeRequestReplyLabel")}
+                      value={replyDrafts[request.id] ?? ""}
+                      onChange={(event) =>
+                        onReplyDraftChange(request.id, event.target.value)
+                      }
+                      rows={3}
+                      required
+                    />
+                    <Button
                       type="submit"
                       disabled={replyingId === request.id}
-                      className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                      size="md"
                     >
                       {replyingId === request.id
                         ? t("changeRequestReplySending")
                         : t("changeRequestReplySubmit")}
-                    </button>
+                    </Button>
                   </form>
                 ) : null}
               </li>

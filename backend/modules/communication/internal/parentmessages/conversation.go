@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -223,16 +225,20 @@ func DecorateGuardianReadReceipts(
 // — a nil broadcaster or non-positive tenant is a no-op, and a delivery error is
 // logged, never returned (the message has already committed). Callers schedule
 // this AFTER commit so a woken client never reads the pre-commit snapshot.
+//
+// A leadership conversation wakes only the staff tabs of leadership members
+// (#5200): every other staff member must not even see that something moved.
 func Broadcast(
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 	tenantID, guardianAccountID, threadID, studentID int64,
+	audience string,
 ) {
 	if broadcaster == nil || tenantID <= 0 {
 		return
 	}
 	event := realtime.NewParentMessageEvent(guardianAccountID, threadID, studentID)
-	if err := broadcaster.BroadcastParentMessage(tenantID, guardianAccountID, event); err != nil {
+	if err := broadcastParentEvent(broadcaster, tenantID, guardianAccountID, event, audience); err != nil {
 		loggerOr(logger).Warn("parent messaging: failed to broadcast parent message",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("guardian_account_id", guardianAccountID),
@@ -252,18 +258,29 @@ func BroadcastRead(
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 	tenantID, guardianAccountID, threadID, studentID int64,
+	audience string,
 ) {
 	if broadcaster == nil || tenantID <= 0 {
 		return
 	}
 	event := realtime.NewParentMessageReadEvent(guardianAccountID, threadID, studentID)
-	if err := broadcaster.BroadcastParentMessage(tenantID, guardianAccountID, event); err != nil {
+	if err := broadcastParentEvent(broadcaster, tenantID, guardianAccountID, event, audience); err != nil {
 		loggerOr(logger).Warn("parent messaging: failed to broadcast read receipt",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("guardian_account_id", guardianAccountID),
 			slog.String("error", err.Error()),
 		)
 	}
+}
+
+// broadcastParentEvent routes a conversation event by audience: a team
+// conversation wakes the school's staff, a leadership conversation only its
+// leadership members. The guardian's own tabs are woken either way.
+func broadcastParentEvent(broadcaster realtime.Broadcaster, tenantID, guardianAccountID int64, event realtime.Event, audience string) error {
+	if audience == deliveryPorts.ParentAudienceLeadership {
+		return broadcaster.BroadcastLeadershipParentMessage(tenantID, guardianAccountID, event)
+	}
+	return broadcaster.BroadcastParentMessage(tenantID, guardianAccountID, event)
 }
 
 // ConversationCore binds the shared rules above to one set of conversation
@@ -307,11 +324,11 @@ func (c *ConversationCore) DecorateReadReceipts(ctx context.Context, threadID, o
 }
 
 // Broadcast is the bound form of the package-level Broadcast.
-func (c *ConversationCore) Broadcast(tenantID, guardianAccountID, threadID, studentID int64) {
-	Broadcast(c.broadcaster, c.logger, tenantID, guardianAccountID, threadID, studentID)
+func (c *ConversationCore) Broadcast(tenantID, guardianAccountID, threadID, studentID int64, audience string) {
+	Broadcast(c.broadcaster, c.logger, tenantID, guardianAccountID, threadID, studentID, audience)
 }
 
 // BroadcastRead is the bound form of the package-level BroadcastRead.
-func (c *ConversationCore) BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64) {
-	BroadcastRead(c.broadcaster, c.logger, tenantID, guardianAccountID, threadID, studentID)
+func (c *ConversationCore) BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64, audience string) {
+	BroadcastRead(c.broadcaster, c.logger, tenantID, guardianAccountID, threadID, studentID, audience)
 }

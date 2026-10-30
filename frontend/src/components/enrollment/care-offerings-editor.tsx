@@ -49,6 +49,9 @@ import { TranslationsSection } from "~/components/enrollment/translations-sectio
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
 import { ToggleChip } from "~/components/ui/toggle-chip";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -1208,13 +1211,6 @@ function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
   );
 }
 
-/** `aria-invalid` and `aria-describedby` for a raw input with a field error. */
-function fieldErrorProps(id: string, message: string | undefined) {
-  return message
-    ? { "aria-invalid": true, "aria-describedby": `${id}-error` }
-    : {};
-}
-
 function NoPhaseState() {
   const tenantPath = useTenantAwarePath();
 
@@ -1694,13 +1690,13 @@ function CareOfferingWeekdayFields({
             {draft.available_days.map((day) => (
               <label key={day} className="flex items-center gap-2 text-xs">
                 <span className="w-6 text-gray-700">{DAY_LABELS[day]}</span>
-                <input
+                <Input
                   type="time"
+                  controlSize="compact"
                   required={pickupTimesRequired}
                   aria-label={`${DAY_LABELS[day]} Gehzeit`}
                   value={draft.pickup_times?.[day] ?? ""}
                   onChange={(event) => setPickupTime(day, event.target.value)}
-                  className="rounded-md border border-gray-200 px-2 py-1.5 text-xs focus:border-gray-400 focus:outline-none"
                 />
               </label>
             ))}
@@ -2168,11 +2164,13 @@ function CareOfferingCommercialFields({
 }>) {
   return (
     <div className="grid gap-4 sm:grid-cols-3">
-      <label className="block">
-        <span className="text-xs font-medium text-gray-700">Kapazität</span>
-        <input
+      <div>
+        <Input
+          id="care-offering-capacity"
           type="number"
           name="capacity"
+          label="Kapazität"
+          controlSize="compact"
           min={0}
           value={draft.is_required ? "" : (draft.capacity ?? "")}
           disabled={draft.is_required}
@@ -2182,55 +2180,44 @@ function CareOfferingCommercialFields({
           placeholder={
             draft.is_required ? "Unbegrenzt (Pflicht)" : "Unbegrenzt"
           }
-          {...fieldErrorProps("care-offering-capacity", fieldError("capacity"))}
-          className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-        />
-        <FieldErrorHint
-          id="care-offering-capacity-error"
-          as="span"
-          message={fieldError("capacity")}
+          error={fieldError("capacity")}
         />
         {draft.is_required ? (
           <span className="mt-1 block text-xs text-gray-500">
             Pflichtangebote haben keine Platzbegrenzung.
           </span>
         ) : null}
-      </label>
-      <label className="block">
-        <span className="text-xs font-medium text-gray-700">Preis in Cent</span>
-        <input
-          type="number"
-          name="price_cents"
-          min={0}
-          value={draft.price_cents ?? ""}
-          onChange={(event) =>
-            onChange({ price_cents: nullableNumber(event.target.value) })
-          }
-          placeholder="Optional"
-          {...fieldErrorProps("care-offering-price", fieldError("price_cents"))}
-          className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        />
-        <FieldErrorHint
-          id="care-offering-price-error"
-          as="span"
-          message={fieldError("price_cents")}
-        />
-      </label>
-      <label className="block">
-        <span className="text-xs font-medium text-gray-700">Reihenfolge</span>
-        <input
+      </div>
+      <Input
+        id="care-offering-price"
+        type="number"
+        name="price_cents"
+        label="Preis in Cent"
+        controlSize="compact"
+        min={0}
+        value={draft.price_cents ?? ""}
+        onChange={(event) =>
+          onChange({ price_cents: nullableNumber(event.target.value) })
+        }
+        placeholder="Optional"
+        error={fieldError("price_cents")}
+      />
+      <div>
+        <Input
+          id="care-offering-sort-order"
           type="number"
           name="sort_order"
+          label="Reihenfolge"
+          controlSize="compact"
           value={draft.sort_order}
           onChange={(event) =>
             onChange({ sort_order: Number(event.target.value) })
           }
-          className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
         />
         <span className="mt-1 block text-xs text-gray-500">
           Kleinere Zahlen erscheinen im Elternformular weiter oben.
         </span>
-      </label>
+      </div>
     </div>
   );
 }
@@ -2372,28 +2359,22 @@ function CareOfferingForm({
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">Name</span>
-          <input
-            type="text"
-            name="name"
-            value={draft.name}
-            onChange={(event) => update({ name: event.target.value })}
-            placeholder="z. B. Regelbetreuung"
-            aria-required="true"
-            {...fieldErrorProps("care-offering-name", fieldError("name"))}
-            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          />
-          <FieldErrorHint
-            id="care-offering-name-error"
-            as="span"
-            message={fieldError("name")}
-          />
-        </label>
-        <label className="block" htmlFor="care-offering-form-phase">
-          <span className="text-xs font-medium text-gray-700">
+        <Input
+          id="care-offering-name"
+          type="text"
+          name="name"
+          label="Name"
+          controlSize="compact"
+          value={draft.name}
+          onChange={(event) => update({ name: event.target.value })}
+          placeholder="z. B. Regelbetreuung"
+          aria-required="true"
+          error={fieldError("name")}
+        />
+        <div>
+          <FieldLabel htmlFor="care-offering-form-phase">
             Anmeldephase
-          </span>
+          </FieldLabel>
           <CustomSelect
             id="care-offering-form-phase"
             ariaLabel="Anmeldephase"
@@ -2413,7 +2394,6 @@ function CareOfferingForm({
               update(result.patch);
               if (result.templateUnlinked) onTemplateUnlinked();
             }}
-            className="mt-1"
             options={[
               { value: "", label: "Bitte wählen" },
               ...phases.map((phase) => ({
@@ -2422,7 +2402,7 @@ function CareOfferingForm({
               })),
             ]}
           />
-        </label>
+        </div>
       </div>
 
       <CareOfferingTemplateField
@@ -2435,17 +2415,15 @@ function CareOfferingForm({
         onChange={update}
       />
 
-      <label className="block">
-        <span className="text-xs font-medium text-gray-700">Beschreibung</span>
-        <textarea
-          name="description"
-          value={draft.description ?? ""}
-          onChange={(event) => update({ description: event.target.value })}
-          rows={3}
-          placeholder="Kurz erklären, was Eltern hier auswählen."
-          className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        />
-      </label>
+      <Textarea
+        id="care-offering-description"
+        name="description"
+        label="Beschreibung"
+        value={draft.description ?? ""}
+        onChange={(event) => update({ description: event.target.value })}
+        rows={3}
+        placeholder="Kurz erklären, was Eltern hier auswählen."
+      />
 
       <fieldset className="rounded-xl border border-gray-200 p-4">
         <legend className="px-1 text-xs font-medium text-gray-700">
@@ -2456,30 +2434,29 @@ function CareOfferingForm({
           geprüft. Verwenden Sie für eine Gruppe überall dieselbe Regel.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-xs font-medium text-gray-700">
-              Gruppe (optional)
-            </span>
-            <input
-              type="text"
-              name="selection_group"
-              value={draft.selection_group ?? ""}
-              onChange={(event) => {
-                const group = event.target.value;
-                // Clearing the group resets the rule — the backend rejects
-                // a non-optional rule without a group name.
-                update(
-                  group.trim() === ""
-                    ? { selection_group: group, selection_rule: "optional" }
-                    : { selection_group: group },
-                );
-              }}
-              placeholder="z. B. Betreuungsumfang"
-              className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-            />
-          </label>
-          <label className="block" htmlFor="care-offering-selection-rule">
-            <span className="text-xs font-medium text-gray-700">Regel</span>
+          <Input
+            id="care-offering-selection-group"
+            type="text"
+            name="selection_group"
+            label="Gruppe (optional)"
+            controlSize="compact"
+            value={draft.selection_group ?? ""}
+            onChange={(event) => {
+              const group = event.target.value;
+              // Clearing the group resets the rule — the backend rejects
+              // a non-optional rule without a group name.
+              update(
+                group.trim() === ""
+                  ? { selection_group: group, selection_rule: "optional" }
+                  : { selection_group: group },
+              );
+            }}
+            placeholder="z. B. Betreuungsumfang"
+          />
+          <div>
+            <FieldLabel htmlFor="care-offering-selection-rule">
+              Regel
+            </FieldLabel>
             <CustomSelect
               id="care-offering-selection-rule"
               ariaLabel="Regel"
@@ -2490,7 +2467,6 @@ function CareOfferingForm({
                 })
               }
               disabled={!draft.selection_group?.trim()}
-              className="mt-1"
               options={(
                 Object.keys(SELECTION_RULE_LABELS) as CareSelectionRule[]
               ).map((rule) => ({
@@ -2498,7 +2474,7 @@ function CareOfferingForm({
                 label: SELECTION_RULE_LABELS[rule],
               }))}
             />
-          </label>
+          </div>
         </div>
         {draft.selection_rule === "at_most_one_per_day" && (
           <p className="mt-3 text-sm leading-6 text-gray-600">

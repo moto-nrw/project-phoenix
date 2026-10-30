@@ -2,7 +2,7 @@
 paths:
   - "backend/**"
   - "frontend/src/**"
-  - "error-registry.json"
+  - "error-registry/**"
 ---
 
 # Error path: the code is the identity
@@ -13,10 +13,10 @@ Registry mechanics: [docs/agents/error-registry.md](../../docs/agents/error-regi
 ## Rules
 
 1. **The code is the identity.** Every error response carries a code from
-   `error-registry.json` (`bereich.fehlername`). Programs branch on the code or
+   `error-registry/` (`bereich.fehlername`). Programs branch on the code or
    the HTTP status, never on a message text. The backend text travels in
    `detail` and is developer diagnostics; the user reads the catalog text for
-   the code (`errorCatalog` in `frontend/src/i18n/messages/*.json`).
+   the code (`errorCatalog` in `frontend/src/i18n/messages/<locale>/errorCatalog/codes/<domain>.json`).
 2. **One envelope.** The backend answers every error with the RFC 9457 body:
    `type`, `title`, `status` (the HTTP status number), `detail`, `instance`,
    plus `code`, `errors[]` and `details{}`. A handler without its own domain

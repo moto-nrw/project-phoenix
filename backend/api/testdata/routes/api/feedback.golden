@@ -1,0 +1,9 @@
+DELETE /api/feedback/{id}
+GET /api/feedback/
+GET /api/feedback/date-range
+GET /api/feedback/date/{date}
+GET /api/feedback/mensa
+GET /api/feedback/student/{id}
+GET /api/feedback/{id}
+POST /api/feedback/
+POST /api/feedback/batch

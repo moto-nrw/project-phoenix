@@ -60,7 +60,7 @@ Object.defineProperty(globalThis, "sessionStorage", {
 // real German catalog so existing assertions (which match the German chrome)
 // keep passing, and useLocale reports the default locale ("de").
 vi.mock("next-intl", async () => {
-  const de = (await import("~/i18n/messages/de.json")).default as Record<
+  const de = (await import("~/i18n/messages/de.generated")).default as Record<
     string,
     unknown
   >;

@@ -1,0 +1,12 @@
+DELETE /school/calendar/appointments/{appointmentId}
+DELETE /school/calendar/parent-conferences/{conferenceId}
+GET /school/calendar/feed
+GET /school/calendar/my
+GET /school/calendar/parent-conferences
+GET /school/calendar/parent-conferences/{conferenceId}
+POST /school/calendar/appointments
+POST /school/calendar/feed/rotate
+POST /school/calendar/parent-conferences
+POST /school/calendar/recipients/{recipientId}/response
+PUT /school/calendar/appointments/{appointmentId}
+PUT /school/calendar/parent-conferences/{conferenceId}

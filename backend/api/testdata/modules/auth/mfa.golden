@@ -1,0 +1,6 @@
+DELETE /auth/mfa/trusted-devices/{deviceId} -> basis
+GET /auth/mfa/trusted-devices -> basis
+POST /auth/mfa/enroll/confirm -> basis
+POST /auth/mfa/enroll/start -> basis
+POST /auth/mfa/resend -> basis
+POST /auth/mfa/verify -> basis

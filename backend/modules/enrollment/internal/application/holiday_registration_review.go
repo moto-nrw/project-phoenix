@@ -35,7 +35,17 @@ type HolidayReviewStore interface {
 	// The second result is the freeze override of each registration.
 	ReadHolidayReview(ctx context.Context, organizationID, periodID, registrationID int64, health bool) ([]enrollment.HolidayRegistrationDetail, map[int64]string, error)
 	ReadHolidayContacts(ctx context.Context, organizationID, registrationID int64) ([]enrollment.HolidayRegistrationContact, error)
+	// ReadHolidayAnswers reads the form version and the answers of the
+	// registrations of a period, or of the one registrationID names, by
+	// registration (#5198).
+	ReadHolidayAnswers(ctx context.Context, organizationID, periodID, registrationID int64) (map[int64]enrollment.HolidayRegistrationAnswers, error)
 	ReadHolidayHistory(ctx context.Context, organizationID, registrationID int64) ([]enrollment.HolidayRegistrationEvent, error)
+	// ReadHolidayProofs reads the claimed proofs of a registration without
+	// their bytes, oldest first (#5238).
+	ReadHolidayProofs(ctx context.Context, organizationID, registrationID int64) ([]enrollment.HolidayRegistrationProof, error)
+	// ReadHolidayProof reads one claimed proof of a registration of the
+	// period with its bytes.
+	ReadHolidayProof(ctx context.Context, organizationID, periodID, registrationID, proofID int64) (enrollment.HolidayProofFile, bool, error)
 	// LockHolidayRegistration reads the status and the freeze override of
 	// a registration and holds its row.
 	LockHolidayRegistration(ctx context.Context, organizationID, periodID, registrationID int64) (status, override string, found bool, err error)
@@ -50,21 +60,23 @@ type HolidayReviewStore interface {
 type HolidayRegistrationReview struct {
 	store   HolidayReviewStore
 	periods HolidayPeriodStore
+	forms   HolidayFormStore
 	today   func() calendar.Date
 }
 
 var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 
-// NewHolidayRegistrationReview builds the review; a nil today uses the
-// Berlin calendar day.
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, today func() calendar.Date) *HolidayRegistrationReview {
-	if store == nil || periods == nil {
-		panic("enrollment: the holiday review store and the period store are required")
+// NewHolidayRegistrationReview builds the review; forms reads the form
+// versions the answers belong to (#5198). A nil today uses the Berlin
+// calendar day.
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, today func() calendar.Date) *HolidayRegistrationReview {
+	if store == nil || periods == nil || forms == nil {
+		panic("enrollment: the holiday review store, the period store and the form store are required")
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayRegistrationReview{store: store, periods: periods, today: today}
+	return &HolidayRegistrationReview{store: store, periods: periods, forms: forms, today: today}
 }
 
 // ListHolidayRegistrations lists the registrations of the filter with the
@@ -79,8 +91,8 @@ func (h *HolidayRegistrationReview) ListHolidayRegistrations(ctx context.Context
 	}
 	for _, registration := range all {
 		list.StatusCounts[registration.Status]++
-		if holidayRegistrationMatches(registration, filter) {
-			list.Registrations = append(list.Registrations, registration)
+		if holidayRegistrationMatches(registration.HolidayRegistrationSummary, filter) {
+			list.Registrations = append(list.Registrations, registration.HolidayRegistrationSummary)
 		}
 	}
 	if err := h.audit(ctx, reviewer, period.ID, 0, enrollment.HolidayAuditList, map[string]any{
@@ -91,20 +103,97 @@ func (h *HolidayRegistrationReview) ListHolidayRegistrations(ctx context.Context
 	return list, nil
 }
 
-// ExportHolidayRegistrations lists one row per booking of the filter and
-// records the export.
-func (h *HolidayRegistrationReview) ExportHolidayRegistrations(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter, format string) (enrollment.HolidayPeriod, []enrollment.HolidayRegistrationExportRow, error) {
+// ExportHolidayRegistrations lists one row per booking of the filter with
+// the answers to the questions without health information, and records the
+// export.
+func (h *HolidayRegistrationReview) ExportHolidayRegistrations(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter, format string) (enrollment.HolidayRegistrationExport, error) {
 	period, all, err := h.readPeriod(ctx, reviewer, periodID, filter)
 	if err != nil {
-		return enrollment.HolidayPeriod{}, nil, err
+		return enrollment.HolidayRegistrationExport{}, err
 	}
 	rows := holidayExportRows(all, filter)
+	columns, err := h.exportAnswers(ctx, reviewer.OrganizationID, period.ID, rows)
+	if err != nil {
+		return enrollment.HolidayRegistrationExport{}, err
+	}
 	if err := h.audit(ctx, reviewer, period.ID, 0, enrollment.HolidayAuditExport, map[string]any{
 		"filter": holidayFilterDetails(filter), "format": format, "rows": len(rows),
 	}); err != nil {
-		return enrollment.HolidayPeriod{}, nil, err
+		return enrollment.HolidayRegistrationExport{}, err
 	}
-	return period, rows, nil
+	return enrollment.HolidayRegistrationExport{Period: period, Rows: rows, Columns: columns}, nil
+}
+
+// exportAnswers reads the answers of the exported registrations and
+// all form versions of the period, and gives each row the answers
+// to the export's columns. No answer to a question with health information
+// reaches a row.
+func (h *HolidayRegistrationReview) exportAnswers(ctx context.Context, organizationID, periodID int64, rows []enrollment.HolidayRegistrationExportRow) ([]enrollment.HolidayFormField, error) {
+	if len(rows) == 0 {
+		return []enrollment.HolidayFormField{}, nil
+	}
+	answers, err := h.store.ReadHolidayAnswers(ctx, organizationID, periodID, 0)
+	if err != nil {
+		return nil, fmt.Errorf("enrollment: read holiday registration answers: %w", err)
+	}
+	versions := []int{}
+	for _, row := range rows {
+		if version := answers[row.Registration.ID].FormVersion; version > 0 && !slices.Contains(versions, version) {
+			versions = append(versions, version)
+		}
+	}
+	forms, err := h.forms.HolidayPeriodForms(ctx, organizationID, periodID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("enrollment: read holiday form versions: %w", err)
+	}
+	columns := holidayExportColumns(forms, versions)
+	for i := range rows {
+		registration := answers[rows[i].Registration.ID]
+		rows[i].Answers = holidayRowAnswers(columns, registration, rows[i].Child.ID)
+		rows[i].AnswerFields = holidayExportAnswerFields(forms[registration.FormVersion], rows[i].Answers)
+	}
+	return columns, nil
+}
+
+// holidayExportAnswerFields keeps the submitted definitions for the answers
+// already admitted by the export's health filter.
+func holidayExportAnswerFields(form enrollment.HolidayPeriodForm, answers enrollment.HolidayAnswers) []enrollment.HolidayFormField {
+	fields := []enrollment.HolidayFormField{}
+	for _, field := range form.Fields {
+		if _, ok := answers[field.Key]; ok {
+			fields = append(fields, field)
+		}
+	}
+	return fields
+}
+
+// holidayRowAnswers picks the family's and the child's answers to the
+// export's columns.
+func holidayRowAnswers(columns []enrollment.HolidayFormField, registration enrollment.HolidayRegistrationAnswers, childID int64) enrollment.HolidayAnswers {
+	child := holidayChildCustomData(registration, childID)
+	out := enrollment.HolidayAnswers{}
+	for _, column := range columns {
+		// Answers were checked against the registration's kept version and
+		// belong to exactly one scope. A newer version may move the question
+		// between family and child without changing those stored answers.
+		value, ok := registration.CustomData[column.Key]
+		if !ok {
+			value, ok = child[column.Key]
+		}
+		if ok {
+			out[column.Key] = value
+		}
+	}
+	return out
+}
+
+func holidayChildCustomData(answers enrollment.HolidayRegistrationAnswers, childID int64) enrollment.HolidayAnswers {
+	for _, child := range answers.Children {
+		if child.ChildID == childID {
+			return child.CustomData
+		}
+	}
+	return nil
 }
 
 // HolidayRegistration returns one registration with its health information,
@@ -127,6 +216,32 @@ func (h *HolidayRegistrationReview) HolidayRegistration(ctx context.Context, rev
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
 	return detail, nil
+}
+
+// OpenHolidayRegistrationProof returns one proof of benefits of a
+// registration of the period (#5238) and records the read in the same
+// transaction; without the entry no byte is answered.
+func (h *HolidayRegistrationReview) OpenHolidayRegistrationProof(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID, proofID int64) (enrollment.HolidayProofFile, error) {
+	if err := holidayReviewKey(reviewer, periodID, registrationID); err != nil {
+		return enrollment.HolidayProofFile{}, err
+	}
+	if proofID <= 0 {
+		return enrollment.HolidayProofFile{}, enrollment.ErrHolidayProofNotFound
+	}
+	if _, err := h.period(ctx, reviewer.OrganizationID, periodID, false); err != nil {
+		return enrollment.HolidayProofFile{}, err
+	}
+	file, found, err := h.store.ReadHolidayProof(ctx, reviewer.OrganizationID, periodID, registrationID, proofID)
+	if err != nil {
+		return enrollment.HolidayProofFile{}, fmt.Errorf("enrollment: read holiday registration proof: %w", err)
+	}
+	if !found {
+		return enrollment.HolidayProofFile{}, enrollment.ErrHolidayProofNotFound
+	}
+	if err := h.audit(ctx, reviewer, periodID, registrationID, enrollment.HolidayAuditProof, map[string]any{"proof_id": proofID}); err != nil {
+		return enrollment.HolidayProofFile{}, err
+	}
+	return file, nil
 }
 
 // ChangeHolidayRegistration confirms, cancels, freezes or reopens a
@@ -304,7 +419,7 @@ func (h *HolidayRegistrationReview) period(ctx context.Context, organizationID, 
 
 // readPeriod checks the filter and reads every registration of the period
 // without health information.
-func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) (enrollment.HolidayPeriod, []enrollment.HolidayRegistrationSummary, error) {
+func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) (enrollment.HolidayPeriod, []enrollment.HolidayRegistrationDetail, error) {
 	if err := holidayReviewKey(reviewer, periodID, 1); err != nil {
 		return enrollment.HolidayPeriod{}, nil, err
 	}
@@ -320,11 +435,7 @@ func (h *HolidayRegistrationReview) readPeriod(ctx context.Context, reviewer enr
 		return enrollment.HolidayPeriod{}, nil, fmt.Errorf("enrollment: read holiday registrations: %w", err)
 	}
 	h.complete(period, read, overrides)
-	summaries := make([]enrollment.HolidayRegistrationSummary, len(read))
-	for i, registration := range read {
-		summaries[i] = registration.HolidayRegistrationSummary
-	}
-	return period, summaries, nil
+	return period, read, nil
 }
 
 func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollment.HolidayReviewer, period enrollment.HolidayPeriod, registrationID int64) (enrollment.HolidayRegistrationDetail, error) {
@@ -343,10 +454,43 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 	if detail.History, err = h.store.ReadHolidayHistory(ctx, reviewer.OrganizationID, registrationID); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration history: %w", err)
 	}
+	if detail.BenefitsProofs, err = h.store.ReadHolidayProofs(ctx, reviewer.OrganizationID, registrationID); err != nil {
+		return enrollment.HolidayRegistrationDetail{}, fmt.Errorf("enrollment: read holiday registration proofs: %w", err)
+	}
 	if detail.Health == nil {
 		detail.Health = []enrollment.HolidayRegistrationHealth{}
 	}
+	if err := h.detailAnswers(ctx, reviewer.OrganizationID, period.ID, &detail); err != nil {
+		return enrollment.HolidayRegistrationDetail{}, err
+	}
 	return detail, nil
+}
+
+// detailAnswers adds the version of the form the registration was submitted
+// with and every answer, health information included: the detail is the
+// one place that shows them (ADR 0114 point 7).
+func (h *HolidayRegistrationReview) detailAnswers(ctx context.Context, organizationID, periodID int64, detail *enrollment.HolidayRegistrationDetail) error {
+	answers, err := h.store.ReadHolidayAnswers(ctx, organizationID, periodID, detail.ID)
+	if err != nil {
+		return fmt.Errorf("enrollment: read holiday registration answers: %w", err)
+	}
+	registration, ok := answers[detail.ID]
+	if !ok {
+		return enrollment.ErrHolidayRegistrationEntryNotFound
+	}
+	forms, err := h.forms.HolidayPeriodForms(ctx, organizationID, periodID, []int{registration.FormVersion})
+	if err != nil {
+		return fmt.Errorf("enrollment: read holiday form version: %w", err)
+	}
+	form, ok := forms[registration.FormVersion]
+	if !ok {
+		return fmt.Errorf("enrollment: holiday registration %d keeps the missing form version %d", detail.ID, registration.FormVersion)
+	}
+	detail.Form = &form
+	detail.LegalAcceptances = registration.LegalAcceptances
+	detail.CustomData = registration.CustomData
+	detail.ChildCustomData = registration.Children
+	return nil
 }
 
 // holidayWeekModel is a time model with its week and its position in the
@@ -437,7 +581,7 @@ func validateHolidayRegistrationFilter(filter enrollment.HolidayRegistrationFilt
 }
 
 // holidayExportRows lists one row per child and booking of the filter.
-func holidayExportRows(all []enrollment.HolidayRegistrationSummary, filter enrollment.HolidayRegistrationFilter) []enrollment.HolidayRegistrationExportRow {
+func holidayExportRows(all []enrollment.HolidayRegistrationDetail, filter enrollment.HolidayRegistrationFilter) []enrollment.HolidayRegistrationExportRow {
 	rows := []enrollment.HolidayRegistrationExportRow{}
 	for _, registration := range all {
 		if filter.Status != "" && registration.Status != filter.Status {
@@ -450,13 +594,13 @@ func holidayExportRows(all []enrollment.HolidayRegistrationSummary, filter enrol
 	return rows
 }
 
-func appendHolidayChildRows(rows []enrollment.HolidayRegistrationExportRow, registration enrollment.HolidayRegistrationSummary, child enrollment.HolidayRegistrationChild, filter enrollment.HolidayRegistrationFilter) []enrollment.HolidayRegistrationExportRow {
+func appendHolidayChildRows(rows []enrollment.HolidayRegistrationExportRow, registration enrollment.HolidayRegistrationDetail, child enrollment.HolidayRegistrationChild, filter enrollment.HolidayRegistrationFilter) []enrollment.HolidayRegistrationExportRow {
 	if !holidayChildMatches(child, filter) {
 		return rows
 	}
 	for _, booking := range child.Bookings {
 		if holidayBookingMatches(booking, filter) {
-			rows = append(rows, enrollment.HolidayRegistrationExportRow{Registration: registration, Child: child, Booking: booking})
+			rows = append(rows, enrollment.HolidayRegistrationExportRow{Registration: registration.HolidayRegistrationSummary, SecondGuardian: registration.SecondGuardian, Child: child, Booking: booking})
 		}
 	}
 	return rows

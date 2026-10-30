@@ -98,7 +98,7 @@ export function HolidayGuestGroupCard({
   return (
     <SectionCard
       title="Feriengruppe"
-      description="Feriengäste sind Kinder anderer Schulen und Kinder ohne Schule beim Träger. In der Feriengruppe sehen Sie Betreuung, Notfall und Abholung und melden die Kinder an und ab."
+      description="Feriengäste sind Kinder anderer Schulen und Kinder ohne Schule beim Träger. In der Feriengruppe melden Sie die Kinder an und ab. Sie sehen Betreuung, Notfall, Abholung und die Angaben, die der Träger freigibt."
     >
       <div className="flex flex-col gap-4">
         <p className="text-sm text-gray-700">{status}</p>

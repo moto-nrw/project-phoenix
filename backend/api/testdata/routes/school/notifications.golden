@@ -1,0 +1,7 @@
+DELETE /school/notifications/preferences/
+DELETE /school/notifications/push/subscriptions
+GET /school/notifications/preferences/
+GET /school/notifications/push/public-key
+POST /school/notifications/push/subscriptions
+POST /school/notifications/test
+PUT /school/notifications/preferences/{type}

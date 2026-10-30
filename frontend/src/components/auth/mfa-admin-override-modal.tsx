@@ -11,14 +11,17 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
+import { Button } from "~/components/ui/button";
+import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Modal } from "~/components/ui/modal";
+import { Radio } from "~/components/ui/radio";
+import { Textarea } from "~/components/ui/textarea";
 import {
   useApiFormError,
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   adminGetMFAState,
   adminResetMFA,
@@ -33,16 +36,7 @@ import {
 
 const logger = createLogger({ component: "MFAAdminOverrideModal" });
 
-const DANGER_RED = MOTO_COLOR_PALETTE.red.base;
 const MIN_REASON_LENGTH = 3;
-
-const TEXTAREA_CLASS =
-  "block w-full rounded-lg border-0 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm ring-1 transition-all ring-inset focus:outline-none focus-visible:ring-2 disabled:bg-gray-50";
-
-/** Rahmen der Begründung: rot, wenn eine Prüfung sie abgelehnt hat. */
-function reasonClass(invalid: boolean, focusRing: string): string {
-  return `${TEXTAREA_CLASS} ${invalid ? "ring-moto-red" : "ring-gray-200"} ${focusRing}`;
-}
 
 type View = { kind: "form" } | { kind: "reset-done" };
 
@@ -421,15 +415,10 @@ export function MFAAdminOverrideModal({
                 Ihrem Konto und dem angegebenen Grund erfasst.
               </p>
               <div className="space-y-2">
-                <label
-                  htmlFor="admin-mfa-reason"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Grund (Pflichtfeld)
-                </label>
-                <textarea
+                <Textarea
                   id="admin-mfa-reason"
                   name="reason"
+                  label="Grund"
                   rows={3}
                   required
                   autoFocus
@@ -439,23 +428,20 @@ export function MFAAdminOverrideModal({
                   placeholder="z. B. „Mitarbeiter hat keinen Zugriff mehr auf sein E-Mail-Postfach"
                   disabled={isWorking}
                   aria-invalid={Boolean(resetErrors.fieldError("reason"))}
-                  className={reasonClass(
-                    Boolean(resetErrors.fieldError("reason")),
-                    "focus-visible:ring-moto-blue",
-                  )}
                 />
               </div>
               <div className="flex justify-end gap-2">
-                <button
+                <Button
                   type="submit"
+                  variant="danger"
+                  size="md"
                   disabled={isWorking}
-                  className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-                  style={{ backgroundColor: DANGER_RED }}
+                  className="font-semibold"
                 >
                   {isWorking
                     ? "Wird ausgeführt…"
                     : "2FA endgültig zurücksetzen"}
-                </button>
+                </Button>
               </div>
             </form>
           </section>
@@ -511,24 +497,21 @@ export function MFAAdminOverrideModal({
                     },
                   ] as const
                 ).map((opt) => (
-                  <label
+                  <ChoiceTile
                     key={opt.value}
                     htmlFor={`admin-mfa-override-${opt.value}`}
                     aria-label={opt.title}
-                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                      selectedOverride === opt.value
-                        ? "border-moto-blue bg-moto-blue/5"
-                        : "border-gray-200 hover:bg-gray-50"
-                    }`}
+                    tone="blue"
+                    selected={selectedOverride === opt.value}
+                    className="items-start p-3 font-normal"
                   >
-                    <input
+                    <Radio
                       id={`admin-mfa-override-${opt.value}`}
-                      type="radio"
                       name="admin-mfa-override"
                       value={opt.value}
                       checked={selectedOverride === opt.value}
                       onChange={() => setSelectedOverride(opt.value)}
-                      className="mt-1 h-4 w-4"
+                      className="mt-0.5"
                     />
                     <span className="flex-1">
                       <span className="block text-sm font-medium text-gray-900">
@@ -543,45 +526,39 @@ export function MFAAdminOverrideModal({
                         {opt.desc}
                       </span>
                     </span>
-                  </label>
+                  </ChoiceTile>
                 ))}
               </fieldset>
 
               {selectedOverride !== override && (
                 <div className="mt-3 space-y-2">
-                  <label
-                    htmlFor="admin-mfa-override-reason"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Begründung (Pflichtfeld)
-                  </label>
-                  <textarea
+                  <Textarea
                     id="admin-mfa-override-reason"
                     name="reason"
+                    label="Begründung"
                     rows={2}
+                    aria-required
                     value={overrideReason}
                     onChange={(e) => setOverrideReason(e.target.value)}
                     maxLength={500}
                     placeholder="z. B. „Mitarbeiter im Urlaub, Postfach gesperrt"
                     disabled={overrideWorking}
                     aria-invalid={Boolean(overrideErrors.fieldError("reason"))}
-                    className={reasonClass(
-                      Boolean(overrideErrors.fieldError("reason")),
-                      "focus-visible:ring-moto-blue",
-                    )}
                   />
                 </div>
               )}
 
               <div className="mt-4 flex justify-end">
-                <button
+                <Button
                   type="button"
+                  variant="primary"
+                  size="md"
                   disabled={overrideWorking || selectedOverride === override}
                   onClick={() => void handleOverrideSubmit()}
-                  className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white transition-all hover:bg-gray-800 disabled:opacity-50"
+                  className="font-semibold"
                 >
                   {overrideWorking ? "Wird gespeichert…" : "Änderung speichern"}
-                </button>
+                </Button>
               </div>
             </section>
           )}
@@ -631,24 +608,21 @@ export function MFAAdminOverrideModal({
                     },
                   ] as const
                 ).map((opt) => (
-                  <label
+                  <ChoiceTile
                     key={opt.value}
                     htmlFor={`admin-mfa-global-${opt.value}`}
                     aria-label={opt.title}
-                    className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors ${
-                      selectedGlobalOverride === opt.value
-                        ? "border-moto-orange/30 bg-white"
-                        : "border-gray-200 bg-white hover:bg-gray-50"
-                    }`}
+                    tone="gray"
+                    selected={selectedGlobalOverride === opt.value}
+                    className="items-start p-3 font-normal"
                   >
-                    <input
+                    <Radio
                       id={`admin-mfa-global-${opt.value}`}
-                      type="radio"
                       name="admin-mfa-global"
                       value={opt.value}
                       checked={selectedGlobalOverride === opt.value}
                       onChange={() => setSelectedGlobalOverride(opt.value)}
-                      className="mt-1 h-4 w-4"
+                      className="mt-0.5"
                     />
                     <span className="flex-1">
                       <span className="block text-sm font-medium text-gray-900">
@@ -663,50 +637,43 @@ export function MFAAdminOverrideModal({
                         {opt.desc}
                       </span>
                     </span>
-                  </label>
+                  </ChoiceTile>
                 ))}
               </fieldset>
 
               {selectedGlobalOverride !== globalOverride && (
                 <div className="mt-3 space-y-2">
-                  <label
-                    htmlFor="admin-mfa-global-reason"
-                    className="block text-sm font-medium text-gray-700"
-                  >
-                    Begründung (Pflichtfeld)
-                  </label>
-                  <textarea
+                  <Textarea
                     id="admin-mfa-global-reason"
                     name="reason"
+                    label="Begründung"
                     rows={2}
+                    aria-required
                     value={globalReason}
                     onChange={(e) => setGlobalReason(e.target.value)}
                     maxLength={500}
                     placeholder="z. B. „Mitarbeiter hat dauerhaft keinen E-Mail-Zugriff mehr — Account-weite Notfall-Freischaltung"
                     disabled={globalWorking}
                     aria-invalid={Boolean(globalErrors.fieldError("reason"))}
-                    className={reasonClass(
-                      Boolean(globalErrors.fieldError("reason")),
-                      "focus-visible:ring-moto-red",
-                    )}
                   />
                 </div>
               )}
 
               <div className="mt-4 flex justify-end">
-                <button
+                <Button
                   type="button"
+                  variant="danger"
+                  size="md"
                   disabled={
                     globalWorking || selectedGlobalOverride === globalOverride
                   }
                   onClick={() => void handleGlobalOverrideSubmit()}
-                  className="rounded-lg px-4 py-2 text-sm font-semibold text-white transition-all hover:opacity-90 disabled:opacity-50"
-                  style={{ backgroundColor: DANGER_RED }}
+                  className="font-semibold"
                 >
                   {globalWorking
                     ? "Wird gespeichert…"
                     : "Account-weit speichern"}
-                </button>
+                </Button>
               </div>
             </section>
           )}
@@ -724,13 +691,15 @@ export function MFAAdminOverrideModal({
               : "Beim nächsten Login kann sich der Account ohne 2FA-Code anmelden — oder wird, wenn 2FA für die Schule Pflicht ist, durch die 2FA-Einrichtung geführt."}
           </p>
           <div className="flex justify-end">
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="md"
               onClick={onClose}
-              className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800"
+              className="font-semibold"
             >
               Schließen
-            </button>
+            </Button>
           </div>
         </div>
       )}

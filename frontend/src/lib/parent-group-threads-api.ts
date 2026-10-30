@@ -23,11 +23,23 @@ interface GroupThread {
   created_at: string;
 }
 
+/**
+ * Who a group thread reached (#5200): the group, class or AG and how many
+ * families received it. Parents' answers go to each child's team
+ * conversation.
+ */
+export interface GroupReaders {
+  target_type: GroupTargetType;
+  target_label: string;
+  recipient_count: number;
+}
+
 export interface GroupThreadSummary extends GroupThread {
   last_message_body: string;
   message_count: number;
   family_count: number;
   read_count: number;
+  readers?: GroupReaders;
 }
 
 interface GroupMessage {
@@ -52,6 +64,7 @@ export interface GroupThreadDetail {
   children: GroupChild[];
   family_count: number;
   read_count: number;
+  readers?: GroupReaders;
 }
 
 export interface GroupTarget {
@@ -159,4 +172,13 @@ export function closeGroupThread(id: string): Promise<GroupThreadDetail> {
 /** "3 von 5 Familien gelesen". */
 export function familyReadLabel(read: number, families: number): string {
   return `${read} von ${families} ${families === 1 ? "Familie" : "Familien"} gelesen`;
+}
+
+/**
+ * „Ging an: Gruppe Bären (12 Familien).“ — where a group thread went (#5200). The
+ * target label already names its kind („Gruppe“, „Klasse“, „AG“).
+ */
+export function groupRecipientsLabel(readers: GroupReaders): string {
+  const families = `${readers.recipient_count} ${readers.recipient_count === 1 ? "Familie" : "Familien"}`;
+  return `Ging an: ${readers.target_label} (${families}).`;
 }

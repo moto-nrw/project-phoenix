@@ -1,0 +1,43 @@
+{
+  "kicker": "Termine im Blick",
+  "title": "Kalender",
+  "description": "Termine und Veranstaltungen Ihrer Kinder auf einen Blick.",
+  "empty": "In den nächsten 3 Monaten stehen keine Termine an.",
+  "groups": {
+    "thisWeek": "Diese Woche",
+    "nextWeek": "Nächste Woche",
+    "later": "Später"
+  },
+  "when": "{date} um {time} Uhr",
+  "whenAllDay": "{date}, ganztägig",
+  "forChild": "Für {name}",
+  "types": {
+    "care": "Betreuungszeit",
+    "invitation": "Einladung",
+    "appointment": "Termin"
+  },
+  "accept": "Zusagen",
+  "decline": "Absagen",
+  "accepted": "Termin zugesagt.",
+  "declined": "Termin abgesagt.",
+  "answeredAccepted": "Zugesagt",
+  "answeredDeclined": "Abgesagt",
+  "cancelledByOgs": "Von der OGS abgesagt",
+  "previousMonth": "Vorheriger Monat",
+  "nextMonth": "Nächster Monat",
+  "close": "Schließen",
+  "allDay": "Ganztägig",
+  "moreEvents": "+ {count} weitere",
+  "responseRequired": "Antwort erforderlich",
+  "weekdayShort": {
+    "1": "Mo",
+    "2": "Di",
+    "3": "Mi",
+    "4": "Do",
+    "5": "Fr",
+    "6": "Sa",
+    "7": "So"
+  },
+  "errorObjectList": "die Liste der Termine",
+  "errorObjectResponse": "die Antwort"
+}

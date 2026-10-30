@@ -2,7 +2,9 @@
  * Die eine Navigationsliste des Träger-Portals ("moto träger", #5145).
  *
  * Seitenleiste und mobile Leiste rendern beide aus dieser Datei, ein neues
- * Ziel wird hier eingetragen und nicht an zwei Stellen. Analog zu
+ * Ziel wird hier eingetragen und nicht an zwei Stellen. Die Seitenleiste
+ * zeigt die Arbeitsbereiche oben und die Einstellungen unten als
+ * einklappbaren Abschnitt; die mobile Leiste reiht beide hintereinander. Analog zu
  * `school/shell/school-nav-items.ts`. Jedes Ziel nennt sein Konzept, nicht
  * sein Icon, und das Recht, das es öffnet; ohne Recht fehlt der Eintrag.
  */
@@ -71,13 +73,20 @@ const TRAEGER_PRIMARY_NAV: readonly TraegerNavItem[] = [
     concept: "people",
     right: ACCOUNTS_RIGHT,
   },
-  {
-    key: "zugriffsprotokoll",
-    href: "/traeger/access-log",
-    label: "Zugriffsprotokoll",
-    concept: "changeHistory",
-    right: ACCESS_LOG_RIGHT,
-  },
+];
+
+/**
+ * Unten angeheftet und einklappbar wie im Schul-Portal (#5242): die
+ * Einstellungen des Trägers. Selten gebraucht, deshalb nicht zwischen den
+ * Arbeitsbereichen (#5241). Jeder Unterpunkt hat sein eigenes Recht.
+ */
+export const TRAEGER_SETTINGS_NAV = {
+  key: "einstellungen-bereich",
+  label: "Einstellungen",
+  concept: "settings",
+} as const satisfies Omit<TraegerNavItem, "href" | "right">;
+
+const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
   {
     key: "briefkopf",
     href: "/traeger/briefkopf",
@@ -91,6 +100,13 @@ const TRAEGER_PRIMARY_NAV: readonly TraegerNavItem[] = [
     label: "Einstellungen",
     concept: "settings",
     right: OVERVIEW_RIGHT,
+  },
+  {
+    key: "zugriffsprotokoll",
+    href: "/traeger/access-log",
+    label: "Zugriffsprotokoll",
+    concept: "changeHistory",
+    right: ACCESS_LOG_RIGHT,
   },
 ];
 
@@ -106,11 +122,28 @@ export const TRAEGER_HELP_NAV = {
   concept: "help",
 } as const satisfies Omit<TraegerNavItem, "right">;
 
-/** Die Ziele, die diese Person sehen darf, in der Reihenfolge der Liste. */
+/** Die Arbeitsbereiche, die diese Person sehen darf, in der Reihenfolge der Liste. */
 export function traegerNavItemsFor(
   session: Session | null,
 ): readonly TraegerNavItem[] {
-  return TRAEGER_PRIMARY_NAV.filter(
+  return visibleFor(TRAEGER_PRIMARY_NAV, session);
+}
+
+/**
+ * Die Unterpunkte der Einstellungen, die diese Person sehen darf. Eine leere
+ * Liste heißt: kein Abschnitt „Einstellungen".
+ */
+export function traegerSettingsNavItemsFor(
+  session: Session | null,
+): readonly TraegerNavItem[] {
+  return visibleFor(TRAEGER_SETTINGS_NAV_ITEMS, session);
+}
+
+function visibleFor(
+  items: readonly TraegerNavItem[],
+  session: Session | null,
+): readonly TraegerNavItem[] {
+  return items.filter(
     (item) => item.right === null || hasPermission(session, item.right),
   );
 }

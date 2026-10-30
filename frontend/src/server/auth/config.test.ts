@@ -1,3 +1,4 @@
+import { withServerSessionMutation } from "./session-mutation";
 import { validateSessionToken } from "./token-validation";
 vi.mock("./token-validation", () => ({ validateSessionToken: vi.fn() }));
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
@@ -7,7 +8,7 @@ import { operatorAuthConfig } from "./operator-config";
 import { parentAuthConfig } from "./parent-config";
 import { schoolAuthConfig } from "./school-config";
 import { catererAuthConfig } from "./caterer-config";
-import type { NextAuthConfig, User } from "next-auth";
+import type { User } from "next-auth";
 
 // Shared JWT token constants — decoded payloads documented inline
 // { id: 1, first_name: "John", last_name: "Doe", email: "john@example.com", roles: ["teacher"], is_admin: false }
@@ -749,6 +750,23 @@ describe("authConfig", () => {
     });
   });
 
+  // CredentialsProvider stores the real authorize in `options.authorize`,
+  // the top-level `authorize` is always `() => null` (Auth.js default).
+  function getTeacherAuthorize() {
+    const provider = authConfig.providers.find(
+      (p) =>
+        typeof p === "object" &&
+        p !== null &&
+        "id" in p &&
+        p.id === "credentials",
+    ) as unknown as Record<string, unknown> | undefined;
+    const opts = provider?.options as Record<string, unknown> | undefined;
+    return opts?.authorize as (
+      credentials: Record<string, string> | undefined,
+      request: Request,
+    ) => Promise<User | null>;
+  }
+
   describe("Credentials provider", () => {
     it("should be included in providers", () => {
       const credentialsProvider = authConfig.providers.find(
@@ -762,29 +780,14 @@ describe("authConfig", () => {
     });
 
     it("should have authorize function that validates credentials", async () => {
-      const credentialsProvider = authConfig.providers.find(
-        (p) =>
-          typeof p === "object" &&
-          p !== null &&
-          "id" in p &&
-          p.id === "credentials",
-      ) as NextAuthConfig["providers"][0] & {
-        authorize?: (
-          credentials: Record<string, string> | undefined,
-          request: Request,
-        ) => Promise<unknown>;
-      };
+      const authorize = getTeacherAuthorize();
 
       // Verify authorize function exists
-      expect(credentialsProvider).toBeDefined();
-      expect(credentialsProvider?.authorize).toBeDefined();
-      expect(typeof credentialsProvider?.authorize).toBe("function");
+      expect(authorize).toBeDefined();
+      expect(typeof authorize).toBe("function");
 
       // Verify it returns null for invalid/missing credentials (already tested in other tests)
-      const result = await credentialsProvider?.authorize?.(
-        {},
-        new Request("http://localhost:3000"),
-      );
+      const result = await authorize({}, new Request("http://localhost:3000"));
       expect(result).toBeNull();
     });
 
@@ -795,20 +798,9 @@ describe("authConfig", () => {
         text: async () => "Unauthorized",
       });
 
-      const credentialsProvider = authConfig.providers.find(
-        (p) =>
-          typeof p === "object" &&
-          p !== null &&
-          "id" in p &&
-          p.id === "credentials",
-      ) as NextAuthConfig["providers"][0] & {
-        authorize?: (
-          credentials: Record<string, string> | undefined,
-          request: Request,
-        ) => Promise<unknown>;
-      };
+      const authorize = getTeacherAuthorize();
 
-      const result = await credentialsProvider?.authorize?.(
+      const result = await authorize(
         {
           email: "test@example.com",
           password: "wrongpassword",
@@ -820,52 +812,34 @@ describe("authConfig", () => {
     });
 
     it("should return null for missing credentials", async () => {
-      const credentialsProvider = authConfig.providers.find(
-        (p) =>
-          typeof p === "object" &&
-          p !== null &&
-          "id" in p &&
-          p.id === "credentials",
-      ) as NextAuthConfig["providers"][0] & {
-        authorize?: (
-          credentials: Record<string, string> | undefined,
-          request: Request,
-        ) => Promise<unknown>;
-      };
+      const authorize = getTeacherAuthorize();
 
-      const result = await credentialsProvider?.authorize?.(
-        {},
-        new Request("http://localhost:3000"),
-      );
+      const result = await authorize({}, new Request("http://localhost:3000"));
 
       expect(result).toBeNull();
       expect(mockFetch).not.toHaveBeenCalled();
     });
 
     it("should handle internal refresh", async () => {
-      const credentialsProvider = authConfig.providers.find(
-        (p) =>
-          typeof p === "object" &&
-          p !== null &&
-          "id" in p &&
-          p.id === "credentials",
-      ) as NextAuthConfig["providers"][0] & {
-        authorize?: (
-          credentials: Record<string, string> | undefined,
-          request: Request,
-        ) => Promise<unknown>;
-      };
+      const authorize = getTeacherAuthorize();
 
-      const result = await credentialsProvider?.authorize?.(
-        {
-          internalRefresh: "true",
-          token: INTERNAL_REFRESH_JWT,
-          refreshToken: "refresh-token",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(async () =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: INTERNAL_REFRESH_JWT,
+            refreshToken: "refresh-token",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
-      expect(result).toBeDefined();
+      expect(result).toMatchObject({ id: "123" });
+      expect(validateSessionToken).toHaveBeenCalledWith(
+        INTERNAL_REFRESH_JWT,
+        "tenant",
+        "refresh-token",
+      );
       expect(mockFetch).not.toHaveBeenCalled(); // Should not call login endpoint
     });
   });
@@ -1419,23 +1393,6 @@ describe("authConfig", () => {
   });
 
   describe("Credentials authorize - teacher flow", () => {
-    // CredentialsProvider stores the real authorize in `options.authorize`,
-    // the top-level `authorize` is always `() => null` (Auth.js default).
-    function getTeacherAuthorize() {
-      const provider = authConfig.providers.find(
-        (p) =>
-          typeof p === "object" &&
-          p !== null &&
-          "id" in p &&
-          p.id === "credentials",
-      ) as unknown as Record<string, unknown> | undefined;
-      const opts = provider?.options as Record<string, unknown> | undefined;
-      return opts?.authorize as (
-        credentials: Record<string, string> | undefined,
-        request: Request,
-      ) => Promise<User | null>;
-    }
-
     it("should return user on successful teacher login", async () => {
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -1501,13 +1458,15 @@ describe("authConfig", () => {
 
     it("should handle internal refresh", async () => {
       const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: INTERNAL_REFRESH_JWT,
-          refreshToken: "refresh-token",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: INTERNAL_REFRESH_JWT,
+            refreshToken: "refresh-token",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
@@ -1517,13 +1476,15 @@ describe("authConfig", () => {
 
     it("should return null for internal refresh with invalid JWT", async () => {
       const authorize = getTeacherAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: "invalid-jwt",
-          refreshToken: "refresh-token",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: "invalid-jwt",
+            refreshToken: "refresh-token",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).toBeNull();
@@ -1577,13 +1538,15 @@ describe("authConfig", () => {
 
       it("should handle internal refresh logging", async () => {
         const authorize = getTeacherAuthorize();
-        const result = await authorize(
-          {
-            internalRefresh: "true",
-            token: TEACHER_JWT_MINIMAL,
-            refreshToken: "refresh-token",
-          },
-          new Request("http://localhost:3000"),
+        const result = await withServerSessionMutation(() =>
+          authorize(
+            {
+              internalRefresh: "true",
+              token: TEACHER_JWT_MINIMAL,
+              refreshToken: "refresh-token",
+            },
+            new Request("http://localhost:3000"),
+          ),
         );
 
         expect(result).not.toBeNull();
@@ -1730,13 +1693,15 @@ describe("authConfig", () => {
 
     it("should handle internal refresh with platform scope", async () => {
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: OPERATOR_JWT,
-          refreshToken: "op-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: OPERATOR_JWT,
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
@@ -1749,13 +1714,15 @@ describe("authConfig", () => {
 
     it("should fall back to email claim for legacy operator internal refresh tokens", async () => {
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: OPERATOR_JWT_EMAIL_ONLY,
-          refreshToken: "op-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: OPERATOR_JWT_EMAIL_ONLY,
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
@@ -1766,13 +1733,15 @@ describe("authConfig", () => {
 
     it("should not use operator subject as email when internal refresh token has no email claims", async () => {
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: OPERATOR_JWT_NO_EMAIL,
-          refreshToken: "op-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: OPERATOR_JWT_NO_EMAIL,
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();
@@ -1782,13 +1751,15 @@ describe("authConfig", () => {
 
     it("should return null for internal refresh with invalid JWT", async () => {
       const authorize = getOperatorAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: "bad-token",
-          refreshToken: "op-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: "bad-token",
+            refreshToken: "op-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).toBeNull();
@@ -1831,13 +1802,15 @@ describe("authConfig", () => {
 
       it("should handle operator internal refresh logging", async () => {
         const authorize = getOperatorAuthorize();
-        const result = await authorize(
-          {
-            internalRefresh: "true",
-            token: OPERATOR_JWT_MINIMAL,
-            refreshToken: "op-refresh",
-          },
-          new Request("http://localhost:3000"),
+        const result = await withServerSessionMutation(() =>
+          authorize(
+            {
+              internalRefresh: "true",
+              token: OPERATOR_JWT_MINIMAL,
+              refreshToken: "op-refresh",
+            },
+            new Request("http://localhost:3000"),
+          ),
         );
 
         expect(result).not.toBeNull();
@@ -2079,13 +2052,15 @@ describe("authConfig", () => {
 
     it("should handle internal refresh with parent scope", async () => {
       const authorize = getParentAuthorize();
-      const result = await authorize(
-        {
-          internalRefresh: "true",
-          token: PARENT_JWT,
-          refreshToken: "parent-refresh",
-        },
-        new Request("http://localhost:3000"),
+      const result = await withServerSessionMutation(() =>
+        authorize(
+          {
+            internalRefresh: "true",
+            token: PARENT_JWT,
+            refreshToken: "parent-refresh",
+          },
+          new Request("http://localhost:3000"),
+        ),
       );
 
       expect(result).not.toBeNull();

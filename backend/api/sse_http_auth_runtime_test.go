@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,6 +63,30 @@ func TestPrincipalAdminScope(t *testing.T) {
 			principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 1, TenantID: 2, Admin: tt.isAdmin, Permissions: tt.permissions})
 			require.NoError(t, err)
 			assert.Equal(t, tt.want, principal.HasAdminScope())
+		})
+	}
+}
+
+func TestSSELeadershipEligibility(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct {
+		name    string
+		isAdmin bool
+		perms   []string
+		want    bool
+	}{
+		{name: "leadership without message read", perms: []string{permissions.ParentMessagesLeadership}},
+		{name: "message read without leadership", perms: []string{permissions.UsersRead}},
+		{name: "leadership reader", perms: []string{permissions.UsersRead, permissions.ParentMessagesLeadership}, want: true},
+		{name: "literal admin", isAdmin: true, want: true},
+		{name: "admin wildcard", perms: []string{"admin:*"}, want: true},
+		{name: "full wildcard", perms: []string{"*:*"}, want: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, sessiontoken.AppClaims{IsAdmin: tt.isAdmin})
+			ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, tt.perms)
+			identity := NewSSEHTTPRuntime().Identity(ctx)
+			assert.Equal(t, tt.want, identity.ReadsLeadershipMessages)
 		})
 	}
 }

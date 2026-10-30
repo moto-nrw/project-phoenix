@@ -21,6 +21,11 @@ function stubApi() {
     fetchThread: vi.fn<StaffMessagesApi["fetchThread"]>(),
     openThread: vi.fn<StaffMessagesApi["openThread"]>(),
     postMessage: vi.fn<StaffMessagesApi["postMessage"]>(),
+    createGroup: vi.fn<StaffMessagesApi["createGroup"]>(),
+    renameGroup: vi.fn<StaffMessagesApi["renameGroup"]>(),
+    addGroupMembers: vi.fn<StaffMessagesApi["addGroupMembers"]>(),
+    removeGroupMember: vi.fn<StaffMessagesApi["removeGroupMember"]>(),
+    leaveGroup: vi.fn<StaffMessagesApi["leaveGroup"]>(),
   };
 }
 

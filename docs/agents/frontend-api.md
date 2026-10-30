@@ -72,7 +72,11 @@ passkeys, demo access, invitations, Auth.js endpoints) wraps its handler in
 exported handler that is neither built by a policy factory nor listed with a
 reason in its exception table, and for every re-export (`export * from`,
 `export { GET } from`) in a route file. Files, images and event streams keep their own
-headers.
+headers. Private file responses additionally use `withPrivateDownloadNoStore`
+around the outer portal handler. This explicit download policy sets
+`Cache-Control: private, no-store` for every MIME type and error status, even
+when the backend supplies a different cache policy. It does not read the
+response body or change download headers, status or session cookies.
 
 Sentry ownership follows the same boundary: forwarding a backend HTTP error,
 including 5xx, creates no BFF event. A caught network failure or BFF exception
@@ -96,6 +100,36 @@ success wrapper. Their **backend errors still use the shared error path**:
 | `api/parent-announcements/[announcementId]/declaration-export`, `api/parent/me/news/[announcementId]/declaration/proof/pdf`                                                                                                                                | Declaration exports and parent proof PDFs retain backend download headers and portal-specific session refresh behavior. |
 | `api/public/enrollment-form-legal-documents/[filename]`, `api/public/enrollment-legal-documents/[filename]`, `api/public/login-image/[filename]`, `api/me/profile/avatar/[filename]`, `api/staff/[id]/avatar`, `api/students/[id]/photo/[filename]`        | Public or user image/PDF responses retain content-type and caching behavior.                                                |
 | `api/calendar-feed/[token]`, `api/request-feed/[token]`                                                                                                                                                                                                    | iCalendar/RSS subscriptions retain their wire format and cache policy; the path token is the subscription credential.       |
+
+### Private download inventory (#5119)
+
+The complete route/method inventory lives in
+`frontend/src/test/private-download-routes.ts` (53 handlers). The download
+rule in `route-cache-policy.test.ts` requires the explicit wrapper on each
+entry; an ordinary JSON or portal wrapper does not satisfy it. It also scans
+file constructors, file factories and download paths for missing entries.
+
+| Private download family | Coverage and reason |
+| --- | --- |
+| Tenant exports | Students, birthdays, emergency snapshot, enrollment phase/reports/student requests, guardian payments, attendance history/day log, statistics, staff time tracking, rooms, shifts, timetable, surveys, holiday participants: school/person data, including CSV/PDF/XLSX. |
+| Meal exports | Tenant meal plan participants/week/month orders, meal-caterer orders and caterer delivery lists: session-bound school/participant data. |
+| Documents and proofs | Staff/student/folder files, announcement attachments/declarations, enrollment uploads and signed proofs, care/pickup proofs, parent inbox PDFs: personal data, including arbitrary binary and image attachments. |
+| School and operator | School parent-letter declarations and operator billing counts: portal-bound exports, without changing their auth boundary. |
+| Träger | Access log, billing exports/letters/preview/print, holiday registration export and form documents: organization-session-bound files. |
+| Token-bound downloads | Enrollment signature proof and holiday-form documents: access-link scope is still private, even without a browser session. |
+| Appointment ICS downloads | Tenant and parent single-appointment files are session-bound downloads, unlike subscription feeds. |
+
+Non-download responses retain their existing policies. The reasoned resource
+inventory is `NON_DOWNLOAD_RESOURCES` in `route-cache-policy.test.ts`:
+
+| Excluded resource | Retained policy and reason |
+| --- | --- |
+| Public login images and enrollment legal/form PDFs | Public assets, `public, max-age=86400` or the form PDF's upstream policy. |
+| Profile/staff avatars and student photos | Existing private image cache/revalidation policy; these are display resources, not exports. |
+| Träger logo | Brand image through `proxyFile`, existing `no-store` policy. |
+| Calendar and request subscription feeds | Existing `private, max-age=3600` and `private, no-store`, respectively; subscription wire format unchanged. |
+| Tenant, parent and school SSE | Existing SSE headers, live streaming and abort behavior unchanged. |
+| Parent declaration proof metadata | JSON, protected by the ordinary policy; the sibling `proof/pdf` is a private download. |
 
 ### Audited direct-fetch exceptions
 

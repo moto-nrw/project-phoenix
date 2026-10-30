@@ -61,6 +61,9 @@ func export(exportType string) CoreAction {
 // Adding a writing route: classify it here. New core action: name the event
 // in snake_case after what succeeded (group_created, not create_group).
 var coreActions = map[RouteKey]CoreAction{
+	// Period-owned PDFs have no school to count them for (#5199).
+	{http.MethodPost, "/traeger/holiday-periods/{id}/form/documents"}:                notCaptured,
+	{http.MethodDelete, "/traeger/holiday-periods/{id}/form/documents/{documentId}"}: notCaptured,
 	// OGS portal (tenant API).
 	{http.MethodPost, "/api/absence-types/"}:                                                               notCaptured,
 	{http.MethodPut, "/api/absence-types/{id}"}:                                                            notCaptured,
@@ -277,8 +280,13 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/shift-types/defaults"}:                                                         notCaptured,
 	{http.MethodDelete, "/api/shift-types/{id}"}:                                                           notCaptured,
 	{http.MethodPut, "/api/shift-types/{id}"}:                                                              notCaptured,
+	{http.MethodPost, "/api/staff-messages/groups"}:                                                        event("staff_group_created"),
+	{http.MethodPut, "/api/staff-messages/threads/{threadID}/name"}:                                        notCaptured,
 	{http.MethodPost, "/api/staff-messages/threads/open"}:                                                  notCaptured,
 	{http.MethodPost, "/api/staff-messages/threads/{threadID}"}:                                            notCaptured,
+	{http.MethodPost, "/api/staff-messages/threads/{threadID}/leave"}:                                      notCaptured,
+	{http.MethodPost, "/api/staff-messages/threads/{threadID}/members"}:                                    notCaptured,
+	{http.MethodDelete, "/api/staff-messages/threads/{threadID}/members/{accountID}"}:                      notCaptured,
 	{http.MethodPost, "/api/staff-notices/"}:                                                               notCaptured,
 	{http.MethodDelete, "/api/staff-notices/{noticeId}"}:                                                   notCaptured,
 	{http.MethodPut, "/api/staff-notices/{noticeId}"}:                                                      notCaptured,
@@ -310,6 +318,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/staff/{id}/documents"}:                                                         notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/documents/{documentId}"}:                                          notCaptured,
 	{http.MethodPut, "/api/staff/{id}/payroll-number"}:                                                     notCaptured,
+	{http.MethodPut, "/api/staff/{id}/planned-exit"}:                                                       notCaptured,
+	{http.MethodDelete, "/api/staff/{id}/planned-exit"}:                                                    notCaptured,
 	{http.MethodPut, "/api/staff/{id}/schedule"}:                                                           notCaptured,
 	{http.MethodPut, "/api/staff/{id}/school-classes"}:                                                     notCaptured,
 	{http.MethodPut, "/api/staff/{id}/stammdaten/arbeitsvertrag"}:                                          notCaptured,
@@ -360,6 +370,11 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/students/status-days/bulk"}:                                                    event("absence_reported"),
 	{http.MethodDelete, "/api/students/{id}"}:                                                              notCaptured,
 	{http.MethodPut, "/api/students/{id}"}:                                                                 notCaptured,
+	{http.MethodPost, "/api/students/{id}/accident-reports"}:                                               event("accident_report_recorded"),
+	{http.MethodPut, "/api/students/{id}/accident-reports/{documentId}"}:                                   notCaptured,
+	{http.MethodPost, "/api/students/{id}/accident-reports/{documentId}/corrections"}:                      notCaptured,
+	{http.MethodPost, "/api/students/{id}/accident-reports/{documentId}/paper-copy"}:                       event("accident_report_signed"),
+	{http.MethodPost, "/api/students/{id}/accident-reports/{documentId}/signature"}:                        event("accident_report_signed"),
 	{http.MethodPost, "/api/students/{id}/arrival-exceptions"}:                                             notCaptured,
 	{http.MethodDelete, "/api/students/{id}/arrival-exceptions/{exceptionId}"}:                             notCaptured,
 	{http.MethodPut, "/api/students/{id}/arrival-exceptions/{exceptionId}"}:                                notCaptured,
@@ -467,6 +482,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/timetable/templates/{id}/end"}:                                               notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/split"}:                                             notCaptured,
 	{http.MethodPut, "/api/timetable/templates/{id}/manual-roster"}:                                      notCaptured,
+	{http.MethodPut, "/api/timetable/offering-gaps/{offeringId}/acknowledgement"}:                        notCaptured,
 	{http.MethodPost, "/api/timetable/templates/{id}/offering-connection"}:                               event("template_offering_connected"),
 	{http.MethodPost, "/api/timetable/templates/{id}/students/{studentId}/remove-days"}:                  notCaptured,
 	{http.MethodPost, "/api/users/"}:                                                                     notCaptured,
@@ -582,6 +598,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/auth/mfa/enroll/start"}:                 notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/resend"}:                       notCaptured,
 	{http.MethodPost, "/traeger/auth/mfa/verify"}:                       notCaptured,
+	{http.MethodPost, "/traeger/auth/password-reset"}:                   notCaptured,
+	{http.MethodPost, "/traeger/auth/password-reset/confirm"}:           notCaptured,
 	{http.MethodPost, "/traeger/accounts/invitations"}:                  notCaptured,
 	{http.MethodDelete, "/traeger/accounts/invitations/{invitationId}"}: notCaptured,
 	{http.MethodPut, "/traeger/accounts/{accountId}/roles"}:             notCaptured,
@@ -590,6 +608,9 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/holiday-periods/"}:                      notCaptured,
 	{http.MethodPut, "/traeger/holiday-periods/{id}"}:                   notCaptured,
 	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
+	// The form of a holiday period (#5198) belongs to the Träger, not to a
+	// school: no school to count it for.
+	{http.MethodPut, "/traeger/holiday-periods/{id}/form"}: notCaptured,
 	// The review of the holiday registrations (#4663) belongs to the
 	// Träger, not to a school: no school to count it for.
 	{http.MethodPost, "/traeger/holiday-periods/{id}/registrations/{registrationId}/cancel"}:                     notCaptured,
@@ -605,9 +626,11 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/master-data/bank-accounts"}:                                                      notCaptured,
 	{http.MethodPut, "/traeger/master-data/bank-accounts/{id}"}:                                                  notCaptured,
 	{http.MethodDelete, "/traeger/master-data/bank-accounts/{id}"}:                                               notCaptured,
-	// The public holiday registration of a Träger (#4661) has no session
-	// and no school, so no collection policy admits it yet.
-	{http.MethodPost, "/traeger/holiday-registrations/{token}"}: notCaptured,
+	// The public holiday registration of a Träger (#4661) and the upload of
+	// its proof of benefits (#5238) have no session and no school, so no
+	// collection policy admits them yet.
+	{http.MethodPost, "/traeger/holiday-registrations/{token}"}:         notCaptured,
+	{http.MethodPost, "/traeger/holiday-registrations/{token}/uploads"}: notCaptured,
 	// The Elternabrechnung (#4664, ADR 0115) belongs to the Träger: its
 	// rules, the confirmation that freezes a contribution and the public
 	// contribution of the form have no school to count them for.
@@ -675,6 +698,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/school/notifications/test"}:                                                    notCaptured,
 	{http.MethodPost, "/school/staff-messages/threads/open"}:                                           notCaptured,
 	{http.MethodPost, "/school/staff-messages/threads/{threadID}"}:                                     event("staff_message_sent"),
+	{http.MethodPost, "/school/staff-messages/threads/{threadID}/leave"}:                               notCaptured,
 	{http.MethodPost, "/school/staff-notices/{noticeId}/acknowledge"}:                                  event("staff_notice_acknowledged"),
 	{http.MethodPost, "/school/supervisions/{id}/complete"}:                                            event("supervision_completed"),
 	{http.MethodPost, "/school/supervisions/{id}/start"}:                                               event("supervision_started"),

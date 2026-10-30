@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.requests.schema_introspection",
+  "max": 0,
+  "exact": true,
+  "description": "api/students — #2059: schema capabilities are fixed at startup."
+}

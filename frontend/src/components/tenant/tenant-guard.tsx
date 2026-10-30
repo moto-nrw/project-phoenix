@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { hasSessionAccess } from "~/lib/session-access";
 import { clearSessionCache } from "~/lib/session-cache";
@@ -20,6 +20,7 @@ import { Button } from "~/components/ui/button";
 import { credentialError } from "~/components/auth/credential-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { isTenantSessionEnding } from "~/lib/tenant-session-end";
 
 const logger = createLogger({ component: "TenantGuard" });
 
@@ -169,6 +170,7 @@ function GuardedTenant({
   );
 
   const checkSessionSchool = useCallback(() => {
+    if (isTenantSessionEnding()) return;
     const run = ++refusalRun.current;
     setRefusal("checking");
     const deadline = Date.now() + REFUSAL_CHECK_MS;
@@ -193,7 +195,7 @@ function GuardedTenant({
         if (answer !== undefined) break;
         await new Promise((resolve) => setTimeout(resolve, REFUSAL_RETRY_MS));
       }
-      if (run !== refusalRun.current) return;
+      if (run !== refusalRun.current || isTenantSessionEnding()) return;
       if (!timedOut && answer === null) {
         // update() answers null for a failed lookup and for a session that
         // ended meanwhile (logout in another tab). Only the second has a way
@@ -214,7 +216,7 @@ function GuardedTenant({
           )
           .catch(() => false)
           .finally(() => clearTimeout(stop));
-        if (run !== refusalRun.current) return;
+        if (run !== refusalRun.current || isTenantSessionEnding()) return;
         if (signedOut) {
           latest.current.redirect("/?error=SessionExpired");
           return;
@@ -236,6 +238,7 @@ function GuardedTenant({
   useEffect(
     () =>
       onSessionTenantMismatch(() => {
+        if (isTenantSessionEnding()) return;
         const current = latest.current;
         // A tab still on path mode (<domain>/<school>/...) has no school in
         // its host; only the school's subdomain binds its requests.
@@ -293,6 +296,9 @@ function GuardedTenant({
   useEffect(() => {
     if (status !== "authenticated") return;
     if (sessionHasAccess) return;
+    // A second tab can echo this logout's storage invalidation through its
+    // provider. The explicit exit already owns cookie deletion/navigation.
+    if (isTenantSessionEnding()) return;
 
     logger.warn("tenant_session_invalid", {
       error: sessionError,
@@ -311,13 +317,14 @@ function GuardedTenant({
       }
 
       try {
+        if (isTenantSessionEnding()) return;
         await signOut({ redirect: false });
       } catch (err) {
         logger.warn("invalid_session_signout_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
       } finally {
-        redirect("/?error=SessionExpired");
+        if (!isTenantSessionEnding()) redirect("/?error=SessionExpired");
       }
     })();
   }, [status, sessionHasAccess, sessionError, redirect]);
@@ -398,7 +405,7 @@ function GuardedTenant({
 
     // A switch that went through can still leave the old school behind: every
     // API response re-issues the session cookie it was asked with, so a
-    // request of the old session that answers after signIn() writes the old
+    // request of the old session that answers after the BFF session switch writes the old
     // school back (#3375). Those requests settle, so a bounded number of
     // repeats gets through; after that the person decides, not a spinner.
     if (switchAttempts.current.count >= MAX_SWITCH_ATTEMPTS) {
@@ -426,7 +433,7 @@ function GuardedTenant({
         if (session?.user?.isPreview) {
           await performEndStaffPreview(update, mutate);
         }
-        await performTenantSwitch(urlSubdomain!, signIn, mutate);
+        await performTenantSwitch(urlSubdomain!, mutate);
 
         // Refetch session to trigger re-render with new tenant
         await update();
@@ -512,9 +519,9 @@ function GuardedTenant({
   ]);
 
   if (refusal === "failed") {
-    // No sign-out here: it would delete the cookie without making a copy
-    // that a late answer writes back worthless (access tokens stay valid
-    // until they expire). Checking again is the safe way out.
+    // Checking again is the way out. A relogin here would need the revoking
+    // logout of reloginAtTenant, since only the revoked family makes a
+    // cookie a late answer writes back worthless (#5194).
     return (
       <div className="mx-auto flex min-h-[200px] max-w-3xl items-center p-4">
         <div className="w-full space-y-3">
@@ -553,7 +560,8 @@ function GuardedTenant({
 
   if (
     signingOutExpiredSession ||
-    (status === "authenticated" && !sessionHasAccess)
+    (status === "authenticated" && !sessionHasAccess) ||
+    (isTenantSessionEnding() && !sessionHasAccess)
   ) {
     return (
       <div className="flex min-h-[200px] items-center justify-center">

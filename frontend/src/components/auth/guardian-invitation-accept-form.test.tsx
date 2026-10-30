@@ -15,7 +15,7 @@ vi.mock("~/lib/guardian-invitation-api", () => ({
   acceptGuardianInvitation: mocks.acceptGuardianInvitation,
 }));
 
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 import { GuardianInvitationAcceptForm } from "./guardian-invitation-accept-form";

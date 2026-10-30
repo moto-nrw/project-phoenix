@@ -1,3 +1,4 @@
+import { gitTestEnvironment, initGitFixture } from './test-helpers/git-fixture.mjs';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
@@ -10,8 +11,7 @@ const source = dirname(fileURLToPath(import.meta.url));
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'phoenix-secret-hook-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
-  const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
-  for (const key of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_PREFIX']) delete env[key];
+  const env = gitTestEnvironment();
   function run(command, args, extra = {}) {
     return spawnSync(command, args, { cwd: root, env: { ...env, ...extra }, encoding: 'utf8' });
   }
@@ -20,7 +20,7 @@ function fixture(t) {
     assert.equal(result.status, 0, result.stderr);
     return result.stdout.trim();
   }
-  git('init', '-q');
+  initGitFixture(git);
   git('config', 'user.name', 'Scanner fixture');
   git('config', 'user.email', 'scanner@example.invalid');
   mkdirSync(join(root, 'scripts'));

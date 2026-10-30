@@ -1,0 +1,9 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/grouplive/http/Resource.Register",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

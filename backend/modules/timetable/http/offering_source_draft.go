@@ -33,6 +33,8 @@ type offeringSuggestionResponse struct {
 	UnbookedCount int                                         `json:"unbooked_count"`
 	MissingCount  int                                         `json:"missing_count"`
 	Candidates    []templateRosterMaintenanceOfferingResponse `json:"candidates"`
+	// Ambiguous: several candidates fit fully; the school picks one.
+	Ambiguous bool `json:"ambiguous"`
 }
 
 type offeringSuggestionEnvelope struct {
@@ -85,6 +87,7 @@ func (d rosterDeviationResponse) withoutTemplate() offeringSuggestionResponse {
 	return offeringSuggestionResponse{
 		Offering: d.Offering, GradeLevels: d.GradeLevels, SchoolClasses: d.SchoolClasses,
 		UnbookedCount: d.UnbookedCount, MissingCount: d.MissingCount, Candidates: d.Candidates,
+		Ambiguous: d.Ambiguous,
 	}
 }
 

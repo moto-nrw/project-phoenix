@@ -729,7 +729,7 @@ describe("InvitationAcceptForm", () => {
   });
 
   describe("Scroll to error and field highlighting", () => {
-    it("scrolls to error when validation fails on missing names", async () => {
+    it("scrolls to the first missing name when validation fails", async () => {
       const scrollIntoViewMock = vi.fn();
       Element.prototype.scrollIntoView = scrollIntoViewMock;
 
@@ -757,8 +757,13 @@ describe("InvitationAcceptForm", () => {
         ).toBeInTheDocument();
         expect(scrollIntoViewMock).toHaveBeenCalledWith({
           behavior: "smooth",
-          block: "nearest",
+          block: "center",
         });
+        // FormErrorAlert brings the marked field into view, not itself.
+        expect(scrollIntoViewMock.mock.contexts[0]).toHaveAttribute(
+          "aria-invalid",
+          "true",
+        );
       });
     });
 
@@ -786,8 +791,9 @@ describe("InvitationAcceptForm", () => {
         ).toBeInTheDocument();
       });
 
-      const passwordLabel = screen.getByText("Passwort");
-      expect(passwordLabel.className).toContain("text-moto-red");
+      // The colour sits on the FieldLabel wrapper around the <label>.
+      const passwordLabel = screen.getByText("Passwort").parentElement;
+      expect(passwordLabel?.className).toContain("text-moto-red");
     });
   });
 });

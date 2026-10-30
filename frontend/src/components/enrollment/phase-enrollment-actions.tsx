@@ -19,6 +19,7 @@ import type {
 } from "~/lib/enrollment-submission-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -146,12 +147,14 @@ export function LateInviteModal({
               Link wurde erstellt.
             </p>
             <div className="mt-3 flex items-center gap-2">
-              <input
-                aria-label="Erstellter Nachzügler-Link"
-                readOnly
-                value={generatedUrl}
-                className="ring-moto-green/30 min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-inset"
-              />
+              <div className="min-w-0 flex-1">
+                <Input
+                  aria-label="Erstellter Nachzügler-Link"
+                  readOnly
+                  value={generatedUrl}
+                  controlSize="compact"
+                />
+              </div>
               <PublicLinkCopyButton
                 url={generatedUrl}
                 componentId={`LateInvite:${phase.id}:${generatedUrl}`}
@@ -328,12 +331,14 @@ export function ManualApprovedEnrollmentModal({
                 Die manuelle Anmeldung wurde angelegt und freigegeben.
               </p>
               <div className="mt-3 flex items-center gap-2">
-                <input
-                  aria-label="Statuslink der manuellen Anmeldung"
-                  readOnly
-                  value={statusUrl}
-                  className="ring-moto-green/30 min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-inset"
-                />
+                <div className="min-w-0 flex-1">
+                  <Input
+                    aria-label="Statuslink der manuellen Anmeldung"
+                    readOnly
+                    value={statusUrl}
+                    controlSize="compact"
+                  />
+                </div>
                 <PublicLinkCopyButton
                   url={statusUrl}
                   componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
@@ -354,25 +359,31 @@ export function ManualApprovedEnrollmentModal({
               error={checks.fieldError("reason")}
             />
             <div className="space-y-3 text-sm text-gray-700">
-              <label className="flex items-start gap-2">
-                <input
-                  type="checkbox"
+              <label
+                htmlFor="manual-enrollment-external-consent"
+                className="flex items-start gap-2"
+              >
+                <Checkbox
+                  id="manual-enrollment-external-consent"
                   checked={externalConsentConfirmed}
                   onChange={(event) =>
                     setExternalConsentConfirmed(event.target.checked)
                   }
-                  className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
+                  className="mt-0.5"
                 />
                 <span>Einwilligung der Eltern liegt extern vor.</span>
               </label>
-              <label className="flex items-start gap-2">
-                <input
-                  type="checkbox"
+              <label
+                htmlFor="manual-enrollment-send-notification"
+                className="flex items-start gap-2"
+              >
+                <Checkbox
+                  id="manual-enrollment-send-notification"
                   checked={sendNotification}
                   onChange={(event) =>
                     setSendNotification(event.target.checked)
                   }
-                  className="mt-1 h-4 w-4 rounded border-gray-300 text-gray-900 focus:ring-gray-400"
+                  className="mt-0.5"
                 />
                 <span>Eltern per E-Mail benachrichtigen.</span>
               </label>

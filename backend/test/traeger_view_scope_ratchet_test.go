@@ -262,3 +262,56 @@ func TestAuditAccessTrailQueriesFilterOnTheSchoolSet(t *testing.T) {
 		}
 	}
 }
+
+// holidayAccessTrailFile is Enrollment's trail of the holiday registrations
+// (#5326): the Träger projection calls it inside its administrative unit,
+// which reads across Träger, so every statement filters on the Träger of
+// the session.
+const holidayAccessTrailFile = "modules/enrollment/internal/adapters/postgres/holiday_access_trail.go"
+
+// TestHolidayAccessTrailQueriesFilterOnTheTraeger holds the holiday trail to
+// the boundary of the Träger: every query is NewRaw over a package-level
+// constant that filters on organization_id = ?0, with the Träger bound first.
+func TestHolidayAccessTrailQueriesFilterOnTheTraeger(t *testing.T) {
+	t.Parallel()
+	root, err := findBackendRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, filepath.Join(root, holidayAccessTrailFile), nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	constants := traegerViewStringConstants([]*ast.File{file})
+	queries := 0
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || !traegerViewDatabaseCall(selector.Sel.Name) {
+			return true
+		}
+		position := fset.Position(call.Pos()).String()
+		if selector.Sel.Name != "NewRaw" {
+			t.Errorf("%s: only NewRaw over a filtered constant may query the holiday trail, found %s", position, selector.Sel.Name)
+			return true
+		}
+		queries++
+		name, ok := call.Args[0].(*ast.Ident)
+		if !ok || !strings.Contains(constants[name.Name], "organization_id = ?0") {
+			t.Errorf("%s: NewRaw must run a package-level constant with the filter organization_id = ?0", position)
+		}
+		if len(call.Args) < 2 {
+			t.Errorf("%s: NewRaw must bind the Träger as its first argument", position)
+		} else if bind, ok := call.Args[1].(*ast.Ident); !ok || bind.Name != "organizationID" {
+			t.Errorf("%s: the first argument must be organizationID", position)
+		}
+		return true
+	})
+	if queries == 0 {
+		t.Fatalf("%s holds no query; the ratchet must not pass vacuously", holidayAccessTrailFile)
+	}
+}

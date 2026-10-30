@@ -107,6 +107,7 @@ func checkClassDayWriteSeamWiring(t *testing.T, graph *goldenRuntime) {
 	testpkg.SetTestTenantSetting(t, db, tenantID, "operations.school_portal_write_scope", `["class_arrival_exceptions", "day_hints"]`)
 	claims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
+		FamilyID: testpkg.CreateTestSessionFamily(t, db, account.ID, tenantID, tenant.ScopeSchool),
 	}
 	granted := []string{"class_day:read", "class_day:arrival_exception_write", "class_day:day_hint_write"}
 

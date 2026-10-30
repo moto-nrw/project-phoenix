@@ -1,0 +1,325 @@
+{
+  "packages": [
+    {
+      "path": "modules/schoolcalendar/http",
+      "owner": "school-calendar",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolcalendar",
+      "owner": "school-calendar",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/compose",
+      "owner": "school-calendar",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/adapters/postgres",
+      "owner": "school-calendar",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/application",
+      "owner": "school-calendar",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/domain",
+      "owner": "school-calendar",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/internal/ports",
+      "owner": "school-calendar",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal",
+      "owner": "school-calendar",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal/compose",
+      "owner": "school-calendar",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal/internal/application",
+      "owner": "school-calendar",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal/internal/ports",
+      "owner": "school-calendar",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schoolcalendar/portal/internal/adapters/tokens",
+      "owner": "school-calendar",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "calendar.parent_conference_bookings",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.parent_conferences",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.staff_feed_tombstones",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "schedule.calendar_periods",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "schedule.closing_days",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "schedule.dateframes",
+      "write_owner": "school-calendar"
+    }
+  ],
+  "rules": [
+    {
+      "id": "school-calendar.application.appointments-public",
+      "description": "Calendar workflows call the Appointments facade instead of its tables.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "application",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.port-domain",
+      "description": "School Calendar ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "school-calendar.compose.orm-sql",
+      "description": "School Calendar composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "school-calendar.compose.tenant-runtime",
+      "description": "School Calendar composition resolves the ambient tenant transaction through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.internal-test.tenant-runtime",
+      "description": "School Calendar composition tests verify transaction, rollback, and tenant isolation through the shared tenant runtime.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.integration-test.support",
+      "description": "School Calendar integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.application.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.port.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "port",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.contract.school-calendar.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "contract",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.contract.appointments.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "contract",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.adapter.crypto",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "adapter",
+      "target_class": "crypto"
+    },
+    {
+      "id": "calendar-portal.internal_test.school-calendar.workflow-decision-test.appointments.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "workflow-decision-test",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.crypto",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_class": "crypto"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.identity-access.adapter",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "calendar-portal.external_test.school-calendar.e2e-test.appointments.public",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "e2e-test",
+      "target_owner": "appointments",
+      "target_role": "public"
+    },
+    {
+      "id": "school-calendar.http-common.tenant-runtime-common",
+      "description": "Staff calendar handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "school-calendar.security-contract",
+      "description": "Staff calendar handlers name the calendar permissions (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.http.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-calendar.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "postgres",
+      "source_package": "modules/schoolcalendar/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    }
+  ]
+}

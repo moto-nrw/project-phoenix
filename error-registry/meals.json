@@ -1,0 +1,100 @@
+{
+  "codes": [
+    {
+      "code": "meals.child_not_enrolled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.child_not_enrolled"
+    },
+    {
+      "code": "meals.day_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.day_closed"
+    },
+    {
+      "code": "meals.day_past",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.day_past"
+    },
+    {
+      "code": "meals.delivery_range_too_long",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.delivery_range_too_long"
+    },
+    {
+      "code": "meals.invalid_allergens",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.invalid_allergens"
+    },
+    {
+      "code": "meals.invalid_dishes",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_dishes"
+    },
+    {
+      "code": "meals.invalid_meal_date",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_meal_date"
+    },
+    {
+      "code": "meals.invalid_participation",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_meal_participation"
+    },
+    {
+      "code": "meals.not_supplied",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "meals.not_supplied"
+    },
+    {
+      "code": "meals.order_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meals.order_not_found"
+    },
+    {
+      "code": "meals.participation_cutoff_passed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meal_participation_cutoff_passed"
+    },
+    {
+      "code": "meals.participation_out_of_range",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meal_participation_out_of_range"
+    },
+    {
+      "code": "meals.plan_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "meal_plan_disabled"
+    },
+    {
+      "code": "meals.plan_week_out_of_range",
+      "class": "input",
+      "parameters": [],
+      "legacy": "meal_plan_week_out_of_range"
+    },
+    {
+      "code": "meals.registration_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "meal_registration_disabled"
+    },
+    {
+      "code": "meals.supply_active",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "meals.supply_active"
+    }
+  ]
+}

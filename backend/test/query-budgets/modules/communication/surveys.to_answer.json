@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.communication.surveys.to_answer",
+  "max": 1,
+  "exact": true,
+  "description": "The surveys (#4781): the school's list with the participant counts and\na staff member's open surveys in one statement each; the evaluation\nreads the survey, its questions, its options and three grouped counts."
+}

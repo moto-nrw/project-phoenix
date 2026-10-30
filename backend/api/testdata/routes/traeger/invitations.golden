@@ -1,0 +1,2 @@
+GET /traeger/invitations/{token}
+POST /traeger/invitations/{token}/accept

@@ -288,22 +288,41 @@ vi.mock("~/components/timetable/timetable-add-menu", () => ({
 vi.mock("~/components/timetable/period-switcher-dropdown", () => ({
   PeriodSwitcherDropdown: ({
     periods,
+    selectedPeriodId,
     onCreate,
     onSelect,
   }: {
-    periods: Array<{ id: string; name: string }>;
+    periods: Array<{
+      id: string;
+      name: string;
+      startDate: string;
+      endDate: string;
+      isActive: boolean;
+    }>;
+    selectedPeriodId: string | null;
     onCreate: () => void;
     onSelect: (period: {
       id: string;
       name: string;
       startDate: string;
       endDate: string;
+      isActive?: boolean;
     }) => void;
   }) => (
     <div data-testid="period-switcher">
+      <span data-testid="selected-period">
+        {periods.find((entry) => entry.id === selectedPeriodId)?.name ?? ""}
+      </span>
       <button type="button" onClick={onCreate}>
         create-period
       </button>
+      {periods.map((entry) => (
+        <button
+          key={entry.id}
+          type="button"
+          onClick={() => onSelect(entry)}
+        >{`choose-period-${entry.id}`}</button>
+      ))}
       {periods[0] && (
         <>
           <button
@@ -448,6 +467,9 @@ vi.mock("~/components/timetable/template-list", () => ({
       <button type="button" onClick={onCreate}>
         create-template
       </button>
+      {templates.map((entry) => (
+        <span key={entry.id}>{`template-row-${entry.name}`}</span>
+      ))}
       {templates[0] && (
         <>
           <button type="button" onClick={() => onEdit(templates[0]!)}>
@@ -998,6 +1020,7 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       data: {
         user: {
+          id: "1",
           permissions: [
             "schedules:read",
             "schedules:manage",
@@ -1087,7 +1110,7 @@ describe("BetreuungsplanView", () => {
   it("passes schedules:manage to the staff-pool controls", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:manage"] } },
+      data: { user: { id: "1", permissions: ["schedules:manage"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1100,7 +1123,7 @@ describe("BetreuungsplanView", () => {
   it("keeps staff-pool controls read-only without schedules:manage", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1113,7 +1136,9 @@ describe("BetreuungsplanView", () => {
   it("hides export without the permission to read staff names", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "schedules:manage"] },
+      },
     });
     render(<BetreuungsplanView />);
 
@@ -1130,6 +1155,7 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       data: {
         user: {
+          id: "1",
           permissions: ["schedules:read", "schedules:manage", "users:read"],
         },
       },
@@ -1145,7 +1171,7 @@ describe("BetreuungsplanView", () => {
   it("hides the add menu and shows the read-only badge without schedules:manage", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1156,7 +1182,7 @@ describe("BetreuungsplanView", () => {
   it("removes conflict warnings from read-only calendar instances", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1166,7 +1192,7 @@ describe("BetreuungsplanView", () => {
   it("does not bootstrap periods for read-only staff", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setupSWR({ periods: [] });
     render(<BetreuungsplanView />);
@@ -1199,7 +1225,7 @@ describe("BetreuungsplanView", () => {
   it("skips the tenant student roster without users:read", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1212,7 +1238,7 @@ describe("BetreuungsplanView", () => {
   it("forces the week view and offers only Tag/Woche for read-only staff", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=monat");
     render(<BetreuungsplanView />);
@@ -1230,7 +1256,7 @@ describe("BetreuungsplanView", () => {
   it("öffnet die Tagesansicht für Teammitglieder ohne Planungsrecht", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=tag&d=2026-05-06");
     render(<BetreuungsplanView />);
@@ -1249,7 +1275,9 @@ describe("BetreuungsplanView", () => {
       status: "authenticated",
       // users:read allein schaltet den Druck-Export nicht mehr frei (#2283
       // Feedback: die Leseansicht zeigt nur die Woche, sonst nichts).
-      data: { user: { permissions: ["schedules:read", "users:read"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "users:read"] },
+      },
     });
     render(<BetreuungsplanView />);
 
@@ -1271,7 +1299,7 @@ describe("BetreuungsplanView", () => {
   it("passes read-only props to the detail modal", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     render(<BetreuungsplanView />);
 
@@ -1310,6 +1338,7 @@ describe("BetreuungsplanView", () => {
     unbookedCount: 1,
     missingCount: 0,
     candidates: [],
+    ambiguous: false,
   };
 
   it("opens „Mit Angebot verbinden“ once for the linked Regeltermin", async () => {
@@ -1505,7 +1534,7 @@ describe("BetreuungsplanView", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("switching periods with the period chip drops a linked period", () => {
+  it("switching periods with the period chip replaces a linked period", () => {
     setUrl("view=serien&d=2026-10-12&zeitraum=7");
     setupSWR({
       periods: [
@@ -1521,7 +1550,121 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("select-period"));
-    expect(urlParams().has("zeitraum")).toBe(false);
+    expect(urlParams().get("zeitraum")).toBe(period.id);
+  });
+
+  // #5190: Der Zeitraum-Chip wählt per ID. Per Datum gewänne das Schuljahr
+  // (kleinere ID), und die eingeschlossenen Herbstferien wären unerreichbar.
+  describe("Zeitraum-Chip bei überlappenden Zeiträumen (#5190)", () => {
+    const holidays = {
+      ...laterPeriod,
+      id: "7",
+      name: "Herbstferien",
+      startDate: "2026-10-12",
+      endDate: "2026-10-23",
+    };
+    const schoolYearTemplate = { ...template, id: "8", name: "Hausaufgaben" };
+    const holidayTemplate = { ...template, id: "9", name: "Ferien-Randstunde" };
+    const laterTemplate = { ...template, id: "10", name: "Theater" };
+    const templatesByPeriod = {
+      "timetable-templates-5": [schoolYearTemplate],
+      "timetable-templates-6": [laterTemplate],
+      "timetable-templates-7": [holidayTemplate],
+    };
+
+    it("selects holidays inside the school year and keeps them on reload", () => {
+      setUrl("view=serien");
+      setupSWR({
+        periods: [period, holidays, laterPeriod],
+        templatesByPeriod,
+      });
+      const { unmount } = render(<BetreuungsplanView />);
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        period.name,
+      );
+
+      fireEvent.click(screen.getByText("choose-period-7"));
+
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        "Herbstferien",
+      );
+      expect(
+        screen.getByText("template-row-Ferien-Randstunde"),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("template-row-Hausaufgaben")).toBeNull();
+      expect(urlParams().get("d")).toBe("2026-10-12");
+      expect(urlParams().get("zeitraum")).toBe("7");
+
+      unmount();
+      render(<BetreuungsplanView />);
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        "Herbstferien",
+      );
+      expect(
+        screen.getByText("template-row-Ferien-Randstunde"),
+      ).toBeInTheDocument();
+    });
+
+    it("switches back from the holidays to the school year", () => {
+      setUrl("view=serien&d=2026-10-12&zeitraum=7");
+      setupSWR({
+        periods: [period, holidays, laterPeriod],
+        templatesByPeriod,
+      });
+      render(<BetreuungsplanView />);
+      expect(
+        screen.getByText("template-row-Ferien-Randstunde"),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText("choose-period-5"));
+
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        period.name,
+      );
+      expect(screen.getByText("template-row-Hausaufgaben")).toBeInTheDocument();
+      expect(screen.queryByText("template-row-Ferien-Randstunde")).toBeNull();
+      // Heute (06.05.2026, Uhr der Suite) liegt im Schuljahr.
+      expect(urlParams().get("d")).toBe("2026-05-06");
+      expect(urlParams().get("zeitraum")).toBe(period.id);
+    });
+
+    it("replaces a linked period with a non-overlapping one", () => {
+      setUrl("view=serien&d=2026-10-12&zeitraum=7");
+      setupSWR({
+        periods: [period, holidays, laterPeriod],
+        templatesByPeriod,
+      });
+      render(<BetreuungsplanView />);
+
+      fireEvent.click(screen.getByText("choose-period-6"));
+
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        laterPeriod.name,
+      );
+      expect(screen.getByText("template-row-Theater")).toBeInTheDocument();
+      // Der 01.08.2027 ist ein Sonntag: der Sprung geht auf den Montag.
+      expect(urlParams().get("d")).toBe("2027-08-02");
+      expect(urlParams().get("zeitraum")).toBe(laterPeriod.id);
+    });
+
+    it("does not pin an inactive period", () => {
+      setUrl("view=serien&d=2026-10-12&zeitraum=7");
+      const inactiveHolidays = { ...holidays, id: "11", isActive: false };
+      setupSWR({
+        periods: [period, holidays, inactiveHolidays],
+        templatesByPeriod,
+      });
+      render(<BetreuungsplanView />);
+
+      fireEvent.click(screen.getByText("choose-period-11"));
+
+      // Anker: die Auswahl fällt per Datum auf den aktiven Zeitraum.
+      expect(screen.getByTestId("selected-period")).toHaveTextContent(
+        period.name,
+      );
+      expect(urlParams().get("d")).toBe("2026-10-12");
+      expect(urlParams().has("zeitraum")).toBe(false);
+    });
   });
 
   it("opens the Regeltermin for editing when no offering matches", async () => {
@@ -2943,7 +3086,7 @@ describe("BetreuungsplanView", () => {
   it("erklärt eine teilweise abgedeckte Woche auch in der Leseansicht", () => {
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read"] } },
+      data: { user: { id: "1", permissions: ["schedules:read"] } },
     });
     setUrl("view=woche&d=2026-05-04");
     setupSWR({
@@ -2963,7 +3106,9 @@ describe("BetreuungsplanView", () => {
     // Schließtage lädt der Hook weiterhin über schedules:read.
     mockUseSession.mockReturnValue({
       status: "authenticated",
-      data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+      data: {
+        user: { id: "1", permissions: ["schedules:read", "schedules:manage"] },
+      },
     });
     setupSWR({ closingDaysLoading: true });
     render(<BetreuungsplanView />);
@@ -3069,6 +3214,7 @@ describe("BetreuungsplanView", () => {
         status: "authenticated",
         data: {
           user: {
+            id: "1",
             permissions: [
               "schedules:read",
               "schedules:manage",
@@ -3176,7 +3322,9 @@ describe("BetreuungsplanView", () => {
     it("bietet dieselben Filter in Tag und Woche der Leseansicht", () => {
       mockUseSession.mockReturnValue({
         status: "authenticated",
-        data: { user: { permissions: ["schedules:read", "groups:read"] } },
+        data: {
+          user: { id: "1", permissions: ["schedules:read", "groups:read"] },
+        },
       });
       setupSWR({ filterGroups: [{ id: "5", name: "Sonnen" }] });
 
@@ -3201,7 +3349,12 @@ describe("BetreuungsplanView", () => {
     it("bietet im Monat auch ohne users:read Personen aus der Übersicht an", () => {
       mockUseSession.mockReturnValue({
         status: "authenticated",
-        data: { user: { permissions: ["schedules:read", "schedules:manage"] } },
+        data: {
+          user: {
+            id: "1",
+            permissions: ["schedules:read", "schedules:manage"],
+          },
+        },
       });
       const defaultSWR = mockUseSWRAuth.getMockImplementation()!;
       mockUseSWRAuth.mockImplementation((key: string | null) => {
@@ -3241,6 +3394,7 @@ describe("BetreuungsplanView", () => {
         status: "authenticated",
         data: {
           user: {
+            id: "1",
             permissions: [
               "schedules:read",
               "schedules:manage",
