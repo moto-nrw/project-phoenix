@@ -12,7 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type payrollTestSettings struct{ config workforce.PayrollDispatchConfig }
+type payrollTestSettings struct {
+	config workforce.PayrollDispatchConfig
+}
 
 func (s payrollTestSettings) PayrollDispatchConfig(context.Context) (workforce.PayrollDispatchConfig, error) {
 	return s.config, nil
@@ -44,7 +46,9 @@ func (t *payrollTestTransfer) Transfer(ctx context.Context, request workforce.Pa
 	return workforce.PayrollTransferOutcome{Transferred: true}, nil
 }
 
-func (*payrollTestTransfer) RecordEmail(context.Context, workforce.PayrollEmailResult) error { return nil }
+func (*payrollTestTransfer) RecordEmail(context.Context, workforce.PayrollEmailResult) error {
+	return nil
+}
 
 type payrollTestMail struct {
 	mu    sync.Mutex
@@ -58,7 +62,9 @@ func (m *payrollTestMail) Enqueue(_ context.Context, message workforce.PayrollMa
 	return int64(len(m.links)), nil
 }
 
-func (*payrollTestMail) State(context.Context, int64) (string, error) { return workforce.PayrollMailSent, nil }
+func (*payrollTestMail) State(context.Context, int64) (string, error) {
+	return workforce.PayrollMailSent, nil
+}
 
 type payrollTestSchools struct{}
 

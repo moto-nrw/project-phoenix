@@ -274,10 +274,10 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0105: the Träger transaction binding (+4).
 	"modules/transactionruntime/compose": 137,
 	// Raised by ADR 0141: the payroll dispatch constructor (+9).
-	"modules/workforce/compose":          896,
-	"workflows/catererportal/compose":    37, // added by ADR 0077
-	"workflows/gradetransition/compose":  49,
-	"workflows/openroommove/compose":     46,
+	"modules/workforce/compose":         896,
+	"workflows/catererportal/compose":   37, // added by ADR 0077
+	"workflows/gradetransition/compose": 49,
+	"workflows/openroommove/compose":    46,
 	// Raised by ADR 0078; by ADR 0113: the prefill's data access port (+1);
 	// by ADR 0126: the document inbox ports and the push of a new document
 	// for the Delivery worker (+21).

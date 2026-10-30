@@ -62,7 +62,8 @@ export interface PayrollStatus {
 export type PayrollDispatchChannel = "sftp" | "email";
 
 /** Dateiformate; die Werte von `payroll.dispatch_format`. */
-export type PayrollDispatchFormat = "csv" | "xlsx" | "datev_lodas" | "datev_lug";
+export type PayrollDispatchFormat =
+  "csv" | "xlsx" | "datev_lodas" | "datev_lug";
 
 /** Der Versand an das Lohnbüro nach dem Monatsabschluss (#4805). */
 export interface PayrollDispatchSettings {
@@ -236,7 +237,7 @@ export interface PayrollDispatchView {
   downloadedAt: string | null;
 }
 
-export function mapPayrollDispatch(
+function mapPayrollDispatch(
   data: BackendPayrollDispatchView,
 ): PayrollDispatchView {
   return {

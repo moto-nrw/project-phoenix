@@ -298,8 +298,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/studentpresence": 122,
 	"modules/timetable":       204,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
-	"modules/workforce":       140,
-	"workflows/openroommove":  1,
+	"modules/workforce":      140,
+	"workflows/openroommove": 1,
 	// Raised by ADR 0078: the week change of the meal plan adapter.
 	"workflows/parentportal": 18,
 }
