@@ -9747,7 +9747,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0138",
+      "approval_adr": "0139",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverruns",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -9769,7 +9769,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0138",
+      "approval_adr": "0139",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverrunsForExport",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -9835,7 +9835,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0138",
+      "approval_adr": "0139",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.StudentCareTimes",
       "classification": "unresolved",
       "effect": "unresolved",
