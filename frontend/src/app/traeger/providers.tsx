@@ -4,6 +4,7 @@ import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { TraegerAnalyticsSession } from "~/components/analytics/traeger-analytics-session";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { SessionAccountBinding } from "~/components/auth/session-account-binding";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { traegerPath } from "~/lib/traeger-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
@@ -33,6 +34,7 @@ export function TraegerProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <SessionAccountBinding />
       <PersonalStorageGuard homeHref={traegerHome} />
       <SWRScopeBoundary />
       <TraegerAnalyticsSession />

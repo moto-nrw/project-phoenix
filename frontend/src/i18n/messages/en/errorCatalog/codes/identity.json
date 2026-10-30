@@ -28,6 +28,7 @@
   "role_name_taken": "{object} could not be changed. Please check its current status.",
   "role_platform_permission": "{object} could not be saved. Please check your entries.",
   "session_account_inactive": "Your account is switched off. Please contact your school's management.",
+  "session_account_mismatch": "Another account signed in in another window. moto will reload this page shortly.",
   "session_tenant_mismatch": "The school was changed in another window. moto will switch this page back shortly. Please try again afterwards.",
   "tenant_access_denied": "You cannot access {object}. Please contact the school.",
   "use_parent_portal": "You cannot access {object}. Please contact the school.",
