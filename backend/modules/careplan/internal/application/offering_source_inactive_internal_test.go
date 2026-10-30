@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -171,4 +172,92 @@ func TestSourceDriftOf(t *testing.T) {
 	assert.Equal(t, rejectDriftedSources, sourceDriftOf(careplan.OfferingRosterResync{}))
 	assert.Equal(t, skipInactiveSources, sourceDriftOf(careplan.OfferingRosterResync{SkipInactiveSources: true}))
 	assert.Equal(t, tolerateDriftedSources, sourceDriftOf(careplan.OfferingRosterResync{TolerateDriftedSources: true, SkipInactiveSources: true}))
+}
+
+// A template save skips an inactive source only when it was already stored
+// (#5313); a newly selected inactive one is refused under its own name, in
+// request order, and a save left without a valid source keeps its refusal.
+func TestLoadOfferingSources_SkipsOnlyStoredInactiveSources(t *testing.T) {
+	t.Parallel()
+	period := int64(9)
+	catalog := newInactiveSourceCatalog()
+
+	sources, err := catalog.loadStored(t, []int64{1, 2}, &period, []int64{1, 2})
+	require.NoError(t, err, "a stored inactive source next to a valid one is skipped")
+	assert.Equal(t, []int64{1}, sources.Inactive)
+	require.Len(t, sources.Offerings, 1)
+	assert.Equal(t, int64(2), sources.Offerings[0].ID)
+
+	_, err = catalog.loadStored(t, []int64{1, 2}, &period, []int64{2})
+	requireRefusalNaming(t, err, ports.OfferingSourceInactive, "A")
+	_, err = catalog.loadStored(t, []int64{1, 2}, &period, nil)
+	requireRefusalNaming(t, err, ports.OfferingSourceInactive, "A")
+
+	newInactive := newInactiveSourceCatalog()
+	newInactive.offerings = append(newInactive.offerings, careplan.CareOffering{ID: 4, Name: "D", PhaseID: 1})
+	_, err = newInactive.loadStored(t, []int64{1, 2, 4}, &period, []int64{1, 2})
+	requireRefusalNaming(t, err, ports.OfferingSourceInactive, "D")
+
+	allInactive := newInactiveSourceCatalog()
+	allInactive.offerings[1].IsActive = false
+	_, err = allInactive.loadStored(t, []int64{1, 2}, &period, []int64{1, 2})
+	requireRefusal(t, err, ports.OfferingSourceInactive)
+
+	mixed := newInactiveSourceCatalog()
+	mixed.offerings[2].PhaseID = 2
+	_, err = mixed.loadStored(t, []int64{1, 2, 3}, &period, []int64{1, 2, 3})
+	requireRefusal(t, err, ports.OfferingSourceMixedPhases)
+}
+
+func (c inactiveSourceCatalog) loadStored(t *testing.T, ids []int64, periodID *int64, stored []int64) (careplan.OfferingSources, error) {
+	t.Helper()
+	catalog := &CareOfferingCatalog{deps: CareOfferingCatalogDependencies{
+		Records:     catalogRecordsStub{offerings: c.offerings, err: c.listErr},
+		Phases:      c.phases,
+		Calendar:    c.period,
+		SourceRules: sourceRefusalRules{},
+	}}
+	return catalog.loadValidatedOfferingSources(t.Context(), ids, periodID, sourceDriftOf(careplan.OfferingRosterResync{StoredOfferingIDs: stored}), stored)
+}
+
+func requireRefusalNaming(t *testing.T, err error, kind ports.OfferingSourceRefusalKind, offering string) {
+	t.Helper()
+	var refusal sourceRefusal
+	require.ErrorAs(t, err, &refusal)
+	assert.Equal(t, kind, refusal.Kind)
+	assert.Equal(t, offering, refusal.Offering)
+}
+
+// The stored ids select the stored-only skip; the resync and detach flags
+// keep precedence.
+func TestSourceDriftOf_StoredOfferingIDs(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, skipStoredInactiveSources, sourceDriftOf(careplan.OfferingRosterResync{StoredOfferingIDs: []int64{1}}))
+	assert.Equal(t, skipInactiveSources, sourceDriftOf(careplan.OfferingRosterResync{SkipInactiveSources: true, StoredOfferingIDs: []int64{1}}))
+	assert.Equal(t, tolerateDriftedSources, sourceDriftOf(careplan.OfferingRosterResync{TolerateDriftedSources: true, StoredOfferingIDs: []int64{1}}))
+}
+
+// The catalog learns from a refusal why the template refused its sources.
+func TestSourceRefusalProblem(t *testing.T) {
+	t.Parallel()
+	period := int64(9)
+	allInactive := newInactiveSourceCatalog()
+	allInactive.offerings[1].IsActive = false
+	_, err := allInactive.load(t, []int64{1, 2}, &period, skipInactiveSources)
+	assert.Equal(t, careplan.SourcedTemplateNoActiveSource, sourceRefusalProblem(fmt.Errorf("resync: %w", err)))
+
+	mixed := newInactiveSourceCatalog()
+	mixed.offerings[2].PhaseID = 2
+	_, err = mixed.load(t, []int64{2, 3}, &period, skipInactiveSources)
+	assert.Equal(t, careplan.SourcedTemplateMixedPhases, sourceRefusalProblem(err))
+
+	outside := newInactiveSourceCatalog()
+	outside.period.period.EndDate = calendar.NewDate(2027, 6, 30)
+	_, err = outside.load(t, []int64{2}, &period, skipInactiveSources)
+	assert.Equal(t, careplan.SourcedTemplateOutsidePeriod, sourceRefusalProblem(err))
+
+	missingPhase := newInactiveSourceCatalog()
+	missingPhase.phases.err = ports.ErrCatalogRowNotFound
+	_, err = missingPhase.load(t, []int64{2}, &period, skipInactiveSources)
+	assert.Equal(t, careplan.SourcedTemplateSourceInvalid, sourceRefusalProblem(err))
 }
