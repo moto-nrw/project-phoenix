@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -19,6 +20,7 @@ type payrollDispatchRow struct {
 	Year              int        `bun:"year,notnull"`
 	Month             int        `bun:"month,notnull"`
 	Sequence          int        `bun:"sequence,notnull"`
+	Correction        int        `bun:"correction,notnull"`
 	Channel           string     `bun:"channel,notnull"`
 	ExportFormat      string     `bun:"export_format,notnull"`
 	RecipientEmail    string     `bun:"recipient_email,notnull"`
@@ -45,7 +47,7 @@ type payrollDispatchRow struct {
 
 func (r payrollDispatchRow) toDomain() domain.PayrollDispatch {
 	value := domain.PayrollDispatch{
-		ID: r.ID, Year: r.Year, Month: r.Month, Sequence: r.Sequence, Channel: r.Channel, Format: r.ExportFormat,
+		ID: r.ID, Year: r.Year, Month: r.Month, Sequence: r.Sequence, Correction: r.Correction, Channel: r.Channel, Format: r.ExportFormat,
 		Recipient: r.RecipientEmail, ActorAccountID: r.ActorAccountID, ActorName: r.ActorName, State: r.State,
 		Attempts: r.Attempts, NextAttemptAt: r.NextAttemptAt, Reason: r.Reason, Filename: r.Filename,
 		ContentType: r.ContentType, ByteSize: r.ByteSize, FileData: r.FileData,
@@ -79,19 +81,25 @@ func (s *Store) payrollDatabase(ctx context.Context) (bun.IDB, int64, error) {
 // NextPayrollDispatchSequence serializes the month's dispatches with a
 // transaction lock, so two closes of the same month cannot both take the
 // same number.
-func (s *Store) NextPayrollDispatchSequence(ctx context.Context, year, month int) (int, error) {
+func (s *Store) NextPayrollDispatchSequence(ctx context.Context, year, month int) (int, int, error) {
 	db, tenantID, err := s.payrollDatabase(ctx)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`,
 		fmt.Sprintf("payroll_dispatch:%d:%04d-%02d", tenantID, year, month)).Exec(ctx); err != nil {
-		return 0, fmt.Errorf("lock payroll dispatches of the month: %w", err)
+		return 0, 0, fmt.Errorf("lock payroll dispatches of the month: %w", err)
 	}
-	var next int
-	err = db.NewRaw(`SELECT COALESCE(max(sequence) + 1, 0) FROM active.payroll_dispatches
-		WHERE tenant_id = ? AND year = ? AND month = ?`, tenantID, year, month).Scan(ctx, &next)
-	return next, err
+	var next struct {
+		Sequence   int `bun:"sequence"`
+		Correction int `bun:"correction"`
+	}
+	err = db.NewRaw(`SELECT COALESCE(max(sequence) + 1, 0) AS sequence,
+		count(*) FILTER (WHERE state IN (?, ?, ?)) AS correction
+		FROM active.payroll_dispatches WHERE tenant_id = ? AND year = ? AND month = ?`,
+		workforce.PayrollDispatchPending, workforce.PayrollDispatchMailing, workforce.PayrollDispatchSent,
+		tenantID, year, month).Scan(ctx, &next)
+	return next.Sequence, next.Correction, err
 }
 
 func (s *Store) InsertPayrollDispatch(ctx context.Context, value domain.PayrollDispatch) error {
@@ -100,7 +108,7 @@ func (s *Store) InsertPayrollDispatch(ctx context.Context, value domain.PayrollD
 		return err
 	}
 	row := payrollDispatchRow{
-		TenantID: tenantID, Year: value.Year, Month: value.Month, Sequence: value.Sequence,
+		TenantID: tenantID, Year: value.Year, Month: value.Month, Sequence: value.Sequence, Correction: value.Correction,
 		Channel: value.Channel, ExportFormat: value.Format, RecipientEmail: value.Recipient,
 		ActorAccountID: value.ActorAccountID, ActorName: value.ActorName, State: value.State,
 		NextAttemptAt: value.NextAttemptAt, Reason: value.Reason, FinishedAt: value.FinishedAt,
@@ -148,7 +156,7 @@ func (s *Store) ClaimPayrollDispatches(ctx context.Context, now time.Time, lease
 	) UPDATE active.payroll_dispatches AS d
 	SET lease_token = gen_random_uuid()::text, lease_expires_at = ?, updated_at = ?
 	FROM due WHERE d.tenant_id = ? AND d.id = due.id
-	RETURNING d.id, d.tenant_id, d.year, d.month, d.sequence, d.channel, d.export_format, d.recipient_email,
+	RETURNING d.id, d.tenant_id, d.year, d.month, d.sequence, d.correction, d.channel, d.export_format, d.recipient_email,
 		d.actor_account_id, d.actor_name, d.state, d.attempts, d.next_attempt_at, d.lease_token, d.lease_expires_at,
 		d.reason, d.filename, d.content_type, d.byte_size, d.download_token_hash, d.download_expires_at,
 		d.downloaded_at, d.mail_outbox_id, d.finished_at, d.created_at, d.updated_at`,
@@ -171,7 +179,7 @@ func (s *Store) FinishPayrollDispatch(ctx context.Context, value domain.PayrollD
 	if err != nil {
 		return false, err
 	}
-	keepFile := value.State == "mailing" || value.State == "sent"
+	keepFile := value.State == workforce.PayrollDispatchMailing || value.State == workforce.PayrollDispatchSent
 	result, err := db.NewRaw(`UPDATE active.payroll_dispatches SET
 		state = ?, attempts = ?, next_attempt_at = ?, reason = ?, filename = ?, content_type = ?, byte_size = ?,
 		file_data = CASE WHEN ?::bytea IS NOT NULL THEN ?::bytea WHEN ? THEN file_data ELSE NULL END,
@@ -205,7 +213,7 @@ func (s *Store) OpenPayrollDownload(ctx context.Context, tokenHash string, now t
 		FOR UPDATE
 	) UPDATE active.payroll_dispatches AS d SET downloaded_at = ?, file_data = NULL, updated_at = ?
 	FROM spent WHERE d.tenant_id = ? AND d.id = spent.id
-	RETURNING d.id, d.year, d.month, d.sequence, d.filename, d.content_type, d.byte_size, spent.file_data AS file_data`,
+	RETURNING d.id, d.year, d.month, d.sequence, d.correction, d.filename, d.content_type, d.byte_size, spent.file_data AS file_data`,
 		tenantID, tokenHash, now, now, now, tenantID).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("open payroll download: %w", err)

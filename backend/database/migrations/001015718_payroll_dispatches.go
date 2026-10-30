@@ -27,9 +27,11 @@ func init() {
 
 // payrollDispatchesUpSQL creates the durable payroll dispatch (#4805).
 //
-// One row is one file for the payroll office: the first send of a closed
-// month (sequence 0) or a correction after a reopened month was closed again
-// (sequence 1, 2, ...). The month close inserts the row in its own
+// One row is one file for the payroll office. sequence numbers every close of
+// the month; correction counts the files of the month that were already on
+// their way (queued, mailed or sent), so a close after a blocked one still
+// sends the first file, and only a file after a real one is a correction
+// (korrektur-N in its name). The month close inserts the row in its own
 // transaction; the worker builds and sends the file after the commit.
 //
 //   - channel, format and recipient are snapshotted at the close, so a later
@@ -56,6 +58,7 @@ const payrollDispatchesUpSQL = `
 			year SMALLINT NOT NULL CHECK (year BETWEEN 2000 AND 2100),
 			month SMALLINT NOT NULL CHECK (month BETWEEN 1 AND 12),
 			sequence INTEGER NOT NULL CHECK (sequence >= 0),
+			correction INTEGER NOT NULL DEFAULT 0 CHECK (correction >= 0 AND correction <= sequence),
 			channel TEXT NOT NULL CHECK (channel IN ('sftp', 'email')),
 			export_format TEXT NOT NULL CHECK (export_format IN ('csv', 'xlsx', 'datev_lodas', 'datev_lug')),
 			recipient_email TEXT NOT NULL DEFAULT '',

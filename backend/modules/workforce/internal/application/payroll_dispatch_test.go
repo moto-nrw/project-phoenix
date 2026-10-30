@@ -28,14 +28,21 @@ type fakePayrollStore struct {
 	failFin bool
 }
 
-func (f *fakePayrollStore) NextPayrollDispatchSequence(_ context.Context, year, month int) (int, error) {
-	next := 0
+func (f *fakePayrollStore) NextPayrollDispatchSequence(_ context.Context, year, month int) (int, int, error) {
+	next, correction := 0, 0
 	for _, row := range f.rows {
-		if row.Year == year && row.Month == month && row.Sequence >= next {
+		if row.Year != year || row.Month != month {
+			continue
+		}
+		if row.Sequence >= next {
 			next = row.Sequence + 1
 		}
+		switch row.State {
+		case workforce.PayrollDispatchPending, workforce.PayrollDispatchMailing, workforce.PayrollDispatchSent:
+			correction++
+		}
 	}
-	return next, nil
+	return next, correction, nil
 }
 
 func (f *fakePayrollStore) InsertPayrollDispatch(_ context.Context, value domain.PayrollDispatch) error {
@@ -532,6 +539,31 @@ func TestPayrollDispatch_BrokenPassCountsAsAFailedAttempt(t *testing.T) {
 	assert.Equal(t, 1, row.Attempts)
 	assert.Equal(t, workforce.PayrollReasonInternal, row.Reason)
 	assert.Empty(t, h.mail.links)
+}
+
+// A close that was blocked sent nothing; the next close of the month sends
+// the first file, not a correction (#4805 review).
+func TestPayrollDispatch_FileAfterABlockedCloseIsNoCorrection(t *testing.T) {
+	t.Parallel()
+
+	h := newPayrollHarness(t, sftpConfig("datev_lodas"))
+	h.export.reportErr = workforce.ErrPayrollConfigIncomplete
+	h.close(t)
+	h.run(t)
+	require.Equal(t, workforce.PayrollDispatchBlocked, h.store.rows[0].State)
+
+	h.export.reportErr = nil // the Leitung completes the DATEV data
+	require.NoError(t, h.service.QueueAfterMonthClose(context.Background(), workforce.PayrollDispatchTrigger{
+		Year: 2026, Month: 9, ClosedStaff: 1, ActorAccountID: 31,
+	}))
+	h.run(t)
+
+	assert.Equal(t, 1, h.store.rows[1].Sequence)
+	assert.Equal(t, 0, h.store.rows[1].Correction)
+	assert.Equal(t, []string{"datev_lodas_2026-09.txt"}, h.transfer.sent, "the first file that leaves carries no korrektur")
+	overview, err := h.service.Overview(context.Background())
+	require.NoError(t, err)
+	assert.False(t, overview.Latest.Correction)
 }
 
 func TestPayrollFilename(t *testing.T) {

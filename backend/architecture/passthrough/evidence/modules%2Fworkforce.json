@@ -261,7 +261,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *PayrollDispatch) Overview(ctx context.Context) (workforce.PayrollDispatchOverview, error) {\n\tlatest, err := s.deps.Store.LatestPayrollDispatch(ctx)\n\tif err != nil || latest == nil {\n\t\treturn workforce.PayrollDispatchOverview{}, err\n\t}\n\tview := workforce.PayrollDispatchView{Year: latest.Year, Month: latest.Month, Correction: latest.Sequence \u003e 0, Channel: latest.Channel, Format: latest.Format, Recipient: latest.Recipient, State: latest.State, Reason: latest.Reason, Attempts: latest.Attempts, Filename: latest.Filename, CreatedAt: latest.CreatedAt, FinishedAt: latest.FinishedAt, DownloadExpiresAt: latest.DownloadExpiresAt, DownloadedAt: latest.DownloadedAt}\n\treturn workforce.PayrollDispatchOverview{Latest: \u0026view}, nil\n}",
+      "evidence": "func (s *PayrollDispatch) Overview(ctx context.Context) (workforce.PayrollDispatchOverview, error) {\n\tlatest, err := s.deps.Store.LatestPayrollDispatch(ctx)\n\tif err != nil || latest == nil {\n\t\treturn workforce.PayrollDispatchOverview{}, err\n\t}\n\tview := workforce.PayrollDispatchView{Year: latest.Year, Month: latest.Month, Correction: latest.Correction \u003e 0, Channel: latest.Channel, Format: latest.Format, Recipient: latest.Recipient, State: latest.State, Reason: latest.Reason, Attempts: latest.Attempts, Filename: latest.Filename, CreatedAt: latest.CreatedAt, FinishedAt: latest.FinishedAt, DownloadExpiresAt: latest.DownloadExpiresAt, DownloadedAt: latest.DownloadedAt}\n\treturn workforce.PayrollDispatchOverview{Latest: \u0026view}, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/application/PayrollDispatch.Overview",
       "owner": "modules/workforce"

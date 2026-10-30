@@ -11,8 +11,10 @@ import (
 // tenant transaction of the context.
 type PayrollDispatchStore interface {
 	// NextPayrollDispatchSequence locks the month's dispatches and returns
-	// the sequence a new one takes: 0 for the first file, then corrections.
-	NextPayrollDispatchSequence(ctx context.Context, year, month int) (int, error)
+	// the sequence a new one takes and its correction number: how many files
+	// of the month are queued, mailed or sent. Blocked and failed ones
+	// never reached the payroll office and do not count.
+	NextPayrollDispatchSequence(ctx context.Context, year, month int) (sequence, correction int, err error)
 	InsertPayrollDispatch(context.Context, domain.PayrollDispatch) error
 	LatestPayrollDispatch(context.Context) (*domain.PayrollDispatch, error)
 	// ClaimPayrollDispatches leases due pending and mailing dispatches.

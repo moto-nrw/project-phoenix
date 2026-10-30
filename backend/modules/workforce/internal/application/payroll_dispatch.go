@@ -123,13 +123,13 @@ func (s *PayrollDispatch) QueueAfterMonthClose(ctx context.Context, trigger work
 	if err := validPayrollConfig(config); err != nil {
 		return err
 	}
-	sequence, err := s.deps.Store.NextPayrollDispatchSequence(ctx, trigger.Year, trigger.Month)
+	sequence, correction, err := s.deps.Store.NextPayrollDispatchSequence(ctx, trigger.Year, trigger.Month)
 	if err != nil {
 		return fmt.Errorf("payroll dispatch: number the dispatch: %w", err)
 	}
 	now := s.deps.Now()
 	dispatch := domain.PayrollDispatch{
-		Year: trigger.Year, Month: trigger.Month, Sequence: sequence,
+		Year: trigger.Year, Month: trigger.Month, Sequence: sequence, Correction: correction,
 		Channel: config.Channel, Format: config.Format, Recipient: strings.TrimSpace(config.Email),
 		ActorAccountID: trigger.ActorAccountID, ActorName: trigger.ActorName,
 		State: workforce.PayrollDispatchPending, NextAttemptAt: now,
@@ -167,7 +167,7 @@ func (s *PayrollDispatch) Overview(ctx context.Context) (workforce.PayrollDispat
 		return workforce.PayrollDispatchOverview{}, err
 	}
 	view := workforce.PayrollDispatchView{
-		Year: latest.Year, Month: latest.Month, Correction: latest.Sequence > 0,
+		Year: latest.Year, Month: latest.Month, Correction: latest.Correction > 0,
 		Channel: latest.Channel, Format: latest.Format, Recipient: latest.Recipient,
 		State: latest.State, Reason: latest.Reason, Attempts: latest.Attempts, Filename: latest.Filename,
 		CreatedAt: latest.CreatedAt, FinishedAt: latest.FinishedAt,
@@ -182,18 +182,24 @@ func (s *PayrollDispatch) Overview(ctx context.Context) (workforce.PayrollDispat
 func (s *PayrollDispatch) RunDue(ctx context.Context) (int, error) {
 	ctx = s.deps.Runtime.Detached(ctx)
 	now := s.deps.Now()
-	var claims []domain.PayrollDispatch
-	if err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
-		var err error
-		claims, err = s.deps.Store.ClaimPayrollDispatches(txCtx, now, payrollDispatchLease, payrollDispatchBatch)
-		return err
-	}); err != nil {
-		return 0, fmt.Errorf("payroll dispatch: claim: %w", err)
-	}
 	finished := 0
 	var firstErr error
-	for _, claim := range claims {
-		done, err := s.work(ctx, claim)
+	// One claim per dispatch: each lease starts right before its own send, so
+	// a slow transfer of one dispatch cannot let the lease of the next expire
+	// and send its file twice.
+	for range payrollDispatchBatch {
+		var claims []domain.PayrollDispatch
+		if err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
+			var err error
+			claims, err = s.deps.Store.ClaimPayrollDispatches(txCtx, s.deps.Now(), payrollDispatchLease, 1)
+			return err
+		}); err != nil {
+			return finished, fmt.Errorf("payroll dispatch: claim: %w", err)
+		}
+		if len(claims) == 0 {
+			break
+		}
+		done, err := s.work(ctx, claims[0])
 		if done {
 			finished++
 		}
@@ -266,18 +272,18 @@ func (s *PayrollDispatch) exportFile(ctx context.Context, dispatch domain.Payrol
 	if err != nil {
 		return nil, "", fmt.Errorf("build the month file: %w", err)
 	}
-	file.Filename = payrollFilename(file.Filename, dispatch.Sequence)
+	file.Filename = payrollFilename(file.Filename, dispatch.Correction)
 	return file, "", nil
 }
 
 // payrollFilename marks a correction in the name, before the extension:
 // datev_lodas_2026-09.txt becomes datev_lodas_2026-09_korrektur-1.txt.
-func payrollFilename(filename string, sequence int) string {
-	if sequence <= 0 {
+func payrollFilename(filename string, correction int) string {
+	if correction <= 0 {
 		return filename
 	}
 	extension := path.Ext(filename)
-	return fmt.Sprintf("%s_korrektur-%d%s", strings.TrimSuffix(filename, extension), sequence, extension)
+	return fmt.Sprintf("%s_korrektur-%d%s", strings.TrimSuffix(filename, extension), correction, extension)
 }
 
 // sendSFTP checks the DATEV configuration, then lets Export Transfer build the
@@ -316,13 +322,13 @@ func (s *PayrollDispatch) sendSFTP(ctx context.Context, claim domain.PayrollDisp
 	now := s.deps.Now()
 	switch {
 	case blocked != "":
-		return s.finishWithNotice(ctx, claim, workforce.PayrollDispatchBlocked, blocked)
+		return s.block(ctx, claim, blocked)
 	case outcome.NotConfigured:
-		return s.finishWithNotice(ctx, claim, workforce.PayrollDispatchBlocked, workforce.PayrollReasonSFTPNotConfigured)
+		return s.block(ctx, claim, workforce.PayrollReasonSFTPNotConfigured)
 	case outcome.Transferred:
 		claim.Attempts++
 		claim.State, claim.Reason, claim.FinishedAt = workforce.PayrollDispatchSent, "", &now
-		return s.finish(ctx, claim, nil)
+		return s.finish(ctx, claim, false)
 	default:
 		reason := outcome.Reason
 		if reason == "" {
@@ -383,7 +389,7 @@ func (s *PayrollDispatch) sendLink(ctx context.Context, claim domain.PayrollDisp
 		expires := now.Add(workforce.PayrollDownloadLifetime)
 		outboxID, err := s.enqueueLink(txCtx, payrollLink{
 			TenantID: tenantID, DispatchID: claim.ID, Recipient: claim.Recipient,
-			Year: claim.Year, Month: claim.Month, Correction: claim.Sequence > 0,
+			Year: claim.Year, Month: claim.Month, Correction: claim.Correction > 0,
 			Token: raw, ExpiresAt: expires,
 		})
 		if err != nil {
@@ -443,24 +449,25 @@ func (s *PayrollDispatch) failAttempt(ctx context.Context, claim domain.PayrollD
 	now := s.deps.Now()
 	if claim.Attempts >= workforce.PayrollDispatchMaxAttempts {
 		claim.State, claim.FinishedAt = workforce.PayrollDispatchFailed, &now
-		return s.finish(ctx, claim, &claim)
+		return s.finish(ctx, claim, true)
 	}
 	claim.State = workforce.PayrollDispatchPending
 	claim.NextAttemptAt = now.Add(payrollRetryBackoff[min(claim.Attempts, len(payrollRetryBackoff))-1])
-	return s.finish(ctx, claim, nil)
+	return s.finish(ctx, claim, false)
 }
 
-func (s *PayrollDispatch) finishWithNotice(ctx context.Context, claim domain.PayrollDispatch, state, reason string) (bool, error) {
+// block ends a dispatch that may not be sent, with its notice.
+func (s *PayrollDispatch) block(ctx context.Context, claim domain.PayrollDispatch, reason string) (bool, error) {
 	now := s.deps.Now()
-	claim.State, claim.Reason, claim.FinishedAt = state, reason, &now
-	return s.finish(ctx, claim, &claim)
+	claim.State, claim.Reason, claim.FinishedAt = workforce.PayrollDispatchBlocked, reason, &now
+	return s.finish(ctx, claim, true)
 }
 
-// finish writes the pass outcome in a fresh transaction; noticed names the
-// dispatch whose notice commits with it.
-func (s *PayrollDispatch) finish(ctx context.Context, claim domain.PayrollDispatch, noticed *domain.PayrollDispatch) (bool, error) {
+// finish writes the pass outcome in a fresh transaction; with notice the
+// managers' notice commits with it.
+func (s *PayrollDispatch) finish(ctx context.Context, claim domain.PayrollDispatch, notice bool) (bool, error) {
 	err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
-		return s.finishInTx(txCtx, claim, noticed != nil)
+		return s.finishInTx(txCtx, claim, notice)
 	})
 	return err == nil && claim.FinishedAt != nil, err
 }
@@ -491,7 +498,7 @@ func (s *PayrollDispatch) notify(ctx context.Context, dispatch domain.PayrollDis
 	)
 	if err := s.notifyManagers(ctx, payrollProblem{
 		TenantID: tenantID, DispatchID: dispatch.ID, Year: dispatch.Year, Month: dispatch.Month,
-		Correction: dispatch.Sequence > 0, Reason: dispatch.Reason,
+		Correction: dispatch.Correction > 0, Reason: dispatch.Reason,
 	}); err != nil {
 		return fmt.Errorf("payroll dispatch: notify the managers: %w", err)
 	}

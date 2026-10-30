@@ -3,12 +3,14 @@ package domain
 import "time"
 
 // PayrollDispatch is one row of active.payroll_dispatches (#4805): one file
-// for the payroll office, the first of a closed month (Sequence 0) or a
-// correction after the month was closed again.
+// for the payroll office. Sequence numbers the closes of the month;
+// Correction counts the files already on their way before it, so 0 is the
+// first file and 1, 2, ... are corrections.
 type PayrollDispatch struct {
 	ID             int64
 	Year, Month    int
 	Sequence       int
+	Correction     int
 	Channel        string
 	Format         string
 	Recipient      string
