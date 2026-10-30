@@ -134,6 +134,10 @@
   "template_weekend": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "too_many_dates": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "understaffed_still_staffed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "week_protocol_not_closed": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "week_protocol_not_draft": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "week_protocol_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "week_protocol_notes_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "window_end_before_start": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "window_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat."
 }

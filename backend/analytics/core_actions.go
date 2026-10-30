@@ -318,6 +318,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/staff/{id}/documents"}:                                                         notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/documents/{documentId}"}:                                          notCaptured,
 	{http.MethodPut, "/api/staff/{id}/payroll-number"}:                                                     notCaptured,
+	{http.MethodPut, "/api/week-protocols/{protocolId}/notes"}:                                             notCaptured,
+	{http.MethodPost, "/api/week-protocols/{protocolId}/close"}:                                            event("week_protocol_closed"),
 	{http.MethodPut, "/api/staff/{id}/planned-exit"}:                                                       notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/planned-exit"}:                                                    notCaptured,
 	{http.MethodPut, "/api/staff/{id}/schedule"}:                                                           notCaptured,

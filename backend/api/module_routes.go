@@ -97,6 +97,9 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/api/staff", moduleRouteBasis},
 	{"/api/staff-messages", moduleRouteBasis},
 	{"/api/staff-notices", moduleRouteBasis},
+	// #4769: the weekly protocols of the groups record the Basis day log and
+	// planning; the module catalog files them under Planung, which has no switch.
+	{"/api/week-protocols", moduleRouteBasis},
 	{"/api/staff-onboarding", moduleRouteBasis},
 	{"/api/statistics", moduleRouteBasis},
 	{"/api/students", moduleRouteBasis},

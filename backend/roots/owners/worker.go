@@ -59,7 +59,7 @@ func NewWorker(
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
 	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, mealPlan mealplanModule.Capability, schoolNames SchoolNamesPublisher,
-	plannedExits PlannedStaffExitsBuilder,
+	plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
@@ -146,7 +146,7 @@ func NewWorker(
 		InstanceStudentRepo:          timetableRepos.ParticipantCheckouts(),
 		StudentStatusDayRepo:         NewStudentStatusDayRepository(carePlan),
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
-		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
-		ReminderNotifications:        reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff),
+		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: newWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
+		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff),
 	})
 }

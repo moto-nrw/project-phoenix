@@ -225,6 +225,8 @@
     {"name": "schedule.closing_days", "scope": "tenant", "export": "include"},
     {"name": "schedule.dateframes", "scope": "tenant", "export": "include"},
     {"name": "schedule.grade_transition_roster_removals", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id"}},
+    {"name": "schedule.group_week_protocol_days", "scope": "tenant", "export": "include"},
+    {"name": "schedule.group_week_protocols", "scope": "tenant", "export": "include"},
     {"name": "schedule.instance_staff", "scope": "tenant", "export": "include", "personKeys": {"staff_id": "users.staff_school_memberships.id"}},
     {"name": "schedule.instance_students", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id"}},
     {"name": "schedule.meal_order_change_counters", "scope": "tenant", "export": "include"},

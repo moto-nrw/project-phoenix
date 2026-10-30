@@ -153,6 +153,14 @@
       "write_owner": "timetable-activities"
     },
     {
+      "name": "schedule.group_week_protocol_days",
+      "write_owner": "timetable-activities"
+    },
+    {
+      "name": "schedule.group_week_protocols",
+      "write_owner": "timetable-activities"
+    },
+    {
       "name": "schedule.instance_staff",
       "write_owner": "timetable-activities"
     },

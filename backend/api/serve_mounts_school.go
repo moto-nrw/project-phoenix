@@ -195,6 +195,7 @@ func mountSchoolRoutes(
 	membership schoolMembershipModule.Capability, classListEntries schoolMembershipModule.ClassListEntries, databaseStats DatabaseStatsReader,
 	dataImports imports, persons peopledirectory.Capability, gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
 ) {
+	mountWeekProtocolRoutes(tenant, timetableOwner, logger, caller, holidayAccessLog, persons)
 	tenant.Mount("/rooms", roomsHTTPAdapter.NewResource(facilities, roomsHTTPAdapter.Dependencies{
 		Facilities:          rooms.RoomService,
 		RoomHistorySettings: NewRoomHistorySettings(settings, logger.With("handler", "rooms"), settingsFacts.PrefetchSettings),
