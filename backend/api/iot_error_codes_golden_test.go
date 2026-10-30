@@ -1,7 +1,7 @@
 // IoT error-code golden — issues #3419, #2520.
 //
 // PyrePortal branches on the registry code of an /api/iot/* refusal
-// (errorCodes.generated.ts, synced from error-registry.json); since #2520 the
+// (errorCodes.generated.ts, synced from error-registry/); since #2520 the
 // text in `detail` is developer diagnostics and no contract (ADR 0006).
 // testdata/iot_error_codes.golden pins every code the kiosk branches on to
 // the Go declaration that emits it.

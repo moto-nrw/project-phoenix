@@ -1,0 +1,452 @@
+{
+  "packages": [
+    {
+      "path": ".",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "api",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "cmd",
+      "owner": "root-composition",
+      "role": "cli",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/owners",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/communicationtest",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/requestreviewbinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/openroommovebinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/sessionendbinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "roots/devicescanbinding",
+      "owner": "root-composition",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "root-composition.reach.domain.compose",
+      "description": "ADR 0053 point 2: the typed roots import the compose role of every domain owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.domain.contract",
+      "description": "ADR 0053 point 2: the typed roots import the contract role of every domain owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.reach.domain.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every domain owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "http",
+      "source_package": "api"
+    },
+    {
+      "id": "root-composition.reach.domain.public",
+      "description": "ADR 0053 point 2: the typed roots import the public role of every domain owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.domain.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every domain owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "port"
+    },
+    {
+      "id": "root-composition.reach.internal-test.domain.public",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the public role of every domain owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner_kind": "domain",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.platform.compose",
+      "description": "ADR 0053 point 2: the typed roots import the compose role of every platform owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.platform.contract",
+      "description": "ADR 0053 point 2: the typed roots import the contract role of every platform owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.reach.platform.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every platform owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "port"
+    },
+    {
+      "id": "root-composition.reach.platform.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every platform owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "http",
+      "source_package": "api"
+    },
+    {
+      "id": "root-composition.reach.internal-test.audit-platform.port",
+      "description": "The internal tests of the typed roots assert the Audit records the roots bind through the owner's port (#4085); narrower than the platform-wide production reach.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "audit-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "root-composition.reach.internal-test.platform.contract",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the contract role of every platform owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner_kind": "platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "root-composition.reach.platform.public",
+      "description": "ADR 0053 point 2: the typed roots import the public role of every platform owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.internal-test.platform.public",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the public role of every platform owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner_kind": "platform",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.projection.compose",
+      "description": "ADR 0053 point 2: the typed roots import the compose role of every projection owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "projection",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.projection.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every projection owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "projection",
+      "target_role": "http",
+      "source_package": "api"
+    },
+    {
+      "id": "root-composition.reach.projection.public",
+      "description": "ADR 0053 point 2: the typed roots import the public role of every projection owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.internal-test.projection.public",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the public role of every projection owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.workflow.compose",
+      "description": "ADR 0053 point 2: the typed roots import the compose role of every workflow owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "workflow",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.workflow.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every workflow owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "workflow",
+      "target_role": "http",
+      "source_package": "api"
+    },
+    {
+      "id": "root-composition.reach.workflow.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every workflow owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "workflow",
+      "target_role": "port"
+    },
+    {
+      "id": "root-composition.reach.workflow.public",
+      "description": "ADR 0053 point 2: the typed roots import the public role of every workflow owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "workflow",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.migrations",
+      "description": "ADR 0053 point 2: the commands root runs the migrations.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner": "migrations",
+      "target_role": "migration"
+    },
+    {
+      "id": "root-composition.reach.self.cli",
+      "description": "ADR 0053 point 2: the typed roots import their own command package.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner": "root-composition",
+      "target_role": "cli"
+    },
+    {
+      "id": "root-composition.reach.cli.self-compose",
+      "description": "ADR 0053 point 2: the commands root imports the server root it starts. The compose role reaches the root's compose packages through owner-compose.compose.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.internal-test.self.compose",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the root's compose role.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.compose.http-router",
+      "description": "ADR 0056: the server root is the HTTP host. It builds the router, sets CORS and runs the HTTP server.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "root-composition.internal-test.cli-config",
+      "description": "ADR 0056: the internal tests of the typed roots drive the commands through the CLI class the commands root uses.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "root-composition.reach.internal-test.settings-platform.port",
+      "description": "The internal tests of the typed roots assert the Settings records the roots bind through the owner's port (#4085); narrower than the platform-wide production reach.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "settings-platform",
+      "target_role": "port"
+    },
+    {
+      "id": "root-composition.internal-test.activity-contract",
+      "description": "Root test construction names the actual native activity capability, replacing its retained compose declaration.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "source_package": "api",
+      "target_owner": "timetable-activities",
+      "target_role": "contract",
+      "target_package": "modules/timetable/activitycontract"
+    },
+    {
+      "id": "root-composition.reach.compose.self-compose",
+      "description": "ADR 0053 point 2: the typed roots compose their own owner builders.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "root-composition",
+      "target_role": "compose"
+    },
+    {
+      "id": "root-composition.reach.cli.middleware",
+      "description": "ADR 0056: the commands root configures HTTP log redaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "source_package": "cmd",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "middleware"
+    },
+    {
+      "id": "root-composition.reach.internal-test.communication.port",
+      "description": "Exact native port successor of Communication composition audit values; same shape as existing Audit/Settings root test port bindings (ADR 0053).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "source_package": "api",
+      "target_owner": "communication",
+      "target_role": "port",
+      "target_package": "modules/communication/ports"
+    },
+    {
+      "id": "root-composition.test.staff-person-merge.public",
+      "description": "The typed HTTP root tests verify the staff repair public contract through its real router and owner compositions.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "staff-person-merge",
+      "target_role": "public"
+    }
+  ]
+}

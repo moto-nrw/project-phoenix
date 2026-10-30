@@ -1,0 +1,14 @@
+DELETE /caterer/auth/mfa/trusted-devices/{deviceId}
+DELETE /caterer/auth/passkeys/{passkeyId}
+GET /caterer/auth/mfa/trusted-devices
+GET /caterer/auth/passkeys
+POST /caterer/auth/login
+POST /caterer/auth/mfa/resend
+POST /caterer/auth/mfa/verify
+POST /caterer/auth/passkeys/enrollment/challenge
+POST /caterer/auth/passkeys/login/options
+POST /caterer/auth/passkeys/login/verify
+POST /caterer/auth/passkeys/register/options
+POST /caterer/auth/passkeys/register/verify
+POST /caterer/auth/password-reset
+POST /caterer/auth/password-reset/confirm

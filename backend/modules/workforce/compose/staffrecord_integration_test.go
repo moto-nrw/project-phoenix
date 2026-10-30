@@ -3,6 +3,7 @@ package compose
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -331,14 +332,15 @@ func TestStaffDocumentsFollowTheLegacyRowRules(t *testing.T) {
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Dokument", "Foreign")
 	capability := buildWorkforce(t, db)
 
-	contract, err := capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategoryArbeitsvertrag, "contract-1"))
+	contractFilename := fmt.Sprintf("contract-%d", testpkg.UniqueSuffix())
+	contract, err := capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategoryArbeitsvertrag, contractFilename))
 	require.NoError(t, err)
 	assert.NotZero(t, contract.ID)
 	assert.Equal(t, testpkg.Tenant(t), contract.TenantID)
 	assert.False(t, contract.CreatedAt.IsZero(), "database defaults are read back")
-	payslip, err := capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategoryLohnabrechnung, "payslip-1"))
+	payslip, err := capability.CreateStaffDocument(ctx, testDocument(staff.ID, workforce.StaffDocumentCategoryLohnabrechnung, fmt.Sprintf("payslip-%d", testpkg.UniqueSuffix())))
 	require.NoError(t, err)
-	foreignDoc, err := capability.CreateStaffDocument(foreignCtx, testDocument(foreign.ID, workforce.StaffDocumentCategorySonstiges, "foreign-1"))
+	foreignDoc, err := capability.CreateStaffDocument(foreignCtx, testDocument(foreign.ID, workforce.StaffDocumentCategorySonstiges, fmt.Sprintf("foreign-%d", testpkg.UniqueSuffix())))
 	require.NoError(t, err)
 
 	_, err = capability.CreateStaffDocument(ctx, testDocument(staff.ID, "diary", "invalid-1"))
@@ -361,7 +363,7 @@ func TestStaffDocumentsFollowTheLegacyRowRules(t *testing.T) {
 
 	found, err := capability.FindStaffDocument(ctx, staff.ID, contract.ID, false)
 	require.NoError(t, err)
-	assert.Equal(t, "contract-1", found.FilenameStored)
+	assert.Equal(t, contractFilename, found.FilenameStored)
 	_, err = capability.FindStaffDocument(ctx, foreign.ID, contract.ID, false)
 	require.ErrorIs(t, err, workforce.ErrStaffDocumentNotFound, "the staff and document ids must agree")
 	_, err = capability.FindStaffDocument(ctx, foreign.ID, foreignDoc.ID, false)

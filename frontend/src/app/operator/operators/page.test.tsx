@@ -228,7 +228,7 @@ describe("OperatorOperatorsPage", () => {
 
     render(<OperatorOperatorsPage />);
 
-    fireEvent.change(screen.getByLabelText("E-Mail-Adresse *"), {
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "new@example.com" },
     });
     fireEvent.change(screen.getByLabelText("Anzeigename (optional)"), {
@@ -254,7 +254,7 @@ describe("OperatorOperatorsPage", () => {
 
     render(<OperatorOperatorsPage />);
 
-    fireEvent.change(screen.getByLabelText("E-Mail-Adresse *"), {
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "new@example.com" },
     });
 
@@ -281,7 +281,7 @@ describe("OperatorOperatorsPage", () => {
 
     render(<OperatorOperatorsPage />);
 
-    fireEvent.change(screen.getByLabelText("E-Mail-Adresse *"), {
+    fireEvent.change(screen.getByLabelText("E-Mail-Adresse"), {
       target: { value: "fail@example.com" },
     });
 
@@ -292,7 +292,7 @@ describe("OperatorOperatorsPage", () => {
         catalogText("general.business_rejection", "die Einladung"),
       ),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("E-Mail-Adresse *")).toHaveAttribute(
+    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveAttribute(
       "aria-invalid",
       "true",
     );

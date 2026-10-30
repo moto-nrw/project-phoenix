@@ -1,0 +1,129 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/DatabaseError.Error",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/authEventCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/classListEntryChangeCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/dataAccessLogCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/dataDeletionCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/dataImportCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/deviationEventCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/enrollmentDeletionCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/enrollmentOfferingAdjustmentCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/enrollmentRestorationCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/fileEventCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/guardianChangeCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/guardianFinancialChangeCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/personnelNumberChangeCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/staffMasterDataChangeCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/studentConsentChangeCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/studentDeletionCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/studentFieldEditCommand.CreateBatch",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/substitutionChangeCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/timeTrackingDeletionCommand.Create",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/unregisteredTagScanService.DeleteExpired",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/unregisteredTagScanService.DeleteOlderThan",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/adapters/auditpostgres/workSessionEditCommand.CreateBatch",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/internal/application/Command.Append",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "modules/auditlog/records/DeviationEvent.Validate",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

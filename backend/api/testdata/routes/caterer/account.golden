@@ -1,0 +1,5 @@
+GET /caterer/account/mfa
+POST /caterer/account/mfa/confirm
+POST /caterer/account/mfa/disable
+POST /caterer/account/mfa/start
+POST /caterer/account/password

@@ -350,6 +350,9 @@ func (s *TemplateService) resyncUpdatedTemplateOfferingRoster(
 		SchoolClasses:    in.Fields.SourceSchoolClasses,
 		CalendarPeriodID: in.CalendarPeriodID,
 		EffectiveFrom:    offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom, s.deps.Today()),
+		// A stored source that turned inactive keeps the save possible
+		// (#5313); the pre-write guard checked the same ids.
+		StoredOfferingIDs: previousSourceOfferingIDs,
 	}); err != nil {
 		return &ports.ScheduleError{Op: "update template: resync offering roster", Err: err}
 	}

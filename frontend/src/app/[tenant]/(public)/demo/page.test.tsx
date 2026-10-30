@@ -57,8 +57,7 @@ describe("DemoEntryPage", () => {
       .mockReturnValueOnce(json(200, { status: "ready" }))
       .mockReturnValueOnce(
         json(200, {
-          access_token: "access",
-          refresh_token: "refresh",
+          session_created: true,
           demo: { access_id: "4711", role: "caregiver", src: "messe" },
         }),
       );
@@ -66,12 +65,7 @@ describe("DemoEntryPage", () => {
     open("#token=secret-token&role=caregiver");
 
     await waitFor(() => expect(assign).toHaveBeenCalledWith("/"));
-    expect(signIn).toHaveBeenCalledWith("credentials", {
-      redirect: false,
-      internalRefresh: true,
-      token: "access",
-      refreshToken: "refresh",
-    });
+    expect(signIn).not.toHaveBeenCalled();
     for (const [url, init] of fetchMock.mock.calls as [string, RequestInit][]) {
       expect(url).not.toContain("secret-token");
       expect(init.method).toBe("POST");
@@ -109,8 +103,7 @@ describe("DemoEntryPage", () => {
       .mockReturnValueOnce(json(200, { status: "ready" }))
       .mockReturnValueOnce(
         json(200, {
-          access_token: "access",
-          refresh_token: "refresh",
+          session_created: true,
           demo: { access_id: "4711", role: "lead" },
         }),
       );
@@ -135,8 +128,7 @@ describe("DemoEntryPage", () => {
       .mockReturnValueOnce(json(200, { status: "ready" }))
       .mockReturnValueOnce(
         json(200, {
-          access_token: "access",
-          refresh_token: "refresh",
+          session_created: true,
           demo: { access_id: "4711", role: "lead" },
         }),
       );
@@ -212,9 +204,7 @@ describe("DemoEntryPage", () => {
 
     fetchMock
       .mockReturnValueOnce(json(200, { status: "ready" }))
-      .mockReturnValueOnce(
-        json(200, { access_token: "access", refresh_token: "refresh" }),
-      );
+      .mockReturnValueOnce(json(200, { session_created: true }));
     fireEvent.click(
       screen.getByRole("button", { name: "Noch einmal versuchen" }),
     );
@@ -250,8 +240,7 @@ describe("DemoEntryPage", () => {
       .mockReturnValueOnce(json(200, { status: "ready" }))
       .mockReturnValueOnce(
         json(200, {
-          access_token: "access",
-          refresh_token: "refresh",
+          session_created: true,
           demo: { access_id: "4711", role: "lead" },
         }),
       );

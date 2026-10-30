@@ -1,0 +1,80 @@
+DELETE /api/enrollment/admin/requests/{id}/ -> online_anmeldung
+DELETE /api/enrollment/admin/requests/{id}/children/{childId} -> online_anmeldung
+DELETE /api/enrollment/admin/requests/{id}/read -> online_anmeldung
+DELETE /api/enrollment/care-offerings/{id}/ -> online_anmeldung
+DELETE /api/enrollment/legal-documents/{filename} -> online_anmeldung
+DELETE /api/enrollment/phases/{id}/ -> online_anmeldung
+DELETE /api/enrollment/schema/{id} -> online_anmeldung
+GET /api/enrollment/admin/change-requests/ -> online_anmeldung
+GET /api/enrollment/admin/change-requests/list -> online_anmeldung
+GET /api/enrollment/admin/change-requests/pending-count -> online_anmeldung
+GET /api/enrollment/admin/change-requests/{id}/ -> online_anmeldung
+GET /api/enrollment/admin/reports/care-usage -> online_anmeldung
+GET /api/enrollment/admin/requests/ -> online_anmeldung
+GET /api/enrollment/admin/requests/unread-count -> online_anmeldung
+GET /api/enrollment/admin/requests/{id}/ -> online_anmeldung
+GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact -> online_anmeldung
+GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments -> online_anmeldung
+GET /api/enrollment/admin/requests/{id}/delete-impact -> online_anmeldung
+GET /api/enrollment/admin/requests/{id}/uploads/{uploadId} -> online_anmeldung
+GET /api/enrollment/admin/students/{studentId}/requests/ -> online_anmeldung
+GET /api/enrollment/captcha-config/{tenantSlug} -> online_anmeldung  (Anmeldung: Captcha-Schlüssel, keine Personendaten)
+GET /api/enrollment/care-offerings/ -> online_anmeldung
+GET /api/enrollment/care-offerings/booking-stats -> online_anmeldung
+GET /api/enrollment/care-offerings/public/{tenantSlug}/{phaseId} -> online_anmeldung  (Anmeldung: Angebotsliste einer Phase, keine Personendaten)
+GET /api/enrollment/care-offerings/{id}/ -> online_anmeldung
+GET /api/enrollment/form-bootstrap/public/{tenantSlug}/{phaseId} -> online_anmeldung  (Anmeldung: enrollment.enabled nur mit gebuchtem Modul)
+GET /api/enrollment/legal/{tenantSlug} -> online_anmeldung  (Anmeldung: Rechtstexte der Schule, keine Personendaten)
+GET /api/enrollment/legal/{tenantSlug}/{phaseId} -> online_anmeldung  (Anmeldung: Rechtstexte der Schule, keine Personendaten)
+GET /api/enrollment/me/profile -> online_anmeldung
+GET /api/enrollment/phases/ -> online_anmeldung
+GET /api/enrollment/phases/expiry-warnings -> online_anmeldung
+GET /api/enrollment/phases/public/{tenantSlug} -> online_anmeldung  (Anmeldung: enrollment.enabled nur mit gebuchtem Modul)
+GET /api/enrollment/phases/{id}/ -> online_anmeldung
+GET /api/enrollment/phases/{id}/delete-impact -> online_anmeldung
+GET /api/enrollment/phases/{id}/manual-bootstrap -> online_anmeldung
+GET /api/enrollment/phases/{id}/responses -> online_anmeldung
+GET /api/enrollment/phases/{id}/review -> online_anmeldung
+GET /api/enrollment/phases/{id}/rollover-preview -> online_anmeldung
+GET /api/enrollment/requests/{statusToken} -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+GET /api/enrollment/requests/{statusToken}/change-requests -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+GET /api/enrollment/requests/{statusToken}/edit-bootstrap -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+GET /api/enrollment/schema/ -> online_anmeldung
+GET /api/enrollment/schema/preview -> online_anmeldung
+GET /api/enrollment/schema/public/{tenantSlug}/{phaseId} -> online_anmeldung  (Anmeldung: Formularaufbau einer Phase, keine Personendaten)
+GET /api/enrollment/schema/versions -> online_anmeldung
+GET /api/enrollment/schema/{id} -> online_anmeldung
+PATCH /api/enrollment/requests/{statusToken} -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+PATCH /api/enrollment/schema/{id} -> online_anmeldung
+POST /api/enrollment/admin/change-requests/{id}/approve -> online_anmeldung
+POST /api/enrollment/admin/change-requests/{id}/question -> online_anmeldung
+POST /api/enrollment/admin/change-requests/{id}/reject -> online_anmeldung
+POST /api/enrollment/admin/reports/care-usage/export -> online_anmeldung
+POST /api/enrollment/admin/reports/class-roster/export -> online_anmeldung
+POST /api/enrollment/admin/request-children/{id}/rollover-review -> online_anmeldung
+POST /api/enrollment/admin/requests/mark-all-read -> online_anmeldung
+POST /api/enrollment/admin/requests/{id}/children/{childId}/decide -> online_anmeldung
+POST /api/enrollment/admin/requests/{id}/restore -> online_anmeldung
+POST /api/enrollment/admin/students/{studentId}/requests/export -> online_anmeldung
+POST /api/enrollment/care-offerings/ -> online_anmeldung
+POST /api/enrollment/care-offerings/{id}/clone -> online_anmeldung
+POST /api/enrollment/legal-documents -> online_anmeldung
+POST /api/enrollment/phases/ -> online_anmeldung
+POST /api/enrollment/phases/{id}/export -> online_anmeldung
+POST /api/enrollment/phases/{id}/late-invites -> online_anmeldung
+POST /api/enrollment/phases/{id}/manual-approved-enrollments -> online_anmeldung
+POST /api/enrollment/phases/{id}/rollover -> online_anmeldung
+POST /api/enrollment/requests/{statusToken}/change-requests -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+POST /api/enrollment/requests/{statusToken}/change-requests/{changeRequestId}/messages -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+POST /api/enrollment/requests/{statusToken}/confirm-renewal -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+POST /api/enrollment/requests/{statusToken}/withdraw -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+POST /api/enrollment/schema/ -> online_anmeldung
+POST /api/enrollment/{tenantSlug}/submit -> online_anmeldung  (Anmeldung: enrollment.enabled nur mit gebuchtem Modul)
+POST /api/enrollment/{tenantSlug}/uploads -> online_anmeldung  (Anmeldung: enrollment.enabled nur mit gebuchtem Modul)
+PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction -> online_anmeldung
+PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings -> online_anmeldung
+PUT /api/enrollment/admin/requests/{id}/read -> online_anmeldung
+PUT /api/enrollment/care-offerings/{id}/ -> online_anmeldung
+PUT /api/enrollment/phases/{id}/ -> online_anmeldung
+PUT /api/enrollment/requests/{statusToken} -> online_anmeldung  (Anmeldung: Statuslink schließt mit dem Modul)
+PUT /api/enrollment/schema/{id} -> online_anmeldung

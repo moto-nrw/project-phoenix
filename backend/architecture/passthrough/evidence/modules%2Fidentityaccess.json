@@ -1,0 +1,1859 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (e *AuthenticationError) Error() string {\n\tif e.Err == nil {\n\t\treturn \"auth error during \" + e.Op\n\t}\n\treturn \"auth error during \" + e.Op + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/AuthenticationError.Error",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoAccess) DemoAccessStatus(ctx context.Context, token string) (DemoAccessProgress, error) {\n\treturn d.engine.DemoAccessStatus(ctx, token)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/DemoAccess.DemoAccessStatus",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoAccess) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (DemoEntry, error) {\n\treturn d.engine.RedeemDemoAccess(ctx, token, role, ipAddress, userAgent)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/DemoAccess.RedeemDemoAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoAccess) RequestDemoAccess(ctx context.Context, request DemoAccessRequest) error {\n\treturn d.engine.RequestDemoAccess(ctx, request)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/DemoAccess.RequestDemoAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *DemoAccess) ResetDemoAccess(ctx context.Context, token, clientIP string) error {\n\treturn d.engine.ResetDemoAccess(ctx, token, clientIP)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/DemoAccess.ResetDemoAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *DemoAccessExpiry) ExpireDemoAccesses(ctx context.Context) (int, []string, error) {\n\treturn e.engine.ExpireDemoAccesses(ctx)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/DemoAccessExpiry.ExpireDemoAccesses",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *DemoAccessRateLimitError) RetryAfterSeconds(now time.Time) int {\n\treturn max(1, int(math.Ceil(e.RetryAt.Sub(now).Seconds())))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/DemoAccessRateLimitError.RetryAfterSeconds",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *GuardianInvitationValidationError) Error() string {\n\treturn e.Err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/GuardianInvitationValidationError.Error",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (req *ReplaceAccountRoleRequest) Bind(_ *http.Request) error {\n\tif req.RoleID == nil || req.RoleID.Int64() \u003c= 0 {\n\t\treturn errors.New(\"role_id is required\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/account/ReplaceAccountRoleRequest.Bind",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *PasskeyResource) PasskeyEnrollmentChallenge(w http.ResponseWriter, r *http.Request) {\n\tif !rs.requirePasskey(w, r) {\n\t\treturn\n\t}\n\tclaims := sessiontoken.ClaimsFromCtx(r.Context())\n\tresult, err := rs.passkeyService.StartOperatorPasskeyEnrollment(r.Context(), int64(claims.ID), common.ParseClientIP(r))\n\tif err != nil {\n\t\tmapOperatorPasskeyError(w, r, err)\n\t\treturn\n\t}\n\trender.JSON(w, r, result)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/PasskeyResource.PasskeyEnrollmentChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *PasskeyResource) PasskeyList(w http.ResponseWriter, r *http.Request) {\n\tif !rs.requirePasskey(w, r) {\n\t\treturn\n\t}\n\tclaims := sessiontoken.ClaimsFromCtx(r.Context())\n\tcredentials, err := rs.passkeyService.ListOperatorPasskeyCredentials(r.Context(), int64(claims.ID))\n\tif err != nil {\n\t\tmapOperatorPasskeyError(w, r, err)\n\t\treturn\n\t}\n\trender.JSON(w, r, credentials)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/PasskeyResource.PasskeyList",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) ListAccountTenantAccess(w http.ResponseWriter, r *http.Request) {\n\taccountID, ok := common.ParseInt64IDWithError(w, r, \"accountId\", \"invalid account ID\")\n\tif !ok {\n\t\treturn\n\t}\n\tentries, err := rs.identity.ListAccountTenantAccess(r.Context(), accountID)\n\trs.respondAccess(w, r, entries, err, http.StatusOK, \"Account school access retrieved successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/Resource.ListAccountTenantAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (rs *Resource) RevokeAccountTenantAccess(w http.ResponseWriter, r *http.Request) {\n\taccountID, schoolID, ok := parseAccountTenantParams(w, r)\n\tif !ok {\n\t\treturn\n\t}\n\tentries, err := rs.identity.RevokeAccountTenantAccess(r.Context(), accountID, schoolID, operatorIDFromContext(r), clientIP(r))\n\trs.respondAccess(w, r, entries, err, http.StatusOK, \"School access revoked successfully\")\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/Resource.RevokeAccountTenantAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s Sessions) MFAEnrollment() []func(http.Handler) http.Handler {\n\treturn []func(http.Handler) http.Handler{s.tokenAuth.Verifier(), sessiontoken.MFAEnrollmentAuthenticator}\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/Sessions.MFAEnrollment",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s Sessions) Operator(preview, principal func(http.Handler) http.Handler) []func(http.Handler) http.Handler {\n\treturn []func(http.Handler) http.Handler{s.tokenAuth.Verifier(), sessiontoken.Authenticator, preview, RequiresOperatorScope, principal, RequiresActiveOperator(s.operators)}\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/Sessions.Operator",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s Sessions) Refresh() []func(http.Handler) http.Handler {\n\treturn []func(http.Handler) http.Handler{s.tokenAuth.Verifier(), sessiontoken.AuthenticateRefreshJWT}\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/Sessions.Refresh",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (req *grantAccountTenantAccessRequest) Bind(_ *http.Request) error {\n\treq.FirstName = strings.TrimSpace(req.FirstName)\n\treq.LastName = strings.TrimSpace(req.LastName)\n\treq.Position = strings.TrimSpace(req.Position)\n\tif req.SchoolID \u003c= 0 {\n\t\treturn errors.New(\"school_id is required\")\n\t}\n\tif req.RoleID.Int64() \u003c= 0 {\n\t\treturn errors.New(\"role_id is required\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/grantAccountTenantAccessRequest.Bind",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (req *updateAccountTenantRoleRequest) Bind(_ *http.Request) error {\n\tif req.RoleID.Int64() \u003c= 0 {\n\t\treturn errors.New(\"role_id is required\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/inbound/operator/updateAccountTenantRoleRequest.Bind",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn false, err\n\t}\n\tvar exists bool\n\terr = db.NewRaw(`SELECT EXISTS (\n\t\tSELECT 1 FROM auth.account_tenants AS membership\n\t\tJOIN auth.accounts AS account ON account.id = membership.account_id\n\t\tWHERE membership.account_id = ? AND membership.tenant_id = ? AND membership.status = 'active'\n\t\t\tAND account.personal_data_erased_at IS NULL\n\t)`, accountID, tenantID).Scan(ctx, \u0026exists)\n\treturn exists, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.AccountBelongsToTenant",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) ActivateChallenge(ctx context.Context, id int64) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn requireMFATransition(db.NewRaw(\"UPDATE auth.mfa_email_challenges SET consumed_at = NULL WHERE id = ? AND consumed_at IS NOT NULL AND mfa_reset_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id)\", id).Exec(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ActivateChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) ConsumeChallenge(ctx context.Context, id int64, consumedAt time.Time) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn requireMFATransition(db.NewRaw(\"UPDATE auth.mfa_email_challenges SET consumed_at = ? WHERE id = ? AND consumed_at IS NULL AND mfa_reset_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id)\", consumedAt, id).Exec(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ConsumeChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) CountChallengesSince(ctx context.Context, accountID int64, since time.Time) (int, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\tvar count int\n\terr = db.NewRaw(\"SELECT COUNT(*) FROM auth.mfa_email_challenges WHERE account_id = ? AND created_at \u003e= ?\", accountID, since).Scan(ctx, \u0026count)\n\treturn count, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.CountChallengesSince",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) DeleteCredentials(ctx context.Context, accountID int64) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"DELETE FROM auth.mfa_credentials WHERE account_id = ?\", accountID).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.DeleteCredentials",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) DeleteGlobalOverride(ctx context.Context, accountID int64) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"DELETE FROM auth.mfa_overrides WHERE account_id = ? AND tenant_id IS NULL\", accountID).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.DeleteGlobalOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) DeleteTenantOverride(ctx context.Context, accountID, tenantID int64) error {\n\tif tenantID == 0 {\n\t\treturn fmt.Errorf(\"tenant_id is required\")\n\t}\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"DELETE FROM auth.mfa_overrides WHERE account_id = ? AND tenant_id = ?\", accountID, tenantID).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.DeleteTenantOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) FindAccountIdentity(ctx context.Context, accountID int64) (domain.AccountIdentity, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountIdentity{}, false, err\n\t}\n\tvar row domain.AccountIdentity\n\terr = db.NewRaw(`SELECT id, email, active, mfa_attempts, mfa_locked_until, mfa_reset_generation\n\t\tFROM auth.accounts WHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Scan(ctx, \u0026row)\n\tif errors.Is(err, sql.ErrNoRows) {\n\t\treturn domain.AccountIdentity{}, false, nil\n\t}\n\treturn row, err == nil, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindAccountIdentity",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) FindActiveChallengeForAccount(ctx context.Context, id, accountID int64) (domain.AccountMFAChallenge, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountMFAChallenge{}, false, err\n\t}\n\tvar row domain.AccountMFAChallenge\n\terr = db.NewRaw(\"SELECT \"+accountMFAChallengeColumns+\" FROM auth.mfa_email_challenges WHERE id = ? AND account_id = ? AND consumed_at IS NULL AND mfa_reset_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id) AND expires_at \u003e ? LIMIT 1\", id, accountID, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveChallengeForAccount",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) FindActiveChallengeInScope(ctx context.Context, accountID, tenantID int64, scope string) (domain.AccountMFAChallenge, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountMFAChallenge{}, false, err\n\t}\n\tvar row domain.AccountMFAChallenge\n\terr = db.NewRaw(\"SELECT \"+accountMFAChallengeColumns+` FROM auth.mfa_email_challenges\n WHERE account_id = ? AND scope = ? AND (? \u003c= 0 OR tenant_id = ?)\n AND consumed_at IS NULL AND mfa_reset_generation = (SELECT mfa_reset_generation FROM auth.accounts WHERE id = account_id) AND expires_at \u003e ? ORDER BY expires_at DESC LIMIT 1`, accountID, scope, tenantID, tenantID, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveChallengeInScope",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountTrustedDevice{}, false, err\n\t}\n\tvar row domain.AccountTrustedDevice\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at \u003e ? LIMIT 1`, accountID, tenantID, tokenHash, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) FindCredential(ctx context.Context, accountID int64) (domain.AccountMFACredential, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountMFACredential{}, false, err\n\t}\n\tvar row domain.AccountMFACredential\n\terr = db.NewRaw(\"SELECT id, account_id, method, enrolled_at, last_used_at, created_at, updated_at FROM auth.mfa_credentials WHERE account_id = ? LIMIT 1\", accountID).Scan(ctx, \u0026row)\n\tif errors.Is(err, sql.ErrNoRows) {\n\t\treturn domain.AccountMFACredential{}, false, nil\n\t}\n\treturn row, err == nil, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindCredential",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) FindGlobalOverride(ctx context.Context, accountID int64) (domain.AccountMFAOverride, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountMFAOverride{}, false, err\n\t}\n\tvar row domain.AccountMFAOverride\n\terr = db.NewRaw(\"SELECT \"+accountMFAOverrideColumns+\" FROM auth.mfa_overrides WHERE account_id = ? AND tenant_id IS NULL LIMIT 1\", accountID).Scan(ctx, \u0026row)\n\tif errors.Is(err, sql.ErrNoRows) {\n\t\treturn domain.AccountMFAOverride{}, false, nil\n\t}\n\treturn row, err == nil, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindGlobalOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) IncrementMFAAttempts(ctx context.Context, accountID int64, threshold int, duration time.Duration) (domain.AccountLockout, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountLockout{}, err\n\t}\n\tvar lockout domain.AccountLockout\n\terr = db.NewRaw(`UPDATE auth.accounts SET mfa_attempts = mfa_attempts + 1,\n mfa_locked_until = CASE WHEN mfa_attempts + 1 \u003e= ? THEN ? ELSE mfa_locked_until END\n WHERE id = ? AND personal_data_erased_at IS NULL\n RETURNING mfa_attempts AS attempts, mfa_locked_until AS locked_until`, threshold, time.Now().Add(duration), accountID).Scan(ctx, \u0026lockout)\n\treturn lockout, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.IncrementMFAAttempts",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) InvalidateSessionMFA(ctx context.Context, accountID int64) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif _, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = mfa_reset_generation + 1 WHERE id = ?`, accountID).Exec(ctx); err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewUpdate().Model((*accountSessionRow)(nil)).Set(\"mfa_verified = FALSE\").Where(\"account_id = ?\", accountID).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.InvalidateSessionMFA",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]domain.AccountTrustedDevice, 0)\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL AND expires_at \u003e ?\n ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, \u0026rows)\n\treturn rows, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) LockAccountForOverrideWrite(ctx context.Context, accountID int64) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\tvar id int64\n\terr = db.NewRaw(`SELECT id FROM auth.accounts\n\t\tWHERE id = ? AND personal_data_erased_at IS NULL FOR UPDATE`, accountID).Scan(ctx, \u0026id)\n\tif errors.Is(err, sql.ErrNoRows) {\n\t\treturn nil\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.LockAccountForOverrideWrite",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) ResetMFAAttempts(ctx context.Context, accountID int64) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(`UPDATE auth.accounts SET mfa_attempts = 0, mfa_locked_until = NULL\n\t\tWHERE id = ? AND personal_data_erased_at IS NULL`, accountID).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ResetMFAAttempts",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) RevokeAllTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND revoked_at IS NULL\", revokedAt, accountID).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.RevokeAllTrustedDevices",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) RevokeTenantTrustedDevices(ctx context.Context, accountID, tenantID int64, revokedAt time.Time) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL\", revokedAt, accountID, tenantID).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.RevokeTenantTrustedDevices",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) RevokeTrustedDevice(ctx context.Context, id int64, revokedAt time.Time) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn requireMFATransition(db.NewRaw(\"UPDATE auth.mfa_trusted_devices SET revoked_at = ? WHERE id = ? AND revoked_at IS NULL\", revokedAt, id).Exec(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.RevokeTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) TouchCredential(ctx context.Context, id int64, usedAt time.Time) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"UPDATE auth.mfa_credentials SET last_used_at = ? WHERE id = ?\", usedAt, id).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.TouchCredential",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *AccountMFARecords) TouchTrustedDevice(ctx context.Context, id int64, usedAt time.Time) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewRaw(\"UPDATE auth.mfa_trusted_devices SET last_used_at = ? WHERE id = ?\", usedAt, id).Exec(ctx)\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.TouchTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *RoleStore) ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error) {\n\temails, _, err := s.Store.ListAccountEmails(ctx, accountIDs)\n\treturn emails, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/RoleStore.ListAccountEmails",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *AccountAdministration) FindManageableAccount(ctx context.Context, accountID int64) (identityaccess.ManagedAccount, error) {\n\tif a == nil {\n\t\treturn identityaccess.ManagedAccount{}, errAccountAdministrationUnavailable\n\t}\n\tctx = bindRuntime(a.auth.attach, ctx)\n\tvar result domain.ManagedAccountRecord\n\terr := a.runtime.RunInTx(ctx, func(readCtx context.Context) error {\n\t\tvar err error\n\t\tresult, err = a.findManageableAccount(readCtx, accountID)\n\t\treturn err\n\t})\n\treturn publicManagedAccount(result), administrationError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountAdministration.FindManageableAccount",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a *AccountAdministration) UpdateManageableAccount(ctx context.Context, update identityaccess.AccountIdentityUpdate) error {\n\tif a == nil {\n\t\treturn errAccountAdministrationUnavailable\n\t}\n\tctx = bindRuntime(a.auth.attach, ctx)\n\treturn administrationError(a.runtime.RunInTx(ctx, func(writeCtx context.Context) error {\n\t\treturn a.updateManageableAccount(writeCtx, domain.AccountIdentityUpdate{AccountID: update.AccountID, Email: update.Email, Username: update.Username})\n\t}))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountAdministration.UpdateManageableAccount",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *AccountAuthentication) CountExpiredTokens(ctx context.Context) (_ int, err error) {\n\tif s == nil {\n\t\treturn 0, errAccountAuthenticationUnavailable\n\t}\n\tdefer func() {\n\t\terr = authenticationError(err)\n\t}()\n\tctx = bindRuntime(s.attach, ctx)\n\tcount, err := s.sessions.CountExpiredAccountSessions(ctx)\n\tif err != nil {\n\t\treturn 0, failed(\"count expired tokens\", err)\n\t}\n\treturn count, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountAuthentication.CountExpiredTokens",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *AccountAuthentication) ListActiveSessions(ctx context.Context, accountID int64) (_ []identityaccess.AccountSession, err error) {\n\tif s == nil {\n\t\treturn nil, errAccountAuthenticationUnavailable\n\t}\n\tdefer func() {\n\t\terr = authenticationError(err)\n\t}()\n\tctx = bindRuntime(s.attach, ctx)\n\tsessions, err := s.sessions.ListAccountSessions(ctx, identityaccess.AccountSessionFilter{AccountID: accountID, Liveness: identityaccess.AccountSessionsLive})\n\tif err != nil {\n\t\treturn nil, failed(\"get active tokens\", err)\n\t}\n\treturn sessions, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountAuthentication.ListActiveSessions",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *AccountAuthentication) MarkAccountWideWipeCompleted(ctx context.Context, accountID int64) (err error) {\n\tif s == nil {\n\t\treturn errAccountAuthenticationUnavailable\n\t}\n\tdefer func() {\n\t\terr = authenticationError(err)\n\t}()\n\tctx = bindRuntime(s.attach, ctx)\n\tpending, err := s.audit.ClaimPendingAccountWideWipes(ctx, accountID)\n\tif err != nil {\n\t\treturn err\n\t}\n\treturn s.completeAccountWideWipes(ctx, pending)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountAuthentication.MarkAccountWideWipeCompleted",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *AccountAuthentication) VerifyAccountTenantMembership(ctx context.Context, accountID, tenantID int64) (_ bool, err error) {\n\tif s == nil {\n\t\treturn false, errAccountAuthenticationUnavailable\n\t}\n\tctx = bindRuntime(s.attach, ctx)\n\tvar exists bool\n\terr = globalIdentityRead(ctx, s.runtime, func(txCtx context.Context) error {\n\t\tvar err error\n\t\texists, _, err = s.store.HasActiveAccountTenant(txCtx, accountID, tenantID)\n\t\treturn err\n\t})\n\treturn exists, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountAuthentication.VerifyAccountTenantMembership",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l *AccountLifecycle) ApproveInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {\n\tif l == nil {\n\t\treturn errAccountLifecycleUnavailable\n\t}\n\toperation := func(ctx context.Context) error {\n\t\treturn lifecycleError(l.approveInvitation(bindRuntime(l.auth.attach, ctx), invitationID, approverAccountID))\n\t}\n\terr = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\terr = operation(txCtx)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountLifecycle.ApproveInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l *AccountLifecycle) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {\n\tif l == nil {\n\t\treturn false, errAccountLifecycleUnavailable\n\t}\n\thasProfile, err := l.profiles.HasLiveCaregiverProfile(bindRuntime(l.auth.attach, ctx), accountID)\n\treturn hasProfile, lifecycleError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountLifecycle.HasLiveCaregiverProfile",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l *AccountLifecycle) RejectInvitation(ctx context.Context, invitationID, approverAccountID int64) (err error) {\n\tif l == nil {\n\t\treturn errAccountLifecycleUnavailable\n\t}\n\toperation := func(ctx context.Context) error {\n\t\treturn lifecycleError(l.rejectInvitation(bindRuntime(l.auth.attach, ctx), invitationID, approverAccountID))\n\t}\n\terr = l.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\terr = operation(txCtx)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountLifecycle.RejectInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *AccountMFAFlows) GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error) {\n\toverride, found, err := f.records.FindGlobalOverride(ctx, accountID)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"load global mfa override: %w\", err)\n\t}\n\tif !found {\n\t\treturn domain.MFAAdminOverrideNone, nil\n\t}\n\treturn override.Override, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetGlobalMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *AccountMFAFlows) GetTenantMFAOverride(ctx context.Context, accountID, tenantID int64) (string, error) {\n\tif tenantID == 0 {\n\t\treturn domain.MFAAdminOverrideNone, nil\n\t}\n\toverride, found, err := f.records.FindTenantOverride(ctx, accountID, tenantID)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"load tenant mfa override: %w\", err)\n\t}\n\tif !found {\n\t\treturn domain.MFAAdminOverrideNone, nil\n\t}\n\treturn override.Override, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.GetTenantMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *AccountMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.resend(ctx, claims, ip)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\tif claims.Scope != expectedScope {\n\t\treturn \"\", identityaccess.ErrMFAUnsupportedScope\n\t}\n\treturn f.resend(ctx, claims, ip)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountMFAFlows.ResendChallengeForScope",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *AccountPasskey) ListActiveCredentials(ctx context.Context, accountID int64) (result []domain.AccountPasskeyCredential, err error) {\n\terr = p.run(ctx, \"list_active_account_passkeys\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tcredentials, queryStats, listErr := p.store.ListActiveAccountPasskeys(txCtx, accountID)\n\t\tstats.Add(queryStats)\n\t\tif listErr != nil {\n\t\t\treturn listErr\n\t\t}\n\t\tresult = credentials\n\t\treturn nil\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountPasskey.ListActiveCredentials",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *AccountPasskey) RecordUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error {\n\treturn p.run(ctx, \"record_account_passkey_use\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif !json.Valid(credentialJSON) {\n\t\t\treturn domain.ErrPasskeyJSONInvalid\n\t\t}\n\t\tchanged, queryStats, err := p.store.UpdateAccountPasskeyAfterUse(txCtx, id, credentialJSON, usedAt)\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrAccountPasskeyNotFound)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountPasskey.RecordUse",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *AccountPasskey) RevokeCredential(ctx context.Context, accountID, id int64, revokedAt time.Time) error {\n\treturn p.run(ctx, \"revoke_account_passkey\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tchanged, queryStats, err := p.store.RevokeAccountPasskey(txCtx, accountID, id, revokedAt)\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrAccountPasskeyNotFound)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountPasskey.RevokeCredential",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *AccountPasskeyFlows) ListCredentials(ctx context.Context, accountID int64) ([]domain.PasskeyCredentialSummary, error) {\n\trows, err := f.records.ListActiveCredentials(ctx, accountID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tsummaries := make([]domain.PasskeyCredentialSummary, 0, len(rows))\n\tfor _, row := range rows {\n\t\tsummaries = append(summaries, domain.SummarizeAccountPasskey(row))\n\t}\n\treturn summaries, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountPasskeyFlows.ListCredentials",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *AccountPasskeyFlows) RevokeCredential(ctx context.Context, accountID, credentialID int64) error {\n\tif err := f.records.RevokeCredential(ctx, accountID, credentialID, f.now()); err != nil {\n\t\tif errors.Is(err, identityaccess.ErrAccountPasskeyNotFound) {\n\t\t\treturn identityaccess.ErrPasskeyNotFound\n\t\t}\n\t\treturn err\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AccountPasskeyFlows.RevokeCredential",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a AuthAudit) ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]domain.PendingAccountWideWipe, error) {\n\tpending, err := a.Source.ClaimPendingAccountWideWipes(ctx, accountID)\n\treturn pendingWipes(pending), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AuthAudit.ClaimPendingAccountWideWipes",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a AuthAudit) ListPendingAccountWideWipes(ctx context.Context) ([]domain.PendingAccountWideWipe, error) {\n\tpending, err := a.Source.ListPendingAccountWideWipes(ctx)\n\treturn pendingWipes(pending), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/AuthAudit.ListPendingAccountWideWipes",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a CallerAccounts) FindAccountMetadata(ctx context.Context, accountID int64) (domain.AccountMetadata, error) {\n\tvalue, err := a.AccountProfiles.FindAccountMetadata(ctx, accountID)\n\treturn domain.AccountMetadata(value), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerAccounts.FindAccountMetadata",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a CallerAccounts) FindAccountProfile(ctx context.Context, accountID int64) (domain.AccountProfile, bool, error) {\n\tbio, settings, found, err := a.AccountProfiles.FindAccountProfile(ctx, accountID)\n\treturn domain.AccountProfile{Bio: bio, Settings: settings}, found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerAccounts.FindAccountProfile",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) Account(ctx context.Context) (identityaccess.AccountMetadata, error) {\n\taccount, err := e.App.Account(ctx)\n\treturn identityaccess.AccountMetadata(account), mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.Account",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) GroupStudentIDs(ctx context.Context, sessionID int64) ([]int64, error) {\n\tids, err := e.App.GroupStudentIDs(ctx, sessionID)\n\treturn ids, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.GroupStudentIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) GroupVisits(ctx context.Context, sessionID int64) ([]identityaccess.CallerVisit, error) {\n\tvisits, err := e.App.GroupVisits(ctx, sessionID)\n\tif err != nil {\n\t\treturn nil, mapCallerError(err)\n\t}\n\tvar result []identityaccess.CallerVisit\n\tfor _, visit := range visits {\n\t\tresult = append(result, identityaccess.CallerVisit(visit))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.GroupVisits",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) HasCurrentStaff(ctx context.Context) (bool, error) {\n\tfound, err := e.App.HasCurrentStaff(ctx)\n\treturn found, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.HasCurrentStaff",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) MyActiveSessionIDs(ctx context.Context) ([]int64, error) {\n\tids, err := e.App.MyActiveSessionIDs(ctx)\n\treturn ids, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MyActiveSessionIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) MyActivityGroupIDs(ctx context.Context) ([]int64, error) {\n\tids, err := e.App.MyActivityGroupIDs(ctx)\n\treturn ids, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MyActivityGroupIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) MyGroupIDs(ctx context.Context) ([]int64, error) {\n\tids, err := e.App.MyGroupIDs(ctx)\n\treturn ids, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MyGroupIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) MySchoolClasses(ctx context.Context) ([]string, error) {\n\tclasses, err := e.App.MySchoolClasses(ctx)\n\treturn classes, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MySchoolClasses",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) MySupervisedSessionIDs(ctx context.Context) ([]int64, error) {\n\tids, err := e.App.MySupervisedSessionIDs(ctx)\n\treturn ids, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MySupervisedSessionIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) MyTeacherGroupIDs(ctx context.Context) ([]int64, error) {\n\tids, err := e.App.MyTeacherGroupIDs(ctx)\n\treturn ids, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.MyTeacherGroupIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) Person(ctx context.Context) (identityaccess.CallerPerson, error) {\n\tperson, err := e.App.Person(ctx)\n\treturn identityaccess.CallerPerson(person), mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.Person",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) Profile(ctx context.Context) (identityaccess.CallerProfile, error) {\n\tprofile, err := e.App.Profile(ctx)\n\treturn publicProfile(profile), mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.Profile",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) SSESubscription(ctx context.Context) (identityaccess.SSESubscription, error) {\n\tsubscription, err := e.App.SSESubscription(ctx)\n\treturn identityaccess.SSESubscription(subscription), mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.SSESubscription",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) StaffID(ctx context.Context) (int64, error) {\n\tid, err := e.App.StaffID(ctx)\n\treturn id, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.StaffID",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) StudentAccess(ctx context.Context) identityaccess.StudentAccess {\n\treturn identityaccess.StudentAccess(e.App.StudentAccess(ctx))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.StudentAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) SubstitutedGroupIDs(ctx context.Context) (map[int64]bool, error) {\n\tids, err := e.App.SubstitutedGroupIDs(ctx)\n\treturn ids, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.SubstitutedGroupIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) TeacherID(ctx context.Context) (int64, error) {\n\tid, err := e.App.TeacherID(ctx)\n\treturn id, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.TeacherID",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) UpdateAvatar(ctx context.Context, avatarURL string) (identityaccess.CallerProfile, error) {\n\tprofile, err := e.App.UpdateAvatar(ctx, avatarURL)\n\treturn publicProfile(profile), mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.UpdateAvatar",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e CallerEngine) UpdateProfile(ctx context.Context, update identityaccess.CallerProfileUpdate) (identityaccess.CallerProfile, error) {\n\tprofile, err := e.App.UpdateProfile(ctx, domain.CallerProfileUpdate(update))\n\treturn publicProfile(profile), mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerEngine.UpdateProfile",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p CallerPeople) FindPersonByAccount(ctx context.Context, accountID int64) (domain.CallerPerson, bool, error) {\n\tperson, found, err := p.CallerPeople.FindPersonByAccount(ctx, accountID)\n\treturn domain.CallerPerson(person), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerPeople.FindPersonByAccount",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s CallerSessions) SessionVisits(ctx context.Context, sessionID int64) ([]domain.CallerVisit, error) {\n\tvisits, err := s.CallerSessions.SessionVisits(ctx, sessionID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.CallerVisit, 0, len(visits))\n\tfor _, visit := range visits {\n\t\tresult = append(result, domain.CallerVisit(visit))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CallerSessions.SessionVisits",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s CanonicalTagStore) FindRFIDCard(ctx context.Context, tag string, tenantID int64) (string, bool, domain.OperationStats, error) {\n\treturn s.Store.FindRFIDCard(ctx, domain.NormalizeTagID(tag), tenantID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CanonicalTagStore.FindRFIDCard",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g CapabilityGate) HasEnrollment(ctx context.Context, accountID int64) (bool, error) {\n\tif g.Capability == nil {\n\t\treturn false, nil\n\t}\n\treturn g.Capability.HasMFAEnrollment(ctx, accountID)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.HasEnrollment",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g CapabilityGate) IsRequired(ctx context.Context, accountID int64, _ string, permissions []string, tenantID int64) (bool, error) {\n\tif g.Capability == nil {\n\t\treturn false, nil\n\t}\n\treturn g.Capability.IsRequired(ctx, accountID, permissions, tenantID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.IsRequired",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g CapabilityGate) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {\n\tif g.Capability == nil {\n\t\treturn false\n\t}\n\treturn g.Capability.IsTrustedDeviceEnabled(ctx, tenantID)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.IsTrustedDeviceEnabled",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g CapabilityGate) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {\n\tif g.Capability == nil {\n\t\treturn domain.MFAPolicy{}, nil\n\t}\n\treturn g.Capability.ResolveMFAPolicy(ctx, accountID, tenantID)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.ResolvePolicy",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g CapabilityGate) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {\n\tif g.Capability == nil {\n\t\treturn domain.MFAPolicy{}, nil\n\t}\n\treturn g.Capability.ResolveMFAPolicyInTx(ctx, accountID, tenantID)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.ResolvePolicyInTx",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g CapabilityGate) TrustedDeviceDays(ctx context.Context, tenantID int64) int {\n\tif g.Capability == nil {\n\t\treturn 0\n\t}\n\treturn g.Capability.TrustedDeviceDays(ctx, tenantID)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.TrustedDeviceDays",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g CapabilityGate) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error) {\n\tif g.Capability == nil {\n\t\treturn false, nil\n\t}\n\treturn g.Capability.VerifyTrustedDevice(ctx, accountID, tenantID, cookie)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/CapabilityGate.VerifyTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *CatererAccess) RevokeCatererInvitation(ctx context.Context, invitationID int64) error {\n\tctx = c.attach(ctx)\n\tif !c.inSchool(ctx) {\n\t\treturn catererError(failed(\"revoke caterer invitation\", errSchoolTransactionRequired))\n\t}\n\trevoked, _, err := c.store.RevokeCatererInvitation(ctx, invitationID, c.now())\n\tif err == nil \u0026\u0026 !revoked {\n\t\terr = domain.ErrInvitationNotFound\n\t}\n\tif err != nil {\n\t\treturn catererError(failed(\"revoke caterer invitation\", err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CatererAccess.RevokeCatererInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *CatererAccess) SchoolCaterer(ctx context.Context) (identityaccess.CatererSupply, bool, error) {\n\tctx = c.attach(ctx)\n\tif !c.inSchool(ctx) {\n\t\treturn identityaccess.CatererSupply{}, false, catererError(failed(\"find school caterer\", errSchoolTransactionRequired))\n\t}\n\tsupply, found, _, err := c.store.FindSchoolCaterer(ctx)\n\tif err != nil {\n\t\treturn identityaccess.CatererSupply{}, false, catererError(failed(\"find school caterer\", err))\n\t}\n\treturn identityaccess.CatererSupply{Caterer: identityaccess.Caterer(supply.Caterer), DeliveryAddress: supply.DeliveryAddress, StartedAt: supply.StartedAt}, found, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/CatererAccess.SchoolCaterer",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) AccountBelongsToSchool(ctx context.Context, accountID, tenantID int64) (bool, error) {\n\tbelongs, err := c.Flows.records.AccountBelongsToTenant(c.ctx(ctx), accountID, tenantID)\n\treturn belongs, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.AccountBelongsToSchool",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) AdminDisableMFA(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error {\n\treturn MFAError(c.Flows.AdminDisable(c.ctx(ctx), actorID, actorTenantID, targetAccountID, reason, actorPermissions))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.AdminDisableMFA",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) DisableMFA(ctx context.Context, accountID int64) error {\n\treturn MFAError(c.Flows.Disable(c.ctx(ctx), accountID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.DisableMFA",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, accountID int64) error {\n\treturn MFAError(c.Flows.Enroll(c.ctx(ctx), accountID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.EnrollMFA",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) GetGlobalMFAOverride(ctx context.Context, accountID int64) (string, error) {\n\toverride, err := c.Flows.GetGlobalMFAOverride(c.ctx(ctx), accountID)\n\treturn override, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.GetGlobalMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) GetMFAAdminState(ctx context.Context, actorID, actorTenantID, targetAccountID int64, actorPermissions []string) (identityaccess.MFAAdminState, error) {\n\tstate, err := c.Flows.GetAdminState(c.ctx(ctx), actorID, actorTenantID, targetAccountID, actorPermissions)\n\treturn identityaccess.MFAAdminState(state), MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.GetMFAAdminState",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) GetTenantMFAOverride(ctx context.Context, accountID, tenantID int64) (string, error) {\n\toverride, err := c.Flows.GetTenantMFAOverride(c.ctx(ctx), accountID, tenantID)\n\treturn override, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.GetTenantMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) HasMFAEnrollment(ctx context.Context, accountID int64) (bool, error) {\n\tenrolled, err := c.Flows.HasEnrollment(c.ctx(ctx), accountID)\n\treturn enrolled, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.HasMFAEnrollment",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) IsRequired(ctx context.Context, accountID int64, permissions []string, tenantID int64) (bool, error) {\n\trequired, err := c.Flows.IsRequired(c.ctx(ctx), accountID, permissions, tenantID)\n\treturn required, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.IsRequired",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool {\n\treturn c.Flows.IsTrustedDeviceEnabled(c.ctx(ctx), tenantID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.IsTrustedDeviceEnabled",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) ListTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error) {\n\tdevices, err := c.Flows.records.ListActiveTrustedDevices(c.ctx(ctx), accountID, tenantID)\n\tif err != nil {\n\t\treturn nil, MFAError(err)\n\t}\n\tresult := make([]identityaccess.AccountTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.AccountTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ListTrustedDevices",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {\n\treturn MFAError(c.Flows.OperatorAdminDisable(c.ctx(ctx), operatorID, schoolID, targetAccountID, reason))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.OperatorDisableMFA",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) OperatorSetGlobalMFAOverride(ctx context.Context, operatorID, targetAccountID int64, override, reason string) error {\n\treturn MFAError(c.Flows.OperatorSetGlobalMFAOverride(c.ctx(ctx), operatorID, targetAccountID, override, reason))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.OperatorSetGlobalMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {\n\treturn MFAError(c.Flows.OperatorSetMFAOverride(c.ctx(ctx), operatorID, schoolID, targetAccountID, override, reason))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.OperatorSetMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) PrepareTrustedDevice(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (identityaccess.TrustedDeviceIssue, error) {\n\tissue, err := c.Flows.PrepareTrustedDevice(c.ctx(ctx), accountID, tenantID, userAgent, ip)\n\tif err != nil || issue == nil {\n\t\treturn nil, MFAError(err)\n\t}\n\treturn func(issueCtx context.Context) (string, time.Time, error) {\n\t\tcookie, expiresAt, err := issue(c.ctx(issueCtx))\n\t\treturn cookie, expiresAt, MFAError(err)\n\t}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.PrepareTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) ResendMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\ttoken, err := c.Flows.ResendChallenge(c.ctx(ctx), challengeToken, ip)\n\treturn token, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) ResendMFAChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {\n\ttoken, err := c.Flows.ResendChallengeForScope(c.ctx(ctx), challengeToken, ip, expectedScope)\n\treturn token, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResendMFAChallengeForScope",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) ResolveMFAPolicy(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error) {\n\tpolicy, err := c.Flows.ResolvePolicy(c.ctx(ctx), accountID, tenantID)\n\tif err != nil {\n\t\treturn nil, MFAError(err)\n\t}\n\treturn policy, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResolveMFAPolicy",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) ResolveMFAPolicyInTx(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error) {\n\tpolicy, err := c.Flows.ResolvePolicyInTx(c.ctx(ctx), accountID, tenantID)\n\tif err != nil {\n\t\treturn nil, MFAError(err)\n\t}\n\treturn policy, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.ResolveMFAPolicyInTx",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) RevokeTrustedDevice(ctx context.Context, accountID, tenantID, deviceID int64) error {\n\treturn MFAError(c.Flows.RevokeTrustedDevice(c.ctx(ctx), accountID, tenantID, deviceID))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.RevokeTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) SetMFAOverride(ctx context.Context, actorID, actorTenantID, targetAccountID int64, override, reason string, actorPermissions []string) error {\n\treturn MFAError(c.Flows.SetMFAOverride(c.ctx(ctx), actorID, actorTenantID, targetAccountID, override, reason, actorPermissions))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.SetMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {\n\ttoken, err := c.Flows.StartChallenge(c.ctx(ctx), accountID, tenantID, scope, ip)\n\treturn token, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.StartMFAChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) TrustedDeviceDays(ctx context.Context, tenantID int64) int {\n\treturn c.Flows.TrustedDeviceDays(c.ctx(ctx), tenantID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.TrustedDeviceDays",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) VerifyMFAChallengeForOwner(ctx context.Context, challengeToken, code, expectedScope string, accountID, tenantID int64) (identityaccess.VerifiedMFAChallenge, error) {\n\tverified, err := c.Flows.VerifyChallengeForOwner(c.ctx(ctx), challengeToken, code, expectedScope, accountID, tenantID)\n\treturn identityaccess.VerifiedMFAChallenge(verified), MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyMFAChallengeForOwner",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) VerifyMFAChallengeForScope(ctx context.Context, challengeToken, code, expectedScope string) (identityaccess.VerifiedMFAChallenge, error) {\n\tverified, err := c.Flows.VerifyChallengeForScope(c.ctx(ctx), challengeToken, code, expectedScope)\n\treturn identityaccess.VerifiedMFAChallenge(verified), MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyMFAChallengeForScope",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) VerifyMFACodeForAccount(ctx context.Context, accountID, tenantID int64, code, scope string) (identityaccess.VerifiedMFAChallenge, error) {\n\tproof, err := c.Flows.VerifyEnrollmentCode(c.ctx(ctx), accountID, tenantID, code, scope)\n\treturn identityaccess.VerifiedMFAChallenge(proof), MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyMFACodeForAccount",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c ComposedAccountMFA) VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error) {\n\tverified, err := c.Flows.VerifyTrustedDevice(c.ctx(ctx), accountID, tenantID, signedCookie)\n\treturn verified, MFAError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ComposedAccountMFA.VerifyTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error) {\n\taccess, status, err := e.Flows.Status(ctx, token)\n\tif err != nil {\n\t\treturn identityaccess.DemoAccessProgress{}, demoAccessError(err)\n\t}\n\treturn identityaccess.DemoAccessProgress{Status: status, SchoolSlug: access.SchoolSlug, SchoolName: access.SchoolName}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoAccessEngine.DemoAccessStatus",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoAccessEngine) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error) {\n\tentry, err := e.Flows.Redeem(ctx, token, domain.DemoRole(role), ipAddress, userAgent)\n\tif err != nil {\n\t\treturn identityaccess.DemoEntry{}, demoAccessError(err)\n\t}\n\treturn identityaccess.DemoEntry{AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken, AccessID: entry.AccessID, Role: string(entry.Role), Source: entry.Source, FixedRole: entry.FixedRole}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoAccessEngine.RedeemDemoAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {\n\treturn demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName, Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role)}, request.ClientIP, request.EntryURLPrefix))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoAccessEngine.RequestDemoAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e DemoAccessEngine) ResetDemoAccess(ctx context.Context, token, clientIP string) error {\n\t_, err := e.Flows.Reset(ctx, token, clientIP)\n\treturn demoAccessError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoAccessEngine.ResetDemoAccess",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m DemoAccessMail) SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string) error {\n\treturn m.Mail.SendDemoAccessLink(ctx, demoAccessMessage(access), entryURL)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoAccessMail.SendDemoAccessLink",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m DemoAccessMail) SendDemoLead(ctx context.Context, access domain.DemoAccess) error {\n\treturn m.Mail.SendDemoLead(ctx, demoAccessMessage(access))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoAccessMail.SendDemoLead",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p DemoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {\n\tentry, err := p.DemoSchools.DemoSchoolEntry(ctx, slug)\n\treturn domain.DemoSchoolEntry{Exists: entry.Exists, Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID, ParentAccountID: entry.ParentAccountID}, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoSchoolsPort.DemoSchoolEntry",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p DemoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {\n\tslug, err := p.DemoSchools.PrepareDemoSchool(ctx, schoolName, firstName, lastName)\n\tif errors.Is(err, identityaccess.ErrDemoCapacityReached) {\n\t\treturn \"\", domain.ErrDemoCapacityReached\n\t}\n\treturn slug, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoSchoolsPort.PrepareDemoSchool",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p DemoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (string, error) {\n\tnewSlug, err := p.DemoSchools.ReplaceDemoSchool(ctx, slug, schoolName, firstName, lastName)\n\tswitch {\n\tcase errors.Is(err, identityaccess.ErrDemoCapacityReached):\n\t\treturn \"\", domain.ErrDemoCapacityReached\n\tcase errors.Is(err, identityaccess.ErrDemoAccessInvalid):\n\t\treturn \"\", domain.ErrDemoAccessInvalid\n\t}\n\treturn newSlug, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/DemoSchoolsPort.ReplaceDemoSchool",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) CreateGuardianProfile(ctx context.Context, profile domain.GuardianProfile) (int64, error) {\n\treturn d.GuardianDirectory.CreateGuardianProfile(ctx, identityPorts.GuardianProfile(profile))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.CreateGuardianProfile",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) FindGuardianProfile(ctx context.Context, id int64) (domain.GuardianProfile, bool, error) {\n\tprofile, found, err := d.GuardianDirectory.FindGuardianProfile(ctx, id)\n\treturn domain.GuardianProfile(profile), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindGuardianProfile",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) FindGuardianProfileByEmail(ctx context.Context, email string) (domain.GuardianProfile, bool, error) {\n\tprofile, found, err := d.GuardianDirectory.FindGuardianProfileByEmail(ctx, email)\n\treturn domain.GuardianProfile(profile), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindGuardianProfileByEmail",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64) (map[int64]domain.GuardianProfile, error) {\n\tprofiles, err := d.GuardianDirectory.FindGuardianProfiles(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]domain.GuardianProfile, len(profiles))\n\tfor id, profile := range profiles {\n\t\tresult[id] = domain.GuardianProfile(profile)\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindGuardianProfiles",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) FindPersonNamesByIDs(ctx context.Context, personIDs []int64) (map[int64]domain.PersonName, error) {\n\tnames, err := d.GuardianDirectory.FindPersonNamesByIDs(ctx, personIDs)\n\treturn personNames(names), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindPersonNamesByIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (domain.StudentGuardianLink, bool, error) {\n\tlink, found, err := d.GuardianDirectory.FindStudentGuardianLinkForUpdate(ctx, studentID, guardianProfileID)\n\treturn domain.StudentGuardianLink(link), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindStudentGuardianLinkForUpdate",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) FindStudents(ctx context.Context, ids []int64) (map[int64]domain.Student, error) {\n\tstudents, err := d.GuardianDirectory.FindStudents(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]domain.Student, len(students))\n\tfor id, student := range students {\n\t\tresult[id] = domain.Student(student)\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.FindStudents",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) GuardianRoleClass(role string) domain.GuardianRoleClass {\n\treturn domain.GuardianRoleClass(d.GuardianDirectory.GuardianRoleClass(role))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.GuardianRoleClass",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) LinkStudentGuardianIfAbsent(ctx context.Context, link domain.StudentGuardianLink) (bool, error) {\n\treturn d.GuardianDirectory.LinkStudentGuardianIfAbsent(ctx, identityPorts.StudentGuardianLink(link))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.LinkStudentGuardianIfAbsent",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) ListStudentGuardianLinksByProfile(ctx context.Context, guardianProfileID int64) ([]domain.StudentGuardianLink, error) {\n\tlinks, err := d.GuardianDirectory.ListStudentGuardianLinksByProfile(ctx, guardianProfileID)\n\treturn studentGuardianLinks(links), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.ListStudentGuardianLinksByProfile",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianDirectory) ListStudentGuardianLinksByStudents(ctx context.Context, studentIDs []int64) ([]domain.StudentGuardianLink, error) {\n\tlinks, err := d.GuardianDirectory.ListStudentGuardianLinksByStudents(ctx, studentIDs)\n\treturn studentGuardianLinks(links), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianDirectory.ListStudentGuardianLinksByStudents",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c GuardianEnrollmentClaims) ClaimGuardianEnrollments(ctx context.Context, accountID int64, email string) (int, error) {\n\tclaimed, err := c.Source.ClaimGuardianEnrollments(ctx, accountID, email)\n\tif err != nil \u0026\u0026 errors.Is(err, identityaccess.ErrTransactionUnusable) {\n\t\treturn claimed, fmt.Errorf(\"%w: %w\", domain.ErrTransactionUnusable, err)\n\t}\n\treturn claimed, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianEnrollmentClaims.ClaimGuardianEnrollments",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianInvitationDelivery) EnqueueExistingAccountEmail(ctx context.Context, profile domain.GuardianProfile, schoolName string) (int64, bool, error) {\n\treturn d.GuardianInvitationDelivery.EnqueueExistingAccountEmail(ctx, identityPorts.GuardianProfile(profile), schoolName)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationDelivery.EnqueueExistingAccountEmail",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianInvitationDelivery) EnqueueInvitationEmail(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, schoolName string) (int64, error) {\n\treturn d.GuardianInvitationDelivery.EnqueueInvitationEmail(ctx, identityaccess.GuardianInvitation(invitation), identityPorts.GuardianProfile(profile), schoolName)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationDelivery.EnqueueInvitationEmail",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d GuardianInvitationDelivery) EnqueueWelcomeEmail(ctx context.Context, profile domain.GuardianProfile, tenantID int64, schoolName string, precedingOutboxID int64) {\n\td.GuardianInvitationDelivery.EnqueueWelcomeEmail(ctx, identityPorts.GuardianProfile(profile), tenantID, schoolName, precedingOutboxID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationDelivery.EnqueueWelcomeEmail",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r GuardianInvitationReads) ListGuardianInvitations(ctx context.Context, guardianProfileID int64) ([]identityaccess.GuardianInvitation, error) {\n\tvar invitations []domain.GuardianInvitation\n\terr := r.run(ctx, func(txCtx context.Context) error {\n\t\tvar err error\n\t\tinvitations, err = r.invitations.ListGuardianInvitationsByProfile(txCtx, guardianProfileID)\n\t\treturn err\n\t})\n\treturn guardianInvitationList(invitations, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationReads.ListGuardianInvitations",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r GuardianInvitationReads) ListOpenGuardianInvitations(ctx context.Context, guardianProfileIDs []int64) ([]identityaccess.GuardianInvitation, error) {\n\tvar invitations []domain.GuardianInvitation\n\terr := r.run(ctx, func(txCtx context.Context) error {\n\t\tvar err error\n\t\tinvitations, err = r.invitations.ListOpenGuardianInvitations(txCtx, guardianProfileIDs, time.Now())\n\t\treturn err\n\t})\n\treturn guardianInvitationList(invitations, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationReads.ListOpenGuardianInvitations",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r GuardianInvitationReads) ListRedeemableGuardianInvitations(ctx context.Context) ([]identityaccess.GuardianInvitation, error) {\n\tvar invitations []domain.GuardianInvitation\n\terr := r.run(ctx, func(txCtx context.Context) error {\n\t\tvar err error\n\t\tinvitations, err = r.invitations.ListRedeemableGuardianInvitations(txCtx, time.Now())\n\t\treturn err\n\t})\n\treturn guardianInvitationList(invitations, err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/GuardianInvitationReads.ListRedeemableGuardianInvitations",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p InvitationGrantPolicy) CanGrantRole(role domain.RoleFacts, actorPermissions, rolePermissions []string) bool {\n\treturn p.Source.CanGrantRole(identityaccess.RoleFacts(role), actorPermissions, rolePermissions)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/InvitationGrantPolicy.CanGrantRole",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t MFAAuditTrail) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {\n\treturn t.Operator.RecordOperatorAction(ctx, publicOperatorAuditEntry(entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/MFAAuditTrail.RecordOperatorAction",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c MFAChallengeCodec) IssueChallengeToken(claims domain.MFAChallengeClaims, ttl time.Duration) (string, error) {\n\treturn c.Source.IssueChallengeToken(identityaccess.MFAChallengeClaims(claims), ttl)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/MFAChallengeCodec.IssueChallengeToken",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c MFAChallengeCodec) ParseChallengeToken(token string) (domain.MFAChallengeClaims, error) {\n\tclaims, err := c.Source.ParseChallengeToken(token)\n\treturn domain.MFAChallengeClaims(claims), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/MFAChallengeCodec.ParseChallengeToken",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m MFAMail) EnqueueCode(ctx context.Context, message domain.MFACodeMail, challengeID int64, expiresAt time.Time) (func(context.Context) error, error) {\n\tif challengeID \u003c= 0 || expiresAt.IsZero() {\n\t\treturn nil, identityaccess.ErrMFAStatusUnavailable\n\t}\n\treturn m.Source.EnqueueCode(ctx, identityaccess.MFACodeMail(message), challengeID, expiresAt)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/MFAMail.EnqueueCode",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m MFAMail) NotifyTrustedDeviceAdded(ctx context.Context, message domain.TrustedDeviceMail, deviceID int64) error {\n\tif deviceID \u003c= 0 {\n\t\treturn identityaccess.ErrMFAStatusUnavailable\n\t}\n\treturn m.Source.NotifyTrustedDeviceAdded(ctx, identityaccess.TrustedDeviceMail(message), deviceID)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/MFAMail.NotifyTrustedDeviceAdded",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *OperationError) Error() string {\n\tif e.Err == nil {\n\t\treturn \"auth error during \" + e.Op\n\t}\n\treturn \"auth error during \" + e.Op + \": \" + e.Err.Error()\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperationError.Error",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a OperatorAudit) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {\n\treturn a.Source.RecordOperatorAction(ctx, publicOperatorAuditEntry(entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorAudit.RecordOperatorAction",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string) error {\n\treturn d.OperatorEmailChangeDelivery.DispatchOperatorEmailChangeRequested(ctx, identityaccess.Operator(operator), maskedNewEmail)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorEmailChangeDelivery.DispatchOperatorEmailChangeRequested",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d OperatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange) error {\n\treturn d.OperatorEmailChangeDelivery.DispatchOperatorEmailChangeVerification(ctx, PublicOperatorEmailChange(change), d.Expiry)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorEmailChangeDelivery.DispatchOperatorEmailChangeVerification",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d OperatorInvitationDelivery) DispatchOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation, inviterName string) error {\n\treturn d.Source.DispatchOperatorInvitation(ctx, PublicOperatorInvitation(invitation), inviterName, d.Expiry)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorInvitationDelivery.DispatchOperatorInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) ActivateChallenge(ctx context.Context, id int64) error {\n\treturn m.run(ctx, \"activate_operator_mfa_challenge\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tchanged, queryStats, err := m.store.ActivateOperatorMFAChallenge(txCtx, id)\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrOperatorMFAChallengeStateChanged)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.ActivateChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) ConsumeChallenge(ctx context.Context, id int64, consumedAt time.Time) error {\n\treturn m.run(ctx, \"consume_operator_mfa_challenge\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tchanged, queryStats, err := m.store.ConsumeOperatorMFAChallenge(txCtx, id, consumedAt)\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrOperatorMFAChallengeStateChanged)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.ConsumeChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) CountChallengesSince(ctx context.Context, operatorID int64, since time.Time) (result int, err error) {\n\terr = m.run(ctx, \"count_operator_mfa_challenges\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tcount, queryStats, countErr := m.store.CountOperatorMFAChallengesSince(txCtx, operatorID, since)\n\t\tstats.Add(queryStats)\n\t\tresult = count\n\t\treturn countErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.CountChallengesSince",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) DeleteCredentials(ctx context.Context, operatorID int64) error {\n\treturn m.run(ctx, \"delete_operator_mfa_credentials\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := m.store.DeleteOperatorMFACredentials(txCtx, operatorID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.DeleteCredentials",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) ListActiveTrustedDevices(ctx context.Context, operatorID int64) (result []domain.OperatorTrustedDevice, err error) {\n\terr = m.run(ctx, \"list_active_operator_trusted_devices\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tdevices, queryStats, listErr := m.store.ListActiveOperatorTrustedDevices(txCtx, operatorID, m.now())\n\t\tstats.Add(queryStats)\n\t\tif listErr != nil {\n\t\t\treturn listErr\n\t\t}\n\t\tresult = devices\n\t\treturn nil\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.ListActiveTrustedDevices",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) RevokeTrustedDevice(ctx context.Context, id int64, revokedAt time.Time) error {\n\treturn m.run(ctx, \"revoke_operator_trusted_device\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tchanged, queryStats, err := m.store.RevokeOperatorTrustedDevice(txCtx, id, revokedAt)\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrOperatorTrustedDeviceNotFound)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.RevokeTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) RevokeTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) error {\n\treturn m.run(ctx, \"revoke_operator_trusted_devices\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := m.store.RevokeOperatorTrustedDevices(txCtx, operatorID, revokedAt)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.RevokeTrustedDevices",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) TouchCredential(ctx context.Context, id int64, usedAt time.Time) error {\n\treturn m.run(ctx, \"touch_operator_mfa_credential\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := m.store.TouchOperatorMFACredential(txCtx, id, usedAt)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.TouchCredential",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m *OperatorMFA) TouchTrustedDevice(ctx context.Context, id int64, usedAt time.Time) error {\n\treturn m.run(ctx, \"touch_operator_trusted_device\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := m.store.TouchOperatorTrustedDevice(txCtx, id, usedAt)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFA.TouchTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *OperatorMFAFlows) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {\n\tcredential, found, err := f.findCredential(ctx, operatorID)\n\tif err != nil {\n\t\tf.logger.Warn(\"operator mfa enrollment lookup failed; refusing login\", slog.Int64(\"operator_id\", operatorID), slog.String(\"error\", err.Error()))\n\t\treturn false, identityaccess.ErrMFAStatusUnavailable\n\t}\n\treturn found \u0026\u0026 credential.ID \u003e 0, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.HasEnrollment",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *OperatorMFAFlows) ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error) {\n\tif f == nil {\n\t\treturn nil, identityaccess.ErrOperatorMFAUnavailable\n\t}\n\tdevices, err := f.records.ListActiveTrustedDevices(ctx, operatorID)\n\tif err != nil {\n\t\treturn nil, operatorFlowError(err)\n\t}\n\tresult := make([]identityaccess.OperatorTrustedDevice, 0, len(devices))\n\tfor _, device := range devices {\n\t\tresult = append(result, identityaccess.OperatorTrustedDevice(device))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ListOperatorTrustedDevices",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.MFAChallengeScopePlatform {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartChallenge(ctx, claims.AccountID, ip)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g OperatorMFAGate) HasEnrollment(ctx context.Context, operatorID int64) (bool, error) {\n\tif g.Flows == nil {\n\t\treturn false, nil\n\t}\n\treturn g.Flows.HasEnrollment(ctx, operatorID)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFAGate.HasEnrollment",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g OperatorMFAGate) StartChallenge(ctx context.Context, operatorID int64, ipAddress string) (string, error) {\n\tif g.Flows == nil {\n\t\treturn \"\", errors.New(\"identity access: operator mfa is not composed\")\n\t}\n\treturn g.Flows.StartChallenge(ctx, operatorID, net.ParseIP(strings.TrimSpace(ipAddress)))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFAGate.StartChallenge",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g OperatorMFAGate) TrustedDeviceDays() int {\n\tif g.Flows == nil {\n\t\treturn 0\n\t}\n\treturn g.Flows.TrustedDeviceDays()\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFAGate.TrustedDeviceDays",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (g OperatorMFAGate) VerifyTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error) {\n\tif g.Flows == nil {\n\t\treturn false, nil\n\t}\n\treturn g.Flows.VerifyTrustedDevice(ctx, operatorID, cookie)\n}",
+      "form": "guarded-forward-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorMFAGate.VerifyTrustedDevice",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *OperatorPasskey) ListActiveCredentials(ctx context.Context, operatorID int64) (result []domain.OperatorPasskeyCredential, err error) {\n\terr = p.run(ctx, \"list_active_operator_passkeys\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tcredentials, queryStats, listErr := p.store.ListActiveOperatorPasskeys(txCtx, operatorID)\n\t\tstats.Add(queryStats)\n\t\tif listErr != nil {\n\t\t\treturn listErr\n\t\t}\n\t\tresult = credentials\n\t\treturn nil\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorPasskey.ListActiveCredentials",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *OperatorPasskey) RecordUse(ctx context.Context, id int64, credentialJSON json.RawMessage, usedAt time.Time) error {\n\treturn p.run(ctx, \"record_operator_passkey_use\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif !json.Valid(credentialJSON) {\n\t\t\treturn domain.ErrPasskeyJSONInvalid\n\t\t}\n\t\tchanged, queryStats, err := p.store.UpdateOperatorPasskeyAfterUse(txCtx, id, credentialJSON, usedAt)\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrOperatorPasskeyNotFound)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorPasskey.RecordUse",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *OperatorPasskey) RevokeCredential(ctx context.Context, operatorID, id int64, revokedAt time.Time) error {\n\treturn p.run(ctx, \"revoke_operator_passkey\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tchanged, queryStats, err := p.store.RevokeOperatorPasskey(txCtx, operatorID, id, revokedAt)\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrOperatorPasskeyNotFound)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorPasskey.RevokeCredential",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *OperatorPasskeyFlows) ListCredentials(ctx context.Context, operatorID int64) ([]domain.PasskeyCredentialSummary, error) {\n\trows, err := f.records.ListActiveCredentials(ctx, operatorID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tsummaries := make([]domain.PasskeyCredentialSummary, 0, len(rows))\n\tfor _, row := range rows {\n\t\tsummaries = append(summaries, domain.SummarizeOperatorPasskey(row))\n\t}\n\treturn summaries, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorPasskeyFlows.ListCredentials",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (f *OperatorPasskeyFlows) RevokeCredential(ctx context.Context, operatorID, credentialID int64) error {\n\tif err := f.records.RevokeCredential(ctx, operatorID, credentialID, f.now()); err != nil {\n\t\tif errors.Is(err, identityaccess.ErrOperatorPasskeyNotFound) {\n\t\t\treturn identityaccess.ErrPasskeyNotFound\n\t\t}\n\t\treturn err\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorPasskeyFlows.RevokeCredential",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *OperatorProvisioning) ListPendingOperatorInvitations(ctx context.Context) ([]identityaccess.OperatorInvitation, error) {\n\tif p == nil {\n\t\treturn nil, errOperatorProvisioningUnavailable\n\t}\n\tinvitations, err := p.tokens.ListRedeemableInvitations(bindRuntime(p.attach, ctx))\n\tif err != nil {\n\t\treturn nil, operatorProvisioningError(err)\n\t}\n\tresult := make([]identityaccess.OperatorInvitation, 0, len(invitations))\n\tfor _, invitation := range invitations {\n\t\tresult = append(result, PublicOperatorInvitation(invitation))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorProvisioning.ListPendingOperatorInvitations",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *OperatorProvisioning) RevokeOperatorInvitationByActor(ctx context.Context, invitationID, actorID int64, ipAddress string) error {\n\tif p == nil {\n\t\treturn errOperatorProvisioningUnavailable\n\t}\n\tctx = bindRuntime(p.attach, ctx)\n\tif err := p.tokens.RevokeInvitation(ctx, invitationID); err != nil {\n\t\treturn operatorProvisioningError(err)\n\t}\n\tp.record(ctx, domain.OperatorAuditEntry{OperatorID: actorID, Action: domain.OperatorAuditActionInvitationRevoked, ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: \u0026invitationID, IPAddress: ipAddress}, \"invitation revocation\")\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorProvisioning.RevokeOperatorInvitationByActor",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p *OperatorProvisioning) ValidateOperatorInvitation(ctx context.Context, token string) (identityaccess.OperatorInvitationPreview, error) {\n\tif p == nil {\n\t\treturn identityaccess.OperatorInvitationPreview{}, errOperatorProvisioningUnavailable\n\t}\n\tinvitation, err := p.tokens.FindRedeemableInvitation(bindRuntime(p.attach, ctx), token)\n\tif err != nil {\n\t\treturn identityaccess.OperatorInvitationPreview{}, operatorProvisioningError(err)\n\t}\n\treturn identityaccess.OperatorInvitationPreview{Email: invitation.Email, DisplayName: invitation.DisplayName, ExpiresAt: invitation.ExpiresAt}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorProvisioning.ValidateOperatorInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) CountEmailChangesCreatedAfter(ctx context.Context, operatorID int64, since time.Time) (result int, err error) {\n\terr = t.run(ctx, \"count_operator_email_changes\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tcount, queryStats, countErr := t.store.CountOperatorEmailChangesCreatedAfter(txCtx, operatorID, since)\n\t\tstats.Add(queryStats)\n\t\tresult = count\n\t\treturn countErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.CountEmailChangesCreatedAfter",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) CountInvitationsCreatedAfter(ctx context.Context, createdBy int64, since time.Time) (result int, err error) {\n\terr = t.run(ctx, \"count_operator_invitations\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tcount, queryStats, countErr := t.store.CountOperatorInvitationsCreatedAfter(txCtx, createdBy, since)\n\t\tstats.Add(queryStats)\n\t\tresult = count\n\t\treturn countErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.CountInvitationsCreatedAfter",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) CreateEmailChange(ctx context.Context, change domain.OperatorEmailChange) (result domain.OperatorEmailChange, err error) {\n\terr = t.run(ctx, \"create_operator_email_change\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif validateErr := change.Validate(t.now()); validateErr != nil {\n\t\t\treturn validateErr\n\t\t}\n\t\tstored, queryStats, insertErr := t.store.InsertOperatorEmailChange(txCtx, change)\n\t\tstats.Add(queryStats)\n\t\tresult = stored\n\t\treturn insertErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.CreateEmailChange",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) CreateInvitation(ctx context.Context, invitation domain.OperatorInvitation) (result domain.OperatorInvitation, err error) {\n\terr = t.run(ctx, \"create_operator_invitation\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif validateErr := invitation.Validate(t.now()); validateErr != nil {\n\t\t\treturn validateErr\n\t\t}\n\t\tstored, queryStats, insertErr := t.store.InsertOperatorInvitation(txCtx, invitation)\n\t\tstats.Add(queryStats)\n\t\tresult = stored\n\t\treturn insertErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.CreateInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) DeleteExpiredOperatorInvitations(ctx context.Context) (int, error) {\n\tvar deleted int\n\terr := t.run(ctx, \"delete_expired_operator_invitations\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tcount, queryStats, deleteErr := t.store.DeleteExpiredOperatorInvitations(txCtx, t.now())\n\t\tstats.Add(queryStats)\n\t\tdeleted = count\n\t\treturn deleteErr\n\t})\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"identity access: delete expired operator invitations: %w\", MapError(err))\n\t}\n\treturn deleted, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.DeleteExpiredOperatorInvitations",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) DeleteStaleEmailChanges(ctx context.Context) (result int, err error) {\n\terr = t.run(ctx, \"delete_stale_operator_email_changes\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tnow := t.now()\n\t\tdeleted, queryStats, deleteErr := t.store.DeleteStaleOperatorEmailChanges(txCtx, now.Add(-staleEmailChangeAge), now)\n\t\tstats.Add(queryStats)\n\t\tresult = deleted\n\t\treturn deleteErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.DeleteStaleEmailChanges",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) FindInvitation(ctx context.Context, id int64) (result domain.OperatorInvitation, err error) {\n\terr = t.run(ctx, \"find_operator_invitation\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tinvitation, found, queryStats, findErr := t.store.FindOperatorInvitation(txCtx, id)\n\t\tstats.Add(queryStats)\n\t\tresult = invitation\n\t\treturn stateChange(found, findErr, identityaccess.ErrOperatorInvitationNotFound)\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.FindInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) FindRedeemableInvitation(ctx context.Context, token string) (result domain.OperatorInvitation, err error) {\n\terr = t.run(ctx, \"find_redeemable_operator_invitation\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif token == \"\" {\n\t\t\treturn identityaccess.ErrOperatorInvitationNotFound\n\t\t}\n\t\tinvitation, found, queryStats, findErr := t.store.FindRedeemableOperatorInvitation(txCtx, token, t.now())\n\t\tstats.Add(queryStats)\n\t\tresult = invitation\n\t\treturn stateChange(found, findErr, identityaccess.ErrOperatorInvitationNotFound)\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.FindRedeemableInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) ListRedeemableInvitations(ctx context.Context) (result []domain.OperatorInvitation, err error) {\n\terr = t.run(ctx, \"list_redeemable_operator_invitations\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tinvitations, queryStats, listErr := t.store.ListRedeemableOperatorInvitations(txCtx, t.now())\n\t\tstats.Add(queryStats)\n\t\tresult = invitations\n\t\treturn listErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.ListRedeemableInvitations",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) RecordInvitationDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) error {\n\treturn t.run(ctx, \"record_operator_invitation_delivery\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := t.store.RecordOperatorInvitationDelivery(txCtx, id, delivery.Bounded())\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RecordInvitationDelivery",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error {\n\terr := t.run(ctx, \"record_operator_email_change_delivery\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := t.store.RecordOperatorEmailChangeDelivery(txCtx, id, domain.TokenDelivery(delivery).Bounded())\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: record operator email change delivery: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RecordOperatorEmailChangeDelivery",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) RedeemEmailChange(ctx context.Context, token string) (result domain.OperatorEmailChange, err error) {\n\terr = t.run(ctx, \"redeem_operator_email_change\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif token == \"\" {\n\t\t\treturn identityaccess.ErrOperatorEmailChangeNotFound\n\t\t}\n\t\tchange, found, queryStats, redeemErr := t.store.RedeemOperatorEmailChange(txCtx, token, t.now())\n\t\tstats.Add(queryStats)\n\t\tresult = change\n\t\treturn stateChange(found, redeemErr, identityaccess.ErrOperatorEmailChangeNotFound)\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RedeemEmailChange",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) RedeemInvitation(ctx context.Context, token string) (result domain.OperatorInvitation, err error) {\n\terr = t.run(ctx, \"redeem_operator_invitation\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tif token == \"\" {\n\t\t\treturn identityaccess.ErrOperatorInvitationNotFound\n\t\t}\n\t\tinvitation, found, queryStats, redeemErr := t.store.RedeemOperatorInvitation(txCtx, token, t.now())\n\t\tstats.Add(queryStats)\n\t\tresult = invitation\n\t\treturn stateChange(found, redeemErr, identityaccess.ErrOperatorInvitationNotFound)\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RedeemInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) RevokeEmailChanges(ctx context.Context, operatorID int64) error {\n\treturn t.run(ctx, \"revoke_operator_email_changes\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := t.store.RevokeOperatorEmailChanges(txCtx, operatorID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeEmailChanges",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) RevokeExpiredEmailChanges(ctx context.Context) (result int, err error) {\n\terr = t.run(ctx, \"revoke_expired_operator_email_changes\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\trevoked, queryStats, revokeErr := t.store.RevokeExpiredOperatorEmailChanges(txCtx, t.now())\n\t\tstats.Add(queryStats)\n\t\tresult = revoked\n\t\treturn revokeErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeExpiredEmailChanges",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) RevokeInvitation(ctx context.Context, id int64) error {\n\treturn t.run(ctx, \"revoke_operator_invitation\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tchanged, queryStats, err := t.store.RevokeOperatorInvitation(txCtx, id, t.now())\n\t\tstats.Add(queryStats)\n\t\treturn stateChange(changed, err, identityaccess.ErrOperatorInvitationNotFound)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *OperatorTokens) RevokeInvitationsForEmail(ctx context.Context, email string) (result int, err error) {\n\terr = t.run(ctx, \"revoke_operator_invitations_for_email\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\trevoked, queryStats, revokeErr := t.store.RevokeOperatorInvitationsForEmail(txCtx, email, t.now())\n\t\tstats.Add(queryStats)\n\t\tresult = revoked\n\t\treturn revokeErr\n\t})\n\treturn result, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitationsForEmail",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d OrganizationDirectory) ListOrganizationNames(ctx context.Context, ids []int64) ([]domain.OrganizationName, error) {\n\torganizations, err := d.Source.ListOrganizationNames(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.OrganizationName, 0, len(organizations))\n\tfor _, organization := range organizations {\n\t\tresult = append(result, domain.OrganizationName(organization))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OrganizationDirectory.ListOrganizationNames",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d OrganizationDirectory) ListSchools(ctx context.Context, ids []int64) ([]domain.School, error) {\n\tschools, err := d.Source.ListSchools(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.School, 0, len(schools))\n\tfor _, school := range schools {\n\t\tresult = append(result, domain.School(school))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/OrganizationDirectory.ListSchools",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *PasswordReset) DeleteSpentPasswordResetTokens(ctx context.Context) (value0 int, err error) {\n\tif r == nil {\n\t\treturn 0, errPasswordResetUnavailable\n\t}\n\tdefer func() {\n\t\terr = passwordResetError(err)\n\t}()\n\tctx = bindRuntime(r.auth.attach, ctx)\n\terr = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {\n\t\tvalue0, err = r.inUnitDeleteSpentPasswordResetTokens(txCtx)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/PasswordReset.DeleteSpentPasswordResetTokens",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *PasswordReset) DeleteStalePasswordResetWindows(ctx context.Context) (value0 int, err error) {\n\tif r == nil {\n\t\treturn 0, errPasswordResetUnavailable\n\t}\n\tdefer func() {\n\t\terr = passwordResetError(err)\n\t}()\n\tctx = bindRuntime(r.auth.attach, ctx)\n\terr = r.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {\n\t\tvalue0, err = r.inUnitDeleteStalePasswordResetWindows(txCtx)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/PasswordReset.DeleteStalePasswordResetWindows",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d PasswordResetDelivery) DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) error {\n\treturn d.Source.DispatchPasswordReset(ctx, PublicPasswordResetLink(token), recipient, identityaccess.PasswordResetScope(scope), expiry)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/PasswordResetDelivery.DispatchPasswordReset",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a PreviewAudit) RecordStaffPreviewEndOnce(ctx context.Context, event domain.StaffPreviewEvent) (bool, error) {\n\treturn a.PreviewAudit.RecordStaffPreviewEndOnce(ctx, identityPorts.StaffPreviewEvent(event))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/PreviewAudit.RecordStaffPreviewEndOnce",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a PreviewAudit) RecordStaffPreviewStart(ctx context.Context, event domain.StaffPreviewEvent) error {\n\treturn a.PreviewAudit.RecordStaffPreviewStart(ctx, identityPorts.StaffPreviewEvent(event))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/PreviewAudit.RecordStaffPreviewStart",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e ReviewEngine) AbsenceReviewScope(ctx context.Context, permissions []string) (bool, []int64, error) {\n\tschoolWide, groups, err := e.Review.AbsenceScope(ctx, permissions)\n\treturn schoolWide, groups, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ReviewEngine.AbsenceReviewScope",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e ReviewEngine) ReviewAccessLevel(ctx context.Context, permissions []string) (string, error) {\n\tlevel, err := e.Review.AccessLevel(ctx, permissions)\n\treturn level, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ReviewEngine.ReviewAccessLevel",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e ReviewEngine) ReviewScope(ctx context.Context, permissions []string) (bool, []int64, error) {\n\tschoolWide, groups, err := e.Review.Scope(ctx, permissions)\n\treturn schoolWide, groups, mapCallerError(err)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/ReviewEngine.ReviewScope",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *RoleAdministration) AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (value0 bool, err error) {\n\tif r == nil {\n\t\treturn false, errRoleAdministrationUnavailable\n\t}\n\terr = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\tholds, err := r.accountHoldsLehrkraftRole(bindRuntime(r.attach, txCtx), accountID)\n\t\tvalue0 = holds\n\t\treturn roleError(err)\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/RoleAdministration.AccountHoldsLehrkraftRole",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *RoleAdministration) GetAccountRoles(ctx context.Context, accountID int64) (value0 []identityaccess.Role, err error) {\n\tif r == nil {\n\t\treturn nil, errRoleAdministrationUnavailable\n\t}\n\terr = r.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\troles, err := r.accountRoles(bindRuntime(r.attach, txCtx), accountID)\n\t\tvalue0 = publicRoles(roles)\n\t\treturn roleError(err)\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/RoleAdministration.GetAccountRoles",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *RoleAdministration) ReplaceAccountRole(ctx context.Context, accountID, roleID int64) (err error) {\n\tif r == nil {\n\t\treturn errRoleAdministrationUnavailable\n\t}\n\tdefer func() {\n\t\terr = roleError(err)\n\t}()\n\tctx = bindRuntime(r.attach, ctx)\n\treturn r.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\treturn r.replaceAccountRoleInTx(txCtx, accountID, roleID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/RoleAdministration.ReplaceAccountRole",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d SchoolDirectory) FindSchool(ctx context.Context, id int64) (domain.School, bool, error) {\n\tschool, found, err := d.SchoolDirectory.FindSchool(ctx, id)\n\treturn domain.School(school), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolDirectory.FindSchool",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d SchoolDirectory) FindSchoolBySubdomain(ctx context.Context, subdomain string) (domain.School, bool, error) {\n\tschool, found, err := d.SchoolDirectory.FindSchoolBySubdomain(ctx, subdomain)\n\treturn domain.School(school), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolDirectory.FindSchoolBySubdomain",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d SchoolDirectory) ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]domain.School, error) {\n\tschools, err := d.SchoolDirectory.ListActiveSchoolsByID(ctx, schoolIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.School, 0, len(schools))\n\tfor _, school := range schools {\n\t\tresult = append(result, domain.School(school))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolDirectory.ListActiveSchoolsByID",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d SchoolDirectory) LockSchoolShared(ctx context.Context, id int64) (domain.School, bool, error) {\n\tschool, found, err := d.SchoolDirectory.LockSchoolShared(ctx, id)\n\treturn domain.School(school), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolDirectory.LockSchoolShared",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p SchoolIdentityProvisioner) ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]domain.AccountIdentityFact, error) {\n\tfacts, err := p.SchoolIdentityProvisioner.ListAccountIdentityFacts(ctx, accountID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.AccountIdentityFact, 0, len(facts))\n\tfor _, fact := range facts {\n\t\tresult = append(result, domain.AccountIdentityFact(fact))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolIdentityProvisioner.ListAccountIdentityFacts",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p SchoolIdentityProvisioner) ListAccountPersons(ctx context.Context, accountID int64) ([]domain.AccountPersonIdentity, error) {\n\tpersons, err := p.SchoolIdentityProvisioner.ListAccountPersons(ctx, accountID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]domain.AccountPersonIdentity, 0, len(persons))\n\tfor _, person := range persons {\n\t\tresult = append(result, domain.AccountPersonIdentity(person))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolIdentityProvisioner.ListAccountPersons",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *SchoolInvitation) InvitationDeliverySent(ctx context.Context, id int64) (value0 bool, err error) {\n\terr = s.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\tvalue0, err = s.inUnitInvitationDeliverySent(txCtx, id)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolInvitation.InvitationDeliverySent",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *SchoolInvitation) ListPendingInvitations(ctx context.Context) (value0 []domain.SchoolInvitation, err error) {\n\terr = s.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\tvalue0, err = s.inUnitListPendingInvitations(txCtx)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolInvitation.ListPendingInvitations",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *SchoolInvitation) RevokeInvitation(ctx context.Context, invitationID, actorAccountID int64) (err error) {\n\terr = s.runtime.RunInTx(ctx, func(txCtx context.Context) error {\n\t\terr = s.inUnitRevokeInvitation(txCtx, invitationID, actorAccountID)\n\t\treturn err\n\t})\n\treturn\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolInvitation.RevokeInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d SchoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) error {\n\treturn d.Source.DispatchSchoolInvitation(ctx, PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolInvitationDelivery.DispatchSchoolInvitation",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d SchoolInvitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error {\n\treturn d.Source.QueueSchoolWelcome(ctx, PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), rolePermissions)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/SchoolInvitationDelivery.QueueSchoolWelcome",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteAccountSession(ctx context.Context, id int64) error {\n\terr := s.run(ctx, s.tx.RunPlatform, \"delete_account_session\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.sessions.DeleteAccountSession(txCtx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: delete account session: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.DeleteAccountSession",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteExpiredRotatedAccountSessions(ctx context.Context, accountID int64, now time.Time) error {\n\terr := s.run(ctx, s.tx.RunPlatform, \"delete_expired_rotated_account_sessions\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.sessions.DeleteExpiredRotatedAccountSessions(txCtx, accountID, now)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: delete expired rotated account sessions: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.DeleteExpiredRotatedAccountSessions",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteExpiredRotatedOperatorSessions(ctx context.Context, familyID string, now time.Time) error {\n\terr := s.run(ctx, s.tx.RunAdmin, \"delete_expired_rotated_operator_sessions\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.operators.DeleteExpiredRotatedOperatorSessions(txCtx, familyID, now)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: delete expired rotated operator sessions: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.DeleteExpiredRotatedOperatorSessions",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteOperator(ctx context.Context, id int64) error {\n\terr := s.run(ctx, s.tx.RunAdmin, \"delete_operator\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.operators.DeleteOperator(txCtx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: delete operator: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.DeleteOperator",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) DeleteOperatorSession(ctx context.Context, id int64) error {\n\terr := s.run(ctx, s.tx.RunAdmin, \"delete_operator_session\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.operators.DeleteOperatorSession(txCtx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: delete operator session: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.DeleteOperatorSession",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindInvitedPersonIDs(ctx context.Context, email string) ([]int64, error) {\n\tvar ids []int64\n\terr := s.run(ctx, s.withinSchoolRead, \"find_invited_person_ids\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tids, queryStats, queryErr = s.store.FindInvitedPersonIDs(txCtx, strings.ToLower(strings.TrimSpace(email)), s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: find invited people: %w\", MapError(err))\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.FindInvitedPersonIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) FindRolePermissions(ctx context.Context, id int64) ([]string, error) {\n\tvar permissions []string\n\terr := s.run(ctx, s.withinSchoolRead, \"find_role_permissions\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tpermissions, queryStats, queryErr = s.store.FindRolePermissions(txCtx, id, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: find role permissions: %w\", MapError(err))\n\t}\n\treturn permissions, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.FindRolePermissions",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) HasActiveSchoolMembership(ctx context.Context, accountID int64) (bool, error) {\n\tvar active bool\n\terr := s.run(ctx, s.withinSchoolRead, \"has_active_school_membership\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tactive, queryStats, queryErr = s.store.HasActiveAccountTenant(txCtx, accountID, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"identity access: check school membership: %w\", MapError(err))\n\t}\n\treturn active, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.HasActiveSchoolMembership",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListAccountRoleIDs(ctx context.Context, accountID int64) ([]int64, error) {\n\tvar ids []int64\n\terr := s.run(ctx, s.withinSchoolRead, \"list_account_role_ids\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tids, queryStats, queryErr = s.store.ListAccountRoleIDs(txCtx, accountID, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: list account roles: %w\", MapError(err))\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.ListAccountRoleIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListActiveSchoolAccountIDs(ctx context.Context) ([]int64, error) {\n\tvar ids []int64\n\terr := s.run(ctx, s.withinSchoolRead, \"list_active_school_account_ids\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tids, queryStats, queryErr = s.store.ListActiveAccountIDs(txCtx, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: list active school accounts: %w\", MapError(err))\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.ListActiveSchoolAccountIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ListSchoolRoles(ctx context.Context) ([]*identityaccess.SchoolRole, error) {\n\tvar roles []*domain.SchoolRole\n\terr := s.run(ctx, s.withinSchoolRead, \"list_school_roles\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\troles, queryStats, queryErr = s.store.ListSchoolRoles(txCtx, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: list school roles: %w\", MapError(err))\n\t}\n\treturn publicSchoolRoles(roles), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.ListSchoolRoles",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RecordOperatorLogin(ctx context.Context, id int64) error {\n\terr := s.run(ctx, s.tx.RunAdmin, \"record_operator_login\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.operators.RecordOperatorLogin(txCtx, id, time.Now())\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: record operator login: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.RecordOperatorLogin",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) ResetOperatorMFAAttempts(ctx context.Context, id int64) error {\n\terr := s.run(ctx, s.tx.RunAdmin, \"reset_operator_mfa_attempts\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.operators.ResetOperatorMFAAttempts(txCtx, id)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: reset operator mfa attempts: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.ResetOperatorMFAAttempts",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) RetireAccountSessionFamily(ctx context.Context, accountID int64, familyID string, expiry time.Time) error {\n\terr := s.run(ctx, s.tx.RunPlatform, \"retire_account_session_family\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tqueryStats, err := s.sessions.RetireAccountSessionFamily(txCtx, accountID, familyID, expiry)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"identity access: retire account session family: %w\", MapError(err))\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/Service.RetireAccountSessionFamily",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d StaffDirectory) CreatePerson(ctx context.Context, person domain.PersonRecord) (int64, error) {\n\treturn d.StaffDirectory.CreatePerson(ctx, identityPorts.PersonRecord(person))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.CreatePerson",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d StaffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error) {\n\tprofile, found, err := d.StaffDirectory.FindCaregiverProfile(ctx, staffID)\n\treturn domain.CaregiverProfile(profile), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindCaregiverProfile",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d StaffDirectory) FindPerson(ctx context.Context, personID int64) (domain.PersonRecord, bool, error) {\n\tperson, found, err := d.StaffDirectory.FindPerson(ctx, personID)\n\treturn domain.PersonRecord(person), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindPerson",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d StaffDirectory) FindPersonByAccount(ctx context.Context, accountID int64) (domain.PersonRecord, bool, error) {\n\tperson, found, err := d.StaffDirectory.FindPersonByAccount(ctx, accountID)\n\treturn domain.PersonRecord(person), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindPersonByAccount",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d StaffDirectory) FindPersonByTag(ctx context.Context, tagID string) (domain.PersonRecord, bool, error) {\n\tperson, found, err := d.StaffDirectory.FindPersonByTag(ctx, tagID)\n\treturn domain.PersonRecord(person), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindPersonByTag",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d StaffDirectory) FindPersonNames(ctx context.Context, accountIDs []int64) (map[int64]domain.PersonName, error) {\n\tnames, err := d.StaffDirectory.FindPersonNames(ctx, accountIDs)\n\treturn personNames(names), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindPersonNames",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d StaffDirectory) FindStaff(ctx context.Context, staffID int64) (domain.StaffMember, bool, error) {\n\tstaff, found, err := d.StaffDirectory.FindStaff(ctx, staffID)\n\treturn domain.StaffMember(staff), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindStaff",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d StaffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (domain.StaffMember, bool, error) {\n\tstaff, found, err := d.StaffDirectory.FindStaffByPerson(ctx, personID)\n\treturn domain.StaffMember(staff), found, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/StaffDirectory.FindStaffByPerson",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c TokenCodec) IssueAccessToken(claims domain.SessionClaims) (string, error) {\n\treturn c.TokenCodec.IssueAccessToken(identityaccess.SessionClaims(claims))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/TokenCodec.IssueAccessToken",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c TokenCodec) IssueTokenPair(access domain.SessionClaims, refresh domain.RefreshClaims) (string, string, error) {\n\treturn c.TokenCodec.IssueTokenPair(identityaccess.SessionClaims(access), identityaccess.RefreshClaims(refresh))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/TokenCodec.IssueTokenPair",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c TokenCodec) ParseAccessToken(token string) (domain.SessionClaims, error) {\n\tclaims, err := c.TokenCodec.ParseAccessToken(token)\n\treturn domain.SessionClaims(claims), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/TokenCodec.ParseAccessToken",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c TokenCodec) ParseAccessTokenAllowExpired(token string) (domain.SessionClaims, error) {\n\tclaims, err := c.TokenCodec.ParseAccessTokenAllowExpired(token)\n\treturn domain.SessionClaims(claims), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/TokenCodec.ParseAccessTokenAllowExpired",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c TokenCodec) ParseRefreshToken(token string) (domain.RefreshClaims, error) {\n\tclaims, err := c.TokenCodec.ParseRefreshToken(token)\n\treturn domain.RefreshClaims(claims), err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/TokenCodec.ParseRefreshToken",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c accountMFACapability) OperatorDisableMFA(ctx context.Context, operatorID, schoolID, targetAccountID int64, reason string) error {\n\treturn c.AccountMFA.OperatorDisableMFA(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorDisableMFA",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c accountMFACapability) OperatorSetMFAOverride(ctx context.Context, operatorID, schoolID, targetAccountID int64, override, reason string) error {\n\treturn c.AccountMFA.OperatorSetMFAOverride(operatorSchoolContext(ctx, schoolID), operatorID, schoolID, targetAccountID, override, reason)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/application/accountMFACapability.OperatorSetMFAOverride",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r ceremonyRejection) Error() string {\n\treturn r.cause.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/internal/application/ceremonyRejection.Error",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *mintGuardError) Error() string {\n\treturn e.err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/internal/application/mintGuardError.Error",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a DemoAccess) CoolingDown(now time.Time) bool {\n\treturn now.Before(a.CreatedAt.Add(DemoAccessCooldown))\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/domain/DemoAccess.CoolingDown",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e *GuardianInvitationValidationError) Error() string {\n\treturn e.Err.Error()\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/identityaccess/internal/domain/GuardianInvitationValidationError.Error",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c *OperatorMFAChallenge) Validate() error {\n\tswitch {\n\tcase c.OperatorID \u003c= 0:\n\t\treturn errors.New(\"operator_id is required\")\n\tcase c.CodeHash == \"\":\n\t\treturn errors.New(\"code_hash is required\")\n\tcase c.ExpiresAt.IsZero():\n\t\treturn errors.New(\"expires_at is required\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/domain/OperatorMFAChallenge.Validate",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d *OperatorTrustedDevice) Validate() error {\n\tswitch {\n\tcase d.OperatorID \u003c= 0:\n\t\treturn errors.New(\"operator_id is required\")\n\tcase d.TokenHash == \"\":\n\t\treturn errors.New(\"token_hash is required\")\n\tcase d.ExpiresAt.IsZero():\n\t\treturn errors.New(\"expires_at is required\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/domain/OperatorTrustedDevice.Validate",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t *PasswordResetToken) Validate(now time.Time) error {\n\tswitch {\n\tcase t.AccountID \u003c= 0:\n\t\treturn errors.New(\"account ID is required\")\n\tcase t.Token == \"\":\n\t\treturn errors.New(\"token value is required\")\n\tcase !t.Expiry.After(now):\n\t\treturn errors.New(\"token has already expired\")\n\tcase t.Used:\n\t\treturn errors.New(\"token has already been used\")\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/domain/PasswordResetToken.Validate",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (w PasswordResetWindow) Exceeded(allowed int, now time.Time) bool {\n\treturn w.Attempts \u003e allowed \u0026\u0026 w.RetryAt.After(now)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/domain/PasswordResetWindow.Exceeded",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
+      "evidence": "func (i SchoolInvitation) Redeemable(now time.Time) bool {\n\treturn i.UsedAt == nil \u0026\u0026 i.ExpiresAt.After(now)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/domain/SchoolInvitation.Redeemable",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (a *TokenAuth) CreateJWT(c AppClaims) (string, error) {\n\tc.IssuedAt = time.Now().Unix()\n\tc.ExpiresAt = time.Now().Add(a.JwtExpiry).Unix()\n\tclaims, err := ParseStructToMap(c)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\t_, tokenString, err := a.JwtAuth.Encode(claims)\n\treturn tokenString, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateJWT",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {\n\tc.IssuedAt = time.Now().Unix()\n\tif c.ExpiresAt \u003c= 0 {\n\t\tc.ExpiresAt = time.Now().Add(a.JwtRefreshExpiry).Unix()\n\t}\n\tclaims, err := ParseStructToMap(c)\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\t_, tokenString, err := a.JwtAuth.Encode(claims)\n\treturn tokenString, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/sessiontoken/TokenAuth.CreateRefreshJWT",
+      "owner": "modules/identityaccess"
+    }
+  ]
+}

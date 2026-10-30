@@ -16,6 +16,7 @@ const (
 	EndFailed EndFailure = iota
 	EndNotFound
 	EndAlreadyEnded
+	EndConflict
 )
 
 // EndSession closes the selected session and returns its close instant and raw error.

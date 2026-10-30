@@ -203,8 +203,10 @@ func (m *BookingMaterialization) ResyncMultiSourceTemplatesForChild(ctx context.
 // the flow's own child(ren) — the per-child flows pass a phase-anchored
 // effectiveFrom so the child's rows match the single-source drafts, and the
 // scope keeps that early boundary away from every other child's capped
-// history. Drifted-invalid templates are skipped with a warning, mirroring
-// the single-source fan-out — one broken template must not fail an approval.
+// history. A stored source that turned inactive contributes nothing while
+// another stays valid (#5305); otherwise drifted-invalid templates are skipped
+// with a warning, mirroring the single-source fan-out — one broken template
+// must not fail an approval.
 // The caller must hold the tenant recurrence lock.
 func (m *BookingMaterialization) resyncMultiSourceTemplates(
 	ctx context.Context,
@@ -222,6 +224,7 @@ func (m *BookingMaterialization) resyncMultiSourceTemplates(
 		in := templateResync(tmpl, tmpl.SourceCareOfferingIDs, effectiveFrom)
 		in.GradeLevels, in.SchoolClasses = tmpl.SourceGradeLevels, tmpl.SourceSchoolClasses
 		in.ScopeRequestChildIDs = scopeRequestChildIDs
+		in.SkipInactiveSources = true
 		if err := m.ResyncTemplateOfferingRoster(ctx, in); err != nil {
 			if m.catalog.deps.SourceRules.IsRejection(err) {
 				m.logSkippedSourcedTemplate(tmpl.ID, tmpl.SourceCareOfferingIDs, "decision fan-out: multi-source template invalid", err)

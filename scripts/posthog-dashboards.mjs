@@ -249,8 +249,8 @@ export const FEATURES = Object.freeze([
   { name: 'Startseite', pages: { ogs: ['/home', '/dashboard'], parents: ['/'], school: ['/'] } },
   {
     name: 'Kinder und Kindakte',
-    pages: { ogs: ['/students/**'], parents: ['/children/**'], school: ['/klasse'] },
-    events: ['student_note_created', 'photo_consent_changed', 'day_hint_changed'],
+    pages: { ogs: ['/students/**'], parents: ['/children/**'], school: ['/klasse', '/klasse/kind'] },
+    events: ['student_note_created', 'photo_consent_changed', 'day_hint_changed', 'accident_report_recorded', 'accident_report_signed'],
   },
   { name: 'Gruppen', pages: { ogs: ['/ogs-groups', '/ogs-groups/overview'] }, events: ['group_created', 'group_updated'] },
   {
@@ -278,7 +278,7 @@ export const FEATURES = Object.freeze([
     events: [
       'parent_message_sent', 'staff_message_sent', 'parent_message_marked_unread', 'parent_messages_marked_all_read',
       'parent_message_count_scope_changed', 'parent_declaration_submitted', 'staff_notice_acknowledged',
-      'class_parent_letter_sent',
+      'class_parent_letter_sent', 'staff_group_created',
     ],
   },
   {

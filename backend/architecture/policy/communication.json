@@ -1,0 +1,560 @@
+{
+  "packages": [
+    {
+      "path": "modules/communication/http/parentannouncements",
+      "owner": "communication",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/http/parentmessages",
+      "owner": "communication",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/http/staffmessages",
+      "owner": "communication",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication/http/platformannouncements",
+      "owner": "communication",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/internal/parentmessages",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication/internal/staffmessages",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication",
+      "owner": "communication",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/composition",
+      "owner": "communication",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/postgres",
+      "owner": "communication",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/parentpostgres",
+      "owner": "communication",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/adapters/staffpostgres",
+      "owner": "communication",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/parentstore",
+      "owner": "communication",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/communication/staffstore",
+      "owner": "communication",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "e2e-test"
+    },
+    {
+      "path": "modules/communication/communicationtest",
+      "owner": "communication",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/application",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/domain",
+      "owner": "communication",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/ports",
+      "owner": "communication",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/http/operatorannouncements",
+      "owner": "communication",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/internal/application/parentmessaging",
+      "owner": "communication",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/eventcontract",
+      "owner": "communication",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/internal/staffannouncements",
+      "owner": "communication",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/communication/ports",
+      "owner": "communication",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "platform.announcement_views",
+      "write_owner": "communication"
+    },
+    {
+      "name": "platform.announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.notification_preferences",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_declaration_submissions",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_declaration_versions",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_options",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_responses",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcement_targets",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_announcements",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_message_recipients",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_thread_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_group_threads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_message_count_preferences",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_message_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_message_threads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.staff_message_participants",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.staff_message_reads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.staff_message_threads",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.staff_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.parent_messages",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_answers",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_participations",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_question_options",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_questions",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.survey_responses",
+      "write_owner": "communication"
+    },
+    {
+      "name": "users.surveys",
+      "write_owner": "communication"
+    }
+  ],
+  "rules": [
+    {
+      "id": "communication.messages.compose-delivery-public",
+      "description": "Communication composition adapts the existing realtime broadcaster until its delivery port migrates.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.messages.adapter-orm",
+      "description": "The retained message implementation joins the ambient tenant transaction pending #2727.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.messages.adapter-delivery-public",
+      "description": "The retained message implementation publishes realtime updates through Delivery.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "delivery-platform",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.messages.adapter-communication-application",
+      "description": "The retained parent-message implementation shares guardian contracts pending their later migration.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.messages.workflow-identity-adapter",
+      "description": "Message compatibility tests supply authenticated account claims.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.messages.workflow-communication-application",
+      "description": "Parent-message compatibility tests exercise retained guardian contracts.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "communication",
+      "target_role": "application"
+    },
+    {
+      "id": "communication.port-domain",
+      "description": "Communication ports express announcement persistence and projection operations using owner domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "port",
+      "target_owner": "communication",
+      "target_role": "domain"
+    },
+    {
+      "id": "communication.compose.orm-sql",
+      "description": "Communication composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "communication.compose.tenant-runtime",
+      "description": "Communication composition joins the shared administrative transaction runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.integration-test.support",
+      "description": "Communication integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "communication.http.public",
+      "description": "The operator announcement routes (#3232) and the user-facing platform announcement routes (#4064) call the public Communication capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "http",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.http.tenant-runtime.common",
+      "description": "The operator announcement routes use the shared HTTP helpers and the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "communication.http.token-claims",
+      "description": "The operator announcement routes attribute a change to the verified operator (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.adapter-test.tenant-runtime.common",
+      "description": "The operator announcement tests assert the operator error bodies (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "communication.adapter-test.token-claims",
+      "description": "The operator announcement tests authenticate the operator through its claims (#3232). Owner HTTP adapters and their tests use the shared inbound helpers and the session token adapter as a target dependency (ADR 0031, #2736).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter-test",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.parent-announcements.http.security-contract",
+      "description": "The existing announcement/message HTTP adapter applies its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_package": "modules/communication/http/parentannouncements",
+      "source_owner": "communication",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "communication.parent-messages.http.security-contract",
+      "description": "The existing announcement/message HTTP adapter applies its established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_package": "modules/communication/http/parentmessages",
+      "source_owner": "communication",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "communication.staff-messages.workflow.http-subject",
+      "description": "The existing cross-portal staff-message workflow test drives only its own HTTP adapter.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_package": "modules/communication/http/staffmessages",
+      "source_owner": "communication",
+      "source_role": "workflow-integration-test",
+      "target_package": "modules/communication/http/staffmessages",
+      "target_owner": "communication",
+      "target_role": "http"
+    },
+    {
+      "id": "communication.application.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "application",
+      "source_package": "modules/communication/internal/application/parentmessaging",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.adapter.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "adapter",
+      "source_package": "modules/communication/internal/parentmessages",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.test-support.native-event-contract",
+      "description": "Typed native event capability replaces the retained emitter boundary; no private implementation reach.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "test-support",
+      "source_package": "modules/communication/communicationtest",
+      "target_owner": "communication",
+      "target_role": "contract",
+      "target_package": "modules/communication/eventcontract"
+    },
+    {
+      "id": "communication.event-contract.public",
+      "description": "The event capability includes Communication's existing parent-authored event port.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "contract",
+      "source_package": "modules/communication/eventcontract",
+      "target_owner": "communication",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.postgres.port",
+      "description": "Native query observation binds Communication’s own observer port; same-owner successor of composition wiring (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "postgres",
+      "target_owner": "communication",
+      "target_role": "port"
+    },
+    {
+      "id": "communication.postgres.tenant-runtime.public",
+      "description": "Native ambient-transaction resolution moves from Communication composition to its owned persistence adapter (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "communication.application.organization-tenancy.public",
+      "description": "Native organization target error mapping replaces composition mapping, preserving its existing owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "communication",
+      "source_role": "application",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    }
+  ]
+}

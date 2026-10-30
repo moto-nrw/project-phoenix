@@ -30,6 +30,9 @@ type Offboarding struct {
 	execute   func(context.Context, int64, string) (Retirement, error)
 	eraseNext func(context.Context, time.Time, int64) (RetiredStaffErasure, bool, error)
 	reinstate Reinstatement
+	// PlannedExits are the planned exits the workflow runs (#4809); a graph
+	// that never plans an exit may leave them nil.
+	*PlannedExits
 }
 
 // Reinstatement binds the Wiederaufnahme of ADR 0021, the way back from a

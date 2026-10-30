@@ -56,6 +56,7 @@ describe("CatererLoginPage (#4497)", () => {
   const fetchMock = vi.fn<typeof fetch>();
 
   beforeEach(() => {
+    window.history.replaceState({}, "", "/login");
     mockLogin.mockReset();
     mockSignIn.mockReset();
     mockPasskeyLogin.mockReset();
@@ -69,24 +70,14 @@ describe("CatererLoginPage (#4497)", () => {
   });
 
   it("signs in without a code while two-factor sign-in is off", async () => {
-    mockLogin.mockResolvedValue({
-      status: "authenticated",
-      accessToken: "access",
-      refreshToken: "refresh",
-    });
-    mockSignIn.mockResolvedValue({ error: undefined });
+    mockLogin.mockResolvedValue({ status: "authenticated" });
     render(<CatererLoginPage />);
 
     submitCredentials();
 
-    await waitFor(() =>
-      expect(mockSignIn).toHaveBeenCalledWith("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access",
-        refreshToken: "refresh",
-      }),
-    );
+    // The BFF installed the session; the browser only moves on (#5005).
+    await waitFor(() => expect(window.location.pathname).toBe("/caterer"));
+    expect(mockSignIn).not.toHaveBeenCalled();
   });
 
   it("asks for the mailed code and can remember the device", async () => {
@@ -97,10 +88,7 @@ describe("CatererLoginPage (#4497)", () => {
       trustedDeviceEnabled: true,
       trustedDeviceDays: 90,
     });
-    fetchMock.mockResolvedValue(
-      Response.json({ access_token: "access", refresh_token: "refresh" }),
-    );
-    mockSignIn.mockResolvedValue({ error: undefined });
+    fetchMock.mockResolvedValue(Response.json({ status: "authenticated" }));
     render(<CatererLoginPage />);
 
     submitCredentials();
@@ -123,38 +111,23 @@ describe("CatererLoginPage (#4497)", () => {
       code: "123456",
       remember_device: true,
     });
-    await waitFor(() =>
-      expect(mockSignIn).toHaveBeenCalledWith("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access",
-        refreshToken: "refresh",
-      }),
-    );
+    // The BFF installed the session; the browser only moves on (#5005).
+    await waitFor(() => expect(window.location.pathname).toBe("/caterer"));
+    expect(mockSignIn).not.toHaveBeenCalled();
   });
 
   it("signs in with a passkey of the caterer portal", async () => {
     mockPasskeySupported.mockReturnValue(true);
-    mockPasskeyLogin.mockResolvedValue({
-      status: "authenticated",
-      access_token: "access",
-      refresh_token: "refresh",
-    });
-    mockSignIn.mockResolvedValue({ error: undefined });
+    mockPasskeyLogin.mockResolvedValue({ status: "authenticated" });
     render(<CatererLoginPage />);
 
     fireEvent.click(
       await screen.findByRole("button", { name: "Mit Passkey anmelden" }),
     );
 
-    await waitFor(() =>
-      expect(mockSignIn).toHaveBeenCalledWith("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: "access",
-        refreshToken: "refresh",
-      }),
-    );
+    // The BFF installed the session; the browser only moves on (#5005).
+    await waitFor(() => expect(window.location.pathname).toBe("/caterer"));
+    expect(mockSignIn).not.toHaveBeenCalled();
     expect(mockPasskeyLogin).toHaveBeenCalledWith("caterer");
   });
 });

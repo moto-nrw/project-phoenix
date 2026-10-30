@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Trash2, Upload } from "lucide-react";
 import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
 import { compressAvatar } from "~/lib/image-utils";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/api";
@@ -186,12 +187,11 @@ export function StudentPhotoSection({
         htmlFor="photo-consent"
         className="moto-content-surface mt-4 flex cursor-pointer items-start gap-3 rounded-lg border p-3"
       >
-        <input
+        <Checkbox
           id="photo-consent"
-          type="checkbox"
           checked={consentGiven}
           onChange={(e) => onConsentChange(e.target.checked)}
-          className="text-moto-blue focus:ring-moto-blue mt-0.5 h-4 w-4 rounded border-gray-300"
+          className="mt-0.5"
           aria-label="Einwilligung der Eltern zur Speicherung eines Fotos liegt vor"
         />
         <div className="min-w-0 flex-1">

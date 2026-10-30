@@ -667,6 +667,20 @@ describe("GuardiansPanel", () => {
     );
   });
 
+  it("exposes one loading status for contacts and connected accounts", () => {
+    mocks.listChildGuardians.mockReturnValueOnce(new Promise(() => undefined));
+
+    render(
+      <GuardiansPanel studentId="42" canInvite={false} canRemove={false} />,
+    );
+
+    expect(screen.getAllByTestId("parent-page-section-skeleton")).toHaveLength(
+      2,
+    );
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Inhalt wird geladen");
+  });
+
   // #2518: each section reports its own failed load in place, with a retry,
   // and never as an empty list.
   it("shows load errors where the lists are missing and retries them", async () => {
@@ -702,10 +716,18 @@ describe("GuardiansPanel", () => {
 
     fireEvent.click(screen.getAllByRole("button", { name: "Wiederholen" })[0]!);
 
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.getByRole("status")).toHaveTextContent("Inhalt wird geladen");
+
     expect(
       await screen.findByRole("button", { name: "Bearbeiten" }),
     ).toBeInTheDocument();
     expect(mocks.listChildGuardians).toHaveBeenCalledTimes(2);
+    // Anker: die Kontaktliste ist nach dem Wiederholen geladen.
+    expect(
+      screen.getByRole("button", { name: "Bearbeiten" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
   it("reports a failed access removal through the shared toast", async () => {

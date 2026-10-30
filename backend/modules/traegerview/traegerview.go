@@ -71,6 +71,8 @@ type Ports struct {
 	// access log of a school.
 	Trail    AccessTrail
 	Recorder AccessRecorder
+	// Holiday is Enrollment's trail of the Träger's holiday registrations.
+	Holiday HolidayTrail
 	// Persons are the persons of People Directory, Staff the staff members
 	// of School Membership, Bureau the Träger-Büro addresses of Identity &
 	// Access.
@@ -189,7 +191,8 @@ type AccessTrailQuery struct {
 	Offset    int
 }
 
-// AccessTrailEntry is one trail entry as the Audit Platform stores it.
+// AccessTrailEntry is one trail entry as the Audit Platform stores it. An
+// entry of the HolidayTrail has no school: SchoolID is 0.
 type AccessTrailEntry struct {
 	ID                int64
 	SchoolID          int64
@@ -199,6 +202,29 @@ type AccessTrailEntry struct {
 	ActorNameSnapshot string
 	Kind              string
 	Data              string
+}
+
+// HolidayTrail reads who of the Träger-Büro read or changed the Träger's
+// holiday registrations (#5326). A registration belongs to the Träger, not
+// to a school (ADR 0114 point 6). Enrollment serves it; it joins the
+// projection's administrative transaction and filters on the given Träger.
+type HolidayTrail interface {
+	// ListHolidayTrail lists the entries of the query, newest first, as
+	// trail entries without a school.
+	ListHolidayTrail(ctx context.Context, organizationID int64, query HolidayTrailQuery) ([]AccessTrailEntry, error)
+	// ListHolidayTrailActors lists the accounts with an entry between from
+	// (inclusive) and to (exclusive) as actors without a school.
+	ListHolidayTrailActors(ctx context.Context, organizationID int64, from, to time.Time) ([]AccessTrailActor, error)
+}
+
+// HolidayTrailQuery selects holiday trail entries between the instants From
+// (inclusive) and To (exclusive), optionally of one account and one kind.
+type HolidayTrailQuery struct {
+	From      time.Time
+	To        time.Time
+	AccountID int64
+	Kind      string
+	Limit     int
 }
 
 // AccessTrailActor is an account or a staff member (one of AccountID and

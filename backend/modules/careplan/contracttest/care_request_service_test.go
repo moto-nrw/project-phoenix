@@ -644,7 +644,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	ctx := f.staffCtx(f.staffAccount)
-	thread, err := testpkg.TenantQuery2(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID)
+	thread, err := testpkg.TenantQuery3(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID, "team")
 	require.NoError(t, err)
 	require.NotNil(t, thread, "the request_created pill must have opened the thread while messaging was on")
 	created, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), communicationtest.NewParentMessageRepository(f.db).FindEventByRef, thread.ID, peopleValues.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
@@ -696,7 +696,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	require.NoError(t, err)
 
 	ctx := f.staffCtx(f.staffAccount)
-	thread, err := testpkg.TenantQuery2(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID)
+	thread, err := testpkg.TenantQuery3(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID, "team")
 	require.NoError(t, err)
 	require.NotNil(t, thread, "the request_created pill opens the thread")
 	created, err := testpkg.TenantQuery4(t, ctx, testpkg.SetupTestDB(t), communicationtest.NewParentMessageRepository(f.db).FindEventByRef, thread.ID, peopleValues.ParentMessageEventRequestCreated, "schedule.care_schedule_change_requests", req.ID)
@@ -716,7 +716,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 	require.NoError(t, err)
 	require.NotNil(t, status, "the reject decision writes a request_status pill")
 
-	decided, err := testpkg.TenantQuery2(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID)
+	decided, err := testpkg.TenantQuery3(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID, "team")
 	require.NoError(t, err)
 	require.NotNil(t, decided)
 	require.NotNil(t, decided.LastMessageID, "a request_status decision advances the thread preview")
@@ -755,7 +755,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 
 	// No thread was ever opened (created pill dropped while disabled), so there is
 	// nothing to reconcile and no dangling status pill.
-	thread, err := testpkg.TenantQuery2(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID)
+	thread, err := testpkg.TenantQuery3(t, ctx, f.db, f.reposMessages.ParentMessageThread.FindByStudentGuardian, f.chain.StudentID, f.chain.AccountID, "team")
 	require.NoError(t, err)
 	assert.Nil(t, thread, "a request filed while disabled leaves no thread, so nothing to reconcile")
 }

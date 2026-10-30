@@ -1,0 +1,32 @@
+{
+  "format": "moto-bundle-budget/v1",
+  "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review.",
+  "routes": {
+    "/traeger/ferien": {
+      "referenceBytes": 817566,
+      "maxBytes": 833917
+    },
+    "/traeger/ferien/[id]": {
+      "referenceBytes": 864724,
+      "maxBytes": 882018
+    },
+    "/traeger/ferien/[id]/anmeldungen": {
+      "referenceBytes": 824973,
+      "maxBytes": 841472
+    },
+    "/traeger/ferien/[id]/anmeldungen/[registrationId]": {
+      "referenceBytes": 889571,
+      "maxBytes": 907362,
+      "_reason": "#5199: Historischen Zustimmungswortlaut aus der gespeicherten Formularversion mit dem gemeinsamen sicheren Markdown-Renderer anzeigen. Lokale kalte Messung: 822556 auf 889571 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz."
+    },
+    "/traeger/ferien/neu": {
+      "referenceBytes": 861284,
+      "maxBytes": 878510
+    },
+    "/traeger/ferien/[id]/formular": {
+      "referenceBytes": 876825,
+      "maxBytes": 894362,
+      "_reason": "#5199: Neuer gemeinsamer Rechtsblock-Editor mit PDF-Upload und Vorschau. Die kalte Messung steigt von 836329 auf 876825 Bytes. Funktionsbezogene Referenzanpassung; unverändert 2 % Toleranz. Nachgeladene Chunks zählen vollständig mit."
+    }
+  }
+}

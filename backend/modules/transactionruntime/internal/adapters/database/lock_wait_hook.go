@@ -20,12 +20,6 @@ func NewLockWaitQueryHook(observe func(context.Context, time.Duration)) *LockWai
 	return &LockWaitQueryHook{observe: observe}
 }
 
-// AttachLockWaitHook adds the lock-wait hook to db itself, so every component
-// already holding the pool reports its lock waits to observe.
-func AttachLockWaitHook(db *bun.DB, observe func(context.Context, time.Duration)) {
-	db.AddQueryHook(NewLockWaitQueryHook(observe)) //nolint:staticcheck // SA1019: hooks must reach the shared *bun.DB other components already hold; WithQueryHook returns a clone.
-}
-
 func (h *LockWaitQueryHook) BeforeQuery(ctx context.Context, _ *bun.QueryEvent) context.Context {
 	return ctx
 }

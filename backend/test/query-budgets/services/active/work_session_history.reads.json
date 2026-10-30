@@ -1,0 +1,6 @@
+{
+  "scenario": "services.active.work_session_history.reads",
+  "max": 7,
+  "exact": false,
+  "description": "#2941: list/read enrichment stays flat as result rows grow."
+}

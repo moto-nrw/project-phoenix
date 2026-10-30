@@ -1,0 +1,12 @@
+{
+  "not_found": "{object} could not be changed. Please check its current status.",
+  "admin_only": "You cannot access {object}. Please contact the school.",
+  "managed_by_upload": "{object} could not be changed. Please check its current status.",
+  "invalid_value": "{object} could not be saved. Please check your entries.",
+  "presence_mode_switch_blocked": "{object} could not be changed. Please check its current status.",
+  "booking_authority_blocked": "{object} could not be changed. Please check its current status.",
+  "attendance_visible_exceeds_retention": "{object} could not be saved. Please check your entries.",
+  "attendance_retention_below_visible": "{object} could not be saved. Please check your entries.",
+  "module_requires": "{object} could not be saved. Please check your entries.",
+  "module_required_by": "{object} could not be saved. Please check your entries."
+}

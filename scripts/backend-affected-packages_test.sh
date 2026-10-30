@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+source "$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/test-helpers/git-fixture.sh"
 repo_root=$(git rev-parse --show-toplevel)
 fixture=$(mktemp -d)
 cleanup() {
@@ -13,10 +14,13 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$fixture/backend"/{architecture,core,consumer,consumerwithouttests,corex,internal/architecture,modules/delivery/localeconsumer,modules/delivery/internal/adapters/localization,modules/documentrendering/exportconsumer,modules/documentrendering/internal/application/listrenderer/assets,templates/email,test}
+mkdir -p "$fixture/backend"/{architecture/artifacts,core,consumer,consumerwithouttests,corex,internal/architecture,internal/passthrough,modules/delivery/localeconsumer,modules/delivery/internal/adapters/localization,modules/documentrendering/exportconsumer,modules/documentrendering/internal/application/listrenderer/assets,templates/email,test}
 printf 'module example.test/project\n\ngo 1.25\n' >"$fixture/backend/go.mod"
 printf '{}\n' >"$fixture/backend/architecture/policy.json"
-printf 'package architecture\n' >"$fixture/backend/internal/architecture/architecture.go"
+printf 'package architecture\n\nimport a \"example.test/project/architecture/artifacts\"\nvar Value = a.Value\n' >"$fixture/backend/internal/architecture/architecture.go"
+printf 'package passthrough\n\nimport a \"example.test/project/architecture/artifacts\"\nvar Value = a.Value\n' >"$fixture/backend/internal/passthrough/passthrough.go"
+printf 'package artifacts\nconst Value = 1\n' >"$fixture/backend/architecture/artifacts/artifacts.go"
+printf 'package artifacts\n' >"$fixture/backend/architecture/artifacts/artifacts_test.go"
 printf 'package core\n\nconst Value = 1\n' >"$fixture/backend/core/core.go"
 cat >"$fixture/backend/core/core_test.go" <<'EOF'
 package core
@@ -102,7 +106,7 @@ package testonly_test
 import _ "example.test/project/graphbase"
 EOF
 
-git -C "$fixture" init -q
+init_git_fixture "$fixture"
 git -C "$fixture" config user.email selector-test@example.invalid
 git -C "$fixture" config user.name selector-test
 git -C "$fixture" config commit.gpgSign false
@@ -248,6 +252,28 @@ printf '{"changed":true}\n' >"$fixture/backend/architecture/policy.json"
 assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
 git -C "$fixture" restore backend/architecture/policy.json
 
+printf '\n// changed\n' >>"$fixture/backend/architecture/artifacts/artifacts.go"
+assert_output $'example.test/project/architecture/artifacts\nexample.test/project/internal/architecture\nexample.test/project/internal/passthrough\nexample.test/project/test'
+git -C "$fixture" restore backend/architecture/artifacts/artifacts.go
+printf '\n// changed\n' >>"$fixture/backend/architecture/artifacts/artifacts_test.go"
+assert_output $'example.test/project/architecture/artifacts\nexample.test/project/test'
+git -C "$fixture" restore backend/architecture/artifacts/artifacts_test.go
+
+
+# Reviewed inventory fragments are inputs to independent architecture and debt
+# tests, even when no Go source changes. The selector must emit separate rows.
+for artifact in command-effects passthrough; do
+  mkdir -p "$fixture/backend/architecture/$artifact/reviews"
+  printf '{}\n' >"$fixture/backend/architecture/$artifact/reviews/owner.json"
+  assert_output $'example.test/project/internal/architecture\nexample.test/project/internal/passthrough\nexample.test/project/test'
+  rm -r "$fixture/backend/architecture/$artifact"
+done
+mkdir -p "$fixture/backend/test/query-budgets/api/students"
+printf '{}\n' >"$fixture/backend/test/query-budgets/api/students/list.json"
+assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
+rm -r "$fixture/backend/test/query-budgets"
+
+
 printf '\n// changed\n' >>"$fixture/backend/go.mod"
 assert_output './...'
 assert_output_direct './...'
@@ -300,6 +326,7 @@ fi
 
 assert_workflow_filter backend-tests 'backend/**/testdata/**' present
 assert_workflow_filter backend-tests 'backend/architecture/policy.json' present
+assert_workflow_filter error-codes 'frontend/src/lib/error-codes/*.generated.ts' present
 assert_workflow_filter backend-production 'backend/**/testdata/**' absent
 assert_workflow_filter backend-lint 'scripts/backend-affected-packages.sh' present
 assert_workflow_filter backend-lint 'scripts/backend-affected-packages_test.sh' present

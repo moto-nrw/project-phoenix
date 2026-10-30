@@ -284,9 +284,29 @@ func (s *materializationService) loadMaterializationPreconditions(
 }
 
 // loadMaterializationWorld pre-fetches the window's existing instances (an
-// (activity_group_id, date, start_time) set for O(1) lookup), its holidays
-// and closing days, its exceptions and every timeframe.
+// (activity_group_id, date, start_time) set for O(1) lookup) on top of the
+// per-date rule inputs of loadOccurrenceRules.
 func (s *materializationService) loadMaterializationWorld(
+	ctx context.Context,
+	from, to calendar.Date,
+	periods []*schedule.CalendarPeriod,
+) (*materializationWorld, error) {
+	world, err := s.loadOccurrenceRules(ctx, from, to, periods)
+	if err != nil {
+		return nil, err
+	}
+	existing, err := instancesBetween(ctx, s.instanceRepo.Reads, calendar.Date(from), calendar.Date(to))
+	if err != nil {
+		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
+	}
+	world.existingIdx = buildExistingIndex(existing)
+	return world, nil
+}
+
+// loadOccurrenceRules loads what candidateSlot decides a date by: the
+// window's holidays and closing days, its exceptions, every timeframe and
+// the weekend rule. Materialization and the occurrence projection share it.
+func (s *materializationService) loadOccurrenceRules(
 	ctx context.Context,
 	from, to calendar.Date,
 	periods []*schedule.CalendarPeriod,
@@ -294,10 +314,6 @@ func (s *materializationService) loadMaterializationWorld(
 	days, err := timetable.LoadNonWorkingDays(ctx, s.nonWorkingDays, from.String(), to.String())
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load non-working days", Err: err}
-	}
-	existing, err := instancesBetween(ctx, s.instanceRepo.Reads, calendar.Date(from), calendar.Date(to))
-	if err != nil {
-		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	exceptions, err := exceptionsInRange(ctx, s.exceptionRepo, timetable.ActivityExceptionFilter{}, calendar.Date(from).String(), calendar.Date(to).String(), "find by date range")
 	if err != nil {
@@ -316,7 +332,6 @@ func (s *materializationService) loadMaterializationWorld(
 		to:            to,
 		periods:       periods,
 		days:          days,
-		existingIdx:   buildExistingIndex(existing),
 		exceptionIdx:  buildExceptionIndex(exceptions),
 		timeframeByID: timeframeByID,
 

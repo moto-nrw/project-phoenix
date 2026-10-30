@@ -13,7 +13,8 @@
  * Filter `group` (OGS-Gruppe) und `staff` (Person) aus #4766 sowie `room`
  * (Raum) aus #4768. `verbinden` (Regeltermin-ID, #5137) öffnet in der
  * Serienansicht einmal „Mit Angebot verbinden“ und fällt danach weg; er setzt
- * `zeitraum` (Zeitraum-ID) für den Zeitraum des Regeltermins. `zeitraum` gilt,
+ * `zeitraum` (Zeitraum-ID) für den Zeitraum des Regeltermins, ebenso der
+ * Zeitraum-Chip für den gewählten aktiven Zeitraum (#5190). `zeitraum` gilt,
  * solange `d` in diesem Zeitraum liegt, und schlägt bei überlappenden
  * Zeiträumen die Wahl per Datum.
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
@@ -82,7 +83,10 @@ import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-d
 import { TemplateList } from "~/components/timetable/template-list";
 import { ConnectOfferingModal } from "~/components/timetable/connect-offering-modal";
 import { useRosterDeviations } from "~/components/timetable/use-roster-deviations";
+import { OfferingGapHints } from "~/components/timetable/offering-gap-hints";
 import type { RosterDeviation } from "~/lib/roster-deviation";
+import type { OfferingGap } from "~/lib/offering-gap";
+import type { SeriesSourcePrefill } from "~/components/timetable/event-form/form-model";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
@@ -374,6 +378,9 @@ function TimetablesContent() {
   // US-1 quick create: set when the modal was opened from an empty week
   // slot. Non-null switches the event modal into the "quick" variant with
   // prefilled date and times; cleared when the modal closes.
+  const [seriesSource, setSeriesSource] = useState<SeriesSourcePrefill | null>(
+    null,
+  );
   const [quickPrefill, setQuickPrefill] = useState<{
     date: string;
     startTime: string;
@@ -1704,6 +1711,22 @@ function TimetablesContent() {
     setEditingInstance(null);
     setEditingTemplate(null);
     setConvertingInstance(null);
+    setSeriesSource(null);
+    setEventDefaultRepeat("weekly");
+    setEventModalOpen(true);
+  }, []);
+
+  // „Regeltermin anlegen“ on an offering without one (#5140): the new
+  // Regeltermin starts fed by that offering, on its booked weekdays.
+  const openSeriesCreateForGap = useCallback((gap: OfferingGap) => {
+    setEditingInstance(null);
+    setEditingTemplate(null);
+    setConvertingInstance(null);
+    setSeriesSource({
+      careOfferingIds: [gap.offering.id],
+      title: gap.offering.name,
+      weekdays: gap.weekdays,
+    });
     setEventDefaultRepeat("weekly");
     setEventModalOpen(true);
   }, []);
@@ -1739,7 +1762,10 @@ function TimetablesContent() {
           ? target
           : firstSchoolDayInPeriod(period.startDate, period.endDate, target),
         block: null,
-        zeitraum: null,
+        // Per ID wählen: per Datum gewänne bei Überlappung der ältere
+        // Zeitraum, und eingeschlossene Ferien wären nicht erreichbar.
+        // Ein inaktiver Zeitraum wird dadurch nicht aktiv.
+        zeitraum: period.isActive ? period.id : null,
       });
     },
     [todayISO, updateUrlParams, weekendOpen],
@@ -2202,6 +2228,7 @@ function TimetablesContent() {
           setConvertingInstance(null);
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
+          setSeriesSource(null);
         }}
         defaultDate={
           quickPrefill
@@ -2224,6 +2251,7 @@ function TimetablesContent() {
         variant={quickPrefill ? "quick" : "full"}
         defaultStartTime={quickPrefill?.startTime}
         defaultEndTime={quickPrefill?.endTime}
+        defaultSource={seriesSource}
         onSaved={(result) => {
           void tenantMutate(swrKey);
           void tenantMutate(gapsSWRKey);
@@ -2569,6 +2597,15 @@ function TimetablesContent() {
           staffNames={blockStaffNames}
           showDayHeader
           emptyState={weekEmptyState}
+        />
+      )}
+
+      {view === "series" && (
+        <OfferingGapHints
+          periodId={templatePeriodID}
+          canManage={canManageSchedules}
+          onCreateSeries={openSeriesCreateForGap}
+          templatesVersion={templateData}
         />
       )}
 

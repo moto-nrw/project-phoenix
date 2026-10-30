@@ -1,0 +1,11 @@
+{
+  "sites": [
+    {
+      "build": "migration",
+      "evidence": "func (v RequestChildStorageVerification) Equal() bool {\n\treturn v.ProvenancePolicy == requestChildOriginPolicy \u0026\u0026 v.Snapshot != \"\" \u0026\u0026 !v.VerifiedAt.IsZero() \u0026\u0026 v.SourceBookings == v.TargetBookings \u0026\u0026 v.SourceSelections == v.TargetSelections \u0026\u0026 v.SourceBookingsChecksum == v.TargetBookingsChecksum \u0026\u0026 v.SourceSelectionsChecksum == v.TargetSelectionsChecksum \u0026\u0026 v.Mismatches() == 0\n}",
+      "form": "unclassified-evidence",
+      "id": "database/migrations/RequestChildStorageVerification.Equal",
+      "owner": "source/database"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "api/traeger/access-log": [
+    "GET traeger /traeger/access-log"
+  ],
+  "api/traeger/access-log/people": [
+    "GET traeger /traeger/access-log/people"
+  ]
+}

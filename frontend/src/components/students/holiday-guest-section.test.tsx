@@ -13,13 +13,14 @@ vi.unmock("swr");
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     status: "authenticated",
-    data: { user: { token: "test-token" } },
+    data: { user: { id: "1", token: "test-token" } },
   }),
 }));
 
 const { sheetMock } = vi.hoisted(() => ({ sheetMock: vi.fn() }));
 
-vi.mock("~/lib/holiday-host-api", () => ({
+vi.mock("~/lib/holiday-host-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/holiday-host-api")>()),
   fetchHolidayGuestSheet: sheetMock,
 }));
 
@@ -47,6 +48,7 @@ const sheet: HolidayGuestSheet = {
     { name: "Oma Muster", phone: "05402 1234", relationship: "Großmutter" },
   ],
   pickupContacts: [{ name: "Opa Muster", phone: "", relationship: "" }],
+  answers: [],
   readOnly: false,
 };
 
@@ -79,6 +81,52 @@ describe("HolidayGuestSection", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Opa Muster")).toBeInTheDocument();
     expect(sheetMock).toHaveBeenCalledWith("91");
+  });
+
+  it("shows the answers the Träger shares under their own heading (#5202)", async () => {
+    sheetMock.mockResolvedValue({
+      ...sheet,
+      answers: [
+        {
+          key: "darf_allein_nach_hause",
+          label: "Darf allein nach Hause gehen",
+          type: "boolean",
+          value: true,
+        },
+        {
+          key: "darf_an_ausfluegen_teilnehmen",
+          label: "Darf an Ausflügen teilnehmen",
+          type: "boolean",
+          value: null,
+        },
+      ],
+    } satisfies HolidayGuestSheet);
+
+    renderSection(<HolidayGuestSection studentId="91" canRead />);
+
+    expect(
+      await screen.findByText("Angaben aus der Ferienanmeldung"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Darf allein nach Hause gehen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Ja")).toBeInTheDocument();
+    expect(
+      screen.getByText("Darf an Ausflügen teilnehmen"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("–")).toBeInTheDocument();
+  });
+
+  it("keeps the sheet of before without shared answers", async () => {
+    sheetMock.mockResolvedValue(sheet);
+
+    renderSection(<HolidayGuestSection studentId="91" canRead />);
+
+    // Anker: das Blatt ist geladen.
+    expect(await screen.findByText("Eva Muster (Eltern)")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Angaben aus der Ferienanmeldung"),
+    ).not.toBeInTheDocument();
   });
 
   it("says the week is over during the read-only days", async () => {

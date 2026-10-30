@@ -51,7 +51,7 @@ type Store interface {
 	ListCourseGroups(context.Context, timetable.CourseGroupFilter) ([]timetable.CourseGroup, domain.OperationStats, error)
 	ListTemplateRows(context.Context, *int64, string) ([]timetable.TemplateListRow, domain.OperationStats, error)
 	ListTemplateRowsForTemplatePeriod(context.Context, int64, int64, string) ([]timetable.TemplateListRow, domain.OperationStats, error)
-	ListTemplateRowsForPeriod(context.Context, *int64, string) ([]timetable.TemplateListRow, domain.OperationStats, error)
+	ListTemplateRowsForPeriod(context.Context, *int64, string, *timetable.TemplateScheduleWindow) ([]timetable.TemplateListRow, domain.OperationStats, error)
 	ListTemplateWeekdayRoster(context.Context, *int64, *int64, string) ([]timetable.TemplateWeekdayRosterRow, domain.OperationStats, error)
 	ListTemplateCapacityOccurrences(context.Context, *int64, []int64, []timetable.TemplateCapacityPeriod, map[int64][]int64) ([]timetable.TemplateCapacityOccurrence, domain.OperationStats, error)
 	CreateGroup(context.Context, timetable.GroupInput) (timetable.Group, domain.OperationStats, error)

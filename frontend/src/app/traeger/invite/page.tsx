@@ -13,15 +13,15 @@ import {
   useRef,
   useState,
 } from "react";
-import { signIn } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClass,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import {
   credentialError,
   LOGIN_REFUSALS,
@@ -64,17 +64,8 @@ async function signInAfterAcceptance(email: string, password: string) {
   try {
     const result = await traegerLogin({ email, password });
     if (result.status === "authenticated") {
-      const seeded = await signIn("traeger-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: result.accessToken,
-        refreshToken: result.refreshToken,
-      });
-      if (!seeded?.error) {
-        window.location.assign(traegerPath("/traeger"));
-        return;
-      }
-      logger.error("session_seed_failed", { error: seeded.error });
+      window.location.assign(traegerPath("/traeger"));
+      return;
     }
   } catch (err) {
     logger.warn("traeger_sign_in_after_acceptance_failed", {
@@ -178,17 +169,19 @@ function InviteForm({
       ) : null}
 
       <div>
-        <label
+        <FieldLabel
           htmlFor="password"
-          className="mb-1 block text-sm font-medium text-gray-700"
+          required
+          invalid={Boolean(formErrors.fieldError("password"))}
         >
           {existing ? "Passwort Ihres moto-Kontos" : "Neues Passwort"}
-        </label>
+        </FieldLabel>
         <div className="relative">
-          <input
+          <Input
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
+            controlSize="compact"
             autoComplete={existing ? "current-password" : "new-password"}
             required
             disabled={submitting}
@@ -198,7 +191,7 @@ function InviteForm({
             aria-describedby={
               formErrors.fieldError("password") ? "password-error" : undefined
             }
-            className={`${authInputClass(Boolean(formErrors.fieldError("password")))} pr-10`}
+            className="pr-10"
           />
           <PasswordToggleButton
             showPassword={showPassword}
@@ -214,16 +207,12 @@ function InviteForm({
       {existing ? null : (
         <>
           <div>
-            <label
-              htmlFor="confirm_password"
-              className="mb-1 block text-sm font-medium text-gray-700"
-            >
-              Passwort wiederholen
-            </label>
-            <input
+            <Input
               id="confirm_password"
               name="confirm_password"
               type={showPassword ? "text" : "password"}
+              label="Passwort wiederholen"
+              controlSize="compact"
               autoComplete="new-password"
               required
               disabled={submitting}
@@ -235,9 +224,6 @@ function InviteForm({
                   ? "confirm-password-error"
                   : undefined
               }
-              className={authInputClass(
-                Boolean(formErrors.fieldError("confirm_password")),
-              )}
             />
             <AuthFieldError
               id="confirm-password-error"

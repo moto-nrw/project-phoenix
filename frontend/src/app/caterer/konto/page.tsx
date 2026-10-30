@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { signIn, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { credentialError } from "~/components/auth/credential-error";
 import { TenantPasswordChangeModal } from "~/components/auth/tenant-password-change-modal";
 import { PasskeySettingsSection } from "~/components/settings/passkey-settings-section";
@@ -123,21 +123,14 @@ function TwoFactorSection() {
     setBusy(true);
     formErrors.clear();
     try {
-      const tokens = await confirmCatererMFA(step.challengeToken, code.trim());
-      // The answer is a new session with the second factor proven; the old
-      // one would lose access at its next renewal.
-      try {
-        const seeded = await signIn("caterer-credentials", {
-          redirect: false,
-          internalRefresh: "true",
-          token: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        });
-        if (seeded?.error) throw new Error(seeded.error);
-      } catch (err) {
-        logger.error("caterer_mfa_session_seed_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
+      const { sessionRenewed } = await confirmCatererMFA(
+        step.challengeToken,
+        code.trim(),
+      );
+      // The answer is a new session with the second factor proven, which
+      // the BFF installs; the old one would lose access at its next renewal.
+      if (!sessionRenewed) {
+        logger.error("caterer_mfa_session_seed_failed", {});
         setEnabled(true);
         setCode("");
         setStep({ kind: "reauthenticate" });
@@ -367,8 +360,10 @@ export default function CatererAccountPage() {
         isOpen={showPasswordModal}
         onClose={() => setShowPasswordModal(false)}
         apiEndpoint="/api/caterer/account/password"
-        // The change ended every session of the account, this one too.
-        onSuccess={() => void logout()}
+        // The change ended every session of the account, this one too. If the
+        // logout request itself fails, the revoked session still opens
+        // nothing; its next request ends it (#5194).
+        onSuccess={() => void logout().catch(() => undefined)}
       />
     </div>
   );

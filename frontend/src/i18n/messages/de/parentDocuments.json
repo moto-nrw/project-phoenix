@@ -1,0 +1,16 @@
+{
+  "title": "Dokumente",
+  "description": "Hier finden Sie Schreiben, die Ihnen der Träger geschickt hat. Zum Beispiel die Bestätigung der Ferienbetreuung.",
+  "emptyTitle": "Noch keine Dokumente",
+  "emptyDescription": "Schickt Ihnen der Träger ein Schreiben, finden Sie es hier. Sie bekommen es auch per Mail.",
+  "confirmationLetter": "Bestätigungsschreiben {period}",
+  "sender": "Von {traeger}",
+  "children": "Für",
+  "amount": "Betrag",
+  "number": "Rechnungsnummer",
+  "sentAt": "Geschickt am",
+  "download": "Als PDF laden",
+  "downloading": "Wird geladen …",
+  "errorObject": "die Dokumente",
+  "downloadErrorObject": "das Dokument"
+}

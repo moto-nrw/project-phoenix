@@ -92,6 +92,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/statistics",
   "/students/:id",
   "/students/:id/change-history",
+  "/students/:id/unfallanzeigen/:reportId",
   "/students/:id/feedback-history",
   "/students/:id/room-history",
   "/students/search",
@@ -196,9 +197,11 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/ferien/:id",
   "/ferien/:id/anmeldungen",
   "/ferien/:id/anmeldungen/:registrationId",
+  "/ferien/:id/formular",
   "/ferien/neu",
   "/invite",
   "/login",
+  "/reset-password",
 ] as const;
 
 /** Public pages of the bare domain: school choice, start, demo, help. */

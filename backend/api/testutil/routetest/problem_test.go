@@ -43,7 +43,7 @@ func TestProblemEnvelopeViolationsNamesEveryDeparture(t *testing.T) {
 		"unregistered code": {
 			body:   `{"status":409,"type":"t","title":"t","detail":"d","instance":"req-1","code":"care.not_registered"}`,
 			status: http.StatusConflict,
-			want:   []string{`code "care.not_registered" is not in error-registry.json`},
+			want:   []string{`code "care.not_registered" is not in error-registry/`},
 		},
 		"numeric code and empty instance": {
 			body:   `{"status":401,"type":"t","title":"t","detail":"d","instance":"","code":401}`,

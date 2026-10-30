@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { Input } from "~/components/ui/input";
+import { Button } from "~/components/ui/button";
 import { Modal } from "~/components/ui/modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -160,14 +162,16 @@ export function CreateSchoolModal({
       title="Neue Schule"
       footer={
         <>
-          <button
+          <Button
             type="button"
             onClick={onClose}
-            className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            variant="outline"
+            size="md"
+            className="flex-1"
           >
             Abbrechen
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={(e) => void handleCreate(e)}
             disabled={
@@ -178,10 +182,12 @@ export function CreateSchoolModal({
               !schoolSubdomain.trim() ||
               !schoolEmail.trim()
             }
-            className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            variant="primary"
+            size="md"
+            className="flex-1"
           >
             {schoolSaving ? "Wird erstellt..." : "Erstellen"}
-          </button>
+          </Button>
         </>
       }
     >
@@ -214,64 +220,51 @@ export function CreateSchoolModal({
             required
           />
         </FormField>
-        <FormField
+        <Input
+          id="school-name"
+          name="name"
+          type="text"
+          value={schoolName}
+          onChange={(e) => handleSchoolNameChange(e.target.value)}
+          maxLength={255}
           label="Name"
-          htmlFor="school-name"
           required
           error={formErrors.fieldError("name")}
-        >
-          <input
-            id="school-name"
-            name="name"
-            type="text"
-            value={schoolName}
-            onChange={(e) => handleSchoolNameChange(e.target.value)}
-            maxLength={255}
-            className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-            required
-          />
-        </FormField>
+          controlSize="compact"
+        />
         <div className="grid grid-cols-2 gap-4">
-          <FormField
+          <Input
+            id="school-slug"
+            name="slug"
+            type="text"
+            value={schoolSlug}
+            onChange={(e) => {
+              setSchoolSlugManual(true);
+              setSchoolSlug(e.target.value);
+            }}
+            maxLength={100}
             label="Slug"
-            htmlFor="school-slug"
             required
             error={formErrors.fieldError("slug")}
-          >
-            <input
-              id="school-slug"
-              name="slug"
-              type="text"
-              value={schoolSlug}
-              onChange={(e) => {
-                setSchoolSlugManual(true);
-                setSchoolSlug(e.target.value);
-              }}
-              maxLength={100}
-              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
-              required
-            />
-          </FormField>
-          <FormField
+            controlSize="compact"
+            className="font-mono"
+          />
+          <Input
+            id="school-subdomain"
+            name="subdomain"
+            type="text"
+            value={schoolSubdomain}
+            onChange={(e) => {
+              setSchoolSubdomainManual(true);
+              setSchoolSubdomain(e.target.value);
+            }}
+            maxLength={63}
             label="Subdomain"
-            htmlFor="school-subdomain"
             required
             error={formErrors.fieldError("subdomain")}
-          >
-            <input
-              id="school-subdomain"
-              name="subdomain"
-              type="text"
-              value={schoolSubdomain}
-              onChange={(e) => {
-                setSchoolSubdomainManual(true);
-                setSchoolSubdomain(e.target.value);
-              }}
-              maxLength={63}
-              className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm focus:ring-2 focus:outline-none"
-              required
-            />
-          </FormField>
+            controlSize="compact"
+            className="font-mono"
+          />
         </div>
 
         <div className="border-t border-gray-100 pt-4">
@@ -279,89 +272,70 @@ export function CreateSchoolModal({
             Kontaktdaten
           </p>
           <div className="space-y-3">
-            <FormField
+            <Input
+              id="school-address"
+              name="address"
+              type="text"
+              value={schoolAddress}
+              onChange={(e) => setSchoolAddress(e.target.value)}
+              maxLength={255}
               label="Adresse"
-              htmlFor="school-address"
               error={formErrors.fieldError("address")}
-            >
-              <input
-                id="school-address"
-                name="address"
-                type="text"
-                value={schoolAddress}
-                onChange={(e) => setSchoolAddress(e.target.value)}
-                maxLength={255}
-                className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-              />
-            </FormField>
+              controlSize="compact"
+            />
             <div className="grid grid-cols-2 gap-4">
-              <FormField
+              <Input
+                id="school-zip"
+                name="zip"
+                type="text"
+                value={schoolZip}
+                onChange={(e) => setSchoolZip(e.target.value)}
+                maxLength={10}
                 label="PLZ"
-                htmlFor="school-zip"
                 error={formErrors.fieldError("zip")}
-              >
-                <input
-                  id="school-zip"
-                  name="zip"
-                  type="text"
-                  value={schoolZip}
-                  onChange={(e) => setSchoolZip(e.target.value)}
-                  maxLength={10}
-                  className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-                />
-              </FormField>
-              <FormField
+                controlSize="compact"
+              />
+              <Input
+                id="school-city"
+                name="city"
+                type="text"
+                value={schoolCity}
+                onChange={(e) => setSchoolCity(e.target.value)}
+                maxLength={255}
                 label="Stadt"
-                htmlFor="school-city"
                 error={formErrors.fieldError("city")}
-              >
-                <input
-                  id="school-city"
-                  name="city"
-                  type="text"
-                  value={schoolCity}
-                  onChange={(e) => setSchoolCity(e.target.value)}
-                  maxLength={255}
-                  className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-                />
-              </FormField>
+                controlSize="compact"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
-              <FormField
+              <Input
+                id="school-phone"
+                name="phone"
+                type="tel"
+                value={schoolPhone}
+                onChange={(e) => setSchoolPhone(e.target.value)}
+                maxLength={30}
                 label="Telefon"
-                htmlFor="school-phone"
                 error={formErrors.fieldError("phone")}
-              >
-                <input
-                  id="school-phone"
-                  name="phone"
-                  type="tel"
-                  value={schoolPhone}
-                  onChange={(e) => setSchoolPhone(e.target.value)}
-                  maxLength={30}
-                  className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-                />
-              </FormField>
-              <FormField
-                label="E-Mail"
-                htmlFor="school-email"
-                required
-                error={formErrors.fieldError("email")}
-              >
-                <input
+                controlSize="compact"
+              />
+              <div>
+                <Input
                   id="school-email"
                   name="email"
                   type="email"
                   value={schoolEmail}
                   onChange={(e) => setSchoolEmail(e.target.value)}
                   maxLength={255}
+                  label="E-Mail"
                   required
-                  className="focus:ring-moto-blue w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+                  error={formErrors.fieldError("email")}
+                  controlSize="compact"
                 />
                 <p className="mt-1 text-xs text-gray-500">
                   Antworten von Eltern gehen an diese Adresse.
                 </p>
-              </FormField>
+              </div>
             </div>
           </div>
         </div>

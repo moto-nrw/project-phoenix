@@ -48,7 +48,7 @@ func (m *BookingMaterialization) OfferingWeekdayBookings(ctx context.Context, ca
 	if err != nil {
 		return nil, fmt.Errorf("offering weekday bookings: list approved children: %w", err)
 	}
-	return collectOfferingWeekdayBookings(byID, children, from), nil
+	return collectOfferingWeekdayBookings(byID, phases, children, from, calendarPeriodID), nil
 }
 
 type offeringStudentKey struct {
@@ -58,8 +58,10 @@ type offeringStudentKey struct {
 
 func collectOfferingWeekdayBookings(
 	offerings map[int64]*careplan.CareOffering,
+	phases map[int64]careplan.OfferingPhase,
 	children []ports.ApprovedOfferingChild,
 	from calendar.Date,
+	calendarPeriodID *int64,
 ) []careplan.OfferingWeekdayBooking {
 	result := make([]careplan.OfferingWeekdayBooking, 0, len(children))
 	index := make(map[offeringStudentKey]int, len(children))
@@ -74,11 +76,23 @@ func collectOfferingWeekdayBookings(
 			continue
 		}
 		weekdays := offeringWeekdays(days)
+		phase, ok := phases[offering.PhaseID]
+		if !ok {
+			continue
+		}
+		// Use the materialized roster's service and link bounds, including
+		// the phase's last service day but never dates outside the phase.
+		validFrom, validUntil, ok := sourcedRosterWindow(&link, rosterWindow{phase: phase, effectiveFrom: from})
+		if !ok {
+			continue
+		}
+		window := careplan.OfferingBookingWindow{ValidFrom: &validFrom, ValidUntil: &validUntil, Weekdays: weekdays}
 		key := offeringStudentKey{offeringID: offering.ID, studentID: child.StudentID}
 		if position, ok := index[key]; ok {
 			merged := append(result[position].Weekdays, weekdays...)
 			slices.Sort(merged)
 			result[position].Weekdays = slices.Compact(merged)
+			result[position].Windows = append(result[position].Windows, window)
 			continue
 		}
 		index[key] = len(result)
@@ -91,9 +105,23 @@ func collectOfferingWeekdayBookings(
 			Weekdays:      weekdays,
 			CountsAsCare:  offering.CountsAsCare,
 			IncludesLunch: offering.IncludesLunch,
+			// The offering's decision for the period travels with each
+			// booking like its catalog flags, so the gap check needs no read
+			// of its own.
+			TemplateGapAckClasses: periodTemplateGapAck(offering, calendarPeriodID),
+			Windows:               []careplan.OfferingBookingWindow{window},
 		})
 	}
 	return result
+}
+
+// periodTemplateGapAck is the offering's decision for the requested
+// planning period; without a period there is none.
+func periodTemplateGapAck(offering *careplan.CareOffering, calendarPeriodID *int64) []string {
+	if calendarPeriodID == nil {
+		return nil
+	}
+	return offering.TemplateGapAcks[*calendarPeriodID]
 }
 
 // offeringWeekdays maps stored day abbreviations to sorted ISO weekdays; an

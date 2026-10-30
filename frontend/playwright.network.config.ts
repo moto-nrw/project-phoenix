@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { networkPorts } from "./e2e/network/ports.mjs";
+
+const ports = networkPorts("network");
 
 // Installed Playwright otherwise writes the DOM (including form values) into
 // error-context.md even when screenshots and traces are disabled.
@@ -9,7 +12,11 @@ export default defineConfig({
   testDir: "./e2e/network",
   testMatch: "*.spec.ts",
   // The shared-cookie scenario needs its own domain and fixture server mode.
-  testIgnore: "tenant-mfa-switch.spec.ts",
+  testIgnore: [
+    "tenant-mfa-switch.spec.ts",
+    "late-session-cookie.spec.ts",
+    "late-portal-cookie.spec.ts",
+  ],
   workers: 1,
   retries: 0,
   timeout: 90_000,
@@ -35,12 +42,13 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "node e2e/network/server.mjs",
+    command: "node e2e/network/server.mjs --stop-with-stdin",
     // Node, unlike Chromium, cannot assume wildcard .localhost resolution.
-    url: "http://127.0.0.1:13843/api/health",
+    url: `http://127.0.0.1:${ports.frontend}/api/health`,
     reuseExistingServer: false,
     timeout: 120_000,
     stdout: "ignore",
-    stderr: "ignore",
+    // The server writes only its own start errors; Next's output stays off.
+    stderr: "pipe",
   },
 });

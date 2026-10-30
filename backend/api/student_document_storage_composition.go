@@ -3,6 +3,7 @@ package api
 import (
 	"log/slog"
 
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	careplanOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
@@ -19,5 +20,15 @@ func NewStudentDocumentStorage() careplanOwnerHTTP.StudentDocumentStorage {
 			return nil, err
 		}
 		return fileCompose.NewDocumentCoordinator(kind, backend, store, logger), nil
+	}
+}
+
+// studentDocumentPermissions names the permissions of every document
+// category class, the accident reports' reading and writing included (#4771).
+func studentDocumentPermissions() carePlanCompose.StudentDocumentPermissions {
+	health, legal, fallback := careplanOwnerHTTP.StudentDocumentPermissions()
+	accidentRead, accidentManage := careplanOwnerHTTP.StudentAccidentPermissions()
+	return carePlanCompose.StudentDocumentPermissions{
+		Health: health, Legal: legal, Default: fallback, AccidentRead: accidentRead, AccidentManage: accidentManage,
 	}
 }

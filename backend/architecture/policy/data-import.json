@@ -1,0 +1,299 @@
+{
+  "packages": [
+    {
+      "path": "modules/dataimport/http",
+      "owner": "data-import",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/dataimport/compose",
+      "owner": "data-import",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/dataimport/compose/imports",
+      "owner": "data-import",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/dataimport/internal/adapters/fileformat",
+      "owner": "data-import",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/dataimport",
+      "owner": "data-import",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/dataimport/internal/application/importservice",
+      "owner": "data-import",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/dataimport/ports",
+      "owner": "data-import",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/dataimport/importtest",
+      "owner": "data-import",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/dataimport/internal/adapters/runtimebinding",
+      "owner": "data-import",
+      "role": "adapter",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "data-import.port.vacation-opening-contract",
+      "description": "Validate import and native ledger takeovers with the same Workforce value contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "workforce",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.compose.school-name.tenant-runtime",
+      "description": "Bind the optional invitation school label to the native current-school query (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.workflow-decision-test.audit-event-contract",
+      "description": "Verify native import audit events and replay checkpoints (#2744).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-decision-test",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.application.audit-consent-contract",
+      "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.adapter.file-rendering",
+      "description": "The import file adapter decodes Excel workbooks without exposing spreadsheet types (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "adapter",
+      "target_class": "rendering"
+    },
+    {
+      "id": "data-import.adapter.production.data-import.public",
+      "description": "Decode import files through the Data Import file adapter (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "adapter",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.application.public",
+      "description": "Import processing consumes its public row and result contract (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.people-directory",
+      "description": "Data import ports name the People Directory person, student and guardian commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "people-directory",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.school-membership",
+      "description": "Data import ports name the School Membership staff, caregiver and class-list commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "school-membership",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.care-plan",
+      "description": "Data import ports name the Care Plan weekly schedule commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.student-presence",
+      "description": "Data import ports name the Student Presence retention-consent commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.workforce",
+      "description": "Data import ports name the Workforce personnel-record commands through their public contract (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "workforce",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.integration-test.data-import.application",
+      "description": "Data import integration tests drive the import application through its public entry points (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "data-import",
+      "target_role": "application"
+    },
+    {
+      "id": "data-import.integration-test.tenant-runtime",
+      "description": "Data import integration tests run batches in real tenant transactions (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.integration-test.test-support",
+      "description": "Data import integration tests use hermetic database support (#2708).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "data-import",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "data-import.application.ports",
+      "description": "Data import coordinates the owners through its consumer-owned ports (#2708).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "application",
+      "target_owner": "data-import",
+      "target_role": "port"
+    },
+    {
+      "id": "data-import.compose.identity-queries",
+      "description": "Bind the import duplicate matcher to the native tenant-scoped Identity & Access queries (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.public.identity-role",
+      "description": "The import contract names the native Identity & Access role facts (#2744).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "public",
+      "target_owner": "identity-access",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.http.public",
+      "description": "Data Import HTTP calls its owned public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "http",
+      "target_owner": "data-import",
+      "target_role": "public"
+    },
+    {
+      "id": "data-import.port.audit-consents",
+      "description": "Native import construction ports and owner-local functional test adapters replace retained application declarations, preserving their existing capability subset.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "audit-platform",
+      "target_role": "contract"
+    },
+    {
+      "id": "data-import.port.native-public",
+      "description": "Native import construction ports and owner-local functional test adapters replace retained application declarations, preserving their existing capability subset.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "port",
+      "target_owner": "data-import",
+      "target_role": "public"
+    }
+  ]
+}

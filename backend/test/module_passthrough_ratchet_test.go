@@ -238,7 +238,12 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Lowered by ADR 0118: the holiday registration retention of modules/enrollment
 // also prunes its deletion log and is no pass-through any more (-1).
 // Raised by ADR 0131: the kiosk count revision read of modules/studentpresence (+1).
-const modulePassthroughOwnerBudgetTotal = 1412
+// Raised by ADR 0133: the kiosk room count revision read of modules/studentpresence (+1).
+// Lowered by #4771: accident-report category visibility has permission logic
+// instead of forwarding directly to the access port (-1).
+// Lowered by #4497: the caterer scope of CapabilityGate.StartChallenge in
+// modules/identityaccess makes it no pass-through any more (-1).
+const modulePassthroughOwnerBudgetTotal = 1409
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -254,12 +259,12 @@ const modulePassthroughOwnerBudgetTotal = 1412
 var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/appointments": 21,
 	"modules/auditlog":     1,
-	"modules/careplan":     159,
+	"modules/careplan":     158,
 	"modules/classday":     14,
 	// Raised by ADR 0073: the composition forwards the parent announcement
 	// retention to its service.
 	// Raised by ADR 0079: the facade observes the reachable-children read.
-	"modules/communication": 58,
+	"modules/communication": 55,
 	"modules/dataimport":    1,
 	"modules/delivery":      5,
 	"modules/devicefleet":   33,
@@ -290,7 +295,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/schoolstructure":  43,
 	"modules/settings":         17,
 	// Raised by ADR 0131: the kiosk count revision read (+1).
-	"modules/studentpresence": 121,
+	// Raised by ADR 0133: the kiosk room count revision read (+1).
+	"modules/studentpresence": 122,
 	"modules/timetable":       204,
 	"modules/workforce":       139,
 	"workflows/openroommove":  1,

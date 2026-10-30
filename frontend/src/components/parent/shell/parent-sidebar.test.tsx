@@ -8,7 +8,7 @@ import {
 import { UserIcon, UsersThreeIcon } from "@phosphor-icons/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { useMediaQuery } from "~/lib/hooks/use-media-query";
 import { ParentSidebar } from "./parent-sidebar";
 

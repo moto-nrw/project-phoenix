@@ -236,6 +236,12 @@ func (s *Scheduler) runMinutePolling(task *ScheduledTask, panicName, startupMsg 
 // labels only panics outside a job run. startupMsg and startupAttrs are
 // passed verbatim so log output stays byte-identical.
 func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMsg string, startupDelay time.Duration, interval func() time.Duration, check func(context.Context, *ScheduledTask), startupAttrs ...any) {
+	s.runWakeablePolling(task, nil, panicName, startupMsg, startupDelay, interval, check, startupAttrs...)
+}
+
+// runWakeablePolling is runIntervalPolling that also checks on every value
+// from wakeups. A nil or closed wakeups leaves the interval alone.
+func (s *Scheduler) runWakeablePolling(task *ScheduledTask, wakeups <-chan struct{}, panicName, startupMsg string, startupDelay time.Duration, interval func() time.Duration, check func(context.Context, *ScheduledTask), startupAttrs ...any) {
 	defer func() {
 		if r := recover(); r != nil {
 			err := fmt.Errorf("%s: %v", panicName, r)
@@ -263,6 +269,12 @@ func (s *Scheduler) runIntervalPolling(task *ScheduledTask, panicName, startupMs
 	for {
 		select {
 		case <-time.After(interval()):
+			s.runJobCheck(task, check)
+		case _, open := <-wakeups:
+			if !open {
+				wakeups = nil
+				continue
+			}
 			s.runJobCheck(task, check)
 		case <-acquired:
 			acquired = s.leadership.nextAcquisition()

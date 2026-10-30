@@ -3,6 +3,10 @@
 import { type FormEvent, useState } from "react";
 import { ArrowRight, CheckCircle2 } from "lucide-react";
 
+import { Button } from "~/components/ui/button";
+import { Input } from "~/components/ui/input";
+import { Textarea } from "~/components/ui/textarea";
+
 const intakeFields = [
   "Name und Rolle",
   "OGS oder Träger",
@@ -10,13 +14,6 @@ const intakeFields = [
   "Aktuelle Abläufe bei Anmeldung, Abholung und Anwesenheit",
   "Wobei moto zuerst helfen soll",
 ];
-
-const inputClassName =
-  "h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
-const textareaClassName =
-  "min-h-28 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 shadow-sm transition-colors placeholder:text-gray-400 hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
-const startPrimaryButtonClassName =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none";
 
 export default function StartPage() {
   const [form, setForm] = useState({
@@ -108,77 +105,71 @@ export default function StartPage() {
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <label className="space-y-1.5 text-sm font-medium text-gray-700">
-                Name und Rolle
-                <input
-                  value={form.name}
-                  onChange={(event) => update("name", event.target.value)}
-                  className={inputClassName}
-                  placeholder="z. B. Anna Müller, OGS-Leitung"
-                  required
-                />
-              </label>
-              <label className="space-y-1.5 text-sm font-medium text-gray-700">
-                Kontakt
-                <input
-                  value={form.contact}
-                  onChange={(event) => update("contact", event.target.value)}
-                  className={inputClassName}
-                  placeholder="E-Mail oder Telefonnummer"
-                  required
-                />
-              </label>
-              <label className="space-y-1.5 text-sm font-medium text-gray-700">
-                OGS oder Träger
-                <input
-                  value={form.organization}
-                  onChange={(event) =>
-                    update("organization", event.target.value)
-                  }
-                  className={inputClassName}
-                  placeholder="Name der Einrichtung"
-                />
-              </label>
+              <Input
+                id="start-name"
+                label="Name und Rolle"
+                value={form.name}
+                onChange={(event) => update("name", event.target.value)}
+                placeholder="z. B. Anna Müller, OGS-Leitung"
+                required
+                controlSize="compact"
+              />
+              <Input
+                id="start-contact"
+                label="Kontakt"
+                value={form.contact}
+                onChange={(event) => update("contact", event.target.value)}
+                placeholder="E-Mail oder Telefonnummer"
+                required
+                controlSize="compact"
+              />
+              <Input
+                id="start-organization"
+                label="OGS oder Träger"
+                value={form.organization}
+                onChange={(event) => update("organization", event.target.value)}
+                placeholder="Name der Einrichtung"
+                controlSize="compact"
+              />
               <div className="grid gap-4 sm:grid-cols-2">
-                <label className="space-y-1.5 text-sm font-medium text-gray-700">
-                  Kinder
-                  <input
-                    value={form.children}
-                    onChange={(event) => update("children", event.target.value)}
-                    className={inputClassName}
-                    placeholder="z. B. 180"
-                  />
-                </label>
-                <label className="space-y-1.5 text-sm font-medium text-gray-700">
-                  Standorte
-                  <input
-                    value={form.locations}
-                    onChange={(event) =>
-                      update("locations", event.target.value)
-                    }
-                    className={inputClassName}
-                    placeholder="z. B. 3"
-                  />
-                </label>
+                <Input
+                  id="start-children"
+                  label="Kinder"
+                  value={form.children}
+                  onChange={(event) => update("children", event.target.value)}
+                  placeholder="z. B. 180"
+                  controlSize="compact"
+                />
+                <Input
+                  id="start-locations"
+                  label="Standorte"
+                  value={form.locations}
+                  onChange={(event) => update("locations", event.target.value)}
+                  placeholder="z. B. 3"
+                  controlSize="compact"
+                />
               </div>
-              <label className="space-y-1.5 text-sm font-medium text-gray-700 sm:col-span-2">
-                Wobei soll moto zuerst helfen?
-                <textarea
+              <div className="sm:col-span-2">
+                <Textarea
+                  id="start-focus"
+                  label="Wobei soll moto zuerst helfen?"
                   value={form.focus}
                   onChange={(event) => update("focus", event.target.value)}
-                  className={textareaClassName}
                   placeholder="z. B. Anwesenheit, Abholung, Anmeldungen, Räume, Kommunikation"
+                  className="min-h-28"
                 />
-              </label>
+              </div>
             </div>
 
-            <button
+            <Button
               type="submit"
-              className={`${startPrimaryButtonClassName} mt-6`}
+              variant="primary"
+              size="md"
+              className="mt-6 gap-2"
             >
               Kontaktaufnahme starten
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
-            </button>
+            </Button>
           </form>
         </div>
       </section>

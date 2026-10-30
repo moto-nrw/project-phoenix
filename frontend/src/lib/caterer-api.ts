@@ -218,13 +218,9 @@ export async function acceptCatererInvitation(
   });
 }
 
-/**
- * Signs a caterer in at the backend. The token pair then seeds the caterer
- * NextAuth session; a refusal comes back as an ApiError with its code.
- */
 /** The answer of the caterer login (#4497): a session, or the second step. */
 export type CatererLoginResult =
-  | { status: "authenticated"; accessToken: string; refreshToken: string }
+  | { status: "authenticated" }
   | {
       status: "mfa_required";
       challengeToken: string;
@@ -235,14 +231,17 @@ export type CatererLoginResult =
 
 interface BackendCatererLogin {
   status?: "authenticated" | "mfa_required";
-  access_token?: string;
-  refresh_token?: string;
   challenge_token?: string;
   masked_email?: string;
   trusted_device_enabled?: boolean;
   trusted_device_days?: number;
 }
 
+/**
+ * Signs a caterer in. The BFF installs the caterer session itself; the
+ * browser only learns whether a second step follows. A refusal comes back
+ * as an ApiError with its code.
+ */
 export async function loginCaterer(
   email: string,
   password: string,
@@ -268,11 +267,7 @@ export async function loginCaterer(
       trustedDeviceDays: data.trusted_device_days,
     };
   }
-  return {
-    status: "authenticated",
-    accessToken: data.access_token ?? "",
-    refreshToken: data.refresh_token ?? "",
-  };
+  return { status: "authenticated" };
 }
 
 /** The caterer's two-factor sign-in as the account page shows it (#4497). */
@@ -304,22 +299,24 @@ export async function startCatererMFA(): Promise<{
 }
 
 /**
- * Switches two-factor sign-in on with the mailed code. The answer is a new
- * session with the second factor proven; the caller seeds it, because the
- * older sessions of the account lose access at their next renewal.
+ * Switches two-factor sign-in on with the mailed code. The backend answers
+ * with a new session with the second factor proven, and the BFF installs it,
+ * because the older sessions of the account lose access at their next
+ * renewal. `sessionRenewed` is false when the code was right but the new
+ * session could not be installed.
  */
 export async function confirmCatererMFA(
   challengeToken: string,
   code: string,
-): Promise<{ accessToken: string; refreshToken: string }> {
-  const data = await authFetch<{
-    access_token: string;
-    refresh_token: string;
-  }>("/api/caterer/account/mfa/confirm", {
-    method: "POST",
-    body: { challenge_token: challengeToken, code },
-  });
-  return { accessToken: data.access_token, refreshToken: data.refresh_token };
+): Promise<{ sessionRenewed: boolean }> {
+  const data = await authFetch<{ session_renewed: boolean }>(
+    "/api/caterer/account/mfa/confirm",
+    {
+      method: "POST",
+      body: { challenge_token: challengeToken, code },
+    },
+  );
+  return { sessionRenewed: data.session_renewed };
 }
 
 /** Switches two-factor sign-in off after checking the current password. */

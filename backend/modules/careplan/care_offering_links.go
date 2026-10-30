@@ -84,12 +84,14 @@ type LinkedSegment struct {
 
 // OfferingSources is the validated source set of an offering-sourced
 // template (#2137): the surviving offerings in request order, their shared
-// phase, and the ids that no longer resolve. Booking materialization (#3560)
+// phase, the ids that no longer resolve, and the ids of stored sources that
+// turned inactive and were skipped (#5305). Booking materialization (#3560)
 // resyncs the template's roster from it.
 type OfferingSources struct {
 	Offerings []CareOffering
 	Phase     *OfferingPhase
 	Dropped   []int64
+	Inactive  []int64
 }
 
 // SchedulesOverlapPhase reports whether any schedule can produce an

@@ -1,0 +1,5 @@
+DELETE /api/users/{id}
+GET /api/users/
+GET /api/users/{id}
+POST /api/users/
+PUT /api/users/{id}

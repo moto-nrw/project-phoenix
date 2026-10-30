@@ -143,12 +143,15 @@ func removeOfferingID(ids []int64, offeringID int64) []int64 {
 	return remaining
 }
 
-// resyncSourcedTemplateList reconciles each template's sourced roster.
-// skipInvalid controls what a drifted-invalid source does: the tenant-wide
-// resync skips the template with a warning (one broken template must not
-// block a whole grade transition), while the offering-scoped resync behind
-// phase/offering edits propagates the refusal so the caller can reject the
-// edit that would strand the template's rows (#2147 review).
+// resyncSourcedTemplateList reconciles each template's sourced roster. Both
+// resyncs let a stored source that turned inactive contribute nothing while
+// another stays valid (#5305, #5313), so an offering edit, its deactivation
+// included, does not fail on it. skipInvalid controls what any other
+// refusal does: the tenant-wide resync skips the template with a warning
+// (one broken template must not block a whole grade transition), while the
+// offering-scoped resync behind phase/offering edits propagates it as a
+// SourcedTemplateRefusal so the caller can reject the edit that would strand
+// the template's rows (#2147 review).
 func (m *BookingMaterialization) resyncSourcedTemplateList(ctx context.Context, templates []ports.SourcedTemplate, effectiveFrom calendar.Date, skipInvalid bool) error {
 	for _, tmpl := range templates {
 		if len(tmpl.SourceCareOfferingIDs) == 0 {
@@ -156,6 +159,7 @@ func (m *BookingMaterialization) resyncSourcedTemplateList(ctx context.Context, 
 		}
 		in := templateResync(tmpl, tmpl.SourceCareOfferingIDs, effectiveFrom)
 		in.GradeLevels, in.SchoolClasses = tmpl.SourceGradeLevels, tmpl.SourceSchoolClasses
+		in.SkipInactiveSources = true
 		err := m.ResyncTemplateOfferingRoster(ctx, in)
 		switch {
 		case err == nil:
@@ -164,7 +168,8 @@ func (m *BookingMaterialization) resyncSourcedTemplateList(ctx context.Context, 
 		case skipInvalid:
 			m.logSkippedSourcedTemplate(tmpl.ID, tmpl.SourceCareOfferingIDs, "tenant-wide resync: source invalid", err)
 		default:
-			return fmt.Errorf("offering roster resync: template %d (%q) would lose its offering source: %w", tmpl.ID, tmpl.Name, err)
+			return careplan.NewSourcedTemplateRefusal(tmpl.Name, sourceRefusalProblem(err),
+				fmt.Errorf("offering roster resync: template %d (%q) would lose its offering source: %w", tmpl.ID, tmpl.Name, err))
 		}
 	}
 	return nil

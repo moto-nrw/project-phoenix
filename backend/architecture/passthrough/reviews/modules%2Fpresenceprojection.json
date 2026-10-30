@@ -1,0 +1,9 @@
+{
+  "sites": [
+    {
+      "decision": "0090",
+      "id": "modules/presenceprojection/http/studentDataSnapshot.ResolveLocationWithTime",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    }
+  ]
+}

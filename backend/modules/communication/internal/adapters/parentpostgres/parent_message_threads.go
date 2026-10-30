@@ -34,6 +34,7 @@ type parentThreadRow struct {
 	UpdatedAt                      time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	StudentID                      int64      `bun:"student_id,notnull"`
 	GuardianAccountID              int64      `bun:"guardian_account_id,notnull"`
+	Audience                       string     `bun:"audience,notnull"`
 	LastMessageAt                  *time.Time `bun:"last_message_at"`
 	LastMessageID                  *int64     `bun:"last_message_id"`
 	LastSenderKind                 *string    `bun:"last_sender_kind"`
@@ -51,7 +52,7 @@ func (r *parentThreadRow) value() *domain.ParentMessageThread {
 	}
 	return &domain.ParentMessageThread{
 		ID: r.ID, TenantID: r.TenantID, StudentID: r.StudentID,
-		GuardianAccountID: r.GuardianAccountID, LastMessageAt: r.LastMessageAt,
+		GuardianAccountID: r.GuardianAccountID, Audience: r.Audience, LastMessageAt: r.LastMessageAt,
 		LastMessageID: r.LastMessageID, LastSenderKind: r.LastSenderKind,
 		LastMessageBody: r.LastMessageBody, StaffHandledUpToAt: r.StaffHandledUpToAt,
 		StaffHandledUpToMessageID:      r.StaffHandledUpToMessageID,
@@ -66,7 +67,7 @@ func threadRow(value *domain.ParentMessageThread) *parentThreadRow {
 	return &parentThreadRow{
 		ID: value.ID, TenantID: value.TenantID, StudentID: value.StudentID,
 		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
-		GuardianAccountID: value.GuardianAccountID, LastMessageAt: value.LastMessageAt,
+		GuardianAccountID: value.GuardianAccountID, Audience: threadAudience(value.Audience), LastMessageAt: value.LastMessageAt,
 		LastMessageID: value.LastMessageID, LastSenderKind: value.LastSenderKind,
 		LastMessageBody: value.LastMessageBody, StaffHandledUpToAt: value.StaffHandledUpToAt,
 		StaffHandledUpToMessageID:      value.StaffHandledUpToMessageID,
@@ -74,6 +75,15 @@ func threadRow(value *domain.ParentMessageThread) *parentThreadRow {
 		StaffMarkedUnreadByAccountID:   value.StaffMarkedUnreadByAccountID,
 		LastStaffMessageNotificationAt: value.LastStaffMessageNotificationAt,
 	}
+}
+
+// threadAudience keeps a value built without an audience on the team
+// conversation, the audience every thread had before #5200.
+func threadAudience(audience string) string {
+	if audience == "" {
+		return domain.ParentAudienceTeam
+	}
+	return audience
 }
 
 // Create inserts one thread row.
@@ -145,9 +155,9 @@ func (s *ThreadStore) FindByID(ctx context.Context, id int64) (*domain.ParentMes
 	return row.value(), nil
 }
 
-// FindByStudentGuardian returns the single conversation for a (student,
-// guardian) pair in the current tenant, or nil when none exists yet.
-func (s *ThreadStore) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64) (*domain.ParentMessageThread, error) {
+// FindByStudentGuardian returns the conversation of one audience for a
+// (student, guardian) pair in the current tenant, or nil when none exists yet.
+func (s *ThreadStore) FindByStudentGuardian(ctx context.Context, studentID, guardianAccountID int64, audience string) (*domain.ParentMessageThread, error) {
 	db, scope, err := s.database(ctx)
 	if err != nil {
 		return nil, err
@@ -158,6 +168,7 @@ func (s *ThreadStore) FindByStudentGuardian(ctx context.Context, studentID, guar
 		ModelTableExpr(parentThreadTableExpr).
 		Where(`"parent_message_thread".student_id = ?`, studentID).
 		Where(`"parent_message_thread".guardian_account_id = ?`, guardianAccountID).
+		Where(`"parent_message_thread".audience = ?`, threadAudience(audience)).
 		Limit(1)
 	query = withTenant(query, parentThreadAlias, scope)
 	if err := query.Scan(ctx); err != nil {
@@ -169,31 +180,32 @@ func (s *ThreadStore) FindByStudentGuardian(ctx context.Context, studentID, guar
 	return row.value(), nil
 }
 
-// GetOrCreate returns the existing (student, guardian) thread in the school or
-// atomically creates it. INSERT ... ON CONFLICT DO NOTHING makes two concurrent
-// first messages race-safe: the loser inserts nothing instead of raising a
-// unique violation that would abort the surrounding transaction and surface as
-// a 500 on a successful send. The conflict target matches
-// uq_parent_message_threads_student_guardian.
-func (s *ThreadStore) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64) (*domain.ParentMessageThread, error) {
+// GetOrCreate returns the existing (student, guardian, audience) thread in the
+// school or atomically creates it. INSERT ... ON CONFLICT DO NOTHING makes two
+// concurrent first messages race-safe: the loser inserts nothing instead of
+// raising a unique violation that would abort the surrounding transaction and
+// surface as a 500 on a successful send. The conflict target matches
+// uq_parent_message_threads_student_guardian_audience.
+func (s *ThreadStore) GetOrCreate(ctx context.Context, tenantID, studentID, guardianAccountID int64, audience string) (*domain.ParentMessageThread, error) {
 	db, _, err := s.database(ctx)
 	if err != nil {
 		return nil, err
 	}
-	row := &parentThreadRow{TenantID: tenantID, StudentID: studentID, GuardianAccountID: guardianAccountID}
+	audience = threadAudience(audience)
+	row := &parentThreadRow{TenantID: tenantID, StudentID: studentID, GuardianAccountID: guardianAccountID, Audience: audience}
 	// Qualify the table explicitly: relying on the struct tag leaves the INSERT
 	// unqualified, which the least-privilege phoenix_tenant role cannot resolve
 	// (its search_path excludes the users schema).
 	if _, err := db.NewInsert().
 		Model(row).
 		ModelTableExpr(parentThreadTable).
-		On("CONFLICT (tenant_id, student_id, guardian_account_id) DO NOTHING").
+		On("CONFLICT (tenant_id, student_id, guardian_account_id, audience) DO NOTHING").
 		Exec(ctx); err != nil {
 		return nil, fmt.Errorf("get-or-create parent message thread: %w", err)
 	}
 	// Whether we inserted or hit the conflict, the row now exists; load the
 	// canonical row so callers always get the persisted thread.
-	existing, err := s.FindByStudentGuardian(ctx, studentID, guardianAccountID)
+	existing, err := s.FindByStudentGuardian(ctx, studentID, guardianAccountID, audience)
 	if err != nil {
 		return nil, err
 	}

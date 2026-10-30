@@ -268,7 +268,7 @@ describe("file and stream routes keep their own headers", () => {
     expect(response.headers.get("Cache-Control")).toBe("private, max-age=300");
   });
 
-  it("streams a student document with the backend's headers only", async () => {
+  it("streams a student document with private no-store and the download headers", async () => {
     mockFetch.mockResolvedValue(
       new Response("%PDF-1.7", {
         headers: {
@@ -286,7 +286,11 @@ describe("file and stream routes keep their own headers", () => {
     expect(response.headers.get("Content-Disposition")).toBe(
       'attachment; filename="a.pdf"',
     );
-    expect(response.headers.has("Cache-Control")).toBe(false);
+    expect(response.headers.get("Cache-Control")).toBe(PRIVATE_NO_STORE);
+    expect(response.headers.getSetCookie()).toContain(
+      "session=rotated; Path=/",
+    );
+    expect(await response.text()).toBe("%PDF-1.7");
   });
 
   it("keeps the SSE stream's no-cache policy", async () => {

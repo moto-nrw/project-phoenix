@@ -14,15 +14,15 @@ import {
 } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { signIn } from "next-auth/react";
 import { Check } from "lucide-react";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClass,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import {
   credentialError,
   LOGIN_REFUSALS,
@@ -222,16 +222,8 @@ function AcceptForm({
     );
     let target = catererPath("/caterer");
     try {
-      const tokens = await loginCaterer(invitation.email, password);
-      if (tokens.status === "authenticated") {
-        const result = await signIn("caterer-credentials", {
-          redirect: false,
-          internalRefresh: "true",
-          token: tokens.accessToken,
-          refreshToken: tokens.refreshToken,
-        });
-        if (result?.error) throw new Error(result.error);
-      } else {
+      const result = await loginCaterer(invitation.email, password);
+      if (result.status === "mfa_required") {
         // Two-factor sign-in is on (#4497): the code is asked on the login
         // page, which also sends it.
         target = catererPath("/caterer/login");
@@ -298,25 +290,27 @@ function AcceptForm({
       </section>
 
       <div>
-        <label
+        <FieldLabel
           htmlFor="password"
-          className={`mb-1 block text-sm font-medium ${passwordError ? "text-moto-red" : "text-gray-700"}`}
+          required
+          invalid={Boolean(passwordError)}
         >
           Passwort
-        </label>
+        </FieldLabel>
         <div className="relative">
-          <input
+          <Input
             id="password"
             name="password"
             type={showPassword ? "text" : "password"}
+            controlSize="compact"
             autoComplete={existing ? "current-password" : "new-password"}
             value={password}
             disabled={submitting}
             onChange={(event) => setPassword(event.target.value)}
             aria-invalid={Boolean(passwordError)}
             aria-describedby={passwordError ? "password-error" : undefined}
-            className={`${authInputClass(Boolean(passwordError))} pr-10`}
             required
+            className="pr-10"
           />
           <PasswordToggleButton
             showPassword={showPassword}
@@ -329,17 +323,19 @@ function AcceptForm({
       {existing ? null : (
         <>
           <div>
-            <label
+            <FieldLabel
               htmlFor="confirmPassword"
-              className={`mb-1 block text-sm font-medium ${confirmError ? "text-moto-red" : "text-gray-700"}`}
+              required
+              invalid={Boolean(confirmError)}
             >
               Passwort bestätigen
-            </label>
+            </FieldLabel>
             <div className="relative">
-              <input
+              <Input
                 id="confirmPassword"
                 name="confirm_password"
                 type={showConfirmPassword ? "text" : "password"}
+                controlSize="compact"
                 autoComplete="new-password"
                 value={confirmPassword}
                 disabled={submitting}
@@ -348,8 +344,8 @@ function AcceptForm({
                 aria-describedby={
                   confirmError ? "confirmPassword-error" : undefined
                 }
-                className={`${authInputClass(Boolean(confirmError))} pr-10`}
                 required
+                className="pr-10"
               />
               <PasswordToggleButton
                 showPassword={showConfirmPassword}

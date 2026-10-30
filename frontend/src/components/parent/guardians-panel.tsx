@@ -458,6 +458,7 @@ export default function GuardiansPanel({
       >
         {isLoading ? (
           <ParentSectionSkeleton
+            announce={false}
             rows={2}
             showHeader={false}
             className="shadow-none"

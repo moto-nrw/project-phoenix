@@ -1,3 +1,5 @@
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it, expect, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { LOCALE_SCOPE_HEADER } from "~/i18n/locales";
@@ -219,6 +221,72 @@ describe("CSP security boundaries", () => {
       }
     },
   );
+});
+
+const SANDBOX_CSP =
+  "sandbox; default-src 'none'; img-src 'self'; style-src 'unsafe-inline'";
+
+/** The host a BFF route is served on in production. */
+function hostFor(route: string): string {
+  if (route.startsWith("/api/parent/")) return PARENTS_HOSTNAME;
+  if (route.startsWith("/api/traeger/")) return TRAEGER_HOSTNAME;
+  return "school-a.localhost:3000";
+}
+
+describe("sandbox CSP of uploaded files (#5275)", () => {
+  it.each([
+    "/api/enrollment/admin/requests/7/uploads/9",
+    "/api/traeger/holiday-periods/1/registrations/2/proofs/3",
+    "/api/files/folders/4/files/5/download",
+    "/api/announcement-attachments/6/7/download",
+    "/api/parent/me/news/8/attachments/9/download",
+  ])("runs %s in the sandbox, not under the app CSP", (route) => {
+    const host = hostFor(route);
+    const res = proxy(makeRequest(`http://${host}${route}?inline=1`, host));
+    expect(res.headers.get("Content-Security-Policy")).toBe(SANDBOX_CSP);
+    expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(res.headers.get("X-Frame-Options")).toBe("DENY");
+  });
+
+  it.each([
+    "/api/enrollment/admin/requests/7",
+    "/api/files/folders/4/files",
+    "/api/parent/me/news/8/attachments/9/download/extra",
+  ])("keeps the app CSP on %s", (route) => {
+    const host = hostFor(route);
+    const res = proxy(makeRequest(`http://${host}${route}`, host));
+    const csp = res.headers.get("Content-Security-Policy") ?? "";
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).not.toContain("sandbox");
+  });
+
+  it("covers every BFF route that forwards the backend's CSP", () => {
+    const apiDir = path.join(__dirname, "app", "api");
+    const routes = readdirSync(apiDir, { recursive: true, encoding: "utf8" })
+      .filter((file) => file.endsWith("route.ts"))
+      .filter((file) =>
+        /content-security-policy/i.test(
+          readFileSync(path.join(apiDir, file), "utf8"),
+        ),
+      )
+      .map(
+        (file) =>
+          "/api/" +
+          path
+            .dirname(file)
+            .split(path.sep)
+            .map((segment) => (segment.startsWith("[") ? "1" : segment))
+            .join("/"),
+      );
+    expect(routes.length).toBeGreaterThan(0);
+    for (const route of routes) {
+      const host = hostFor(route);
+      const res = proxy(makeRequest(`http://${host}${route}`, host));
+      expect(res.headers.get("Content-Security-Policy"), route).toBe(
+        SANDBOX_CSP,
+      );
+    }
+  });
 });
 
 describe("Turnstile CSP", () => {
@@ -455,17 +523,23 @@ describe("proxy", () => {
       ["/planung?tab=dienstplan", "/dienstplan", ""],
       ["/planung", "/betreuungsplan", ""],
     ])(
-      "answers %s on a tenant subdomain with a server redirect",
+      "answers %s in every tenant URL form with a server redirect",
       (source, pathname, search) => {
-        const { status, location } = redirectOf(
-          `http://school-a.localhost:3000${source}`,
-          "school-a.localhost:3000",
-        );
+        for (const [host, prefix] of [
+          ["school-a.localhost:3000", ""],
+          ["school-a.localhost:3000", "/school-a"],
+          ["localhost:3000", "/school-a"],
+        ] as const) {
+          const { status, location } = redirectOf(
+            `http://${host}${prefix}${source}`,
+            host,
+          );
 
-        expect(status).toBe(307);
-        expect(location?.host).toBe("school-a.localhost:3000");
-        expect(location?.pathname).toBe(pathname);
-        expect(location?.search).toBe(search);
+          expect(status).toBe(307);
+          expect(location?.host).toBe(host);
+          expect(location?.pathname).toBe(`${prefix}${pathname}`);
+          expect(location?.search).toBe(search);
+        }
       },
     );
 
@@ -1148,6 +1222,20 @@ describe("proxy", () => {
       expect(res.headers.get("location")).toBeNull();
       expect(res.headers.get("x-middleware-rewrite")).toContain(
         "/traeger/login",
+      );
+    });
+
+    it("rewrites the reset link to /traeger/reset-password (#5149)", () => {
+      const res = proxy(
+        makeRequest(
+          `http://${TRAEGER_HOSTNAME}/reset-password?token=abc`,
+          TRAEGER_HOSTNAME,
+        ),
+      );
+
+      expect(res.headers.get("location")).toBeNull();
+      expect(res.headers.get("x-middleware-rewrite")).toContain(
+        "/traeger/reset-password",
       );
     });
 

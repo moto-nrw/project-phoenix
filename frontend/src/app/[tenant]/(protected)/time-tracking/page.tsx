@@ -35,6 +35,7 @@ import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataField } from "~/components/ui/detail-modal-components";
 import { ISODatePicker } from "~/components/ui/date-picker";
+import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
 import { Modal } from "~/components/ui/modal";
@@ -2700,12 +2701,14 @@ function EditSessionModal({
               </div>
 
               <div>
-                <label
+                <FieldLabel
                   htmlFor="edit-notes"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  required
+                  invalid={Boolean(formErrors.fieldError("notes"))}
+                  className="mb-1"
                 >
-                  Grund der Änderung <span className="text-moto-red">*</span>
-                </label>
+                  Grund der Änderung
+                </FieldLabel>
                 <div className="mb-2 flex flex-wrap gap-1.5">
                   {EDIT_REASON_PRESETS.map((reason) => (
                     <Button
@@ -2724,6 +2727,7 @@ function EditSessionModal({
                 <Textarea
                   id="edit-notes"
                   name="notes"
+                  aria-required
                   error={formErrors.fieldError("notes")}
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}

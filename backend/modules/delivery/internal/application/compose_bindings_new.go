@@ -21,6 +21,8 @@ type Runtime struct {
 	Module  delivery.Capability
 	Store   *WorkerCommands
 	Observe func(domain.Observation)
+	// EmailWakeups reports committed e-mail enqueues; nil polls only.
+	EmailWakeups func(context.Context) <-chan struct{}
 }
 
 // NewWorker composes the outbox worker over the store of runtime, sending
@@ -30,7 +32,7 @@ func NewWorkerBinding(runtime *Runtime, provider Provider) (*delivery.Worker, er
 		return nil, errors.New("delivery compose: runtime and provider are required")
 	}
 	worker := NewWorker(runtime.Store, ProviderAdapter{Provider: provider}, runtime.Observe)
-	return delivery.NewWorker(workerEngine{Worker: worker, workerBacklog: runtime.Store}), nil
+	return delivery.NewWorker(workerEngine{Worker: worker, workerBacklog: runtime.Store, wakeups: runtime.EmailWakeups}), nil
 }
 
 // workerEngine runs the worker and counts the backlog, the intents still
@@ -38,6 +40,16 @@ func NewWorkerBinding(runtime *Runtime, provider Provider) (*delivery.Worker, er
 type workerEngine struct {
 	*Worker
 	workerBacklog
+	wakeups func(context.Context) <-chan struct{}
+}
+
+// EmailWakeups reports committed e-mail enqueues until ctx ends; a nil
+// channel when the runtime has no listener.
+func (e workerEngine) EmailWakeups(ctx context.Context) <-chan struct{} {
+	if e.wakeups == nil {
+		return nil
+	}
+	return e.wakeups(ctx)
 }
 
 type workerBacklog interface {

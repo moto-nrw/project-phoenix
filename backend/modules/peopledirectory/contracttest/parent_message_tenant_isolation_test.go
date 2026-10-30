@@ -52,7 +52,7 @@ func TestParentMessaging_TenantIsolation(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, found, "another school must not load the thread by id")
 
-		byPair, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Thread.FindByStudentGuardian, chain.StudentID, chain.AccountID)
+		byPair, err := testpkg.TenantQuery3(t, foreignCtx, db, repos.Thread.FindByStudentGuardian, chain.StudentID, chain.AccountID, "team")
 		require.NoError(t, err)
 		assert.Nil(t, byPair, "another school must not resolve the (student, guardian) conversation")
 	})
@@ -70,15 +70,15 @@ func TestParentMessaging_TenantIsolation(t *testing.T) {
 	t.Run("the inbox projection is scoped to the owning school", func(t *testing.T) {
 		// allStudents=true is the widest staff scope there is, so nothing but the
 		// tenant filter can be keeping these rows out.
-		inbox, err := testpkg.TenantQuery3(t, foreignCtx, db, repos.Read.ListInboxForStaff, staffAccount.ID, true, false)
+		inbox, err := testpkg.TenantQuery3(t, foreignCtx, db, repos.Read.ListInboxForStaff, staffAccount.ID, api.ParentMessageReachAllStudents, false)
 		require.NoError(t, err)
 		assert.Empty(t, inbox, "another school's staff must not see the thread in their inbox")
 
-		unread, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Read.UnreadMessageCountForStaff, staffAccount.ID, true)
+		unread, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Read.UnreadMessageCountForStaff, staffAccount.ID, api.ParentMessageReachAllStudents)
 		require.NoError(t, err)
 		assert.Zero(t, unread, "another school's badge must not count this school's messages")
 
-		threads, err := testpkg.TenantQuery2(t, foreignCtx, db, repos.Read.ListThreadsForStudent, staffAccount.ID, chain.StudentID)
+		threads, err := testpkg.TenantQuery3(t, foreignCtx, db, repos.Read.ListThreadsForStudent, staffAccount.ID, chain.StudentID, api.ParentMessageReachAllStudents)
 		require.NoError(t, err)
 		assert.Empty(t, threads, "another school must not list the child's conversations")
 

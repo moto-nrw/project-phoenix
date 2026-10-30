@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import { ApiError } from "./api-error";
 import {
+  enrollConfirm,
   listTrustedDevices,
   login,
   resendChallenge,
@@ -93,9 +94,7 @@ describe("caterer second factor (#4497)", () => {
   it("uses the caterer MFA and trusted-device routes", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(
-        Response.json({ access_token: "a", refresh_token: "r" }),
-      )
+      .mockResolvedValueOnce(Response.json({ status: "authenticated" }))
       .mockResolvedValueOnce(Response.json({ challenge_token: "renewed" }))
       .mockResolvedValueOnce(Response.json([]))
       .mockResolvedValueOnce(new Response(null, { status: 204 }));
@@ -107,7 +106,7 @@ describe("caterer second factor (#4497)", () => {
         code: "123456",
         rememberDevice: true,
       }),
-    ).resolves.toEqual({ access_token: "a", refresh_token: "r" });
+    ).resolves.toEqual({ status: "authenticated" });
     await expect(
       resendChallenge("caterer", { challengeToken: "c" }),
     ).resolves.toBe("renewed");
@@ -121,4 +120,13 @@ describe("caterer second factor (#4497)", () => {
       "/api/caterer/auth/mfa/trusted-devices/7",
     ]);
   });
+});
+
+it("all portal MFA results exclude completed session credentials", () => {
+  expectTypeOf<Awaited<ReturnType<typeof verifyMFA>>>().toEqualTypeOf<{
+    status: "authenticated";
+  }>();
+  expectTypeOf<Awaited<ReturnType<typeof enrollConfirm>>>().toEqualTypeOf<{
+    status: "authenticated";
+  }>();
 });

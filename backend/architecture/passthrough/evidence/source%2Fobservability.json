@@ -1,0 +1,11 @@
+{
+  "sites": [
+    {
+      "build": "production",
+      "evidence": "func (t *Tracer) Logger(ctx context.Context) *slog.Logger {\n\tif id, ok := CorrelationIDFromContext(ctx); ok {\n\t\treturn t.logger.With(slog.String(\"correlation_id\", id.String()))\n\t}\n\treturn t.logger\n}",
+      "form": "unclassified-evidence",
+      "id": "observability/Tracer.Logger",
+      "owner": "source/observability"
+    }
+  ]
+}

@@ -40,12 +40,17 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({
     status: "authenticated",
     data: {
-      user: { token: "test-token", permissions: sessionPermissions.current },
+      user: {
+        id: "1",
+        token: "test-token",
+        permissions: sessionPermissions.current,
+      },
     },
   }),
 }));
 
-vi.mock("~/lib/holiday-host-api", () => ({
+vi.mock("~/lib/holiday-host-api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/holiday-host-api")>()),
   fetchHostedHolidayWeeks: weeksMock,
   fetchHolidayParticipants: participantsMock,
   downloadHolidayParticipants: downloadMock,
@@ -127,6 +132,7 @@ function listOf(week: HostedHolidayWeek): HolidayParticipantList {
       { schoolId: "31", name: "OGS Nord", count: 1 },
       { schoolId: null, name: "Feriengäste", count: 1 },
     ],
+    questions: [],
     participants: [
       {
         childId: "1",
@@ -136,6 +142,8 @@ function listOf(week: HostedHolidayWeek): HolidayParticipantList {
         homeSchoolId: null,
         homeSchoolName: "Feriengast (Grundschule Melle)",
         timeModelId: "61",
+        secondGuardian: null,
+        answers: [],
       },
       {
         childId: "2",
@@ -145,6 +153,8 @@ function listOf(week: HostedHolidayWeek): HolidayParticipantList {
         homeSchoolId: "31",
         homeSchoolName: "OGS Nord",
         timeModelId: "62",
+        secondGuardian: null,
+        answers: [],
       },
     ],
   };
@@ -191,6 +201,100 @@ describe("FerienwochenPage", () => {
       screen.getByText("Sommerferien 2026 · 14.09. bis 18.09.2026 · 2 Kinder"),
     ).toBeInTheDocument();
     expect(participantsMock).toHaveBeenCalledWith("51");
+  });
+
+  it("shows the shared answers and the second guardian in their own columns (#5202)", async () => {
+    weeksMock.mockResolvedValue([firstWeek]);
+    const list = listOf(firstWeek);
+    const [ben, lia] = list.participants;
+    if (!ben || !lia) throw new Error("fixture without children");
+    participantsMock.mockResolvedValue({
+      ...list,
+      questions: [
+        {
+          key: "darf_allein_nach_hause",
+          label: "Darf allein nach Hause gehen",
+          type: "boolean",
+        },
+        { key: "ausflug_ab", label: "Ausflug ab", type: "date" },
+      ],
+      participants: [
+        {
+          ...ben,
+          answers: [
+            {
+              key: "darf_allein_nach_hause",
+              label: "Darf allein nach Hause gehen",
+              type: "boolean",
+              value: false,
+            },
+          ],
+        },
+        {
+          ...lia,
+          secondGuardian: { name: "Tom Zweit", phone: "0170 2222222" },
+          answers: [
+            {
+              key: "darf_allein_nach_hause",
+              label: "Darf allein nach Hause gehen",
+              type: "boolean",
+              value: true,
+            },
+            {
+              key: "ausflug_ab",
+              label: "Ausflug ab",
+              type: "date",
+              value: "2026-09-15",
+            },
+          ],
+        },
+      ],
+    } satisfies HolidayParticipantList);
+
+    renderPage();
+
+    await screen.findByText("Muster, Lia", { selector: "td, td *" });
+    const children = tableWith("Geburtsdatum");
+    expect(
+      within(children).getByText("Zweite sorgeberechtigte Person", {
+        selector: "th, th *",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(children).getByText("Darf allein nach Hause gehen", {
+        selector: "th, th *",
+      }),
+    ).toBeInTheDocument();
+    expect(within(children).getByText("Tom Zweit")).toBeInTheDocument();
+    expect(
+      within(children).getByRole("link", { name: "0170 2222222" }),
+    ).toHaveAttribute("href", "tel:01702222222");
+    expect(within(children).getByText("Ja")).toBeInTheDocument();
+    expect(within(children).getByText("Nein")).toBeInTheDocument();
+    expect(within(children).getByText("15.09.2026")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Nur zur Information. Anmeldungen prüft und bestätigt der Träger. Dazu kommen Antworten der Eltern, die der Träger für Sie freigibt.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the columns of before without shared questions or a second guardian", async () => {
+    weeksMock.mockResolvedValue([firstWeek]);
+    participantsMock.mockResolvedValue(listOf(firstWeek));
+
+    renderPage();
+
+    await screen.findByText("Muster, Lia", { selector: "td, td *" });
+    const headers = within(tableWith("Geburtsdatum"))
+      .getAllByRole("columnheader")
+      .map((header) => header.textContent?.split("↑")[0]?.split("↕")[0]);
+    expect(headers).toEqual([
+      "Name",
+      "Geburtsdatum",
+      "Heimatschule",
+      "Zeitmodell",
+    ]);
   });
 
   it("switches between several hosted weeks", async () => {

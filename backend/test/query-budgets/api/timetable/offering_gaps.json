@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.offering_gaps",
+  "max": 13,
+  "exact": false,
+  "description": "modules/timetable — GET /api/timetable/offering-gaps (#5140): the\nplanning period read, the period's template list and the setting read,\nthen the occurrence projection with the materializer's own inputs\n(active periods, holidays, closing days, exceptions, timeframes,\ntemplates, schedules); the offering feeds and bookings are Care Plan's\nand stubbed here (budgeted under services.enrollment.*). Flat from 3 to\n8 Regeltermine."
+}

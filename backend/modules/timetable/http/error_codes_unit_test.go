@@ -7,9 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
@@ -91,21 +92,15 @@ func assertCodeCases(t *testing.T, cases []codeCase) {
 }
 
 // TestTimetableCodeConstantsAreRegistered pins every wire code the owner and
-// its compositions raise below the adapter to error-registry.json (#2516): a
+// its compositions raise below the adapter to error-registry/ (#2516): a
 // typo there would reach the client as an unknown code.
 func TestTimetableCodeConstantsAreRegistered(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile("../../../../error-registry.json")
+	entries, err := routetest.ReadErrorRegistry("../../../../error-registry")
 	require.NoError(t, err)
-	var registry struct {
-		Codes []struct {
-			Code string `json:"code"`
-		} `json:"codes"`
-	}
-	require.NoError(t, json.Unmarshal(raw, &registry))
-	registered := make(map[string]bool, len(registry.Codes))
-	for _, entry := range registry.Codes {
+	registered := make(map[string]bool, len(entries))
+	for _, entry := range entries {
 		registered[entry.Code] = true
 	}
 	for _, code := range []string{
@@ -155,7 +150,7 @@ func TestTimetableCodeConstantsAreRegistered(t *testing.T) {
 		timetable.CodeTooManyDates,
 		timetable.CodeDeviationInstanceNotFound,
 	} {
-		assert.True(t, registered[code], "%s is not in error-registry.json", code)
+		assert.True(t, registered[code], "%s is not in error-registry/", code)
 	}
 }
 
@@ -294,6 +289,7 @@ func TestOperationErrorCodes(t *testing.T) {
 		timetable.CodeReopenStaffBusy)
 	notCheckedIn := timetable.WithCode(timetable.ErrTimetableOperationNotFound, timetable.CodeStudentNotCheckedIn)
 	assertCodeCases(t, []codeCase{
+		{"visit cohort changed", operationErrorRenderer(fmt.Errorf("prepare visits: %w", studentpresence.ErrVisitWriteConflict)), http.StatusConflict, "timetable.operation_stale", "", nil},
 		{"start too early", operationErrorRenderer(timetable.ErrInstanceStartTooEarly), http.StatusConflict, "timetable.start_too_early", "", nil},
 		{"start expired", operationErrorRenderer(timetable.ErrInstanceStartExpired), http.StatusConflict, "timetable.start_window_expired", "", nil},
 		{"complete early", operationErrorRenderer(timetable.ErrInstanceCompleteEarly), http.StatusConflict, "timetable.complete_too_early", "", nil},

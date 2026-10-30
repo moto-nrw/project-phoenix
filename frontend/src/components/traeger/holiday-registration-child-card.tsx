@@ -36,6 +36,10 @@ import {
   rebookingDraft,
 } from "./holiday-rebooking-model";
 import {
+  answeredQuestions,
+  HolidayRegistrationAnswers,
+} from "./holiday-registration-answers";
+import {
   childSchoolLabel,
   formatHolidayWeek,
 } from "./holiday-registration-format";
@@ -170,6 +174,8 @@ export function HolidayRegistrationChildCard({
           </InfoSection>
         )}
 
+        <ChildAnswers registration={registration} childId={child.id} />
+
         {health ? (
           <InfoSection title="Gesundheit">
             <DataGrid>
@@ -193,6 +199,21 @@ export function HolidayRegistrationChildCard({
         ) : null}
       </div>
     </SectionCard>
+  );
+}
+
+/** The child's answers to the questions of the Träger (#5198). */
+function ChildAnswers({
+  registration,
+  childId,
+}: Readonly<{ registration: HolidayRegistrationDetail; childId: string }>) {
+  const answers = registration.childAnswers[childId] ?? {};
+  const questions = answeredQuestions(registration.form.fields, true, answers);
+  if (questions.length === 0) return null;
+  return (
+    <InfoSection title="Weitere Angaben">
+      <HolidayRegistrationAnswers questions={questions} answers={answers} />
+    </InfoSection>
   );
 }
 

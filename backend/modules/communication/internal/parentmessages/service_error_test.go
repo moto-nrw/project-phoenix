@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 
 	"github.com/moto-nrw/project-phoenix/api"
@@ -52,7 +54,7 @@ func (f *fakeThreadRepo) ListGuardiansForStudent(context.Context, int64) ([]*mes
 	return f.guardians, f.listGuardiansErr
 }
 
-func (f *fakeThreadRepo) GetOrCreate(context.Context, int64, int64, int64) (*messaging.ParentMessageThread, error) {
+func (f *fakeThreadRepo) GetOrCreate(context.Context, int64, int64, int64, string) (*messaging.ParentMessageThread, error) {
 	if f.getOrCreateErr != nil {
 		return nil, f.getOrCreateErr
 	}
@@ -90,15 +92,15 @@ type fakeReadRepo struct {
 	studentErr  error
 }
 
-func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, bool) ([]*messaging.InboxThread, error) {
+func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, messaging.StaffReach, bool) ([]*messaging.InboxThread, error) {
 	return f.inbox, f.inboxErr
 }
 
-func (f *fakeReadRepo) UnreadMessageCountForStaff(context.Context, int64, bool) (int, error) {
+func (f *fakeReadRepo) UnreadMessageCountForStaff(context.Context, int64, messaging.StaffReach) (int, error) {
 	return f.unread, f.unreadErr
 }
 
-func (f *fakeReadRepo) ListThreadsForStudent(context.Context, int64, int64) ([]*messaging.InboxThread, error) {
+func (f *fakeReadRepo) ListThreadsForStudent(context.Context, int64, int64, messaging.StaffReach) ([]*messaging.InboxThread, error) {
 	return f.studentRows, f.studentErr
 }
 
@@ -118,6 +120,7 @@ func (fakePersons) FindStaffSenderName(context.Context, int64) (*communication.S
 
 func errSvc(tr messaging.ParentMessageThreadRepository, mr messaging.ParentMessageRepository, rr messaging.ParentMessageReadRepository) *messaging.Service {
 	return messaging.NewService(messaging.Config{
+		Leaders:     communicationtest.Leaders{},
 		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  tr,
@@ -186,7 +189,7 @@ func TestListGuardians_RepoErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	svc := errSvc(&fakeThreadRepo{listGuardiansErr: errBoom}, &fakeMessageRepo{}, &fakeReadRepo{})
-	_, err := testpkg.TenantQuery1(t, errCtx(t), testpkg.SetupTestDB(t), svc.ListGuardians, 7)
+	_, err := testpkg.TenantQuery1(t, errCtx(t), testpkg.SetupTestDB(t), teamGuardians(svc), 7)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "list guardians")
 }
@@ -197,7 +200,7 @@ func TestStartThread_GuardianLookupErrorPropagates(t *testing.T) {
 	// authorizeThreadParticipants → ListGuardiansForStudent fails → server error,
 	// not ErrInvalidGuardian (which would wrongly imply the recipient is invalid).
 	svc := errSvc(&fakeThreadRepo{listGuardiansErr: errBoom}, &fakeMessageRepo{}, &fakeReadRepo{})
-	_, err := testpkg.TenantQuery3(t, errCtx(t), testpkg.SetupTestDB(t), svc.StartThread, 7, 2, "Hallo")
+	_, err := testpkg.TenantQuery4(t, errCtx(t), testpkg.SetupTestDB(t), svc.StartThread, 7, 2, "Hallo", "")
 	require.Error(t, err)
 	assert.NotErrorIs(t, err, messaging.ErrInvalidGuardian)
 }
@@ -210,7 +213,7 @@ func TestStartThread_GetOrCreateErrorPropagates(t *testing.T) {
 		getOrCreateErr: errBoom,
 	}
 	svc := errSvc(tr, &fakeMessageRepo{}, &fakeReadRepo{})
-	_, err := testpkg.TenantQuery3(t, errCtx(t), testpkg.SetupTestDB(t), svc.StartThread, 7, 2, "Hallo")
+	_, err := testpkg.TenantQuery4(t, errCtx(t), testpkg.SetupTestDB(t), svc.StartThread, 7, 2, "Hallo", "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "get-or-create thread")
 }
@@ -228,6 +231,7 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 	tr.thread.GuardianAccountID = 2
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
+		Leaders:     communicationtest.Leaders{},
 		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},

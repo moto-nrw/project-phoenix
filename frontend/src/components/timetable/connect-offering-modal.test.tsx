@@ -39,6 +39,7 @@ const deviation: RosterDeviation = {
     { id: "3", name: "Randstunde" },
     { id: "4", name: "Ganztag" },
   ],
+  ambiguous: false,
 };
 
 const preview: OfferingPreview = {
@@ -138,5 +139,62 @@ describe("ConnectOfferingModal (#5103)", () => {
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(onConnected).not.toHaveBeenCalled();
+  });
+
+  it("preselects no offering when several fit equally and previews the chosen one (#5138)", async () => {
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 3a"
+        deviation={{
+          ...deviation,
+          offering: { id: "4", name: "Ganztag" },
+          schoolClasses: ["3a"],
+          candidates: [
+            { id: "4", name: "Ganztag" },
+            { id: "3", name: "Randstunde" },
+          ],
+          ambiguous: true,
+        }}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Mehrere Angebote passen zur Kinderliste. Wählen Sie das Angebot, dessen angemeldete Kinder kommen sollen.",
+      ),
+    ).toBeInTheDocument();
+    const select = screen.getByRole("combobox");
+    expect(select).toHaveTextContent("Angebot wählen");
+    expect(screen.getByRole("button", { name: "Verbinden" })).toBeDisabled();
+    expect(screen.queryByText("Das ändert sich")).not.toBeInTheDocument();
+    expect(mockPreview).not.toHaveBeenCalled();
+
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole("option", { name: "Randstunde" }));
+
+    await waitFor(() =>
+      expect(mockPreview).toHaveBeenCalledWith("9", {
+        offeringIds: ["3"],
+        gradeLevels: [],
+        schoolClasses: ["3a"],
+      }),
+    );
+    expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Ab 28.10.2026 kommen nur noch die für „Randstunde“ angemeldeten Kinder. An- und Abmeldungen werden danach automatisch übernommen.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Verbinden" }));
+    await waitFor(() =>
+      expect(mockConnect).toHaveBeenCalledWith(
+        "9",
+        { offeringIds: ["3"], gradeLevels: [], schoolClasses: ["3a"] },
+        "2026-10-28",
+      ),
+    );
   });
 });

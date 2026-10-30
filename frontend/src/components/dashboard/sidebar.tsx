@@ -966,10 +966,7 @@ function SidebarContent({
     if (pathname.startsWith("/students/") && pathname !== "/students/search") {
       return getStudentDetailActiveHref(from);
     }
-    if (
-      pathname.startsWith("/staff/") &&
-      !pathname.startsWith("/staff/dienstplan")
-    ) {
+    if (pathname.startsWith("/staff/")) {
       return from?.startsWith("/database/personal")
         ? "/database/personal"
         : "/staff";
@@ -1042,19 +1039,9 @@ function SidebarContent({
       return true;
     }
     if (href === "/parents") return pathname === "/parents" || pathname === "/";
-    // Planungsseiten zählen mit ihren Alt-Pfaden (/timetables,
-    // /staff/dienstplan, /vertretungsplan), damit ein alter Link die richtige
-    // Zeile markiert.
+    // Jede kanonische Planungsseite markiert ihren eigenen Eintrag.
     if (isPlanningPageHref(href)) {
       return getActivePlanningSubPageHref(pathname) === href;
-    }
-    // Schul-Portal (#2207): auf dem Schul-Host ist die Klassenansicht die
-    // /staff/dienstplan has its own sidebar entry — don't also light up "Mitarbeiter"
-    if (href === "/staff") {
-      return (
-        pathname.startsWith("/staff") &&
-        !pathname.startsWith("/staff/dienstplan")
-      );
     }
     // /calendar-periods gehört zum Betreuungsplan, nicht zum Kalender —
     // ohne Exakt-Match würde der /calendar-Eintrag per Präfix mitleuchten.

@@ -12,9 +12,6 @@ import (
 	"sync"
 	"time"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -260,10 +257,9 @@ func composeProcess(config ServeConfig, db transactionruntime.Database, tracker 
 			MaxLifetimeClosed: stats.MaxLifetimeClosed,
 		}
 	})
-	health, legal, fallback := carePlanHTTP.StudentDocumentPermissions()
-	documentPermissions := carePlanCompose.StudentDocumentPermissions{Health: health, Legal: legal, Default: fallback}
+	documentPermissions := studentDocumentPermissions()
 	if config.Process == ServeWorkerOnly {
-		worker, err := owners.ComposeWorker(db, env, hub, tracer, tracker, newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal, deviceauth.WithAttendanceStaff, documentPermissions, workerAnalytics, analyticsSchoolNames)
+		worker, err := owners.ComposeWorker(db, env, hub, tracer, tracker, newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal, deviceauth.WithAttendanceStaff, documentPermissions, workerAnalytics, analyticsSchoolNames, PlannedStaffExitsJob(db, hub, env.Logger))
 		return nil, worker, capacity, err
 	}
 	handler, worker, err := composeServeRoot(db, env, hub, config, tracker, metrics, tracer, metricsToken, config.Process != ServeAPIOnly, documentPermissions)

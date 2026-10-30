@@ -1,13 +1,11 @@
 package common_test
 
 import (
-	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"os"
 	"path"
 	"path/filepath"
 	"regexp"
@@ -16,6 +14,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 )
 
 const (
@@ -65,7 +65,7 @@ type functionDefinition struct {
 }
 
 // TestErrorPathsAnswerWithRegisteredCodes fails when an error path answers
-// with a code that is not in error-registry.json, or names its code as a
+// with a code that is not in error-registry/, or names its code as a
 // string at the call site instead of using the generated constant (ADR 0006,
 // #2506).
 //
@@ -83,7 +83,7 @@ func TestErrorPathsAnswerWithRegisteredCodes(t *testing.T) {
 
 	violations := scanErrorCodes(t, backendRoot(t), loadErrorCodeRegistry(t))
 	if len(violations) > 0 {
-		t.Errorf("%d error code violation(s). Register the code in error-registry.json, run "+
+		t.Errorf("%d error code violation(s). Register the code in error-registry/, run "+
 			"node scripts/generate-error-codes.mjs and use the generated common.Code* constant:\n%s",
 			len(violations), strings.Join(violations, "\n"))
 	}
@@ -103,12 +103,12 @@ func TestErrorCodeScanFindsEachViolation(t *testing.T) {
 		`api/bad/bad.go:10:19: constant localCode repeats the registered code "care.announcement_stale"; use the generated constant`,
 		`api/bad/bad.go:14:49: code argument is the string "announcement_stale"; use the generated constant`,
 		`api/bad/bad.go:16:29: ErrResponse.Code is the string "care.announcement_stale"; use the generated constant`,
-		`api/bad/bad.go:17:49: code argument is "care.not_registered", which is not in error-registry.json`,
+		`api/bad/bad.go:17:49: code argument is "care.not_registered", which is not in error-registry/`,
 		`api/bad/bad.go:18:26: the registered code "care.announcement_stale" is written as a string; use the generated constant`,
 		`api/bad/bad.go:27:28: code argument is the string "announcement_stale"; use the generated constant`,
-		`api/bad/bad.go:29:64: code argument can be "conflict", which is not in error-registry.json`,
-		`modules/sample/sample.go:12:46: ErrorCode result is "care.not_registered", which is not in error-registry.json`,
-		`modules/sample/sample.go:15:21: "care.not_registered" looks like an error code but is not in error-registry.json`,
+		`api/bad/bad.go:29:64: code argument can be "conflict", which is not in error-registry/`,
+		`modules/sample/sample.go:12:46: ErrorCode result is "care.not_registered", which is not in error-registry/`,
+		`modules/sample/sample.go:15:21: "care.not_registered" looks like an error code but is not in error-registry/`,
 		`modules/sample/sample.go:4:17: "announcement_stale" is a code from before the rename; use "care.announcement_stale"`,
 	}
 	sort.Strings(want)
@@ -158,11 +158,11 @@ func (tree *sourceTree) checkFile(pkg *sourcePackage, file *sourceFile, registry
 			return
 		}
 		if value, ok := tree.resolve(pkg, file, expr, 0); ok && !registry.codes[value] {
-			report(expr, "%s is %q, which is not in error-registry.json", where, value)
+			report(expr, "%s is %q, which is not in error-registry/", where, value)
 		}
 		for _, value := range tree.returnedStrings(pkg, file, expr) {
 			if !registry.codes[value] {
-				report(expr, "%s can be %q, which is not in error-registry.json", where, value)
+				report(expr, "%s can be %q, which is not in error-registry/", where, value)
 			}
 		}
 	}
@@ -240,7 +240,7 @@ func checkDeclaredCode(node ast.Node, value string, registry errorCodeRegistry, 
 	}
 	area, _, _ := strings.Cut(value, ".")
 	if errorCodeShape.MatchString(value) && registry.areas[area] && !registry.codes[value] {
-		report(node, "%q looks like an error code but is not in error-registry.json", value)
+		report(node, "%q looks like an error code but is not in error-registry/", value)
 	}
 }
 
@@ -482,21 +482,12 @@ func codeParameterPositions(packagePath string, syntax *ast.File) map[string][]i
 
 func loadErrorCodeRegistry(t *testing.T) errorCodeRegistry {
 	t.Helper()
-	encoded, err := os.ReadFile(filepath.Join(backendRoot(t), "..", "error-registry.json"))
+	entries, err := routetest.ReadErrorRegistry(filepath.Join(backendRoot(t), "..", "error-registry"))
 	if err != nil {
 		t.Fatalf("read error registry: %v", err)
 	}
-	var registry struct {
-		Codes []struct {
-			Code   string `json:"code"`
-			Legacy string `json:"legacy"`
-		} `json:"codes"`
-	}
-	if err := json.Unmarshal(encoded, &registry); err != nil {
-		t.Fatalf("decode error registry: %v", err)
-	}
 	result := errorCodeRegistry{codes: map[string]bool{}, areas: map[string]bool{}, legacy: map[string]string{}}
-	for _, entry := range registry.Codes {
+	for _, entry := range entries {
 		result.codes[entry.Code] = true
 		area, _, _ := strings.Cut(entry.Code, ".")
 		result.areas[area] = true

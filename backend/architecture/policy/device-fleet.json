@@ -1,0 +1,318 @@
+{
+  "packages": [
+    {
+      "path": "api/display",
+      "owner": "device-fleet",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/devicefleet/http/devices",
+      "owner": "device-fleet",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/adapters/deviceauth",
+      "owner": "device-fleet",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/devicetest",
+      "owner": "device-fleet",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/application/deviceservice",
+      "owner": "device-fleet",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet",
+      "owner": "device-fleet",
+      "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/compose",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/compose/httpadapter",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/compose/repositoryadapter",
+      "owner": "device-fleet",
+      "role": "compose",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/devicefleet/deviceauth",
+      "owner": "device-fleet",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/adapters/credentials",
+      "owner": "device-fleet",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/adapters/postgres",
+      "owner": "device-fleet",
+      "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/application",
+      "owner": "device-fleet",
+      "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/domain",
+      "owner": "device-fleet",
+      "role": "domain",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/ports",
+      "owner": "device-fleet",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/devicefleet/inbound/operator",
+      "owner": "device-fleet",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/devicefleet/internal/adapters/repositoryadapter",
+      "owner": "device-fleet",
+      "role": "postgres",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    }
+  ],
+  "data_objects": [
+    {
+      "name": "audit.unregistered_tag_scans",
+      "write_owner": "device-fleet"
+    },
+    {
+      "name": "display.displays",
+      "write_owner": "device-fleet"
+    },
+    {
+      "name": "iot.devices",
+      "write_owner": "device-fleet"
+    }
+  ],
+  "rules": [
+    {
+      "id": "device-fleet.compose.care-plan.public",
+      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "external.crypto.device-fleet.adapter",
+      "description": "Existing Device Fleet adapter uses cryptographic primitives without exposing them to HTTP.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "target_class": "crypto",
+      "source_role": "adapter"
+    },
+    {
+      "id": "device-fleet.port-domain",
+      "description": "Device Fleet ports express persistence operations using their own domain values.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "port",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "device-fleet.compose.orm-sql",
+      "description": "Device Fleet composition supplies the concrete Bun database dependency.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_class": "orm-sql"
+    },
+    {
+      "id": "device-fleet.compose.tenant-runtime",
+      "description": "Device Fleet composition resolves tenant, admin, and ambient transactions through the shared runtime.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.facilities-public",
+      "description": "Device Fleet composition resolves room names and occupancy rows through the public Facilities query.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "facilities",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.compose.student-presence-public",
+      "description": "Device Fleet composition reads live presence facts through the public Student Presence capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.integration-test.support",
+      "description": "Device Fleet integration tests use hermetic database support.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "test-support",
+      "target_role": "test-support"
+    },
+    {
+      "id": "device-fleet.integration-test.device-fleet-application",
+      "description": "Device Fleet integration tests assert the retained IoT service contract.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "workflow-integration-test",
+      "target_owner": "device-fleet",
+      "target_role": "application"
+    },
+    {
+      "id": "device-fleet.device-auth.device-fleet-adapter",
+      "description": "The device authentication composition constructs the device adapter over its consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_owner": "device-fleet",
+      "target_role": "adapter"
+    },
+    {
+      "id": "device-fleet.device-auth.public",
+      "description": "The device authentication composition resolves API keys and records last-seen through the public Device Fleet capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_owner": "device-fleet",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.device-auth.tenant-runtime",
+      "description": "The device authentication composition binds the device school as the ambient tenant of device routes.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.application.care-plan.public",
+      "description": "Native dashboard reader binding moved from Device Fleet composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.application.student-presence.public",
+      "description": "Native dashboard reader binding moved from Device Fleet composition; preserves its existing public owner direction (ADR 0058).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "device-fleet.postgres.compose-extraction.tenant-runtime.tenant",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "postgres",
+      "source_package": "modules/devicefleet/internal/adapters/postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public",
+      "target_package": "tenant"
+    },
+    {
+      "id": "device-fleet.application.compose-extraction.facilities.facilities",
+      "description": "ADR 0058 #4084: exact-package successor of the owner composition reach; existing owner direction and public/owned-port contract only.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "device-fleet",
+      "source_role": "application",
+      "source_package": "modules/devicefleet/internal/application",
+      "target_owner": "facilities",
+      "target_role": "public",
+      "target_package": "modules/facilities"
+    }
+  ]
+}

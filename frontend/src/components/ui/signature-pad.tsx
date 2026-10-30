@@ -302,7 +302,14 @@ export function SignaturePad({
   }
 
   return (
-    <div className="space-y-2" id={baseId}>
+    // The pad as a whole is the marked field: a form's FormErrorAlert jumps
+    // to the first `aria-invalid` element, and a canvas (role img) cannot
+    // carry it (#5217).
+    <div
+      className="space-y-2"
+      id={baseId}
+      aria-invalid={shownError ? true : undefined}
+    >
       <p className="text-sm font-medium text-gray-700">{labels.label}</p>
       <p id={hintId} className="text-sm text-gray-600">
         {labels.hint}

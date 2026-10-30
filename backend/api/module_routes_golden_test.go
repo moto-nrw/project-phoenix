@@ -105,7 +105,7 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 	for _, route := range routes {
 		byModule[route.module] = append(byModule[route.module], route.route)
 	}
-	table.WriteString("# Each heading is a module key (basis = moto Basis); the routes below it belong to it.\n")
+
 	keys := []settings.ModuleKey{moduleRouteBasis}
 	for _, module := range configModels.Modules() {
 		keys = append(keys, module.Key)
@@ -120,18 +120,20 @@ func checkModuleRouteMap(t *testing.T, api *goldenRuntime) {
 			continue
 		}
 		sort.Strings(entries)
-		table.WriteString("\n" + heading + "\n")
+
 		for _, entry := range entries {
 			_, pattern, _ := strings.Cut(entry, " ")
 			rule, _ := moduleRouteFor(pattern)
 			if reason, ok := moduleRoutesLockedElsewhere[rule.prefix]; ok {
-				entry += "  (" + reason + ")"
+				entry += " -> " + heading + "  (" + reason + ")"
+			} else {
+				entry += " -> " + heading
 			}
-			table.WriteString("\t" + entry + "\n")
+			table.WriteString(entry + "\n")
 		}
 	}
-	compareGolden(t, filepath.Join("testdata", "route_modules.golden"), table.String(),
-		"the module of a route changed — if intentional, regenerate with -update-goldens and justify the assignment in the PR description")
+	compareResourceGoldens(t, filepath.Join("testdata", "modules"), table.String(),
+		"the module of a route changed — if intentional, regenerate with -update-goldens and justify the assignment in the PR description", false, *updateGoldens)
 }
 
 func isDeviceModuleGate(name string) bool {
@@ -159,8 +161,8 @@ func checkModuleBookingGate(t *testing.T, api *goldenRuntime) {
 	booked, _ := testpkg.CreateTestTenant(t, db)
 	_, cancelledAdmin := testpkg.CreateTestStaffWithAccountForTenant(t, db, cancelled, "Modul", "Abbestellt")
 	_, bookedAdmin := testpkg.CreateTestStaffWithAccountForTenant(t, db, booked, "Modul", "Gebucht")
-	cancelledToken := testpkg.MintTestJWT(t, testpkg.AdminTestClaimsForTenant(int(cancelledAdmin.ID), cancelled))
-	bookedToken := testpkg.MintTestJWT(t, testpkg.AdminTestClaimsForTenant(int(bookedAdmin.ID), booked))
+	cancelledToken := testpkg.MintLiveSessionJWT(t, db, testpkg.AdminTestClaimsForTenant(int(cancelledAdmin.ID), cancelled))
+	bookedToken := testpkg.MintLiveSessionJWT(t, db, testpkg.AdminTestClaimsForTenant(int(bookedAdmin.ID), booked))
 	child := testpkg.CreateTestStudent(t, db, "Mila", "Modul", "2a")
 
 	request := func(token, method, path, body string) (int, map[string]any) {

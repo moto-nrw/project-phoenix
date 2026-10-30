@@ -14,8 +14,8 @@ const (
 	webManualDeviceName = "Web-Portal (Manuell)"
 )
 
-// seedModuleNotBooked is the refusal of a request to a module the school
-// has not booked.
+// seedModuleNotBooked is the registered code of a request to a module the
+// school did not book.
 const seedModuleNotBooked = "module.not_booked"
 
 type configureProfileStep struct {

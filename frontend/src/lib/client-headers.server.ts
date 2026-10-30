@@ -93,7 +93,7 @@ export function getOriginalRequestHost(request: NextRequest): string {
   );
 }
 
-function frontendOrigin(request: NextRequest): string {
+export function frontendOrigin(request: NextRequest): string {
   const host = getOriginalRequestHost(request);
 
   if (!isSafeForwardedHost(host)) {

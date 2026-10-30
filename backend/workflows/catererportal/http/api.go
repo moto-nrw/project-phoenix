@@ -29,7 +29,7 @@ type ExportFile struct {
 type Runtime struct {
 	CurrentAccountID func(context.Context) int64
 	RenderList       func(mealplan.ListExport, string) (ExportFile, error)
-	Resets           PasswordResetRuntime
+	Resets           common.PasswordResetRoutes
 	SignIn           SignIn
 	SecondFactor     SecondFactor
 }
@@ -92,8 +92,8 @@ func (rs *Resource) CatererRouter(authRateLimiter func(http.Handler) http.Handle
 		r.Post("/auth/mfa/resend", rs.resendMFA)
 		r.Post("/auth/passkeys/login/options", rs.passkeyLoginOptions)
 		r.Post("/auth/passkeys/login/verify", rs.passkeyLoginVerify)
-		r.Post("/auth/password-reset", rs.initiatePasswordReset)
-		r.Post("/auth/password-reset/confirm", rs.resetPassword)
+		r.Post("/auth/password-reset", rs.runtime.Resets.ServeInitiate)
+		r.Post("/auth/password-reset/confirm", rs.runtime.Resets.ServeConfirm)
 		r.Get("/invitations/{schoolId}/{token}", rs.previewInvitation)
 		r.Post("/invitations/{schoolId}/{token}/accept", rs.acceptInvitation)
 	})

@@ -1,0 +1,6 @@
+{
+  "scenario": "api.holiday_weeks.participants",
+  "max": 6,
+  "exact": true,
+  "description": "modules/enrollment — GET /api/holiday-weeks/{weekId}/participants\n(#4665, ADR 0116): the school and the schools of its Träger for the\nhome school names, read before the tenant transaction opens; then the\ntenant binding, the hosted week, its time models and its confirmed\nchildren. The access log entry writes but selects nothing. Flat in the\nnumber of children."
+}
