@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the residual of the school erasure with schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// 1.15.718 (#4769): the residual of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
 // copy of the 1.15.705 function with those two insertions.
 func installWeekProtocolErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasureResidualSQL)
@@ -332,6 +332,8 @@ const weekProtocolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.scho
     SELECT 1 FROM schedule.grade_transition_roster_removals AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM schedule.instance_staff AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM schedule.group_week_protocol_pdfs AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM schedule.group_week_protocol_days AS r WHERE r.tenant_id = p_school_id
     UNION ALL

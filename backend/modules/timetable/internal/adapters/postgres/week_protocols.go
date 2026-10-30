@@ -13,11 +13,21 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The weekly protocols of #4769: schedule.group_week_protocols and its days.
+// The weekly protocols of #4769: schedule.group_week_protocols, its days and
+// the PDF stored when it is closed.
 const (
 	weekProtocolTable    = `schedule.group_week_protocols AS "week_protocol"`
 	weekProtocolDayTable = `schedule.group_week_protocol_days AS "week_protocol_day"`
+	weekProtocolPDFTable = `schedule.group_week_protocol_pdfs AS "week_protocol_pdf"`
 )
+
+type weekProtocolPDFRow struct {
+	bun.BaseModel `bun:"table:schedule.group_week_protocol_pdfs,alias:week_protocol_pdf"`
+	ProtocolID    int64  `bun:"protocol_id,pk"`
+	TenantID      int64  `bun:"tenant_id,notnull"`
+	Filename      string `bun:"filename,notnull"`
+	PDF           []byte `bun:"pdf,notnull"`
+}
 
 type weekProtocolRow struct {
 	bun.BaseModel       `bun:"table:schedule.group_week_protocols,alias:week_protocol"`
@@ -103,12 +113,13 @@ func (s *Store) CaptureWeekProtocolDay(ctx context.Context, protocolID int64, da
 // AdvanceWeeks closes the open protocols of weeks before closeBefore and,
 // when draftUpTo is set, turns the collecting protocols up to that week into
 // drafts. Closing runs first, so a week closed here is never drafted.
-func (s *Store) AdvanceWeekProtocols(ctx context.Context, closeBefore calendar.Date, draftUpTo *calendar.Date, at time.Time) (int, int, error) {
+func (s *Store) AdvanceWeekProtocols(ctx context.Context, closeBefore calendar.Date, draftUpTo *calendar.Date, at time.Time) (int, []int64, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return 0, 0, err
+		return 0, nil, err
 	}
-	result, err := db.NewUpdate().TableExpr(weekProtocolTable).
+	closed := []int64{}
+	err = db.NewUpdate().TableExpr(weekProtocolTable).
 		Set("status = ?", timetable.WeekProtocolStatusClosed).
 		Set(`drafted_at = COALESCE("week_protocol".drafted_at, ?)`, at).
 		Set("closed_at = ?", at).
@@ -116,12 +127,15 @@ func (s *Store) AdvanceWeekProtocols(ctx context.Context, closeBefore calendar.D
 		Where(`"week_protocol".tenant_id = ?`, tenantID).
 		Where(`"week_protocol".status <> ?`, timetable.WeekProtocolStatusClosed).
 		Where(`"week_protocol".week_start < ?`, closeBefore).
-		Exec(ctx)
-	closed, err := affectedRows(result, err, "close overdue week protocols")
-	if err != nil || draftUpTo == nil {
-		return 0, closed, err
+		Returning(`"week_protocol".id`).
+		Scan(ctx, &closed)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return 0, nil, fmt.Errorf("close overdue week protocols: %w", err)
 	}
-	result, err = db.NewUpdate().TableExpr(weekProtocolTable).
+	if draftUpTo == nil {
+		return 0, closed, nil
+	}
+	result, err := db.NewUpdate().TableExpr(weekProtocolTable).
 		Set("status = ?", timetable.WeekProtocolStatusDraft).
 		Set("drafted_at = ?", at).
 		Where(`"week_protocol".tenant_id = ?`, tenantID).
@@ -244,6 +258,37 @@ func (s *Store) CloseWeekProtocol(ctx context.Context, id int64, actor timetable
 		return fmt.Errorf("close week protocol: %w", err)
 	}
 	return nil
+}
+
+func (s *Store) SaveWeekProtocolPDF(ctx context.Context, protocolID int64, file timetable.WeekProtocolReportFile) error {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	row := weekProtocolPDFRow{ProtocolID: protocolID, TenantID: tenantID, Filename: file.Filename, PDF: file.Data}
+	if _, err := db.NewInsert().Model(&row).ModelTableExpr(weekProtocolPDFTable).Exec(ctx); err != nil {
+		return fmt.Errorf("store week protocol pdf: %w", err)
+	}
+	return nil
+}
+
+func (s *Store) FindWeekProtocolPDF(ctx context.Context, protocolID int64) (timetable.WeekProtocolReportFile, bool, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return timetable.WeekProtocolReportFile{}, false, err
+	}
+	var row weekProtocolPDFRow
+	err = db.NewSelect().Model(&row).ModelTableExpr(weekProtocolPDFTable).
+		Where(`"week_protocol_pdf".protocol_id = ?`, protocolID).
+		Where(`"week_protocol_pdf".tenant_id = ?`, tenantID).
+		Scan(ctx)
+	if errors.Is(err, sql.ErrNoRows) {
+		return timetable.WeekProtocolReportFile{}, false, nil
+	}
+	if err != nil {
+		return timetable.WeekProtocolReportFile{}, false, fmt.Errorf("load week protocol pdf: %w", err)
+	}
+	return timetable.WeekProtocolReportFile{Data: row.PDF, ContentType: "application/pdf", Filename: row.Filename}, true, nil
 }
 
 func (s *Store) DeleteWeekProtocolsEndedBefore(ctx context.Context, cutoff calendar.Date) (int, error) {

@@ -306,6 +306,7 @@ var tableRetentions = map[string]tableRetention{
 	"schedule.dateframes":                                   notPersonal("date frame catalog"),
 	"schedule.grade_transition_roster_removals":             parent("users.student_profiles"),
 	"schedule.group_week_protocol_days":                     parent("schedule.group_week_protocols"),
+	"schedule.group_week_protocol_pdfs":                     parent("schedule.group_week_protocols"),
 	"schedule.group_week_protocols":                         own("nightly retention step week_protocol_retention (roots/owners/worker_retention.go), Timetable DeleteExpiredWeekProtocols (school window gdpr.attendance_retention_days after the week's Sunday, #4769)"),
 	"schedule.instance_staff":                               parent("schedule.activity_instances"),
 	"schedule.instance_students":                            parent("schedule.activity_instances"),

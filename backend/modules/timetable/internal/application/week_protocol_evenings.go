@@ -32,7 +32,7 @@ const (
 // is over at any hour. Everything runs in one transaction of the school in
 // context.
 func (s *Service) RunWeekProtocolEvening(ctx context.Context, now time.Time, sources timetable.WeekProtocolSources) (result timetable.WeekProtocolEveningResult, err error) {
-	if sources.Notices == nil || sources.Calendar == nil || sources.Groups == nil || sources.Attendance == nil || sources.SchoolMode == nil {
+	if sources.Notices == nil || sources.Calendar == nil || sources.Groups == nil || sources.Attendance == nil || sources.SchoolMode == nil || sources.Renderer == nil {
 		return result, errors.New("week protocol evening: all sources are required")
 	}
 	e := weekProtocolEvening{service: s, sources: sources}
@@ -58,10 +58,31 @@ func (s *Service) RunWeekProtocolEvening(ctx context.Context, now time.Time, sou
 			draftUpTo = &weekStart
 		}
 		drafted, closed, advanceErr := s.store.AdvanceWeekProtocols(txCtx, weekStart.AddDays(-7), draftUpTo, now)
-		result.Drafted, result.AutoClosed = drafted, closed
-		return advanceErr
+		if advanceErr != nil {
+			return advanceErr
+		}
+		result.Drafted, result.AutoClosed = drafted, len(closed)
+		return s.storeAutoClosedWeekProtocolPDFs(txCtx, closed, sources.Renderer)
 	})
 	return result, err
+}
+
+// storeAutoClosedWeekProtocolPDFs gives every protocol the run closed its
+// PDF, like one closed by hand, in the run's transaction.
+func (s *Service) storeAutoClosedWeekProtocolPDFs(ctx context.Context, ids []int64, renderer timetable.WeekProtocolRenderer) error {
+	for _, id := range ids {
+		protocol, found, err := s.store.FindWeekProtocol(ctx, id, false)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return fmt.Errorf("week protocol %d closed but not found", id)
+		}
+		if err := s.storeWeekProtocolPDF(ctx, protocol, renderer); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // weekProtocolEvening is one evening run over the owner and its sources.

@@ -7948,11 +7948,11 @@
       "target_owner": "audit-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.ReportRenderer.RenderReport",
-      "reason": "Read-only target: care-plan renders the PDF proof of a signed parent request (#4780) through modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) via api.declarationReports.RenderReport. No persistent, lock or scope effect.",
+      "reason": "Read-only target: care-plan renders the PDF proof of a signed parent request (#4780) through modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) via roots/owners.RecordReports.RenderReport. No persistent, lock or scope effect.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
       "target_owner": "document-rendering"

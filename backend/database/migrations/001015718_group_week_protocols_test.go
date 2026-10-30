@@ -36,6 +36,7 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 	require.NoError(t, db.NewRaw(`INSERT INTO schedule.group_week_protocols (tenant_id, scope, group_id, group_name, week_start)
 		VALUES (?, 'group', 1, 'Bären', '2027-09-06') RETURNING id`, school).Scan(ctx, &protocolID))
 	erasureExec(t, db, `INSERT INTO schedule.group_week_protocol_days (tenant_id, protocol_id, day, note) VALUES (?, ?, '2027-09-06', 'Notiz')`, school, protocolID)
+	erasureExec(t, db, `INSERT INTO schedule.group_week_protocol_pdfs (protocol_id, tenant_id, filename, pdf) VALUES (?, ?, 'wochenprotokoll.pdf', '%PDF')`, protocolID, school)
 	_, err := db.ExecContext(ctx, `INSERT INTO schedule.group_week_protocols (tenant_id, scope, group_id, group_name, week_start)
 		VALUES (?, 'group', 1, 'Bären', '2027-09-07')`, school)
 	require.Error(t, err, "a week starts on a Monday")
@@ -44,4 +45,5 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 	require.Equal(t, "db_done", result.Status, "the erasure covers the weekly protocols")
 	assert.EqualValues(t, 1, result.RowCounts["schedule.group_week_protocols"])
 	assert.EqualValues(t, 1, result.RowCounts["schedule.group_week_protocol_days"])
+	assert.EqualValues(t, 1, result.RowCounts["schedule.group_week_protocol_pdfs"], "the stored PDF goes with the school")
 }

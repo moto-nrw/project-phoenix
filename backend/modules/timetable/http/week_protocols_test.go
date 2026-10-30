@@ -52,12 +52,12 @@ func (l *weekProtocolAccessLog) RecordWeekProtocolAccess(_ context.Context, acce
 }
 
 type weekProtocolRenderer struct {
-	docs []timetablehttp.WeekProtocolReportDocument
+	docs []timetable.WeekProtocolReportDocument
 }
 
-func (r *weekProtocolRenderer) RenderReport(doc timetablehttp.WeekProtocolReportDocument, filenameBase string) (timetablehttp.WeekProtocolReportFile, error) {
+func (r *weekProtocolRenderer) RenderReport(doc timetable.WeekProtocolReportDocument, filenameBase string) (timetable.WeekProtocolReportFile, error) {
 	r.docs = append(r.docs, doc)
-	return timetablehttp.WeekProtocolReportFile{Data: []byte("%PDF-1.4"), ContentType: "application/pdf", Filename: filenameBase + ".pdf"}, nil
+	return timetable.WeekProtocolReportFile{Data: []byte("%PDF-1.4"), ContentType: "application/pdf", Filename: filenameBase + ".pdf"}, nil
 }
 
 // weekProtocolDayLog answers one group with two missing children.
@@ -106,6 +106,7 @@ func setupWeekProtocolRoutes(t *testing.T) *weekProtocolRoutes {
 			return []timetable.WeekProtocolGroup{{ID: weekProtocolTestGroup, Name: "Bären"}}, nil
 		},
 		SchoolMode: func(context.Context) (bool, error) { return false, nil },
+		Renderer:   &weekProtocolRenderer{},
 	})
 	require.NoError(t, err)
 	listed, err := owner.ListWeekProtocols(ctx, timetable.WeekProtocolReach{Leadership: true}, timetable.WeekProtocolFilter{})
@@ -238,11 +239,15 @@ func TestWeekProtocolRoutesNotesCloseAndPDF(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, rr.Code, "a closed protocol takes no notes")
 	assert.Contains(t, rr.Body.String(), "timetable.week_protocol_not_draft")
 
-	rr = routes.call(t, member, http.MethodGet, path+"/pdf", "", weekProtocolRead)
-	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	assert.Equal(t, "application/pdf", rr.Header().Get("Content-Type"))
-	assert.Contains(t, rr.Header().Get("Content-Disposition"), "wochenprotokoll-baeren-2027-09-06.pdf")
-	require.Len(t, routes.renderer.docs, 1)
+	require.Len(t, routes.renderer.docs, 1, "closing renders the PDF and stores it")
+	for range 2 {
+		rr = routes.call(t, member, http.MethodGet, path+"/pdf", "", weekProtocolRead)
+		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+		assert.Equal(t, "application/pdf", rr.Header().Get("Content-Type"))
+		assert.Contains(t, rr.Header().Get("Content-Disposition"), "wochenprotokoll-baeren-2027-09-06.pdf")
+		assert.Equal(t, "%PDF-1.4", rr.Body.String(), "the stored file")
+	}
+	require.Len(t, routes.renderer.docs, 1, "a download serves the stored file and renders nothing")
 	doc := routes.renderer.docs[0]
 	assert.Equal(t, "Wochenprotokoll", doc.Title)
 	assert.Equal(t, "Bären · 06.09.2027 bis 12.09.2027", doc.Subtitle)

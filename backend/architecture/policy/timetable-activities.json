@@ -157,6 +157,10 @@
       "write_owner": "timetable-activities"
     },
     {
+      "name": "schedule.group_week_protocol_pdfs",
+      "write_owner": "timetable-activities"
+    },
+    {
       "name": "schedule.group_week_protocols",
       "write_owner": "timetable-activities"
     },

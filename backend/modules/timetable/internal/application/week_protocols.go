@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -72,9 +73,12 @@ func (s *Service) SaveWeekProtocolNotes(ctx context.Context, reach timetable.Wee
 	return result, err
 }
 
-func (s *Service) CloseWeekProtocol(ctx context.Context, reach timetable.WeekProtocolReach, id int64, actor timetable.WeekProtocolActor) (result timetable.WeekProtocol, err error) {
+func (s *Service) CloseWeekProtocol(ctx context.Context, reach timetable.WeekProtocolReach, id int64, actor timetable.WeekProtocolActor, renderer timetable.WeekProtocolRenderer) (result timetable.WeekProtocol, err error) {
 	if actor.AccountID <= 0 {
 		return timetable.WeekProtocol{}, fmt.Errorf("%w: closing needs the acting account", timetable.ErrWeekProtocolInvalid)
+	}
+	if renderer == nil {
+		return timetable.WeekProtocol{}, errors.New("close week protocol: the renderer is required")
 	}
 	err = s.runWrite(ctx, "close_week_protocol", true, func(txCtx context.Context, _ *domain.OperationStats) error {
 		if _, findErr := s.visibleWeekProtocolDraft(txCtx, reach, id); findErr != nil {
@@ -84,9 +88,46 @@ func (s *Service) CloseWeekProtocol(ctx context.Context, reach timetable.WeekPro
 			return closeErr
 		}
 		result, err = s.visibleWeekProtocol(txCtx, reach, id, false)
-		return err
+		if err != nil {
+			return err
+		}
+		// The PDF is made and stored with the closing: a failed rendering
+		// leaves the protocol a draft.
+		return s.storeWeekProtocolPDF(txCtx, result, renderer)
 	})
 	return result, err
+}
+
+// OpenWeekProtocolPDF answers the PDF stored when the protocol was closed.
+func (s *Service) OpenWeekProtocolPDF(ctx context.Context, reach timetable.WeekProtocolReach, id int64) (protocol timetable.WeekProtocol, file timetable.WeekProtocolReportFile, err error) {
+	err = s.runWrite(ctx, "open_week_protocol_pdf", false, func(txCtx context.Context, _ *domain.OperationStats) error {
+		protocol, err = s.visibleWeekProtocol(txCtx, reach, id, false)
+		if err != nil {
+			return err
+		}
+		if protocol.Status != timetable.WeekProtocolStatusClosed {
+			return timetable.ErrWeekProtocolNotClosed
+		}
+		stored, found, findErr := s.store.FindWeekProtocolPDF(txCtx, id)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return fmt.Errorf("week protocol %d is closed without a stored pdf", id)
+		}
+		file = stored
+		return nil
+	})
+	return protocol, file, err
+}
+
+// storeWeekProtocolPDF renders the closed protocol and stores the file.
+func (s *Service) storeWeekProtocolPDF(ctx context.Context, protocol timetable.WeekProtocol, renderer timetable.WeekProtocolRenderer) error {
+	file, err := renderer.RenderReport(timetable.WeekProtocolDocument(protocol), timetable.WeekProtocolFilename(protocol))
+	if err != nil {
+		return fmt.Errorf("render week protocol %d: %w", protocol.ID, err)
+	}
+	return s.store.SaveWeekProtocolPDF(ctx, protocol.ID, file)
 }
 
 // DeleteExpiredWeekProtocols deletes the protocols whose week ended before

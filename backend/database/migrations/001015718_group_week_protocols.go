@@ -40,10 +40,12 @@ func init() {
 //     the recorded day (counts, missing children with their reason, blocks
 //     with their status, the day's staff notices); a day without facts was
 //     not recorded. note is the leadership's free text for the day.
+//   - schedule.group_week_protocol_pdfs: the PDF made when the protocol is
+//     closed, by the group leadership or automatically, stored once and
+//     served as it was (#4769: "abgelegt"). It goes with its protocol.
 //
-// The PDF is rendered from the closed protocol, which no longer changes;
-// both tables go after gdpr.attendance_retention_days, counted from the
-// week's Sunday.
+// The three tables go after gdpr.attendance_retention_days, counted from the
+// week's Sunday; days and PDF go with their protocol.
 const groupWeekProtocolsUpSQL = `
 CREATE TABLE IF NOT EXISTS schedule.group_week_protocols (
 	id BIGSERIAL PRIMARY KEY,
@@ -97,6 +99,19 @@ CREATE TABLE IF NOT EXISTS schedule.group_week_protocol_days (
 CREATE INDEX IF NOT EXISTS idx_group_week_protocol_days_tenant
 	ON schedule.group_week_protocol_days (tenant_id);
 
+CREATE TABLE IF NOT EXISTS schedule.group_week_protocol_pdfs (
+	protocol_id BIGINT PRIMARY KEY REFERENCES schedule.group_week_protocols(id) ON DELETE CASCADE,
+	tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
+	filename TEXT NOT NULL,
+	pdf BYTEA NOT NULL,
+	sha256 CHAR(64) GENERATED ALWAYS AS (encode(sha256(pdf), 'hex')) STORED,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+	CONSTRAINT chk_group_week_protocol_pdfs_filename CHECK (char_length(filename) BETWEEN 1 AND 200),
+	CONSTRAINT chk_group_week_protocol_pdfs_pdf CHECK (octet_length(pdf) BETWEEN 1 AND 20971520)
+);
+CREATE INDEX IF NOT EXISTS idx_group_week_protocol_pdfs_tenant
+	ON schedule.group_week_protocol_pdfs (tenant_id);
+
 DROP TRIGGER IF EXISTS update_group_week_protocols_updated_at ON schedule.group_week_protocols;
 CREATE TRIGGER update_group_week_protocols_updated_at
 	BEFORE UPDATE ON schedule.group_week_protocols
@@ -106,8 +121,8 @@ CREATE TRIGGER update_group_week_protocol_days_updated_at
 	BEFORE UPDATE ON schedule.group_week_protocol_days
 	FOR EACH ROW EXECUTE FUNCTION update_modified_column();
 
-REVOKE ALL ON schedule.group_week_protocols, schedule.group_week_protocol_days FROM PUBLIC;
-GRANT SELECT, INSERT, UPDATE, DELETE ON schedule.group_week_protocols, schedule.group_week_protocol_days TO phoenix_tenant;
+REVOKE ALL ON schedule.group_week_protocols, schedule.group_week_protocol_days, schedule.group_week_protocol_pdfs FROM PUBLIC;
+GRANT SELECT, INSERT, UPDATE, DELETE ON schedule.group_week_protocols, schedule.group_week_protocol_days, schedule.group_week_protocol_pdfs TO phoenix_tenant;
 GRANT USAGE ON SEQUENCE schedule.group_week_protocols_id_seq, schedule.group_week_protocol_days_id_seq TO phoenix_tenant;
 `
 
@@ -230,7 +245,7 @@ func groupWeekProtocolsUp(ctx context.Context, db *bun.DB) error {
 		if _, err := tx.ExecContext(ctx, groupWeekProtocolsUpSQL); err != nil {
 			return fmt.Errorf("create the weekly protocol tables: %w", err)
 		}
-		if err := provisionTenantRLS(ctx, tx, "schedule.group_week_protocols", "schedule.group_week_protocol_days"); err != nil {
+		if err := provisionTenantRLS(ctx, tx, "schedule.group_week_protocols", "schedule.group_week_protocol_days", "schedule.group_week_protocol_pdfs"); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx, weekProtocolDataKindsUpSQL); err != nil {
@@ -262,6 +277,7 @@ func groupWeekProtocolsDown(ctx context.Context, db *bun.DB) error {
 		}
 		if _, err := tx.ExecContext(ctx, `
 			DELETE FROM audit.data_deletions WHERE deletion_type = 'week_protocol_retention';
+			DROP TABLE IF EXISTS schedule.group_week_protocol_pdfs;
 			DROP TABLE IF EXISTS schedule.group_week_protocol_days;
 			DROP TABLE IF EXISTS schedule.group_week_protocols;`); err != nil {
 			return fmt.Errorf("drop the weekly protocol tables: %w", err)

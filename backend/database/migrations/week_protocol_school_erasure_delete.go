@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the delete of the school erasure with schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// 1.15.718 (#4769): the delete of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
 // copy of the 1.15.705 function with those two insertions.
 func installWeekProtocolErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasureDeleteSQL)
@@ -488,6 +488,9 @@ const weekProtocolErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school
    SELECT count(*) INTO v_count FROM schedule.instance_staff AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM schedule.instance_staff AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('schedule.instance_staff', v_count);
+   SELECT count(*) INTO v_count FROM schedule.group_week_protocol_pdfs AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM schedule.group_week_protocol_pdfs AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('schedule.group_week_protocol_pdfs', v_count);
    SELECT count(*) INTO v_count FROM schedule.group_week_protocol_days AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM schedule.group_week_protocol_days AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('schedule.group_week_protocol_days', v_count);

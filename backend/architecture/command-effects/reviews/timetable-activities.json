@@ -13949,6 +13949,16 @@
       "target_owner": "presence-legacy-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolRenderer.RenderReport",
+      "reason": "Read-only target: timetable-activities renders the PDF of a closed weekly protocol (#4769), by hand or automatically, through modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) via roots/owners.RecordReports.RenderReport; Timetable stores the returned bytes in its own table. No persistent, lock or scope effect in the target.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
+      "target_owner": "document-rendering"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
       "classification": "query",
       "effect": "query",
@@ -15889,16 +15899,6 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.MyGroupIDs",
       "target_owner": "identity-access"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolRenderer.RenderReport",
-      "reason": "Read-only newly exposed target: timetable-activities reaches modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) through api.declarationReports.RenderReport. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
-      "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
-      "target_owner": "document-rendering"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.CurrentPersonName",

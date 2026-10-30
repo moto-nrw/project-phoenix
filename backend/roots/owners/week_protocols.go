@@ -39,7 +39,8 @@ const weekProtocolGroupLimit = 1000
 // newWeekProtocolEvenings builds the Worker's evening run of the weekly
 // protocols (#4769) over the owners the Worker root built: Timetable's own
 // blocks and staff notices, the School Calendar, School Structure's groups,
-// the presence projection's day log and the group mode setting.
+// the presence projection's day log, the group mode setting and Document
+// Rendering for the PDF of an automatically closed protocol.
 func newWeekProtocolEvenings(
 	db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService,
 	persons peopledirectory.Capability, services PeopleServices, reports PresenceReports,
@@ -69,6 +70,7 @@ func newWeekProtocolEvenings(
 	sources := timetable.WeekProtocolSources{
 		Notices: notices, Calendar: calendar, Attendance: attendance,
 		Groups: weekProtocolGroupsOf(groups), SchoolMode: weekProtocolSchoolModeOf(settings),
+		Renderer: NewRecordReports(),
 	}
 	owner := timetableRepos.Timetable
 	jobLogger := logger.With("service", "week_protocols")

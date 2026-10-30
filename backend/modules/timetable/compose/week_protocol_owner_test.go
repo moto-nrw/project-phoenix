@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -35,6 +36,7 @@ type weekProtocolSources struct {
 	holidays  map[string]bool
 	closing   map[string]bool
 	attendCnt int
+	pdfs      *weekProtocolPDFs
 }
 
 func (s *weekProtocolSources) GroupDayAttendance(_ context.Context, day calendar.Date, groupIDs []int64) ([]timetable.WeekProtocolGroupDay, error) {
@@ -60,8 +62,31 @@ func (s *weekProtocolSources) ClosingDayDates(context.Context, string, string) (
 	return s.closing, nil
 }
 
+// weekProtocolPDFs fakes Document Rendering: each document becomes a file
+// that names its subtitle and the rendering's number, so a test can tell a
+// stored file from a fresh rendering; fail refuses every rendering.
+type weekProtocolPDFs struct {
+	rendered int
+	fail     bool
+}
+
+func (r *weekProtocolPDFs) RenderReport(doc timetable.WeekProtocolReportDocument, filenameBase string) (timetable.WeekProtocolReportFile, error) {
+	if r.fail {
+		return timetable.WeekProtocolReportFile{}, errors.New("renderer down")
+	}
+	r.rendered++
+	return timetable.WeekProtocolReportFile{
+		Data:        []byte(fmt.Sprintf("%%PDF %s #%d", doc.Subtitle, r.rendered)),
+		ContentType: "application/pdf", Filename: filenameBase + ".pdf",
+	}, nil
+}
+
 func (s *weekProtocolSources) of(db *bun.DB) timetable.WeekProtocolSources {
+	if s.pdfs == nil {
+		s.pdfs = &weekProtocolPDFs{}
+	}
 	return timetable.WeekProtocolSources{
+		Renderer:   s.pdfs,
 		Notices:    NewStaffNotices(StaffNoticeDependencies{DB: db}),
 		Calendar:   s,
 		Attendance: s,
@@ -280,11 +305,12 @@ func TestWeekProtocolNotesReachAndTenantBoundary(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, foreignList)
 
-	closed, err := module.CloseWeekProtocol(ctx, member, draft.ID, timetable.WeekProtocolActor{AccountID: 1, Name: "Lea Leitung"})
+	pdfs := &weekProtocolPDFs{}
+	closed, err := module.CloseWeekProtocol(ctx, member, draft.ID, timetable.WeekProtocolActor{AccountID: 1, Name: "Lea Leitung"}, pdfs)
 	require.NoError(t, err)
 	assert.Equal(t, timetable.WeekProtocolStatusClosed, closed.Status)
 	assert.Equal(t, "Lea Leitung", closed.ClosedByName)
-	_, err = module.CloseWeekProtocol(ctx, member, draft.ID, timetable.WeekProtocolActor{AccountID: 1, Name: "Lea Leitung"})
+	_, err = module.CloseWeekProtocol(ctx, member, draft.ID, timetable.WeekProtocolActor{AccountID: 1, Name: "Lea Leitung"}, pdfs)
 	require.ErrorIs(t, err, timetable.ErrWeekProtocolNotDraft)
 	saturday := weekProtocolFriday.AddDays(1)
 	sources.days[saturday] = []timetable.WeekProtocolGroupDay{{GroupID: 9008, Present: 2}}
@@ -340,4 +366,52 @@ func TestWeekProtocolListQueryBudgetStaysFlat(t *testing.T) {
 		return statements
 	}
 	assert.Equal(t, countList(3), countList(8), "more groups add no statements")
+}
+
+// The PDF is made when the protocol is closed and stored (#4769: "beim
+// Abschließen entsteht ein PDF, das abgelegt wird"): every download serves
+// the stored file, a failed rendering keeps the draft, and the worker's
+// automatic closing stores one as well.
+func TestWeekProtocolStoresItsPDFWhenClosed(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	sources := &weekProtocolSources{groups: []timetable.WeekProtocolGroup{{ID: 9010, Name: "Füchse"}, {ID: 9011, Name: "Igel"}}}
+	sources.days = map[calendar.Date][]timetable.WeekProtocolGroupDay{weekProtocolFriday: {{GroupID: 9010, Present: 4}, {GroupID: 9011, Present: 6}}}
+	runWeekProtocolEvening(t, module, ctx, weekProtocolEvening(weekProtocolFriday), sources.of(db))
+	foxes := weekProtocolOfGroup(t, module, ctx, 9010)
+	actor := timetable.WeekProtocolActor{AccountID: 1, Name: "Lea Leitung"}
+
+	_, _, err := module.OpenWeekProtocolPDF(ctx, weekProtocolLeadership, foxes.ID)
+	require.ErrorIs(t, err, timetable.ErrWeekProtocolNotClosed, "a draft has no PDF yet")
+
+	_, err = module.CloseWeekProtocol(ctx, weekProtocolLeadership, foxes.ID, actor, &weekProtocolPDFs{fail: true})
+	require.Error(t, err)
+	assert.Equal(t, timetable.WeekProtocolStatusDraft, weekProtocolOfGroup(t, module, ctx, 9010).Status, "a failed rendering leaves the draft")
+
+	pdfs := &weekProtocolPDFs{}
+	_, err = module.CloseWeekProtocol(ctx, weekProtocolLeadership, foxes.ID, actor, pdfs)
+	require.NoError(t, err)
+	protocol, file, err := module.OpenWeekProtocolPDF(ctx, weekProtocolLeadership, foxes.ID)
+	require.NoError(t, err)
+	assert.Equal(t, foxes.ID, protocol.ID)
+	assert.Equal(t, "%PDF Füchse · 06.09.2027 bis 12.09.2027 #1", string(file.Data))
+	assert.Equal(t, "wochenprotokoll-fuechse-2027-09-06.pdf", file.Filename)
+	assert.Equal(t, "application/pdf", file.ContentType)
+	_, again, err := module.OpenWeekProtocolPDF(ctx, weekProtocolLeadership, foxes.ID)
+	require.NoError(t, err)
+	assert.Equal(t, file.Data, again.Data, "a download serves the stored file")
+	assert.Equal(t, 1, pdfs.rendered, "a download renders nothing")
+
+	_, _, err = module.OpenWeekProtocolPDF(ctx, timetable.WeekProtocolReach{Staff: true, GroupIDs: []int64{9011}}, foxes.ID)
+	require.ErrorIs(t, err, timetable.ErrWeekProtocolNotFound, "the PDF follows the protocol's reach")
+
+	// The Monday after the following week closes the hedgehogs' draft and
+	// stores its PDF in the same run.
+	closing := weekProtocolMonday.AddDays(14).BerlinMidnight().Add(time.Hour)
+	assert.Equal(t, 1, runWeekProtocolEvening(t, module, ctx, closing, sources.of(db)).AutoClosed)
+	hedgehogs := weekProtocolOfGroup(t, module, ctx, 9011)
+	_, auto, err := module.OpenWeekProtocolPDF(ctx, weekProtocolLeadership, hedgehogs.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "%PDF Igel · 06.09.2027 bis 12.09.2027 #1", string(auto.Data))
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the plan of the school erasure with schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// 1.15.718 (#4769): the plan of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
 // copy of the 1.15.705 function with those two insertions.
 func installWeekProtocolErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasurePlanSQL)
@@ -173,6 +173,7 @@ const weekProtocolErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_e
   {"name": "schedule.dateframes","predicate": "r.tenant_id = $1"},
   {"name": "schedule.grade_transition_roster_removals","predicate": "r.tenant_id = $1"},
   {"name": "schedule.instance_staff","predicate": "r.tenant_id = $1"},
+  {"name": "schedule.group_week_protocol_pdfs","predicate": "r.tenant_id = $1"},
   {"name": "schedule.group_week_protocol_days","predicate": "r.tenant_id = $1"},
   {"name": "schedule.group_week_protocols","predicate": "r.tenant_id = $1"},
   {"name": "schedule.instance_students","predicate": "r.tenant_id = $1"},

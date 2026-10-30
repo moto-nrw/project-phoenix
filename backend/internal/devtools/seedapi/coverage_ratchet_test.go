@@ -116,6 +116,7 @@ var seedCoverageExemptions = map[string]string{
 	"schedule.grade_transition_roster_removals": "empty in prod too",
 	"schedule.group_week_protocol_days":         "the Worker records a group's day only on that evening (from 20:00 Berlin, #4769) from the live day log, which cannot be rebuilt for a past day; a seed run never reaches that hour, and fabricated days would misstate attendance",
 	"schedule.group_week_protocols":             "created by the Worker's first evening record of a week (#4769); see schedule.group_week_protocol_days",
+	"schedule.group_week_protocol_pdfs":         "stored when a weekly protocol is closed (#4769); without recorded days there is no protocol to close, see schedule.group_week_protocol_days",
 	"schedule.recurrence_rules":                 "empty in prod too",
 	"schedule.staff_shift_series_exceptions":    "empty in prod too",
 	"schedule.timetable_conflict_acks":          "empty in prod too",

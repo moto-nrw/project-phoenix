@@ -72,18 +72,10 @@ func weekProtocolResponseOf(protocol timetable.WeekProtocol, withDays bool) week
 }
 
 func weekProtocolDaysResponse(protocol timetable.WeekProtocol) []weekProtocolDayResponse {
-	byDate := make(map[calendar.Date]timetable.WeekProtocolDay, len(protocol.Days))
-	for _, day := range protocol.Days {
-		byDate[day.Date] = day
-	}
-	days := make([]weekProtocolDayResponse, 0, 7)
-	for offset := 0; offset < 7; offset++ {
-		date := protocol.WeekStart.AddDays(offset)
-		day, ok := byDate[date]
-		if !ok && calendar.IsWeekend(date) {
-			continue
-		}
-		days = append(days, weekProtocolDayResponseOf(date, day))
+	shown := protocol.ShownDays()
+	days := make([]weekProtocolDayResponse, 0, len(shown))
+	for _, day := range shown {
+		days = append(days, weekProtocolDayResponseOf(day.Date, day))
 	}
 	return days
 }

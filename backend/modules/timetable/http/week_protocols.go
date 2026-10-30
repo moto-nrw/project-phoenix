@@ -57,7 +57,7 @@ type WeekProtocolResourceConfig struct {
 	Service   timetable.WeekProtocols
 	Caller    WeekProtocolCaller
 	AccessLog WeekProtocolAccessLog
-	Renderer  WeekProtocolRenderer
+	Renderer  timetable.WeekProtocolRenderer
 	// Names resolves the display names of accounts; the closing person is
 	// kept by name, so a later account change does not rewrite the record.
 	Names  func(ctx context.Context, accountIDs []int64) (map[int64]string, error)
@@ -105,6 +105,9 @@ var weekProtocolErrorRules = []common.ErrorRule{
 	}},
 	{Target: timetable.ErrWeekProtocolInvalid, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidRequestWithCode(err, common.CodeTimetableWeekProtocolNotesInvalid)
+	}},
+	{Target: timetable.ErrWeekProtocolNotClosed, Render: func(err error) render.Renderer {
+		return common.ErrorConflictWithCode(err, common.CodeTimetableWeekProtocolNotClosed)
 	}},
 }
 
@@ -214,7 +217,7 @@ func (rs *WeekProtocolResource) close(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	protocol, err := rs.cfg.Service.CloseWeekProtocol(ctx, reach, id, actor)
+	protocol, err := rs.cfg.Service.CloseWeekProtocol(ctx, reach, id, actor, rs.cfg.Renderer)
 	if err != nil {
 		common.RenderError(w, r, renderWeekProtocolError(err))
 		return
@@ -222,23 +225,26 @@ func (rs *WeekProtocolResource) close(w http.ResponseWriter, r *http.Request) {
 	render.JSON(w, r, map[string]any{"data": weekProtocolResponseOf(protocol, true)})
 }
 
-// pdf renders the closed protocol. A closed protocol no longer changes, so
-// the file is the same on every download.
+// pdf serves the PDF stored when the protocol was closed (#4769), byte for
+// byte the file of the closing.
 func (rs *WeekProtocolResource) pdf(w http.ResponseWriter, r *http.Request) {
-	protocol, ok := rs.load(w, r)
-	if !ok {
-		return
-	}
-	if protocol.Status != timetable.WeekProtocolStatusClosed {
-		common.RenderError(w, r, common.ErrorConflictWithCode(errors.New("protocol is not closed"), common.CodeTimetableWeekProtocolNotClosed))
-		return
-	}
-	file, err := rs.cfg.Renderer.RenderReport(weekProtocolDocument(protocol), weekProtocolFilename(protocol))
+	ctx := r.Context()
+	id, err := weekProtocolIDFromURL(r)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to render week protocol", err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if err := rs.recordAccess(r.Context(), protocol); err != nil {
+	reach, err := rs.reach(ctx)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	protocol, file, err := rs.cfg.Service.OpenWeekProtocolPDF(ctx, reach, id)
+	if err != nil {
+		common.RenderError(w, r, renderWeekProtocolError(err))
+		return
+	}
+	if err := rs.recordAccess(ctx, protocol); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to record audit trail", err))
 		return
 	}

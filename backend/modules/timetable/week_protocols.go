@@ -64,6 +64,9 @@ var (
 	ErrWeekProtocolNotDraft = errors.New("weekprotocol: protocol is not a draft")
 	// ErrWeekProtocolInvalid meldet fachlich unzulässige Ergänzungen.
 	ErrWeekProtocolInvalid = errors.New("weekprotocol: invalid notes")
+	// ErrWeekProtocolNotClosed meldet das PDF eines Protokolls, das noch
+	// nicht abgeschlossen ist: erst das Abschließen legt es ab.
+	ErrWeekProtocolNotClosed = errors.New("weekprotocol: protocol is not closed")
 )
 
 // WeekProtocol ist ein Protokoll mit seinen Tagen. Days ist in der Liste
@@ -195,7 +198,12 @@ type WeekProtocols interface {
 	ListWeekProtocols(ctx context.Context, reach WeekProtocolReach, filter WeekProtocolFilter) ([]WeekProtocol, error)
 	OpenWeekProtocol(ctx context.Context, reach WeekProtocolReach, id int64) (WeekProtocol, error)
 	SaveWeekProtocolNotes(ctx context.Context, reach WeekProtocolReach, id int64, notes WeekProtocolNotes) (WeekProtocol, error)
-	CloseWeekProtocol(ctx context.Context, reach WeekProtocolReach, id int64, actor WeekProtocolActor) (WeekProtocol, error)
+	// CloseWeekProtocol schließt den Entwurf ab und legt in derselben
+	// Transaktion sein PDF ab, das renderer erzeugt.
+	CloseWeekProtocol(ctx context.Context, reach WeekProtocolReach, id int64, actor WeekProtocolActor, renderer WeekProtocolRenderer) (WeekProtocol, error)
+	// OpenWeekProtocolPDF liefert das abgelegte PDF eines abgeschlossenen
+	// Protokolls mit dem Protokoll, unverändert seit dem Abschließen.
+	OpenWeekProtocolPDF(ctx context.Context, reach WeekProtocolReach, id int64) (WeekProtocol, WeekProtocolReportFile, error)
 }
 
 // WeekProtocolGroup ist eine OGS-Gruppe, für die ein Protokoll geführt wird.
@@ -228,15 +236,17 @@ type WeekProtocolAttendance interface {
 
 // WeekProtocolSources sind die Quellen des Abendlaufs außerhalb der eigenen
 // Blöcke: die Tagesinformationen, der Schulkalender und die Ports, die die
-// Wurzel an School Structure (Groups), die Tagesauswertung (Attendance) und
+// Wurzel an School Structure (Groups), die Tagesauswertung (Attendance),
 // die Einstellung operations.group_mode (SchoolMode, true = ohne feste
-// Gruppen) bindet.
+// Gruppen) und Document Rendering (Renderer, das PDF eines automatisch
+// abgeschlossenen Protokolls) bindet.
 type WeekProtocolSources struct {
 	Notices    StaffNotices
 	Calendar   NonWorkingDayCalendar
 	Groups     func(ctx context.Context) ([]WeekProtocolGroup, error)
 	Attendance WeekProtocolAttendance
 	SchoolMode func(ctx context.Context) (bool, error)
+	Renderer   WeekProtocolRenderer
 }
 
 // WeekProtocolEveningResult zählt, was ein Abendlauf in einer Schule tat.

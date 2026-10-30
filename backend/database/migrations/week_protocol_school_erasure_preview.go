@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the preview of the school erasure with schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// 1.15.718 (#4769): the preview of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
 // copy of the 1.15.705 function with those two insertions.
 func installWeekProtocolErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasurePreviewSQL)
@@ -180,6 +180,7 @@ const weekProtocolErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('schedule.dateframes',(SELECT count(*) FROM schedule.dateframes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.grade_transition_roster_removals',(SELECT count(*) FROM schedule.grade_transition_roster_removals AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.instance_staff',(SELECT count(*) FROM schedule.instance_staff AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('schedule.group_week_protocol_pdfs',(SELECT count(*) FROM schedule.group_week_protocol_pdfs AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.group_week_protocol_days',(SELECT count(*) FROM schedule.group_week_protocol_days AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.group_week_protocols',(SELECT count(*) FROM schedule.group_week_protocols AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.instance_students',(SELECT count(*) FROM schedule.instance_students AS r WHERE r.tenant_id = p_school));

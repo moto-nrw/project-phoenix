@@ -10561,6 +10561,14 @@
       "target_owner": "presence-legacy-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
+      "binding_digest": "d5d70a2681e3724a795af2869aa2855f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolRenderer.RenderReport",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
+      "target_owner": "document-rendering"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
       "binding_digest": "87654355629183615f741aff5f33f49b",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract.ActivityService.AddSupervisor",
@@ -12095,14 +12103,6 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.MyGroupIDs",
       "target_owner": "identity-access"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
-      "binding_digest": "3a587bdb139363c30ed7326bb0590745",
-      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolRenderer.RenderReport",
-      "source_owner": "timetable-activities",
-      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
-      "target_owner": "document-rendering"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.CurrentPersonName",

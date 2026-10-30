@@ -457,8 +457,8 @@
       "target_owner": "identity-access"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
-      "binding_digest": "3a587bdb139363c30ed7326bb0590745",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
+      "binding_digest": "d5d70a2681e3724a795af2869aa2855f",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements.ReportRenderer.RenderReport",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
