@@ -1,10 +1,13 @@
 import { createServer } from "node:http";
+import { connect } from "node:net";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { networkPorts } from "./ports.mjs";
 
 const sharedTenantCookie = process.env.TENANT_SWITCH_EVIDENCE === "1";
-const frontendPort = sharedTenantCookie ? 13845 : 13843;
-const apiPort = sharedTenantCookie ? 18445 : 18443;
+const ports = networkPorts(sharedTenantCookie ? "tenantSwitch" : "network");
+const frontendPort = ports.frontend;
+const apiPort = ports.api;
 let switchRequests = 0;
 let logoutRequests = 0;
 const schools = ["school-a", "school-b"].map((subdomain, index) => ({
@@ -219,7 +222,44 @@ const api = createServer(async (req, res) => {
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
 });
-api.listen(apiPort, "127.0.0.1");
+
+const fail = (message) => {
+  process.stderr.write(`Network evidence: ${message}\n`);
+  process.exit(1);
+};
+// macOS lets a wildcard and a loopback listener share a port, so a bind
+// alone does not prove that loopback traffic reaches this run. Any answer on
+// either loopback address means another process owns the port: stop instead
+// of testing against it, and never touch that process.
+const answers = (port, host) =>
+  new Promise((resolve) => {
+    const socket = connect({ port, host });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+for (const [service, port, name] of [
+  ["fixture API", apiPort, ports.names.api],
+  ["frontend", frontendPort, ports.names.frontend],
+]) {
+  for (const host of ["127.0.0.1", "::1"]) {
+    if (await answers(port, host)) {
+      fail(
+        `${service} port ${port} is already in use on ${host}. Stop your own earlier run or choose another port with ${name}.`,
+      );
+    }
+  }
+}
+await new Promise((resolve) => {
+  api.once("error", (error) =>
+    fail(
+      `fixture API cannot listen on 127.0.0.1:${apiPort} (${error.code ?? "error"}). Choose another port with ${ports.names.api}.`,
+    ),
+  );
+  api.listen(apiPort, "127.0.0.1", resolve);
+});
 
 // Do not inherit user-specific service configuration or credentials. Explicit
 // empty values also take precedence over Next's automatic .env.local loading.
@@ -259,6 +299,7 @@ const next = spawn(
   ["node_modules/next/dist/bin/next", "dev", "--port", String(frontendPort)],
   { env, stdio: "ignore" },
 );
+// Only this run's own children: the Next child and the fixture listener.
 const stop = () => {
   next.kill("SIGTERM");
   api.close();
@@ -266,8 +307,25 @@ const stop = () => {
 };
 process.on("SIGTERM", stop);
 process.on("SIGINT", stop);
-next.on("exit", (code) => {
+process.on("exit", () => next.kill("SIGTERM"));
+// Playwright holds stdin open; it closes when the runner ends, even when the
+// runner is killed without tearing the server down.
+if (process.argv.includes("--stop-with-stdin")) {
+  process.stdin.on("end", stop).resume();
+}
+next.on("error", (error) => {
+  api.close();
+  fail(`frontend could not start (${error.message})`);
+});
+next.on("exit", (code, signal) => {
+  if (code !== 0 && signal === null) {
+    process.stderr.write(
+      `Network evidence: frontend on port ${frontendPort} exited with code ${code}. Common causes: another next dev in this checkout holds its build lock, or the port is taken (choose another with ${ports.names.frontend}).\n`,
+    );
+  }
   api.close();
   api.closeAllConnections();
+  // The open stdin pipe would otherwise keep this process alive.
+  process.stdin.destroy();
   process.exitCode = code ?? 1;
 });

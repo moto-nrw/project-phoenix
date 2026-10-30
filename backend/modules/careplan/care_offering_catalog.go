@@ -83,7 +83,8 @@ type CareOfferingGuards interface {
 	// ValidateTemplateOfferingSource guards a template's offering-source
 	// rule (#2137) against a calendar period (nil skips the period check).
 	// storedOfferingIDs are the ids already persisted on the template: a
-	// vanished id is tolerated only when stored.
+	// vanished id is tolerated only when stored, and an inactive one is
+	// skipped only when stored and another source stays valid (#5313).
 	ValidateTemplateOfferingSource(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error
 	ValidateRoomDeletion(ctx context.Context, roomID int64) error
 	// ValidatePhaseChange evaluates every materializable offering of the

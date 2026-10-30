@@ -128,7 +128,9 @@ func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
 		"/api/students/101/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/students/102/pickup-exceptions",
 		"/api/students/102/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/iot/attendance/toggle",
 		"/api/students/103/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
 		"/api/iot/session/end",
 		// Der Sitzungsstart stempelt die Aufsicht ein, das Sitzungsende bucht
@@ -167,7 +169,7 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 			activityRoomIDs:  map[int64]int64{11: 12},
 			staffIDs:         map[string]int64{"Mara Muster": 13},
 			staffCredentials: []StaffCredentials{{Name: "Mara Muster", Email: "mara@example.com", Password: "Test1234%"}},
-			studentIDByIndex: map[int]int64{0: 101},
+			studentIDByIndex: map[int]int64{0: 100, 1: 101},
 		},
 		StaffPIN: "1234",
 	})
@@ -176,6 +178,10 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "end statistics demo session")
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
+		"/api/students/100/rfid",
+		"/api/iot/attendance/toggle",
+		"/api/iot/checkin",
+		"/api/students/101/pickup-exceptions",
 		"/api/students/101/rfid",
 		"/api/iot/session/end",
 		"/auth/login",

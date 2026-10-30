@@ -11,12 +11,15 @@ import (
 )
 
 // ValidateTemplateOfferingSource guards a template's offering-source rule
-// (#2137). Vanished ids are tolerated only when they are already stored on
-// the template: rejecting those would wedge every edit of a template whose
-// array carries a dangling id, while a newly submitted unknown id would
-// persist a dead source with a permanently empty roster.
+// (#2137). Stored ids get two allowances a newly submitted id does not:
+//   - a vanished one is tolerated: rejecting it would wedge every edit of a
+//     template whose array carries a dangling id, while a newly submitted
+//     unknown id would persist a dead source with a permanently empty roster;
+//   - an inactive one is skipped while another source stays valid (#5313):
+//     it contributes nothing, as on every resync (#5305), so a save keeping it
+//     must not be refused. A newly selected inactive offering stays refused.
 func (c *CareOfferingCatalog) ValidateTemplateOfferingSource(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error {
-	sources, err := c.loadValidatedOfferingSources(ctx, offeringIDs, calendarPeriodID, rejectDriftedSources)
+	sources, err := c.loadValidatedOfferingSources(ctx, offeringIDs, calendarPeriodID, skipStoredInactiveSources, storedOfferingIDs)
 	if err != nil {
 		return err
 	}
@@ -29,7 +32,7 @@ func (c *CareOfferingCatalog) ValidateTemplateOfferingSource(ctx context.Context
 	}
 	for _, id := range sources.Dropped {
 		if !stored[id] {
-			return c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+			return c.refuseSource(ports.OfferingSourceRefusal{
 				Kind: ports.OfferingSourceNotFound, Reason: fmt.Sprintf("care offering %d not found", id),
 			})
 		}
@@ -45,14 +48,18 @@ func (c *CareOfferingCatalog) ValidateTemplateOfferingSource(ctx context.Context
 type sourceDrift int
 
 const (
-	// rejectDriftedSources applies every check: declarations, catalog edits
-	// and template saves.
+	// rejectDriftedSources applies every check: new declarations.
 	rejectDriftedSources sourceDrift = iota
 	// skipInactiveSources skips an inactive offering as long as another
 	// source stays valid (#5305): the inactive source contributes nothing and
 	// the remaining sources keep planning their booked days. Phase, period
-	// and lookup checks still apply to the remaining sources.
+	// and lookup checks still apply to the remaining sources. Resyncs of a
+	// template's stored sources, catalog edits included (#5313).
 	skipInactiveSources
+	// skipStoredInactiveSources is skipInactiveSources for the stored ids
+	// only: a template save keeps an inactive source it already had, while a
+	// newly selected inactive one is refused (#5313).
+	skipStoredInactiveSources
 	// tolerateDriftedSources skips the active and phase-within-period checks;
 	// the detach fallback only.
 	tolerateDriftedSources
@@ -65,8 +72,23 @@ func sourceDriftOf(in careplan.OfferingRosterResync) sourceDrift {
 		return tolerateDriftedSources
 	case in.SkipInactiveSources:
 		return skipInactiveSources
+	case len(in.StoredOfferingIDs) > 0:
+		return skipStoredInactiveSources
 	default:
 		return rejectDriftedSources
+	}
+}
+
+// skipsInactive reports whether the policy skips the inactive offering;
+// stored are the template's stored ids for skipStoredInactiveSources.
+func (d sourceDrift) skipsInactive(stored map[int64]bool, offeringID int64) bool {
+	switch d {
+	case skipInactiveSources:
+		return true
+	case skipStoredInactiveSources:
+		return stored[offeringID]
+	default:
+		return false
 	}
 }
 
@@ -74,7 +96,7 @@ func sourceDriftOf(in careplan.OfferingRosterResync) sourceDrift {
 // template for the booking materialization's roster resync; see
 // loadValidatedOfferingSources.
 func (c *CareOfferingCatalog) LoadOfferingSources(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64, drift sourceDrift) (careplan.OfferingSources, error) {
-	return c.loadValidatedOfferingSources(ctx, offeringIDs, calendarPeriodID, drift)
+	return c.loadValidatedOfferingSources(ctx, offeringIDs, calendarPeriodID, drift, nil)
 }
 
 // loadValidatedOfferingSources runs the offering-source guard (#2137) per id
@@ -92,12 +114,14 @@ func (c *CareOfferingCatalog) LoadOfferingSources(ctx context.Context, offeringI
 // arrive from query strings and from the stored array on every resync.
 //
 // drift relaxes the active and phase-within-period rejections for stored
-// sources; see sourceDrift.
+// sources; see sourceDrift. storedOfferingIDs are the ids a template save
+// already stored, read for skipStoredInactiveSources only.
 func (c *CareOfferingCatalog) loadValidatedOfferingSources(
 	ctx context.Context,
 	offeringIDs []int64,
 	calendarPeriodID *int64,
 	drift sourceDrift,
+	storedOfferingIDs []int64,
 ) (careplan.OfferingSources, error) {
 	if err := c.checkOfferingSourceIDs(offeringIDs); err != nil {
 		return careplan.OfferingSources{}, err
@@ -117,7 +141,11 @@ func (c *CareOfferingCatalog) loadValidatedOfferingSources(
 	for _, offering := range loaded {
 		byID[offering.ID] = offering
 	}
-	return c.acceptOfferingSources(ctx, offeringIDs, byID, period, drift)
+	stored := make(map[int64]bool, len(storedOfferingIDs))
+	for _, id := range storedOfferingIDs {
+		stored[id] = true
+	}
+	return c.acceptOfferingSources(ctx, offeringIDs, byID, period, drift, stored)
 }
 
 // acceptOfferingSources checks the loaded offerings in request order.
@@ -127,6 +155,7 @@ func (c *CareOfferingCatalog) acceptOfferingSources(
 	byID map[int64]careplan.CareOffering,
 	period *careplan.LinkedPeriod,
 	drift sourceDrift,
+	stored map[int64]bool,
 ) (careplan.OfferingSources, error) {
 	sources := careplan.OfferingSources{Offerings: make([]careplan.CareOffering, 0, len(byID))}
 	var firstInactive *careplan.CareOffering
@@ -136,7 +165,7 @@ func (c *CareOfferingCatalog) acceptOfferingSources(
 			sources.Dropped = append(sources.Dropped, offeringID)
 			continue
 		}
-		if !offering.IsActive && drift == skipInactiveSources {
+		if !offering.IsActive && drift.skipsInactive(stored, offering.ID) {
 			sources.Inactive = append(sources.Inactive, offering.ID)
 			if firstInactive == nil {
 				firstInactive = &offering
@@ -156,9 +185,41 @@ func (c *CareOfferingCatalog) acceptOfferingSources(
 }
 
 func (c *CareOfferingCatalog) inactiveSourceRefusal(offering careplan.CareOffering) error {
-	return c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+	return c.refuseSource(ports.OfferingSourceRefusal{
 		Kind: ports.OfferingSourceInactive, Reason: fmt.Sprintf("care offering %d is inactive", offering.ID), Offering: offering.Name,
 	})
+}
+
+// refusedSource keeps the kind of a source refusal next to the error the
+// source rules built, so an offering-scoped resync can say why a template
+// refused its sources (#5313). Text and chain stay the rules' error.
+type refusedSource struct {
+	error
+	kind ports.OfferingSourceRefusalKind
+}
+
+func (e *refusedSource) Unwrap() error { return e.error }
+
+func (c *CareOfferingCatalog) refuseSource(refusal ports.OfferingSourceRefusal) error {
+	return &refusedSource{error: c.deps.SourceRules.RejectWith(refusal), kind: refusal.Kind}
+}
+
+// sourceRefusalProblem names the refusal in err's chain for the catalog.
+func sourceRefusalProblem(err error) careplan.SourcedTemplateProblem {
+	var refused *refusedSource
+	if !errors.As(err, &refused) {
+		return careplan.SourcedTemplateSourceInvalid
+	}
+	switch refused.kind {
+	case ports.OfferingSourceInactive:
+		return careplan.SourcedTemplateNoActiveSource
+	case ports.OfferingSourceMixedPhases:
+		return careplan.SourcedTemplateMixedPhases
+	case ports.OfferingSourceOutsidePeriod:
+		return careplan.SourcedTemplateOutsidePeriod
+	default:
+		return careplan.SourcedTemplateSourceInvalid
+	}
 }
 
 func (c *CareOfferingCatalog) checkOfferingSourceIDs(offeringIDs []int64) error {
@@ -166,7 +227,7 @@ func (c *CareOfferingCatalog) checkOfferingSourceIDs(offeringIDs []int64) error 
 		return c.deps.SourceRules.Reject("at least one care offering is required")
 	}
 	if limit := c.deps.SourceRules.MaxSourcesPerTemplate(); len(offeringIDs) > limit {
-		return c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+		return c.refuseSource(ports.OfferingSourceRefusal{
 			Kind:   ports.OfferingSourceTooMany,
 			Reason: fmt.Sprintf("at most %d source offerings are supported (%d given)", limit, len(offeringIDs)),
 			Max:    limit, Given: len(offeringIDs),
@@ -213,7 +274,7 @@ func (c *CareOfferingCatalog) acceptOfferingSource(
 		return c.inactiveSourceRefusal(offering)
 	}
 	if sources.Phase != nil && offering.PhaseID != sources.Phase.ID {
-		return c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+		return c.refuseSource(ports.OfferingSourceRefusal{
 			Kind: ports.OfferingSourceMixedPhases,
 			Reason: fmt.Sprintf(
 				"all source offerings must belong to the same enrollment phase (offering %d belongs to %q)",
@@ -251,7 +312,7 @@ func (c *CareOfferingCatalog) establishSourcePhase(
 	}
 	if period != nil && !tolerateDrift {
 		if err := careplan.ValidatePhaseWithinPeriod(phase, period); err != nil {
-			return careplan.OfferingPhase{}, c.deps.SourceRules.RejectWith(ports.OfferingSourceRefusal{
+			return careplan.OfferingPhase{}, c.refuseSource(ports.OfferingSourceRefusal{
 				Kind: ports.OfferingSourceOutsidePeriod, Reason: err.Error(), Offering: offering.Name,
 			})
 		}

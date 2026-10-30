@@ -224,6 +224,11 @@ describe("OperatorBillingPage", () => {
       await screen.findByRole("button", { name: "Monat als CSV" }),
     );
     await waitFor(() => expect(mockDownload).toHaveBeenCalledWith("2026-08"));
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Alle Monate als CSV" }),
+      ).toBeEnabled(),
+    );
 
     fireEvent.click(
       screen.getByRole("button", { name: "Alle Monate als CSV" }),
