@@ -13949,6 +13949,16 @@
       "target_owner": "presence-legacy-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolSeedAttendance.GroupDayAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
+      "reason": "Read-only development seed adapter: timetable-activities reaches modules/presenceprojection/http.Resource.GroupDayLogs (presence-legacy-view) through api.weekProtocolSeedAttendance.GroupDayAttendance. It reads the current day while the local seed records sample data for Sunday; no persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
+      "target_owner": "presence-legacy-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
       "classification": "query",
       "effect": "query",

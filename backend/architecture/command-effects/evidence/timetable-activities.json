@@ -10561,6 +10561,14 @@
       "target_owner": "presence-legacy-view"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolSeedAttendance.GroupDayAttendance",
+      "binding_digest": "cd956a2dfe6769783f3030c76a00eac6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
+      "target_owner": "presence-legacy-view"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
       "binding_digest": "d5d70a2681e3724a795af2869aa2855f",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolRenderer.RenderReport",
