@@ -26,6 +26,7 @@ import {
   formatDate,
   formatStatusDate,
   parseISODate,
+  toISODate,
 } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -64,6 +65,34 @@ function notesOf(protocol: WeekProtocol): WeekProtocolNotes {
     weekNote: protocol.weekNote,
     days: Object.fromEntries(protocol.days.map((day) => [day.date, day.note])),
   };
+}
+
+function emptyWeekProtocolDay(date: string): WeekProtocolDay {
+  return {
+    date,
+    captured: false,
+    kind: null,
+    present: 0,
+    sick: 0,
+    excused: 0,
+    classTrip: 0,
+    absent: 0,
+    missing: [],
+    blocks: [],
+    notices: [],
+    note: "",
+  };
+}
+
+/** Every week day is editable, even if the API omits a quiet weekend day. */
+function editableWeekProtocolDays(protocol: WeekProtocol): WeekProtocolDay[] {
+  const daysByDate = new Map(protocol.days.map((day) => [day.date, day]));
+  return Array.from({ length: 7 }, (_, offset) => {
+    const date = parseISODate(protocol.weekStart);
+    date.setDate(date.getDate() + offset);
+    const dateISO = toISODate(date);
+    return daysByDate.get(dateISO) ?? emptyWeekProtocolDay(dateISO);
+  });
 }
 
 /** Wer jetzt etwas tun kann, und bis wann. */
@@ -108,6 +137,11 @@ function WeekProtocolContent() {
 
   const protocol = data ?? null;
   const editing = notes !== null && protocol?.status === "draft";
+  const detailDays = protocol
+    ? editing
+      ? editableWeekProtocolDays(protocol)
+      : protocol.days
+    : [];
 
   const save = async () => {
     if (!notes) return;
@@ -244,9 +278,8 @@ function WeekProtocolContent() {
               <p className="text-sm text-gray-500">Noch keine Ergänzung.</p>
             )}
           </SectionCard>
-          {protocol.days
-            // Ein Tag ohne Abend und ohne Ergänzung steht nur in der
-            // Übersicht; beim Ergänzen bekommt jeder Tag sein Feld.
+          {detailDays
+            // Ein leerer Wochenendtag steht nur beim Ergänzen in der Liste.
             .filter((day) => editing || day.captured || day.note)
             .map((day) => (
               <DayCard

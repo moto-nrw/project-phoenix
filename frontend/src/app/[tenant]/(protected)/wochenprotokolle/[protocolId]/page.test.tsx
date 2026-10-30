@@ -202,6 +202,31 @@ describe("WeekProtocolPage", () => {
     );
   });
 
+  it("saves a note for an otherwise empty weekend day", async () => {
+    state.saveNotes.mockResolvedValue(protocol());
+    renderPage();
+    fireEvent.click(screen.getByRole("button", { name: "Ergänzen" }));
+    fireEvent.change(
+      screen.getByLabelText("Ergänzung für Samstag, 12.09.2026"),
+      { target: { value: "Sommerfest" } },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(state.saveNotes).toHaveBeenCalledWith("41", {
+        weekNote: "",
+        days: {
+          "2026-09-07": "",
+          "2026-09-08": "",
+          "2026-09-09": "",
+          "2026-09-10": "",
+          "2026-09-11": "",
+          "2026-09-12": "Sommerfest",
+        },
+      }),
+    );
+  });
+
   it("closes only after the confirmation", async () => {
     state.close.mockResolvedValue(protocol({ status: "closed" }));
     renderPage();
