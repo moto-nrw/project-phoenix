@@ -216,6 +216,28 @@ func TestWeekProtocolRecordsWeekendAbsences(t *testing.T) {
 	assert.Len(t, facts.Missing, 4)
 }
 
+// A staff notice is meaningful on an otherwise quiet weekend and must stay
+// in the protocol like the notice of a weekday.
+func TestWeekProtocolRecordsWeekendNotice(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	saturday := weekProtocolFriday.AddDays(1)
+	author := testpkg.CreateTestAccount(t, db, "week-protocol-notice-author@test.local")
+	notices := NewStaffNotices(StaffNoticeDependencies{DB: db})
+	_, err := notices.CreateStaffNotice(ctx, author.ID, timetable.StaffNoticeInput{
+		Title: "Sommerfest", Body: "Treffpunkt ist die Turnhalle.", ValidFrom: saturday.String(), ValidUntil: saturday.String(),
+		Active: true,
+	})
+	require.NoError(t, err)
+	sources := &weekProtocolSources{groups: []timetable.WeekProtocolGroup{{ID: 9013, Name: "Mäuse"}}}
+
+	assert.Equal(t, 1, runWeekProtocolEvening(t, module, ctx, weekProtocolEvening(saturday), sources.of(db)).DaysCaptured)
+	facts := weekProtocolDay(weekProtocolOfGroup(t, module, ctx, 9013), saturday).Facts
+	require.NotNil(t, facts)
+	assert.Equal(t, []timetable.WeekProtocolNotice{{Title: "Sommerfest", Body: "Treffpunkt ist die Turnhalle."}}, facts.Notices)
+}
+
 // A group change during the week: each evening records the children in the
 // group they belong to that day, so the earlier days keep the old group.
 func TestWeekProtocolKeepsTheGroupOfEachDay(t *testing.T) {

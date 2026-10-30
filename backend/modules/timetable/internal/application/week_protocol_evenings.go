@@ -173,7 +173,8 @@ func anyWeekProtocolActivity(facts map[int64]timetable.WeekProtocolDayFacts) boo
 			day.ClassTrip > 0 ||
 			day.Absent > 0 ||
 			len(day.Missing) > 0 ||
-			len(day.Blocks) > 0 {
+			len(day.Blocks) > 0 ||
+			len(day.Notices) > 0 {
 			return true
 		}
 	}
