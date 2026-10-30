@@ -108,7 +108,7 @@ func (rs *WeekProtocolResource) Router(protectedTenantRoutes func(chi.Router, fu
 
 func (rs *WeekProtocolResource) seed(w http.ResponseWriter, r *http.Request) {
 	if !rs.cfg.IsLocalSeed(r) {
-		http.NotFound(w, r)
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("not found")))
 		return
 	}
 	if err := rs.cfg.Seed(r.Context()); err != nil {

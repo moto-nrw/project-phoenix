@@ -2,6 +2,7 @@ package api
 
 import (
 	"errors"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -515,8 +516,7 @@ func composeServeRoot(
 	if err != nil {
 		return nil, nil, err
 	}
-	logger, limiters, tenant := env.Logger, authRateLimitersFromEnv(), chi.NewRouter()
-	deviceAuth, studentPresence := newDeviceAuthentication(iot, organizations, settings.Service, env.Logger), owners.NewLoggedStudentPresence(db, env.Logger)
+	logger, limiters, tenant, deviceAuth, studentPresence := newServeRouteRuntime(db, env.Logger, iot, organizations, settings.Service)
 	careOfferings := requests.CareOfferings
 	err = owners.RunRootSteps(
 		func() error {
@@ -549,10 +549,7 @@ func composeServeRoot(
 		func() error {
 			enrollmentResource := newEnrollmentResource(logger, settings.Service, config.Turnstile, careOfferings, flows, phases,
 				enrollmentCompose.PublicDecisions(decisions), notices.Deletions, identity, guardianProfiles, organizations, renderer, persons, carePlan)
-			var weekProtocolSeed schedulerPorts.WeekProtocolEvenings
-			if strings.EqualFold(env.Config.AppEnv, "development") {
-				weekProtocolSeed = owners.NewWeekProtocolEvenings(db, logger, settings.Service, persons, services, reports, schedules, carePlan, timetableRepos, WeekProtocolDayLog)
-			}
+			weekProtocolSeed := developmentWeekProtocolEvenings(env.Config.AppEnv, db, logger, settings.Service, persons, services, reports, schedules, carePlan, timetableRepos)
 			mountSchoolRoutes(tenant, db, logger, facilities, facilitiesRooms, settings.Service, caller, active, services.Users,
 				structureViews.Education, renderer, activities, timetableOwner, iot, settingsWrites, organizations, carePlan, audit.Persistence.DataAccessLog,
 				membership, classListEntries, databaseStats, dataImports, persons, gradeTransition, enrollmentResource, env.Config.AppEnv, weekProtocolSeed)
@@ -592,4 +589,27 @@ func composeServeRoot(
 		return nil, nil, err
 	}
 	return &serveHandler{router: router, settings: settings.Service}, worker, nil
+}
+
+// developmentWeekProtocolEvenings makes the local seed exercise the same
+// Worker lifecycle as production. Non-development roots never mount it.
+func developmentWeekProtocolEvenings(
+	appEnv string, db transactionruntime.Database, logger *slog.Logger, settings settingsCompose.BatchSettingsService,
+	persons *peopleCompose.Directory, services owners.PeopleServices, reports owners.PresenceReports, schedules owners.CarePlanSchedules,
+	carePlan carePlanModule.Owner, timetableRepos owners.TimetableRepositories,
+) schedulerPorts.WeekProtocolEvenings {
+	if !strings.EqualFold(appEnv, "development") {
+		return nil
+	}
+	return owners.NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, WeekProtocolDayLog)
+}
+
+// newServeRouteRuntime constructs the server-root routing dependencies before
+// its route mounting steps begin.
+func newServeRouteRuntime(
+	db transactionruntime.Database, logger *slog.Logger, iot devicefleetCompose.IoTService,
+	organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
+) (*slog.Logger, authRateLimiters, chi.Router, *deviceauth.Authenticators, studentpresence.Owner) {
+	return logger, authRateLimitersFromEnv(), chi.NewRouter(),
+		newDeviceAuthentication(iot, organizations, settings, logger), owners.NewLoggedStudentPresence(db, logger)
 }
