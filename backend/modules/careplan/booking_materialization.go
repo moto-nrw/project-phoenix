@@ -59,9 +59,14 @@ type OfferingRosterResync struct {
 	// SkipInactiveSources lets a stored source that turned inactive after it
 	// was declared contribute nothing while another source stays valid
 	// (#5305). Every other guard still applies, and a template left without
-	// a valid source is still refused. Resyncs of a template's stored sources
-	// only; never set on a save or catalog-edit path.
+	// a valid source is still refused. Resyncs of a template's stored
+	// sources, catalog edits included (#5313); never set on a save path.
 	SkipInactiveSources bool
+	// StoredOfferingIDs are the source ids a template save found stored
+	// before it wrote the new ones. An inactive source among them is skipped
+	// like with SkipInactiveSources, while a newly selected inactive one is
+	// still refused (#5313). Template saves only.
+	StoredOfferingIDs []int64
 }
 
 // SourcedRosters keeps the rosters of offering-sourced Regeltermine in step
@@ -75,7 +80,8 @@ type SourcedRosters interface {
 	// the tenant; drifted templates are skipped with a warning.
 	ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom calendar.Date) error
 	// ResyncTemplatesSourcedFromOffering re-reconciles the templates sourcing
-	// one offering; a template the edit would strand is refused.
+	// one offering; a template the edit would strand is refused with a
+	// SourcedTemplateRefusal naming it and the problem (#5313).
 	ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) error
 	// DetachTemplatesSourcedFromOffering removes an offering from every
 	// template sourcing it before the offering is deleted.

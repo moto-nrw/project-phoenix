@@ -241,7 +241,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0133: the kiosk room count revision read of modules/studentpresence (+1).
 // Lowered by #4771: accident-report category visibility has permission logic
 // instead of forwarding directly to the access port (-1).
-// Raised by ADR 0140: the payroll dispatch overview of modules/workforce (+1).
+// Raised by ADR 0141: the payroll dispatch overview of modules/workforce (+1).
 const modulePassthroughOwnerBudgetTotal = 1411
 
 // modulePassthroughOwnerBudgets is the register: module directory →
@@ -297,7 +297,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0133: the kiosk room count revision read (+1).
 	"modules/studentpresence": 122,
 	"modules/timetable":       204,
-	// Raised by ADR 0140: the payroll dispatch overview (+1).
+	// Raised by ADR 0141: the payroll dispatch overview (+1).
 	"modules/workforce":       140,
 	"workflows/openroommove":  1,
 	// Raised by ADR 0078: the week change of the meal plan adapter.

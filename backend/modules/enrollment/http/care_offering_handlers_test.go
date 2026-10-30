@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
@@ -435,6 +436,32 @@ func TestUpdateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *te
 
 	require.Equal(t, http.StatusBadRequest, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"enrollment.care_offering_template_period_mismatch"`)
+}
+
+// A catalog edit that would leave a Regeltermin without a valid source
+// answers with the problem's code and names offering and Regeltermin
+// (#5313), not with the generic input code.
+func TestUpdateCareOfferingHandler_SourceConflictReturnsCodeAndDetails(t *testing.T) {
+	t.Parallel()
+
+	conflict := careplan.CareOfferingSourceConflict("Spätbetreuung", fmt.Errorf("%w: %w", careplan.ErrCareOfferingConfigInvalid,
+		careplan.NewSourcedTemplateRefusal("Mittagessen Mo", careplan.SourcedTemplateNoActiveSource, errors.New("refused"))))
+	mock := &mockCareOfferingService{
+		getByIDResult: makeOfferingModel(1234, 5678, "X"),
+		updateErr:     fmt.Errorf("%w%w", conflict, errors.Join(capability.ErrCareOfferingSourceConflict, capability.ErrCareOfferingInvalid)),
+	}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
+		validOfferingBody(5678, "X"))
+
+	require.Equal(t, http.StatusConflict, w.Code)
+	var body struct {
+		Code    string            `json:"code"`
+		Details map[string]string `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, careplan.CodeCareOfferingTemplateNoActiveSource, body.Code)
+	assert.Equal(t, map[string]string{"offering": "Spätbetreuung", "template": "Mittagessen Mo"}, body.Details)
 }
 
 func TestUpdateCareOfferingHandler_RefetchErrorReturns500(t *testing.T) {
