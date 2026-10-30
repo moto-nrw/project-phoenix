@@ -198,7 +198,7 @@ export function BookedCareSection({
     return (
       <div className="flex flex-col gap-5">
         <ParentSectionSkeleton rows={5} />
-        <ParentSectionSkeleton rows={2} />
+        <ParentSectionSkeleton rows={2} announce={false} />
       </div>
     );
   }
