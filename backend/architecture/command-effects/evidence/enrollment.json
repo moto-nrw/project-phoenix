@@ -969,6 +969,14 @@
       "target_owner": "audit-platform"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
+      "binding_digest": "ebe83cae8b9d6a63c2cfead62b589ed5",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrations.UploadHolidayProof",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidaySchoolNames.HolidaySchoolNames",
       "binding_digest": "a3efd0300622dc339703652e1725b8cd",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolNames.HolidaySchoolNames",
@@ -1663,6 +1671,22 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
+      "binding_digest": "4c84622c03f79b55bfe9c4fc9e5e238b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
+      "binding_digest": "5602a4edb0c23c7dc4bad90373350fbb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayProofUploads.UploadHolidayProof",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTraeger",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.CreateLateInvite",

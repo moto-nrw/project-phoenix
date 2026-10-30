@@ -250,7 +250,7 @@ export const FEATURES = Object.freeze([
   {
     name: 'Kinder und Kindakte',
     pages: { ogs: ['/students/**'], parents: ['/children/**'], school: ['/klasse', '/klasse/kind'] },
-    events: ['student_note_created', 'photo_consent_changed', 'day_hint_changed'],
+    events: ['student_note_created', 'photo_consent_changed', 'day_hint_changed', 'accident_report_recorded', 'accident_report_signed'],
   },
   { name: 'Gruppen', pages: { ogs: ['/ogs-groups', '/ogs-groups/overview'] }, events: ['group_created', 'group_updated'] },
   {

@@ -203,10 +203,15 @@ function fileResponse(backend: Response, request: NextRequest): Response {
     return response;
   }
   const headers = new Headers({ "Cache-Control": "no-store" });
+  // An inline file a parent uploaded, like a proof of benefits (#5238),
+  // keeps the backend's sandbox and nosniff: this proxy is all the browser
+  // talks to.
   for (const name of [
     "Content-Type",
     "Content-Disposition",
     "Content-Length",
+    "Content-Security-Policy",
+    "X-Content-Type-Options",
   ]) {
     const value = backend.headers.get(name);
     if (value) headers.set(name, value);

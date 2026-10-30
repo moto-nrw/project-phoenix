@@ -25,12 +25,12 @@ const logger = createLogger({ component: "MFAChallengeForm" });
 const CODE_LENGTH = 6;
 const DEFAULT_RESEND_COOLDOWN_SECONDS = 60;
 
-interface MFAChallengeFormProps<Scope extends LoginScope> {
-  readonly scope: Scope;
+interface MFAChallengeFormProps {
+  readonly scope: LoginScope;
   readonly challengeToken: string;
   readonly maskedEmail: string;
   readonly resendCooldownSeconds?: number;
-  readonly onSuccess: (result: MFAResult<Scope>) => void | Promise<void>;
+  readonly onSuccess: (result: MFAResult) => void | Promise<void>;
   /**
    * Gives the embedding login flow a chance to handle a terminal verify
    * error, such as a portal handoff. Return true when the error is handled.
@@ -55,7 +55,7 @@ interface MFAChallengeFormProps<Scope extends LoginScope> {
   readonly organizationId?: string;
 }
 
-export function MFAChallengeForm<Scope extends LoginScope>({
+export function MFAChallengeForm({
   scope,
   challengeToken,
   maskedEmail,
@@ -66,7 +66,7 @@ export function MFAChallengeForm<Scope extends LoginScope>({
   trustedDeviceEnabled = true,
   trustedDeviceDays = 90,
   organizationId,
-}: MFAChallengeFormProps<Scope>) {
+}: MFAChallengeFormProps) {
   const [rememberDevice, setRememberDevice] = useState(false);
   // Fehler über den gemeinsamen Weg (#2517). Ein abgelehnter Code bleibt im
   // Formular (MFA_STEP_REFUSALS); jeder andere 401 ist eine abgelaufene

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -88,6 +89,8 @@ func TestImportBatches_RollbackResumeAndIdempotentReplay(t *testing.T) {
 func TestImportBatches_ConcurrentIdenticalUploadsCommitOnce(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
+	testpkg.AttachLockWaitEvidence(t, db)
+	counter := testpkg.CaptureQueriesForContext(t, db)
 	actor := newImporter(t, db)
 	modules := make([]api.ImportTestModule, 2)
 	for i := range modules {
@@ -101,8 +104,24 @@ func TestImportBatches_ConcurrentIdenticalUploadsCommitOnce(t *testing.T) {
 	}
 	request := importModels.ImportRequest[importModels.ClassListEntryImportRow]{Rows: rows, Mode: importModels.ImportModeCreate, UserID: actor.staffID, SkipInvalidRows: true}
 	audit := importModels.BatchAudit{EntityType: "class_list_entries", Filename: "concurrent.csv", AccountID: actor.accountID}
-	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 10*time.Second)
-	defer cancel()
+	// This is a multi-batch correctness test, not a throughput SLA. Under
+	// parallel backend load the first 100-row batch alone took 9.76s, with
+	// validation at 2ms and no pool contention (#5207). Leave room for all
+	// three batches and checkpoint catch-up, not just the first commit.
+	ctx, cancel := context.WithTimeout(counter.Context(testpkg.Ctx(t)), time.Minute)
+	var workers sync.WaitGroup
+	events := make([][]tenant.UnitOfWorkEvent, len(modules))
+	defer func() {
+		contextErr := ctx.Err()
+		cancel()
+		workers.Wait() // no observer, query or observation may outlive this test
+		if t.Failed() {
+			t.Logf("concurrent import: context=%v queries=%d pool=%+v", contextErr, counter.Total(), db.Stats())
+			for i, trace := range events {
+				t.Logf("upload %d unit-of-work events: %+v", i, trace)
+			}
+		}
+	}()
 	validated := make(chan struct{}, 2)
 	release := make(chan struct{})
 	type outcome struct {
@@ -110,10 +129,13 @@ func TestImportBatches_ConcurrentIdenticalUploadsCommitOnce(t *testing.T) {
 		err    error
 	}
 	outcomes := make(chan outcome, 2)
-	for _, module := range modules {
-		go func(module api.ImportTestModule) {
+	for i, module := range modules {
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
 			initial := true
 			runCtx := tenant.WithUnitOfWorkObserver(ctx, func(event tenant.UnitOfWorkEvent) {
+				events[i] = append(events[i], event)
 				if initial && event.Kind == tenant.UnitOfWorkTransaction {
 					initial = false
 					validated <- struct{}{}
@@ -125,13 +147,15 @@ func TestImportBatches_ConcurrentIdenticalUploadsCommitOnce(t *testing.T) {
 			})
 			result, err := module.ClassListImport.ImportBatches(runCtx, request, audit)
 			outcomes <- outcome{result: result, err: err}
-		}(module)
+		}()
 	}
 	for range 2 {
 		select {
 		case <-validated:
 		case <-ctx.Done():
 			t.Fatal("concurrent uploads did not both finish validation")
+		case outcome := <-outcomes:
+			t.Fatalf("upload exited before the validation barrier: %v", outcome.err)
 		}
 	}
 	// Both runs saw an empty checkpoint history. Their batch transactions

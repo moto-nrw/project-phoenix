@@ -2,6 +2,13 @@
 package common
 
 const CodeStudentsAbsenceReadRequired = "students.absence_read_required"
+const CodeStudentsAccidentReportForbidden = "students.accident_report_forbidden"
+const CodeStudentsAccidentReportInvalid = "students.accident_report_invalid"
+const CodeStudentsAccidentReportNotFound = "students.accident_report_not_found"
+const CodeStudentsAccidentReportNotSigned = "students.accident_report_not_signed"
+const CodeStudentsAccidentReportSigned = "students.accident_report_signed"
+const CodeStudentsAccidentReportSuperseded = "students.accident_report_superseded"
+const CodeStudentsAccidentSignatureInvalid = "students.accident_signature_invalid"
 const CodeStudentsBulkApprovalIneligible = "students.bulk_approval_ineligible"
 const CodeStudentsCareDayManagedByBooking = "students.care_day_managed_by_booking"
 const CodeStudentsCareExceptionRaced = "students.care_exception_raced"
@@ -85,6 +92,13 @@ const CodeStudentsStatusDayConflict = "students.status_day_conflict"
 
 var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsAbsenceReadRequired, "permission"},
+	{CodeStudentsAccidentReportForbidden, "permission"},
+	{CodeStudentsAccidentReportInvalid, "input"},
+	{CodeStudentsAccidentReportNotFound, "business_rejection"},
+	{CodeStudentsAccidentReportNotSigned, "business_rejection"},
+	{CodeStudentsAccidentReportSigned, "business_rejection"},
+	{CodeStudentsAccidentReportSuperseded, "business_rejection"},
+	{CodeStudentsAccidentSignatureInvalid, "input"},
 	{CodeStudentsBulkApprovalIneligible, "business_rejection"},
 	{CodeStudentsCareDayManagedByBooking, "business_rejection"},
 	{CodeStudentsCareExceptionRaced, "business_rejection"},

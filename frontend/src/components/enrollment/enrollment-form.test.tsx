@@ -1574,19 +1574,22 @@ describe("EnrollmentForm", () => {
     ]);
     expect([...new Set(dateIDs)]).toHaveLength(dateIDs.length);
 
-    const addContact = screen.getAllByRole("button", {
-      name: "Kontakt hinzufügen",
-    });
-    fireEvent.click(addContact[0]!);
-    fireEvent.click(
+    const user = userEvent.setup();
+    await user.click(
+      screen.getAllByRole("button", { name: "Kontakt hinzufügen" })[0]!,
+    );
+    await user.click(
       screen.getAllByRole("button", { name: "Kontakt hinzufügen" })[0]!,
     );
 
     const addPhones = screen.getAllByRole("button", {
       name: "Telefonnummer hinzufügen",
     });
-    fireEvent.click(addPhones[0]!);
-    fireEvent.click(addPhones[1]!);
+    expect(addPhones).toHaveLength(2);
+    await user.click(addPhones[0]!);
+    await user.click(
+      screen.getAllByRole("button", { name: "Telefonnummer hinzufügen" })[1]!,
+    );
 
     const phoneTypeIDs = Array.from(
       document.querySelectorAll<HTMLElement>(

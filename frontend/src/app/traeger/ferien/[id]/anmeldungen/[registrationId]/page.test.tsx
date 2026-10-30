@@ -18,7 +18,10 @@ vi.mock("~/lib/traeger-api", () => ({
   fetchTraegerSchools: () => Promise.resolve(HOLIDAY_SCHOOLS),
 }));
 const { mockRegistration } = vi.hoisted(() => ({ mockRegistration: vi.fn() }));
-vi.mock("~/lib/traeger-holiday-registrations-api", () => ({
+vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("~/lib/traeger-holiday-registrations-api")
+  >()),
   fetchHolidayRegistration: () => mockRegistration(),
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
@@ -62,6 +65,79 @@ describe("TraegerHolidayRegistrationPage", () => {
       screen.getByRole("link", { name: /Zurück zu den Anmeldungen/ }),
     ).toHaveAttribute("href", "/traeger/ferien/5/anmeldungen");
   });
+  it("opens the uploaded proofs of benefits from their own card (#5238)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      benefitsDeclared: true,
+      benefitsProofs: [
+        {
+          id: "91",
+          filename: "Bescheid Bürgergeld.pdf",
+          sizeBytes: 250_000,
+          contentType: "application/pdf",
+          uploadedAt: "2026-09-03T08:00:00Z",
+        },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Nachweis für den Leistungsbezug",
+    });
+    const card = within(heading.closest("section")!);
+    expect(card.getByText("Bescheid Bürgergeld.pdf")).toBeInTheDocument();
+    expect(card.getByText("244 KB")).toBeInTheDocument();
+    const open = card.getByRole("link", {
+      name: "Bescheid Bürgergeld.pdf",
+    });
+    expect(open).toHaveAttribute(
+      "href",
+      "/api/traeger/holiday-periods/5/registrations/7/proofs/91?inline=1",
+    );
+    expect(open).toHaveAttribute("target", "_blank");
+    expect(open).toHaveAttribute("rel", "noopener");
+    expect(open).toHaveAttribute("title", "In neuem Tab öffnen");
+  });
+
+  it("asks the office to collect a proof the parents did not upload (#5238)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      benefitsDeclared: true,
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    const heading = await screen.findByRole("heading", {
+      name: "Nachweis für den Leistungsbezug",
+    });
+    expect(
+      within(heading.closest("section")!).getByText(
+        /Die Eltern haben keinen Nachweis hochgeladen/,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no proof card without the statement on benefits (#5238)", async () => {
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Eltern" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", {
+        name: "Nachweis für den Leistungsbezug",
+      }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the second guardian only in its own contact card", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,

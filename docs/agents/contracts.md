@@ -216,7 +216,8 @@ order of its requests. All fields are additive; an older kiosk ignores them.
   one for each session whose count it changed (migration 1.15.705). A room's
   revision sums its entry rows (a session started, moved or reopened there)
   and room rows (a session left or ended there) plus the session revision of
-  every session the room ever held (migration 1.15.710). The read, not the
+  every session the room held since the last nightly close (migration
+  1.15.710, #5273). The read, not the
   writer, decides which sessions a room held, so a visit write racing a room
   change raises both rooms. Every committed change of a count raises the
   revision of its scope; events are never updated, so neither revision
@@ -234,8 +235,11 @@ order of its requests. All fields are additive; an older kiosk ignores them.
 - **No session lock.** The triggers only insert and the event table has no
   key to a session or room row; visit and session writers take the same locks
   as before #5128. The nightly close collapses the rows of each scope without
-  changing a revision and folds a deleted session's events into room rows of
-  the rooms it entered.
+  changing a revision and folds a deleted session's events, and the entries
+  of every settled session, into room rows of the rooms it entered. Settling
+  locks ended sessions and their visits with `SKIP LOCKED`, so a writer of an
+  ended session may wait for the nightly close; writers of running sessions
+  do not (ADR 0133, addendum #5273).
 - **Restarts and processes.** The events live in the database. Neither a
   backend restart nor several backend processes reset or fork a revision.
 - **Kiosk rule.** Within one scope (activity, room, session), accept a count
@@ -444,9 +448,25 @@ type imports included, outside `server/`, `app/api/` and `*.server.ts`, and
 the auth modules carry `import "server-only"`; `src/lib/browser-token-ratchet.test.ts`
 pins the types and walks the syntax tree of those browser modules for
 credential reads on session values (casts, renames, type aliases,
-intermediate variables included). Open: login, MFA, passkey login, tenant switch, Träger Absprung
-and staff-preview start still hand freshly minted tokens through browser
-JavaScript into Auth.js (`signIn`/`update`).
+intermediate variables included). It also rejects browser `signIn` calls with
+session-token fields or opaque/spread options (#5118).
+
+Completed login, MFA/passkey, tenant-switch, preview and demo session tokens
+stay in the BFF. Each portal's session writer installs them through Auth.js
+inside `withServerSessionMutation` (`src/server/auth/session-mutation.ts`).
+Every Credentials provider rejects `internalRefresh` outside that in-process
+context, even with valid CSRF and valid backend tokens; request fields or
+headers cannot establish it. Server-side seeding still validates portal scope
+and the live access/refresh family with the backend. HTTP request wrappers must
+not enter this context around arbitrary handlers.
+
+The browser may submit passwords, the Träger handoff's one-time proof, MFA
+challenge proofs and limited enrollment tokens. These are not completed session
+pairs. Public login routes that install cookies enforce Same-Origin before
+calling the backend; failed installation revokes the freshly minted family.
+The regular parent Credentials login and Träger handoff continue to redeem
+credentials/proofs server-side. The internal Next.js cookie adapter remains
+pinned and protected by the cookie-order/chunk-deletion integration tests.
 
 ### Login, refresh, and MFA
 

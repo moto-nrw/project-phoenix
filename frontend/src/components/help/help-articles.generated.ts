@@ -4,6 +4,8 @@ import type { absenceReportTopic as authored_absenceReportTopic } from "./articl
 
 import type { absencesTopic as authored_absencesTopic } from "./articles/absences";
 
+import type { accidentReportTopic as authored_accidentReportTopic } from "./articles/accident-report";
+
 import type { activeSupervisionTopic as authored_activeSupervisionTopic } from "./articles/active-supervision";
 
 import type { activitiesCatalogTopic as authored_activitiesCatalogTopic } from "./articles/activities-catalog";
@@ -492,6 +494,66 @@ export const absencesTopic = function absencesTopic(): HelpTopic {
     ],
   };
 } satisfies typeof authored_absencesTopic;
+
+/**
+ * Unfallanzeige (#4771): Unfall am Kind erfassen, unterschreiben, als PDF
+ * weitergeben. moto schickt nichts an die Unfallkasse.
+ */
+export const accidentReportTopic = function accidentReportTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.leadAccidentReport,
+    title: "Einen Unfall erfassen",
+    question: "Wie erfasse ich einen Unfall und erstelle die Unfallanzeige?",
+    summary:
+      "Sie tragen den Unfall am Kind ein. moto erstellt daraus die Unfallanzeige als PDF.",
+    group: "kinderdaten",
+    audience: "lead",
+    icon: "FirstAid",
+    requirements: [
+      "Das Recht `Unfälle von Kindern erfassen, Unfallanzeigen ändern, unterschreiben und korrigieren`. Die Leitung hat es immer.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Den Unfall erfassen",
+        steps: [
+          "Öffnen Sie das Kind und wählen Sie den Reiter `Dokumente`.",
+          "Wählen Sie `Unfall erfassen`.",
+          "Tragen Sie ein, wann und wo es passiert ist und was passiert ist.",
+          "Tragen Sie die Verletzung, die Erste Hilfe und die Aufsichtsperson ein.",
+          "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Die Unfallanzeige unterschreiben",
+        steps: [
+          "Die Unfallanzeige öffnet sich nach dem Speichern.",
+          "Unterschreiben Sie im Feld `Unterschrift` und wählen Sie `Unterschrift bestätigen`.",
+          "Wählen Sie `Unterschreiben`.",
+        ],
+      },
+      {
+        title: "Auf Papier unterschreiben",
+        steps: [
+          "Wählen Sie `PDF herunterladen` und drucken Sie das PDF aus.",
+          "Lassen Sie es unterschreiben und scannen oder fotografieren Sie es.",
+          "Wählen Sie `Unterschriebenes Papierexemplar hochladen`.",
+        ],
+      },
+    ],
+    result:
+      "Die Unfallanzeige liegt unterschrieben beim Kind unter `Dokumente`. Das PDF geben Sie selbst an die Unfallkasse weiter.",
+    notes: [
+      "Felder, die moto nicht kennt, etwa die Unternehmensnummer, ergänzen Sie auf dem Ausdruck.",
+      "Jedes Erfassen, Ändern und Unterschreiben steht im Änderungsprotokoll des Kindes. Jedes Herunterladen hält moto im Zugriffsprotokoll fest.",
+    ],
+    differences: [
+      "Ist die Unfallanzeige schon unterschrieben, fehlt `Ändern`. Wählen Sie `Korrektur anlegen`. Die alte Fassung bleibt erhalten, die Korrektur wird neu unterschrieben.",
+      "Fehlt `Unfall erfassen`? Dann fehlt Ihnen das Recht dafür. Fragen Sie die Leitung.",
+    ],
+    related: [HELP_TOPICS.leadManageStudent],
+  };
+} satisfies typeof authored_accidentReportTopic;
 
 export const activeSupervisionTopic = function activeSupervisionTopic(
   presenceMode: HelpPresenceMode,
@@ -2394,7 +2456,7 @@ export const enrollmentReviewTopic =
         "Unter `Automatisch angepasst` stehen Regeltermine, die moto selbst geändert hat.",
         "Unter `Nicht angepasst, weil von Hand gepflegt` steht das Kind an abgemeldeten Tagen weiter im Plan. Mit `Dort auch entfernen` nehmen Sie es dort ab diesem Datum heraus. Vergangene Termine bleiben.",
         // #5137
-        "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Ein Entfernen würde dort nicht halten.",
+        "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Entfernen hilft dort nicht: Bei der nächsten Planung steht das Kind wieder im Plan.",
         "Offene Rückfragen der Eltern stehen im Bereich `Anfragen`.",
         "Die Zahl an `Anmeldungen` zeigt, wie viele neue Anmeldungen Sie noch nicht gelesen haben.",
         "Gelesen gilt nur für Sie. Ihr Team hat eine eigene Zahl.",
@@ -3565,7 +3627,7 @@ export const leadCarePlanTopic = function leadCarePlanTopic(): HelpTopic {
       "Hat die externe Person `Kein Zugang`, startet eine OGS-Kraft den Termin. Mit `Eigene Termine betreuen` startet sie ihn selbst.",
       // #5104: was die Zielgruppe wirklich bedeutet.
       "Die `Zielgruppe` `Klasse`, `Jahrgang` oder `Gruppe` bringt alle Kinder dieser Klasse, Jahrgangsstufe oder Gruppe. Ob sie angemeldet sind, spielt keine Rolle. Spätere An- und Abmeldungen kommen dort nicht an.",
-      "Sollen nur angemeldete Kinder kommen? Passt Ihre Auswahl zu einem Angebot, schlägt moto es im Schritt `Personal und Kinder` vor. Wählen Sie `Angebot übernehmen`. Die Vorschau zeigt pro Wochentag, wer dazukommt und wer wegfällt.",
+      "Sollen nur angemeldete Kinder kommen? Passt Ihre Auswahl zu einem Angebot, schlägt moto es im Schritt `Personal und Kinder` vor. Wählen Sie `Angebot übernehmen`. Passen mehrere Angebote, wählt moto keins vor. Dann wählen Sie das passende, etwa `„Randstunde“ übernehmen`. Die Vorschau zeigt pro Wochentag, wer dazukommt und wer wegfällt.",
       "Eine externe Person kann einen Termin allein betreuen. Sie kann auch die `Zuständige Person` sein.",
       "Wählen Sie im Drei-Punkte-Menü `Drucken oder exportieren`. Wählen Sie Vorlage, Fassung und Zeitraum. `Drucken` öffnet die Druckansicht. Für eine Datei wählen Sie das Format und `Herunterladen`.",
       // #4766: Filter Gruppe und Person in Tag, Woche und Monat.
@@ -3677,7 +3739,7 @@ export const leadRosterDeviationTopic =
         "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
         "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
-        "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot.",
+        "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot. Passen mehrere Angebote, wählen Sie eins davon aus.",
         "Haben Kinder ein Angebot gebucht, aber kein Regeltermin übernimmt sie? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
         "Brauchen diese Kinder bewusst keinen eigenen Regeltermin? Wählen Sie `Kein Regeltermin nötig`. Das gilt für den gewählten Zeitraum. Der Hinweis kommt wieder, sobald Kinder einer anderen Klasse betroffen sind. Das gilt auch für Ferienangebote.",
         "Diesen Hinweis holen Sie zurück: Klappen Sie `Ohne eigenen Regeltermin` auf und wählen Sie `Hinweis wieder zeigen`.",
@@ -3686,6 +3748,8 @@ export const leadRosterDeviationTopic =
       ],
       differences: [
         "Hat der Regeltermin mehrere Abschnitte, etwa nach einer Änderung `Ab jetzt dauerhaft`? `Mit Angebot verbinden` stellt alle Termine ab dem nächsten Termin um. Das Bearbeiten ändert nur einen Abschnitt; die Vorschau nennt dann die Tage, die gleich bleiben.",
+        // #5138: Bei Klasse oder Jahrgang passen oft mehrere Angebote gleich gut.
+        "Nennt der Hinweis mehrere Angebote und keine Zahl? Dann passen mehrere Angebote gleich gut, oft bei einer ganzen Klasse oder Jahrgangsstufe. moto wählt keins vor. Wählen Sie in `Mit Angebot verbinden` unter `Angebot` das passende aus.",
         "Sie sehen keine Knöpfe am Hinweis? Dann dürfen Sie den Plan nur ansehen.",
       ],
       related: [HELP_TOPICS.leadCarePlan, HELP_TOPICS.leadEnrollmentSetup],
@@ -5889,6 +5953,7 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie `Weiter zur Zusammenfassung`.",
         "Prüfen Sie alles. Unter `Beitrag` steht, was die Ferienbetreuung kostet.",
         "Bekommen Sie Leistungen wie Bürgergeld, Wohngeld oder Kinderzuschlag? Dann setzen Sie den Haken unter `Beitrag`, wenn er angeboten wird.",
+        "Sie können den Nachweis gleich darunter hochladen. Wählen Sie bei `Nachweis über die Leistungen` den Knopf `Datei auswählen`. Erlaubt sind PDF, JPG und PNG.",
         "Wählen Sie dann `Anmeldung absenden`.",
       ],
       result:
@@ -5901,6 +5966,7 @@ export const parentHolidayRegistrationTopic =
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
         "Der Preis bei den Wochen gilt ohne Ermäßigung oder Befreiung. Geschwister und Leistungsbezug rechnet moto erst unter `Beitrag` ein.",
         "Der Beitrag gilt erst, wenn der Träger die Anmeldung bestätigt. Bei Leistungsbezug braucht der Träger einen Nachweis.",
+        "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
       ],
       differences: [
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
@@ -9193,6 +9259,8 @@ export const traegerAccessLogTopic =
         "Jede Zeile zeigt Zeitpunkt, Person, Schule, Art und welche Daten es waren.",
       notes: [
         "Auch Ihr Lesen steht im Protokoll. Die Schule sieht so, dass das Träger-Büro hineingeschaut hat.",
+        "Auch Ferienanmeldungen stehen im Protokoll. Das ist jedes Öffnen einer Anmeldung oder eines Nachweises, jeder Export und jede Änderung. Bei Schule steht dann `Träger (keine Schule)`.",
+        "Löscht moto eine Ferienanmeldung, löscht es auch ihre Einträge im Protokoll. Nach dem Ende der Ferien löscht moto alle Einträge zu diesen Ferien.",
       ],
       differences: [
         "Auf dem Handy steht `Zugriffsprotokoll` in der Leiste unten oder unter `Mehr`.",
@@ -9719,7 +9787,7 @@ export const traegerHolidayRegistrationReviewTopic =
             "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, Antworten zur ganzen Familie unter `Weitere Angaben zur Familie`.",
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
-            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
+            "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab. Lassen Sie dann den Haken bei `Beim Bestätigen von der Zahlung befreien (Leistungsbezug)` oder nehmen Sie ihn weg.",
             "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
           ],
@@ -9755,7 +9823,8 @@ export const traegerHolidayRegistrationReviewTopic =
         "Eine eingefrorene Anmeldung können Sie bestätigen. Stornieren und Umbuchen gehen erst nach `Wieder öffnen`.",
         "Der Export hat eine Zeile je Kind und Woche. Gesundheitsangaben stehen nicht darin. Antworten auf eigene Fragen ohne Gesundheitsangabe haben eigene Spalten.",
         "Eine `Zweite sorgeberechtigte Person` steht in der Einzelansicht, nicht in der Liste. Im Export stehen Name und Telefon.",
-        "Jedes Öffnen und jeder Export steht im Protokoll des Trägers.",
+        "Ein hochgeladener `Nachweis für den Leistungsbezug` steht nur in der Einzelansicht. Er steht nicht in der Liste, nicht im Export und nicht bei der ausrichtenden OGS. Er wird mit der Anmeldung gelöscht.",
+        "Jedes Öffnen einer Anmeldung oder eines Nachweises steht im `Zugriffsprotokoll` des Trägers. Auch jeder Export steht dort.",
         "Ein festgehaltener Beitrag ändert sich nicht mehr. Auch nicht, wenn Sie später Preise oder Regeln ändern oder umbuchen.",
       ],
       differences: [

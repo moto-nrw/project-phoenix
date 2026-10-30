@@ -77,17 +77,11 @@ describe("login error bodies", () => {
   });
 });
 
-it("tenant API types cannot expose completed session tokens; other portals keep their stage-3 contract", () => {
-  expectTypeOf<
-    Awaited<ReturnType<typeof verifyMFA<"tenant">>>
-  >().not.toHaveProperty("access_token");
-  expectTypeOf<
-    Awaited<ReturnType<typeof enrollConfirm<"tenant">>>
-  >().not.toHaveProperty("refresh_token");
-  expectTypeOf<
-    Awaited<ReturnType<typeof verifyMFA<"operator">>>
-  >().toHaveProperty("access_token");
-  expectTypeOf<
-    Awaited<ReturnType<typeof enrollConfirm<"school">>>
-  >().toHaveProperty("refresh_token");
+it("all portal MFA results exclude completed session credentials", () => {
+  expectTypeOf<Awaited<ReturnType<typeof verifyMFA>>>().toEqualTypeOf<{
+    status: "authenticated";
+  }>();
+  expectTypeOf<Awaited<ReturnType<typeof enrollConfirm>>>().toEqualTypeOf<{
+    status: "authenticated";
+  }>();
 });

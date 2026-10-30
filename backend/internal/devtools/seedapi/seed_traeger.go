@@ -223,10 +223,11 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 
 // seedHolidayRegistrations registers two siblings through the public link
 // (#4661), then a second parent registers the first sibling once more for
-// the second week, a possible duplicate. The Träger-Büro reviews the list
-// and confirms the siblings' registration (#4663), which freezes its
-// contribution (#4664); the duplicate stays received. The form shows the
-// siblings' contribution before it is sent.
+// the second week, a possible duplicate, stating benefits with the uploaded
+// proof (#5238). The Träger-Büro reviews the list and confirms the siblings'
+// registration (#4663), which freezes its contribution (#4664); the
+// duplicate stays received. The form shows the siblings' contribution before
+// it is sent.
 func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
 	token, registration, err := seedHolidayRegistration(published, homeSchool)
 	if err != nil {
@@ -249,7 +250,11 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 		return "", fmt.Errorf("read the holiday registration: %w", err)
 	}
 	fmt.Println("  Ferienanmeldung: two siblings registered, one of them a holiday guest")
-	if _, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayDuplicate(registration)); err != nil {
+	proof, err := seedHolidayBenefitsProof(rt.Client, token)
+	if err != nil {
+		return "", err
+	}
+	if _, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayDuplicate(registration, proof)); err != nil {
 		return "", fmt.Errorf("register the possible duplicate: %w", err)
 	}
 	registrations := fmt.Sprintf("/traeger/holiday-periods/%d/registrations", periodID)
@@ -338,9 +343,29 @@ func seedHolidayQuote(registration map[string]any) map[string]any {
 	return map[string]any{"children": quoted, "benefits_declared": false}
 }
 
+// seedHolidayBenefitsProof uploads the proof of benefits of the second
+// parent through the public link (#5238) and returns its token.
+func seedHolidayBenefitsProof(client *Client, token string) (string, error) {
+	raw, err := client.PostPublicFile("/traeger/holiday-registrations/"+token+"/uploads", "file", "Bescheid-Buergergeld-2027.pdf",
+		demoPDF("Bewilligungsbescheid Bürgergeld", []string{"Familie Ferienkind", "Bewilligungszeitraum Januar bis Juni 2027", "Kopie für die Ferienanmeldung"}))
+	if err != nil {
+		return "", fmt.Errorf("upload the proof of benefits: %w", err)
+	}
+	var upload struct {
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &upload); err != nil || upload.Data.Token == "" {
+		return "", fmt.Errorf("the proof upload returned no token: %s", string(raw))
+	}
+	return upload.Data.Token, nil
+}
+
 // seedHolidayDuplicate is a second parent's registration of the first
-// sibling of registration for the last booked week of the guest sibling.
-func seedHolidayDuplicate(registration map[string]any) map[string]any {
+// sibling of registration for the last booked week of the guest sibling. The
+// parent states benefits and names the uploaded proof.
+func seedHolidayDuplicate(registration map[string]any, proof string) map[string]any {
 	children := registration["children"].([]map[string]any)
 	child := map[string]any{}
 	for key, value := range children[0] {
@@ -355,6 +380,8 @@ func seedHolidayDuplicate(registration map[string]any) map[string]any {
 	}
 	duplicate["guardian"] = map[string]any{"first_name": "Markus", "last_name": "Ferienkind", "email": "markus.ferienkind@example.org", "phone": "0151 0000003"}
 	duplicate["children"] = []map[string]any{child}
+	duplicate["benefits_declared"] = true
+	duplicate["benefits_proof_tokens"] = []string{proof}
 	return duplicate
 }
 

@@ -7,7 +7,10 @@
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
 import { use, useCallback, useEffect, useState } from "react";
-import { HolidayRegistrationForm } from "~/components/holiday-registration/holiday-registration-form";
+import {
+  HolidayRegistrationForm,
+  type HolidayRegistrationStep,
+} from "~/components/holiday-registration/holiday-registration-form";
 import {
   PublicEnrollmentContentSkeleton,
   PublicEnrollmentPageShell,
@@ -42,6 +45,7 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
     status === "authenticated" && session?.user?.scope === "parent";
   const [offer, setOffer] = useState<HolidayRegistrationOffer | null>(null);
   const [family, setFamily] = useState<HolidayKnownFamily | null>(null);
+  const [step, setStep] = useState<HolidayRegistrationStep>("form");
   const loadError = useApiLoadError();
   const { show, clear } = loadError;
 
@@ -115,7 +119,11 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
               <div className="space-y-2 text-sm text-gray-700">
                 <p>{t("window", dates)}</p>
                 {offer.binding ? <p>{t("binding")}</p> : null}
-                {offer.open ? <p>{t("requiredHint")}</p> : null}
+                {/* The hint names the form's fields: summary and
+                    confirmation have none (#5334). */}
+                {offer.open && step === "form" ? (
+                  <p>{t("requiredHint")}</p>
+                ) : null}
                 {offer.notes ? (
                   <div>
                     <p className="font-semibold text-gray-900">
@@ -132,6 +140,7 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
                 offer={offer}
                 family={family}
                 onFormChanged={reloadOffer}
+                onStepChange={setStep}
               />
             ) : (
               <SectionCard title={t("closedTitle")}>

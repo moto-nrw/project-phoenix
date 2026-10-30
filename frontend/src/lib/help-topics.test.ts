@@ -595,8 +595,9 @@ describe("getParentHelpTopicForPath", () => {
     // 94 seit #4665: Die Kinder einer Ferienwoche ansehen.
     // 96 seit #4666: Die Feriengruppe wählen und das geteilte Feriengäste
     // betreuen.
-    // 98 seit #4774: Soll und Ist vergleichen.
-    expect(leadTopics).toHaveLength(98);
+    // 98 seit der Unfallanzeige.
+    // 99 seit #4774: Soll und Ist vergleichen.
+    expect(leadTopics).toHaveLength(99);
     expect(
       leadTopics.every(
         (topic) =>

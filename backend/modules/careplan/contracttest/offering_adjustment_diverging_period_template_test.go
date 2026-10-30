@@ -39,6 +39,8 @@ type divergingPeriodCase struct {
 	// multiSource sources the template from both of the child's offerings,
 	// so approval and corrections plan it through the resync fan-out.
 	multiSource bool
+	// phaseStart moves the phase's service start; empty keeps 2026-09-01.
+	phaseStart calendar.Date
 }
 
 // The materializer and the instance reconciler only reach occurrences from
@@ -87,6 +89,9 @@ type divergingPeriodFixture struct {
 func setupDivergingPeriodFixture(t *testing.T, email string, c divergingPeriodCase) divergingPeriodFixture {
 	t.Helper()
 	env := setupLongPhaseDecisionTest(t)
+	if c.phaseStart != "" {
+		setSourcePhaseServiceStartDate(t, env, c.phaseStart)
+	}
 	source := createAdjustmentCareOfferingWith(t, env, "Mittagessen", nil)
 	other := createAdjustmentCareOfferingWith(t, env, "Spaetbetreuung", nil)
 	periods := map[periodKey]*int64{"": nil}

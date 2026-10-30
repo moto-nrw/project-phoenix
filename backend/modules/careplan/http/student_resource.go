@@ -47,8 +47,10 @@ type ResourceConfig struct {
 	PickupScheduleService        careplan.PickupScheduleService
 	PickupSignatureProofs        PickupSignatureProofs
 	Reports                      ReportRenderer
+	Schools                      SchoolIdentity
 	SettingsService              TenantSettings
 	StudentAuditService          StudentChangeHistory
+	StudentAccidentReports       careplan.StudentAccidentReports
 	StudentConsents              StudentConsentCapability
 	StudentDocumentService       careplan.StudentDocuments
 	StudentPhotos                StudentPhotoLifecycle
@@ -126,11 +128,12 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 }
 
 func (rs *Resource) registerDocumentRoutes(r chi.Router, withTx common.Middleware) {
-	studentDocumentsGate := common.RequiresAnyPermission(permissions.UsersUpdate, permissions.StudentDocumentsHealth, permissions.StudentDocumentsLegal)
+	studentDocumentsGate := common.RequiresAnyPermission(permissions.UsersUpdate, permissions.StudentDocumentsHealth, permissions.StudentDocumentsLegal, permissions.StudentAccidentsRead, permissions.StudentAccidentsManage)
 	r.With(studentDocumentsGate, withTx).Get("/{id}/documents", rs.listStudentDocuments)
 	r.With(studentDocumentsGate).Post("/{id}/documents", rs.uploadStudentDocument)
 	r.With(studentDocumentsGate).Get("/{id}/documents/{documentId}/download", rs.downloadStudentDocument)
 	r.With(studentDocumentsGate, withTx).Delete("/{id}/documents/{documentId}", rs.deleteStudentDocument)
+	rs.registerAccidentReportRoutes(r)
 }
 
 func (rs *Resource) registerArrivalRoutes(r chi.Router, withTx common.Middleware) {

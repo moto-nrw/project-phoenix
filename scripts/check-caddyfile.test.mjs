@@ -6,7 +6,7 @@ import {
 } from './check-caddyfile.mjs';
 
 const production = readFileSync(defaultCaddyfile, 'utf8');
-const snippet = '(client_ip_upstream) {\n\theader_up X-Forwarded-For {client_ip}\n}\n';
+const snippet = '(client_ip_upstream) {\n\theader_up X-Forwarded-For {client_ip}\n\theader_up X-Forwarded-Host {host}\n\theader_up -X-Moto-Original-*\n}\n';
 
 test('the versioned Caddyfile passes the reverse_proxy check', () => {
   assert.deepEqual(checkReverseProxies(production), []);
@@ -16,13 +16,21 @@ test('flags a reverse_proxy without the import, also next to braces in quoted st
   const source = `${snippet}(page) {\n\trespond \`body{margin:0}\` 200\n}\na.example {\n\treverse_proxy localhost:1 {\n\t\timport client_ip_upstream\n\t}\n}\nb.example {\n\treverse_proxy localhost:2 {\n\t\theader_up Host {host}\n\t}\n\timport client_ip_upstream\n}\n`;
   const errors = checkReverseProxies(source);
   assert.equal(errors.length, 1);
-  assert.match(errors[0], /line 13: reverse_proxy localhost:2/);
+  assert.match(errors[0], /line 15: reverse_proxy localhost:2/);
 });
 
 test('flags a reverse_proxy without a block and a missing snippet', () => {
   const errors = checkReverseProxies('a.example {\n\treverse_proxy localhost:1\n}\n');
   assert.match(errors[0], /has no block/);
   assert.match(errors[1], /snippet is missing/);
+});
+
+test('flags a snippet that passes client-sent forwarding headers through', () => {
+  const source = '(client_ip_upstream) {\n\theader_up X-Forwarded-For {client_ip}\n\t# header_up X-Forwarded-Host {host}\n}\na.example {\n\treverse_proxy localhost:1 {\n\t\timport client_ip_upstream\n\t}\n}\n';
+  assert.deepEqual(checkReverseProxies(source), [
+    'The (client_ip_upstream) snippet lacks "header_up X-Forwarded-Host {host}".',
+    'The (client_ip_upstream) snippet lacks "header_up -X-Moto-Original-*".',
+  ]);
 });
 
 test('a commented-out import does not count', () => {

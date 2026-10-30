@@ -4,13 +4,21 @@
 // Beitrag aus den Regeln des Trägers (#4664).
 
 import { useLocale, useTranslations } from "next-intl";
-import type { ReactNode } from "react";
+import { type ReactNode, useCallback } from "react";
+import {
+  EnrollmentUploadScope,
+  useEnrollmentUploadTarget,
+} from "~/components/enrollment/enrollment-file-upload";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import { formatDate } from "~/lib/date-helpers";
 import type { HolidayFormField } from "~/lib/holiday-form-field";
-import type { HolidayRegistrationOffer } from "~/lib/holiday-registration-api";
+import type { NewUploadValue } from "~/lib/enrollment-uploads";
+import {
+  type HolidayRegistrationOffer,
+  uploadHolidayProof,
+} from "~/lib/holiday-registration-api";
 import {
   bookedWeeks,
   type ContactDraft,
@@ -79,6 +87,7 @@ export function HolidayRegistrationSummary({
   onBack,
   onSubmit,
   onBenefitsDeclaredChange,
+  onBenefitsProofsChange,
 }: Readonly<{
   token: string;
   draft: RegistrationDraft;
@@ -90,9 +99,24 @@ export function HolidayRegistrationSummary({
   onBack: () => void;
   onSubmit: () => void;
   onBenefitsDeclaredChange: (declared: boolean) => void;
+  onBenefitsProofsChange: (proofs: NewUploadValue[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
+  const uploadText = useTranslations("enrollmentForm");
   const locale = useLocale();
+  // A proof of benefits uploads through the public link (#5238); the send
+  // button waits until every chosen file has arrived.
+  const upload = useCallback(
+    (file: File, signal: AbortSignal) =>
+      uploadHolidayProof(token, file, signal),
+    [token],
+  );
+  const { pendingUploads, uploadTarget } = useEnrollmentUploadTarget({
+    tenantSlug: "",
+    upload,
+    locale,
+    previewMode: false,
+  });
   const labels = useWeekLabels();
   const none = t("none");
   const schoolName = (school: string, guestSchoolName: string) =>
@@ -207,12 +231,21 @@ export function HolidayRegistrationSummary({
           </DataGrid>
         </SectionCard>
       ) : null}
-      <HolidayRegistrationContribution
-        token={token}
-        draft={draft}
-        offer={offer}
-        onBenefitsDeclaredChange={onBenefitsDeclaredChange}
-      />
+      <EnrollmentUploadScope target={uploadTarget}>
+        <HolidayRegistrationContribution
+          token={token}
+          draft={draft}
+          offer={offer}
+          onBenefitsDeclaredChange={onBenefitsDeclaredChange}
+          onBenefitsProofsChange={onBenefitsProofsChange}
+        />
+      </EnrollmentUploadScope>
+
+      {pendingUploads > 0 ? (
+        <p className="text-sm text-gray-700" role="status">
+          {uploadText("upload.pendingSubmit")}
+        </p>
+      ) : null}
 
       {/* The security check sits in the row of the send button: one step,
           no gap below the contribution. */}
@@ -232,7 +265,7 @@ export function HolidayRegistrationSummary({
             type="button"
             variant="primary"
             size="md"
-            disabled={submitting || !canSubmit}
+            disabled={submitting || !canSubmit || pendingUploads > 0}
             onClick={onSubmit}
           >
             {submitting

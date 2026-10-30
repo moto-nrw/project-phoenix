@@ -118,9 +118,12 @@ func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID 
 			return err
 		}
 
-		finalRoomID, err := s.determineRoomIDWithStrategy(txCtx, activityID, roomID, RoomConflictIgnore, true)
+		finalRoomID, err := s.determineRoomIDWithStrategy(txCtx, activityID, roomID, RoomConflictIgnore, false)
 		if err != nil {
 			return err
+		}
+		if err := s.SchoolPresence.PrepareVisitWrites(txCtx, studentpresence.VisitWriteScope{DeviceID: deviceID, RoomID: finalRoomID}); err != nil {
+			return &ActiveError{Op: operation, Err: err}
 		}
 		if err := s.SchoolPresence.LockRoomSessionWrites(txCtx, finalRoomID); err != nil {
 			return &ActiveError{Op: operation, Err: ErrDatabaseOperation}

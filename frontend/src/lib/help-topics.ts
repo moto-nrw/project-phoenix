@@ -126,6 +126,7 @@ export const HELP_TOPICS = {
   studentNotes: "notizen-zu-einem-kind",
   leadInviteGuardians: "eltern-einladen",
   leadEndCare: "betreuung-eines-kindes-beenden",
+  leadAccidentReport: "unfall-erfassen",
   leadDeleteStudent: "kind-dauerhaft-loeschen",
   leadGradeTransition: "kinder-in-den-naechsten-jahrgang-uebernehmen",
   leadClassListEntries: "kinder-ohne-ogs-betreuung-erfassen",

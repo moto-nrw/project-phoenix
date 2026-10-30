@@ -185,6 +185,12 @@ type uploadRefusal struct {
 
 func (e uploadRefusal) Error() string { return e.text }
 
+// IsUploadTypeNotAllowed reports a content-type refusal from the upload parser.
+func IsUploadTypeNotAllowed(err error) bool {
+	var refusal uploadRefusal
+	return errors.As(err, &refusal) && refusal.code == CodeFilesFileTypeNotAllowed
+}
+
 func uploadLimitMB(maxFileSize int64) int64 {
 	const megabyte = 1024 * 1024
 	if maxFileSize <= 0 {

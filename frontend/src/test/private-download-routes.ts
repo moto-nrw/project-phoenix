@@ -45,6 +45,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["staff/time-tracking/export", "GET"],
   ["statistics/care-time-overruns/export", "GET"],
   ["statistics/export", "GET"],
+  ["students/[id]/accident-reports/[documentId]/pdf", "GET"],
   ["students/[id]/attendance-history/export", "GET"],
   ["students/[id]/documents/[documentId]/download", "GET"],
   ["students/care-schedule-change-requests/[requestId]/proof", "GET"],
@@ -60,4 +61,8 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["traeger/billing-runs/[id]/letters/print", "GET"],
   ["traeger/holiday-periods/[id]/form/documents/[documentId]", "GET"],
   ["traeger/holiday-periods/[id]/registrations/export", "GET"],
+  [
+    "traeger/holiday-periods/[id]/registrations/[registrationId]/proofs/[proofId]",
+    "GET",
+  ],
 ] as const;

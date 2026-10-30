@@ -76,6 +76,8 @@
   "contributionTotal": "Gesamt",
   "benefitsLabel": "Wir bekommen Leistungen, zum Beispiel Bürgergeld, Wohngeld oder Kinderzuschlag.",
   "benefitsHint": "Dann ist die Ferienbetreuung kostenlos. Der Träger braucht dafür einen Nachweis.",
+  "benefitsProofLabel": "Nachweis über die Leistungen",
+  "benefitsProofHint": "Freiwillig. Laden Sie hier zum Beispiel den Bürgergeld-Bescheid hoch. Sie können ihn auch später beim Träger abgeben.",
   "guest": "Feriengast",
   "none": "Keine Angabe",
   "back": "Zurück und ändern",

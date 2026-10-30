@@ -6,6 +6,7 @@ GET /traeger/holiday-periods/{id}/form/documents/{documentId} -> basis
 GET /traeger/holiday-periods/{id}/registrations -> basis
 GET /traeger/holiday-periods/{id}/registrations/export -> basis
 GET /traeger/holiday-periods/{id}/registrations/{registrationId} -> basis
+GET /traeger/holiday-periods/{id}/registrations/{registrationId}/proofs/{proofId} -> basis
 POST /traeger/holiday-periods/ -> basis
 POST /traeger/holiday-periods/{id}/form/documents -> basis
 POST /traeger/holiday-periods/{id}/publish -> basis

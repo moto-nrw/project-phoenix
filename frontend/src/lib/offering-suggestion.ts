@@ -17,6 +17,8 @@ export interface OfferingSuggestion {
   missingCount: number;
   /** Every offering that passes the rule, best first. */
   candidates: Array<{ id: string; name: string }>;
+  /** Several candidates fit fully (#5138): the school picks one. */
+  ambiguous: boolean;
 }
 
 export interface OfferingSuggestionQuery {
@@ -41,6 +43,7 @@ export interface BackendOfferingSuggestionResponse {
     unbooked_count: number;
     missing_count: number;
     candidates?: BackendOfferingRef[] | null;
+    ambiguous?: boolean;
   } | null;
 }
 
@@ -107,6 +110,7 @@ export function mapOfferingSuggestion(
     unbookedCount: suggestion.unbooked_count,
     missingCount: suggestion.missing_count,
     candidates: (suggestion.candidates ?? []).map(offeringRef),
+    ambiguous: suggestion.ambiguous ?? false,
   };
 }
 

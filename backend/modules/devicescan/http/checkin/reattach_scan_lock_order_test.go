@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -43,19 +42,6 @@ type reattachScanFixture struct {
 	scanned    int64
 	scannedV   int64
 	takenOver  int64
-}
-
-// reattachKiosk composes the check-in route on a pool of the test's own
-// (#5269): the row holder, the scan and session start requests and the lock
-// diagnostics hold connections at the same time, so they must not compete
-// with parallel tests for the shared package pool.
-func reattachKiosk(t *testing.T) *kiosk {
-	t.Helper()
-	db := testpkg.SetupClosableTestDB(t)
-	t.Cleanup(func() { assert.NoError(t, db.Close()) })
-	module, err := api.NewCheckinTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
-	require.NoError(t, err)
-	return &kiosk{db: db, resource: checkinAPI.NewResource(module.DeviceScan, testRuntime(), nil), rosters: module.Rosters}
 }
 
 func newReattachScanFixture(t *testing.T) reattachScanFixture {
@@ -291,8 +277,8 @@ func (f reattachScanFixture) runReattachAgainstScan(t *testing.T, holder *rowHol
 // starts and takes over the ended session's visits. Before the fix the
 // reattach had locked the stay first, the scan's check-in waited for it and
 // PostgreSQL aborted one of them with 40P01. The holder keeps the stay's row,
-// the first lock of the check-in: the scan locks the child before its visit
-// (#5278), so the child's row would stop it before the visit.
+// the first new lock after the closed visit: the scan locks the child before
+// its visit (#5278), so the child's row would stop it before the visit.
 func TestReattachWaitsForTheScanHoldingTheVisit(t *testing.T) {
 	t.Parallel()
 	f := newReattachScanFixture(t)

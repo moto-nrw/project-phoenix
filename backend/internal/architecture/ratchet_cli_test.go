@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -1061,7 +1062,7 @@ func ratchetRepositoryWithPolicy(t *testing.T, baseline, policy string) (string,
 	writeFile(t, filepath.Join(repo, "test", "query-budgets", "owner", "list.json"), queryBudgetFragment)
 	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policy)
 	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), baseline)
-	runGit(t, repo, "init", "-q")
+	gitfixture.Init(t, repo)
 	runGit(t, repo, "config", "user.email", "architecture-test@example.test")
 	runGit(t, repo, "config", "user.name", "Architecture Test")
 	runGit(t, repo, "config", "commit.gpgsign", "false")
@@ -1161,23 +1162,11 @@ func runRepositoryCheck(t *testing.T, repo, baseRef string) (string, error) {
 
 func runGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	output, err := processOutput(dir, gitTestEnvironment(), "git", append([]string{"-C", dir}, args...)...)
-	if err != nil {
-		t.Fatalf("git %v: %v\n%s", args, err, output)
-	}
-	return string(output)
+	return gitfixture.Run(t, dir, args...)
 }
 
 func gitTestEnvironment() []string {
-	var environment []string
-	for _, variable := range os.Environ() {
-		if strings.HasPrefix(variable, "GIT_CONFIG=") || strings.HasPrefix(variable, "GIT_CONFIG_COUNT=") ||
-			strings.HasPrefix(variable, "GIT_CONFIG_KEY_") || strings.HasPrefix(variable, "GIT_CONFIG_VALUE_") {
-			continue
-		}
-		environment = append(environment, variable)
-	}
-	return environment
+	return gitfixture.Environment(os.Environ())
 }
 
 func readFile(t *testing.T, path string) string {

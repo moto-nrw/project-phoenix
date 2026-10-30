@@ -217,6 +217,23 @@ const LIMITED_ACCESS_TABS_WITH_ENROLLMENTS: StudentTabId[] = [
   "historie",
 ];
 
+function addDocumentsTab(tabs: StudentTabId[]): StudentTabId[] {
+  if (tabs.includes("dokumente")) {
+    return tabs;
+  }
+
+  const requestLogIndex = tabs.indexOf("aenderungsprotokoll");
+  if (requestLogIndex === -1) {
+    return [...tabs, "dokumente"];
+  }
+
+  return [
+    ...tabs.slice(0, requestLogIndex),
+    "dokumente",
+    ...tabs.slice(requestLogIndex),
+  ];
+}
+
 const DEFAULT_TAB: StudentTabId = "stammdaten";
 
 function resolveActiveTab(
@@ -266,13 +283,13 @@ function studentTabs(
     : base.filter((tab) => tab !== "betreuungsplan");
   // Dokumente (#777) mirrors the backend route gate exactly:
   // RequiresAnyPermission(users:update, student_documents:health,
-  // student_documents:legal). Gating on write access instead would disagree in
+  // student_documents:legal, student_accidents:read, student_accidents:manage). Gating on write access instead would disagree in
   // both directions — a group supervisor without users:update would see a tab
   // that only answers 403, and a role holding just student_documents:health
   // (which the migration exists to make grantable) could never reach the tab
   // at all.
   const withDocuments = canViewDocuments
-    ? withCarePlan
+    ? addDocumentsTab(withCarePlan)
     : withCarePlan.filter((tab) => tab !== "dokumente");
   // Änderungsprotokoll (#2437) uses the gate of both its sources:
   // Both sources require users:update, or users:read plus users:absence. The
@@ -544,12 +561,17 @@ function StudentDetailPageContent() {
   const canViewCarePlan =
     sessionStatus === "authenticated" &&
     hasPermission(session, "schedules:read");
-  // Same three permissions the backend route gate accepts (#777).
+  // Same permissions the backend route gate accepts (#777, #4771).
   const canViewDocuments =
     sessionStatus === "authenticated" &&
     (hasPermission(session, "users:update") ||
       hasPermission(session, "student_documents:health") ||
-      hasPermission(session, "student_documents:legal"));
+      hasPermission(session, "student_documents:legal") ||
+      hasPermission(session, "student_accidents:read") ||
+      hasPermission(session, "student_accidents:manage"));
+  const canRecordAccidents =
+    sessionStatus === "authenticated" &&
+    hasPermission(session, "student_accidents:manage");
   // Eltern, Notizen und Nachrichten hängen an users:read; die Rolle „Gast“
   // sieht das Kind nur mit students:read (ADR 0091).
   const canReadParentData = sessionReadsChildDetails;
@@ -1749,6 +1771,7 @@ function StudentDetailPageContent() {
           tabs={visibleTabs}
           canViewEnrollments={canViewEnrollments}
           canViewCarePlan={canViewCarePlan}
+          canRecordAccidents={canRecordAccidents}
           canManageFamilyProtection={canViewEnrollments}
           canViewCareTimes={canReadParentData}
           onTabChange={handleTabChange}
@@ -1774,6 +1797,7 @@ function StudentDetailPageContent() {
           activeTab={activeTab}
           tabs={visibleTabs}
           canViewEnrollments={canViewEnrollments}
+          canRecordAccidents={canRecordAccidents}
           canReadChild={childGrantsFullAccess}
         />
       )}
@@ -1887,6 +1911,8 @@ interface LimitedAccessViewProps {
   activeTab: StudentTabId;
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
+  /** student_accidents:manage: enables „Unfall erfassen“ (#4771). */
+  canRecordAccidents: boolean;
   /**
    * Die Antwort zum Kind meldet Lesezugriff (CanReadStudent). Die Ansicht
    * ist trotzdem eingeschränkt, wenn der Sitzung users:read fehlt.
@@ -1903,6 +1929,7 @@ function LimitedAccessView({
   activeTab,
   tabs,
   canViewEnrollments,
+  canRecordAccidents,
   canReadChild,
 }: Readonly<LimitedAccessViewProps>) {
   const historyRouter = useTenantRouter();
@@ -1926,6 +1953,14 @@ function LimitedAccessView({
   );
   useEffect(() => {
     if (activeTab === "aenderungsprotokoll") setProtocolTabSeen(true);
+  }, [activeTab]);
+  // Same lazy mount as the full view: document listing may trigger interrupted
+  // upload cleanup, so it waits until this permitted tab is actually opened.
+  const [documentsTabSeen, setDocumentsTabSeen] = useState(
+    activeTab === "dokumente",
+  );
+  useEffect(() => {
+    if (activeTab === "dokumente") setDocumentsTabSeen(true);
   }, [activeTab]);
   return (
     <>
@@ -1962,6 +1997,19 @@ function LimitedAccessView({
           <StudentEnrollmentsTab studentId={student.id} />
         </StudentTabPanel>
       ) : null}
+
+      <StudentTabPanel
+        value="dokumente"
+        activeTab={activeTab}
+        className={TAB_CONTENT_CLASS}
+      >
+        {documentsTabSeen && (
+          <StudentDokumenteTab
+            studentId={studentId}
+            canRecordAccidents={canRecordAccidents}
+          />
+        )}
+      </StudentTabPanel>
 
       {tabs.includes("aenderungsprotokoll") && (
         <StudentTabPanel
@@ -2015,6 +2063,8 @@ interface FullAccessViewProps {
   tabs: StudentTabId[];
   canViewEnrollments: boolean;
   canViewCarePlan: boolean;
+  /** student_accidents:manage: „Unfall erfassen“ (#4771). */
+  canRecordAccidents: boolean;
   canManageFamilyProtection: boolean;
   /** Soll und Ist (#4774) reads with users:read, as the backend route does. */
   canViewCareTimes: boolean;
@@ -2042,6 +2092,7 @@ function FullAccessView({
   tabs,
   canViewEnrollments,
   canViewCarePlan,
+  canRecordAccidents,
   canManageFamilyProtection,
   canViewCareTimes,
   onTabChange,
@@ -2253,7 +2304,12 @@ function FullAccessView({
         activeTab={activeTab}
         className={TAB_CONTENT_CLASS}
       >
-        {documentsTabSeen && <StudentDokumenteTab studentId={studentId} />}
+        {documentsTabSeen && (
+          <StudentDokumenteTab
+            studentId={studentId}
+            canRecordAccidents={canRecordAccidents}
+          />
+        )}
       </StudentTabPanel>
 
       {tabs.includes("aenderungsprotokoll") && (

@@ -15,9 +15,9 @@ entry and adds no owner, no data object, no policy rule and no migration.
 ## Context
 
 The bulk move (`student_move.go`) locks the children
-(`StudentRepo.FindByIDsForUpdate`), then, for a restricted caller, the target
-room's session advisory, the open attendance rows and the source and target
-sessions, and finally re-reads the children's visits `FOR UPDATE`.
+(`StudentRepo.FindByIDsForUpdate`), then the target room's session advisory
+(only for a restricted caller), the open attendance rows and the source and
+target sessions, and finally re-reads the children's visits `FOR UPDATE`.
 
 A kiosk room change (`devicescan`, `scanVisit`) closed the child's current
 visit first (`EndVisit`, an `UPDATE` of the visit row) and locked the child

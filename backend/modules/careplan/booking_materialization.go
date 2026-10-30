@@ -56,6 +56,12 @@ type OfferingRosterResync struct {
 	// TolerateDriftedSources loads the source offerings without the active
 	// and phase checks. Detach fallback only; never set on a save path.
 	TolerateDriftedSources bool
+	// SkipInactiveSources lets a stored source that turned inactive after it
+	// was declared contribute nothing while another source stays valid
+	// (#5305). Every other guard still applies, and a template left without
+	// a valid source is still refused. Resyncs of a template's stored sources
+	// only; never set on a save or catalog-edit path.
+	SkipInactiveSources bool
 }
 
 // SourcedRosters keeps the rosters of offering-sourced Regeltermine in step
@@ -247,8 +253,32 @@ type AdjustedRosterTemplate struct {
 	AddedWeekdays   []int
 }
 
+// BookingDayChange is what a booking change did to the child's weekdays,
+// as the roster impact needs it (#5342).
+type BookingDayChange struct {
+	// DroppedWeekdays are the ISO weekdays the change drops a booking on.
+	DroppedWeekdays []int
+	// NetLossWeekdays are the ISO weekdays the change drops more offerings
+	// on than it newly books.
+	NetLossWeekdays []int
+	// Remaining are the offerings the child books after the change.
+	Remaining []RemainingDayBooking
+}
+
+// RemainingDayBooking is one offering the child still books on one ISO
+// weekday after a booking change, with what decides whether it carries a
+// hand-maintained Regeltermin: its kind flags and its pickup time that day
+// ("HH:MM", empty when the offering sets none).
+type RemainingDayBooking struct {
+	Weekday       int
+	CountsAsCare  bool
+	IncludesLunch bool
+	PickupTime    string
+}
+
 // ManualRosterTemplate is one hand-maintained Regeltermin series that keeps
-// the child on weekdays the change took away.
+// the child on a weekday the change dropped a booking on, where no remaining
+// booking carries it (#5342).
 type ManualRosterTemplate struct {
 	TemplateID int64
 	Name       string

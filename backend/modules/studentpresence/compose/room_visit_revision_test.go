@@ -30,6 +30,8 @@ import (
 //  5. No lock edge: the triggers only insert; room changes and session ends
 //     do not wait for visit writers, and room reads wait for nobody.
 //  6. Tenant: another school's room reads count 0 and revision 0.
+//  7. Bounded read: the nightly close folds every settled session into its
+//     rooms, so a read sums only the sessions since then (#5273).
 
 func readRoomSnapshot(t *testing.T, ctx context.Context, module studentpresence.Owner, roomID int64) countSnapshot {
 	t.Helper()
@@ -456,9 +458,10 @@ func roomLifecycleTakesNoVisitLock(t *testing.T, ctx context.Context, db *bun.DB
 }
 
 // roomNightlyCloseKeepsRevisions pins the compaction for rooms: it folds a
-// deleted session's events into room rows, collapses the rows of each scope,
-// keeps every room revision, and leaves a concurrent writer's event as its
-// own row, which still counts for every room its session held.
+// deleted session's events and the entry rows of every settled session into
+// room rows, collapses the rows of each scope and keeps every room revision.
+// A late checkout of a folded session changes no room count and stays a
+// session event (#5273; the races are in room_revision_fold_test.go).
 func roomNightlyCloseKeepsRevisions(t *testing.T, ctx context.Context, db *bun.DB, module studentpresence.Owner) {
 	room := testpkg.CreateTestRoom(t, db, "Room compact")
 	other := testpkg.CreateTestRoom(t, db, "Room compact other")
@@ -495,8 +498,8 @@ func roomNightlyCloseKeepsRevisions(t *testing.T, ctx context.Context, db *bun.D
 	}))
 	writer.commit(t)
 	roomAfter := readRoomSnapshot(t, ctx, module, room.ID)
-	assert.Equal(t, countSnapshot{count: 0, revision: roomTracked.last.revision + 1}, roomAfter,
-		"the compaction keeps the room revision; the concurrent late checkout of the ended session adds its own change")
+	assert.Equal(t, roomTracked.last, roomAfter,
+		"the compaction keeps the room revision; the late checkout of the folded session changes no room count")
 	otherTracked.kept("the compaction keeps the other room")
 
 	var rows []struct {
@@ -513,8 +516,8 @@ func roomNightlyCloseKeepsRevisions(t *testing.T, ctx context.Context, db *bun.D
 		}
 		perEntry[key] = row.Rows
 	}
-	assert.Equal(t, map[int64]int{0: 1, ended.ID: 1, running.ID: 1, moved.ID: 1}, perEntry,
-		"one entry per session the room held and one room row; the deleted session's events joined the room row")
+	assert.Equal(t, map[int64]int{0: 1}, perEntry,
+		"one room row; the deleted session's events and the entries of the ended sessions joined it")
 	assert.Equal(t, 2, countEventRows(t, db, ended.ID), "the ended session's compacted row and the concurrent writer's event")
 	assert.Zero(t, countEventRows(t, db, deleted.ID), "a deleted session's events are folded away")
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
 	"github.com/moto-nrw/project-phoenix/internal/passthrough"
 )
 
@@ -33,8 +34,9 @@ func TestPassthroughRejectsAPIFilterBypass(t *testing.T) {
 		t.Fatal(err)
 	}
 	put("backend/architecture/passthrough.json", output.String())
+	gitfixture.Init(t, repo)
 	for _, args := range [][]string{
-		{"init", "--quiet"}, {"add", "."},
+		{"add", "."},
 		{"-c", "user.name=Test", "-c", "user.email=test@example.invalid", "-c", "commit.gpgsign=false", "commit", "--quiet", "-m", "Base"},
 	} {
 		runGit(t, repo, args...)

@@ -37,7 +37,9 @@ type StudentDocumentDependencies struct {
 	Access      ports.StudentDocumentAccess
 	Permissions ports.StudentDocumentPermissions
 	Audit       ports.StudentDocumentAudit
+	Signatures  ports.StudentAccidentSignatures
 	Transaction ports.UnitOfWork
+	Now         func() time.Time
 }
 
 // StudentDocuments is the native child document application.
@@ -46,20 +48,26 @@ type StudentDocuments struct {
 	access      ports.StudentDocumentAccess
 	permissions ports.StudentDocumentPermissions
 	audit       ports.StudentDocumentAudit
+	signatures  ports.StudentAccidentSignatures
 	transaction ports.UnitOfWork
+	now         func() time.Time
 }
 
 // NewStudentDocuments validates the wiring and builds the capability.
 func NewStudentDocuments(deps StudentDocumentDependencies) (*StudentDocuments, error) {
-	if deps.Records == nil || deps.Access == nil || deps.Audit == nil || deps.Transaction == nil {
-		return nil, errors.New("care plan documents: records, access, audit and transaction are required")
+	if deps.Records == nil || deps.Access == nil || deps.Audit == nil || deps.Signatures == nil || deps.Transaction == nil {
+		return nil, errors.New("care plan documents: records, access, audit, signatures and transaction are required")
 	}
-	if deps.Permissions.Health == "" || deps.Permissions.Legal == "" || deps.Permissions.Default == "" {
+	if deps.Permissions.Health == "" || deps.Permissions.Legal == "" || deps.Permissions.Default == "" ||
+		deps.Permissions.AccidentRead == "" || deps.Permissions.AccidentManage == "" {
 		return nil, errors.New("care plan documents: every category permission is required")
+	}
+	if deps.Now == nil {
+		deps.Now = time.Now
 	}
 	return &StudentDocuments{
 		records: deps.Records, access: deps.Access, permissions: deps.Permissions,
-		audit: deps.Audit, transaction: deps.Transaction,
+		audit: deps.Audit, signatures: deps.Signatures, transaction: deps.Transaction, now: deps.Now,
 	}, nil
 }
 
@@ -77,24 +85,66 @@ func (s *StudentDocuments) requireStudentAccess(ctx context.Context, studentID i
 	return nil
 }
 
-// categoryPermission returns the permission a category requires. The mapping
-// is the whole point of the permission design; keep it in one place.
+// categoryPermission returns the read permission a category requires. The
+// mapping is the whole point of the permission design; keep it in one place.
 func (s *StudentDocuments) categoryPermission(category string) string {
 	switch {
 	case careplan.IsHealthStudentDocumentCategory(category):
 		return s.permissions.Health
 	case careplan.IsLegalStudentDocumentCategory(category):
 		return s.permissions.Legal
+	case careplan.IsAccidentStudentDocumentCategory(category):
+		return s.permissions.AccidentRead
 	default:
 		return s.permissions.Default
 	}
+}
+
+// hasCategoryPermission reports whether the actor may read a category. For
+// accident reports, managing is deliberately stronger than reading: a person
+// who may record, change or sign a report must be able to open that report.
+func (s *StudentDocuments) hasCategoryPermission(category string, granted []string) bool {
+	if careplan.IsAccidentStudentDocumentCategory(category) {
+		return s.access.HasPermission(s.permissions.AccidentRead, granted) ||
+			s.access.HasPermission(s.permissions.AccidentManage, granted)
+	}
+	return s.access.HasPermission(s.categoryPermission(category), granted)
+}
+
+// writePermission returns the permission adding or removing a document of
+// the category requires. Only accident reports separate reading from writing.
+func (s *StudentDocuments) writePermission(category string) string {
+	if careplan.IsAccidentStudentDocumentCategory(category) {
+		return s.permissions.AccidentManage
+	}
+	return s.categoryPermission(category)
+}
+
+// requirePlainUpload refuses the accident category on the plain upload: a
+// report is recorded with its fields and carries its paper copy on its own
+// route, so a loose file there would have no status and no lock.
+func requirePlainUpload(category string) error {
+	if careplan.IsAccidentStudentDocumentCategory(category) {
+		return fmt.Errorf("%w: accident reports are recorded, not uploaded", careplan.ErrStudentDocumentInvalid)
+	}
+	return nil
+}
+
+func (s *StudentDocuments) requireWritePermission(category string, actor careplan.StudentDocumentActor) error {
+	if err := s.requireCategoryPermission(category, actor); err != nil {
+		return err
+	}
+	if !s.access.HasPermission(s.writePermission(category), actor.Permissions) {
+		return fmt.Errorf("%w: %s", careplan.ErrStudentDocumentForbidden, category)
+	}
+	return nil
 }
 
 // visibleCategories filters the categories down to what the actor may see.
 func (s *StudentDocuments) visibleCategories(actor careplan.StudentDocumentActor) []string {
 	visible := make([]string, 0, len(careplan.StudentDocumentCategories))
 	for _, category := range careplan.StudentDocumentCategories {
-		if s.access.HasPermission(s.categoryPermission(category), actor.Permissions) {
+		if s.hasCategoryPermission(category, actor.Permissions) {
 			visible = append(visible, category)
 		}
 	}
@@ -102,7 +152,7 @@ func (s *StudentDocuments) visibleCategories(actor careplan.StudentDocumentActor
 }
 
 func (s *StudentDocuments) CanSeeStudentDocumentCategory(category string, granted []string) bool {
-	return s.access.HasPermission(s.categoryPermission(category), granted)
+	return s.hasCategoryPermission(category, granted)
 }
 
 func (s *StudentDocuments) CanSeeEveryStudentDocumentCategory(granted []string) bool {
@@ -115,7 +165,7 @@ func (s *StudentDocuments) CanSeeEveryStudentDocumentCategory(granted []string) 
 }
 
 func (s *StudentDocuments) requireCategoryPermission(category string, actor careplan.StudentDocumentActor) error {
-	if !s.access.HasPermission(s.categoryPermission(category), actor.Permissions) {
+	if !s.hasCategoryPermission(category, actor.Permissions) {
 		return fmt.Errorf("%w: %s", careplan.ErrStudentDocumentForbidden, category)
 	}
 	return nil
@@ -150,7 +200,10 @@ func (s *StudentDocuments) AuthorizeStudentDocumentUpload(ctx context.Context, s
 	if !careplan.IsValidStudentDocumentCategory(category) {
 		return fmt.Errorf("%w: unknown category", careplan.ErrStudentDocumentInvalid)
 	}
-	if err := s.requireCategoryPermission(category, actor); err != nil {
+	if err := requirePlainUpload(category); err != nil {
+		return err
+	}
+	if err := s.requireWritePermission(category, actor); err != nil {
 		return err
 	}
 	return s.transaction(ctx, func(txCtx context.Context) error {
@@ -165,7 +218,10 @@ func (s *StudentDocuments) CreateStudentDocument(ctx context.Context, input care
 	if !careplan.IsValidStudentDocumentCategory(input.Category) {
 		return careplan.CareDocument{}, fmt.Errorf("%w: unknown category", careplan.ErrStudentDocumentInvalid)
 	}
-	if err := s.requireCategoryPermission(input.Category, actor); err != nil {
+	if err := requirePlainUpload(input.Category); err != nil {
+		return careplan.CareDocument{}, err
+	}
+	if err := s.requireWritePermission(input.Category, actor); err != nil {
 		return careplan.CareDocument{}, err
 	}
 	document := careplan.CareDocument{
@@ -215,6 +271,11 @@ func (s *StudentDocuments) ResolveStudentDocumentDownload(ctx context.Context, s
 		if err := s.requireCategoryPermission(found.Category, actor); err != nil {
 			return err
 		}
+		// An accident report without a paper copy has no file; its PDF comes
+		// from the report route. Nothing is served, so nothing is logged.
+		if found.FilenameStored == "" {
+			return careplan.ErrCareDocumentNotFound
+		}
 		if err := s.recordSensitiveDownload(txCtx, studentID, actor, found); err != nil {
 			return err
 		}
@@ -260,8 +321,13 @@ func (s *StudentDocuments) DeleteStudentDocument(ctx context.Context, studentID,
 		if err != nil {
 			return err
 		}
-		if err := s.requireCategoryPermission(document.Category, actor); err != nil {
+		if err := s.requireWritePermission(document.Category, actor); err != nil {
 			return err
+		}
+		// A signed accident report is a record that stays; only a
+		// correction may follow it.
+		if document.AccidentSignedAt != nil {
+			return careplan.ErrAccidentReportSigned
 		}
 		at, err := s.records.SoftDeleteCareDocument(txCtx, document.ID, actor.AccountID)
 		if err != nil {

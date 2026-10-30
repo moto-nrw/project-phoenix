@@ -1,3 +1,7 @@
+import {
+  gitTestEnvironment,
+  initGitFixture,
+} from "../../../scripts/test-helpers/git-fixture.mjs";
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import {
@@ -23,22 +27,13 @@ function fixture(run) {
     writeFileSync(join(frontend, "source.txt"), "committed base source");
     writeFileSync(join(frontend, ".gitignore"), "perf-results/\n.env.local\n");
     const git = (...args) =>
-      execFileSync(
-        "git",
-        [
-          "-c",
-          "core.hooksPath=/dev/null",
-          "-c",
-          "commit.gpgsign=false",
-          ...args,
-        ],
-        {
-          cwd: directory,
-          encoding: "utf8",
-          stdio: ["ignore", "pipe", "pipe"],
-        },
-      ).trim();
-    git("init");
+      execFileSync("git", args, {
+        cwd: directory,
+        env: gitTestEnvironment(),
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }).trim();
+    initGitFixture(git);
     git("add", ".");
     git(
       "-c",
@@ -89,7 +84,7 @@ if (args[0] === "exec") {
       "METRICS_BEARER_TOKEN",
     ];
     const env = {
-      ...process.env,
+      ...gitTestEnvironment(),
       ...Object.fromEntries(keys.map((key) => [key, "fixture"])),
       PATH: `${bin}:${process.env.PATH}`,
       FIXTURE_LOG: log,

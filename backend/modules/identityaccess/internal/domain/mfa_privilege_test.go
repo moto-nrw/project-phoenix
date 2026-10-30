@@ -125,6 +125,8 @@ func TestMFAPermissionCatalogIsClassified(t *testing.T) {
 		"staff_notices:read":                 false,
 		"student_documents:health":           true,
 		"student_documents:legal":            false,
+		"student_accidents:read":             true,
+		"student_accidents:manage":           true,
 		"students:read":                      false,
 		"substitutions:create":               false,
 		"substitutions:delete":               false,

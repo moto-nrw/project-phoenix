@@ -1110,7 +1110,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 		}},
 		}
 
-		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500)
+		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500, []int64{30})
 
 		require.NoError(t, err)
 		assert.Equal(t, []int64{30}, ended)
@@ -1125,7 +1125,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 		}},
 		}
 
-		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500)
+		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, endedIDs)
@@ -1145,7 +1145,7 @@ func TestEndExistingActivitySessionsForForceStart_SkipsInvalidRowsAndStopsOnErro
 		}},
 		}
 
-		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500)
+		endedIDs, err := svc.endExistingActivitySessionsForForceStart(ctx, 500, []int64{31})
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.Nil(t, endedIDs)
@@ -1351,7 +1351,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 		}},
 		}
 
-		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100, 0)
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.Zero(t, endedID)
@@ -1360,7 +1360,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 	t.Run("nil existing session is zero", func(t *testing.T) {
 		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, GroupRepo: &mockGroupRepository{}}}
 
-		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100, 0)
 
 		require.NoError(t, err)
 		assert.Zero(t, endedID)
@@ -1379,7 +1379,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 		}},
 		}
 
-		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100, 302)
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.Zero(t, endedID)
@@ -1399,7 +1399,7 @@ func TestEndExistingDeviceSessionForForceStart_Branches(t *testing.T) {
 		}},
 		}
 
-		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100)
+		endedID, err := svc.endExistingDeviceSessionForForceStart(ctx, 100, 303)
 
 		require.NoError(t, err)
 		assert.Equal(t, int64(303), endedID)

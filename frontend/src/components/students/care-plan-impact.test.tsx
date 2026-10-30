@@ -46,10 +46,27 @@ const classImpact: RosterImpact = {
   ],
 };
 
+// Zwei Zielgruppen-Regeltermine und eine Hand-Liste: der Hinweis steht einmal.
+const twoClassesImpact: RosterImpact = {
+  effectiveFrom: "2027-05-31",
+  adjusted: [],
+  notAdjusted: [
+    { templateId: "9", name: "RDST 1b", weekdays: [5], viaTarget: false },
+    { templateId: "11", name: "Klasse 2a", weekdays: [3], viaTarget: true },
+    { templateId: "12", name: "Jahrgang 1", weekdays: [3], viaTarget: true },
+  ],
+};
+
+const SHARED_HINT =
+  "Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.";
+
+// Ohne zweites Argument rendert das Kind "42"; ein ausdrückliches
+// `undefined` bleibt erhalten und rendert ohne Kind-ID.
 function renderImpact(
   value: RosterImpact = impact,
-  studentId: string | undefined = "42",
+  ...rest: [studentId?: string | undefined]
 ) {
+  const studentId = rest.length > 0 ? rest[0] : "42";
   return render(
     <ToastProvider>
       <CarePlanImpact impact={value} studentId={studentId} />
@@ -79,14 +96,23 @@ describe("CarePlanImpact", () => {
   it("lists adjusted and hand-maintained Regeltermine with their weekdays", () => {
     renderImpact();
 
-    expect(screen.getByText("Automatisch angepasst")).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", {
+        name: "Auswirkung auf den Betreuungsplan ab 31.05.2027",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 5, name: "Automatisch angepasst" }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/freitags entfernt/)).toBeInTheDocument();
     expect(
       screen.getByText("Nicht angepasst, weil von Hand gepflegt"),
     ).toBeInTheDocument();
     expect(screen.getByText(/Kind bleibt eingeplant/)).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Im Betreuungsplan ansehen" }),
+      screen.getByRole("link", {
+        name: "Im Betreuungsplan ansehen: „RDST 1b“",
+      }),
     ).toHaveAttribute(
       "href",
       expect.stringContaining("/betreuungsplan?view=serien&d=2027-05-31"),
@@ -98,7 +124,7 @@ describe("CarePlanImpact", () => {
     renderImpact();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Dort auch entfernen" }),
+      screen.getByRole("button", { name: "Dort auch entfernen: „RDST 1b“" }),
     );
     const dialog = await screen.findByRole("dialog");
     expect(within(dialog).getByText(/RDST 1b/)).toBeInTheDocument();
@@ -120,7 +146,7 @@ describe("CarePlanImpact", () => {
     expect(await screen.findByText("Entfernt")).toBeInTheDocument();
     expect(screen.getByText(/Kind entfernt\./)).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Dort auch entfernen" }),
+      screen.queryByRole("button", { name: /^Dort auch entfernen/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -134,7 +160,7 @@ describe("CarePlanImpact", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Dort auch entfernen" }),
+      screen.queryByRole("button", { name: /^Dort auch entfernen/ }),
     ).not.toBeInTheDocument();
   });
 
@@ -143,11 +169,11 @@ describe("CarePlanImpact", () => {
 
     expect(
       screen.getByText(
-        "Plant alle Kinder der Zielgruppe. Ein Entfernen hält hier nicht.",
+        "Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan. Verbinden Sie den Regeltermin mit dem Angebot.",
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: "Mit Angebot verbinden" }),
+      screen.getByRole("link", { name: "Mit Angebot verbinden: „Klasse 2a“" }),
     ).toHaveAttribute(
       "href",
       expect.stringContaining(
@@ -155,15 +181,84 @@ describe("CarePlanImpact", () => {
       ),
     );
     expect(
-      screen.queryByRole("button", { name: "Dort auch entfernen" }),
+      screen.queryByRole("button", { name: /^Dort auch entfernen/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("states the class hint once above the list, not in a row", () => {
+    renderImpact(twoClassesImpact);
+
+    expect(
+      screen.getAllByText(
+        `${SHARED_HINT} Verbinden Sie den Regeltermin mit dem Angebot.`,
+      ),
+    ).toHaveLength(1);
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    const [manualRow, classRow, yearRow] = rows as [
+      HTMLElement,
+      HTMLElement,
+      HTMLElement,
+    ];
+    // Anker: jede Zeile ist gerendert und trägt ihre eigene Aktion.
+    expect(
+      within(manualRow).getByRole("button", {
+        name: "Dort auch entfernen: „RDST 1b“",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(classRow).getByRole("link", {
+        name: "Mit Angebot verbinden: „Klasse 2a“",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(yearRow).getByRole("link", {
+        name: "Mit Angebot verbinden: „Jahrgang 1“",
+      }),
+    ).toBeInTheDocument();
+    // Weder Hinweis noch eine Marke in einer Zeile (Anker: Hinweis oben, Aktionen).
+    for (const row of rows) {
+      expect(within(row).queryByText(/Bei der nächsten Planung/)).toBeNull();
+      expect(
+        within(row).queryByText(/Klasse, Jahrgang oder Gruppe/),
+      ).toBeNull();
+    }
+  });
+
+  it("drops the call to connect from the shared hint without plan rights", () => {
+    grantPlanEditing(false);
+    renderImpact(twoClassesImpact);
+
+    // Anker: der gemeinsame Hinweis steht, nur ohne den letzten Satz.
+    expect(screen.getAllByText(SHARED_HINT)).toHaveLength(1);
+    expect(screen.queryByText(/Verbinden Sie/)).not.toBeInTheDocument();
+    // Anker: alle drei Zeilen stehen, sie tragen weder Hinweis noch Marke.
+    const rows = screen.getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    for (const row of rows) {
+      expect(
+        within(row).getByRole("link", { name: /^Im Betreuungsplan ansehen/ }),
+      ).toBeInTheDocument();
+      expect(within(row).queryByText(/Bei der nächsten Planung/)).toBeNull();
+      expect(
+        within(row).queryByText(/Klasse, Jahrgang oder Gruppe/),
+      ).toBeNull();
+    }
+    expect(
+      screen.queryByRole("link", { name: /^Mit Angebot verbinden/ }),
     ).not.toBeInTheDocument();
   });
 
   it("offers the connection without a child id, but not without plan rights", () => {
     const { unmount } = renderImpact(classImpact, undefined);
     expect(
-      screen.getByRole("link", { name: "Mit Angebot verbinden" }),
-    ).toBeInTheDocument();
+      screen.getByRole("link", { name: "Mit Angebot verbinden: „Klasse 2a“" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining(
+        "/betreuungsplan?view=serien&d=2027-05-31&verbinden=11",
+      ),
+    );
     unmount();
 
     grantPlanEditing(false);
@@ -173,9 +268,51 @@ describe("CarePlanImpact", () => {
         "Ändern kann nur, wer den Betreuungsplan bearbeiten darf.",
       ),
     ).toBeInTheDocument();
+    // Ohne Recht fordert der Hinweis nicht zu einem Schritt auf, den die
+    // Person nicht gehen kann.
     expect(
-      screen.queryByRole("link", { name: "Mit Angebot verbinden" }),
+      screen.getByText(
+        "Regeltermine für eine Klasse, einen Jahrgang oder eine Gruppe planen alle Kinder darin ein. Bei der nächsten Planung steht das Kind wieder im Plan.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("link", { name: /^Mit Angebot verbinden/ }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers no removal from a hand-maintained Regeltermin without a child id", () => {
+    renderImpact(impact, undefined);
+
+    // Anker: der Eintrag der Hand-Liste steht mit seinem Planlink.
+    expect(
+      screen.getByRole("link", {
+        name: "Im Betreuungsplan ansehen: „RDST 1b“",
+      }),
+    ).toBeInTheDocument();
+    // Gleiche Abfrage wie im Entfernen-Test mit Kind-ID und Recht.
+    expect(
+      screen.queryByRole("button", { name: "Dort auch entfernen: „RDST 1b“" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names the child in the section when a page shows several children", () => {
+    render(
+      <ToastProvider>
+        <CarePlanImpact impact={impact} studentId="42" childName="Mia" />
+      </ToastProvider>,
+    );
+
+    expect(
+      screen.getByRole("region", {
+        name: "Auswirkung auf den Betreuungsplan für Mia ab 31.05.2027",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        level: 4,
+        name: "Auswirkung auf den Betreuungsplan für Mia ab 31.05.2027",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("confirms briefly when nothing in the plan changed", () => {

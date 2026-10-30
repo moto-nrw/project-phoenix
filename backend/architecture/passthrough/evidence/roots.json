@@ -1521,6 +1521,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (t traegerHolidayTrail) ListHolidayTrail(ctx context.Context, organizationID int64, query traegerview.HolidayTrailQuery) ([]traegerview.AccessTrailEntry, error) {\n\trows, err := t.trail.ListHolidayAccess(ctx, organizationID, enrollment.HolidayAccessFilter(query))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tentries := make([]traegerview.AccessTrailEntry, 0, len(rows))\n\tfor _, row := range rows {\n\t\tentries = append(entries, traegerview.AccessTrailEntry{ID: row.ID, OccurredAt: row.OccurredAt, AccountID: row.AccountID, Kind: row.Kind, Data: row.Data})\n\t}\n\treturn entries, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerHolidayTrail.ListHolidayTrail",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t traegerHolidayTrail) ListHolidayTrailActors(ctx context.Context, organizationID int64, from, to time.Time) ([]traegerview.AccessTrailActor, error) {\n\taccounts, err := t.trail.ListHolidayAccessActors(ctx, organizationID, from, to)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tactors := make([]traegerview.AccessTrailActor, 0, len(accounts))\n\tfor _, account := range accounts {\n\t\tactors = append(actors, traegerview.AccessTrailActor{AccountID: account})\n\t}\n\treturn actors, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerHolidayTrail.ListHolidayTrailActors",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (d traegerPersonDirectory) PersonsByAccount(ctx context.Context, accountIDs []int64) ([]traegerview.Person, error) {\n\tpersons, err := d.persons.ListPersonsByAccount(ctx, accountIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tlatest := peopledirectory.LatestPersonsByAccountSchool(persons)\n\tresult := make([]traegerview.Person, 0, len(latest))\n\tfor _, person := range latest {\n\t\tresult = append(result, traegerAccessPerson(person))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerPersonDirectory.PersonsByAccount",
@@ -3785,13 +3799,6 @@
       "evidence": "func (e bookingEnrollment) SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error) {\n\tvalues, err := e.owner.RequestChildOfferingsAtDate(ctx, childID, enrollmentOwner.Date(on))\n\treturn BookedOfferings(values), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingEnrollment.SelectionsAt",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (p bookingManualPlans) ManualStudentPlan(ctx context.Context, studentID int64, from calendar.Date, weekdays []int) ([]careplan.ManualRosterTemplate, error) {\n\tplans, err := p.days.ManualStudentPlan(ctx, timetable.ManualStudentPlanQuery{StudentID: studentID, From: from, Weekdays: weekdays})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplan.ManualRosterTemplate, 0, len(plans))\n\tfor _, plan := range plans {\n\t\tresult = append(result, careplan.ManualRosterTemplate{TemplateID: plan.TemplateID, Name: plan.Name, Weekdays: plan.Weekdays, ViaTarget: plan.ViaTarget})\n\t}\n\treturn result, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/bookingManualPlans.ManualStudentPlan",
       "owner": "roots"
     },
     {
