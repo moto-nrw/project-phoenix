@@ -601,7 +601,7 @@ func developmentWeekProtocolEvenings(
 	if !strings.EqualFold(appEnv, "development") {
 		return nil
 	}
-	return owners.NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, WeekProtocolDayLog)
+	return owners.NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, seedWeekProtocolDayLog)
 }
 
 // newServeRouteRuntime constructs the server-root routing dependencies before

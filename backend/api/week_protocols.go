@@ -79,6 +79,22 @@ func WeekProtocolDayLog(
 	})}
 }
 
+// seedWeekProtocolDayLog supplies the current demo day's attendance to every
+// day the local seed records. The seed advances the protocol to Sunday so it
+// can demonstrate the draft and PDF states; the live projection deliberately
+// refuses that historical day because group membership is current-day only.
+// The production Worker always receives WeekProtocolDayLog instead.
+func seedWeekProtocolDayLog(
+	logger *slog.Logger, persons peopledirectory.Capability, users peoplePorts.PersonDirectory,
+	history studentpresence.StudentHistory, careDays carePlanModule.CareDayQuery,
+	arrivals carePlanModule.ArrivalScheduleService, statusDays studentpresence.StatusDayReads,
+) timetableModule.WeekProtocolAttendance {
+	return weekProtocolSeedAttendance{
+		source: WeekProtocolDayLog(logger, persons, users, history, careDays, arrivals, statusDays),
+		today:  calendar.TodayDate,
+	}
+}
+
 // weekProtocolAttendance names each missing child by first and last name.
 type weekProtocolAttendance struct {
 	dayLog *projectionStudentsHTTP.Resource
@@ -104,6 +120,19 @@ func (a weekProtocolAttendance) GroupDayAttendance(ctx context.Context, day cale
 		result = append(result, entry)
 	}
 	return result, nil
+}
+
+type weekProtocolAttendanceSource interface {
+	GroupDayAttendance(context.Context, calendar.Date, []int64) ([]timetableModule.WeekProtocolGroupDay, error)
+}
+
+type weekProtocolSeedAttendance struct {
+	source weekProtocolAttendanceSource
+	today  func() calendar.Date
+}
+
+func (a weekProtocolSeedAttendance) GroupDayAttendance(ctx context.Context, _ calendar.Date, groupIDs []int64) ([]timetableModule.WeekProtocolGroupDay, error) {
+	return a.source.GroupDayAttendance(ctx, a.today(), groupIDs)
 }
 
 // weekProtocolAccessTrail appends to the Audit Platform's data access log.
