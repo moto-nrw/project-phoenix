@@ -1117,6 +1117,11 @@
     },
     {
       "decision": "0090",
+      "id": "api/weekProtocolSeedAttendance.GroupDayAttendance",
+      "reason": "The development-only seed adapter reads the current day from the live attendance projection while recording its sample data on Sunday, so the local seed can demonstrate draft and PDF states without weakening the production projection."
+    },
+    {
+      "decision": "0090",
       "id": "cmd/devtools/Adapter.Raw",
       "reason": "Builds the HTTP request, preserves transport errors and persists successor MFA sessions after successful auth responses; no new pass-through floor."
     },
