@@ -162,25 +162,49 @@ export function problemDetail(body: unknown): string | undefined {
   return typeof detail === "string" && detail.trim() ? detail : undefined;
 }
 
-const sessionTenantMismatchListeners = new Set<() => void>();
+type SessionRefusalListener = (code: ErrorCode) => void;
+
+const sessionTenantMismatchListeners = new Set<SessionRefusalListener>();
 
 /**
- * Who learns that the BFF refused a request because the session belongs to
- * another school than this subdomain (#5130). The session cache drops its
- * session and wakes the SessionProvider, so TenantGuard switches back;
- * TenantGuard hides the page until then. Error answers that become an
- * ApiError report here, and the fetch observer reports every fetch answer,
- * also of clients that never read the body. Returns the unsubscribe function.
+ * The BFF's refusals of a session that no longer fits the tab: another
+ * school than this subdomain (#5130) or another account than the one the
+ * tab holds data for (#5183).
  */
-export function onSessionTenantMismatch(listener: () => void): () => void {
+const SESSION_REFUSAL_CODES: ReadonlySet<ErrorCode> = new Set([
+  "identity.session_tenant_mismatch",
+  "identity.session_account_mismatch",
+]);
+
+export function isSessionRefusalCode(code: unknown): code is ErrorCode {
+  const wire = wireErrorCode(code);
+  return wire !== undefined && SESSION_REFUSAL_CODES.has(wire);
+}
+
+/**
+ * Who learns that the BFF refused a request because the session no longer
+ * fits this tab: it belongs to another school than this subdomain (#5130)
+ * or to another account than the tab's (#5183). The session cache drops its
+ * session and wakes the SessionProvider; TenantGuard hides the page until
+ * the provider's answer is known and then switches back. Another account
+ * resets the SWR scope (SWRScopeBoundary) and leaves the page
+ * (PersonalStorageGuard). Error answers that become an ApiError report here,
+ * and the fetch observer reports every fetch answer, also of clients that
+ * never read the body. Returns the unsubscribe function.
+ */
+export function onSessionTenantMismatch(
+  listener: SessionRefusalListener,
+): () => void {
   sessionTenantMismatchListeners.add(listener);
   return () => {
     sessionTenantMismatchListeners.delete(listener);
   };
 }
 
-export function reportSessionTenantMismatch(): void {
-  for (const listener of sessionTenantMismatchListeners) listener();
+export function reportSessionTenantMismatch(
+  code: ErrorCode = "identity.session_tenant_mismatch",
+): void {
+  for (const listener of sessionTenantMismatchListeners) listener(code);
 }
 
 /**
@@ -216,8 +240,8 @@ export function apiErrorFromBody(
     errors,
     instance: typeof data.instance === "string" ? data.instance : undefined,
   });
-  if (error.code === "identity.session_tenant_mismatch") {
-    reportSessionTenantMismatch();
+  if (isSessionRefusalCode(error.code)) {
+    reportSessionTenantMismatch(error.code);
   }
   return error;
 }
