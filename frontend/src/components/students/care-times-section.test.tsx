@@ -165,4 +165,32 @@ describe("Soll und Ist je Kind (#4774)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
   });
+
+  it("blendet alte Ergebnisse beim Laden eines anderen Kindes aus", async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        result([
+          day({
+            actual_start: "07:30",
+            actual_end: "15:20",
+            actual_minutes: 470,
+            deviation_minutes: 50,
+          }),
+        ]),
+      )
+      .mockReturnValueOnce(new Promise<StudentCareTimes>(() => undefined));
+    const { rerender } = render(
+      <StudentCareTimesSection studentId="7" active />,
+    );
+
+    expect((await screen.findAllByText("07:30–15:20")).length).toBeGreaterThan(
+      0,
+    );
+    rerender(<StudentCareTimesSection studentId="8" active />);
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    // Anker: Der neue Request zeigt den Ladezustand.
+    expect(screen.getByText("Wird geladen…")).toBeInTheDocument();
+    expect(screen.queryAllByText("07:30–15:20")).toHaveLength(0);
+  });
 });

@@ -133,4 +133,52 @@ describe("Soll und Ist — Liste für die Leitung (#4774)", () => {
       ).toBeGreaterThan(0),
     );
   });
+
+  it("blendet alte Ergebnisse beim Wechsel der Filter aus", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        from: "2026-09-01",
+        to: "2026-09-09",
+        data_from: "2026-09-01",
+        tolerance_minutes: 15,
+        students: [
+          {
+            student_id: "7",
+            first_name: "Mia",
+            last_name: "Berg",
+            school_class: "2a",
+            group_name: "Eulen",
+            summary: summary(4, 1, 150),
+          },
+        ],
+      })
+      .mockReturnValueOnce(new Promise<CareTimeOverruns>(() => undefined));
+    const { rerender } = render(
+      <CareTimeOverrunsSection
+        fromISO="2026-09-01"
+        toISO="2026-09-09"
+        groupIds={["3"]}
+        schoolClasses={[]}
+      />,
+    );
+
+    expect(
+      (await screen.findAllByRole("link", { name: "Berg, Mia" })).length,
+    ).toBeGreaterThan(0);
+    rerender(
+      <CareTimeOverrunsSection
+        fromISO="2026-09-01"
+        toISO="2026-09-09"
+        groupIds={["4"]}
+        schoolClasses={[]}
+      />,
+    );
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledTimes(2));
+    // Anker: Der neue Request zeigt den Ladezustand.
+    expect(screen.getByText("Wird geladen…")).toBeInTheDocument();
+    expect(screen.queryAllByRole("link", { name: "Berg, Mia" })).toHaveLength(
+      0,
+    );
+  });
 });

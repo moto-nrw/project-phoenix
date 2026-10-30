@@ -136,6 +136,7 @@ export function StudentCareTimesSection({
     if (!active || !fromISO || !toISO) return;
     let cancelled = false;
     setLoading(true);
+    setData(null);
     clearLoadError();
     fetchStudentCareTimes(studentId, fromISO, toISO)
       .then((result) => {
@@ -232,7 +233,7 @@ export function StudentCareTimesSection({
           rows={data?.days ?? []}
           getRowKey={(day) => day.date}
           defaultSortKey="date"
-          isLoading={loading && data === null}
+          isLoading={loading}
           pageSize={31}
           paginationResetKey={`${fromISO}-${toISO}`}
           stackedOnMobile

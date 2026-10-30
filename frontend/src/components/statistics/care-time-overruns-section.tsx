@@ -65,6 +65,7 @@ export function CareTimeOverrunsSection({
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setData(null);
     clearLoadError();
     const [groups, classes] = JSON.parse(filterKey) as [string[], string[]];
     fetchCareTimeOverruns(fromISO, toISO, {
@@ -219,7 +220,7 @@ export function CareTimeOverrunsSection({
           getRowKey={(row) => row.student_id}
           defaultSortKey="overruns"
           defaultSortDirection="desc"
-          isLoading={loading && data === null}
+          isLoading={loading}
           pageSize={25}
           paginationResetKey={`${fromISO}-${toISO}-${filterKey}`}
           stackedOnMobile
