@@ -325,5 +325,7 @@ next.on("exit", (code, signal) => {
   }
   api.close();
   api.closeAllConnections();
+  // The open stdin pipe would otherwise keep this process alive.
+  process.stdin.destroy();
   process.exitCode = code ?? 1;
 });
