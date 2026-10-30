@@ -241,6 +241,31 @@ func (s *Service) CreateCareDocument(ctx context.Context, value careplan.CareDoc
 	return result, err
 }
 
+// UpdateOpenCareAccidentReport validates the changed report row and writes
+// it only while the report is open. It runs in the accident report command's
+// tenant unit, so the report, its signature and its change-history row
+// commit together.
+func (s *Service) UpdateOpenCareAccidentReport(ctx context.Context, value careplan.CareDocument) (careplan.CareDocument, error) {
+	if value.ID <= 0 || value.AccidentReport == nil {
+		return careplan.CareDocument{}, invalid(careplan.ErrInvalidCareDocument, "an accident report document is required")
+	}
+	if err := careplan.ValidateCareDocument(value); err != nil {
+		return careplan.CareDocument{}, err
+	}
+	// A report is signed exactly when a digital signature or a paper copy
+	// signs it, and a signed report names who signed it and when.
+	signedBy := value.AccidentSignatureID != nil || strings.TrimSpace(value.FilenameStored) != ""
+	if signedBy != (value.AccidentSignedAt != nil) || (value.AccidentSignedAt == nil) != (value.AccidentSignedBy == nil) {
+		return careplan.CareDocument{}, invalid(careplan.ErrInvalidCareDocument, "an accident report is signed by its signature or its paper copy")
+	}
+	if value.AccidentSignatureID != nil && strings.TrimSpace(value.FilenameStored) != "" {
+		return careplan.CareDocument{}, invalid(careplan.ErrInvalidCareDocument, "an accident report is signed either digitally or on paper")
+	}
+	return runValue(ctx, s, "update_open_care_accident_report", func(ctx context.Context) (domain.CareDocument, domain.OperationStats, error) {
+		return s.store.UpdateOpenCareAccidentReport(ctx, value)
+	})
+}
+
 func (s *Service) SoftDeleteCareDocument(ctx context.Context, documentID, deletedBy int64) (result time.Time, err error) {
 	if documentID <= 0 || deletedBy <= 0 {
 		return time.Time{}, invalid(careplan.ErrInvalidCareDocument, "document and actor IDs are required")

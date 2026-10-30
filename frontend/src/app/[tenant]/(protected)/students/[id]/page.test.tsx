@@ -468,6 +468,19 @@ vi.mock("~/components/students/student-enrollments-tab", () => ({
   StudentEnrollmentsTab: () => <div data-testid="student-enrollments-tab" />,
 }));
 
+vi.mock("~/components/students/dokumente-tab", () => ({
+  StudentDokumenteTab: ({
+    canRecordAccidents,
+  }: {
+    canRecordAccidents: boolean;
+  }) => (
+    <div
+      data-testid="student-dokumente-tab"
+      data-can-record-accidents={String(canRecordAccidents)}
+    />
+  ),
+}));
+
 // These child panels are real here; isolate their read APIs as well. Otherwise
 // mounts and SWR retries outlive the page test and hit localhost:3000.
 vi.mock("~/lib/change-request-list-api", async (importOriginal) => {
@@ -1067,6 +1080,26 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
+    });
+
+    it("renders documents for accident report readers", () => {
+      mockSearchParams.set("tab", "dokumente");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "1", permissions: ["student_accidents:read"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Dokumente" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("student-dokumente-tab")).toHaveAttribute(
+        "data-can-record-accidents",
+        "false",
+      );
     });
   });
 
@@ -2735,6 +2768,21 @@ describe("StudentDetailPage", () => {
       expect(
         screen.queryByRole("tab", { name: "Betreuungsplan" }),
       ).not.toBeInTheDocument();
+    });
+
+    it("shows the Dokumente tab with student_accidents:manage", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "1", permissions: ["student_accidents:manage"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Dokumente" }),
+      ).toBeInTheDocument();
     });
 
     it("shows the Betreuungsplan tab with schedules:read", () => {

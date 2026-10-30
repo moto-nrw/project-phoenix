@@ -1,5 +1,12 @@
 {
   "absence_read_required": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "accident_report_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
+  "accident_report_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "accident_report_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "accident_report_not_signed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "accident_report_signed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "accident_report_superseded": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "accident_signature_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "bulk_approval_ineligible": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_day_managed_by_booking": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "care_exception_raced": "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",

@@ -31,6 +31,7 @@ type Store interface {
 	ListDeletedCareDocuments(context.Context, int64, []string) ([]domain.CareDocument, domain.OperationStats, error)
 	ListCareDocumentCleanups(context.Context, *int64) ([]domain.CareDocumentCleanup, domain.OperationStats, error)
 	CreateCareDocument(context.Context, domain.CareDocument) (domain.CareDocument, domain.OperationStats, error)
+	UpdateOpenCareAccidentReport(context.Context, domain.CareDocument) (domain.CareDocument, domain.OperationStats, error)
 	SoftDeleteCareDocument(context.Context, int64, int64) (time.Time, domain.OperationStats, error)
 	MarkCareDocumentFileDeleted(context.Context, int64) (domain.OperationStats, error)
 	QueueCareDocumentCleanup(context.Context, domain.CareDocumentCleanup) (domain.CareDocumentCleanup, domain.OperationStats, error)
