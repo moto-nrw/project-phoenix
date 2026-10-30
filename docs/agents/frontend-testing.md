@@ -21,7 +21,7 @@ local date first so an ineffective timezone change cannot hide the defect.
 
 ## Scope
 
-Every Vitest test in all projects (`app-dom`, `api-node`, `logic-node`) runs
+Every Vitest test in all projects (`app-dom`, `school-date-dom`, `api-node`, `logic-node`) runs
 on a
 deterministic clock (#3101). `src/test/setup-common.ts` freezes `Date` at
 `TEST_CLOCK_INSTANT` before each test and normally restores the real clock
