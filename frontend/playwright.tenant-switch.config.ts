@@ -16,9 +16,10 @@ export default defineConfig({
   testIgnore: "portal-network.spec.ts",
   outputDir: "test-results/tenant-switch",
   webServer: {
-    url: `http://127.0.0.1:${ports.frontend}/api/health`,
+    url: `http://127.0.0.1:${ports.frontend}/school-a`,
     timeout: 120_000,
     reuseExistingServer: false,
+    gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
     stdout: "ignore",
     // The server writes only its own start errors; Next's output stays off.
     stderr: "pipe",
