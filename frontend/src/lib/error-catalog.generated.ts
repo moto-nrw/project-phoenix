@@ -641,6 +641,8 @@ export const ERROR_CATALOG = {
         "Eigene Rollen können dieses Recht nicht bekommen.",
       "identity.session_account_inactive":
         "Ihr Konto ist ausgeschaltet. Bitte wenden Sie sich an die Leitung Ihrer Schule.",
+      "identity.session_account_mismatch":
+        "In einem anderen Fenster hat sich ein anderes Konto angemeldet. moto lädt diese Seite gleich neu.",
       "identity.session_tenant_mismatch":
         "Die Schule wurde in einem anderen Fenster gewechselt. moto stellt diese Seite gleich wieder um. Bitte versuchen Sie es danach noch einmal.",
       "identity.tenant_access_denied":
@@ -1873,6 +1875,8 @@ export const ERROR_CATALOG = {
         "The password is too weak. It needs at least 8 characters, upper and lower case letters, a number and a special character.",
       "identity.session_account_inactive":
         "Your account is switched off. Please contact your school's management.",
+      "identity.session_account_mismatch":
+        "Another account signed in in another window. moto will reload this page shortly.",
       "identity.session_tenant_mismatch":
         "The school was changed in another window. moto will switch this page back shortly. Please try again afterwards.",
       "meals.child_not_enrolled":
@@ -2309,6 +2313,8 @@ export const ERROR_CATALOG = {
         "Пароль слишком простой. Нужно минимум 8 символов, заглавные и строчные буквы, цифра и специальный символ.",
       "identity.session_account_inactive":
         "Ваш аккаунт отключён. Обратитесь к руководству вашей школы.",
+      "identity.session_account_mismatch":
+        "В другом окне выполнен вход в другой аккаунт. moto сейчас перезагрузит эту страницу.",
       "identity.session_tenant_mismatch":
         "Школа была изменена в другом окне. moto сейчас переключит эту страницу обратно. Попробуйте ещё раз чуть позже.",
       "meals.child_not_enrolled":
@@ -2716,6 +2722,8 @@ export const ERROR_CATALOG = {
         "Fjalëkalimi është shumë i dobët. Duhen të paktën 8 karaktere, shkronja të mëdha dhe të vogla, një numër dhe një karakter special.",
       "identity.session_account_inactive":
         "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
+      "identity.session_account_mismatch":
+        "Një llogari tjetër u identifikua në një dritare tjetër. moto do ta ringarkojë këtë faqe së shpejti.",
       "identity.session_tenant_mismatch":
         "Shkolla u ndryshua në një dritare tjetër. moto do ta kthejë këtë faqe së shpejti. Ju lutemi provoni përsëri pak më vonë.",
       "meals.child_not_enrolled":
@@ -3113,6 +3121,8 @@ export const ERROR_CATALOG = {
         "Hasło jest zbyt słabe. Potrzeba co najmniej 8 znaków, wielkich i małych liter, cyfry i znaku specjalnego.",
       "identity.session_account_inactive":
         "Twoje konto jest wyłączone. Skontaktuj się z dyrekcją swojej szkoły.",
+      "identity.session_account_mismatch":
+        "W innym oknie zalogowało się inne konto. moto zaraz odświeży tę stronę.",
       "identity.session_tenant_mismatch":
         "Szkoła została zmieniona w innym oknie. moto zaraz przełączy tę stronę z powrotem. Spróbuj ponownie za chwilę.",
       "meals.child_not_enrolled":
@@ -3515,6 +3525,8 @@ export const ERROR_CATALOG = {
         "Şifre çok zayıf. En az 8 karakter, büyük ve küçük harf, bir rakam ve bir özel karakter gerekir.",
       "identity.session_account_inactive":
         "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
+      "identity.session_account_mismatch":
+        "Başka bir pencerede başka bir hesapla giriş yapıldı. moto bu sayfayı birazdan yeniden yükleyecek.",
       "identity.session_tenant_mismatch":
         "Okul başka bir pencerede değiştirildi. moto bu sayfayı birazdan geri geçirecek. Lütfen biraz sonra tekrar deneyin.",
       "meals.child_not_enrolled":
@@ -3909,6 +3921,8 @@ export const ERROR_CATALOG = {
         "Пароль надто простий. Потрібно щонайменше 8 символів, великі й малі літери, цифра і спеціальний символ.",
       "identity.session_account_inactive":
         "Ваш обліковий запис вимкнено. Зверніться до керівництва вашої школи.",
+      "identity.session_account_mismatch":
+        "В іншому вікні увійшов інший обліковий запис. moto зараз перезавантажить цю сторінку.",
       "identity.session_tenant_mismatch":
         "Школу змінено в іншому вікні. moto зараз перемкне цю сторінку назад. Спробуйте ще раз трохи пізніше.",
       "meals.child_not_enrolled":

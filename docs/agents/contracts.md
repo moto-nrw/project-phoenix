@@ -368,6 +368,25 @@ proxy's `X-Moto-Original-Path`; the browser keeps the fragment), the BFF
 refuses a school's session on the bare domain, and `TenantGuard` moves a tab
 still on path mode to the subdomain.
 
+All tabs of a portal also share one account: another account that signs in
+in tab B replaces tab A's session before tab A hears of it (#5183). Every
+browser request to the tab's own `/api/` therefore names the account its
+`SessionProvider` shows in `X-Moto-Session-Account`, set centrally by
+`SessionAccountBinding` (mounted first in every portal's providers), the
+fetch observer and the Axios interceptor of `api-transport.ts`; another
+origin never gets it. Every portal's route wrapper
+(`createResponseAwareAuth`, so `withTenantAuth` too) refuses a header that
+names another account than the cookie with 409
+`identity.session_account_mismatch` before the route runs
+(`frontend/src/server/auth/session-account-check.ts`). Exempt are the tenant
+routes above and the logout of every other portal. The refusal takes
+the path of the school refusal: the session cache wakes the provider,
+`TenantGuard` hides the page, and the provider's new account resets the SWR
+scope and leaves the page (`PersonalStorageGuard`). A request without the
+header passes (logged at debug): RSC navigation, server actions, the event
+stream (`EventSource`) and image or download links cannot send it. For
+these the window until the provider learns the new account remains.
+
 ### Session revocation per request (#5194)
 
 Every account access token names the refresh-token family that minted it
