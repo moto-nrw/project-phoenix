@@ -560,6 +560,125 @@ func TestSuggestOfferingSourceCombination(t *testing.T) {
 	})
 }
 
+// TestSuggestOfferingSourceEquivalentCombinations covers redundant sources and
+// equal choices that only meet the eligibility rule as a complete combination.
+func TestSuggestOfferingSourceEquivalentCombinations(t *testing.T) {
+	t.Parallel()
+	class := studentRange(1001, 10)
+	refs := map[int64]timetable.OfferingRef{
+		randstundeID: {ID: randstundeID, Name: "Randstunde"},
+		ganztagID:    {ID: ganztagID, Name: "Ganztag"},
+		spaetID:      {ID: spaetID, Name: "Spätbetreuung"},
+	}
+	type source struct {
+		id       int64
+		phase    int64
+		students []int64
+	}
+	for _, tt := range []struct {
+		name         string
+		sources      []source
+		chosen       []int64
+		combinations [][]int64
+	}{
+		{
+			name: "remove a starting offering contained in its complement",
+			sources: []source{
+				{randstundeID, 1, class[:3]},
+				{ganztagID, 1, append(slices.Clone(class), 2001)},
+			},
+			chosen: []int64{ganztagID},
+		},
+		{
+			name: "two child complements remain equal choices",
+			sources: []source{
+				{ganztagID, 1, class[:8]},
+				{randstundeID, 1, class[8:]},
+				{spaetID, 1, class[8:]},
+			},
+			chosen:       []int64{ganztagID, randstundeID},
+			combinations: [][]int64{{ganztagID, randstundeID}, {ganztagID, spaetID}},
+		},
+		{
+			name: "standalone equal choices may belong to different phases",
+			sources: []source{
+				{ganztagID, 1, class[:8]},
+				{spaetID, 2, class[:8]},
+			},
+			chosen:       []int64{ganztagID},
+			combinations: [][]int64{{ganztagID}, {spaetID}},
+		},
+		{
+			name: "a complement may not mix phases",
+			sources: []source{
+				{ganztagID, 1, class[:8]},
+				{randstundeID, 1, class[8:]},
+				{spaetID, 2, class[8:]},
+			},
+			chosen: []int64{ganztagID, randstundeID},
+		},
+		{
+			name: "a complement uses combined coverage",
+			sources: []source{
+				{ganztagID, 1, class[:8]},
+				{randstundeID, 1, class[8:]},
+				{spaetID, 1, append(slices.Clone(class[8:]), 2001)},
+			},
+			chosen:       []int64{ganztagID, randstundeID},
+			combinations: [][]int64{{ganztagID, randstundeID}, {ganztagID, spaetID}},
+		},
+		{
+			name: "an alternative below combined coverage is not equal",
+			sources: []source{
+				{ganztagID, 1, class[:8]},
+				{randstundeID, 1, class[8:]},
+				{spaetID, 1, append(slices.Clone(class[8:]), 2001, 2002, 2003)},
+			},
+			chosen: []int64{ganztagID, randstundeID},
+		},
+		{
+			name: "equal counts do not make different planned children interchangeable",
+			sources: []source{
+				{ganztagID, 1, append(slices.Clone(class[:8]), 2001, 2002)},
+				{spaetID, 1, append(slices.Clone(class[2:]), 3001, 3002)},
+			},
+			chosen: []int64{ganztagID},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			roster := classRoster([]int{1, 3}, class, "1a")
+			bookings := []timetable.OfferingWeekdayBooking{}
+			for _, source := range tt.sources {
+				for _, studentID := range source.students {
+					entry := booking(source.id, refs[source.id].Name, studentID, "1a", 1, 3)
+					entry.PhaseID = source.phase
+					bookings = append(bookings, entry)
+				}
+			}
+			suggestion := timetable.SuggestOfferingSource(roster, bookings)
+			require.NotNil(t, suggestion)
+			want := make([]timetable.OfferingRef, 0, len(tt.chosen))
+			for _, id := range tt.chosen {
+				want = append(want, refs[id])
+			}
+			assert.Equal(t, want, suggestion.Offerings)
+			assert.Equal(t, len(tt.combinations) > 0, suggestion.Ambiguous)
+			assert.Len(t, suggestion.Combinations, len(tt.combinations))
+			for i, ids := range tt.combinations {
+				wantCombination := make([]timetable.OfferingRef, 0, len(ids))
+				for _, id := range ids {
+					wantCombination = append(wantCombination, refs[id])
+					assert.Contains(t, suggestion.Candidates, refs[id])
+				}
+				if i < len(suggestion.Combinations) {
+					assert.Equal(t, wantCombination, suggestion.Combinations[i])
+				}
+			}
+		})
+	}
+}
+
 // TestDetectRosterDeviationMissingData: schools without class data, without
 // weekdays on a booking or without any booking keep working; such bookings
 // explain nothing and the rule decides as before. The rule reads no pickup

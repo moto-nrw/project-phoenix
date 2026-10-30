@@ -85,9 +85,9 @@ type RosterDeviation struct {
 	// Combinations lists complete equal choices, retaining complementary offerings.
 	// It includes the original suggestion when Ambiguous; otherwise it is empty.
 	Combinations [][]OfferingRef
-	// Ambiguous is set when an offering outside the suggestion covers the
-	// roster fully and could replace a suggested one without losing a
-	// planned child (#5138): the rule cannot tell them apart, so the school
+	// Ambiguous is set when an offering outside the suggestion could replace
+	// a suggested one in an eligible combination without losing a planned
+	// child-weekday (#5138): the rule cannot tell them apart, so the school
 	// picks, nothing is preselected, and the counts belong to no named
 	// choice.
 	Ambiguous bool
@@ -104,8 +104,8 @@ type deviationCandidate struct {
 	booked   map[rosterSlot]bool
 	coverage float64
 	jaccard  float64
-	// passes is the rule of #5103; only a passing offering is suggested on
-	// its own or offered as a choice.
+	// passes is the rule of #5103; a combination must retain at least one
+	// passing offering; complementary offerings need not pass alone.
 	passes bool
 }
 
@@ -130,7 +130,7 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 	if len(candidates) == 0 || !candidates[0].passes {
 		return nil
 	}
-	chosen := combineDeviationCandidates(candidates, planned)
+	chosen := pruneDeviationCandidates(candidates, combineDeviationCandidates(candidates, planned), planned)
 	alternatives, combinations := interchangeableCandidates(candidates, chosen, planned)
 	booked := unionBookedSlots(candidates, chosen)
 	refs := make([]OfferingRef, 0, len(chosen))
@@ -181,6 +181,44 @@ func combineDeviationCandidates(candidates []deviationCandidate, planned map[ros
 	}
 }
 
+// pruneDeviationCandidates drops sources that explain no unique planned slot,
+// provided the remaining combination still meets the suggestion rule.
+func pruneDeviationCandidates(candidates []deviationCandidate, chosen []int, planned map[rosterSlot]bool) []int {
+	booked := unionBookedSlots(candidates, chosen)
+	for position := 0; position < len(chosen) && len(chosen) > 1; {
+		remaining := slices.Delete(slices.Clone(chosen), position, position+1)
+		union := unionBookedSlots(candidates, remaining)
+		if eligibleDeviationCombination(candidates, remaining, union, planned) && samePlannedSlots(booked, union, planned) {
+			chosen = remaining
+		} else {
+			position++
+		}
+	}
+	return chosen
+}
+
+// eligibleDeviationCombination applies the same phase, passing anchor and
+// combined coverage rules to a complete choice, not to each complement.
+func eligibleDeviationCombination(candidates []deviationCandidate, indexes []int, booked, planned map[rosterSlot]bool) bool {
+	hasPassing := false
+	for _, index := range indexes {
+		if candidates[index].phaseID != candidates[indexes[0]].phaseID {
+			return false
+		}
+		hasPassing = hasPassing || candidates[index].passes
+	}
+	return hasPassing && len(booked) > 0 && float64(countPlannedSlots(booked, planned))/float64(len(booked)) >= RosterDeviationMinCoverage
+}
+
+func samePlannedSlots(left, right, planned map[rosterSlot]bool) bool {
+	for slot := range planned {
+		if left[slot] != right[slot] {
+			return false
+		}
+	}
+	return true
+}
+
 // uncoveredSlots counts the booked child-weekdays the combination does not
 // hold yet: the planned ones it would explain and all it would add.
 func uncoveredSlots(booked, covered, planned map[rosterSlot]bool) (gain, added int) {
@@ -197,20 +235,21 @@ func uncoveredSlots(booked, covered, planned map[rosterSlot]bool) (gain, added i
 }
 
 // interchangeableCandidates lists the candidates outside the combination
-// that cover the roster fully and could replace one of its offerings while
-// explaining as many planned child-weekdays.
+// that could replace one of its offerings in an eligible combination while
+// explaining the same planned child-weekdays.
 func interchangeableCandidates(candidates []deviationCandidate, chosen []int, planned map[rosterSlot]bool) ([]int, [][]OfferingRef) {
-	explained := countPlannedSlots(unionBookedSlots(candidates, chosen), planned)
+	booked := unionBookedSlots(candidates, chosen)
 	alternatives := make([]int, 0)
 	combinations := [][]OfferingRef{}
-	for index, candidate := range candidates {
-		if slices.Contains(chosen, index) || !candidate.passes || candidate.coverage < 1 || candidate.phaseID != candidates[chosen[0]].phaseID {
+	for index := range candidates {
+		if slices.Contains(chosen, index) {
 			continue
 		}
 		for position := range chosen {
 			swapped := slices.Clone(chosen)
 			swapped[position] = index
-			if countPlannedSlots(unionBookedSlots(candidates, swapped), planned) == explained {
+			union := unionBookedSlots(candidates, swapped)
+			if eligibleDeviationCombination(candidates, swapped, union, planned) && samePlannedSlots(booked, union, planned) {
 				if len(combinations) == 0 {
 					combinations = append(combinations, candidateOfferingRefs(candidates, chosen))
 				}
@@ -240,7 +279,8 @@ func deviationChoices(candidates []deviationCandidate, chosen, alternatives []in
 		refs = append(refs, candidates[index].offering)
 	}
 	for index, candidate := range candidates {
-		if slices.Contains(chosen, index) || !candidate.passes || (len(alternatives) > 0 && !slices.Contains(alternatives, index)) {
+		isAlternative := slices.Contains(alternatives, index)
+		if slices.Contains(chosen, index) || (!candidate.passes && !isAlternative) || (len(alternatives) > 0 && !isAlternative) {
 			continue
 		}
 		refs = append(refs, candidate.offering)
