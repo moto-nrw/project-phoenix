@@ -33,9 +33,12 @@ import {
  *   cookie. Nothing loads until it answered: the cookie already holds the
  *   other session. PersonalStorageGuard then leaves the page.
  *
- * A school change in another tab with the same account is left to the
- * mismatch path of #5130: the BFF refuses this tab's requests, the session
- * cache wakes the provider, and the new generation resets the cache here.
+ * Another tab only removing the owner (its logout, or a school switch whose
+ * new owner binds on the other school's host) is confirmed by a fresh
+ * lookup that still shows this tab's account: the cookie still holds it.
+ * Readers load again; a revoked session answers them with 401, another
+ * school's session with the mismatch path of #5130 (the BFF refuses, the
+ * session cache wakes the provider, the new generation resets the cache).
  *
  * Mounted once in every portal as a child of the SessionProvider.
  */
@@ -59,6 +62,8 @@ export function SWRScopeBoundary({
   const pending = useRef<{
     session: typeof session;
     accountId: string | null;
+    /** The account this tab showed when the other tab changed the owner. */
+    shownAccountId: string | null;
   } | null>(null);
 
   useLayoutEffect(() => {
@@ -67,9 +72,14 @@ export function SWRScopeBoundary({
     committed.current = { generation, accountId, session };
     const waiting = pending.current;
     if (waiting) {
-      // A render or an older lookup is not confirmation of the new cookie.
-      if (session === waiting.session || accountId !== waiting.accountId)
-        return;
+      // A render is no confirmation; a lookup confirms the expected account
+      // or, after a mere owner removal, still this tab's account (#5007).
+      const confirmed =
+        accountId === waiting.accountId ||
+        (waiting.accountId === null &&
+          accountId !== null &&
+          accountId === waiting.shownAccountId);
+      if (session === waiting.session || !confirmed) return;
       pending.current = null;
       // Clear while still paused: old-key subscribers may not have committed
       // their disabled keys yet. The null -> scoped key transition reloads
@@ -92,7 +102,11 @@ export function SWRScopeBoundary({
         if (shown === null) return;
         const nextAccount = personalStorageAccount(owner);
         if (pending.current === null && nextAccount === shown.accountId) return;
-        pending.current = { session: shown.session, accountId: nextAccount };
+        pending.current = {
+          session: shown.session,
+          accountId: nextAccount,
+          shownAccountId: shown.accountId,
+        };
         suspendSWRSession();
         resetSWRScope({ revalidate: false });
         announceSessionChange();

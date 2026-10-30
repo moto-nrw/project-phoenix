@@ -283,6 +283,40 @@ describe("SWR cache scope (#5006)", () => {
     expect(mockAnnounce).toHaveBeenCalledTimes(1);
   });
 
+  it("loads again after another tab switched this account to another school", async () => {
+    // performTenantSwitch clears the owner; the new owner binds on the other
+    // school's host, whose storage this tab never sees (#5007).
+    const fetcher = accountFetcher();
+    const view = render(<Page fetcher={fetcher} />);
+    expect(await screen.findByText("Daten von A")).toBeInTheDocument();
+
+    act(() => otherTabBinds(null));
+    expect(screen.getByTestId("reader-roster")).toHaveTextContent("leer");
+    // A render of the session this tab already had confirms nothing.
+    view.rerender(<Page fetcher={fetcher} />);
+    expect(screen.getByTestId("reader-roster")).toHaveTextContent("leer");
+
+    // The provider's fresh lookup: the same account, now at another school.
+    setSession(signedIn("A", { tenantId: 2 }));
+    view.rerender(<Page fetcher={fetcher} />);
+
+    expect(await screen.findByText("Daten von A")).toBeInTheDocument();
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps waiting when the lookup after a removed owner shows another account", async () => {
+    const fetcher = accountFetcher();
+    const view = render(<Page fetcher={fetcher} />);
+    expect(await screen.findByText("Daten von A")).toBeInTheDocument();
+
+    act(() => otherTabBinds(null));
+    setSession(signedIn("B"));
+    view.rerender(<Page fetcher={fetcher} />);
+
+    expect(screen.getByTestId("reader-roster")).toHaveTextContent("leer");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
   it("drops the cache on logout and fetches nothing without a session", async () => {
     const fetcher = accountFetcher();
     const view = render(<Page fetcher={fetcher} />);
