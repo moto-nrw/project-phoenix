@@ -64,7 +64,7 @@ jobs:
       # Pull requests test what changed against the base branch. Protected-branch
       # pushes and release pull requests run the full suites.
       changed-scope: ${{ github.event_name != 'push' && steps.scope.outputs.release != 'true' }}
-      # Backend-only inputs run all guards together, including DOM guards, but
+      # External and Markdown-only inputs run all guards, including DOM guards, but
       # need neither the regular DOM job nor browser layout tests.
       frontend-guards-only: ${{ github.event_name != 'push' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend-fs-inputs == 'true' && steps.filter.outputs.frontend != 'true' && steps.filter.outputs.frontend-test-infra != 'true' && steps.filter.outputs.workflow-main != 'true' && steps.filter.outputs.workflow-test != 'true' }}
       run-frontend-runner-tests: ${{ steps.filter.outputs.frontend-runner-tests == 'true' }}
@@ -182,7 +182,8 @@ jobs:
               - 'scripts/error-registry.mjs'
               - 'backend/modules/delivery/internal/adapters/localization/locales.json'
             frontend-fs-inputs:
-              # External inputs need one guard job, not both frontend projects.
+              # External/Markdown inputs need one guard job, not both projects.
+              - 'frontend/**/*.md'
               - 'backend/**'
               - '!backend/**/*.md'
               - 'scripts/dev-native.sh'

@@ -437,7 +437,7 @@ for input in backend/auth/authorize/permissions/catalog.json \
       scripts/test-changed.sh --fast origin/development) >"$output_log" 2>&1
     if [[ "$input" = frontend/* ]]; then
       if [[ "$input" = *.md && "$change" != rename ]]; then
-        assert_calls ""
+        assert_calls "$frontend_calls"
       else
         assert_calls $'pnpm:install --frozen-lockfile\npnpm:exec vitest run'
       fi

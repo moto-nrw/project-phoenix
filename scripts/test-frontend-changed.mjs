@@ -8,7 +8,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 // Vitest's module graph cannot discover dependencies created by filesystem scans.
 // Only allowlisted source paths use changed-file selection. Except Markdown
-// documentation, other frontend inputs fail closed; scans still need guards.
+// documentation (guards only), other frontend inputs fail closed to full.
 // Usage: node scripts/test-frontend-changed.mjs BASE [Vitest project/options]
 const modeFiles = process.argv[2] === "--mode-files";
 const modeOnly = modeFiles || process.argv[2] === "--mode";
@@ -38,8 +38,8 @@ function selectionMode(files) {
   }
   // Tests in these source areas use Vitest's changed graph too. Declaration
   // files have no runtime emission; source-scanning guards still run with them.
-  // Markdown is documentation, not a current Vitest input. Keep this explicit
-  // exemption aligned with the Markdown exclusion in the workflow filters.
+  // Markdown skips lint/build, but tests may read it. Keep its guard-only
+  // route aligned with the workflow filters; never silently skip consumers.
   // Every other path/type outside this allowlist defaults to the full suite.
   const sourceModule = /^frontend\/src\/(?:app|components|contexts|hooks|i18n|lib|server)\/.+\.(?:[cm]?[jt]s|[jt]sx)$/;
   const frontend = [...changed].filter(file => file.startsWith("frontend/") && !file.endsWith(".md"));
@@ -48,7 +48,8 @@ function selectionMode(files) {
       "scripts/test-changed.sh", "scripts/test-changed_test.sh",
       ".github/workflows/main.yml", ".github/workflows/test.yml"].some(file => changed.has(file))) return "full";
   if (frontend.length) return "incremental";
-  if ([...changed].some(file => file.startsWith("backend/") && !file.endsWith(".md") ||
+  if ([...changed].some(file => file.startsWith("frontend/") && file.endsWith(".md") ||
+    file.startsWith("backend/") && !file.endsWith(".md") ||
     file === "scripts/dev-native.sh" || file === ".github/workflows/e2e.yml" ||
     file === ".github/workflows/lint.yml")) return "guards";
   return "none";
@@ -151,8 +152,16 @@ if (base === "--check-guards") {
         } else io = true; // Unresolved local imports must never opt a test out.
       }
     }
+    function isImportMeta(expression) {
+      if (ts.isMetaProperty(expression)) return expression.keywordToken === ts.SyntaxKind.ImportKeyword;
+      if (ts.isParenthesizedExpression(expression)) return isImportMeta(expression.expression);
+      return (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) &&
+        isImportMeta(expression.expression);
+    }
     function visit(node) {
-      if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      if (ts.isCallExpression(node) && isImportMeta(node.expression)) {
+        io = true; // Vite glob/resolve calls can read files beyond its module graph.
+      } else if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
         if (node.moduleSpecifier) dependency(node.moduleSpecifier);
       } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
         dependency(node.moduleReference.expression);

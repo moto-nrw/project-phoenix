@@ -111,7 +111,7 @@ test("CI starts frontend guards for backend-only inputs and the native launcher"
   const filter = workflow.match(/            frontend-fs-inputs:\n([\s\S]*?)(?=            [\w-]+:)/)?.[1];
   assert.ok(filter, "frontend input job filter exists");
   assert.match(filter, /- 'backend\/\*\*'/);
-  assert.doesNotMatch(filter, /frontend\//);
+  assert.match(filter, /- 'frontend\/\*\*\/\*\.md'/);
   assert.match(filter, /- 'scripts\/dev-native\.sh'/);
   assert.match(filter, /- '\.github\/workflows\/e2e\.yml'/);
   assert.match(workflow, /run-frontend:.*steps\.filter\.outputs\.frontend-fs-inputs == 'true'/);
@@ -266,11 +266,11 @@ test("tests and declarations in every allowed source directory stay incremental"
   assert.equal(result.stdout, "incremental\n");
 });
 
-test("documentation is excluded but unknown Markdown-like inputs still fail closed", t => {
+test("Markdown runs guards but unknown Markdown-like inputs still fail closed", t => {
   const f = fixture(t);
   f.git("checkout", "--", "frontend/src/lib/product.ts");
   for (const path of ["frontend/README.md", "frontend/scripts/input.md", "frontend/src/lib/input.md"]) f.write(path, "docs");
-  assert.equal(f.run("--mode", "HEAD").stdout, "none\n");
+  assert.equal(f.run("--mode", "HEAD").stdout, "guards\n");
   f.write("frontend/new.mdx", "input");
   assert.equal(f.run("--mode", "HEAD").stdout, "full\n");
 });
@@ -278,7 +278,7 @@ test("documentation is excluded but unknown Markdown-like inputs still fail clos
 test("CI JSON classification uses the same fail-closed decision, including both rename paths", t => {
   const f = fixture(t);
   for (const [paths, mode] of [
-    [[], "none"], [["frontend/README.md"], "none"],
+    [[], "none"], [["frontend/README.md"], "guards"],
     [["frontend/public/sw.js"], "full"],
     [["frontend/unknown.input", "frontend/src/lib/moved.ts"], "full"],
     [["backend/catalog.json"], "guards"],
@@ -323,4 +323,38 @@ test("CI shards full DOM runs using the shared classifier and excludes documenta
   const testWorkflow = readFileSync(new URL("../.github/workflows/test.yml", import.meta.url), "utf8");
   assert.match(testWorkflow, /inputs.full-frontend-suite.*'\["node","dom-1","dom-2"\]'/);
   assert.match(testWorkflow, /dom-1\|dom-2\) test_args\+=\(--shard/);
+});
+
+for (const expression of [
+  'import.meta.glob("../../backend/**/*.json", { eager: true })',
+  'import.meta.globEager("../../backend/**/*.json")',
+  'import.meta["glob"]("../../backend/**/*.json")',
+  'import.meta.futureInput("../../backend/input")',
+  '(import.meta.glob)("../../backend/**/*.json")',
+]) {
+  test(`import.meta calls require guards, directly and through helpers: ${expression}`, t => {
+    const f = fixture(t);
+    f.write("frontend/src/probe.test.ts", expression);
+    let result = f.run("--check-guards");
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /src\/probe\.test\.ts/);
+    f.write("frontend/src/probe.test.ts", 'import "./helper";');
+    f.write("frontend/src/helper.ts", expression);
+    result = f.run("--check-guards");
+    assert.equal(result.status, 1, result.stderr);
+    assert.match(result.stderr, /src\/probe\.test\.ts/);
+  });
+}
+
+test("import.meta comments, strings and ordinary object calls are not file inputs", t => {
+  const f = fixture(t);
+  f.write("frontend/src/probe.test.ts", `
+    // import.meta.glob("../../backend/**");
+    const sample = 'import.meta.glob("../../backend/**")';
+    const object = { meta: { glob() {} } };
+    object.meta.glob();
+    const url = import.meta.url;
+    export { sample, url };
+  `);
+  assert.equal(f.run("--check-guards").status, 0);
 });
