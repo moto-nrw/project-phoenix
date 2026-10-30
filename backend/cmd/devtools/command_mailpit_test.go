@@ -177,7 +177,7 @@ func TestFetchLatestMFACode_HappyPath(t *testing.T) {
 			"msg-1": {ID: "msg-1", Text: "Code: 424242"},
 		},
 		[]mailpitMessageSummary{
-			{ID: "msg-1", To: []mailpitAddress{{Address: "op@test.de"}}, Created: now},
+			{ID: "msg-1", To: []mailpitAddress{{Address: "op@test.de"}}, Subject: mfaEmailSubject, Created: now},
 		},
 	)
 	defer srv.Close()
@@ -201,8 +201,8 @@ func TestFetchLatestMFACode_FiltersOldMessages(t *testing.T) {
 		},
 		[]mailpitMessageSummary{
 			// Mailpit returns newest-first; both addressed to the same recipient.
-			{ID: "new", To: []mailpitAddress{{Address: "op@test.de"}}, Created: fresh},
-			{ID: "old", To: []mailpitAddress{{Address: "op@test.de"}}, Created: stale},
+			{ID: "new", To: []mailpitAddress{{Address: "op@test.de"}}, Subject: mfaEmailSubject, Created: fresh},
+			{ID: "old", To: []mailpitAddress{{Address: "op@test.de"}}, Subject: mfaEmailSubject, Created: stale},
 		},
 	)
 	defer srv.Close()
@@ -224,7 +224,7 @@ func TestFetchLatestMFACode_FiltersOtherRecipients(t *testing.T) {
 		},
 		[]mailpitMessageSummary{
 			{ID: "other", To: []mailpitAddress{{Address: "someone@else.de"}}, Created: now},
-			{ID: "ours", To: []mailpitAddress{{Address: "op@test.de"}}, Created: now},
+			{ID: "ours", To: []mailpitAddress{{Address: "op@test.de"}}, Subject: mfaEmailSubject, Created: now},
 		},
 	)
 	defer srv.Close()
@@ -295,7 +295,7 @@ func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(mailpitMessageList{
 				Total: 1,
 				Messages: []mailpitMessageSummary{
-					{ID: "late", To: []mailpitAddress{{Address: "op@test.de"}}, Created: now},
+					{ID: "late", To: []mailpitAddress{{Address: "op@test.de"}}, Subject: mfaEmailSubject, Created: now},
 				},
 			})
 		case "/api/v1/message/late":
@@ -312,6 +312,27 @@ func TestFetchLatestMFACode_MessageAppearsOnSecondPoll(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "555555", code)
 	assert.GreaterOrEqual(t, atomic.LoadInt32(&pollCount), int32(2))
+}
+
+func TestFetchLatestMFACode_IgnoresNewerNonMFAMail(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	srv := newMailpitServer(t,
+		map[string]mailpitMessageDetail{
+			"invitation": {ID: "invitation", Text: "Ihre Referenznummer: 111111"},
+			"mfa":        {ID: "mfa", Text: "Ihr Code: 424242"},
+		},
+		[]mailpitMessageSummary{
+			{ID: "invitation", To: []mailpitAddress{{Address: "op@test.de"}}, Subject: "Ihre Einladung", Created: now},
+			{ID: "mfa", To: []mailpitAddress{{Address: "op@test.de"}}, Subject: mfaEmailSubject, Created: now.Add(-time.Second)},
+		},
+	)
+	defer srv.Close()
+
+	code, err := fetchLatestMFACodeAt(context.Background(), srv.URL, "op@test.de", now.Add(-2*time.Second))
+	require.NoError(t, err)
+	assert.Equal(t, "424242", code)
 }
 
 // =============================================================================

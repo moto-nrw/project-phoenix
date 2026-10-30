@@ -50,12 +50,25 @@ type mailpitMessageDetail struct {
 
 var sixDigitCode = regexp.MustCompile(`\b(\d{6})\b`)
 
+const mfaEmailSubject = "Ihr moto-Anmeldecode"
+
 // mailLink matches a link in a mail body, up to the quote or tag around it.
 var mailLink = regexp.MustCompile(`https?://[^\s"'<>]+`)
 
 // mailExtractor finds what a poll waits for in one message body; "" means
 // the body does not hold it.
 type mailExtractor func(body string) string
+
+// mailMatcher narrows a poll to the kind of message that carries its value.
+// A recipient can receive invitation and MFA messages in either delivery
+// order, so a six-digit number alone does not identify an MFA challenge.
+type mailMatcher func(mailpitMessageSummary) bool
+
+func isMFAMail(message mailpitMessageSummary) bool {
+	return strings.EqualFold(strings.TrimSpace(message.Subject), mfaEmailSubject)
+}
+
+func anyMail(mailpitMessageSummary) bool { return true }
 
 func extractMFACode(body string) string {
 	if m := sixDigitCode.FindStringSubmatch(body); len(m) == 2 {
@@ -101,7 +114,7 @@ func FetchLatestMailLink(ctx context.Context, recipient, marker string, notBefor
 }
 
 func fetchLatestMFACodeAt(ctx context.Context, baseURL, recipient string, notBefore time.Time) (string, error) {
-	return pollMailpitAt(ctx, baseURL, "/api/v1/messages?limit=20", recipient, notBefore, 30*time.Second, "MFA email", extractMFACode)
+	return pollMailpitAt(ctx, baseURL, "/api/v1/messages?limit=20", recipient, notBefore, 30*time.Second, "MFA email", isMFAMail, extractMFACode)
 }
 
 // pollMailpit searches the recipient's messages for up to a minute: a seed
@@ -109,10 +122,10 @@ func fetchLatestMFACodeAt(ctx context.Context, baseURL, recipient string, notBef
 // newest of the inbox, and the outbox sends it in its turn.
 func pollMailpit(ctx context.Context, baseURL, recipient string, notBefore time.Time, what string, extract mailExtractor) (string, error) {
 	search := "/api/v1/search?limit=20&query=" + url.QueryEscape(`to:"`+strings.ToLower(strings.TrimSpace(recipient))+`"`)
-	return pollMailpitAt(ctx, baseURL, search, recipient, notBefore, time.Minute, what, extract)
+	return pollMailpitAt(ctx, baseURL, search, recipient, notBefore, time.Minute, what, anyMail, extract)
 }
 
-func pollMailpitAt(ctx context.Context, baseURL, listPath, recipient string, notBefore time.Time, timeout time.Duration, what string, extract mailExtractor) (string, error) {
+func pollMailpitAt(ctx context.Context, baseURL, listPath, recipient string, notBefore time.Time, timeout time.Duration, what string, match mailMatcher, extract mailExtractor) (string, error) {
 	recipient = strings.ToLower(strings.TrimSpace(recipient))
 	if recipient == "" {
 		return "", fmt.Errorf("recipient is required")
@@ -126,7 +139,7 @@ func pollMailpitAt(ctx context.Context, baseURL, listPath, recipient string, not
 		if ctx.Err() != nil {
 			return "", ctx.Err()
 		}
-		found, err := tryFetchMail(ctx, client, baseURL, listPath, recipient, notBefore, extract)
+		found, err := tryFetchMail(ctx, client, baseURL, listPath, recipient, notBefore, match, extract)
 		if err == nil && found != "" {
 			return found, nil
 		}
@@ -134,7 +147,7 @@ func pollMailpitAt(ctx context.Context, baseURL, listPath, recipient string, not
 	}
 }
 
-func tryFetchMail(ctx context.Context, client *http.Client, baseURL, listPath, recipient string, notBefore time.Time, extract mailExtractor) (string, error) {
+func tryFetchMail(ctx context.Context, client *http.Client, baseURL, listPath, recipient string, notBefore time.Time, match mailMatcher, extract mailExtractor) (string, error) {
 	listURL := baseURL + listPath
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, listURL, nil)
 	if err != nil {
@@ -162,6 +175,9 @@ func tryFetchMail(ctx context.Context, client *http.Client, baseURL, listPath, r
 			continue
 		}
 		if !addressedTo(m.To, recipient) {
+			continue
+		}
+		if !match(m) {
 			continue
 		}
 		found, err := fetchFromMessage(ctx, client, baseURL, m.ID, extract)
