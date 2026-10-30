@@ -40,6 +40,7 @@ import {
   type StudentDocumentList,
 } from "~/lib/student-documents-api";
 import { useSWRAuth } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
 
 // Unfallanzeige (#4771): one accident report of a child. The page shows what
 // was recorded, lets the leadership sign it (drawn signature or the signed
@@ -56,7 +57,7 @@ function stamp(iso: string | null): string {
 /** The child's name for the head and the breadcrumb; null until known. */
 function useStudentName(studentId: string): string | null {
   const { data } = useSWRAuth<string | null>(
-    `student-name-${studentId}`,
+    studentKeys.name(studentId),
     async () => {
       const res = await transportFetch(`/api/students/${studentId}`);
       // The name only labels the page; without it the report still shows.
@@ -87,7 +88,7 @@ export default function AccidentReportPage() {
   const canManage = hasPermission(session, "student_accidents:manage");
 
   const { data, isLoading, error, mutate } = useSWRAuth<StudentDocumentList>(
-    `student-documents-${studentId}`,
+    studentKeys.documents(studentId),
     () => studentDocumentsService.list(studentId),
   );
   const load = useApiLoadError();
