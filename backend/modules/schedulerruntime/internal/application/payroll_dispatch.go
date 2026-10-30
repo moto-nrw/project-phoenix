@@ -58,9 +58,9 @@ func (s *Scheduler) checkAndRunPayrollDispatch(ctx context.Context, task *Schedu
 	}
 }
 
-// runPayrollDispatchForTenant never fails the tenant loop: every step of a
-// dispatch commits on its own, and a failed step is already recorded as a
-// failed attempt that the next pass retries.
+// runPayrollDispatchForTenant lets the tenant loop account for a failed pass.
+// Each dispatch step commits independently, but the scheduler must still keep
+// its cursor and failure signals accurate when the next pass has to retry it.
 func (s *Scheduler) runPayrollDispatchForTenant(tenantCtx context.Context) error {
 	finished, err := s.payrollDispatch(tenantCtx)
 	if finished > 0 {
@@ -72,6 +72,7 @@ func (s *Scheduler) runPayrollDispatchForTenant(tenantCtx context.Context) error
 		s.getLogger().Error("payroll dispatch incomplete",
 			slog.String("error", err.Error()),
 		)
+		return err
 	}
 	return nil
 }

@@ -95,9 +95,9 @@ func (s *Store) NextPayrollDispatchSequence(ctx context.Context, year, month int
 		Correction int `bun:"correction"`
 	}
 	err = db.NewRaw(`SELECT COALESCE(max(sequence) + 1, 0) AS sequence,
-		count(*) FILTER (WHERE state IN (?, ?, ?)) AS correction
+		count(*) FILTER (WHERE state = ?) AS correction
 		FROM active.payroll_dispatches WHERE tenant_id = ? AND year = ? AND month = ?`,
-		workforce.PayrollDispatchPending, workforce.PayrollDispatchMailing, workforce.PayrollDispatchSent,
+		workforce.PayrollDispatchSent,
 		tenantID, year, month).Scan(ctx, &next)
 	return next.Sequence, next.Correction, err
 }

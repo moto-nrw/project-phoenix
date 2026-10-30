@@ -38,7 +38,7 @@ func (f *fakePayrollStore) NextPayrollDispatchSequence(_ context.Context, year, 
 			next = row.Sequence + 1
 		}
 		switch row.State {
-		case workforce.PayrollDispatchPending, workforce.PayrollDispatchMailing, workforce.PayrollDispatchSent:
+		case workforce.PayrollDispatchSent:
 			correction++
 		}
 	}
@@ -344,6 +344,19 @@ func TestPayrollDispatch_CorrectionCarriesTheHintInTheFilename(t *testing.T) {
 	require.NotNil(t, overview.Latest)
 	assert.True(t, overview.Latest.Correction)
 	assert.Equal(t, workforce.PayrollDispatchSent, overview.Latest.State)
+}
+
+func TestPayrollDispatch_PendingFileDoesNotMakeTheNextCloseACorrection(t *testing.T) {
+	t.Parallel()
+
+	h := newPayrollHarness(t, sftpConfig("datev_lodas"))
+	h.close(t)
+	h.close(t)
+
+	require.Len(t, h.store.rows, 2)
+	assert.Equal(t, workforce.PayrollDispatchPending, h.store.rows[0].State)
+	assert.Equal(t, 0, h.store.rows[1].Correction,
+		"a queued file has not reached the payroll office and cannot make the next file a correction")
 }
 
 func TestPayrollDispatch_IncompleteDatevBlocksAndNotifies(t *testing.T) {

@@ -231,13 +231,28 @@ func TestPayrollDispatchNumbersCorrections(t *testing.T) {
 	assert.Nil(t, overview.Latest, "the dispatch commits with the close or not at all")
 
 	closeSeptember(t, ctx, dispatch)
+	_, err = dispatch.RunDue(ctx)
+	require.NoError(t, err)
 	closeSeptember(t, ctx, dispatch)
-	for range 2 {
-		_, err := dispatch.RunDue(ctx)
-		require.NoError(t, err)
-	}
+	_, err = dispatch.RunDue(ctx)
+	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{"zeiterfassung_alle_2026-09.csv", "zeiterfassung_alle_2026-09_korrektur-1.csv"}, transfer.sent)
 	overview = overviewIn(t, ctx, dispatch)
 	require.NotNil(t, overview.Latest)
 	assert.True(t, overview.Latest.Correction)
+}
+
+func TestPayrollDispatchDoesNotNumberQueuedFilesAsCorrections(t *testing.T) {
+	t.Parallel()
+
+	ctx := testpkg.Ctx(t)
+	dispatch, _, _ := newPayrollTestDispatch(t, workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: "csv"})
+
+	closeSeptember(t, ctx, dispatch)
+	closeSeptember(t, ctx, dispatch)
+
+	overview := overviewIn(t, ctx, dispatch)
+	require.NotNil(t, overview.Latest)
+	assert.False(t, overview.Latest.Correction,
+		"a queued file has not reached the payroll office and cannot make the next close a correction")
 }
