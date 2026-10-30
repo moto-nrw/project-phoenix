@@ -33,6 +33,9 @@ const (
 	StatisticsSectionRooms StatisticsSection = "rooms"
 	// StatisticsSectionCourses is the course participation table (#2891).
 	StatisticsSectionCourses StatisticsSection = "courses"
+	// StatisticsSectionCareTimes is the Soll-und-Ist overrun list (#4774);
+	// it names the access-log scope and is not part of Report.
+	StatisticsSectionCareTimes StatisticsSection = "care_times"
 )
 
 // StatisticsFilters selects the report window and an optional group restriction.
@@ -199,4 +202,14 @@ type StatisticsReports interface {
 	// ReportForExport computes the report and records an export access
 	// row every time (no deduplication — every download is evidence).
 	ReportForExport(ctx context.Context, filters StatisticsFilters, actor StatisticsActor, format string) (*StatisticsReport, error)
+	// StudentCareTimes compares one child's booked care time with the
+	// attendance per day (#4774).
+	StudentCareTimes(ctx context.Context, studentID int64, from, to calendar.Date) (*StudentCareTimes, error)
+	// CareTimeOverruns lists the children with overruns in the window and
+	// records one data-access log row per actor and window (deduplicated
+	// for 15 min).
+	CareTimeOverruns(ctx context.Context, filters CareTimeFilters, actor StatisticsActor) (*CareTimeOverruns, error)
+	// CareTimeOverrunsForExport is CareTimeOverruns for a download; every
+	// download records an export access row.
+	CareTimeOverrunsForExport(ctx context.Context, filters CareTimeFilters, actor StatisticsActor, format string) (*CareTimeOverruns, error)
 }

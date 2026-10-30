@@ -6,6 +6,9 @@ import {
   type Page,
   type Route,
 } from "@playwright/test";
+import { networkPorts } from "./ports.mjs";
+
+const port = networkPorts("tenantSwitch").frontend;
 
 // #5194 for the portals with their own host-only cookie: parents, school,
 // operator and caterer. After the portal's logout revoked its family, a
@@ -18,7 +21,7 @@ import {
 const portals = [
   {
     name: "Eltern",
-    origin: "http://eltern.localhost:13845",
+    origin: `http://eltern.localhost:${port}`,
     basePath: "/api/parent/auth",
     provider: "parent-credentials",
     scope: "parent",
@@ -28,7 +31,7 @@ const portals = [
   },
   {
     name: "Schule",
-    origin: "http://schule.mfa.localhost:13845",
+    origin: `http://schule.mfa.localhost:${port}`,
     basePath: "/api/school/auth",
     provider: "school-credentials",
     scope: "school",
@@ -38,7 +41,7 @@ const portals = [
   },
   {
     name: "Betreiber",
-    origin: "http://operator.localhost:13845",
+    origin: `http://operator.localhost:${port}`,
     basePath: "/api/operator/auth",
     provider: "operator-credentials",
     scope: "platform",
@@ -48,7 +51,7 @@ const portals = [
   },
   {
     name: "Caterer",
-    origin: "http://caterer.localhost:13845",
+    origin: `http://caterer.localhost:${port}`,
     basePath: "/api/caterer/auth",
     provider: "caterer-credentials",
     scope: "caterer",
