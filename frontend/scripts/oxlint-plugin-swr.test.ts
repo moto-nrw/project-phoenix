@@ -53,20 +53,30 @@ describe.concurrent("swr/no-direct-import", () => {
       'export function useProbe(id: string) { return useSWRWithId("student", id, async () => []); }',
     ],
     [
+      "an aliased hook",
+      'import { useSWRAuth as useA } from "~/lib/swr"; export function useProbe() { return useA("literal", async () => []); }',
+    ],
+    [
+      "a hook through a namespace",
+      'import * as Lib from "~/lib/swr"; export function useProbe() { return Lib.useSWRAuth("literal", async () => []); }',
+    ],
+    [
       "a local template",
       "export function useProbe(id: string) { const key = `room-${id}`; return useSWRAuth(id ? key : null, async () => []); }",
     ],
   ])("rejects a free key: %s", async (_name, body) => {
     const result = await lintSource(
-      `import { useSWRAuth, useImmutableSWR, useSWRWithId } from "~/lib/swr"; void useSWRAuth; void useImmutableSWR; void useSWRWithId;\n${body}`,
+      `import { useSWRAuth, useImmutableSWR } from "~/lib/swr"; import { useSWRWithId } from "~/lib/swr/hooks"; void useSWRAuth; void useImmutableSWR; void useSWRWithId;\n${body}`,
     );
     expect(result.status, result.output).toBe(1);
     expect(result.output).toContain("swr(no-free-key)");
+    expect(result.output).not.toContain("swr(no-cache-access)");
   });
 
   it("accepts factory keys directly, through locals and in branches", async () => {
     const result = await lintSource(`
-      import { useSWRAuth, useSWRWithId } from "~/lib/swr";
+      import { useSWRAuth } from "~/lib/swr";
+      import { useSWRWithId } from "~/lib/swr/hooks";
       import { roomKeys } from "~/lib/swr/rooms-keys";
       import { meKeys } from "~/lib/swr/me-keys";
       export function useProbe(id: string | null) {
@@ -81,24 +91,99 @@ describe.concurrent("swr/no-direct-import", () => {
     expect(result.status, result.output).toBe(0);
   });
 
+  // Every way the reviews found past the generation lock (#5007). The rule
+  // judges the resolved module and its actual exports, so each spelling of
+  // a path or name lands in one of three checks: internal module, unknown
+  // export, opaque namespace member.
   it.each([
-    'import { useSWRConfig } from "~/lib/swr/cache"; void useSWRConfig;',
-    'import { useSWRConfig as config } from "~/lib/swr"; void config;',
-    'export { useSWRConfig } from "~/lib/swr/cache";',
-    'import { stampSWRValue } from "~/lib/swr/generation"; void stampSWRValue;',
-    'export * from "~/lib/swr/generation";',
-    'void import("~/lib/swr/generation");',
-  ])("rejects unlocked cache access outside ~/lib/swr: %s", async (source) => {
-    const result = await lintSource(source);
-    expect(result.status, result.output).toBe(1);
-    expect(result.output).toContain("swr(no-cache-access)");
-  });
+    [
+      "useSWRConfig from the removed cache module",
+      'import { useSWRConfig } from "~/lib/swr/cache"; void useSWRConfig;',
+    ],
+    [
+      "useSWRConfig under an alias from the barrel",
+      'import { useSWRConfig as config } from "~/lib/swr"; void config;',
+    ],
+    [
+      "useSWRConfig re-exported",
+      'export { useSWRConfig } from "~/lib/swr/cache";',
+    ],
+    [
+      "SWRConfig.defaultValue.mutate from the barrel",
+      'import { SWRConfig } from "~/lib/swr"; void SWRConfig.defaultValue.mutate("k", 1);',
+    ],
+    [
+      "SWRConfig.defaultValue.cache.set from the cache module",
+      'import { SWRConfig } from "~/lib/swr/cache"; SWRConfig.defaultValue.cache.set("k", {});',
+    ],
+    [
+      "SWRConfig through a namespace member",
+      'import * as Lib from "~/lib/swr"; void Lib.SWRConfig;',
+    ],
+    [
+      "a computed namespace member",
+      'import * as Lib from "~/lib/swr"; const name = "SWRConfig"; void Lib[name];',
+    ],
+    [
+      "generation internals",
+      'import { stampSWRValue } from "~/lib/swr/generation"; void stampSWRValue;',
+    ],
+    [
+      "generation internals under @/",
+      'import { stampSWRValue } from "@/lib/swr/generation"; void stampSWRValue;',
+    ],
+    [
+      "generation internals by a relative path",
+      'import { stampSWRValue } from "../lib/swr/generation"; void stampSWRValue;',
+    ],
+    [
+      "generation internals with an extension",
+      'import { stampSWRValue } from "~/lib/swr/generation.ts"; void stampSWRValue;',
+    ],
+    [
+      "generation internals re-exported wholesale",
+      'export * from "~/lib/swr/generation";',
+    ],
+    [
+      "generation internals imported dynamically",
+      'void import("~/lib/swr/generation");',
+    ],
+    [
+      "generation internals required",
+      'const internals = require("~/lib/swr/generation"); void internals;',
+    ],
+    [
+      "scope controls",
+      'import { resumeSWRSession } from "~/lib/swr/scope"; resumeSWRSession();',
+    ],
+    [
+      "the test-only provider",
+      'import { SWRConfig } from "~/lib/swr/testing"; void SWRConfig;',
+    ],
+    [
+      "an internal module as an import type",
+      'export type Internal = import("~/lib/swr/generation").SWRStart;',
+    ],
+  ])(
+    "rejects unlocked cache access outside ~/lib/swr: %s",
+    async (_name, source) => {
+      const result = await lintSource(source);
+      expect(result.status, result.output).toBe(1);
+      expect(result.output).toContain("swr(no-cache-access)");
+    },
+  );
 
-  it("accepts the provider and the locked helpers", async () => {
+  it("accepts the public surface under every spelling of its path", async () => {
     const result = await lintSource(`
-      import { SWRConfig } from "~/lib/swr/cache";
-      import { useInvalidateMatching, useSWRSeedFrom, stampSWRSeeds } from "~/lib/swr";
-      void SWRConfig; void useInvalidateMatching; void useSWRSeedFrom; void stampSWRSeeds;
+      import { IsolatedSWRCache, SWRSeedBoundary, useInvalidateMatching, useSWRSeedFrom, stampSWRSeeds, mutate } from "~/lib/swr";
+      import { useSWRAuth } from "@/lib/swr/hooks";
+      import { roomKeys } from "../lib/swr/rooms-keys";
+      import { messageKeys } from "~/lib/swr/portal-keys.ts";
+      import * as Lib from "~/lib/swr/index";
+      export { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
+      void IsolatedSWRCache; void SWRSeedBoundary; void useInvalidateMatching; void useSWRSeedFrom;
+      void stampSWRSeeds; void mutate; void useSWRAuth; void roomKeys; void messageKeys;
+      void Lib.useTenantMutate;
     `);
     expect(result.status, result.output).toBe(0);
   });
