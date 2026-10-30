@@ -48,6 +48,10 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	"staff-document-file-cleanup":   jobScopeRetention,
 	"student-document-file-cleanup": jobScopeRetention,
 	"file-store-cleanup":            jobScopeRetention,
+	// The payroll dispatch (#4805) also purges expired payroll files, so it
+	// runs regardless of the booked modules; a close queues it only where
+	// the time tracking is booked.
+	"payroll-dispatch": jobScopeRetention,
 
 	// moto Basis: day sessions, statuses, the timetable, pickup and activity
 	// reminders for the team, the care plan audit and the platform jobs.

@@ -538,7 +538,7 @@ func composeServeRoot(
 				feedback, organizations, identity)
 		},
 		func() error {
-			return mountStaffRoutes(tenant, db, logger, membership, workTime, services.Users, staffAdmin, workforce, shifts,
+			return mountStaffRoutes(router, tenant, db, logger, membership, workTime, services.Users, staffAdmin, workforce, shifts,
 				structureViews.Education, structureViews.Substitution, persons, settings.Service, hub, identity, caller, calendarAdmin)
 		},
 		func() error {

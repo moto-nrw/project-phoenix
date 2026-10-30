@@ -6,8 +6,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the delete of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
-// copy of the 1.15.705 function with those two insertions.
+// 1.15.719 (#4769): the delete of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// copy of the 1.15.718 payroll function with the protocol tables added.
 func installWeekProtocolErasureDelete(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasureDeleteSQL)
 	return err
@@ -80,6 +80,9 @@ const weekProtocolErasureDeleteSQL = `CREATE OR REPLACE FUNCTION platform.school
    SELECT count(*) INTO v_count FROM active.staff_balance_adjustments AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.staff_balance_adjustments AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.staff_balance_adjustments', v_count);
+   SELECT count(*) INTO v_count FROM active.payroll_dispatches AS r WHERE r.tenant_id = p_school_id;
+   DELETE FROM active.payroll_dispatches AS r WHERE r.tenant_id = p_school_id;
+   v_counts := v_counts || jsonb_build_object('active.payroll_dispatches', v_count);
    SELECT count(*) INTO v_count FROM active.staff_month_balance_snapshots AS r WHERE r.tenant_id = p_school_id;
    DELETE FROM active.staff_month_balance_snapshots AS r WHERE r.tenant_id = p_school_id;
    v_counts := v_counts || jsonb_build_object('active.staff_month_balance_snapshots', v_count);

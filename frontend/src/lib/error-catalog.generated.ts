@@ -1422,6 +1422,8 @@ export const ERROR_CATALOG = {
         "Für diese Person gibt es schon einen Eröffnungssaldo. Bitte löschen Sie zuerst den alten.",
       "workforce.payroll_config_incomplete":
         "Für die Datei fehlen noch Angaben auf der Seite Abrechnung. Bitte ergänzen Sie diese zuerst.",
+      "workforce.payroll_download_unavailable":
+        "Dieser Link funktioniert nicht mehr. Er ist abgelaufen oder die Datei wurde schon heruntergeladen. Bitte wenden Sie sich an die Schule.",
       "workforce.personnel_number_invalid":
         "Die Personalnummer darf nur Ziffern haben, höchstens 9. Bitte prüfen Sie die Eingabe.",
       "workforce.personnel_number_taken":

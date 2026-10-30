@@ -6,8 +6,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the preview of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
-// copy of the 1.15.705 function with those two insertions.
+// 1.15.719 (#4769): the preview of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// copy of the 1.15.718 payroll function with the protocol tables added.
 func installWeekProtocolErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasurePreviewSQL)
 	return err
@@ -43,6 +43,7 @@ const weekProtocolErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('active.staff_absence_types',(SELECT count(*) FROM active.staff_absence_types AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.staff_absences',(SELECT count(*) FROM active.staff_absences AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.staff_balance_adjustments',(SELECT count(*) FROM active.staff_balance_adjustments AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('active.payroll_dispatches',(SELECT count(*) FROM active.payroll_dispatches AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.staff_month_balance_snapshots',(SELECT count(*) FROM active.staff_month_balance_snapshots AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.staff_vacation_openings',(SELECT count(*) FROM active.staff_vacation_openings AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('active.staff_vacation_quota',(SELECT count(*) FROM active.staff_vacation_quota AS r WHERE r.tenant_id = p_school));

@@ -55,6 +55,10 @@ const (
 	profileSettingPayrollEinheitFortbildung = "payroll.einheit_fortbildung"
 	profileSettingPayrollBeraternummer      = "payroll.datev_beraternummer"
 	profileSettingPayrollMandantennummer    = "payroll.datev_mandantennummer"
+	profileSettingPayrollDispatchAuto       = "payroll.dispatch_auto"
+	profileSettingPayrollDispatchChannel    = "payroll.dispatch_channel"
+	profileSettingPayrollDispatchFormat     = "payroll.dispatch_format"
+	profileSettingPayrollDispatchEmail      = "payroll.dispatch_email"
 	profilePayrollUnitHours                 = "stunden"
 	profilePayrollUnitDays                  = "tage"
 )
@@ -106,7 +110,9 @@ func fullOperationProfileSettings() map[string]SeedSetting {
 // demoPayrollSettings completes the Abrechnung page with invented numbers
 // (#5032). The registry defaults stay empty, since real numbers belong to
 // each Träger's DATEV; every payroll key is admin-only, so the school writes
-// them.
+// them. The Lohnbüro (#4805) gets the automatic send by e-mail to an address
+// of the reserved example domain, so a month close on a demo stack sends no
+// payroll data anywhere real.
 func demoPayrollSettings() map[string]SeedSetting {
 	text := func(value string) SeedSetting {
 		return SeedSetting{Value: json.RawMessage(`"` + value + `"`), ManagedBy: SettingManagedByTenant}
@@ -124,6 +130,10 @@ func demoPayrollSettings() map[string]SeedSetting {
 		profileSettingPayrollEinheitFortbildung: text(profilePayrollUnitHours),
 		profileSettingPayrollBeraternummer:      text("9900001"),
 		profileSettingPayrollMandantennummer:    text("90001"),
+		profileSettingPayrollDispatchAuto:       {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
+		profileSettingPayrollDispatchChannel:    text("email"),
+		profileSettingPayrollDispatchFormat:     text("datev_lodas"),
+		profileSettingPayrollDispatchEmail:      text("lohnbuero@example.com"),
 	}
 }
 

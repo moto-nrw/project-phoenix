@@ -68,6 +68,7 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"holiday-guest-reconciliation",
 		"planned-staff-exits",
 		"week-protocols",
+		"payroll-dispatch",
 		"meal-orders",
 		"session-end",
 		"token-cleanup",
@@ -110,6 +111,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.holidayGuests), "holiday-guest-reconciliation", s.scheduleHolidayGuestReconciliationTask)
 	add(!isNilDependency(s.plannedStaffExits), "planned-staff-exits", s.schedulePlannedStaffExitsTask)
 	add(!isNilDependency(s.weekProtocols), "week-protocols", s.scheduleWeekProtocolsTask)
+	add(!isNilDependency(s.payrollDispatch), "payroll-dispatch", s.schedulePayrollDispatchTask)
 	add(!isNilDependency(s.mealOrders), "meal-orders", s.scheduleMealOrdersTask)
 	add(!isNilDependency(s.activeService), "session-end", s.scheduleSessionEndTask)
 	add(true, "token-cleanup", s.scheduleTokenCleanupTask)

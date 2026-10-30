@@ -147,6 +147,7 @@ func NewWorker(
 		StudentStatusDayRepo:         NewStudentStatusDayRepository(carePlan),
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
 		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
+		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
 		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff),
 	})
 }

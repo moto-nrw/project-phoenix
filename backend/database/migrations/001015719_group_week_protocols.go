@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	groupWeekProtocolsVersion     = "1.15.718"
+	groupWeekProtocolsVersion     = "1.15.719"
 	groupWeekProtocolsDescription = "Wochenprotokoll: je OGS-Gruppe (oder Schule) und Woche ein Protokoll aus den Tagesdaten, ergänzt und abgeschlossen von der Gruppenleitung (#4769)"
 )
 
@@ -17,9 +17,9 @@ func init() {
 		Version:     groupWeekProtocolsVersion,
 		Description: groupWeekProtocolsDescription,
 		DependsOn: []string{
-			studentAccidentReportsVersion, // the last migration before this one
-			surveysVersion,                // the retention kinds this extends
-			visitRevisionEventsVersion,    // the school erasure this extends
+			payrollDispatchesVersion,   // preserve payroll in the school erasure
+			surveysVersion,             // the retention kinds this extends
+			visitRevisionEventsVersion, // the school erasure this extends
 		},
 	})
 	Migrations.MustRegister(groupWeekProtocolsUp, groupWeekProtocolsDown)
@@ -263,13 +263,13 @@ func groupWeekProtocolsUp(ctx context.Context, db *bun.DB) error {
 	})
 }
 
-// groupWeekProtocolsDown reinstalls the 1.15.705 erasure before it drops the
+// groupWeekProtocolsDown reinstalls the 1.15.718 payroll erasure before it drops the
 // tables, so the installed plan never names a missing table.
 func groupWeekProtocolsDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		for _, step := range []func(context.Context, bun.Tx) error{
-			installVisitRevisionErasurePlan, installVisitRevisionErasurePreflight, installVisitRevisionErasureResidual,
-			installVisitRevisionErasureDelete, installVisitRevisionErasurePreview,
+			installPayrollDispatchErasurePlan, installPayrollDispatchErasurePreflight, installPayrollDispatchErasureResidual,
+			installPayrollDispatchErasureDelete, installPayrollDispatchErasurePreview,
 		} {
 			if err := step(ctx, tx); err != nil {
 				return fmt.Errorf("restore the erasure without the weekly protocols: %w", err)

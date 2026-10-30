@@ -215,6 +215,8 @@ export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
   "/help/:topic*",
   "/help/nfc/erste-schritte",
   "/invite",
+  // Download link of the payroll office (#4805); the link is a credential.
+  "/lohnbuero/:link",
   "/onboarding",
   "/reset-password",
   "/start",

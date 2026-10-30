@@ -50,6 +50,10 @@ func (unconfiguredPayrollSettings) ResolveString(context.Context, string) (strin
 	return "", nil
 }
 
+func (unconfiguredPayrollSettings) ResolveBool(context.Context, string) (bool, error) {
+	return false, nil
+}
+
 // unconfiguredPayrollStatus resolves the status of a school without payroll
 // configuration.
 func unconfiguredPayrollStatus(t *testing.T) settingsCompose.PayrollStatusGetter {

@@ -107,6 +107,7 @@ func NewTimeTrackingCleanup(deps TimeTrackingCleanupDependencies) (TimeTrackingC
 
 type WorkSessionSide struct {
 	timetracking.WorkSessionSide
+	PayrollDispatch workforce.PayrollDispatch // #4805, composed by the root
 }
 type TimeTracking timetracking.TimeTracking
 type AutoCheckIn interface {

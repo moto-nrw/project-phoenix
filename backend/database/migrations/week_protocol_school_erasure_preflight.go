@@ -6,8 +6,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the preflight of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
-// copy of the 1.15.705 function with those two insertions.
+// 1.15.719 (#4769): the preflight of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// copy of the 1.15.718 payroll function with the protocol tables added.
 func installWeekProtocolErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasurePreflightSQL)
 	return err
@@ -43,6 +43,7 @@ const weekProtocolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.sch
     active.staff_absence_types,
     active.staff_absences,
     active.staff_balance_adjustments,
+    active.payroll_dispatches,
     active.staff_month_balance_snapshots,
     active.staff_vacation_openings,
     active.staff_vacation_quota,
@@ -305,7 +306,7 @@ const weekProtocolErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.sch
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '3123e372604a13066c221e84a519431eeee972991382b2bf3259002c7d49d93a' THEN
+    ) AS edge) <> '31d31360846a9adc9e40eba93f5847e3c72d9ec89e896d5eccf796ee9d3d3005' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.

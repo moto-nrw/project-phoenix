@@ -6,8 +6,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the residual of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
-// copy of the 1.15.705 function with those two insertions.
+// 1.15.719 (#4769): the residual of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// copy of the 1.15.718 payroll function with the protocol tables added.
 func installWeekProtocolErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasureResidualSQL)
 	return err
@@ -58,6 +58,8 @@ const weekProtocolErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.scho
     SELECT 1 FROM active.staff_absences AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.staff_balance_adjustments AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM active.payroll_dispatches AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.staff_month_balance_snapshots AS r WHERE r.tenant_id = p_school_id
     UNION ALL

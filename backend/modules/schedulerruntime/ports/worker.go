@@ -62,6 +62,7 @@ type WorkerDependencies struct {
 	HolidayGuests             HolidayGuestReconciliation
 	PlannedStaffExits         PlannedStaffExits
 	WeekProtocols             WeekProtocolEvenings
+	PayrollDispatch           PayrollDispatch
 	MealOrders                MealOrderSettlement
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
 	AutoStart                 InstanceAutoStart

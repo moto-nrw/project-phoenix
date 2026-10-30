@@ -6,8 +6,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4769): the plan of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
-// copy of the 1.15.705 function with those two insertions.
+// 1.15.719 (#4769): the plan of the school erasure with schedule.group_week_protocol_pdfs, schedule.group_week_protocol_days and schedule.group_week_protocols. A static
+// copy of the 1.15.718 payroll function with the protocol tables added.
 func installWeekProtocolErasurePlan(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, weekProtocolErasurePlanSQL)
 	return err
@@ -36,6 +36,7 @@ const weekProtocolErasurePlanSQL = `CREATE OR REPLACE FUNCTION platform.school_e
   {"name": "active.staff_absence_types","predicate": "r.tenant_id = $1"},
   {"name": "active.staff_absences","predicate": "r.tenant_id = $1"},
   {"name": "active.staff_balance_adjustments","predicate": "r.tenant_id = $1"},
+  {"name": "active.payroll_dispatches","predicate": "r.tenant_id = $1"},
   {"name": "active.staff_month_balance_snapshots","predicate": "r.tenant_id = $1"},
   {"name": "active.staff_vacation_openings","predicate": "r.tenant_id = $1"},
   {"name": "active.staff_vacation_quota","predicate": "r.tenant_id = $1"},
