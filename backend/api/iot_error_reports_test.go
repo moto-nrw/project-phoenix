@@ -151,7 +151,7 @@ func checkIoTErrorReportsRelay(t *testing.T, router http.Handler, fake *fakeSent
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		assert.JSONEq(t, `{"id":"9ec79c33ec9942ab8353589fcb2e04dc"}`, w.Body.String())
 		requests, bodies := fake.received()
-		require.Len(t, requests, 1)
+		require.Len(t, requests, 1, "received Sentry envelope bodies: %q", bodies)
 		assert.Equal(t, "/api/"+relayTestProjectID+"/envelope/", requests[0].URL.Path)
 		assert.Equal(t, "application/x-sentry-envelope", requests[0].Header.Get("Content-Type"))
 		assert.Empty(t, requests[0].Header.Get("Authorization"), "the device key must not reach Sentry")
