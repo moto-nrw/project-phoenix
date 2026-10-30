@@ -709,7 +709,12 @@ describe("StaffCalendarPage", () => {
         ([name]) => name === zone,
       )![1];
       setSchoolDateClock(zone, nextInstant, "2026-05-28");
-      fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Neuer Termin",
+          hidden: true,
+        }),
+      );
       expect(screen.getByLabelText("Startdatum")).toHaveValue("2026-05-28");
       expect(screen.getByLabelText("Enddatum")).toHaveValue("2026-05-28");
     },
