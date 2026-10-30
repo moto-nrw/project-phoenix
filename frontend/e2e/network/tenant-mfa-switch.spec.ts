@@ -158,6 +158,11 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
   await other.goto(`${source}/home`);
   await other.getByRole("button", { name: "Einrichtung wechseln" }).click();
   await other.getByRole("button", { name: "Einrichtung wechseln" }).click();
+  // The app tab can navigate to login after the session is revoked. Publish
+  // controlled echoes from a stable same-origin document, not a departing
+  // execution context that Playwright may suspend during navigation.
+  const broadcaster = await context.newPage();
+  await broadcaster.goto(`${source}/api/health`);
   let release!: () => void;
   const released = new Promise<void>((resolve) => {
     release = resolve;
@@ -188,13 +193,30 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
   try {
     await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
     await page.getByText("School B", { exact: true }).click();
-    const echo = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === "/api/auth/session",
+    const csrf = page.waitForRequest(
+      (request) => new URL(request.url()).pathname === "/api/auth/csrf",
     );
+    const echo = page.waitForResponse(async (response) => {
+      if (new URL(response.url()).pathname !== "/api/auth/session")
+        return false;
+      const session = await response.json();
+      return !session.user || session.error !== undefined;
+    });
     await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
+    await csrf;
+    // Expose the revoked family through a protected read, instead of relying
+    // on incidental background traffic to turn its unexpired cookie terminal.
+    expect(
+      await broadcaster.evaluate(async () => {
+        const response = await fetch("/api/me/profile");
+        const channel = new BroadcastChannel("next-auth");
+        channel.postMessage({ event: "session", data: { trigger: "signout" } });
+        channel.close();
+        return response.status;
+      }),
+    ).toBe(401);
     await echo;
-    // The actual second document's storage listener/broadcast has now
-    // delivered the ended session to the source's real provider and guard.
+    // The real provider and guard have now consumed the ended session.
     await expect(page.getByText("Sitzung wird erneuert...")).toBeVisible();
     await page.evaluate(
       () =>
@@ -210,7 +232,7 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
     const lateEcho = page.waitForResponse(
       (response) => new URL(response.url()).pathname === "/api/auth/session",
     );
-    await other.evaluate(() => {
+    await broadcaster.evaluate(() => {
       const channel = new BroadcastChannel("next-auth");
       channel.postMessage({ event: "session", data: { trigger: "signout" } });
       channel.close();
@@ -227,6 +249,7 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
   } finally {
     release();
     releaseNavigation();
+    await broadcaster.close();
     await other.close();
   }
 });
