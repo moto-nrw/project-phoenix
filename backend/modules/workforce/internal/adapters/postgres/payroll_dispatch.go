@@ -95,17 +95,19 @@ func (s *Store) NextPayrollDispatchSequence(ctx context.Context, year, month int
 		Correction int `bun:"correction"`
 	}
 	err = db.NewRaw(`SELECT COALESCE(max(sequence) + 1, 0) AS sequence,
-		count(*) FILTER (WHERE state = ?) AS correction
+		count(*) FILTER (WHERE state IN (?, ?, ?)) AS correction
 		FROM active.payroll_dispatches WHERE tenant_id = ? AND year = ? AND month = ?`,
+		workforce.PayrollDispatchPending,
+		workforce.PayrollDispatchMailing,
 		workforce.PayrollDispatchSent,
 		tenantID, year, month).Scan(ctx, &next)
 	return next.Sequence, next.Correction, err
 }
 
-func (s *Store) InsertPayrollDispatch(ctx context.Context, value domain.PayrollDispatch) error {
+func (s *Store) InsertPayrollDispatch(ctx context.Context, value domain.PayrollDispatch) (int64, error) {
 	db, tenantID, err := s.payrollDatabase(ctx)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	row := payrollDispatchRow{
 		TenantID: tenantID, Year: value.Year, Month: value.Month, Sequence: value.Sequence, Correction: value.Correction,
@@ -113,11 +115,11 @@ func (s *Store) InsertPayrollDispatch(ctx context.Context, value domain.PayrollD
 		ActorAccountID: value.ActorAccountID, ActorName: value.ActorName, State: value.State,
 		NextAttemptAt: value.NextAttemptAt, Reason: value.Reason, FinishedAt: value.FinishedAt,
 	}
-	if _, err := db.NewInsert().Model(&row).ModelTableExpr("active.payroll_dispatches").
-		ExcludeColumn("id", "created_at", "updated_at").Exec(ctx); err != nil {
-		return fmt.Errorf("insert payroll dispatch: %w", err)
+	if err := db.NewInsert().Model(&row).ModelTableExpr("active.payroll_dispatches").
+		ExcludeColumn("id", "created_at", "updated_at").Returning("id").Scan(ctx, &row.ID); err != nil {
+		return 0, fmt.Errorf("insert payroll dispatch: %w", err)
 	}
-	return nil
+	return row.ID, nil
 }
 
 func (s *Store) LatestPayrollDispatch(ctx context.Context) (*domain.PayrollDispatch, error) {

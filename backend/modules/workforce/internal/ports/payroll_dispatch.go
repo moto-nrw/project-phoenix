@@ -15,7 +15,9 @@ type PayrollDispatchStore interface {
 	// of the month are queued, mailed or sent. Blocked and failed ones
 	// never reached the payroll office and do not count.
 	NextPayrollDispatchSequence(ctx context.Context, year, month int) (sequence, correction int, err error)
-	InsertPayrollDispatch(context.Context, domain.PayrollDispatch) error
+	// InsertPayrollDispatch returns the generated dispatch ID. The caller uses
+	// it as the durable identity of notices queued in the same transaction.
+	InsertPayrollDispatch(context.Context, domain.PayrollDispatch) (int64, error)
 	LatestPayrollDispatch(context.Context) (*domain.PayrollDispatch, error)
 	// ClaimPayrollDispatches leases due pending and mailing dispatches.
 	ClaimPayrollDispatches(ctx context.Context, now time.Time, lease time.Duration, limit int) ([]domain.PayrollDispatch, error)

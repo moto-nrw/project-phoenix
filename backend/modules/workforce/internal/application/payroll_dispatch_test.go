@@ -38,19 +38,19 @@ func (f *fakePayrollStore) NextPayrollDispatchSequence(_ context.Context, year, 
 			next = row.Sequence + 1
 		}
 		switch row.State {
-		case workforce.PayrollDispatchSent:
+		case workforce.PayrollDispatchPending, workforce.PayrollDispatchMailing, workforce.PayrollDispatchSent:
 			correction++
 		}
 	}
 	return next, correction, nil
 }
 
-func (f *fakePayrollStore) InsertPayrollDispatch(_ context.Context, value domain.PayrollDispatch) error {
+func (f *fakePayrollStore) InsertPayrollDispatch(_ context.Context, value domain.PayrollDispatch) (int64, error) {
 	f.nextID++
 	value.ID = f.nextID
 	value.CreatedAt = payrollTestNow
 	f.rows = append(f.rows, value)
-	return nil
+	return value.ID, nil
 }
 
 func (f *fakePayrollStore) LatestPayrollDispatch(context.Context) (*domain.PayrollDispatch, error) {
@@ -350,7 +350,7 @@ func TestPayrollDispatch_CorrectionCarriesTheHintInTheFilename(t *testing.T) {
 	assert.Equal(t, workforce.PayrollDispatchSent, overview.Latest.State)
 }
 
-func TestPayrollDispatch_PendingFileDoesNotMakeTheNextCloseACorrection(t *testing.T) {
+func TestPayrollDispatch_PendingFileReservesTheNextCorrectionNumber(t *testing.T) {
 	t.Parallel()
 
 	h := newPayrollHarness(t, sftpConfig("datev_lodas"))
@@ -359,8 +359,8 @@ func TestPayrollDispatch_PendingFileDoesNotMakeTheNextCloseACorrection(t *testin
 
 	require.Len(t, h.store.rows, 2)
 	assert.Equal(t, workforce.PayrollDispatchPending, h.store.rows[0].State)
-	assert.Equal(t, 0, h.store.rows[1].Correction,
-		"a queued file has not reached the payroll office and cannot make the next file a correction")
+	assert.Equal(t, 1, h.store.rows[1].Correction,
+		"a queued file reserves its correction number so later uploads cannot overwrite it")
 }
 
 func TestPayrollDispatch_IncompleteDatevBlocksAndNotifies(t *testing.T) {
@@ -587,7 +587,21 @@ func TestPayrollDispatch_MissingAddressIsBlockedAtTheClose(t *testing.T) {
 	assert.Equal(t, workforce.PayrollDispatchBlocked, h.store.rows[0].State)
 	assert.Equal(t, workforce.PayrollReasonEmailMissing, h.store.rows[0].Reason)
 	require.Len(t, h.mail.problems, 1, "the leadership learns at once")
+	assert.Equal(t, h.store.rows[0].ID, h.mail.problems[0].ReferenceID)
+	assert.NotZero(t, h.mail.problems[0].ReferenceID)
 	assert.Zero(t, h.run(t), "a blocked dispatch is never picked up")
+}
+
+func TestPayrollDispatch_BlockedDispatchesUseDistinctNoticeKeys(t *testing.T) {
+	t.Parallel()
+
+	h := newPayrollHarness(t, emailConfig("  "))
+	h.close(t)
+	h.close(t)
+
+	require.Len(t, h.mail.problems, 2)
+	assert.NotEqual(t, h.mail.problems[0].ReferenceID, h.mail.problems[1].ReferenceID)
+	assert.NotEqual(t, h.mail.problems[0].IdempotencyKey, h.mail.problems[1].IdempotencyKey)
 }
 
 func TestPayrollDispatch_UnknownLinkAnswersUnavailable(t *testing.T) {

@@ -137,8 +137,12 @@ func (s *PayrollDispatch) QueueAfterMonthClose(ctx context.Context, trigger work
 	if dispatch.Channel == workforce.PayrollChannelEmail && dispatch.Recipient == "" {
 		dispatch.State, dispatch.Reason, dispatch.FinishedAt = workforce.PayrollDispatchBlocked, workforce.PayrollReasonEmailMissing, &now
 	}
-	if err := s.deps.Store.InsertPayrollDispatch(ctx, dispatch); err != nil {
+	dispatch.ID, err = s.deps.Store.InsertPayrollDispatch(ctx, dispatch)
+	if err != nil {
 		return fmt.Errorf("payroll dispatch: queue: %w", err)
+	}
+	if dispatch.ID <= 0 {
+		return errors.New("payroll dispatch: queue did not return a dispatch ID")
 	}
 	if dispatch.State == workforce.PayrollDispatchBlocked {
 		return s.notify(ctx, dispatch)

@@ -51,15 +51,20 @@ func (*payrollTestTransfer) RecordEmail(context.Context, workforce.PayrollEmailR
 }
 
 type payrollTestMail struct {
-	mu    sync.Mutex
-	links []workforce.PayrollMailMessage
+	mu       sync.Mutex
+	links    []workforce.PayrollMailMessage
+	problems []workforce.PayrollMailMessage
 }
 
 func (m *payrollTestMail) Enqueue(_ context.Context, message workforce.PayrollMailMessage) (int64, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.links = append(m.links, message)
-	return int64(len(m.links)), nil
+	if message.Type == "payroll_dispatch_problem" {
+		m.problems = append(m.problems, message)
+	} else {
+		m.links = append(m.links, message)
+	}
+	return int64(len(m.links) + len(m.problems)), nil
 }
 
 func (*payrollTestMail) State(context.Context, int64) (string, error) {
@@ -75,7 +80,7 @@ func (payrollTestSchools) School(context.Context, int64) (workforce.PayrollSchoo
 type payrollTestManagers struct{}
 
 func (payrollTestManagers) TimeTrackingManagers(context.Context) ([]workforce.PayrollContact, error) {
-	return nil, nil
+	return []workforce.PayrollContact{{StaffID: 31, FirstName: "Lea", LastName: "Leitung", Email: "lea@ogs.example"}}, nil
 }
 
 type payrollTestTokens struct{}
@@ -242,17 +247,41 @@ func TestPayrollDispatchNumbersCorrections(t *testing.T) {
 	assert.True(t, overview.Latest.Correction)
 }
 
-func TestPayrollDispatchDoesNotNumberQueuedFilesAsCorrections(t *testing.T) {
+func TestPayrollDispatchReservesCorrectionNumbersForQueuedFiles(t *testing.T) {
 	t.Parallel()
 
 	ctx := testpkg.Ctx(t)
-	dispatch, _, _ := newPayrollTestDispatch(t, workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: "csv"})
+	dispatch, transfer, _ := newPayrollTestDispatch(t, workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelSFTP, Format: "csv"})
 
 	closeSeptember(t, ctx, dispatch)
+	_, err := dispatch.RunDue(ctx)
+	require.NoError(t, err)
 	closeSeptember(t, ctx, dispatch)
+	closeSeptember(t, ctx, dispatch)
+
+	_, err = dispatch.RunDue(ctx)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{
+		"zeiterfassung_alle_2026-09.csv",
+		"zeiterfassung_alle_2026-09_korrektur-1.csv",
+		"zeiterfassung_alle_2026-09_korrektur-2.csv",
+	}, transfer.sent)
 
 	overview := overviewIn(t, ctx, dispatch)
 	require.NotNil(t, overview.Latest)
-	assert.False(t, overview.Latest.Correction,
-		"a queued file has not reached the payroll office and cannot make the next close a correction")
+	assert.True(t, overview.Latest.Correction)
+}
+
+func TestPayrollDispatchBlockedNoticeReferencesStoredDispatch(t *testing.T) {
+	t.Parallel()
+
+	ctx := testpkg.Ctx(t)
+	dispatch, _, mail := newPayrollTestDispatch(t, workforce.PayrollDispatchConfig{Auto: true, Channel: workforce.PayrollChannelEmail, Format: "csv"})
+	closeSeptember(t, ctx, dispatch)
+
+	require.Len(t, mail.problems, 1)
+	assert.Positive(t, mail.problems[0].ReferenceID)
+	var storedID int64
+	require.NoError(t, testpkg.SetupTestDB(t).NewRaw(`SELECT id FROM active.payroll_dispatches WHERE tenant_id = ?`, testpkg.TenantIDFromContext(ctx)).Scan(ctx, &storedID))
+	assert.Equal(t, storedID, mail.problems[0].ReferenceID)
 }
