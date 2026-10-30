@@ -156,6 +156,12 @@ func NewClock(deps Dependencies) (*Clock, error) {
 	}}, nil
 }
 
+// TimeExport is the clock's month and DATEV export; the payroll dispatch
+// (#4805) builds its files with it.
+func (c *Clock) TimeExport() workforce.StaffTimeExport {
+	return StaffTimeExportCapability(c.services.Export)
+}
+
 // Sessions is the work session service of the clock.
 func (c *Clock) Sessions() WorkSessionService {
 	return c.services.Sessions

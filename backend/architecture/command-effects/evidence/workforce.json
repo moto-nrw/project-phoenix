@@ -2609,6 +2609,14 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatch.RunDue",
+      "binding_digest": "4fe17660709561ab5308ce17cfdfec73",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollDispatch.RunDue",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.planningCalendarCapability.ClosingDaysInRange",
       "binding_digest": "aebe2d87a3e3ca459d5dbc3ec118a52b",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PlanningCalendar.ClosingDaysInRange",
@@ -6343,6 +6351,158 @@
       "source_owner": "workforce",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollDispatchSettings.PayrollDispatchConfig",
+      "binding_digest": "1ad4b0be855df441d426769f5d702847",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatchSettings.PayrollDispatchConfig",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollDispatchSettings.PayrollDispatchConfig",
+      "binding_digest": "58a4f45bc4e253080ae19b48047e841b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatchSettings.PayrollDispatchConfig",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollDispatchSettings.PayrollDispatchConfig",
+      "binding_digest": "774edd4453ee549c20dde6b218fc97ff",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatchSettings.PayrollDispatchConfig",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollDispatchSettings.PayrollDispatchConfig",
+      "binding_digest": "1204082f0aa59760fb67c977890fa2b3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatchSettings.PayrollDispatchConfig",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.Enqueue",
+      "binding_digest": "832a202555eedc97e6b76f26b5dfabbd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.Enqueue",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.Enqueue",
+      "binding_digest": "9251ec137e6cb896ccfcc1dad5d4cb8e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.Enqueue",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.State",
+      "binding_digest": "eeebd93cc47a1c478c2ca487bc254184",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.State",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.Runtime.EmailStatus",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.State",
+      "binding_digest": "30b46d8dbd79b6a6de03c3199d45f777",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.State",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.State",
+      "binding_digest": "aabeccbb0561beed9f79d11ca34ed6b7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.State",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantID.Int64",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollManagers.TimeTrackingManagers",
+      "binding_digest": "e38d3a8add02dd1270572a57c7df6f79",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollManagers.TimeTrackingManagers",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollManagers.TimeTrackingManagers",
+      "binding_digest": "77a3f237befa1cf47f903d56d8aaad4f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollManagers.TimeTrackingManagers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollManagers.TimeTrackingManagers",
+      "binding_digest": "6a2684ae91c560c7eff6f89ad1a82aeb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollManagers.TimeTrackingManagers",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollSchools.School",
+      "binding_digest": "75c8be1bcd0cb8b8cf1b80d62f9d8b82",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollSchools.School",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollSchools.School",
+      "binding_digest": "68803d10cf4722e692e3683ccf908106",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollSchools.School",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollSchools.School",
+      "binding_digest": "7e53f8e0d0e6fef826cfbe6d428adbfa",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollSchools.School",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTokens.Fingerprint",
+      "binding_digest": "f4eed62065237da43d94240a4f3c1882",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollTokens.Fingerprint",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTokens.NewToken",
+      "binding_digest": "e8be74244b05b424675b4e5b62e5c8a2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollTokens.NewToken",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTransfer.RecordEmail",
+      "binding_digest": "71e9bbd6d24dcbc9b332117c8a88e991",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollTransfer.RecordEmail",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.Capability.RecordEmail",
+      "target_owner": "export-transfer"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTransfer.Transfer",
+      "binding_digest": "c327f0c1c4177593df9b94e20450b8ee",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollTransfer.Transfer",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.Capability.Transfer",
+      "target_owner": "export-transfer"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.RecordStaffAbsenceAudit",

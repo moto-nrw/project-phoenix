@@ -46,12 +46,19 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/workflows/careexit"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 )
+
+// mountPayrollDownload serves the one-time download link of the payroll
+// office (#4805) outside every portal: the link is its only credential.
+func mountPayrollDownload(root chi.Router, payroll workforceModule.PayrollDispatch, logger *slog.Logger) {
+	root.Mount("/public/payroll-download", timeTrackingHTTP.NewPayrollDownloadResource(payroll, logger.With("handler", "payroll-download")).PublicRouter())
+}
 
 // mountStaffRoutes serves the staff administration, shift planning,
 // substitutions and time tracking.
@@ -62,7 +69,7 @@ func mountStaffRoutes(
 	substitution SubstitutionOperations, persons peopledirectory.Capability, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, identity identityaccess.Owner, caller *owners.CallerRows, calendar schoolcalendar.Calendar,
 ) error {
-	staff, _, err := newStaffComposition(membership, workTime, users, staffAdmin, workforce.TimeTracking, workforce.SickReports, education, persons, settings, hub, identity, viper.GetString("app_env"), db, logger.With("handler", "staff"))
+	staff, _, err := newStaffComposition(membership, workTime, users, staffAdmin, workforce.TimeTracking, workforce.PayrollDispatch, workforce.SickReports, education, persons, settings, hub, identity, viper.GetString("app_env"), db, logger.With("handler", "staff"))
 	if err != nil {
 		return err
 	}

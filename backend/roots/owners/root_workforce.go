@@ -38,7 +38,7 @@ func BuildWorkSessionSide(
 	workTime workforceModule.Capability, membership schoolmembership.Capability, persons peopledirectory.Capability,
 	organizations organizationtenancy.Query, people PeopleRows, users peoplePorts.PersonDirectory, audit AuditOwner,
 	supervisions studentpresence.SupervisionRecords, sessions presenceCompose.SessionRecords, calendar schoolcalendar.Days,
-	settings settingsCompose.BatchSettingsService, payroll settingsCompose.PayrollStatusGetter, durable DurableMailOutbox,
+	settings settingsCompose.BatchSettingsService, payroll settingsCompose.PayrollStatusGetter, durable OutboxEnqueuer,
 ) (*workforceCompose.WorkSessionSide, error) {
 	logger := env.Logger.With("service", "active")
 	employment := workforceCompose.MustNewStaffEmployment(db.Pool())
@@ -57,6 +57,15 @@ func BuildWorkSessionSide(
 	side, err := workforceCompose.NewWorkSessionSide(workTime, ports, StaffScheduleBindings(users))
 	if err != nil {
 		return nil, fmt.Errorf("compose time tracking: %w", err)
+	}
+	transfer, err := BuildExportTransfer(settings, db, logger)
+	if err != nil {
+		return nil, fmt.Errorf("compose export transfer for the payroll dispatch: %w", err)
+	}
+	side.PayrollDispatch, err = BuildPayrollDispatch(db, settings, side.Clock.TimeExport(), transfer, durable,
+		mailFrom, mailIdentity, organizations, people.Staff, env.Links.FrontendURL, env.Logger)
+	if err != nil {
+		return nil, fmt.Errorf("compose payroll dispatch: %w", err)
 	}
 	return side, nil
 }
@@ -89,6 +98,7 @@ type WorkforcePlanning struct {
 	Shifts              *workforceCompose.ShiftPlanning
 	StaffShifts         workforceModule.StaffShiftPlanning
 	TimeTracking        *workforceCompose.TimeTracking
+	PayrollDispatch     workforceModule.PayrollDispatch
 	SickReports         WorkforceAbsenceWrites
 	TimeTrackingCleanup workforceCompose.TimeTrackingCleanupService
 }
@@ -140,5 +150,6 @@ func BuildWorkforcePlanning(
 	if err != nil {
 		return WorkforcePlanning{}, fmt.Errorf("compose time tracking cleanup: %w", err)
 	}
-	return WorkforcePlanning{Shifts: shifts, StaffShifts: staffShifts, TimeTracking: timeTracking, SickReports: sickReports, TimeTrackingCleanup: cleanup}, nil
+	return WorkforcePlanning{Shifts: shifts, StaffShifts: staffShifts, TimeTracking: timeTracking, PayrollDispatch: side.PayrollDispatch,
+		SickReports: sickReports, TimeTrackingCleanup: cleanup}, nil
 }

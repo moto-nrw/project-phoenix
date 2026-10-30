@@ -16,8 +16,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	filesHTTP "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -121,16 +119,16 @@ func toStaffHTTPRoleRows(rows []StaffRoleRow) []staffHTTP.StaffWithRoleResponse 
 // adapter bound over it.
 func newStaffComposition(
 	module schoolMembershipModule.Capability, workforce workforceModule.Capability, users peoplePorts.PersonDirectory,
-	documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking, absenceWrites timeTrackingHTTP.AdminAbsenceWrites, education schoolstructure.GroupManagement,
+	documents *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking, payroll workforceModule.PayrollDispatch, absenceWrites timeTrackingHTTP.AdminAbsenceWrites, education schoolstructure.GroupManagement,
 	people peopleModule.Capability, settings settingsCompose.SettingsService, hub *realtime.Hub,
 	identity identityaccess.Owner, appEnv string, db transactionruntime.Database, logger *slog.Logger,
 ) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
-	exportTransfer, err := newExportTransferModule(settings, db, logger)
+	exportTransfer, err := owners.BuildExportTransfer(settings, db, logger)
 	if err != nil {
 		return nil, nil, err
 	}
 	capabilities := owners.NewWorkforceAdminCapabilities(users, documents, timeTracking)
-	staffAdmin := newStaffAdminResource(capabilities, absenceWrites, workforce, staffTimeTrackingNotifier(hub), exportTransfer, db, logger)
+	staffAdmin := newStaffAdminResource(capabilities, absenceWrites, workforce, staffTimeTrackingNotifier(hub), exportTransfer, payroll, db, logger)
 	resource, err := newStaffResource(module, people, identity, appEnv, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return NewStaffMembershipRuntime(users, education, timeTracking.StaffDay, hub, db, identity, logger, hooks)
 	}, staffAdmin, logger)
@@ -138,37 +136,6 @@ func newStaffComposition(
 		return nil, nil, err
 	}
 	return resource, staffAdmin, nil
-}
-
-// newExportTransferModule wires the Export Transfer capability (#3050) over
-// the tenant settings. It is composed HERE rather than alongside the other
-// modules because it needs the settings service, which only exists once the
-// service graph is built.
-func newExportTransferModule(settings settingsCompose.SettingsService, db transactionruntime.Database, logger *slog.Logger) (exportTransferModule.Capability, error) {
-	// The setting keys stay in the settings layer next to their registry
-	// definitions; the root only passes the binding on.
-	resolvers, keys := settingsCompose.NewSFTPExportSettings(settings)
-	return exportTransferCompose.New(exportTransferCompose.Dependencies{
-		DB: db.Pool(),
-		Settings: exportTransferCompose.Settings{
-			Enabled:            resolvers.Enabled,
-			Host:               resolvers.Host,
-			Port:               resolvers.Port,
-			Username:           resolvers.Username,
-			Password:           resolvers.Password,
-			RemoteDirectory:    resolvers.RemoteDirectory,
-			HostKeyFingerprint: resolvers.HostKeyFingerprint,
-		},
-		Keys: exportTransferCompose.SettingKeys{
-			Host:               keys.Host,
-			Port:               keys.Port,
-			Username:           keys.Username,
-			Password:           keys.Password,
-			RemoteDirectory:    keys.RemoteDirectory,
-			HostKeyFingerprint: keys.HostKeyFingerprint,
-		},
-		Logger: logger,
-	})
 }
 
 // newStaffResource binds the School Membership HTTP adapter to the shared

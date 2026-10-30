@@ -7,8 +7,9 @@ import (
 )
 
 // 1.15.718 (#4805): the preflight with active.payroll_dispatches, the automatic payroll
-// dispatches of a school. A static copy of the 1.15.705 function with that one
-// insertion; the table has no foreign key, so the FK fingerprint is unchanged.
+// dispatches of a school, in the static lock set and the FK fingerprint its
+// school key changes. A static copy of the 1.15.705 function with that one
+// insertion.
 func installPayrollDispatchErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollDispatchErasurePreflightSQL)
 	return err
@@ -304,7 +305,7 @@ const payrollDispatchErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform.
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '58add929f39aa241599420b4e5d196d1f2736a61ed89e602a576aa9b0525d3bd' THEN
+    ) AS edge) <> '5bbde5438a5e947e24fa88ed0b75ba9e3e66aadc5494c0b7f067ab4db8ca024c' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.

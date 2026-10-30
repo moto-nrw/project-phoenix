@@ -148,5 +148,6 @@ func NewWorker(
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
 		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)),
 		ReminderNotifications:        reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff),
+		PayrollDispatch: workforce.PayrollDispatch.RunDue,
 	})
 }

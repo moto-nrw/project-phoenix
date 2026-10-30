@@ -3667,6 +3667,17 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatch.RunDue",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce.PayrollDispatch.RunDue",
+      "reason": "Platform protocol participation (scope): workforce reaches tenant.WithinCurrentTenant (tenant-runtime) through modules/workforce/internal/application.PayrollDispatch.RunDue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.planningCalendarCapability.ClosingDaysInRange",
       "classification": "query",
       "effect": "query",
@@ -9007,6 +9018,200 @@
       "source_owner": "workforce",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollDispatchSettings.PayrollDispatchConfig",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatchSettings.PayrollDispatchConfig",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.payrollDispatchSettings.PayrollDispatchConfig. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollDispatchSettings.PayrollDispatchConfig",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatchSettings.PayrollDispatchConfig",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through roots/owners.payrollDispatchSettings.PayrollDispatchConfig. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollDispatchSettings.PayrollDispatchConfig",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatchSettings.PayrollDispatchConfig",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/settings/records.SettingsService.ResolveBool (settings-platform) through roots/owners.payrollDispatchSettings.PayrollDispatchConfig. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollDispatchSettings.PayrollDispatchConfig",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollDispatchSettings.PayrollDispatchConfig",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/settings/records.SettingsService.ResolveString (settings-platform) through roots/owners.payrollDispatchSettings.PayrollDispatchConfig. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.Enqueue",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.Enqueue",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through roots/owners.payrollMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.Enqueue",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.Enqueue",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/delivery/runtime.Capability.EnqueueSystemEmail (delivery-platform) through roots/owners.payrollMailOutbox.Enqueue. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.State",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.State",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/delivery/compose.Runtime.EmailStatus (delivery-platform) through roots/owners.payrollMailOutbox.State. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/delivery/compose.Runtime.EmailStatus",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.State",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.State",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches tenant.TenantFromContext (tenant-runtime) through roots/owners.payrollMailOutbox.State. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantFromContext",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollMailOutbox.State",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollMail.State",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches tenant.TenantID.Int64 (tenant-runtime) through roots/owners.payrollMailOutbox.State. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.TenantID.Int64",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollManagers.TimeTrackingManagers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollManagers.TimeTrackingManagers",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/staffdirectoryview.Directory.StaffWithPermission (staff-directory-view) through roots/owners.payrollManagers.TimeTrackingManagers. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollManagers.TimeTrackingManagers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollManagers.TimeTrackingManagers",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission (people-directory) through roots/owners.payrollManagers.TimeTrackingManagers. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StaffRepository.ListStaffWithPermission",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollManagers.TimeTrackingManagers",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollManagers.TimeTrackingManagers",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/staffdirectoryview.New (staff-directory-view) through roots/owners.payrollManagers.TimeTrackingManagers. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollSchools.School",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollSchools.School",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/organizationtenancy.Capability.FindSchool (organization-tenancy) through roots/owners.payrollSchools.School. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollSchools.School",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollSchools.School",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/organizationtenancy.Query.FindSchool (organization-tenancy) through roots/owners.payrollSchools.School. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollSchools.School",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollSchools.School",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/organizationtenancy.SchoolQuery.FindSchool (organization-tenancy) through roots/owners.payrollSchools.School. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.SchoolQuery.FindSchool",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTokens.Fingerprint",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollTokens.Fingerprint",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint (identity-access) through roots/owners.payrollTokens.Fingerprint. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.OpaqueCapabilityFingerprint",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTokens.NewToken",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollTokens.NewToken",
+      "reason": "Read or pure value helper reached by the payroll dispatch (#4805): workforce reaches modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken (identity-access) through roots/owners.payrollTokens.NewToken. No persistent, lock or scope effect at this terminal.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives.NewOpaqueCapabilityToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTransfer.RecordEmail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollTransfer.RecordEmail",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/exporttransfer.Capability.RecordEmail (export-transfer) through roots/owners.payrollTransfer.RecordEmail. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.Capability.RecordEmail",
+      "target_owner": "export-transfer"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.payrollTransfer.Transfer",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application.PayrollTransfer.Transfer",
+      "reason": "Platform protocol participation (durable): workforce reaches modules/exporttransfer.Capability.Transfer (export-transfer) through roots/owners.payrollTransfer.Transfer. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.Capability.Transfer",
+      "target_owner": "export-transfer"
     },
     {
       "adr": "0083",

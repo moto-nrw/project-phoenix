@@ -41,17 +41,18 @@ func init() {
 //     link. The link is stored only as its SHA-256 fingerprint; the download
 //     sets downloaded_at and clears the file, so it can be fetched once. The
 //     worker also clears files whose link expired.
-//   - tenant_id has no foreign key, like the accident report keys of
-//     1.15.717: a key onto platform.schools would change the school erasure's
-//     FK fingerprint. The row leaves with the school through the erasure
-//     functions installed below.
+//   - tenant_id references the school, the write fence of the school
+//     erasure; the row leaves with the school through the erasure functions
+//     installed below, whose FK fingerprint includes this key.
+//   - actor_account_id has no foreign key, like audit.export_transfers: the
+//     dispatch must still read after the account is gone.
 //
 // The transfer journal gains the channel, the month and the e-mail recipient,
 // so every send, SFTP or e-mail, is in the one existing protocol.
 const payrollDispatchesUpSQL = `
 		CREATE TABLE IF NOT EXISTS active.payroll_dispatches (
 			id BIGSERIAL PRIMARY KEY,
-			tenant_id BIGINT NOT NULL,
+			tenant_id BIGINT NOT NULL REFERENCES platform.schools(id) ON DELETE CASCADE,
 			year SMALLINT NOT NULL CHECK (year BETWEEN 2000 AND 2100),
 			month SMALLINT NOT NULL CHECK (month BETWEEN 1 AND 12),
 			sequence INTEGER NOT NULL CHECK (sequence >= 0),

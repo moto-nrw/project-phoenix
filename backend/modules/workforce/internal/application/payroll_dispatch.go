@@ -82,47 +82,6 @@ type PayrollTransfer interface {
 	RecordEmail(context.Context, PayrollEmailResult) error
 }
 
-// PayrollLinkMail is the mail with the download link. TenantID and Token
-// together form the link; the file never travels with the mail.
-type PayrollLinkMail struct {
-	TenantID   int64
-	DispatchID int64
-	Recipient  string
-	Year       int
-	Month      int
-	Correction bool
-	Token      string
-	ExpiresAt  time.Time
-}
-
-// Mail states of a link mail.
-const (
-	PayrollMailPending = "pending"
-	PayrollMailSent    = "sent"
-	PayrollMailFailed  = "failed"
-)
-
-// PayrollProblem tells the people who manage time tracking that a dispatch
-// was blocked or failed for good.
-type PayrollProblem struct {
-	TenantID   int64
-	DispatchID int64
-	Year       int
-	Month      int
-	Correction bool
-	Channel    string
-	State      string
-	Reason     string
-}
-
-// PayrollMail is the durable mail of Delivery: the link mail, its state and
-// the notice to the managers. Each enqueue joins the caller's transaction.
-type PayrollMail interface {
-	EnqueueLink(context.Context, PayrollLinkMail) (outboxID int64, err error)
-	LinkMailState(ctx context.Context, outboxID int64) (string, error)
-	NotifyManagers(context.Context, PayrollProblem) error
-}
-
 // PayrollExport builds the month file; it is Workforce's own time export.
 type PayrollExport interface {
 	ExportStaffTime(ctx context.Context, request workforce.TimeExportRequest, actorAccountID int64, actorRole string) (*workforce.ExportFile, error)
@@ -153,7 +112,11 @@ type PayrollDispatchDependencies struct {
 	Export   PayrollExport
 	Transfer PayrollTransfer
 	Mail     PayrollMail
+	Schools  PayrollSchools
+	Managers PayrollManagers
 	Tokens   PayrollTokens
+	// FrontendURL is the base of the download link and the notice's link.
+	FrontendURL string
 	Runtime  PayrollRuntime
 	Now      func() time.Time
 	Logger   *slog.Logger
@@ -171,8 +134,10 @@ func NewPayrollDispatch(deps PayrollDispatchDependencies) (*PayrollDispatch, err
 	switch {
 	case deps.Store == nil || deps.Settings == nil || deps.Export == nil:
 		return nil, errors.New("payroll dispatch: store, settings and export are required")
-	case deps.Transfer == nil || deps.Mail == nil || deps.Tokens == nil:
-		return nil, errors.New("payroll dispatch: transfer, mail and tokens are required")
+	case deps.Transfer == nil || deps.Mail == nil || deps.Schools == nil || deps.Managers == nil || deps.Tokens == nil:
+		return nil, errors.New("payroll dispatch: transfer, mail, schools, managers and tokens are required")
+	case strings.TrimSpace(deps.FrontendURL) == "":
+		return nil, errors.New("payroll dispatch: the frontend URL of the download link is required")
 	case runtime.TenantID == nil || runtime.Within == nil || runtime.WithinTenant == nil || runtime.Detached == nil:
 		return nil, errors.New("payroll dispatch: the transaction runtime is required")
 	}
@@ -463,7 +428,7 @@ func (s *PayrollDispatch) sendLink(ctx context.Context, claim domain.PayrollDisp
 			return fmt.Errorf("create the download link: %w", err)
 		}
 		expires := now.Add(workforce.PayrollDownloadLifetime)
-		outboxID, err := s.deps.Mail.EnqueueLink(txCtx, PayrollLinkMail{
+		outboxID, err := s.enqueueLink(txCtx, payrollLink{
 			TenantID: tenantID, DispatchID: claim.ID, Recipient: claim.Recipient,
 			Year: claim.Year, Month: claim.Month, Correction: claim.Sequence > 0,
 			Token: raw, ExpiresAt: expires,
@@ -490,7 +455,7 @@ func (s *PayrollDispatch) settleMail(ctx context.Context, claim domain.PayrollDi
 	}
 	done := false
 	err := s.deps.Runtime.Within(ctx, func(txCtx context.Context) error {
-		state, err := s.deps.Mail.LinkMailState(txCtx, *claim.MailOutboxID)
+		state, err := s.deps.Mail.State(txCtx, *claim.MailOutboxID)
 		if err != nil {
 			return err
 		}
@@ -571,9 +536,9 @@ func (s *PayrollDispatch) notify(ctx context.Context, dispatch domain.PayrollDis
 		"state", dispatch.State,
 		"reason", dispatch.Reason,
 	)
-	if err := s.deps.Mail.NotifyManagers(ctx, PayrollProblem{
+	if err := s.notifyManagers(ctx, payrollProblem{
 		TenantID: tenantID, DispatchID: dispatch.ID, Year: dispatch.Year, Month: dispatch.Month,
-		Correction: dispatch.Sequence > 0, Channel: dispatch.Channel, State: dispatch.State, Reason: dispatch.Reason,
+		Correction: dispatch.Sequence > 0, Reason: dispatch.Reason,
 	}); err != nil {
 		return fmt.Errorf("payroll dispatch: notify the managers: %w", err)
 	}

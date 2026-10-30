@@ -554,6 +554,7 @@ func composeServeRoot(
 			mountPeopleRoutes(tenant, db, logger, reports, renderer, persons, services.Guardian, identity, caller, feedback, mealPlan,
 				birthdays, emergency, settings.Service)
 			mountCalendarRoutes(router, tenant, logger, calendarApp)
+			mountPayrollDownload(router, workforce.PayrollDispatch, logger)
 			return errors.Join(mountCommunicationRoutes(tenant, chat, announcements, reminders, deliveryDevices, communication),
 				mountDeliveryRoutes(router, tenant, logger, fileStore, parent, hub, caller, identity))
 		},

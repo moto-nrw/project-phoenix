@@ -6134,6 +6134,34 @@
     },
     {
       "build": "production",
+      "evidence": "func (o payrollMailOutbox) Enqueue(ctx context.Context, message workforceCompose.PayrollMailMessage) (int64, error) {\n\tmail := email.Message{From: o.from, To: email.NewEmail(message.ToName, message.ToAddress), Subject: message.Subject, Template: message.Template, Content: message.Content}\n\tidentity := email.ResolveReplyToIdentity(ctx, o.identity, message.TenantID, o.logger)\n\tmail.ReplyTo = email.NewEmail(identity.Name, identity.Address)\n\tenqueued, err := o.outbox.EnqueueMailIntent(ctx, DurableMail{IdempotencyKey: message.IdempotencyKey, TenantID: message.TenantID, Message: mail, Type: message.Type, ReferenceID: message.ReferenceID, ExpiresAt: message.ExpiresAt, MaxAttempts: message.MaxAttempts, Backoff: message.Backoff})\n\treturn enqueued.ID, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/payrollMailOutbox.Enqueue",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m payrollManagers) TimeTrackingManagers(ctx context.Context) ([]workforceCompose.PayrollContact, error) {\n\trows, err := m.staff.ListStaffWithPermission(ctx, permissions.TimeTrackingManage)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tcontacts := make([]workforceCompose.PayrollContact, 0, len(rows))\n\tfor _, row := range rows {\n\t\tif row != nil {\n\t\t\tcontacts = append(contacts, workforceCompose.PayrollContact{StaffID: row.StaffID, FirstName: row.FirstName, LastName: row.LastName, Email: row.Email})\n\t\t}\n\t}\n\treturn contacts, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/payrollManagers.TimeTrackingManagers",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t payrollTransfer) RecordEmail(ctx context.Context, result workforceCompose.PayrollEmailResult) error {\n\trecord := exporttransfer.EmailRecord{Kind: exporttransfer.KindStaffTimeTracking, Format: result.Format, Period: result.Period, Filename: result.Filename, ByteSize: result.ByteSize, Recipient: result.Recipient, Delivered: result.Delivered, ActorAccountID: result.ActorAccountID, ActorName: result.ActorName}\n\tif !result.Delivered {\n\t\trecord.Reason = exporttransfer.ReasonMailFailed\n\t}\n\treturn t.module.RecordEmail(ctx, record)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/payrollTransfer.RecordEmail",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (t payrollTransfer) Transfer(ctx context.Context, request workforceCompose.PayrollTransferRequest) (workforceCompose.PayrollTransferOutcome, error) {\n\toutcome, err := t.module.Transfer(ctx, exporttransfer.Request{Kind: exporttransfer.KindStaffTimeTracking, Format: request.Format, Period: request.Period, PrepareFile: request.Prepare, ActorAccountID: request.ActorAccountID, ActorName: request.ActorName})\n\tif err != nil {\n\t\treturn workforceCompose.PayrollTransferOutcome{}, err\n\t}\n\treturn workforceCompose.PayrollTransferOutcome{Transferred: outcome.Transferred, NotConfigured: outcome.Reason == exporttransfer.ReasonNotConfigured, Reason: outcome.Reason}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/payrollTransfer.Transfer",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s pendingApplicantSource) PendingAnnouncementApplicants(ctx context.Context) ([]recordports.PendingAnnouncementApplicant, error) {\n\trows, err := s.enrollment.PendingAnnouncementApplicants(ctx)\n\treturn pendingApplicants(rows), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/pendingApplicantSource.PendingAnnouncementApplicants",

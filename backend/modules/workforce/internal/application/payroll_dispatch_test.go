@@ -177,21 +177,35 @@ func (f *fakePayrollTransfer) RecordEmail(_ context.Context, result PayrollEmail
 }
 
 type fakePayrollMail struct {
-	links    []PayrollLinkMail
+	links    []PayrollMailMessage
 	state    string
-	problems []PayrollProblem
+	problems []PayrollMailMessage
 }
 
-func (f *fakePayrollMail) EnqueueLink(_ context.Context, mail PayrollLinkMail) (int64, error) {
-	f.links = append(f.links, mail)
-	return 900 + int64(len(f.links)), nil
+func (f *fakePayrollMail) Enqueue(_ context.Context, message PayrollMailMessage) (int64, error) {
+	if message.Type == PayrollLinkMailType {
+		f.links = append(f.links, message)
+	} else {
+		f.problems = append(f.problems, message)
+	}
+	return 900 + int64(len(f.links)+len(f.problems)), nil
 }
 
-func (f *fakePayrollMail) LinkMailState(context.Context, int64) (string, error) { return f.state, nil }
+func (f *fakePayrollMail) State(context.Context, int64) (string, error) { return f.state, nil }
 
-func (f *fakePayrollMail) NotifyManagers(_ context.Context, problem PayrollProblem) error {
-	f.problems = append(f.problems, problem)
-	return nil
+type fakePayrollSchools struct{}
+
+func (fakePayrollSchools) School(context.Context, int64) (PayrollSchool, error) {
+	return PayrollSchool{Name: "OGS Am Park", Subdomain: "park"}, nil
+}
+
+type fakePayrollManagers struct{}
+
+func (fakePayrollManagers) TimeTrackingManagers(context.Context) ([]PayrollContact, error) {
+	return []PayrollContact{
+		{StaffID: 3, FirstName: "Lea", LastName: "Leitung", Email: "lea@ogs-am-park.de"},
+		{StaffID: 4, FirstName: "Ohne", LastName: "Adresse"},
+	}, nil
 }
 
 type fakePayrollTokens struct{}
@@ -218,7 +232,8 @@ func newPayrollHarness(t *testing.T, config PayrollDispatchConfig) payrollHarnes
 	inTx := func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
 	service, err := NewPayrollDispatch(PayrollDispatchDependencies{
 		Store: h.store, Settings: fakePayrollSettings{config: config}, Export: h.export,
-		Transfer: h.transfer, Mail: h.mail, Tokens: fakePayrollTokens{},
+		Transfer: h.transfer, Mail: h.mail, Schools: fakePayrollSchools{}, Managers: fakePayrollManagers{},
+		Tokens: fakePayrollTokens{}, FrontendURL: "https://moto.example/",
 		Now: func() time.Time { return *h.now },
 		Runtime: PayrollRuntime{
 			TenantID: func(context.Context) (int64, error) { return payrollTestTenant, nil },
@@ -342,7 +357,7 @@ func TestPayrollDispatch_IncompleteDatevBlocksAndNotifies(t *testing.T) {
 			assert.Empty(t, h.transfer.sent, "nothing is sent")
 			assert.Empty(t, export.exports, "no file is even built")
 			require.Len(t, h.mail.problems, 1)
-			assert.Equal(t, workforce.PayrollReasonDatevIncomplete, h.mail.problems[0].Reason)
+			assert.Equal(t, payrollReasonText(workforce.PayrollReasonDatevIncomplete), h.mail.problems[0].Content["ReasonText"])
 		})
 	}
 }
@@ -385,9 +400,13 @@ func TestPayrollDispatch_RetriesThreeTimesThenNotifies(t *testing.T) {
 	row := h.store.rows[0]
 	assert.Equal(t, workforce.PayrollDispatchFailed, row.State)
 	assert.Equal(t, workforce.PayrollDispatchMaxAttempts, row.Attempts)
-	require.Len(t, h.mail.problems, 1)
-	assert.Equal(t, workforce.PayrollDispatchFailed, h.mail.problems[0].State)
-	assert.Equal(t, payrollTestTenant, h.mail.problems[0].TenantID)
+	require.Len(t, h.mail.problems, 1, "one notice per manager with an address")
+	notice := h.mail.problems[0]
+	assert.Equal(t, payrollTestTenant, notice.TenantID)
+	assert.Equal(t, "lea@ogs-am-park.de", notice.ToAddress)
+	assert.Equal(t, "Monatsdatei September 2026 nicht verschickt", notice.Subject)
+	assert.Equal(t, "Die Übertragung an das Lohnbüro hat viermal nicht geklappt.", notice.Content["ReasonText"])
+	assert.Equal(t, "https://park.moto.example/payroll", notice.Content["LinkURL"])
 }
 
 func TestPayrollDispatch_SecondAttemptSucceeds(t *testing.T) {
@@ -422,9 +441,13 @@ func TestPayrollDispatch_EmailSendsALinkNotTheFile(t *testing.T) {
 	assert.NotEmpty(t, row.FileData)
 	require.Len(t, h.mail.links, 1)
 	link := h.mail.links[0]
-	assert.Equal(t, "raw-token", link.Token)
+	assert.Equal(t, "https://moto.example/lohnbuero/7.raw-token", link.Content["LinkURL"])
 	assert.Equal(t, payrollTestTenant, link.TenantID)
-	assert.Equal(t, "lohn@steuerbuero-beispiel.de", link.Recipient)
+	assert.Equal(t, "lohn@steuerbuero-beispiel.de", link.ToAddress)
+	assert.Equal(t, "Monatsdatei September 2026", link.Subject)
+	assert.Equal(t, "OGS Am Park", link.Content["SchoolName"])
+	assert.Equal(t, *row.DownloadExpiresAt, link.ExpiresAt, "Delivery drops the mail once the link expired")
+	assert.Equal(t, workforce.PayrollDispatchMaxAttempts, link.MaxAttempts, "the first send and three retries")
 	assert.Empty(t, h.transfer.emails, "the journal entry waits for the mail server's answer")
 
 	h.mail.state = PayrollMailSent

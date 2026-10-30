@@ -261,6 +261,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *PayrollDispatch) Overview(ctx context.Context) (workforce.PayrollDispatchOverview, error) {\n\tlatest, err := s.deps.Store.LatestPayrollDispatch(ctx)\n\tif err != nil || latest == nil {\n\t\treturn workforce.PayrollDispatchOverview{}, err\n\t}\n\tview := workforce.PayrollDispatchView{Year: latest.Year, Month: latest.Month, Correction: latest.Sequence \u003e 0, Channel: latest.Channel, Format: latest.Format, Recipient: latest.Recipient, State: latest.State, Reason: latest.Reason, Attempts: latest.Attempts, Filename: latest.Filename, CreatedAt: latest.CreatedAt, FinishedAt: latest.FinishedAt, DownloadExpiresAt: latest.DownloadExpiresAt, DownloadedAt: latest.DownloadedAt}\n\treturn workforce.PayrollDispatchOverview{Latest: \u0026view}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/workforce/internal/application/PayrollDispatch.Overview",
+      "owner": "modules/workforce"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *Service) AllowanceSummary(ctx context.Context, staffID, absenceTypeID int64, year int) (workforce.AbsenceTypeAllowanceSummary, error) {\n\tif staffID \u003c= 0 || year \u003c 2000 || year \u003e 2100 {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(domain.ErrAbsenceTypeAllowanceInvalid)\n\t}\n\tabsenceType, err := s.findAllowanceType(ctx, absenceTypeID)\n\tif err != nil {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(err)\n\t}\n\taccounts, err := s.loadAllowanceAccounts(ctx, staffID, absenceType, year, year)\n\tif err != nil {\n\t\treturn allowanceSummaryToPublic(domain.AbsenceTypeAllowanceSummary{}), MapError(err)\n\t}\n\treturn allowanceSummaryToPublic(accounts.ledger(s.clock.Today()).Summary(staffID, absenceTypeID, year)), MapError(nil)\n}",
       "form": "unclassified-evidence",
       "id": "modules/workforce/internal/application/Service.AllowanceSummary",

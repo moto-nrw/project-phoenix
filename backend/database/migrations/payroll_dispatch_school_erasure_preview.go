@@ -8,7 +8,7 @@ import (
 
 // 1.15.718 (#4805): the preview with active.payroll_dispatches, the automatic payroll
 // dispatches of a school. A static copy of the 1.15.705 function with that one
-// insertion; the table has no foreign key, so the FK fingerprint is unchanged.
+// insertion.
 func installPayrollDispatchErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, payrollDispatchErasurePreviewSQL)
 	return err

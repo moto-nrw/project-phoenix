@@ -23,8 +23,11 @@ type (
 	PayrollTransferOutcome  = application.PayrollTransferOutcome
 	PayrollEmailResult      = application.PayrollEmailResult
 	PayrollMail             = application.PayrollMail
-	PayrollLinkMail         = application.PayrollLinkMail
-	PayrollProblem          = application.PayrollProblem
+	PayrollMailMessage      = application.PayrollMailMessage
+	PayrollSchools          = application.PayrollSchools
+	PayrollSchool           = application.PayrollSchool
+	PayrollManagers         = application.PayrollManagers
+	PayrollContact          = application.PayrollContact
 	PayrollTokens           = application.PayrollTokens
 )
 
@@ -43,8 +46,12 @@ type PayrollDispatchDependencies struct {
 	Export   PayrollExport
 	Transfer PayrollTransfer
 	Mail     PayrollMail
+	Schools  PayrollSchools
+	Managers PayrollManagers
 	Tokens   PayrollTokens
-	Logger   *slog.Logger
+	// FrontendURL is the base of the download link.
+	FrontendURL string
+	Logger      *slog.Logger
 	// Now is optional and pins the clock in tests.
 	Now func() time.Time
 }
@@ -58,7 +65,8 @@ func NewPayrollDispatch(deps PayrollDispatchDependencies) (workforce.PayrollDisp
 	return application.NewPayrollDispatch(application.PayrollDispatchDependencies{
 		Store:    postgres.New(postgres.DatabaseRuntime(deps.DB)),
 		Settings: deps.Settings, Export: deps.Export, Transfer: deps.Transfer,
-		Mail: deps.Mail, Tokens: deps.Tokens, Now: deps.Now, Logger: deps.Logger,
+		Mail: deps.Mail, Schools: deps.Schools, Managers: deps.Managers, Tokens: deps.Tokens,
+		FrontendURL: deps.FrontendURL, Now: deps.Now, Logger: deps.Logger,
 		Runtime: application.PayrollRuntime{
 			TenantID: func(ctx context.Context) (int64, error) {
 				id, err := tenant.TenantFromContext(ctx)
