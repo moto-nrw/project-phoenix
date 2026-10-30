@@ -29,6 +29,7 @@ import { roomKeys } from "~/lib/swr/rooms-keys";
 import { groupKeys } from "~/lib/swr/groups-keys";
 import { staffKeys } from "~/lib/swr/staff-keys";
 import { meKeys } from "~/lib/swr/me-keys";
+import { dashboardKeys } from "~/lib/swr/portal-keys";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
 import { useSSE } from "~/lib/hooks/use-sse";
@@ -71,7 +72,7 @@ export const MAX_FLUSH_WAIT_MS = 1000;
 // "staff-dashboard-summary-" (staff time tracking, which has its own
 // staff_time_tracking_changed trigger + refresh interval) — refetching both on
 // every check-in was a large part of the #2057 request herd.
-const DASHBOARD_COUNT_CACHE_KEYS = ["dashboard-analytics"] as const;
+const DASHBOARD_COUNT_CACHE_KEYS = [dashboardKeys.analytics()] as const;
 
 // Every cache family derived from work sessions, absences, balance
 // adjustments, month-close snapshots, contractual schedules, or planned

@@ -190,7 +190,8 @@ describe("TenantGuard", () => {
         }),
       );
 
-    // Another account or school binding is no logout of this account.
+    // A new owner (another account, or this account bound to another
+    // school) is no logout of this account; only a removed owner is.
     ownerChange("1:7");
     expect(mockCheckSessionAfterLogoutElsewhere).not.toHaveBeenCalled();
     ownerChange(null);
