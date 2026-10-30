@@ -1,6 +1,7 @@
 package defaults
 
 import (
+	"regexp"
 	"testing"
 
 	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
@@ -2275,6 +2276,61 @@ func TestPayrollSettings(t *testing.T) {
 	require.NotNil(t, mandant.Validation.Pattern)
 	assert.True(t, mandant.Validation.AllowEmpty)
 	assert.Equal(t, `^\d{1,5}$`, *mandant.Validation.Pattern)
+}
+
+// TestPayrollDispatchSettings pins the Lohnbüro of #4805. The switch must
+// default to off and the address to empty: a school sends payroll data only
+// after somebody chose where it goes. The channel and format values are a wire
+// contract with the dispatch worker and the /payroll page.
+func TestPayrollDispatchSettings(t *testing.T) {
+	t.Parallel()
+
+	for _, key := range []string{
+		config.KeyPayrollDispatchAuto, config.KeyPayrollDispatchChannel,
+		config.KeyPayrollDispatchFormat, config.KeyPayrollDispatchEmail,
+	} {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "%s should be registered", key)
+		assert.Equal(t, "abrechnung", def.Tab, key)
+		assert.Equal(t, "lohnbuero", def.Category, key)
+		assert.Equal(t, "config:manage", def.WritePermission, key)
+		assert.Equal(t, config.AccessAdminOnly, def.AccessPolicy, key)
+	}
+
+	auto := config.GetDefinition(config.KeyPayrollDispatchAuto)
+	assert.Equal(t, config.FieldBoolean, auto.Type)
+	assert.Equal(t, false, auto.Default)
+
+	channel := config.GetDefinition(config.KeyPayrollDispatchChannel)
+	assert.Equal(t, config.FieldSelect, channel.Type)
+	assert.Equal(t, config.PayrollDispatchChannelSFTP, channel.Default)
+	var channels []any
+	for _, option := range channel.Options.Static {
+		channels = append(channels, option.Value)
+	}
+	assert.Equal(t, []any{"sftp", "email"}, channels)
+
+	format := config.GetDefinition(config.KeyPayrollDispatchFormat)
+	assert.Equal(t, config.FieldSelect, format.Type)
+	assert.Equal(t, config.PayrollDispatchFormatCSV, format.Default)
+	var formats []any
+	for _, option := range format.Options.Static {
+		formats = append(formats, option.Value)
+	}
+	assert.Equal(t, []any{"csv", "xlsx", "datev_lodas", "datev_lug"}, formats)
+
+	address := config.GetDefinition(config.KeyPayrollDispatchEmail)
+	assert.Equal(t, config.FieldText, address.Type)
+	assert.Equal(t, "", address.Default)
+	require.NotNil(t, address.Validation)
+	require.NotNil(t, address.Validation.Pattern)
+	assert.True(t, address.Validation.AllowEmpty)
+	pattern := regexp.MustCompile(*address.Validation.Pattern)
+	assert.True(t, pattern.MatchString("lohn@steuerbuero-beispiel.de"))
+	assert.False(t, pattern.MatchString("lohn@localhost"))
+	assert.False(t, pattern.MatchString("kein adresse@beispiel.de"))
+	require.NotNil(t, address.DependsOn)
+	assert.Equal(t, config.KeyPayrollDispatchChannel, address.DependsOn.Key)
 }
 
 // TestParentRequestReasonPolicySetting pins the switch that decides who has to
