@@ -102,7 +102,7 @@ func TestSeedParentPortalActionsReportSicknessFromTheMorning(t *testing.T) {
 	for _, parent := range parents {
 		auths[parent.Email] = AuthRef{Token: parent.Email}
 	}
-	rt := &Runtime{Client: newTestClient(srv.URL, false), Parents: parents}
+	rt := &Runtime{Client: newTestClient(srv.URL, false), Parents: parents, FixedSeeder: &FixedSeeder{}}
 	actions, err := parentEnrollmentSeedStep{}.seedParentPortalActions(rt, auths, parents, todaySeedDate())
 	require.NoError(t, err)
 	require.Len(t, actions, 4)

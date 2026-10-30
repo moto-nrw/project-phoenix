@@ -47,6 +47,12 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		guard := rs.Runtime.ReportGuard
 		r.With(guard, withTx).Get("/report", rs.getReport)
 		r.With(guard, withTx).Get("/export", rs.exportReport)
+		// Soll und Ist (#4774): the overrun list is a management report like
+		// the one above; one child's comparison needs only the children
+		// read right of the care staff.
+		r.With(guard, withTx).Get("/care-time-overruns", rs.getCareTimeOverruns)
+		r.With(guard, withTx).Get("/care-time-overruns/export", rs.exportCareTimeOverruns)
+		r.With(rs.Runtime.StudentGuard, withTx).Get("/students/{id}/care-times", rs.getStudentCareTimes)
 	})
 	return r
 }
@@ -107,11 +113,7 @@ func (rs *Resource) exportReport(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
-	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(file.Data)
+	writeExportFile(w, file)
 }
 
 func (rs *Resource) logFailure(msg string, err error) {

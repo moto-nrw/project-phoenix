@@ -57,6 +57,8 @@ const GROUP_ORDER_BY_ROLE: Readonly<
     "team",
     "arbeitszeit",
     "nfc",
+    // Soll und Ist (#4774) liest die Betreuung beim Kind.
+    "auswertung",
     "probleme",
   ],
   // Leitung: erst einrichten, dann der laufende Betrieb, zuletzt Einstellen

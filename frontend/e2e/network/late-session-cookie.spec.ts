@@ -6,16 +6,18 @@ import {
   type Route,
 } from "@playwright/test";
 import { randomBytes } from "node:crypto";
+import { networkPorts } from "./ports.mjs";
 
 // #5194: after a logout or a "Zur Schulanmeldung" in one tab, a response of
 // another tab that arrives late with the old session cookie must not restore
 // access. The synthetic backend models the session family: logout revokes
 // it, and its session routes refuse a token of a revoked family although the
 // token has not expired. No real backend, keys or personal data.
-const source = "http://school-a.mfa.localhost:13845";
-const target = "http://school-b.mfa.localhost:13845";
+const ports = networkPorts("tenantSwitch");
+const source = `http://school-a.mfa.localhost:${ports.frontend}`;
+const target = `http://school-b.mfa.localhost:${ports.frontend}`;
 const cookieName = "mfa-localhost.session-token";
-const fixtureState = "http://127.0.0.1:18445/__fixture/switch-state";
+const fixtureState = `http://127.0.0.1:${ports.api}/__fixture/switch-state`;
 
 async function isolate(context: BrowserContext) {
   await context.route("**/*", async (route) => {
