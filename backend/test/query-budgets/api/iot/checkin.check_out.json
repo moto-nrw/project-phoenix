@@ -1,0 +1,6 @@
+{
+  "scenario": "api.iot.checkin.check_out",
+  "max": 26,
+  "exact": false,
+  "description": "modules/devicescan/http/checkin — POST /api/iot/checkin (#5004): one\nkiosk scan inside its request transaction (BEGIN to COMMIT), with the\ndevice session's heartbeat; device authentication runs before it and\nshows as Server-Timing \"auth\". The route-sized test router has no\nrequest settings cache, so each settings read counts. Flat from three\nto eight children present.\nADR 0124: +2 statements for SAVEPOINT and RELEASE around the heartbeat."
+}

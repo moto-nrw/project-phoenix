@@ -1,4 +1,5 @@
 "use client";
+import { HolidayRegistrationLegal } from "./holiday-registration-legal";
 
 // Öffentliche Ferienanmeldung (#4661): bis zu drei Geschwister, Wochen mit
 // Zeitmodell, Notfallkontakte, Abholberechtigte und Gesundheitsangaben. Vor
@@ -7,22 +8,25 @@
 
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
-import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import {
   type HolidayKnownFamily,
   type HolidayRegistrationOffer,
   submitHolidayRegistration,
 } from "~/lib/holiday-registration-api";
 import { createLogger } from "~/lib/logger";
+import { isFieldVisible } from "~/lib/enrollment-field-visibility";
 import {
+  childContext,
   emptyChild,
+  familyContext,
   type FieldErrorKey,
   hasHealthInfo,
   MAX_CHILDREN,
@@ -38,22 +42,38 @@ import {
   ChildCard,
   ContactList,
   KnownChildPicker,
+  SecondGuardianCard,
 } from "./holiday-registration-sections";
+import { HolidayQuestions } from "./holiday-registration-questions";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
+
+/** The code of a refusal because the Träger changed the form (#5198). */
+const FORM_CHANGED = "enrollment.holiday_registration_form_changed";
+/** The code of a proof whose upload no longer counts (#5238). */
+const UPLOAD_EXPIRED = "enrollment.upload_expired";
 
 const logger = createLogger({ component: "HolidayRegistrationForm" });
 
-type Step = "form" | "summary" | "done";
+export type HolidayRegistrationStep = "form" | "summary" | "done";
 
 export function HolidayRegistrationForm({
   token,
   offer,
   family = null,
+  onFormChanged,
+  onStepChange,
 }: Readonly<{
   token: string;
   offer: HolidayRegistrationOffer;
   /** What the schools know of a parent with an account (#4662). */
   family?: HolidayKnownFamily | null;
+  /**
+   * Loads the offer again after the Träger changed the form (#5198). The
+   * answers stay: they are kept by the key of their question.
+   */
+  onFormChanged?: () => Promise<void>;
+  /** Tells the page which step shows; only the form step has fields (#5334). */
+  onStepChange?: (step: HolidayRegistrationStep) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
   const formRef = useRef<HTMLFormElement>(null);
@@ -61,10 +81,14 @@ export function HolidayRegistrationForm({
   const [draft, setDraft] = useState<RegistrationDraft>(() =>
     registrationFromFamily(family),
   );
-  const [step, setStep] = useState<Step>("form");
+  const [step, setStep] = useState<HolidayRegistrationStep>("form");
   const [captchaToken, setCaptchaToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const fieldError = (name: string) => errorPath.fieldError(name) ?? undefined;
+
+  useEffect(() => {
+    onStepChange?.(step);
+  }, [onStepChange, step]);
 
   const toSummary = () => {
     const errors = validateRegistration(draft, offer);
@@ -103,6 +127,14 @@ export function HolidayRegistrationForm({
       // The answer may name a field; the form shows it where it is.
       setStep("form");
       setCaptchaToken("");
+      if (err instanceof ApiError && err.code === FORM_CHANGED) {
+        setDraft((current) => ({ ...current, legalAcceptances: {} }));
+        await onFormChanged?.();
+      }
+      // The parent uploads the proof again; the old token claims nothing.
+      if (err instanceof ApiError && err.code === UPLOAD_EXPIRED) {
+        setDraft((current) => ({ ...current, benefitsProofs: [] }));
+      }
       void errorPath.show(err, { object: t("errorObject") });
     } finally {
       setSubmitting(false);
@@ -152,10 +184,19 @@ export function HolidayRegistrationForm({
         onBenefitsDeclaredChange={(benefitsDeclared) =>
           setDraft((current) => ({ ...current, benefitsDeclared }))
         }
+        onBenefitsProofsChange={(benefitsProofs) =>
+          setDraft((current) => ({ ...current, benefitsProofs }))
+        }
       />
     );
   }
 
+  const familyQuestions = offer.form.fields.filter(
+    (field) => !field.applies_to_child,
+  );
+  const childQuestions = offer.form.fields.filter(
+    (field) => field.applies_to_child,
+  );
   const setGuardian = (patch: Partial<RegistrationDraft["guardian"]>) =>
     setDraft({ ...draft, guardian: { ...draft.guardian, ...patch } });
 
@@ -190,6 +231,8 @@ export function HolidayRegistrationForm({
               child={child}
               offer={offer}
               removable={draft.children.length > 1}
+              questions={childQuestions}
+              questionContext={childContext(draft, child, offer.form)}
               fieldError={fieldError}
               onChange={(next) =>
                 setDraft({
@@ -229,6 +272,7 @@ export function HolidayRegistrationForm({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             name="guardian.first_name"
+            required
             label={t("firstName")}
             autoComplete="given-name"
             maxLength={100}
@@ -238,6 +282,7 @@ export function HolidayRegistrationForm({
           />
           <Input
             name="guardian.last_name"
+            required
             label={t("lastName")}
             autoComplete="family-name"
             maxLength={100}
@@ -247,6 +292,7 @@ export function HolidayRegistrationForm({
           />
           <Input
             name="guardian.email"
+            required
             type="email"
             label={t("email")}
             autoComplete="email"
@@ -257,6 +303,7 @@ export function HolidayRegistrationForm({
           />
           <Input
             name="guardian.phone"
+            required
             type="tel"
             label={t("phone")}
             autoComplete="tel"
@@ -267,6 +314,31 @@ export function HolidayRegistrationForm({
           />
         </div>
       </SectionCard>
+
+      <SecondGuardianCard
+        guardian={draft.secondGuardian}
+        fieldError={fieldError}
+        onChange={(secondGuardian) => setDraft({ ...draft, secondGuardian })}
+      />
+      {familyQuestions.some((field) =>
+        isFieldVisible(field, familyContext(draft, offer.form)),
+      ) ? (
+        <SectionCard title={t("familyQuestionsTitle")}>
+          <HolidayQuestions
+            fields={familyQuestions}
+            answers={draft.answers}
+            context={familyContext(draft, offer.form)}
+            prefix=""
+            fieldError={fieldError}
+            onChange={(key, value) =>
+              setDraft({
+                ...draft,
+                answers: { ...draft.answers, [key]: value },
+              })
+            }
+          />
+        </SectionCard>
+      ) : null}
 
       <ContactList
         kind="emergency_contacts"
@@ -285,9 +357,22 @@ export function HolidayRegistrationForm({
         onChange={(pickupPersons) => setDraft({ ...draft, pickupPersons })}
       />
 
+      <HolidayRegistrationLegal
+        token={token}
+        blocks={offer.form.legalBlocks ?? []}
+        accepted={draft.legalAcceptances ?? {}}
+        fieldError={fieldError}
+        onChange={(key, checked) =>
+          setDraft({
+            ...draft,
+            legalAcceptances: { ...draft.legalAcceptances, [key]: checked },
+          })
+        }
+      />
       <SectionCard title={t("consentTitle")}>
         <div className="space-y-3">
           <ConsentCheckbox
+            required
             name="privacy_consent"
             label={t("privacyConsent")}
             checked={draft.privacyConsent}
@@ -296,8 +381,9 @@ export function HolidayRegistrationForm({
               setDraft({ ...draft, privacyConsent })
             }
           />
-          {hasHealthInfo(draft) ? (
+          {hasHealthInfo(draft, offer.form) ? (
             <ConsentCheckbox
+              required
               name="health_consent"
               label={t("healthConsent")}
               checked={draft.healthConsent}
@@ -309,6 +395,7 @@ export function HolidayRegistrationForm({
           ) : null}
           {offer.binding ? (
             <ConsentCheckbox
+              required
               name="binding_confirmed"
               label={t("bindingConfirmed")}
               checked={draft.bindingConfirmed}
@@ -325,36 +412,5 @@ export function HolidayRegistrationForm({
         {t("toSummary")}
       </Button>
     </form>
-  );
-}
-
-function ConsentCheckbox({
-  name,
-  label,
-  checked,
-  error,
-  onChange,
-}: Readonly<{
-  name: string;
-  label: string;
-  checked: boolean;
-  error: string | undefined;
-  onChange: (checked: boolean) => void;
-}>) {
-  return (
-    <div>
-      <label htmlFor={name} className="flex items-start gap-3">
-        <Checkbox
-          id={name}
-          name={name}
-          checked={checked}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={error ? `${name}-error` : undefined}
-          onChange={(event) => onChange(event.target.checked)}
-        />
-        <span className="text-sm text-gray-900">{label}</span>
-      </label>
-      <FieldErrorHint id={`${name}-error`} message={error} />
-    </div>
   );
 }

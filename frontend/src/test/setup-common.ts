@@ -22,6 +22,21 @@ freezeTestClock();
 
 let fakeTimersInstalledBeforeTest = false;
 
+// Node delivers BroadcastChannel messages to every worker thread of the
+// process: a "next-auth" broadcast of one test file reached the
+// SessionProvider of another file running at the same time (#5157). Channels
+// stay shared within a file, never across files.
+const ProcessBroadcastChannel = globalThis.BroadcastChannel;
+if (ProcessBroadcastChannel) {
+  // Vitest sets VITEST_WORKER_ID in every worker, unique per test file.
+  const testFile = process.env.VITEST_WORKER_ID;
+  globalThis.BroadcastChannel = class extends ProcessBroadcastChannel {
+    constructor(name: string) {
+      super(`${testFile}:${name}`);
+    }
+  };
+}
+
 beforeEach(() => {
   fakeTimersInstalledBeforeTest = vi.isFakeTimers();
   freezeTestClock();

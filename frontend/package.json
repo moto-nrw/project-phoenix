@@ -7,8 +7,8 @@
   "scripts": {
     "build": "next build",
     "build-storybook": "node scripts/build-storybook.mjs",
-    "check": "node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node ./node_modules/typescript-native/bin/tsc --noEmit",
-    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/verify-error-catalog.mjs && oxlint . && node ./node_modules/typescript-native/bin/tsc --noEmit",
+    "check": "node scripts/verify-locales.mjs && node scripts/generate-help-index.mjs --check && pnpm run test:source-contracts && node scripts/verify-error-catalog.mjs && oxlint . --max-warnings 0 && node ./node_modules/typescript-native/bin/tsc --noEmit",
+    "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && node scripts/generate-help-index.mjs --check && pnpm run test:source-contracts && node scripts/verify-error-catalog.mjs && oxlint . --max-warnings 0 && node ./node_modules/typescript-native/bin/tsc --noEmit",
     "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
     "dev": "node --max-http-header-size=65536 node_modules/next/dist/bin/next dev",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
@@ -42,7 +42,11 @@
     "perf:report": "node scripts/perf/report.mjs",
     "perf:bundle": "node scripts/perf/analyze.mjs",
     "perf:bundle-report": "node scripts/perf/bundle-report.mjs",
-    "perf:bundle-ratchet": "node scripts/perf/bundle-ratchet.mjs"
+    "perf:bundle-ratchet": "node scripts/perf/bundle-ratchet.mjs",
+    "generate:messages": "node scripts/generate-message-index.mjs",
+    "generate:help-index": "node scripts/generate-help-index.mjs",
+    "test:source-contracts": "node --test scripts/*.node-test.mjs",
+    "test:bundle-policy": "node --test scripts/perf/*.node-test.mjs"
   },
   "dependencies": {
     "@marsidev/react-turnstile": "^1.6.2",
@@ -124,11 +128,13 @@
     "playwright": false,
     "entry": [
       "**/*.@(spec|test).?(c|m)[jt]s?(x)",
+      "scripts/perf/*.node-test.mjs",
       "scripts/perf/*.perf.ts",
       "scripts/generate-guides.ts",
       "scripts/product-screenshots/*.pw.ts",
       "playwright*.config.ts",
-      "e2e/**/*.ts"
+      "e2e/**/*.ts",
+      "scripts/*.node-test.mjs"
     ],
     "project": [
       "src/**/*.{js,jsx,ts,tsx}!",

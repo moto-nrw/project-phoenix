@@ -122,12 +122,20 @@ type VisitReads interface {
 type VisitCommands interface {
 	CreateVisit(ctx context.Context, visit *Visit) error
 	EndVisit(ctx context.Context, id int64) error
+	// LockStudent locks the child in the caller's transaction, before any of
+	// its visits (#5278): a caller that ends the child's visit and opens the
+	// next one calls it before it reads that visit.
+	LockStudent(ctx context.Context, studentID int64) error
 }
 
 // StudentMoves moves students between room sessions while preserving the
 // visit timeline. Authorization is revalidated against the locked move state.
 type StudentMoves interface {
 	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
+	// PrepareOpenRoomMove locks children, attendance and existing visits before
+	// the workflow resolves/creates its destination session in the same unit.
+	PrepareOpenRoomMove(context.Context, []int64, int64) error
+
 	MoveStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 	// EnsureOpenRoomSession finds or opens the room's own session (ADR 0018).
 	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*SessionDetail, error)

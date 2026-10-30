@@ -43,14 +43,14 @@ vi.mock("swr", async (importOriginal) => {
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
-  getSession: vi.fn(() => Promise.resolve({ user: { token: "test-token" } })),
+  getSession: vi.fn(() =>
+    Promise.resolve({ user: { id: "1", token: "test-token" } }),
+  ),
   // Staff reads parent data with users:read; the role „Gast“ holds only
   // students:read (ADR 0091, see „students:read only“ below).
   useSession: vi.fn(() => ({
     data: {
-      user: {
-        permissions: ["config:manage", "users:read"],
-      },
+      user: { id: "1", permissions: ["config:manage", "users:read"] },
     },
     status: "authenticated",
   })),
@@ -441,6 +441,19 @@ vi.mock("~/components/students/student-enrollments-tab", () => ({
   StudentEnrollmentsTab: () => <div data-testid="student-enrollments-tab" />,
 }));
 
+vi.mock("~/components/students/dokumente-tab", () => ({
+  StudentDokumenteTab: ({
+    canRecordAccidents,
+  }: {
+    canRecordAccidents: boolean;
+  }) => (
+    <div
+      data-testid="student-dokumente-tab"
+      data-can-record-accidents={String(canRecordAccidents)}
+    />
+  ),
+}));
+
 // These child panels are real here; isolate their read APIs as well. Otherwise
 // mounts and SWR retries outlive the page test and hit localhost:3000.
 vi.mock("~/lib/change-request-list-api", async (importOriginal) => {
@@ -641,6 +654,7 @@ describe("StudentDetailPage", () => {
     vi.mocked(useSession).mockReturnValue({
       data: {
         user: {
+          id: "1",
           // Staff with absence rights; the route of every absence write
           // checks users:update or users:absence (ADR 0091 gate).
           permissions: [
@@ -1038,6 +1052,26 @@ describe("StudentDetailPage", () => {
       render(<StudentDetailPage />);
 
       expect(screen.getByTestId("guardian-manager")).toBeInTheDocument();
+    });
+
+    it("renders documents for accident report readers", () => {
+      mockSearchParams.set("tab", "dokumente");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "1", permissions: ["student_accidents:read"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Dokumente" }),
+      ).toBeInTheDocument();
+      expect(screen.getByTestId("student-dokumente-tab")).toHaveAttribute(
+        "data-can-record-accidents",
+        "false",
+      );
     });
   });
 
@@ -1847,6 +1881,7 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
+            id: "1",
             permissions: ["config:manage", "users:update", "users:read"],
           },
         },
@@ -2248,7 +2283,7 @@ describe("StudentDetailPage", () => {
   describe("Action Card Visibility", () => {
     it("hides check-in actions without users:checkin", () => {
       vi.mocked(useSession).mockReturnValue({
-        data: { user: { permissions: ["config:manage"] } },
+        data: { user: { id: "1", permissions: ["config:manage"] } },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
 
@@ -2369,7 +2404,7 @@ describe("StudentDetailPage", () => {
       (_view, hasFullAccess) => {
         vi.mocked(useSession).mockReturnValue({
           data: {
-            user: { permissions: ["students:read"] },
+            user: { id: "1", permissions: ["students:read"] },
           },
           status: "authenticated",
         } as ReturnType<typeof useSession>);
@@ -2403,7 +2438,7 @@ describe("StudentDetailPage", () => {
     it("loads and offers nothing a students:read session cannot use", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: { permissions: ["students:read"] },
+          user: { id: "1", permissions: ["students:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2434,6 +2469,7 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
+            id: "1",
             permissions: ["config:manage", "users:update", "users:read"],
           },
         },
@@ -2450,9 +2486,7 @@ describe("StudentDetailPage", () => {
       // 403 antworten, also gibt es den Reiter gar nicht erst (#2437).
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: {
-            permissions: ["config:manage", "users:read"],
-          },
+          user: { id: "1", permissions: ["config:manage", "users:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2655,9 +2689,7 @@ describe("StudentDetailPage", () => {
     it("hides the enrollment tab without config:manage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: {
-            permissions: ["config:read", "users:read"],
-          },
+          user: { id: "1", permissions: ["config:read", "users:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);
@@ -2680,10 +2712,26 @@ describe("StudentDetailPage", () => {
       ).not.toBeInTheDocument();
     });
 
+    it("shows the Dokumente tab with student_accidents:manage", () => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "1", permissions: ["student_accidents:manage"] },
+        },
+        status: "authenticated",
+      } as ReturnType<typeof useSession>);
+
+      render(<StudentDetailPage />);
+
+      expect(
+        screen.getByRole("tab", { name: "Dokumente" }),
+      ).toBeInTheDocument();
+    });
+
     it("shows the Betreuungsplan tab with schedules:read", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
+            id: "1",
             permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
@@ -2708,6 +2756,7 @@ describe("StudentDetailPage", () => {
       vi.mocked(useSession).mockReturnValue({
         data: {
           user: {
+            id: "1",
             permissions: ["config:manage", "schedules:read", "users:read"],
           },
         },
@@ -2740,9 +2789,7 @@ describe("StudentDetailPage", () => {
       });
       vi.mocked(useSession).mockReturnValue({
         data: {
-          user: {
-            permissions: ["schedules:read", "users:read"],
-          },
+          user: { id: "1", permissions: ["schedules:read", "users:read"] },
         },
         status: "authenticated",
       } as ReturnType<typeof useSession>);

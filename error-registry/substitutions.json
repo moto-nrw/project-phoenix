@@ -1,0 +1,64 @@
+{
+  "codes": [
+    {
+      "code": "substitutions.already_assigned",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "already_assigned"
+    },
+    {
+      "code": "substitutions.conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "conflict"
+    },
+    {
+      "code": "substitutions.forbidden",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "forbidden"
+    },
+    {
+      "code": "substitutions.internal",
+      "class": "server",
+      "parameters": [],
+      "legacy": "internal"
+    },
+    {
+      "code": "substitutions.invalid_period",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_period"
+    },
+    {
+      "code": "substitutions.invalid_target",
+      "class": "input",
+      "parameters": [],
+      "legacy": "invalid_target"
+    },
+    {
+      "code": "substitutions.last_supervisor",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "substitutions.last_supervisor"
+    },
+    {
+      "code": "substitutions.not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "not_found"
+    },
+    {
+      "code": "substitutions.not_running",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "not_running"
+    },
+    {
+      "code": "substitutions.self_assignment",
+      "class": "input",
+      "parameters": [],
+      "legacy": "self_assignment"
+    }
+  ]
+}

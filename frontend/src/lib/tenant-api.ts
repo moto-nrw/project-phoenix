@@ -483,41 +483,16 @@ export async function listAvailableTenants(): Promise<TenantSummary[]> {
   return (json.data ?? []).map(mapAccountTenant);
 }
 
-/** Response shape from the switch-tenant endpoint */
-interface SwitchTenantResponse {
-  access_token: string;
-  refresh_token: string;
-}
-
-/**
- * Perform the full tenant switch sequence (steps 1-4 of the switch spec).
- * Returns the new tokens. Callers handle the final navigation/update (step 5).
- *
- * 1. Get new JWT tokens from backend
- * 2. Update NextAuth session via signIn("credentials", { internalRefresh })
- * 3. Clear SWR cache to prevent stale cross-tenant data
- * 4. Clear session cache for fresh token resolution
- */
+/** Switch server-side, then clear cross-tenant caches before navigation. */
 export async function performTenantSwitch(
   subdomain: string,
-  signIn: (
-    provider: string,
-    options: Record<string, unknown>,
-  ) => Promise<unknown>,
   swrMutate: (
     matcher: (key: unknown) => boolean,
     data: undefined,
     opts: { revalidate: boolean },
   ) => Promise<unknown>,
-): Promise<SwitchTenantResponse> {
-  const tokens = await switchTenant(subdomain);
-
-  await signIn("credentials", {
-    redirect: false,
-    internalRefresh: true,
-    token: tokens.access_token,
-    refreshToken: tokens.refresh_token,
-  });
+): Promise<void> {
+  await switchTenant(subdomain);
 
   await swrMutate(() => true, undefined, { revalidate: false });
 
@@ -525,21 +500,17 @@ export async function performTenantSwitch(
   // The switcher navigates to the target school right away; the entries of
   // the source school must not wait for the next session check (#5000).
   clearPersonalStorage();
-
-  return tokens;
 }
 
 /**
  * Switch the current session to a different tenant.
- * Returns new JWT tokens scoped to the target tenant.
+ * The BFF sets the session cookie; no bearer tokens reach this module.
  *
  * Takes the tenant SUBDOMAIN, not the slug column: the backend resolves the
  * wire field `tenant_slug` via FindBySubdomain (same as login), so passing
  * the slug 404s for schools where slug != subdomain (#1975).
  */
-export async function switchTenant(
-  subdomain: string,
-): Promise<SwitchTenantResponse> {
+export async function switchTenant(subdomain: string): Promise<void> {
   const response = await sessionFetch(
     "/api/auth/switch-tenant",
     {
@@ -559,5 +530,4 @@ export async function switchTenant(
     // teacher account that belongs in the school portal).
     throw await apiErrorFromResponse(response, "Failed to switch tenant");
   }
-  return (await response.json()) as SwitchTenantResponse;
 }

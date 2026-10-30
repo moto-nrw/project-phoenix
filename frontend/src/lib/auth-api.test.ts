@@ -8,6 +8,7 @@ import {
   confirmParentPasswordReset,
   type ApiError,
 } from "./auth-api";
+import { runTenantSessionEnd } from "./tenant-session-end";
 
 // Mock next-auth/react
 vi.mock("next-auth/react", () => ({
@@ -186,6 +187,28 @@ describe("auth-api", () => {
   });
 
   describe("handleAuthFailure", () => {
+    it("does not start refresh or signout while an explicit tenant logout owns the session", async () => {
+      let finish!: () => void;
+      const flight = runTenantSessionEnd(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      await Promise.resolve();
+      const fetch = vi
+        .fn()
+        .mockResolvedValue(new Response(null, { status: 401 }));
+      vi.stubGlobal("fetch", fetch);
+      try {
+        expect(await handleAuthFailure()).toBe(false);
+        expect(fetch).not.toHaveBeenCalled();
+      } finally {
+        finish();
+        await flight;
+        vi.unstubAllGlobals();
+      }
+    });
     it("returns false in server context", async () => {
       const restore = setupServerEnv();
       try {

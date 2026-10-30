@@ -126,6 +126,10 @@ func TestHolidayGuestContactsReachOnlyTheHostOfAConfirmedGuest(t *testing.T) {
 // the school erasure functions without the holiday guest tables.
 func rollBackHolidayGuests(t *testing.T, db *bun.DB) {
 	t.Helper()
+	// 1.15.705 (#5128) extends the holiday guest erasure; it goes first,
+	// after 1.15.710 (#5205), which extends its event table.
+	require.NoError(t, roomVisitRevisionDown(t.Context(), db))
+	require.NoError(t, visitRevisionEventsDown(t.Context(), db))
 	require.NoError(t, holidayGuestErasureDown(t.Context(), db))
 	require.NoError(t, holidayGuestsDown(t.Context(), db))
 }

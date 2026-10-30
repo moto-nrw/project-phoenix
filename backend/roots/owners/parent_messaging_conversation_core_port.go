@@ -7,7 +7,9 @@ import (
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
-func BindParentConversationCore(source communication.PortalConversationCore) parentportal.ConversationCore {
+// BindParentConversationCore binds Communication's shared conversation rules
+// and, when given, the school's leadership option (#5200).
+func BindParentConversationCore(source communication.PortalConversationCore, leadership ...func(context.Context, bool) (parentportal.LeadershipOption, error)) parentportal.ConversationCore {
 	if source == nil {
 		return nil
 	}
@@ -41,11 +43,19 @@ func BindParentConversationCore(source communication.PortalConversationCore) par
 				}
 			}
 		},
-		Broadcast: func(tenantID int64, guardianAccountID int64, threadID int64, studentID int64) {
-			source.Broadcast(tenantID, guardianAccountID, threadID, studentID)
+		Broadcast: func(tenantID int64, guardianAccountID int64, threadID int64, studentID int64, audience string) {
+			source.Broadcast(tenantID, guardianAccountID, threadID, studentID, audience)
 		},
-		BroadcastRead: func(tenantID int64, guardianAccountID int64, threadID int64, studentID int64) {
-			source.BroadcastRead(tenantID, guardianAccountID, threadID, studentID)
+		BroadcastRead: func(tenantID int64, guardianAccountID int64, threadID int64, studentID int64, audience string) {
+			source.BroadcastRead(tenantID, guardianAccountID, threadID, studentID, audience)
 		},
+		LeadershipOption: firstLeadershipOption(leadership),
 	})
+}
+
+func firstLeadershipOption(options []func(context.Context, bool) (parentportal.LeadershipOption, error)) func(context.Context, bool) (parentportal.LeadershipOption, error) {
+	if len(options) == 0 {
+		return nil
+	}
+	return options[0]
 }

@@ -65,6 +65,7 @@ type holidayHostFixture struct {
 	holidayRegistrationFixture
 	office   traegerOffice
 	offer    holidayOfferBody
+	link     string
 	siblings int64
 	school   http.Handler
 	today    *atomic.Value
@@ -114,7 +115,7 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 		})
 	})
 	router.Mount("/api/holiday-weeks", resource.Router(ProtectedTenantRoutes))
-	return holidayHostFixture{holidayRegistrationFixture: f, office: office, offer: offer, siblings: siblings, school: testpkg.SessionVerifier(router), today: today}
+	return holidayHostFixture{holidayRegistrationFixture: f, office: office, offer: offer, link: link.PublicToken, siblings: siblings, school: testpkg.SessionVerifier(router), today: today}
 }
 
 // staffOf signs a staff member of the school in, with the given permissions.
@@ -254,10 +255,12 @@ func TestHolidayHostSeesOnlyConfirmedChildrenOfItsWeek(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Header().Get("Content-Disposition"), "teilnehmerliste-2099-07-06")
 	csv := strings.TrimPrefix(rec.Body.String(), "\xEF\xBB\xBF")
+	// The standard template shares the way home and the trips (#5202); the
+	// siblings answered neither, so both columns stay empty.
 	assert.Equal(t, strings.Join([]string{
-		"Nachname;Vorname;Geburtsdatum;Heimatschule;Zeitmodell",
-		"Muster;Ben;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr",
-		"Muster;Lia;01.03.2018;" + f.offer.Schools[0].Name + ";bis 16 Uhr",
+		"Nachname;Vorname;Geburtsdatum;Heimatschule;Zeitmodell;Darf allein nach Hause gehen;Darf an Ausflügen teilnehmen",
+		"Muster;Ben;12.09.2016;Feriengast (Grundschule Melle);bis 13 Uhr;;",
+		"Muster;Lia;01.03.2018;" + f.offer.Schools[0].Name + ";bis 16 Uhr;;",
 	}, "\n")+"\n", csv)
 	rec = f.get(t, host, fmt.Sprintf("/%d/participants/export?format=xlsx", week))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

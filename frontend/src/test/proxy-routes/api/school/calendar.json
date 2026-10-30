@@ -1,0 +1,17 @@
+{
+  "api/school/calendar/appointments": [
+    "POST school /school/calendar/appointments"
+  ],
+  "api/school/calendar/feed": [
+    "GET school /school/calendar/feed"
+  ],
+  "api/school/calendar/feed/rotate": [
+    "POST school /school/calendar/feed/rotate"
+  ],
+  "api/school/calendar/my": [
+    "GET school /school/calendar/my"
+  ],
+  "api/school/calendar/recipients/[recipientId]/response": [
+    "POST school /school/calendar/recipients/recipientId%2F1/response"
+  ]
+}

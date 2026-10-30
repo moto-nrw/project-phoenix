@@ -2,18 +2,17 @@
 
 // Login of the caterer portal (ADR 0077). Like the school login without the
 // second factor: the backend checks e-mail and password, refuses every other
-// kind of account like a wrong password, and the page hands the token pair
-// to the caterer NextAuth session.
+// kind of account like a wrong password, and the BFF installs the session.
 
 import { useEffect, useLayoutEffect, useRef, useState, Suspense } from "react";
-import { signIn, signOut, useSession } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import {
   AuthFieldError,
   AuthShell,
   MotoBrand,
-  authInputClass,
   authPrimaryButtonClassName,
+  authTextButtonClassName,
 } from "~/components/auth/auth-shell";
 import {
   credentialError,
@@ -23,6 +22,8 @@ import { PasswordResetModal } from "~/components/ui/password-reset-modal";
 import { PasswordToggleButton } from "~/components/shared/password-toggle-button";
 import { Alert } from "~/components/ui/alert";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FieldLabel } from "~/components/ui/field-label";
+import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { hasSessionAccess } from "~/lib/session-access";
 import { requestCatererPasswordReset } from "~/lib/auth-api";
@@ -128,21 +129,7 @@ function LoginForm() {
     formErrors.clear();
     setSessionExpired(false);
     try {
-      const tokens = await loginCaterer(email, password);
-      const result = await signIn("caterer-credentials", {
-        redirect: false,
-        internalRefresh: "true",
-        token: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
-      });
-      if (result?.error) {
-        logger.error("session_seed_failed", { error: result.error });
-        // No ApiError: the path shows its general text for the login.
-        void formErrors.show(new Error(result.error), {
-          object: "die Anmeldung",
-        });
-        return;
-      }
+      await loginCaterer(email, password);
       setAwaitingRedirect(true);
       window.location.href = catererPath("/caterer");
     } catch (cause) {
@@ -197,40 +184,35 @@ function LoginForm() {
 
             <div className="space-y-4">
               <div className="text-left">
-                <label
-                  htmlFor="email"
-                  className="mb-1 block text-sm font-medium text-gray-700"
-                >
-                  E-Mail-Adresse
-                </label>
-                <input
+                <Input
                   id="email"
                   name="email"
                   type="email"
+                  label="E-Mail-Adresse"
+                  controlSize="compact"
                   autoComplete="username"
                   required
                   disabled={isSubmitting}
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
-                  aria-invalid={Boolean(emailError)}
-                  aria-describedby={emailError ? "email-error" : undefined}
-                  className={authInputClass(Boolean(emailError))}
+                  error={emailError}
                 />
-                <AuthFieldError id="email-error" message={emailError} />
               </div>
 
               <div className="text-left">
-                <label
+                <FieldLabel
                   htmlFor="password"
-                  className="mb-1 block text-sm font-medium text-gray-700"
+                  required
+                  invalid={Boolean(passwordError)}
                 >
                   Passwort
-                </label>
+                </FieldLabel>
                 <div className="relative">
-                  <input
+                  <Input
                     id="password"
                     name="password"
                     type={showPassword ? "text" : "password"}
+                    controlSize="compact"
                     autoComplete="current-password"
                     required
                     disabled={isSubmitting}
@@ -240,7 +222,7 @@ function LoginForm() {
                     aria-describedby={
                       passwordError ? "password-error" : undefined
                     }
-                    className={`${authInputClass(Boolean(passwordError))} pr-10`}
+                    className="pr-10"
                   />
                   <PasswordToggleButton
                     showPassword={showPassword}
@@ -255,7 +237,7 @@ function LoginForm() {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setIsResetModalOpen(true)}
-                  className="text-sm text-gray-600 transition-colors hover:text-gray-800 hover:underline focus:underline focus:outline-none disabled:cursor-not-allowed disabled:text-gray-400"
+                  className={authTextButtonClassName}
                 >
                   Passwort vergessen?
                 </button>

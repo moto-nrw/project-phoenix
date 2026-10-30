@@ -9,3 +9,9 @@ import "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 func StatisticsReportPermissions() []string {
 	return []string{permissions.ConfigRead, permissions.UsersRead}
 }
+
+// StudentCareTimePermissions admit one child's Soll-und-Ist comparison
+// (#4774): the children read right the child's care times tab needs.
+func StudentCareTimePermissions() []string {
+	return []string{permissions.UsersRead}
+}

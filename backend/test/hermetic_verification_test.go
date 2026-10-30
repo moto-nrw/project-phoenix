@@ -376,6 +376,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 	// Patterns indicating direct or indirect shared test DB setup.
 	setupPatterns := []string{
 		"SetupTestDB",
+		"SetupClosableTestDB", // The supported private pool for lock actors (#5269).
 		"SetupIsolatedTestDB",
 		"setupTestDB",
 		"SetupAPITest",
@@ -514,10 +515,11 @@ func TestHermeticSetupScanIgnoresProseButRequiresRealSetup(t *testing.T) {
 	t.Parallel()
 	root := t.TempDir()
 	for name, body := range map[string]string{
-		"prose":      "// repositories.Find() and bun.DB\nvar key = `foo_repositories.go .NewSelect()`",
-		"query":      "func f() { db.NewSelect() }",
-		"type":       "var db *bun.DB",
-		"repository": "func f() { repositories.Find() }",
+		"prose":        "// repositories.Find() and bun.DB\nvar key = `foo_repositories.go .NewSelect()`",
+		"query":        "func f() { db.NewSelect() }",
+		"private_pool": "func f() { db := testpkg.SetupClosableTestDB(t); db.NewSelect() }",
+		"type":         "var db *bun.DB",
+		"repository":   "func f() { repositories.Find() }",
 	} {
 		require.NoError(t, os.WriteFile(filepath.Join(root, name+"_test.go"), []byte("package probe\n"+body), 0600))
 	}

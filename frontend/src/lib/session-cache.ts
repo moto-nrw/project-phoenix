@@ -148,7 +148,7 @@ function sessionSnapshot(
  * tab's SessionProvider answers it with its own lookup; other tabs of the
  * origin do the same.
  */
-function announceSessionChange() {
+export function announceSessionChange() {
   if (typeof BroadcastChannel === "undefined") return;
   const channel = new BroadcastChannel("next-auth");
   channel.postMessage({ event: "session", data: { trigger: "getSession" } });
@@ -282,7 +282,7 @@ export async function sessionFetch(
       if (!hasSessionAccess(freshSession)) throw authenticationRequiredError();
       return transportFetch(url, mergedInit);
     }
-    // handleAuthFailure already signed out
+    // Expiry signed out, or an explicit tenant logout already owns the exit.
     throw authenticationRequiredError();
   }
 

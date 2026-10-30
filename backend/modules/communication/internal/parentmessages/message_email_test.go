@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
@@ -69,6 +71,7 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 	require.NoError(t, err)
 	outbox := api.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
+		Leaders:     communicationtest.Leaders{},
 		UserContext: owners.StaffStudentReads{},
 		Session:     api.CommunicationSession{},
 		ThreadRepo:  messaging.NewThreadRepository(reposMessages.ParentMessageThread),
@@ -132,7 +135,7 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	db := testpkg.SetupTestDB(t)
 
-	_, err := testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
+	_, err := testpkg.TenantQuery4(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.", "")
 	require.NoError(t, err)
 
 	rows := f.outbox.Requests()
@@ -163,7 +166,7 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, err = testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Please reply")
+	_, err = testpkg.TenantQuery4(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Please reply", "")
 	require.NoError(t, err)
 	rows := f.outbox.Requests()
 	require.Len(t, rows, 1)
@@ -184,7 +187,7 @@ func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
 	f := newEmailFixture(t, nil)
 	ctx := adminCtx(t, f.staff)
 
-	detail, err := testpkg.TenantQuery3(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
+	detail, err := testpkg.TenantQuery4(t, ctx, f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht", "")
 	require.NoError(t, err)
 	before := len(f.outbox.Requests())
 
@@ -206,7 +209,7 @@ func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
 	preferences := &stubMessagePreferences{declined: true}
 	f := newEmailFixture(t, preferences)
 
-	_, err := testpkg.TenantQuery3(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag")
+	_, err := testpkg.TenantQuery4(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag", "")
 	require.NoError(t, err)
 
 	assert.Empty(t, f.outbox.Requests(), "kein Versand nach Widerspruch")

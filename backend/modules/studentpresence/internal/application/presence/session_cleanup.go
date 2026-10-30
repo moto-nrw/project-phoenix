@@ -7,8 +7,10 @@ import (
 	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // CleanupAbandonedSessions cleans up sessions that have been abandoned for longer than the specified duration.
@@ -29,30 +31,27 @@ func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.D
 		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
 	}
 
-	cleanedCount := 0
+	// Freeze eligibility once. The scheduler/CLI may share one tenant unit
+	// across the whole sweep, so acquire every visit before its first session.
+	ids := make([]int64, 0, len(sessions))
 	for _, session := range sessions {
-		// Session is abandoned only if BOTH conditions are true:
-		// 1. No recent activity (already filtered by query)
-		// 2. Device is offline (not pinging)
-		deviceOnline := s.isDeviceOnline(ctx, session.Device, time.Now())
-		if deviceOnline {
-			// Device is still pinging - session stays alive
-			continue
+		if !s.isDeviceOnline(ctx, session.Device, time.Now()) {
+			ids = append(ids, session.ID)
 		}
-
-		// Both conditions met: no activity AND device offline - clean up
-		// Use ProcessSessionTimeoutByID with the session ID directly to prevent TOCTOU race condition
-		// This ensures we end the exact session we identified as abandoned, not whatever
-		// session happens to be current for the device at cleanup time
-		//
-		_, err := s.ProcessSessionTimeoutByID(ctx, session.ID)
-		if err != nil {
-			// Log error but continue with other sessions
-			// Note: ErrActiveGroupAlreadyEnded is expected if session was ended between
-			// identification and cleanup - this is the race condition we're protecting against
-			continue
+	}
+	slices.Sort(ids)
+	if _, shared := tenant.TransactionFromContext(ctx); shared && len(ids) > 0 {
+		if err := s.SchoolPresence.PrepareVisitWrites(ctx, studentpresence.VisitWriteScope{GroupIDs: ids}); err != nil {
+			return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
 		}
-		cleanedCount++
+	}
+	cleanedCount := 0
+	for _, id := range ids {
+		// Without an ambient unit each timeout still commits independently, as
+		// before. An ended session remains an expected skip after discovery.
+		if _, err := s.ProcessSessionTimeoutByID(ctx, id); err == nil {
+			cleanedCount++
+		}
 	}
 
 	return cleanedCount, nil
@@ -112,11 +111,13 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	// whether today's bulk steps succeed or are skipped.
 	defer s.cleanupOrphanedSupervisors(ctx, result)
 
-	if len(activeIDs) == 0 {
-		return result, nil
-	}
+	// Run the owner's nightly maintenance even when every session was
+	// already closed manually; revision events still need compaction.
 	slices.Sort(activeIDs)
 	if err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
+		if err := s.SchoolPresence.PrepareVisitWrites(txCtx, studentpresence.VisitWriteScope{GroupIDs: activeIDs}); err != nil {
+			return err
+		}
 		lockedIDs, err := s.lockActiveSessionIDs(txCtx, activeIDs)
 		if err != nil {
 			return err
@@ -164,10 +165,6 @@ func (s *service) lockActiveSessionIDs(ctx context.Context, ids []int64) ([]int6
 }
 
 func (s *service) endDailySessionsLocked(ctx context.Context, activeIDs []int64, result *DailySessionCleanupResult) error {
-	if len(activeIDs) == 0 {
-		return nil
-	}
-
 	// The Student Presence owner closes visits, sessions, and supervisions of
 	// every still-open group in one command (#2697); a failure inside rolls
 	// the whole batch back with the surrounding transaction, so no session

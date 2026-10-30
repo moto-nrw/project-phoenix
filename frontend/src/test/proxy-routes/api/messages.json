@@ -1,0 +1,24 @@
+{
+  "api/messages/group-threads": [
+    "GET tenant /api/messages/group-threads",
+    "POST tenant /api/messages/group-threads"
+  ],
+  "api/messages/group-threads/[groupThreadId]": [
+    "GET tenant /api/messages/group-threads/groupThreadId%2F1"
+  ],
+  "api/messages/group-threads/[groupThreadId]/close": [
+    "POST tenant /api/messages/group-threads/groupThreadId%2F1/close"
+  ],
+  "api/messages/group-threads/[groupThreadId]/messages": [
+    "POST tenant /api/messages/group-threads/groupThreadId%2F1/messages"
+  ],
+  "api/messages/group-threads/audience": [
+    "GET tenant /api/messages/group-threads/audience"
+  ],
+  "api/messages/reachable-students": [
+    "GET tenant /api/messages/reachable-students"
+  ],
+  "api/messages/students/[studentId]/guardians": [
+    "GET tenant /api/messages/students/studentId%2F1/guardians"
+  ]
+}

@@ -51,14 +51,7 @@ func (s seedEnrollmentWeeklyProfileStep) Run(ctx context.Context, primary *Runti
 	if err := verifyProfileSettings(rt, child.definition); err != nil {
 		return err
 	}
-	physical, err := listSeedDevices(rt, "terminal")
-	if err != nil {
-		return err
-	}
-	if len(physical) != 0 {
-		return fmt.Errorf("%s must have no physical terminals, got %d", child.profile, len(physical))
-	}
-	virtual, err := verifyProfileDevices(rt, 0)
+	virtual, err := verifyDeviceAdministrationLocked(rt)
 	if err != nil {
 		return err
 	}

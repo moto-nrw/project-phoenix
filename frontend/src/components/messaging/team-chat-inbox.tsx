@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import useSWR from "swr";
-import { MessagesSquare } from "lucide-react";
+import { MessagesSquare, UsersRound } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -18,11 +18,13 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TileCard } from "~/components/ui/tile-card";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import { NewTeamMessageModal } from "~/components/messaging/new-team-message-modal";
+import { NewTeamGroupModal } from "~/components/messaging/team-group-modals";
 import { TeamChatSkeleton } from "~/components/messaging/team-chat-skeletons";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   type StaffInboxThread,
+  isGroupThread,
   isStaffMessagingDisabled,
   staffRoleKindLabel,
 } from "~/lib/staff-messages-api";
@@ -109,6 +111,9 @@ export function TeamChatInbox({
   const [searchTerm, setSearchTerm] = useState("");
   const [onlyUnread, setOnlyUnread] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
+  // Gruppen legt nur das OGS-Portal an (#4776); Lehrkräfte sind Mitglied.
+  const canStartGroups = portal.kind === "tenant";
+  const [groupOpen, setGroupOpen] = useState(false);
 
   const {
     data: threads,
@@ -151,7 +156,7 @@ export function TeamChatInbox({
     if (!searchTerm) return list;
     const term = searchTerm.toLowerCase();
     return list.filter((thread) =>
-      thread.counterpart_name.toLowerCase().includes(term),
+      threadTitle(thread).toLowerCase().includes(term),
     );
   }, [threads, searchTerm]);
 
@@ -179,7 +184,10 @@ export function TeamChatInbox({
     if (!chatEnabled && composeOpen) {
       setComposeOpen(false);
     }
-  }, [chatEnabled, composeOpen]);
+    if (!chatEnabled && groupOpen) {
+      setGroupOpen(false);
+    }
+  }, [chatEnabled, composeOpen, groupOpen]);
 
   // Ein Ladefehler beendet das Skelett. Ohne das `!loadFailed` hält jede
   // laufende SWR-Wiederholung isLoading wahr (isLoading = !data &&
@@ -208,14 +216,26 @@ export function TeamChatInbox({
       : `${threadList.length} ${threadList.length === 1 ? "Unterhaltung" : "Unterhaltungen"} · ${unreadThreads} ungelesen`;
 
   const composeButton = chatEnabled ? (
-    <Button
-      type="button"
-      variant="primary"
-      size="md"
-      onClick={() => setComposeOpen(true)}
-    >
-      Neue Nachricht
-    </Button>
+    <>
+      {canStartGroups && (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={() => setGroupOpen(true)}
+        >
+          Neuer Gruppenchat
+        </Button>
+      )}
+      <Button
+        type="button"
+        variant="primary"
+        size="md"
+        onClick={() => setComposeOpen(true)}
+      >
+        Neue Nachricht
+      </Button>
+    </>
   ) : null;
 
   const emptyIcon = <MessagesSquare size={48} className="text-gray-400" />;
@@ -263,31 +283,50 @@ export function TeamChatInbox({
   const list = (
     <ul className="space-y-3">
       {filteredThreads.map((thread) => {
-        const roleLabel = staffRoleKindLabel(
-          thread.counterpart_role_kind,
-          portal.kind,
-        );
+        const group = isGroupThread(thread);
+        const roleLabel = group
+          ? null
+          : staffRoleKindLabel(thread.counterpart_role_kind, portal.kind);
         return (
           <li key={thread.thread_id}>
             <TileCard onClick={() => navigate(threadHref(thread.thread_id))}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                    {group && (
+                      <UsersRound
+                        size={16}
+                        aria-hidden
+                        className="flex-shrink-0 self-center text-gray-500"
+                      />
+                    )}
                     <h3 className="truncate text-base font-semibold text-gray-900">
-                      {thread.counterpart_name}
+                      {threadTitle(thread)}
                     </h3>
+                    {group && (
+                      <span className="text-xs text-gray-500">
+                        Gruppenchat ·{" "}
+                        {memberCountLabel(thread.member_count ?? 0)}
+                      </span>
+                    )}
                     {roleLabel && (
                       <span className="text-xs text-gray-500">{roleLabel}</span>
                     )}
                     <UnreadBadge count={thread.unread_count} tone="staff" />
                   </div>
-                  {thread.last_message_body && (
+                  {thread.last_message_body ? (
                     <p className="mt-1 truncate text-sm text-gray-600">
-                      {thread.last_message_mine && (
-                        <span className="text-gray-500">Sie: </span>
-                      )}
+                      <span className="text-gray-500">
+                        {previewSender(thread)}
+                      </span>
                       {thread.last_message_body}
                     </p>
+                  ) : (
+                    group && (
+                      <p className="mt-1 truncate text-sm text-gray-500">
+                        Noch keine Nachricht
+                      </p>
+                    )
                   )}
                 </div>
                 {thread.last_message_at && (
@@ -303,16 +342,26 @@ export function TeamChatInbox({
     </ul>
   );
 
-  const overlays =
-    composeOpen && chatEnabled ? (
-      <NewTeamMessageModal
-        api={api}
-        portal={portal.kind}
-        hint={portal.recipientHint}
-        onClose={() => setComposeOpen(false)}
-        onOpened={(threadId) => navigate(threadHref(threadId))}
-      />
-    ) : null;
+  const overlays = (
+    <>
+      {composeOpen && chatEnabled && (
+        <NewTeamMessageModal
+          api={api}
+          portal={portal.kind}
+          hint={portal.recipientHint}
+          onClose={() => setComposeOpen(false)}
+          onOpened={(threadId) => navigate(threadHref(threadId))}
+        />
+      )}
+      {groupOpen && chatEnabled && canStartGroups && (
+        <NewTeamGroupModal
+          api={api}
+          onClose={() => setGroupOpen(false)}
+          onCreated={(threadId) => navigate(threadHref(threadId))}
+        />
+      )}
+    </>
+  );
 
   const parts: TeamChatInboxParts = {
     title: portal.title,
@@ -323,7 +372,7 @@ export function TeamChatInbox({
     search: {
       value: searchTerm,
       onChange: setSearchTerm,
-      placeholder: "Person suchen…",
+      placeholder: "Person oder Gruppenchat suchen…",
     },
     onlyUnread,
     setOnlyUnread,
@@ -337,6 +386,26 @@ export function TeamChatInbox({
   };
 
   return frame ? frame(parts) : <DefaultInboxFrame parts={parts} />;
+}
+
+/** Name in der Liste: das Gegenüber, bei einer Gruppe ihr Name (#4776). */
+function threadTitle(thread: StaffInboxThread): string {
+  return isGroupThread(thread)
+    ? (thread.group_name ?? "Gruppenchat")
+    : thread.counterpart_name;
+}
+
+function memberCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "Mitglied" : "Mitglieder"}`;
+}
+
+/** „Sie: “ vor der eigenen Nachricht, in einer Gruppe der Vorname sonst. */
+function previewSender(thread: StaffInboxThread): string {
+  if (thread.last_message_mine) return "Sie: ";
+  if (isGroupThread(thread) && thread.last_sender_name) {
+    return `${thread.last_sender_name.split(" ")[0]}: `;
+  }
+  return "";
 }
 
 /** Die Hülle des Schul-Portals: Kopfzeile mit Suche, Filter, Liste. */

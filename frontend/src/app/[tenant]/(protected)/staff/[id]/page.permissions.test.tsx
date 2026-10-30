@@ -23,6 +23,7 @@ const detailRequest = vi.hoisted(() => ({
   error: null as unknown,
   endedOn: null as string | null,
   avatarUrl: undefined as string | undefined,
+  plannedExitDate: null as string | null,
   mutate: vi.fn(),
 }));
 const roleAssignment = vi.hoisted(() => ({ currentIsLehrkraft: false }));
@@ -62,13 +63,14 @@ vi.mock("~/lib/teacher-api", () => ({
 // die Daten aus dem SWR-Cache.
 const staffRecords = new Map<string, Record<string, unknown>>();
 function staffRecord(): Record<string, unknown> {
-  const cacheKey = `${detailRequest.endedOn}|${detailRequest.avatarUrl}`;
+  const cacheKey = `${detailRequest.endedOn}|${detailRequest.avatarUrl}|${detailRequest.plannedExitDate}`;
   const cached = staffRecords.get(cacheKey);
   if (cached) return cached;
   const record = {
     id: "42",
     started_on: "2024-09-02",
     ended_on: detailRequest.endedOn,
+    planned_exit_date: detailRequest.plannedExitDate,
     avatar: detailRequest.avatarUrl ?? null,
     name: "Mila Muster",
     firstName: "Mila",
@@ -299,6 +301,7 @@ describe("StaffDetailContent permissions", () => {
     detailRequest.error = null;
     detailRequest.endedOn = null;
     detailRequest.avatarUrl = undefined;
+    detailRequest.plannedExitDate = null;
     roleAssignment.currentIsLehrkraft = false;
     searchParams.delete("from");
     searchParams.delete("tab");
@@ -728,6 +731,71 @@ describe("StaffDetailContent permissions", () => {
     // Die Systemrolle ist ein Feld des Bearbeiten-Zustands, kein Dialog.
     expect(
       screen.queryByRole("button", { name: "Rolle verwalten" }),
+    ).not.toBeInTheDocument();
+  });
+
+  // Geplanter Austritt (#4809): mit dem Löschrecht planen, ändern und
+  // zurücknehmen; der Kopf zeigt den Tag.
+  it("plans, changes and withdraws an exit with the delete permission", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          roles: ["teacher"],
+          permissions: ["users:read", "users:delete"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    const { unmount } = render(<StaffDetailContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Austritt planen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Austritt zurücknehmen" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    detailRequest.plannedExitDate = "2026-12-31";
+    render(<StaffDetailContent />);
+    expect(screen.getByText("Austritt am 31.12.2026")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Austritt ändern" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Austritt zurücknehmen" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Austritt zurücknehmen?" }),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no exit planning without the delete permission", () => {
+    vi.mocked(useSession).mockReturnValue({
+      data: {
+        user: {
+          id: "7",
+          roles: ["teacher"],
+          permissions: ["users:read", "users:manage"],
+        },
+        expires: "2099-01-01T00:00:00.000Z",
+      },
+      status: "authenticated",
+      update: vi.fn(),
+    });
+
+    render(<StaffDetailContent />);
+    fireEvent.click(screen.getByRole("button", { name: "Weitere Aktionen" }));
+    expect(
+      screen.getByRole("menuitem", { name: "Betreuung verwalten" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Austritt planen" }),
     ).not.toBeInTheDocument();
   });
 

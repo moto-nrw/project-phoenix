@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.schoolmembership.staff.list_former",
+  "max": 6,
+  "exact": false,
+  "description": "modules/schoolmembership/http — GET /staff?employment=former, the\nEhemalige filter (#3403): the school transaction's setup, the\nmemberships with the retired ones, then one batch of their persons.\nFlat in the number of former employments."
+}

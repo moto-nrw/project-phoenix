@@ -30,6 +30,7 @@ import {
   type ParentAnnouncement,
   type ThreadSummary,
 } from "~/lib/parent-api";
+import { childConversationPath } from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
 import {
   getParentCalendar,
@@ -675,6 +676,6 @@ function todoFromThread(
     context: t("todo.messageContext", { name: thread.student_name }),
     meta: formatTodoTimestamp(thread.last_message_at, locale, t("todo.today")),
     unread: true,
-    href: parentPath(`/parents/messages/${thread.student_id}`),
+    href: parentPath(childConversationPath(thread.student_id, thread.audience)),
   };
 }

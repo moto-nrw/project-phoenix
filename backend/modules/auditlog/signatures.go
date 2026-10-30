@@ -15,8 +15,8 @@ import (
 
 // Signatures (#4785): the shared building block for a simple electronic
 // signature with a drawn signature. A consumer (Einverständnis, enrollment,
-// pickup permission) decides who may sign what and keeps the reference; the
-// Audit Platform stores the image with its signer, time and the checksum of
+// pickup permission, accident report) decides who may sign what and keeps
+// the reference; the Audit Platform stores the image with its signer, time and the checksum of
 // the signed wording, append-only and bound to the school. The ledger never
 // decides authorization: it only stores and returns rows of the caller's
 // school.
@@ -26,6 +26,9 @@ const (
 	SignaturePurposeDeclaration      = "declaration"
 	SignaturePurposeEnrollment       = "enrollment"
 	SignaturePurposePickupPermission = "pickup_permission"
+	// SignaturePurposeAccidentReport is the leadership's signature of an
+	// accident report (Unfallanzeige, #4771).
+	SignaturePurposeAccidentReport = "accident_report"
 )
 
 // Signature methods: drawn with finger, pen or mouse, or the typed name the

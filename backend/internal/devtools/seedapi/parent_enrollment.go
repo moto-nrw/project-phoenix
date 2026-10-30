@@ -1104,7 +1104,7 @@ func (s parentEnrollmentSeedStep) seedParentPortalActions(rt *Runtime, parentAut
 		// Another family than Felix's: an open invitation shows a contact card
 		// without details, and Felix's contacts are a product screenshot.
 		{requestParent(parents, 5), "related-account", "related-accounts",
-			relatedAccountInvite(requestParent(parents, 5)),
+			relatedAccountInvite(requestParent(parents, 5), rt.FixedSeeder.accountScope),
 		},
 	}
 

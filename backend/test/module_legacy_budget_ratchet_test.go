@@ -190,7 +190,9 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0128: the student template days constructor of
 // modules/timetable/compose (+5) and Care Plan's manual plans port of
 // modules/careplan/compose (+1).
-const moduleComposeBudgetTotal = 12718
+// ADR 0137: the holiday access trail constructor of modules/enrollment/compose
+// adds exactly 7 LOC.
+const moduleComposeBudgetTotal = 12725
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -222,8 +224,8 @@ var moduleComposeBudgets = map[string]int{
 	// the public holiday registration constructors (+18); by ADR 0114: the
 	// holiday registration review constructor (+7); by ADR 0116: the
 	// participant list constructor (+7); by ADR 0120: the holiday guest
-	// constructor (+6).
-	"modules/enrollment/compose":                   591,
+	// constructor (+6); by ADR 0137: the holiday access trail constructor (+7).
+	"modules/enrollment/compose":                   598,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,

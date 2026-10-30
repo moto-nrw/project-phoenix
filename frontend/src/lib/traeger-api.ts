@@ -18,8 +18,6 @@ export interface TraegerChoice {
 export type TraegerLoginResult =
   | {
       readonly status: "authenticated";
-      readonly accessToken: string;
-      readonly refreshToken: string;
     }
   | {
       readonly status: "organization_selection_required";
@@ -43,7 +41,6 @@ export type TraegerLoginResult =
 interface BackendLoginResponse {
   status?: string;
   access_token?: string;
-  refresh_token?: string;
   challenge_token?: string;
   masked_email?: string;
   organization_id?: number;
@@ -136,14 +133,9 @@ export async function traegerLogin(input: {
       organizationId: String(result.organization_id ?? ""),
     };
   }
-  if (!result.access_token || !result.refresh_token) {
-    throw apiErrorFromBody("Login response without tokens", 502, data);
-  }
-  return {
-    status: "authenticated",
-    accessToken: result.access_token,
-    refreshToken: result.refresh_token,
-  };
+  if (result.status !== "authenticated")
+    throw apiErrorFromBody("Invalid login response", 502, data);
+  return { status: "authenticated" };
 }
 
 /** The schools of the signed-in person's Träger. */

@@ -223,6 +223,13 @@ func (s *CareLifecycle) loadCareExitBaseline(ctx context.Context, state *careExi
 		return err
 	}
 	state.exits = exits
+	// A recorded exit means restoreRemovals puts its removed plan back before
+	// the new end applies; the caller re-plans those children afterwards.
+	for _, id := range state.studentIDs {
+		if _, recorded := exits[id]; recorded {
+			state.result.ReappliedStudentIDs = append(state.result.ReappliedStudentIDs, id)
+		}
+	}
 	return nil
 }
 

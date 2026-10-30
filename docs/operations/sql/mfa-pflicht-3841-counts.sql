@@ -26,6 +26,8 @@ WITH privileged_permission(name) AS (
  ('vacation:approve'),
  ('staff_documents:health'),
  ('student_documents:health'),
+ ('student_accidents:read'),
+ ('student_accidents:manage'),
  ('enrollment_uploads:read')
 ), targets AS (
  SELECT name FROM privileged_permission

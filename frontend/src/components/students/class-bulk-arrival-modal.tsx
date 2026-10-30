@@ -5,6 +5,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
   useApiFormError,
@@ -410,9 +411,10 @@ export function FilteredBulkArrivalModal({
                     >
                       {day.label}
                     </label>
-                    <input
+                    <Input
                       id={`bulk-arrival-${day.value}`}
                       type="time"
+                      controlSize="compact"
                       value={value}
                       disabled={
                         isClassTimetable &&
@@ -424,7 +426,7 @@ export function FilteredBulkArrivalModal({
                           [day.value]: event.target.value.slice(0, 5),
                         }))
                       }
-                      className="focus:border-moto-green focus:ring-moto-green/30 w-full rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-900 focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400"
+                      className="disabled:cursor-not-allowed"
                     />
                     <div className="col-start-2 empty:hidden">
                       <SchoolPeriodSelect

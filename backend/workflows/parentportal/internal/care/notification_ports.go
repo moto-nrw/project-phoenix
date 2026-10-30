@@ -28,6 +28,9 @@ type StaffParentMessageReport struct {
 	MessageID      int64
 	StudentID      int64
 	ActorAccountID int64
+	// Leadership marks a message in a leadership conversation: only the
+	// leadership persons are told (#5200).
+	Leadership bool
 }
 
 type StaffParentMessageNotifier interface {

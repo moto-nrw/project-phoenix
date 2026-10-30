@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.student_batch.preview",
+  "max": 16,
+  "exact": true,
+  "description": "modules/dataimport/importtest — one ten-row student file after two\nwarmups, the bounds TestDataImportRuntimeEvidence asserted until it\nbecame opt-in (#4426). The preview is exact; the import is a ceiling\n(six owner statements per guardian link, three lock statements per\nchild since #3567)."
+}

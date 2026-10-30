@@ -11,12 +11,16 @@ import (
 )
 
 func (m *BookingMaterialization) CombinedOfferingSourceCounts(ctx context.Context, offeringIDs []int64, calendarPeriodID *int64) (*careplan.OfferingSourceCombinedCounts, error) {
-	sources, err := m.catalog.LoadOfferingSources(ctx, offeringIDs, calendarPeriodID, false)
+	// A stored source that turned inactive is skipped as a save skips it
+	// (#5313); the editor offers no inactive offering, so the selection's
+	// inactive ids are stored ones.
+	sources, err := m.catalog.LoadOfferingSources(ctx, offeringIDs, calendarPeriodID, skipInactiveSources)
 	if err != nil {
 		return nil, err
 	}
-	// Vanished ids were dropped by the loader; count only the survivors, the
-	// same set a save's resync would union. None surviving means zero counts.
+	// Vanished and inactive ids were skipped by the loader; count only the
+	// survivors, the same set a save's resync would union. None surviving
+	// means zero counts.
 	countedIDs := make([]int64, 0, len(sources.Offerings))
 	for _, offering := range sources.Offerings {
 		countedIDs = append(countedIDs, offering.ID)

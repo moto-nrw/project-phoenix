@@ -72,11 +72,11 @@ vi.mock("@marsidev/react-turnstile", () => ({
 }));
 
 vi.mock("next-intl", async () => {
-  const de = (await import("~/i18n/messages/de.json")).default as Record<
+  const de = (await import("~/i18n/messages/de.generated")).default as Record<
     string,
     unknown
   >;
-  const en = (await import("~/i18n/messages/en.json")).default as Record<
+  const en = (await import("~/i18n/messages/en.generated")).default as Record<
     string,
     unknown
   >;
@@ -149,6 +149,7 @@ vi.mock("next-intl", async () => {
 
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { contactListValueMissing } from "./enrollment-form-contact-inputs";
 import { EnrollmentForm, submitFieldName } from "./enrollment-form";
 import type {
   PublicFormSchema,
@@ -391,11 +392,11 @@ async function chooseOption(label: string, optionName: string) {
 }
 
 async function fillRequiredFields() {
-  const firstNameInputs = screen.getAllByLabelText("Vorname *");
-  const lastNameInputs = screen.getAllByLabelText("Nachname *");
+  const firstNameInputs = screen.getAllByLabelText("Vorname");
+  const lastNameInputs = screen.getAllByLabelText("Nachname");
   fireEvent.change(firstNameInputs[0]!, { target: { value: "Mara" } });
   fireEvent.change(lastNameInputs[0]!, { target: { value: "Muster" } });
-  fireEvent.change(screen.getByLabelText("E-Mail *"), {
+  fireEvent.change(screen.getByLabelText("E-Mail"), {
     target: { value: "MARA@EXAMPLE.TEST" },
   });
   fireEvent.change(firstNameInputs[1]!, { target: { value: "Lina" } });
@@ -403,7 +404,7 @@ async function fillRequiredFields() {
   await chooseOption("Tag", "15");
   await chooseOption("Monat", "April");
   await chooseOption("Jahr", "2018");
-  await chooseOption("Klassenstufe *", "2. Klasse");
+  await chooseOption("Klassenstufe", "2. Klasse");
   const agb = screen.queryByText(/AGB|Ganztag Info-Brief/);
   if (agb) {
     fireEvent.click(agb);
@@ -435,6 +436,40 @@ function offeringCard(inputName: string): HTMLElement {
     throw new Error(`Offering card ${inputName} not found`);
   }
   return card;
+}
+
+/**
+ * Records every element the page scrolls into view (happy-dom ships no
+ * scrollIntoView of its own). Restore it with the returned function.
+ */
+function recordScrolls(): { scrolled: Element[]; restore: () => void } {
+  const scrolled: Element[] = [];
+  const original = Object.getOwnPropertyDescriptor(
+    Element.prototype,
+    "scrollIntoView",
+  );
+  Object.defineProperty(Element.prototype, "scrollIntoView", {
+    configurable: true,
+    writable: true,
+    value: function scrollIntoView(this: Element) {
+      scrolled.push(this);
+    },
+  });
+  return {
+    scrolled,
+    restore: () => {
+      if (original) {
+        Object.defineProperty(Element.prototype, "scrollIntoView", original);
+      } else {
+        delete (Element.prototype as Partial<Element>).scrollIntoView;
+      }
+    },
+  };
+}
+
+/** Lets pending effects and a late second scroll run before counting. */
+async function settle() {
+  await new Promise((resolve) => setTimeout(resolve, 50));
 }
 
 describe("EnrollmentForm", () => {
@@ -573,6 +608,32 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("scrolls the first marked field into view exactly once after a failed check", async () => {
+    renderForm();
+    await waitForLoaded();
+    const scrolls = recordScrolls();
+    try {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      expect(
+        await screen.findByText(
+          "Bitte korrigieren Sie die rot markierten Felder.",
+        ),
+      ).toBeInTheDocument();
+      await settle();
+      const firstInvalid = document
+        .querySelector("form")
+        ?.querySelector('[aria-invalid="true"]');
+      expect(firstInvalid).toBe(
+        document.querySelector('input[name="guardian_first_name"]'),
+      );
+      expect(scrolls.scrolled).toEqual([firstInvalid]);
+    } finally {
+      scrolls.restore();
+    }
+  });
+
   it("blocks the form as a failure at its top when the bot protection lacks its site key", async () => {
     mockFetchPublicCaptchaConfig.mockResolvedValue({
       enabled: true,
@@ -621,13 +682,13 @@ describe("EnrollmentForm", () => {
     expect(
       screen.queryByText("Randstunde Klasse 1 und 2"),
     ).not.toBeInTheDocument();
-    await chooseOption("Klassenstufe *", "2. Klasse");
+    await chooseOption("Klassenstufe", "2. Klasse");
     expect(screen.getByText("Randstunde Klasse 1 und 2")).toBeInTheDocument();
 
     fireEvent.click(
       document.querySelector('input[name="children_0_offering_99"]')!,
     );
-    await chooseOption("Klassenstufe *", "3. Klasse");
+    await chooseOption("Klassenstufe", "3. Klasse");
 
     expect(
       screen.queryByText("Randstunde Klasse 1 und 2"),
@@ -664,7 +725,7 @@ describe("EnrollmentForm", () => {
     renderForm({ showBlockedOfferings: true });
     await waitForLoaded();
 
-    await chooseOption("Klassenstufe *", "3. Klasse");
+    await chooseOption("Klassenstufe", "3. Klasse");
 
     expect(screen.getByText("Für dieses Kind nicht wählbar")).toBeVisible();
     expect(screen.getByText("Randstunde")).toBeVisible();
@@ -707,7 +768,7 @@ describe("EnrollmentForm", () => {
     renderForm({ showBlockedOfferings: true });
     await waitForLoaded();
 
-    await chooseOption("Klassenstufe *", "4. Klasse");
+    await chooseOption("Klassenstufe", "4. Klasse");
 
     expect(
       screen.getByText("Nicht wählbar: nicht für Klasse 4 (Kind: Klasse 4)"),
@@ -735,10 +796,10 @@ describe("EnrollmentForm", () => {
     renderForm({ showBlockedOfferings: true });
     await waitForLoaded();
 
-    await chooseOption("Klassenstufe *", "3. Klasse");
+    await chooseOption("Klassenstufe", "3. Klasse");
     expect(screen.getByText("Für dieses Kind nicht wählbar")).toBeVisible();
 
-    await chooseOption("Klassenstufe *", "2. Klasse");
+    await chooseOption("Klassenstufe", "2. Klasse");
     expect(
       screen.queryByText("Für dieses Kind nicht wählbar"),
     ).not.toBeInTheDocument();
@@ -830,7 +891,7 @@ describe("EnrollmentForm", () => {
         screen.queryByText("Betreuung Klasse 1 und 2"),
       ).not.toBeInTheDocument();
 
-      await chooseOption("Klassenstufe *", "3. Klasse");
+      await chooseOption("Klassenstufe", "3. Klasse");
 
       expect(screen.getByText("Betreuung Klasse 3 und 4")).toBeVisible();
       expect(
@@ -848,7 +909,7 @@ describe("EnrollmentForm", () => {
       expect(screen.getByText("Flexible Betreuung")).toBeVisible();
       expect(screen.getByText(CHOOSE_GRADE_FIRST)).toBeVisible();
 
-      await chooseOption("Klassenstufe *", "1. Klasse");
+      await chooseOption("Klassenstufe", "1. Klasse");
       expect(screen.getByText("Randstunde")).toBeVisible();
       expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
     });
@@ -858,7 +919,7 @@ describe("EnrollmentForm", () => {
 
       renderForm();
       await waitForLoaded();
-      await chooseOption("Klassenstufe *", "4. Klasse");
+      await chooseOption("Klassenstufe", "4. Klasse");
 
       expect(
         screen.getByText(
@@ -898,7 +959,7 @@ describe("EnrollmentForm", () => {
       await waitForLoaded();
 
       // Anker: Die Kinderkarte ist geladen, in der der Hinweis stünde.
-      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Klassenstufe")).toBeInTheDocument();
       expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
     });
 
@@ -1033,7 +1094,7 @@ describe("EnrollmentForm", () => {
       renderForm();
       await waitForLoaded();
 
-      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Klassenstufe")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsangebote")).not.toBeInTheDocument();
       expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
     });
@@ -1044,7 +1105,7 @@ describe("EnrollmentForm", () => {
       renderForm();
       await waitForLoaded();
 
-      expect(screen.getByLabelText("Klassenstufe *")).toBeInTheDocument();
+      expect(screen.getByLabelText("Klassenstufe")).toBeInTheDocument();
       expect(screen.queryByText("Betreuungsangebote")).not.toBeInTheDocument();
       expect(screen.queryByText(CHOOSE_GRADE_FIRST)).not.toBeInTheDocument();
     });
@@ -1063,7 +1124,7 @@ describe("EnrollmentForm", () => {
         expect(screen.getAllByText(CHOOSE_GRADE_FIRST)).toHaveLength(2);
       });
 
-      fireEvent.click(screen.getAllByLabelText("Klassenstufe *")[1]!);
+      fireEvent.click(screen.getAllByLabelText("Klassenstufe")[1]!);
       fireEvent.click(await screen.findByRole("option", { name: "1. Klasse" }));
 
       expect(screen.getAllByText(CHOOSE_GRADE_FIRST)).toHaveLength(1);
@@ -1097,7 +1158,7 @@ describe("EnrollmentForm", () => {
 
     renderForm();
     await waitForLoaded();
-    await chooseOption("Klassenstufe *", "3. Klasse");
+    await chooseOption("Klassenstufe", "3. Klasse");
 
     expect(
       screen.queryByText("Für dieses Kind nicht wählbar"),
@@ -1119,7 +1180,7 @@ describe("EnrollmentForm", () => {
 
     // Anker: die Kinderkarte steht, in der Klassenstufe und Angebote stünden.
     expect(screen.getByLabelText("Jahr")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Klassenstufe *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Klassenstufe")).not.toBeInTheDocument();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
     expect(screen.queryByText("Fixe Betreuung")).not.toBeInTheDocument();
   });
@@ -1144,6 +1205,55 @@ describe("EnrollmentForm", () => {
     expect(
       screen.getByText("Pro Tag die Uhrzeit eintragen."),
     ).toBeInTheDocument();
+  });
+
+  it("links a custom select label to its combobox", async () => {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "arrival",
+        label: "Ankunftsweg",
+        type: "select",
+        required: false,
+        applies_to_child: false,
+        sort_order: 1,
+        options: [{ value: "bus", label: "Mit dem Bus" }],
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+
+    renderForm();
+    await waitForLoaded();
+
+    const label = screen.getByText("Ankunftsweg").closest("label");
+    expect(label).toHaveAttribute("for", "enrollment-custom_arrival");
+    expect(label).toHaveAttribute("id", "enrollment-custom_arrival-label");
+
+    const select = screen.getByRole("combobox", { name: "Ankunftsweg" });
+    expect(select).toHaveAttribute("id", "enrollment-custom_arrival");
+    expect(select).toHaveAttribute(
+      "aria-labelledby",
+      "enrollment-custom_arrival-label",
+    );
+
+    fireEvent.click(label!);
+    expect(
+      await screen.findByRole("option", { name: "Mit dem Bus" }),
+    ).toBeInTheDocument();
+  });
+
+  it("treats malformed contact phone and email values as missing", () => {
+    const malformedContacts = [
+      {
+        first_name: "Mara",
+        last_name: "Muster",
+        email: 42,
+        phone_numbers: [null, {}, { phone_number: 7 }],
+      },
+    ];
+
+    expect(() => contactListValueMissing(malformedContacts)).not.toThrow();
+    expect(contactListValueMissing(malformedContacts)).toBe(true);
   });
 
   it("shows the compulsory attendance notice near care offerings", async () => {
@@ -1202,6 +1312,7 @@ describe("EnrollmentForm", () => {
         name: "Mehr anzeigen",
       }),
     ).not.toBeInTheDocument();
+    expect(within(emailContactNotice!).getByText("Notice")).toBeInTheDocument();
   });
 
   // #3377: texts the school wrote itself follow the chosen language, per
@@ -1413,6 +1524,83 @@ describe("EnrollmentForm", () => {
         name: /Status-Benachrichtigungen/,
       }),
     ).not.toBeInTheDocument();
+  });
+
+  it("uses instance-specific IDs for date and phone controls", async () => {
+    const customSchema = schema();
+    customSchema.fields = [
+      {
+        key: "appointment",
+        label: "Termin",
+        type: "date",
+        required: false,
+        applies_to_child: false,
+        sort_order: 1,
+      },
+      {
+        key: "appointment",
+        label: "Termin",
+        type: "date",
+        required: false,
+        applies_to_child: true,
+        sort_order: 2,
+      },
+      {
+        key: "contacts",
+        label: "Notfallkontakte",
+        type: "contact_list",
+        required: false,
+        applies_to_child: true,
+        sort_order: 3,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+
+    renderForm({
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Lina", last_name: "Muster" },
+        { id: "c-2", first_name: "Noah", last_name: "Muster" },
+      ]),
+    });
+    await waitForLoaded();
+
+    const dateIDs = screen
+      .getAllByLabelText("Termin")
+      .map((picker) => picker.id);
+    expect(dateIDs).toEqual([
+      "enrollment-custom_appointment",
+      "enrollment-children_0_custom_appointment",
+      "enrollment-children_1_custom_appointment",
+    ]);
+    expect([...new Set(dateIDs)]).toHaveLength(dateIDs.length);
+
+    const user = userEvent.setup();
+    await user.click(
+      screen.getAllByRole("button", { name: "Kontakt hinzufügen" })[0]!,
+    );
+    await user.click(
+      screen.getAllByRole("button", { name: "Kontakt hinzufügen" })[0]!,
+    );
+
+    const addPhones = screen.getAllByRole("button", {
+      name: "Telefonnummer hinzufügen",
+    });
+    expect(addPhones).toHaveLength(2);
+    await user.click(addPhones[0]!);
+    await user.click(
+      screen.getAllByRole("button", { name: "Telefonnummer hinzufügen" })[1]!,
+    );
+
+    const phoneTypeIDs = Array.from(
+      document.querySelectorAll<HTMLElement>(
+        '[id^="children_0_custom_contacts_"][id$="-type"]',
+      ),
+    ).map((control) => control.id);
+    expect(phoneTypeIDs).toEqual([
+      "children_0_custom_contacts_0_phones-0-type",
+      "children_0_custom_contacts_1_phones-0-type",
+    ]);
+    expect([...new Set(phoneTypeIDs)]).toHaveLength(phoneTypeIDs.length);
   });
 
   it("hides the legal section and submits empty consent flags when no blocks are configured", async () => {
@@ -1918,7 +2106,7 @@ describe("EnrollmentForm", () => {
     });
     await waitForLoaded();
 
-    fireEvent.click(screen.getByLabelText("Klassenstufe *"));
+    fireEvent.click(screen.getByLabelText("Klassenstufe"));
     expect(
       await screen.findByRole("option", { name: "3. Klasse" }),
     ).toBeInTheDocument();
@@ -1940,7 +2128,7 @@ describe("EnrollmentForm", () => {
     });
     await waitForLoaded();
 
-    fireEvent.click(screen.getByLabelText("Klassenstufe *"));
+    fireEvent.click(screen.getByLabelText("Klassenstufe"));
     // gradeLevelMax is 4 in renderForm.
     for (const grade of ["1. Klasse", "2. Klasse", "3. Klasse", "4. Klasse"]) {
       expect(
@@ -1975,7 +2163,7 @@ describe("EnrollmentForm", () => {
 
     expect(screen.getAllByDisplayValue("Lina")[0]).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "✓ übernommen" })).toBeDisabled();
-    expect(screen.getByLabelText("Klassenstufe *")).toHaveTextContent(
+    expect(screen.getByLabelText("Klassenstufe")).toHaveTextContent(
       "2. Klasse",
     );
   });
@@ -1998,11 +2186,9 @@ describe("EnrollmentForm", () => {
     });
     await waitForLoaded();
 
-    expect(screen.getAllByLabelText("Vorname *")[0]).toHaveValue("Eingeladen");
-    expect(screen.getAllByLabelText("Nachname *")[0]).toHaveValue(
-      "Nachzuegler",
-    );
-    const email = screen.getByLabelText("E-Mail *");
+    expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("Eingeladen");
+    expect(screen.getAllByLabelText("Nachname")[0]).toHaveValue("Nachzuegler");
+    const email = screen.getByLabelText("E-Mail");
     expect(email).toHaveValue("invited@example.test");
 
     fireEvent.change(email, { target: { value: "submitted@example.test" } });
@@ -2033,7 +2219,7 @@ describe("EnrollmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
 
     expect(screen.getAllByDisplayValue("Lina")[0]).toBeInTheDocument();
-    const gradeSelect = screen.getByLabelText("Klassenstufe *");
+    const gradeSelect = screen.getByLabelText("Klassenstufe");
     expect(gradeSelect).not.toHaveTextContent("2. Klasse");
     expect(gradeSelect).toHaveTextContent("Bitte wählen");
   });
@@ -2311,7 +2497,7 @@ describe("EnrollmentForm", () => {
 
     renderForm();
     await waitForLoaded();
-    await chooseOption("Klassenstufe *", "1. Klasse");
+    await chooseOption("Klassenstufe", "1. Klasse");
 
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
     expect(
@@ -2358,7 +2544,7 @@ describe("EnrollmentForm", () => {
 
     renderForm();
     await waitForLoaded();
-    await chooseOption("Klassenstufe *", "2. Klasse");
+    await chooseOption("Klassenstufe", "2. Klasse");
 
     const group = screen.getByRole("group", { name: /Erlaubte Heimwege/ });
     fireEvent.click(within(group).getByRole("button", { name: "Mo" }));
@@ -2843,8 +3029,8 @@ describe("EnrollmentForm", () => {
     await waitForLoaded();
 
     // Index 0 is the guardian's own name field; the two children follow.
-    const firstNames = screen.getAllByLabelText("Vorname *");
-    const lastNames = screen.getAllByLabelText("Nachname *");
+    const firstNames = screen.getAllByLabelText("Vorname");
+    const lastNames = screen.getAllByLabelText("Nachname");
     expect(firstNames).toHaveLength(3);
     expect((firstNames[1] as HTMLInputElement).value).toBe("Anton");
     expect((lastNames[1] as HTMLInputElement).value).toBe("Alster");
@@ -2866,7 +3052,7 @@ describe("EnrollmentForm", () => {
 
     // Guardian name plus the one editable child — the locked child has no
     // inputs at all.
-    expect(screen.getAllByLabelText("Vorname *")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Vorname")).toHaveLength(2);
     expect(screen.getByText("Anton Alster")).toBeInTheDocument();
     expect(screen.getByText("Schon in der Betreuung")).toBeInTheDocument();
     expect(
@@ -3100,7 +3286,7 @@ describe("EnrollmentForm", () => {
     // Berta survived (index 0 is the guardian, index 1 the single remaining
     // child) and her uniform toggle is still on -- it did not leak onto Anton's
     // old slot and Anton's off-state did not bleed onto Berta.
-    const remaining = screen.getAllByLabelText("Vorname *");
+    const remaining = screen.getAllByLabelText("Vorname");
     expect(remaining).toHaveLength(2);
     expect((remaining[1] as HTMLInputElement).value).toBe("Berta");
     expect(screen.getByRole("checkbox", { name: uniformLabel })).toBeChecked();
@@ -3785,7 +3971,7 @@ describe("EnrollmentForm", () => {
     });
     renderForm();
     await waitForLoaded();
-    await chooseOption("Klassenstufe *", "2. Klasse");
+    await chooseOption("Klassenstufe", "2. Klasse");
 
     const ganztagInput = document.querySelector<HTMLInputElement>(
       'input[name="children_0_offering_11"]',
@@ -4310,6 +4496,63 @@ describe("EnrollmentForm — fixed pickup times", () => {
     expect(screen.queryByText("child 1 missing name")).not.toBeInTheDocument();
   });
 
+  it("scrolls a field the backend rejected into view exactly once", async () => {
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      new ApiError("child 1 missing name", 400, {
+        code: "general.input",
+        errors: [{ field: "children.0.first_name", reason: "required" }],
+      }),
+    );
+    renderForm({ initialDraft: draftWithPickup({ mon: "14:45" }) });
+    await waitForLoaded();
+    const scrolls = recordScrolls();
+    try {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      expect(
+        await screen.findByText(catalogText("general.input", "die Anmeldung")),
+      ).toBeInTheDocument();
+      await settle();
+      expect(scrolls.scrolled).toEqual([
+        document.querySelector('input[name="children_0_first_name"]'),
+      ]);
+    } finally {
+      scrolls.restore();
+    }
+  });
+
+  it("scrolls the pickup field the backend rejected into view, not the alert", async () => {
+    const message = catalogText(
+      "enrollment.pickup_time_not_allowed",
+      "die Anmeldung",
+    );
+    mockSubmitEnrollment.mockRejectedValueOnce(
+      new ApiError("pickup time not allowed", 400, {
+        code: "enrollment.pickup_time_not_allowed",
+      }),
+    );
+    renderForm({ initialDraft: draftWithPickup({ mon: "12:00" }) });
+    await waitForLoaded();
+    const scrolls = recordScrolls();
+    try {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      await waitFor(() =>
+        expect(screen.getAllByText(message).length).toBeGreaterThanOrEqual(2),
+      );
+      await settle();
+      const marked = document
+        .querySelector("form")
+        ?.querySelector('[aria-invalid="true"]');
+      expect(marked?.tagName).toBe("FIELDSET");
+      expect(scrolls.scrolled).toEqual([marked]);
+    } finally {
+      scrolls.restore();
+    }
+  });
+
   it("marks and focuses a child's own form field the backend names (#2515)", async () => {
     mockSubmitEnrollment.mockRejectedValueOnce(
       new ApiError("field allergies is required", 400, {
@@ -4332,6 +4575,50 @@ describe("EnrollmentForm — fixed pickup times", () => {
       return found!;
     });
     await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  it("marks, scrolls, and focuses a required custom date field", async () => {
+    const customSchema = pickupSchema();
+    customSchema.fields = [
+      {
+        key: "appointment",
+        label: "Wunschtermin",
+        type: "date",
+        required: true,
+        applies_to_child: true,
+        sort_order: 1,
+      },
+    ];
+    mockFetchPublicActiveSchema.mockResolvedValue(customSchema);
+
+    renderForm({ initialDraft: draftWithPickup({}) });
+    await waitForLoaded();
+
+    const picker = screen.getByLabelText("Wunschtermin");
+    expect(picker).toHaveAttribute(
+      "id",
+      "enrollment-children_0_custom_appointment",
+    );
+    expect(
+      document.querySelector(
+        'input[type="hidden"][name="children_0_custom_appointment"]',
+      ),
+    ).toBeInTheDocument();
+
+    const scrolls = recordScrolls();
+    try {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung absenden" }),
+      );
+      await waitFor(() => {
+        expect(picker).toHaveAttribute("data-form-invalid", "true");
+        expect(picker).toHaveFocus();
+      });
+      await settle();
+      expect(scrolls.scrolled).toEqual([picker]);
+    } finally {
+      scrolls.restore();
+    }
   });
 
   it("offers the request ID and resends the current form on a server error", async () => {
@@ -4422,9 +4709,9 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
 
     // Child rendered by name, not by editable identity inputs.
     expect(screen.getByText("Anton Alster")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Vorname *")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("E-Mail *")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Klassenstufe *")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Vorname")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("E-Mail")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Klassenstufe")).not.toBeInTheDocument();
 
     // Offerings stay selectable.
     expect(screen.getByText("Flexible Betreuung")).toBeInTheDocument();
@@ -4724,7 +5011,7 @@ describe("EnrollmentForm signature (#4786)", () => {
       screen.getByText("Ihre Unterschrift ist bereit."),
     ).toBeInTheDocument();
 
-    fireEvent.change(screen.getAllByLabelText("Vorname *")[0]!, {
+    fireEvent.change(screen.getAllByLabelText("Vorname")[0]!, {
       target: { value: "Maria" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));

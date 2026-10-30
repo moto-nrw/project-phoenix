@@ -128,7 +128,9 @@ func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
 		"/api/students/101/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/students/102/pickup-exceptions",
 		"/api/students/102/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/iot/attendance/toggle",
 		"/api/students/103/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
 		"/api/iot/session/end",
 		// Der Sitzungsstart stempelt die Aufsicht ein, das Sitzungsende bucht
@@ -167,7 +169,7 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 			activityRoomIDs:  map[int64]int64{11: 12},
 			staffIDs:         map[string]int64{"Mara Muster": 13},
 			staffCredentials: []StaffCredentials{{Name: "Mara Muster", Email: "mara@example.com", Password: "Test1234%"}},
-			studentIDByIndex: map[int]int64{0: 101},
+			studentIDByIndex: map[int]int64{0: 100, 1: 101},
 		},
 		StaffPIN: "1234",
 	})
@@ -176,6 +178,10 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "end statistics demo session")
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
+		"/api/students/100/rfid",
+		"/api/iot/attendance/toggle",
+		"/api/iot/checkin",
+		"/api/students/101/pickup-exceptions",
 		"/api/students/101/rfid",
 		"/api/iot/session/end",
 		"/auth/login",
@@ -286,6 +292,18 @@ func TestWrapConflictError(t *testing.T) {
 		err := wrapConflictError(apiErr, "organization")
 		assert.Contains(t, err.Error(), "seed organization already exists (409 Conflict)")
 		assert.Contains(t, err.Error(), "migrate reset")
+		assert.ErrorIs(t, err, apiErr, "the cause and its code stay readable")
+	})
+
+	t.Run("keeps the code of the refused request", func(t *testing.T) {
+		// BACKEND-14: a demo rebuild could not rename its deleted school,
+		// and the report named neither cause nor code.
+		apiErr := &APIError{
+			Method: "PUT", Path: "/operator/schools/7", StatusCode: seedHTTPStatusConflict,
+			Code: "provisioning.school_already_deleted", Message: "School is already deleted",
+		}
+		err := wrapConflictError(fmt.Errorf("rename abandoned school: %w", apiErr), "school")
+		assert.Contains(t, err.Error(), "(provisioning.school_already_deleted)")
 	})
 
 	t.Run("passes through non-409 errors unchanged", func(t *testing.T) {
@@ -1049,6 +1067,34 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			trace.parentSubmissions = append(trace.parentSubmissions, body)
 			r.Body = io.NopCloser(bytes.NewReader(raw))
 		}
+		// Holiday PDFs are multipart and IDs are strings, unlike the
+		// generic JSON entity fixture. Keep this before the profile mocks.
+		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form/documents") {
+			idCounter++
+			require.NoError(t, r.ParseMultipartForm(10<<20))
+			defer func() { require.NoError(t, r.MultipartForm.RemoveAll()) }()
+			file, header, err := r.FormFile("document")
+			require.NoError(t, err)
+			defer func() { require.NoError(t, file.Close()) }()
+			content, err := io.ReadAll(file)
+			require.NoError(t, err)
+			require.True(t, bytes.HasPrefix(content, []byte("%PDF-")))
+			require.True(t, strings.HasSuffix(header.Filename, ".pdf"))
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(seedHTTPStatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprint(idCounter)}})
+			return
+		}
+		if r.Method == seedHTTPMethodGet && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"version":1,"fields":[]}}`)
+			return
+		}
+		if r.Method == seedHTTPMethodPut && strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/form") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"version":2,"fields":[]}}`)
+			return
+		}
 		if r.Method == seedHTTPMethodPost && r.URL.Path == "/api/enrollment/legal-documents" {
 			// Handle this multipart response before the profile mocks decode JSON.
 			idCounter++
@@ -1060,8 +1106,10 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
-		if r.Method == seedHTTPMethodPost && strings.HasPrefix(r.URL.Path, "/api/enrollment/") && strings.HasSuffix(r.URL.Path, "/uploads") {
-			// The income proof of #4783 is a multipart upload, too.
+		if r.Method == seedHTTPMethodPost && (strings.HasPrefix(r.URL.Path, "/api/enrollment/") || strings.HasPrefix(r.URL.Path, "/traeger/holiday-registrations/")) &&
+			strings.HasSuffix(r.URL.Path, "/uploads") {
+			// The income proof of #4783 and the proof of benefits of the
+			// holiday registration (#5238) are multipart uploads, too.
 			idCounter++
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
@@ -1230,6 +1278,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.Method == seedHTTPMethodGet && r.URL.Path == "/operator/schools/2/devices" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{
+					"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": webManualDeviceName, "status": "active",
+				}},
+			})
+			return
+		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/operator/devices/9000/transfer-status" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"is_protected": true},
@@ -1349,11 +1405,16 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			return
 		}
 		if r.Method == seedHTTPMethodGet && r.URL.Path == "/api/iot/" {
+			if manualAuth {
+				w.WriteHeader(seedHTTPStatusForbidden)
+				_, _ = fmt.Fprint(w, `{"status":403,"detail":"module nfc_anwesenheit is not booked","code":"module.not_booked"}`)
+				return
+			}
 			deviceType := r.URL.Query().Get("device_type")
 			devices := make([]map[string]any, 0)
 			if deviceType == "virtual" {
 				devices = append(devices, map[string]any{"id": 9000, "device_id": webManualDeviceID, "device_type": "virtual", "name": "Web-Anwesenheit"})
-			} else if !manualAuth {
+			} else {
 				for _, device := range DemoDevices {
 					devices = append(devices, map[string]any{"device_id": device.DeviceID, "device_type": "terminal", "name": device.Name})
 				}
@@ -1597,7 +1658,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": recipients})
 			return
 		}
-		if r.URL.Path == "/api/staff-messages/threads/open" {
+		if r.URL.Path == "/api/staff-messages/threads/open" || r.URL.Path == "/api/staff-messages/groups" {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"thread_id": fmt.Sprintf("%d", idCounter)},
 			})

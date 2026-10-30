@@ -71,7 +71,9 @@ type TemplateRosterFeedQuery struct {
 
 // TemplateRosterMaintenance is the derived indicator state.
 type TemplateRosterMaintenance struct {
-	Mode RosterMaintenanceMode
+	// LinkedOfferingIDs preserves effective direct links independently of source filters.
+	LinkedOfferingIDs []int64
+	Mode              RosterMaintenanceMode
 	// Offerings feed the roster effectively (active sources when the source
 	// rule is intact, plus active linked offerings), in source order first.
 	Offerings []RosterMaintenanceOffering
@@ -167,9 +169,12 @@ func (m rosterFeedMarks) addLinkedOfferings(result *TemplateRosterMaintenance, l
 				result.InvalidOfferings = append(result.InvalidOfferings, offering)
 				m.invalid[feed.ID] = true
 			}
-		case !seen[feed.ID]:
-			seen[feed.ID] = true
-			result.Offerings = append(result.Offerings, offering)
+		default:
+			result.LinkedOfferingIDs = append(result.LinkedOfferingIDs, feed.ID)
+			if !seen[feed.ID] {
+				seen[feed.ID] = true
+				result.Offerings = append(result.Offerings, offering)
+			}
 		}
 	}
 }

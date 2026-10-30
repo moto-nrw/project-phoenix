@@ -1,0 +1,33 @@
+{
+  "badges": {
+    "audience": "Für den Ganztag gemacht",
+    "hosting": "In Deutschland gehostet"
+  },
+  "testimonialButtonLabel": "Erfahrungsbericht {number} anzeigen",
+  "testimonials": {
+    "infoHub": {
+      "quote": "Ich finde die wichtigsten Infos zur OGS an einem Ort und muss nicht mehr in Mails oder Zetteln suchen.",
+      "author": "Elternteil",
+      "role": "OGS-Kommunikation",
+      "metric": "Alles an einem Ort"
+    },
+    "easyReplies": {
+      "quote": "Rückmeldungen an die Betreuung sind viel einfacher, weil nicht jedes Thema über Telefonate oder einzelne E-Mails laufen muss.",
+      "author": "Elternteil",
+      "role": "Kommunikation mit der OGS",
+      "metric": "Einfacher antworten"
+    },
+    "lookUpLater": {
+      "quote": "Wenn im Alltag viel los ist, hilft es sehr, dass ich später nochmal nachsehen kann, was die OGS mitgeteilt hat.",
+      "author": "Elternteil",
+      "role": "Familienalltag",
+      "metric": "Verlässlich informiert"
+    },
+    "organized": {
+      "quote": "Die Kommunikation fühlt sich deutlich organisierter an. Wir wissen schneller, was wichtig ist und wo wir es wiederfinden.",
+      "author": "Elternteil",
+      "role": "Betreuungsalltag",
+      "metric": "Besser organisiert"
+    }
+  }
+}

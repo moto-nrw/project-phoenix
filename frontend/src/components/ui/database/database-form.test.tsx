@@ -923,7 +923,7 @@ describe("DatabaseForm", () => {
         catalogText("general.business_rejection", "die Änderung"),
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Test Field\*/).className).toContain(
+    expect(screen.getByText("Test Field").parentElement?.className).toContain(
       "text-moto-red",
     );
   });
@@ -1641,11 +1641,11 @@ describe("DatabaseForm", () => {
       });
 
       // The failing field's label should have red text
-      const failingLabel = screen.getByText(/Second Field\*/);
+      const failingLabel = screen.getByText("Second Field").parentElement!;
       expect(failingLabel.className).toContain("text-moto-red");
 
       // The non-failing field's label should remain gray
-      const passingLabel = screen.getByText("First Field");
+      const passingLabel = screen.getByText("First Field").parentElement!;
       expect(passingLabel.className).toContain("text-gray-700");
     });
 
@@ -1663,7 +1663,7 @@ describe("DatabaseForm", () => {
         ).toBeInTheDocument();
       });
 
-      const label = screen.getByText(/Test Field\*/);
+      const label = screen.getByText("Test Field").parentElement!;
       expect(label.className).toContain("text-moto-red");
 
       // Fill in and re-submit

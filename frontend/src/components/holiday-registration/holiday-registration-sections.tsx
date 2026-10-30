@@ -12,10 +12,16 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
+import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { Textarea } from "~/components/ui/textarea";
 import { formatDate } from "~/lib/date-helpers";
+import {
+  type ConditionContext,
+  isFieldVisible,
+} from "~/lib/enrollment-field-visibility";
+import type { HolidayFormField } from "~/lib/holiday-form-field";
 import type {
   HolidayKnownChild,
   HolidayRegistrationOffer,
@@ -26,19 +32,22 @@ import {
   type ChildDraft,
   type ContactDraft,
   emptyContact,
+  type FieldError,
   hasRoomForKnownChild,
   OTHER_SCHOOL,
   type RegistrationDraft,
 } from "./holiday-registration-model";
-
-/** Hint of a refused field, translated, or undefined. */
-export type FieldError = (name: string) => string | undefined;
+import { HolidayQuestions } from "./holiday-registration-questions";
 
 export function useWeekLabels() {
   const t = useTranslations("holidayRegistration");
   const locale = useLocale();
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const euro = new Intl.NumberFormat(locale, {
+      style: "currency",
+      currency: "EUR",
+    });
+    return {
       range: (week: HolidayRegistrationWeek) =>
         t("weekRange", {
           starts: formatDate(week.startsOn, false, locale),
@@ -50,9 +59,17 @@ export function useWeekLabels() {
           startsAt: model.startsAt,
           endsAt: model.endsAt,
         }),
-    }),
-    [locale, t],
-  );
+      // The price per week at the choice: the base line the summary shows
+      // under "Beitrag", before any sibling discount or exemption (#5237).
+      pricedTimeModel: (model: HolidayRegistrationTimeModel) =>
+        t("timeModelPrice", {
+          name: model.name,
+          price: euro.format(model.priceCents / 100),
+          startsAt: model.startsAt,
+          endsAt: model.endsAt,
+        }),
+    };
+  }, [locale, t]);
 }
 
 export function ChildCard({
@@ -60,6 +77,8 @@ export function ChildCard({
   child,
   offer,
   removable,
+  questions,
+  questionContext,
   fieldError,
   onChange,
   onRemove,
@@ -68,6 +87,10 @@ export function ChildCard({
   child: ChildDraft;
   offer: HolidayRegistrationOffer;
   removable: boolean;
+  /** The Träger's questions per child (#5198). */
+  questions: readonly HolidayFormField[];
+  /** The answers the conditions of these questions read. */
+  questionContext: ConditionContext;
   fieldError: FieldError;
   onChange: (child: ChildDraft) => void;
   onRemove: () => void;
@@ -110,6 +133,7 @@ export function ChildCard({
           <Input
             name={`${prefix}.first_name`}
             label={t("firstName")}
+            required
             autoComplete="off"
             maxLength={100}
             value={child.firstName}
@@ -119,6 +143,7 @@ export function ChildCard({
           <Input
             name={`${prefix}.last_name`}
             label={t("lastName")}
+            required
             autoComplete="off"
             maxLength={100}
             value={child.lastName}
@@ -127,9 +152,7 @@ export function ChildCard({
           />
         </div>
         <div>
-          <span className="block text-sm font-medium text-gray-700">
-            {t("birthDate")}
-          </span>
+          <FieldLabel required>{t("birthDate")}</FieldLabel>
           <DateOfBirthPicker
             value={child.birthDate}
             onChange={(birthDate) => set({ birthDate })}
@@ -140,12 +163,9 @@ export function ChildCard({
           />
         </div>
         <div className="space-y-2">
-          <span
-            id={`${prefix}-school-label`}
-            className="block text-sm font-medium text-gray-700"
-          >
+          <FieldLabel id={`${prefix}-school-label`} required>
             {t("school")}
-          </span>
+          </FieldLabel>
           <CustomSelect
             name={`${prefix}.home_school_id`}
             ariaLabelledBy={`${prefix}-school-label`}
@@ -185,8 +205,11 @@ export function ChildCard({
         <fieldset className="space-y-3">
           <legend className="text-sm font-semibold text-gray-900">
             {t("weeksTitle")}
+            <RequiredMark />
           </legend>
-          <p className="text-sm text-gray-600">{t("weeksText")}</p>
+          <p className="text-sm text-gray-600">
+            {`${t("weeksText")} ${t("weeksPriceText")}`}
+          </p>
           {offer.weeks.map((week) => (
             <div
               key={week.id}
@@ -203,6 +226,7 @@ export function ChildCard({
               </span>
               <CustomSelect
                 name={`${prefix}.bookings`}
+                wrapLabels
                 ariaLabelledBy={`${prefix}-week-${week.id}`}
                 value={child.bookings[week.id] ?? ""}
                 invalid={Boolean(bookingsError)}
@@ -213,7 +237,7 @@ export function ChildCard({
                   { value: "", label: t("notBooked") },
                   ...week.timeModels.map((model) => ({
                     value: model.id,
-                    label: labels.timeModel(model),
+                    label: labels.pricedTimeModel(model),
                   })),
                 ]}
                 onChange={(timeModelId) => {
@@ -259,6 +283,24 @@ export function ChildCard({
             onChange={(event) => set({ healthNotes: event.target.value })}
           />
         </fieldset>
+
+        {questions.some((field) => isFieldVisible(field, questionContext)) ? (
+          <fieldset className="space-y-3">
+            <legend className="text-sm font-semibold text-gray-900">
+              {t("childQuestionsTitle")}
+            </legend>
+            <HolidayQuestions
+              fields={questions}
+              answers={child.answers}
+              context={questionContext}
+              prefix={`${prefix}.`}
+              fieldError={fieldError}
+              onChange={(key, value) =>
+                set({ answers: { ...child.answers, [key]: value } })
+              }
+            />
+          </fieldset>
+        ) : null}
       </div>
     </SectionCard>
   );
@@ -302,6 +344,7 @@ export function ContactList({
             <Input
               name={`${kind}.${index}.name`}
               label={t("name")}
+              required
               maxLength={120}
               value={contact.name}
               error={fieldError(`${kind}.${index}.name`)}
@@ -313,6 +356,7 @@ export function ContactList({
               name={`${kind}.${index}.phone`}
               type="tel"
               label={emergency ? t("phone") : t("phoneOptional")}
+              required={emergency}
               maxLength={40}
               value={contact.phone}
               error={fieldError(`${kind}.${index}.phone`)}
@@ -432,5 +476,78 @@ export function KnownChildPicker({
         <p className="text-sm text-gray-600">{t("knownChildrenFull")}</p>
       ) : null}
     </fieldset>
+  );
+}
+
+/** Exactly one optional co-guardian; the registering parent's data stays separate. */
+export function SecondGuardianCard({
+  guardian,
+  fieldError,
+  onChange,
+}: Readonly<{
+  guardian: RegistrationDraft["guardian"];
+  fieldError: FieldError;
+  onChange: (guardian: RegistrationDraft["guardian"]) => void;
+}>) {
+  const t = useTranslations("holidayRegistration");
+  const namesRequired = Object.values(guardian).some(
+    (value) => value.trim() !== "",
+  );
+  return (
+    <SectionCard
+      title={t("secondGuardianTitle")}
+      description={t("secondGuardianText")}
+    >
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Input
+          name="second_guardian.first_name"
+          label={t("firstName")}
+          required={namesRequired}
+          autoComplete="section-second-guardian given-name"
+          maxLength={100}
+          value={guardian.firstName}
+          error={fieldError("second_guardian.first_name")}
+          onChange={(event) =>
+            onChange({ ...guardian, firstName: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.last_name"
+          label={t("lastName")}
+          required={namesRequired}
+          autoComplete="section-second-guardian family-name"
+          maxLength={100}
+          value={guardian.lastName}
+          error={fieldError("second_guardian.last_name")}
+          onChange={(event) =>
+            onChange({ ...guardian, lastName: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.email"
+          type="email"
+          label={t("emailOptional")}
+          autoComplete="section-second-guardian email"
+          maxLength={254}
+          value={guardian.email}
+          error={fieldError("second_guardian.email")}
+          onChange={(event) =>
+            onChange({ ...guardian, email: event.target.value })
+          }
+        />
+        <Input
+          name="second_guardian.phone"
+          type="tel"
+          label={t("phoneOptional")}
+          autoComplete="section-second-guardian tel"
+          maxLength={40}
+          value={guardian.phone}
+          error={fieldError("second_guardian.phone")}
+          onChange={(event) =>
+            onChange({ ...guardian, phone: event.target.value })
+          }
+        />
+      </div>
+    </SectionCard>
   );
 }

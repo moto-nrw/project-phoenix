@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   PLANNING_SUB_PAGES,
   getActivePlanningSubPageHref,
-  getPlanningMobileActivePaths,
   isPlanningPageHref,
 } from "./planning-navigation";
 import {
@@ -18,11 +17,10 @@ describe("planning navigation", () => {
   it.each([
     ["/betreuungsplan", "/betreuungsplan"],
     ["/betreuungsplan/42", "/betreuungsplan"],
-    ["/timetables", "/betreuungsplan"],
     ["/dienstplan", "/dienstplan"],
-    ["/staff/dienstplan", "/dienstplan"],
     ["/vertretung", "/vertretung"],
-    ["/vertretungsplan", "/vertretung"],
+    ["/lists", "/lists"],
+    ["/payroll", "/payroll"],
     ["/calendar-periods", "/calendar-periods"],
   ] as const)("maps %s to %s", (pathname, expected) => {
     expect(getActivePlanningSubPageHref(pathname)).toBe(expected);
@@ -33,20 +31,12 @@ describe("planning navigation", () => {
     expect(getActivePlanningSubPageHref("/dienstplan-archiv")).toBeNull();
   });
 
-  it("gives every planning page its own mobile entry", () => {
-    // Früher hingen Tageslisten und Kalenderzeiträume als desktop-only Kinder
-    // am Betreuungsplan-Eintrag. Sie waren dadurch mobil nicht erreichbar (es
-    // führt kein Verweis vom Betreuungsplan dorthin), also markiert jetzt jede
-    // Seite nur noch sich selbst und ihre eigenen Alt-Pfade.
-    expect(getPlanningMobileActivePaths("/betreuungsplan")).toEqual([
-      "/betreuungsplan",
-      "/timetables",
-    ]);
-    expect(getPlanningMobileActivePaths("/lists")).toEqual(["/lists"]);
-    expect(getPlanningMobileActivePaths("/calendar-periods")).toEqual([
-      "/calendar-periods",
-    ]);
-  });
+  it.each(["/planung", "/timetables", "/staff/dienstplan", "/vertretungsplan"])(
+    "leaves the server-only redirect %s out of client navigation",
+    (pathname) => {
+      expect(getActivePlanningSubPageHref(pathname)).toBeNull();
+    },
+  );
 
   it("keeps every planning page in the flattened mobile navigation", () => {
     expect(PLANNING_SUB_PAGES.filter((page) => !page.showInMobileNav)).toEqual(

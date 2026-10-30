@@ -67,7 +67,7 @@ func TestSeedParentPickupRequestsDoNotCollide(t *testing.T) {
 				{Email: "parent@example.test", StudentIDs: []int64{44}},
 				{Email: "other@example.test", StudentIDs: []int64{44}, GuardianID: 93},
 			}
-			rt := &Runtime{Client: newTestClient(srv.URL, false), Parents: parents}
+			rt := &Runtime{Client: newTestClient(srv.URL, false), Parents: parents, FixedSeeder: &FixedSeeder{}}
 			actions, err := (parentEnrollmentSeedStep{}).seedParentPortalActions(rt, map[string]AuthRef{}, parents, today)
 			require.NoError(t, err)
 			assert.Len(t, actions, 4)

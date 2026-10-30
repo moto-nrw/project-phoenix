@@ -1,8 +1,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { ApiError } from "~/lib/api-error";
+import { ApiError, reportSessionTenantMismatch } from "~/lib/api-error";
+import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
 import { catalogText } from "~/test/error-catalog-text";
+import { runTenantSessionEnd } from "~/lib/tenant-session-end";
 
 // ============================================================================
 // Mocks
@@ -198,7 +207,7 @@ describe("TenantGuard", () => {
       </TenantGuard>,
     );
 
-    expect(screen.getByText("Mandant wird gewechselt...")).toBeInTheDocument();
+    expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
     expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
   });
 
@@ -227,7 +236,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -294,7 +302,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -582,7 +589,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -611,7 +617,6 @@ describe("TenantGuard", () => {
     await waitFor(() => {
       expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
         "school-b",
-        mockSignIn,
         mockMutate,
       );
     });
@@ -697,6 +702,51 @@ describe("TenantGuard", () => {
     expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
   });
 
+  it.each(["authenticated", "unauthenticated"])(
+    "leaves an ended %s session to the active explicit logout",
+    async (status) => {
+      let finish!: () => void;
+      const flight = runTenantSessionEnd(
+        () =>
+          new Promise<void>((resolve) => {
+            finish = resolve;
+          }),
+      );
+      await Promise.resolve();
+      try {
+        mockUseSession.mockReturnValue({
+          data:
+            status === "authenticated"
+              ? { user: { tenantId: 1 }, error: "RefreshTokenError" }
+              : null,
+          status,
+          update: vi.fn(),
+        });
+        mockUseTenant.mockReturnValue({
+          tenantSlug: "school-a",
+          tenant: tenantA,
+        });
+        await act(async () => {
+          render(
+            <TenantGuard>
+              <div>Protected Content</div>
+            </TenantGuard>,
+          );
+        });
+        // Anker: the guard is mounted and protects the ended session.
+        expect(
+          screen.getByText("Sitzung wird erneuert..."),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+        expect(mockSignOut).not.toHaveBeenCalled();
+        expect(window.location.assign).not.toHaveBeenCalled();
+      } finally {
+        finish();
+        await flight;
+      }
+    },
+  );
+
   it("signs out authenticated session with refresh error", async () => {
     mockUseSession.mockReturnValue({
       data: {
@@ -734,7 +784,7 @@ describe("TenantGuard", () => {
 
   // #3375: a switch that "succeeds" can still leave the old school in the
   // session cookie. The guard used to try once and then show
-  // "Mandant wird gewechselt..." forever.
+  // "Schule wird gewechselt..." forever.
   describe("when the mismatch survives the switch (#3375)", () => {
     function mismatchedSession() {
       mockUseSession.mockReturnValue({
@@ -801,13 +851,10 @@ describe("TenantGuard", () => {
       await waitFor(() => {
         expect(mockPerformTenantSwitch).toHaveBeenLastCalledWith(
           "school-c",
-          mockSignIn,
           mockMutate,
         );
       });
-      expect(
-        screen.getByText("Mandant wird gewechselt..."),
-      ).toBeInTheDocument();
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
     });
 
     it("shows the way out after a failed switch instead of an endless wait", async () => {
@@ -821,7 +868,7 @@ describe("TenantGuard", () => {
       ).toBeInTheDocument();
       expect(mockPerformTenantSwitch).toHaveBeenCalledTimes(1);
       expect(
-        screen.queryByText("Mandant wird gewechselt..."),
+        screen.queryByText("Schule wird gewechselt..."),
       ).not.toBeInTheDocument();
     });
 
@@ -892,6 +939,371 @@ describe("TenantGuard", () => {
       expect(
         screen.getAllByRole("button", { name: /Erneut versuchen|Wiederholen/ }),
       ).toHaveLength(1);
+    });
+  });
+  // Review of #5147: the page of the old school stayed on screen, with its
+  // buttons, until the provider answered; a tab on path mode was never
+  // bound to its school (#5130).
+  describe("when a tenant route refuses the session", () => {
+    const sessionOf = (tenantId: number) => ({
+      user: { tenantId, token: "access-token" },
+    });
+
+    /**
+     * Provider stand-in. `answer` delivers a provider session the guard did
+     * not ask for (a lookup that left earlier); `settleLookup` answers the
+     * guard's own session lookup (update()) with the cookie's school, or
+     * with null for a failed lookup.
+     */
+    let answer: (tenantId: number) => void = () => undefined;
+    let settleLookup: (tenantId: number | null) => void = () => undefined;
+    const providerUpdate = vi.fn();
+    function Tab() {
+      const [data, setData] = useState(sessionOf(1));
+      answer = (tenantId) => setData(sessionOf(tenantId));
+      providerUpdate.mockImplementation(
+        () =>
+          new Promise((resolve) => {
+            settleLookup = (tenantId) => {
+              const next = tenantId === null ? null : sessionOf(tenantId);
+              if (next) setData(next);
+              resolve(next);
+            };
+          }),
+      );
+      mockUseSession.mockReturnValue({
+        data,
+        status: "authenticated",
+        update: providerUpdate,
+      });
+      return (
+        <TenantGuard>
+          <div>Protected Content</div>
+        </TenantGuard>
+      );
+    }
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    const CHECK_FAILED =
+      "moto kann gerade nicht prüfen, bei welcher Schule Sie angemeldet sind. Bitte versuchen Sie es gleich noch einmal.";
+
+    beforeEach(() => {
+      providerUpdate.mockReset();
+      // After a null lookup the guard asks the session route once; it fails
+      // here unless a test answers it.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => new Response(null, { status: 503 })),
+      );
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-a",
+        tenant: tenantA,
+        routingMode: "subdomain",
+      });
+      // Keep the switch back open so the switching state stays visible.
+      mockPerformTenantSwitch.mockReturnValue(new Promise(vi.fn()));
+    });
+
+    it("hides the page at once, before the provider answers", () => {
+      render(<Tab />);
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+      act(() => reportSessionTenantMismatch());
+
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      expect(providerUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    it("shows the page again once its own lookup names this school", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      await act(async () => settleLookup(1));
+
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+    });
+
+    it("switches back when its own lookup names the other school", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      await act(async () => settleLookup(2));
+
+      await waitFor(() =>
+        expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+          "school-a",
+          mockMutate,
+        ),
+      );
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    // Review of #5175: a late answer, not the check, used to decide.
+    it("keeps the page hidden when a late answer still names this school", () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      // A lookup that left before the refusal answers with school 1.
+      act(() => answer(1));
+
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    it("switches back when a late answer names another school", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      // A lookup that left before the refusal answers with school 2.
+      act(() => answer(2));
+
+      await waitFor(() =>
+        expect(mockPerformTenantSwitch).toHaveBeenCalledWith(
+          "school-a",
+          mockMutate,
+        ),
+      );
+      // Anker: der Umschaltzustand steht da.
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    // Review of #5175: after 10 s the old page came back and every further
+    // refusal hid it again.
+    it("offers a way out instead of the old page when the check times out", async () => {
+      vi.useFakeTimers();
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(9_999);
+      });
+      // Anker: bis zur Frist bleibt die Seite gesperrt.
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1);
+      });
+
+      expect(screen.getByText(CHECK_FAILED)).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "Erneut versuchen" }),
+      ).toBeInTheDocument();
+      // Review of #5175: no sign-out that a late answer could undo.
+      expect(
+        screen.queryByRole("button", { name: "Neu anmelden" }),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    it("offers a way out when the lookup fails and checks again on request", async () => {
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+
+      await act(async () => settleLookup(null));
+      expect(screen.getByText(CHECK_FAILED)).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+      expect(providerUpdate).toHaveBeenCalledTimes(2);
+      await act(async () => settleLookup(1));
+
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+    });
+
+    // quorum on #5175: a session that ended meanwhile (logout in another
+    // tab) also answers null; retrying could never succeed.
+    it("sends the tab to the login when the session ended meanwhile", async () => {
+      const sessionRoute = vi.fn(async () => Response.json(null));
+      vi.stubGlobal("fetch", sessionRoute);
+      render(<Tab />);
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+      act(() => reportSessionTenantMismatch());
+
+      await act(async () => settleLookup(null));
+
+      await waitFor(() =>
+        expect(window.location.assign).toHaveBeenCalledWith(
+          "/?error=SessionExpired",
+        ),
+      );
+      expect(sessionRoute).toHaveBeenCalledWith("/api/auth/session", {
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      });
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    // quorum on #5175: a stalled read of the session route kept the guard
+    // in "checking" without a way out.
+    it("offers a way out when the session route stalls after a null lookup", async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(
+          (_url: string, init?: RequestInit) =>
+            new Promise<Response>((_resolve, reject) => {
+              init?.signal?.addEventListener("abort", () =>
+                reject(new DOMException("aborted", "AbortError")),
+              );
+            }),
+        ),
+      );
+      render(<Tab />);
+      act(() => reportSessionTenantMismatch());
+      await act(async () => settleLookup(null));
+      // Anker: die Prüfung läuft noch.
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+
+      expect(screen.getByText(CHECK_FAILED)).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+    });
+
+    it("starts one check for repeated refusals and never shows the old page", async () => {
+      render(<Tab />);
+      act(() => {
+        reportSessionTenantMismatch();
+        reportSessionTenantMismatch();
+        reportSessionTenantMismatch();
+      });
+      expect(providerUpdate).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+
+      await act(async () => settleLookup(null));
+      act(() => reportSessionTenantMismatch());
+
+      // Anker: der Ausweg steht da, nicht die alte Seite.
+      expect(screen.getByText(CHECK_FAILED)).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      expect(providerUpdate).toHaveBeenCalledTimes(1);
+    });
+
+    // tenant-mfa-switch E2E: once the provider names the other school, the
+    // switch flow owns the screen; a further lookup raced its sign-out and
+    // wrote the old cookie back.
+    it("leaves refusals to the switch flow once the provider names another school", async () => {
+      mockPerformTenantSwitch.mockRejectedValue(
+        new ApiError("MFA required", 401, {
+          code: "identity.mfa_session_required",
+        }),
+      );
+      render(<Tab />);
+      act(() => answer(2));
+      expect(
+        await screen.findByRole("button", { name: "Zur Schulanmeldung" }),
+      ).toBeInTheDocument();
+
+      act(() => {
+        reportSessionTenantMismatch();
+        reportSessionTenantMismatch();
+      });
+
+      // Anker: der Ausweg des Wechsels bleibt stehen.
+      expect(
+        screen.getByRole("button", { name: "Zur Schulanmeldung" }),
+      ).toBeInTheDocument();
+      expect(providerUpdate).not.toHaveBeenCalled();
+    });
+
+    it("asks again while another session lookup of the provider still runs", async () => {
+      render(<Tab />);
+      // The first update() returns nothing: another lookup still runs.
+      providerUpdate.mockImplementationOnce(async () => undefined);
+      act(() => reportSessionTenantMismatch());
+
+      await waitFor(() => expect(providerUpdate).toHaveBeenCalledTimes(2));
+      expect(screen.getByText("Schule wird gewechselt...")).toBeInTheDocument();
+    });
+
+    it("hides the page after a refused fetch of a client that never reads the body", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json(
+            { status: 409, code: "identity.session_tenant_mismatch" },
+            { status: 409 },
+          ),
+        ),
+      );
+      Object.defineProperty(window, "location", {
+        writable: true,
+        value: {
+          origin: "http://school-a.localhost:3000",
+          pathname: "/students",
+          assign: vi.fn(),
+        },
+      });
+      // The guard's module installed the observer on the real fetch; wrap
+      // this test's fetch instead.
+      installSessionTenantMismatchObserver()();
+      const restoreObserver = installSessionTenantMismatchObserver();
+      try {
+        render(<Tab />);
+        // Anker: die Seite der eigenen Schule ist sichtbar.
+        expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+        await act(async () => {
+          const response = await fetch("/api/students/school-classes");
+          expect(response.ok).toBe(false);
+        });
+
+        expect(
+          screen.getByText("Schule wird gewechselt..."),
+        ).toBeInTheDocument();
+        expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      } finally {
+        restoreObserver();
+        vi.unstubAllGlobals();
+      }
+    });
+
+    it("sends a tab still on path mode to the school's subdomain", () => {
+      const redirect = vi.fn();
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-a",
+        tenant: tenantA,
+        routingMode: "path",
+      });
+      Object.defineProperty(window, "location", {
+        writable: true,
+        value: {
+          protocol: "https:",
+          port: "",
+          pathname: "/school-a/students",
+          search: "?q=1",
+          hash: "#top",
+          assign: vi.fn(),
+        },
+      });
+      mockUseSession.mockReturnValue({
+        data: sessionOf(1),
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      render(
+        <TenantGuard redirect={redirect}>
+          <div>Protected Content</div>
+        </TenantGuard>,
+      );
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+      act(() => reportSessionTenantMismatch());
+
+      expect(redirect).toHaveBeenCalledWith(
+        "https://school-a.localhost/students?q=1#top",
+      );
     });
   });
 });

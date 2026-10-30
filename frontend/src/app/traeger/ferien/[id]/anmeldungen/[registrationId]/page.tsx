@@ -7,6 +7,10 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HolidayContributionCard } from "~/components/traeger/holiday-contribution-card";
+import {
+  answeredQuestions,
+  HolidayRegistrationAnswers,
+} from "~/components/traeger/holiday-registration-answers";
 import { HolidayRegistrationChildCard } from "~/components/traeger/holiday-registration-child-card";
 import {
   HOLIDAY_REGISTRATION_STATUS_LABELS,
@@ -14,14 +18,21 @@ import {
   schoolNames,
 } from "~/components/traeger/holiday-registration-format";
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
+import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import {
+  AttachmentList,
+  type AttachmentLabels,
+} from "~/components/enrollment/attachment-list";
+import { holidayDocumentPath } from "~/lib/traeger-holiday-form-api";
+import { LegalMarkdown } from "~/components/enrollment/enrollment-form-consent";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
-import { formatBerlinDate } from "~/lib/date-helpers";
+import { formatBerlinDate, formatChatDateTime } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
 import {
@@ -34,6 +45,16 @@ import {
   type HolidayRegistrationDetail,
 } from "~/lib/traeger-holiday-registrations-api";
 import { traegerPath } from "~/lib/traeger-url";
+
+const PDF_LABELS: AttachmentLabels = {
+  open: "Öffnen",
+  download: "Herunterladen",
+  openLabel: (label) => `${label} öffnen`,
+  downloadLabel: (label) => `${label} herunterladen`,
+  popupBlocked:
+    "Das PDF konnte nicht geöffnet werden. Bitte erlauben Sie neue Fenster.",
+  errorObject: "die PDF-Datei",
+};
 
 const logger = createLogger({ component: "TraegerHolidayRegistrationPage" });
 
@@ -217,6 +238,10 @@ export default function TraegerHolidayRegistrationPage() {
             onChanged={changed}
             onConfirmed={load}
           />
+          <HolidayRegistrationProofCard
+            periodId={periodId}
+            registration={registration}
+          />
           {contribution &&
           (registration.status !== "cancelled" || contribution.frozen) ? (
             <HolidayContributionCard
@@ -246,6 +271,22 @@ export default function TraegerHolidayRegistrationPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
+          {registration.secondGuardian ? (
+            <SectionCard title="Zweite sorgeberechtigte Person">
+              <DataGrid>
+                <DataField label="Name">
+                  {registration.secondGuardian.firstName}{" "}
+                  {registration.secondGuardian.lastName}
+                </DataField>
+                <DataField label="E-Mail">
+                  {registration.secondGuardian.email || "Nicht angegeben"}
+                </DataField>
+                <DataField label="Telefon">
+                  {registration.secondGuardian.phone || "Nicht angegeben"}
+                </DataField>
+              </DataGrid>
+            </SectionCard>
+          ) : null}
           {registration.children.map((child) => (
             <HolidayRegistrationChildCard
               key={child.id}
@@ -259,6 +300,69 @@ export default function TraegerHolidayRegistrationPage() {
               onChanged={changed}
             />
           ))}
+          {registration.form.fields.length > 0 ? (
+            <SectionCard
+              title="Weitere Angaben zur Familie"
+              description={`Antworten auf die Fragen des Formulars, Version ${registration.form.version}. Antworten zu einem Kind stehen beim Kind.`}
+            >
+              {answeredQuestions(
+                registration.form.fields,
+                false,
+                registration.answers,
+              ).length > 0 ? (
+                <HolidayRegistrationAnswers
+                  questions={answeredQuestions(
+                    registration.form.fields,
+                    false,
+                    registration.answers,
+                  )}
+                  answers={registration.answers}
+                />
+              ) : (
+                <p className="text-sm text-gray-700">
+                  Keine Antworten zur Familie.
+                </p>
+              )}
+            </SectionCard>
+          ) : null}
+          {registration.form.legalBlocks?.some((block) => block.enabled) ? (
+            <SectionCard title="Hinweise und Einwilligungen">
+              <div className="space-y-4">
+                {registration.form.legalBlocks
+                  .filter((block) => block.enabled)
+                  .map((block) => {
+                    const at = registration.legalAcceptances?.[block.key];
+                    return (
+                      <div key={block.key}>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                          {block.title}
+                        </h3>
+                        <p className="text-sm text-gray-700">{block.label}</p>
+                        {block.text.trim() ? (
+                          <div className="mt-2 text-sm text-gray-700">
+                            <LegalMarkdown text={block.text} />
+                          </div>
+                        ) : null}
+                        {block.kind === "notice" && !block.required ? null : (
+                          <p className="text-sm text-gray-700">
+                            {at
+                              ? `Zugestimmt am ${formatChatDateTime(at)} Uhr`
+                              : "Nicht zugestimmt"}
+                          </p>
+                        )}
+                        <AttachmentList
+                          labels={PDF_LABELS}
+                          attachments={block.attachments}
+                          documentURL={(documentId) =>
+                            holidayDocumentPath(periodId, documentId)
+                          }
+                        />
+                      </div>
+                    );
+                  })}
+              </div>
+            </SectionCard>
+          ) : null}
           <SectionCard title="Notfallkontakte und Abholung">
             <div className="space-y-4">
               <div className="space-y-1">

@@ -65,7 +65,7 @@ func readUnreadView(t *testing.T, f *fixture, accountID int64, studentIDs ...int
 // questions nobody has read yet. It returns the thread and its newest question.
 func startThreadWithQuestions(t *testing.T, f *fixture, chain testpkg.ParentChain, questions ...string) (int64, *messaging.ParentMessage) {
 	t.Helper()
-	started, err := testpkg.TenantQuery3(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, chain.StudentID, chain.AccountID, "Hallo")
+	started, err := testpkg.TenantQuery4(t, adminCtx(t, f.staffAccount), f.db, f.svc.StartThread, chain.StudentID, chain.AccountID, "Hallo", "")
 	require.NoError(t, err)
 	var newest *messaging.ParentMessage
 	for _, question := range questions {
@@ -255,8 +255,8 @@ type inboxThenMessage struct {
 	once      *sync.Once
 }
 
-func (r inboxThenMessage) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*messaging.InboxThread, error) {
-	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
+func (r inboxThenMessage) ListInboxForStaff(ctx context.Context, accountID int64, reach messaging.StaffReach, onlyUnread bool) ([]*messaging.InboxThread, error) {
+	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, reach, onlyUnread)
 	if err == nil {
 		r.once.Do(r.afterList)
 	}

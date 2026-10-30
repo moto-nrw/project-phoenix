@@ -2,6 +2,7 @@ package sessiontoken
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 
@@ -82,10 +83,7 @@ func Authenticator(next http.Handler) http.Handler {
 		token, claims, err := jwtauth.FromContext(r.Context())
 
 		if err != nil {
-			slog.Warn("JWT error", slog.String("error", err.Error()))
-			if err := render.Render(w, r, ErrUnauthorized(ErrTokenUnauthorized)); err != nil {
-				slog.Error("failed to render unauthorized response", slog.String("error", err.Error()))
-			}
+			renderVerificationError(w, r, err)
 			return
 		}
 
@@ -211,4 +209,20 @@ func extractBearerToken(authHeader string) string {
 		return authHeader[7:]
 	}
 	return ""
+}
+
+// renderVerificationError refuses a token the Verifier or RequireLiveSession
+// rejected: 503 when the session family could not be read, 401 otherwise.
+func renderVerificationError(w http.ResponseWriter, r *http.Request, err error) {
+	slog.Warn("JWT error", slog.String("error", err.Error()))
+	response := ErrUnauthorized(ErrTokenUnauthorized)
+	switch {
+	case errors.Is(err, ErrSessionCheckUnavailable):
+		response = ErrServiceUnavailable(ErrSessionCheckUnavailable)
+	case errors.Is(err, ErrSessionRevoked):
+		response = ErrUnauthorized(ErrSessionRevoked)
+	}
+	if err := render.Render(w, r, response); err != nil {
+		slog.Error("failed to render unauthorized response", slog.String("error", err.Error()))
+	}
 }

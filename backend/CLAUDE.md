@@ -24,7 +24,8 @@ For role setup, BUN queries, soft deletion, or migrations, read
 
 ### Target architecture
 
-The capability-first target in `backend/architecture/policy.json` is the
+The capability-first target in `backend/architecture/policy.json` and its
+automatically discovered owner fragments in `backend/architecture/policy/` is the
 architecture; the principle ADRs 0066 to 0071 state its rules. Where older
 code, docs or examples show a Handler → Service → Repository layout, the
 target wins.
@@ -38,7 +39,8 @@ Before backend design, implementation, or review:
 
 1. Read the matching principle ADR (table in `backend/architecture/README.md`)
    and inspect affected owners, packages, data objects, projections, and rules
-   in `backend/architecture/policy.json`.
+   in `backend/architecture/policy/<owner>.json` (metadata and owners remain in
+   `policy.json`; `scripts/backend-architecture.sh policy-export` composes both).
 2. Put new behavior behind an existing target owner's public capability.
    Dependencies use consumer-owned ports. For cross-owner writes, apply
    [ADR 0067's command/workflow distinction and named exceptions](../docs/adr/0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#addendum-2026-10-23-command-participation-and-coordination-4538).
@@ -80,7 +82,7 @@ conventions, and CI ratchets. They constrain code inside an owner; the policy
 defines the module boundary. Pass-throughs (Rule 8): the shapes that may stay
 and the floor per owner are in `docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md`.
 
-**Query budgets (#2940)**: every list endpoint has a scenario in `test/query_budgets.go` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
+**Query budgets (#2940)**: every list endpoint has a scenario in `test/query-budgets/` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
 
 ## Calendar Dates: calendar.Date (MANDATORY)
 

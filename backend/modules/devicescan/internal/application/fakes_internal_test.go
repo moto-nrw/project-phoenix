@@ -114,15 +114,25 @@ func (f *fakeFleet) RecordUnregisteredTagScan(_ context.Context, scan deviceflee
 type fakePresence struct {
 	roomCounts  map[int64]int
 	groupCounts map[int64]int
-	roomErr     error
-	groupErr    error
+	// groupRevisions are the visit revisions of the session counts (#5128).
+	groupRevisions map[int64]int64
+	// roomRevisions are the visit revisions of the room counts (#5205).
+	roomRevisions map[int64]int64
+	roomErr       error
+	groupErr      error
 }
 
 func (p *fakePresence) CountOpenVisitsInRoom(_ context.Context, id int64) (int, error) {
 	return p.roomCounts[id], p.roomErr
 }
+func (p *fakePresence) CountOpenVisitsInRoomWithRevision(_ context.Context, id int64) (int, int64, error) {
+	return p.roomCounts[id], p.roomRevisions[id], p.roomErr
+}
 func (p *fakePresence) CountOpenVisitsInGroup(_ context.Context, id int64) (int, error) {
 	return p.groupCounts[id], p.groupErr
+}
+func (p *fakePresence) CountOpenVisitsInGroupWithRevision(_ context.Context, id int64) (int, int64, error) {
+	return p.groupCounts[id], p.groupRevisions[id], p.groupErr
 }
 
 type fakeRooms struct {
@@ -232,12 +242,21 @@ type fakeVisits struct {
 	recorded    []recordedVisit
 	recordErr   error
 	nextVisitID int64
+	lockErr     error
+	// steps names the calls in order: lock, current and end.
+	steps []string
 }
 
+func (v *fakeVisits) LockStudent(context.Context, int64) error {
+	v.steps = append(v.steps, "lock")
+	return v.lockErr
+}
 func (v *fakeVisits) Current(context.Context, int64) (*ports.CurrentVisit, error) {
+	v.steps = append(v.steps, "current")
 	return v.current, v.currentErr
 }
 func (v *fakeVisits) EndVisit(_ context.Context, id int64) error {
+	v.steps = append(v.steps, "end")
 	v.ended = append(v.ended, id)
 	return v.endErr
 }
@@ -518,7 +537,7 @@ func newHarness(t *testing.T) *harness {
 	templateID := int64(301)
 	h := &harness{
 		fleet:      &fakeFleet{online: true, devices: map[string]devicefleet.Device{"dev-001": {ID: testDeviceID, DeviceID: "dev-001"}}},
-		presence:   &fakePresence{roomCounts: map[int64]int{}, groupCounts: map[int64]int{}},
+		presence:   &fakePresence{roomCounts: map[int64]int{}, roomRevisions: map[int64]int64{}, groupCounts: map[int64]int{}},
 		rooms:      &fakeRooms{rooms: map[int64]facilities.Room{testRoomID: {ID: testRoomID, Name: "Klassenraum 1a"}}, byName: map[string]facilities.Room{}},
 		principals: &fakePrincipals{device: testDevice()},
 		people: &fakePeople{

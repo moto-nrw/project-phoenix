@@ -97,7 +97,7 @@ func (s *Service) HasOwnGroups(ctx context.Context) (bool, error) {
 
 // scopedUnreadCount counts the caller's unread parent messages within their
 // count scope.
-func (s *Service) scopedUnreadCount(ctx context.Context, accountID int64, allStudents bool) (int, error) {
+func (s *Service) scopedUnreadCount(ctx context.Context, accountID int64, reach StaffReach) (int, error) {
 	scope, err := s.CountScope(ctx)
 	if err != nil {
 		return 0, err
@@ -113,8 +113,8 @@ func (s *Service) scopedUnreadCount(ctx context.Context, accountID int64, allStu
 		if err != nil {
 			return 0, fmt.Errorf("messaging: resolve own groups: %w", err)
 		}
-		return s.ReadRepo.UnreadMessageCountForStaffInGroups(ctx, accountID, allStudents, groupIDs)
+		return s.ReadRepo.UnreadMessageCountForStaffInGroups(ctx, accountID, reach, groupIDs)
 	default:
-		return s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents)
+		return s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, reach)
 	}
 }

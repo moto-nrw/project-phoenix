@@ -1,0 +1,74 @@
+{
+  "codes": [
+    {
+      "code": "import.file_columns_missing",
+      "class": "input",
+      "parameters": [
+        "columns"
+      ],
+      "legacy": "import.file_columns_missing"
+    },
+    {
+      "code": "import.file_missing",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_missing"
+    },
+    {
+      "code": "import.file_no_rows",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_no_rows"
+    },
+    {
+      "code": "import.file_row_invalid",
+      "class": "input",
+      "parameters": [
+        "row"
+      ],
+      "legacy": "import.file_row_invalid"
+    },
+    {
+      "code": "import.file_too_large",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_too_large"
+    },
+    {
+      "code": "import.file_type_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_type_invalid"
+    },
+    {
+      "code": "import.file_unreadable",
+      "class": "input",
+      "parameters": [],
+      "legacy": "import.file_unreadable"
+    },
+    {
+      "code": "import.import_batch_failed",
+      "class": "server",
+      "parameters": [],
+      "legacy": "import_batch_failed"
+    },
+    {
+      "code": "import.mode_forbidden",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "import.mode_forbidden"
+    },
+    {
+      "code": "import.not_test_traeger",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "import.not_test_traeger"
+    },
+    {
+      "code": "import.test_traeger_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "import.test_traeger_inactive"
+    }
+  ]
+}

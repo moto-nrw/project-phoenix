@@ -32,7 +32,7 @@ type SeedOptions struct {
 	SchoolName    string // Optional school name override
 	OnlyProfile   string // Restrict the run to one profile; empty seeds all four
 	StatePath     string // Output path; empty uses DefaultSeedStatePath
-	StandingDemo  bool   // Keep simulation devices but disable their user interface
+	StandingDemo  bool   // Suppress the credential summary for the persistent demo sidecar
 	// VisitorFirstName and VisitorLastName put a prospect of the public demo
 	// into the school (#3463): one caregiver with a group and one parent
 	// carry exactly this name. Only the name is taken; every account keeps
@@ -84,6 +84,8 @@ type Seeder struct {
 	statePath  string
 	profile    string
 	definition demoProfileDefinition
+
+	localCarePlanAccount *AccountCredentials
 }
 
 // SeedResult contains counts of created entities
@@ -121,9 +123,6 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 		statePath = DefaultSeedStatePath
 	}
 	definition := fullOperationProfileDefinition()
-	if options.StandingDemo {
-		definition.Settings[profileSettingAttendanceNFC] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
-	}
 	if options.ProductScreenshots {
 		definition.Settings[profileSettingWeekendFollowsFriday] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
 	}
@@ -513,7 +512,7 @@ func isConflictError(err error) bool {
 
 func wrapConflictError(err error, entity string) error {
 	if isConflictError(err) {
-		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding", entity)
+		return fmt.Errorf("seed %s already exists (409 Conflict) — run 'docker compose run server go run . migrate reset' before re-seeding: %w", entity, err)
 	}
 	return err
 }
@@ -568,6 +567,9 @@ func makeBootstrapSeedState(bootstrap *bootstrapSeedState) SeedStateBootstrap {
 }
 
 func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
+	if s.localCarePlanAccount != nil {
+		state.Accounts.Local = append(state.Accounts.Local, *s.localCarePlanAccount)
+	}
 	groupKeys := []string{
 		"sternengruppe", "bärengruppe", "sonnengruppe", "mondgruppe",
 		"regenbogengruppe", "blumengruppe", "schmetterlingsgruppe",

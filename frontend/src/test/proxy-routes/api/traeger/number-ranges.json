@@ -1,0 +1,8 @@
+{
+  "api/traeger/number-ranges": [
+    "GET traeger /traeger/number-ranges"
+  ],
+  "api/traeger/number-ranges/[service]": [
+    "PUT traeger /traeger/number-ranges/service%2F1"
+  ]
+}

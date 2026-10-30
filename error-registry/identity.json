@@ -1,0 +1,330 @@
+{
+  "codes": [
+    {
+      "code": "identity.access_name_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.access_name_required"
+    },
+    {
+      "code": "identity.account_already_has_tenant_access",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"
+    },
+    {
+      "code": "identity.account_inactive",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "ACCOUNT_INACTIVE"
+    },
+    {
+      "code": "identity.account_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.account_not_found"
+    },
+    {
+      "code": "identity.account_not_in_school",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.account_not_in_school"
+    },
+    {
+      "code": "identity.caterer_address_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.caterer_address_taken"
+    },
+    {
+      "code": "identity.caterer_without_school",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.caterer_without_school"
+    },
+    {
+      "code": "identity.current_password_wrong",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.current_password_wrong"
+    },
+    {
+      "code": "identity.demo_access_expired",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "demo_access_expired"
+    },
+    {
+      "code": "identity.demo_access_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "demo_access_invalid"
+    },
+    {
+      "code": "identity.demo_access_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "demo_access_rate_limited"
+    },
+    {
+      "code": "identity.demo_access_unknown",
+      "class": "input",
+      "parameters": [],
+      "legacy": "demo_access_unknown"
+    },
+    {
+      "code": "identity.demo_capacity_reached",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "demo_capacity_reached"
+    },
+    {
+      "code": "identity.demo_school_preparing",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "demo_school_preparing"
+    },
+    {
+      "code": "identity.demo_session",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "demo_session"
+    },
+    {
+      "code": "identity.email_already_exists",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.email_already_exists"
+    },
+    {
+      "code": "identity.email_change_link_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.email_change_link_invalid"
+    },
+    {
+      "code": "identity.email_change_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.email_change_rate_limited"
+    },
+    {
+      "code": "identity.email_change_same_email",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.email_change_same_email"
+    },
+    {
+      "code": "identity.guardian_invitation_email_not_queued",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.guardian_invitation_email_not_queued"
+    },
+    {
+      "code": "identity.invalid_credentials",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.invalid_credentials"
+    },
+    {
+      "code": "identity.invitation_account_login_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "INVITATION_ACCOUNT_LOGIN_REQUIRED"
+    },
+    {
+      "code": "identity.invitation_account_mismatch",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "INVITATION_ACCOUNT_MISMATCH"
+    },
+    {
+      "code": "identity.invitation_expired",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.invitation_expired"
+    },
+    {
+      "code": "identity.invitation_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.invitation_not_found"
+    },
+    {
+      "code": "identity.invitation_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.invitation_rate_limited"
+    },
+    {
+      "code": "identity.lehrkraft_role_immutable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.lehrkraft_role_immutable"
+    },
+    {
+      "code": "identity.mfa_already_enrolled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.mfa_already_enrolled"
+    },
+    {
+      "code": "identity.mfa_blocked",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.mfa_blocked"
+    },
+    {
+      "code": "identity.mfa_code_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.mfa_code_invalid"
+    },
+    {
+      "code": "identity.mfa_not_enrolled",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.mfa_not_enrolled"
+    },
+    {
+      "code": "identity.mfa_session_required",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.mfa_session_required"
+    },
+    {
+      "code": "identity.mfa_status_unavailable",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.mfa_status_unavailable"
+    },
+    {
+      "code": "identity.operator_invitation_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.operator_invitation_invalid"
+    },
+    {
+      "code": "identity.operator_self_deactivation",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.operator_self_deactivation"
+    },
+    {
+      "code": "identity.passkey_login_failed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.passkey_login_failed"
+    },
+    {
+      "code": "identity.passkey_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.passkey_not_found"
+    },
+    {
+      "code": "identity.password_mismatch",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.password_mismatch"
+    },
+    {
+      "code": "identity.password_reset_link_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.password_reset_link_invalid"
+    },
+    {
+      "code": "identity.password_reset_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "identity.password_reset_rate_limited"
+    },
+    {
+      "code": "identity.password_too_weak",
+      "class": "input",
+      "parameters": [],
+      "legacy": "identity.password_too_weak"
+    },
+    {
+      "code": "identity.preview_target_not_previewable",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "preview_target_not_previewable"
+    },
+    {
+      "code": "identity.preview_target_school_portal",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "preview_target_school_portal"
+    },
+    {
+      "code": "identity.preview_token_invalid",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "preview_token_invalid"
+    },
+    {
+      "code": "identity.read_only_preview",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "read_only_preview"
+    },
+    {
+      "code": "identity.role_name_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.role_name_taken"
+    },
+    {
+      "code": "identity.role_platform_permission",
+      "class": "input",
+      "parameters": [
+        "permission"
+      ],
+      "legacy": "identity.role_platform_permission"
+    },
+    {
+      "code": "identity.session_account_inactive",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "account_inactive"
+    },
+    {
+      "code": "identity.session_tenant_mismatch",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.session_tenant_mismatch"
+    },
+    {
+      "code": "identity.tenant_access_denied",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.tenant_access_denied"
+    },
+    {
+      "code": "identity.tenant_access_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.tenant_access_not_found"
+    },
+    {
+      "code": "identity.use_parent_portal",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "use_parent_portal"
+    },
+    {
+      "code": "identity.use_school_portal",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "use_school_portal"
+    },
+    {
+      "code": "identity.username_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.username_taken"
+    }
+  ]
+}

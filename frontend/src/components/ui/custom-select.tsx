@@ -3,6 +3,7 @@
 import { ChevronDown } from "lucide-react";
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { cn } from "~/lib/utils";
 import { ListboxDropdown } from "./listbox-dropdown";
 
 interface CustomSelectOption {
@@ -29,6 +30,8 @@ interface CustomSelectProps {
   readonly menuClassName?: string;
   /** Replaces the default surface/size trigger classes (moto-content-surface h-10 w-full …) for non-standard widths/heights. */
   readonly triggerClassName?: string;
+  /** Keep long labels fully visible in both the trigger and the menu. */
+  readonly wrapLabels?: boolean;
   readonly testId?: string;
 }
 
@@ -80,6 +83,7 @@ export function CustomSelect({
   className = "",
   menuClassName = "",
   triggerClassName,
+  wrapLabels = false,
   testId,
 }: CustomSelectProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -130,19 +134,32 @@ export function CustomSelect({
         placeholder={placeholder}
         triggerRole="combobox"
         testId={testId}
-        className={`${TRIGGER_BASE_CLASS} ${
+        className={cn(
+          TRIGGER_BASE_CLASS,
           triggerClassName ??
-          (invalid ? INVALID_TRIGGER_CLASS : DEFAULT_TRIGGER_CLASS)
-        } ${invalid ? "border-moto-red bg-moto-red/5" : ""} ${className}`}
+            (invalid ? INVALID_TRIGGER_CLASS : DEFAULT_TRIGGER_CLASS),
+          invalid && "border-moto-red bg-moto-red/5",
+          wrapLabels && "h-auto min-h-10 py-2",
+          className,
+        )}
         menuClassName={`scrollbar-thin overflow-y-auto moto-popover-surface rounded-xl border py-1 ${menuClassName}`}
         optionClassName="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50"
         activeOptionClassName="flex w-full items-center gap-2 bg-gray-50 px-4 py-2 text-left text-sm font-medium text-gray-900 transition-colors"
         disabledOptionClassName="flex w-full cursor-not-allowed items-center gap-2 px-4 py-2 text-left text-sm text-gray-400 transition-colors"
+        renderOption={
+          wrapLabels
+            ? (option) => (
+                <span className="min-w-0 flex-1 wrap-anywhere whitespace-normal">
+                  {option.label}
+                </span>
+              )
+            : undefined
+        }
         renderTrigger={({ selectedLabel, open }) => (
           <>
             <span
               id={labelId}
-              className={`min-w-0 flex-1 truncate ${
+              className={`min-w-0 flex-1 ${wrapLabels ? "wrap-anywhere whitespace-normal" : "truncate"} ${
                 options.some((option) => option.value === value)
                   ? "text-gray-900"
                   : "text-gray-500"

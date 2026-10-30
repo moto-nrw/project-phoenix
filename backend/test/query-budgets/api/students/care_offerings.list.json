@@ -1,0 +1,6 @@
+{
+  "scenario": "api.students.care_offerings.list",
+  "max": 6,
+  "exact": false,
+  "description": "api/students — GET /students/care-offerings (#4571), 10 offerings:\nthe request frame plus one catalog read for the picker selection."
+}

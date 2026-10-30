@@ -93,4 +93,93 @@ describe("StudentDokumenteTab", () => {
     ).toBeInTheDocument();
     expect(upload).not.toHaveBeenCalled();
   });
+
+  it("shows the generic upload for an uploadable document category", () => {
+    renderTab();
+
+    expect(
+      screen.getByRole("combobox", { name: "Kategorie" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Datei auswählen" }),
+    ).toBeInTheDocument();
+  });
+
+  it("hides the generic upload for accident report readers", () => {
+    swrResult.data = {
+      documents: [],
+      visibleCategories: [{ value: "unfallanzeige", label: "Unfallanzeige" }],
+    };
+    renderTab();
+
+    // Anker: Die geladene Dokumentliste zeigt den Leerzustand.
+    expect(screen.getByText("Noch keine Unfallanzeigen")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Kategorie" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Datei auswählen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lists an accident report in the school timezone, linked to its page", () => {
+    swrResult.data = {
+      documents: [
+        {
+          id: "41",
+          studentId: "7",
+          category: "unfallanzeige",
+          categoryLabel: "Unfallanzeige",
+          filename: "Unfallanzeige_2026-09-08.pdf",
+          sizeBytes: 0,
+          contentType: "application/pdf",
+          uploadedAt: "2026-09-08T10:00:00Z",
+          sensitive: true,
+          hasFile: false,
+          accidentReport: {
+            status: "open",
+            version: 1,
+            supersedesId: null,
+            supersededById: null,
+            signedAt: null,
+            signedDigitally: false,
+            occurredAt: "2026-09-08T08:40:00Z",
+            location: "Schulhof",
+            description: "Gestürzt",
+            injuredBodyParts: "",
+            injuryKind: "Prellung",
+            witnesses: "",
+            firstAid: "",
+            doctorVisited: false,
+            doctor: "",
+            parentsNotified: "",
+            parentsNotifiedAt: null,
+            supervisor: "Frau Berger",
+          },
+        },
+      ],
+      visibleCategories: [
+        { value: "attest", label: "Attest" },
+        { value: "unfallanzeige", label: "Unfallanzeige" },
+      ],
+    };
+    const previousTimezone = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      renderTab();
+
+      const link = screen.getByRole("link", {
+        name: "Unfall am 08.09.2026, 10:40 Uhr",
+      });
+      expect(link).toHaveAttribute("href", "/students/7/unfallanzeigen/41");
+      expect(screen.getByText("Offen")).toBeInTheDocument();
+      // Without student_accidents:manage there is nothing to record.
+      expect(screen.getByText("Dokumente")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Unfall erfassen" }),
+      ).not.toBeInTheDocument();
+    } finally {
+      process.env.TZ = previousTimezone;
+    }
+  });
 });

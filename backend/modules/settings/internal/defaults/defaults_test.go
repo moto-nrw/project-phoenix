@@ -145,6 +145,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.parent_excused_requires_approval",
 		"operations.parent_notes_enabled",
 		"operations.parent_message_staff_name_visible",
+		"operations.parent_message_leadership_enabled",
 		"operations.parent_pickup_change_enabled",
 		"operations.parent_guardian_management_enabled",
 		"operations.parent_master_data_edit_enabled",
@@ -515,6 +516,25 @@ func TestParentMessageStaffNameVisibleSetting(t *testing.T) {
 	assert.Equal(t, "config:update", def.WritePermission)
 	assert.Equal(t, "operations", def.Tab)
 	// Hidden unless messaging itself is on — it only affects those messages.
+	require.NotNil(t, def.DependsOn, "should be hidden when parent messaging is off")
+	assert.Equal(t, config.KeyParentNotesEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+}
+
+// TestParentMessageLeadershipEnabledSetting pins the leadership-only
+// conversations as opt-in (#5200): no school offers parents the choice until it
+// switches the feature on.
+func TestParentMessageLeadershipEnabledSetting(t *testing.T) {
+	t.Parallel()
+
+	def := config.GetDefinition(config.KeyParentMessageLeadershipEnabled)
+	require.NotNil(t, def, "operations.parent_message_leadership_enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "leadership-only conversations must default off")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	require.NotNil(t, def.DependsOn, "should be hidden when parent messaging is off")
 	assert.Equal(t, config.KeyParentNotesEnabled, def.DependsOn.Key)
 	assert.Equal(t, "eq", def.DependsOn.Condition)

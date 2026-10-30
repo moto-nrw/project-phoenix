@@ -11,7 +11,7 @@ import { setTestClock } from "~/test/clock";
 import { preloadDayPicker } from "~/components/ui/lazy-day-picker";
 import "@testing-library/jest-dom/vitest";
 import { NextIntlClientProvider } from "next-intl";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 
 // Real next-intl: the cutoff texts use ICU plurals the global mock cannot
 // render.

@@ -29,10 +29,11 @@ interface FormErrorAlertProps {
  * page or card uses it directly.
  *
  * Why not just `<Alert>`: a long form is usually scrolled to its Speichern
- * button when the error arrives. The alert scrolls itself into view whenever
- * the message changes or a new attempt fails with the same message, so the
- * person reads the reason instead of wondering why nothing happened. A toast
- * cannot do that job: it fades before anyone has found the field it names.
+ * button when the error arrives. Whenever the message changes or a new
+ * attempt fails with the same message, the alert brings the problem into
+ * view: the first marked field of its form, where the person has to act and
+ * reads the field's own hint, or else the alert itself. A toast cannot do
+ * that job: it fades before anyone has found the field it names.
  */
 export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -42,8 +43,17 @@ export function FormErrorAlert({ message, className }: FormErrorAlertProps) {
 
   useEffect(() => {
     if (!text) return;
+    // The marks of this attempt are in the DOM already: the hook that set
+    // the message marks the fields in the same render.
+    const field = ref.current
+      ?.closest("form")
+      ?.querySelector<HTMLElement>(
+        '[aria-invalid="true"], [data-form-invalid="true"]',
+      );
     // happy-dom and older WebKit builds ship no scrollIntoView on divs.
-    ref.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+    if (field) field.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    else
+      ref.current?.scrollIntoView?.({ behavior: "smooth", block: "nearest" });
   }, [text, attempt]);
 
   if (!text) return null;
@@ -116,9 +126,18 @@ export function errorAlertActions(
 export function LoadErrorAlert({
   error,
   className,
+  actionLayout = "stacked",
 }: {
   readonly error: FormErrorInput;
   readonly className?: string;
+  /**
+   * Where the retry sits. `stacked` (default) puts it under the message;
+   * `responsive` puts it right of it from `sm` on, for a short message in a
+   * wide area, and under it on a phone. An error with a request ID stays
+   * stacked: the 36-character ID beside the message squeezes the message
+   * into a narrow column on a tablet (#2511).
+   */
+  readonly actionLayout?: "stacked" | "responsive";
 }) {
   const text = formErrorMessage(error);
   const detail = formErrorDetail(error);
@@ -133,12 +152,22 @@ export function LoadErrorAlert({
       />
     );
   }
+  const layout = detail?.requestId ? "stacked" : actionLayout;
+  const actions = errorAlertActions(detail);
   return (
     <Alert
       type="error"
       message={text}
-      action={errorAlertActions(detail)}
-      actionLayout="stacked"
+      action={
+        layout === "responsive" && actions ? (
+          // On a phone the retry wraps under the message: max-sm:pl-7 keeps
+          // it flush with the text, as the stacked layout does.
+          <span className="block max-sm:pl-7">{actions}</span>
+        ) : (
+          actions
+        )
+      }
+      actionLayout={layout}
       className={className}
     />
   );

@@ -15,6 +15,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import type { MotoConceptKey } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
+import { RequiredMark } from "~/components/ui/field-label";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
   RequestSharingControl,
@@ -916,7 +917,7 @@ export function SickNoteModal({
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-gray-700">
               {t("sick.reasonLabelRequired")}
-              {reasonRequired && <span aria-hidden="true"> *</span>}
+              {reasonRequired && <RequiredMark />}
             </span>
             <textarea
               value={reason}
@@ -1704,7 +1705,7 @@ export function PickupTimeModal({
             <label className="block">
               <span className="mb-1 block text-sm font-medium text-gray-700">
                 {t("pickup.reasonLabel")}
-                {reasonRequired && <span aria-hidden="true"> *</span>}
+                {reasonRequired && <RequiredMark />}
               </span>
               <textarea
                 ref={reasonRef}

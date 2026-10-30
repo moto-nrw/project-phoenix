@@ -17,10 +17,11 @@ import (
 )
 
 // Regeltermine whose schedules resolve to different planning periods
-// (#5153): the template-save resync plans their sourced children under the
-// template's own period; the decision and adjustment flows must plan them
-// the same way instead of skipping the template, otherwise a correction
-// deletes rows it never re-creates.
+// (#5153): the template-save resync plans their sourced children without a
+// period, as their instances materialize under different ones (#5176); the
+// decision and adjustment flows must plan them the same way instead of
+// skipping the template, otherwise a correction deletes rows it never
+// re-creates.
 
 // createConflictingPeriodSourcedTemplate creates a live template that
 // sources the offering and pins templatePeriodID (nil for none). Its Monday
@@ -80,8 +81,7 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsTemplateWithConflictingSched
 	}))
 	before := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, before, 1, "the template-save resync plans the child on the template")
-	require.NotNil(t, before[0].CalendarPeriodID)
-	require.Equal(t, templatePeriod.ID, *before[0].CalendarPeriodID)
+	require.Nil(t, before[0].CalendarPeriodID, "the schedules resolve to different periods, so the row carries none (#5176)")
 
 	replacement := createAdjustmentCareOfferingWith(t, env, "Fruehbetreuung", nil)
 	// Correct only the other offering; the template's source stays booked.
@@ -103,6 +103,5 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsTemplateWithConflictingSched
 	assert.Equal(t, studentID, rows[0].StudentID)
 	require.NotNil(t, rows[0].EnrollmentRequestChildID)
 	assert.Equal(t, childID, *rows[0].EnrollmentRequestChildID)
-	require.NotNil(t, rows[0].CalendarPeriodID)
-	assert.Equal(t, templatePeriod.ID, *rows[0].CalendarPeriodID, "the row keeps the period the resync planned it under")
+	assert.Nil(t, rows[0].CalendarPeriodID, "the row keeps the period the resync planned it under: none (#5176)")
 }

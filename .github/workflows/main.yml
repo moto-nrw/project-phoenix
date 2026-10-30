@@ -46,11 +46,11 @@ jobs:
       # orchestrates every job, test.yml the test suites, lint.yml the lint
       # jobs. Other .github files reach only the script suites below.
       run-backend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-tests == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
-      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
+      run-frontend: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-fs-inputs == 'true' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' }}
       run-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
       run-backend-architecture: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-architecture == 'true' || steps.filter.outputs.workflow-main == 'true' }}
       full-backend-lint: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.backend-lint-full == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
-      run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
+      run-frontend-lint: ${{ steps.filter.outputs.frontend == 'true' || steps.filter.outputs.frontend-catalog-inputs == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-lint == 'true' || steps.filter.outputs.quality-scripts == 'true' }}
       # The seed smoke drives runtime API contracts. Test-only edits,
       # frontend-only pushes and CI changes outside its own workflow definition
       # cannot affect it and must not buy another runner.
@@ -60,10 +60,14 @@ jobs:
       # release pull requests are always full because they revalidate the whole
       # tree, not just what the change touched.
       full-backend-suite: ${{ steps.backend-size.outputs.full == 'true' || steps.filter.outputs.backend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
-      full-frontend-suite: ${{ steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
+      full-frontend-suite: ${{ steps.frontend-mode.outputs.mode == 'full' || steps.filter.outputs.frontend-test-infra == 'true' || steps.filter.outputs.workflow-main == 'true' || steps.filter.outputs.workflow-test == 'true' || github.event_name == 'push' || steps.scope.outputs.release == 'true' }}
       # Pull requests test what changed against the base branch. Protected-branch
       # pushes and release pull requests run the full suites.
       changed-scope: ${{ github.event_name != 'push' && steps.scope.outputs.release != 'true' }}
+      # External and Markdown-only inputs run all guards, including DOM guards, but
+      # need neither the regular DOM job nor browser layout tests.
+      frontend-guards-only: ${{ github.event_name != 'push' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend-fs-inputs == 'true' && steps.filter.outputs.frontend != 'true' && steps.filter.outputs.frontend-test-infra != 'true' && steps.filter.outputs.workflow-main != 'true' && steps.filter.outputs.workflow-test != 'true' }}
+      run-frontend-runner-tests: ${{ steps.filter.outputs.frontend-runner-tests == 'true' }}
       base-ref: ${{ github.base_ref }}
       # The script suites, the env sync and the error-code registry check only
       # files their own filter lists. Docs-only pull requests skip all three.
@@ -73,8 +77,8 @@ jobs:
       tooling-changed: ${{ steps.filter.outputs.tooling == 'true' }}
       toolchain-changed: ${{ steps.filter.outputs.toolchain == 'true' }}
     steps:
-      # Pull requests need no checkout: paths-filter reads their changed files
-      # through the GitHub API. Pushes compare against the previous commit.
+      # paths-filter reads PR files through the API. Ordinary frontend PRs
+      # check out only the shared classifier below; pushes compare commits.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: github.event_name == 'push'
         with:
@@ -109,6 +113,13 @@ jobs:
               - 'backend/go.mod'
               - 'backend/go.sum'
               - 'backend/architecture/policy.json'
+              - 'backend/architecture/policy/**'
+              - 'backend/architecture/artifacts/**'
+              - 'backend/architecture/command-effects.json'
+              - 'backend/architecture/command-effects/**'
+              - 'backend/architecture/passthrough.json'
+              - 'backend/architecture/passthrough/**'
+              - 'backend/test/query-budgets/**'
               - 'backend/**/testdata/**'
               # Shrink-only ratchet registers, read by ./test.
               - 'backend/test/*.json'
@@ -165,6 +176,19 @@ jobs:
             frontend:
               - 'frontend/**'
               - '!frontend/**/*.md'
+            # External inputs read by the frontend error-catalog validator.
+            frontend-catalog-inputs:
+              - 'error-registry/**'
+              - 'scripts/error-registry.mjs'
+              - 'backend/modules/delivery/internal/adapters/localization/locales.json'
+            frontend-fs-inputs:
+              # External/Markdown inputs need one guard job, not both projects.
+              - 'frontend/**/*.md'
+              - 'backend/**'
+              - '!backend/**/*.md'
+              - 'scripts/dev-native.sh'
+              - '.github/workflows/e2e.yml'
+              - '.github/workflows/lint.yml'
             backend-test-infra:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
@@ -178,13 +202,17 @@ jobs:
               - 'scripts/go-package-workers.sh'
               - 'scripts/total-memory-gb.sh'
             frontend-test-infra:
-              - 'frontend/package.json'
-              - 'frontend/pnpm-lock.yaml'
-              - 'frontend/pnpm-workspace.yaml'
-              - 'frontend/tsconfig.json'
-              - 'frontend/vitest.config.ts'
-              - 'frontend/src/test/setup.ts'
+              - 'scripts/test-frontend-changed.mjs'
+              - 'scripts/test-frontend-changed.test.mjs'
               - 'scripts/test-changed.sh'
+              - 'scripts/test-changed_test.sh'
+            frontend-runner-tests:
+              - 'scripts/**'
+              - 'frontend/scripts/**'
+              - 'frontend/vitest.config.ts'
+              - 'frontend/src/test/**'
+              - '.github/workflows/main.yml'
+              - '.github/workflows/test.yml'
             # The workflows that run on pull requests. Each one reruns the
             # jobs it defines in full; see the outputs above.
             workflow-main:
@@ -291,11 +319,44 @@ jobs:
               - 'scripts/env-check.sh'
               - 'scripts/check-runtime-env.py'
             error-codes:
-              - 'error-registry.json'
+              - 'error-registry/**'
+              - 'scripts/error-registry.mjs'
               - 'scripts/generate-error-codes*'
               - 'backend/api/common/error_codes*.generated.go'
               - 'frontend/src/lib/error-codes.generated.ts'
+              - 'frontend/src/lib/error-codes/*.generated.ts'
               - '.github/workflows/lint.yml'
+
+      # Reuse the local allowlist before choosing the DOM matrix. No dependency
+      # installation or extra planning job: paths-filter already supplies JSON,
+      # including both sides of renames (pinned action v4.0.3).
+      - name: Checkout frontend selection policy
+        if: github.event_name == 'pull_request' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/test-frontend-changed.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Node for frontend selection
+        if: github.event_name == 'pull_request' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend == 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        with:
+          node-version: "24"
+
+      - name: Select frontend test mode
+        id: frontend-mode
+        if: github.event_name == 'pull_request' && steps.scope.outputs.release != 'true' && steps.filter.outputs.frontend == 'true'
+        env:
+          CHANGED_COUNT: ${{ steps.filter.outputs.frontend_count }}
+          CHANGED_FILES: ${{ fromJSON(steps.filter.outputs.frontend_count) < 500 && steps.filter.outputs.frontend_files || '[]' }}
+        run: |
+          # As with the backend file list below, bound environment payloads.
+          if [ "$CHANGED_COUNT" -ge 500 ]; then
+            echo "mode=full" >> "$GITHUB_OUTPUT"
+          else
+            mode=$(printf '%s' "$CHANGED_FILES" | node scripts/test-frontend-changed.mjs --mode-files)
+            echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          fi
 
       # A large refactor must not squeeze almost the whole suite through the
       # affected-only runner. This cheap file-list check also avoids a serial
@@ -414,6 +475,7 @@ jobs:
   lint:
     permissions:
       contents: read
+      actions: read
     needs: detect-changes
     uses: ./.github/workflows/lint.yml
     with:
@@ -549,6 +611,8 @@ jobs:
       base_ref: ${{ needs.detect-changes.outputs.base-ref }}
       full-backend-suite: ${{ needs.detect-changes.outputs.full-backend-suite == 'true' }}
       full-frontend-suite: ${{ needs.detect-changes.outputs.full-frontend-suite == 'true' }}
+      frontend-guards-only: ${{ needs.detect-changes.outputs.frontend-guards-only == 'true' }}
+      run-frontend-runner-tests: ${{ needs.detect-changes.outputs.run-frontend-runner-tests == 'true' }}
 
   # Verify all environments have matching env var keys (no secrets needed)
   env-sync-check:

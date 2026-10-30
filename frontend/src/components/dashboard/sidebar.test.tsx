@@ -762,9 +762,7 @@ describe("Sidebar", () => {
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter", () => {
-      // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
-      // (Planung-Redesign) und darf die Mitarbeiter-Sektion nicht färben.
-      mockUsePathname.mockReturnValue("/staff/dienstplan");
+      mockUsePathname.mockReturnValue("/dienstplan");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 

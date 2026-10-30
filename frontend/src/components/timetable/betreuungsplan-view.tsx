@@ -11,7 +11,12 @@
  * ist die Woche/der Monat, die/den `d` enthält), `view` ("woche" | "monat" |
  * "serien"), `block` (Instanz-ID des geöffneten InstanceDetailModal) und die
  * Filter `group` (OGS-Gruppe) und `staff` (Person) aus #4766 sowie `room`
- * (Raum) aus #4768.
+ * (Raum) aus #4768. `verbinden` (Regeltermin-ID, #5137) öffnet in der
+ * Serienansicht einmal „Mit Angebot verbinden“ und fällt danach weg; er setzt
+ * `zeitraum` (Zeitraum-ID) für den Zeitraum des Regeltermins, ebenso der
+ * Zeitraum-Chip für den gewählten aktiven Zeitraum (#5190). `zeitraum` gilt,
+ * solange `d` in diesem Zeitraum liegt, und schlägt bei überlappenden
+ * Zeiträumen die Wahl per Datum.
  * Ungültige Werte fallen still auf die Defaults zurück (heute, "woche"). Die
  * sieben Alt-Parameter (week/month/year/instance/day/period/Alt-view) entfallen
  * ersatzlos; die Jahresansicht ist nicht mehr verlinkbar. Der Dichte-Umschalter
@@ -78,7 +83,10 @@ import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-d
 import { TemplateList } from "~/components/timetable/template-list";
 import { ConnectOfferingModal } from "~/components/timetable/connect-offering-modal";
 import { useRosterDeviations } from "~/components/timetable/use-roster-deviations";
+import { OfferingGapHints } from "~/components/timetable/offering-gap-hints";
 import type { RosterDeviation } from "~/lib/roster-deviation";
+import type { OfferingGap } from "~/lib/offering-gap";
+import type { SeriesSourcePrefill } from "~/components/timetable/event-form/form-model";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
@@ -192,6 +200,10 @@ const ALLOWED_URL_PARAMS = [
   "room",
   // „Zu prüfen“ in der Serienansicht (#5103).
   "pruefen",
+  // Regeltermin-ID, für die „Mit Angebot verbinden“ öffnet (#5137).
+  "verbinden",
+  // Zeitraum-ID des verlinkten Regeltermins (#5137).
+  "zeitraum",
 ] as const;
 
 type ViewParam = "tag" | "woche" | "monat" | "serien";
@@ -297,7 +309,8 @@ function TimetablesContent() {
   // Schritte ohne Formular (Raster, Detailpanel, Serienliste) melden ihren
   // Fehler als Toast mit Katalogtext (#2516). Ein offener Bestätigungsdialog
   // zeigt seinen Fehler dagegen selbst, weil er über den Toasts liegt.
-  const { show: showActionError } = useApiErrorDisplay();
+  const { show: showActionError, showMessage: showConnectMessage } =
+    useApiErrorDisplay();
   const tenantMutate = useTenantMutate();
   const tenantPath = useTenantAwarePath();
   const todayISO = useBerlinToday();
@@ -365,6 +378,9 @@ function TimetablesContent() {
   // US-1 quick create: set when the modal was opened from an empty week
   // slot. Non-null switches the event modal into the "quick" variant with
   // prefilled date and times; cleared when the modal closes.
+  const [seriesSource, setSeriesSource] = useState<SeriesSourcePrefill | null>(
+    null,
+  );
   const [quickPrefill, setQuickPrefill] = useState<{
     date: string;
     startTime: string;
@@ -935,16 +951,26 @@ function TimetablesContent() {
   const dayClosingReason = closingDays.get(dayISO) ?? null;
   // Der sichtbare Planungszeitraum: der Zeitraum, in den das sichtbare Datum
   // fällt. Speist Zeitraum-Chip, Bedarfsquellen-Chip und die Serienliste.
-  const visiblePeriod = useMemo(
-    () => findPeriodForDate(calendarPeriods, dayISO),
-    [calendarPeriods, dayISO],
-  );
+  // Ein per ID gewählter Zeitraum (#5137) gilt, solange er den Tag enthält;
+  // sonst wählt das Datum, bei Überlappung der ältere Zeitraum.
+  const pinnedPeriodID = params.zeitraum;
+  const visiblePeriod = useMemo(() => {
+    const pinned = calendarPeriods.find(
+      (entry) =>
+        entry.id === pinnedPeriodID &&
+        entry.isActive &&
+        entry.startDate <= dayISO &&
+        dayISO <= entry.endDate,
+    );
+    return pinned ?? findPeriodForDate(calendarPeriods, dayISO);
+  }, [calendarPeriods, dayISO, pinnedPeriodID]);
   const templatePeriodID = visiblePeriod?.id ?? assignedPeriods[0]?.id;
   const focusedPeriodID = templatePeriodID ?? null;
   const {
     data: templateData,
     error: templatesError,
     isLoading: templatesLoading,
+    isValidating: templatesValidating,
   } = useSWRAuth(
     // Regeltermine braucht nur die Serienansicht und das Detailpanel eines
     // Termins (#4996); Woche, Tag und Monat laden sie nicht beim Öffnen.
@@ -954,6 +980,7 @@ function TimetablesContent() {
       ? `timetable-templates-${templatePeriodID}`
       : null,
     () => timetableService.getTemplates(templatePeriodID),
+    { keepPreviousData: false },
   );
   const templatesLoadError = useSwrLoadError(
     templatesError,
@@ -964,13 +991,138 @@ function TimetablesContent() {
     () => templateData?.templates ?? [],
     [templateData?.templates],
   );
+  const connectTemplateID = params.verbinden;
+  const resolveConnectTemplate =
+    !!connectTemplateID && canManageSchedules && view === "series";
+  const needsConnectLookup =
+    resolveConnectTemplate &&
+    periodsReady &&
+    (!templatePeriodID || !!templateData) &&
+    !templates.some((entry) => entry.id === connectTemplateID);
+  // The period-free list is metadata only. Switch periods before using the
+  // normal scoped list, so the editor never receives an unscoped roster.
+  const {
+    data: connectTemplates,
+    error: connectTemplatesError,
+    isValidating: connectTemplatesValidating,
+  } = useSWRAuth(
+    status === "authenticated" && needsConnectLookup
+      ? "timetable-connect-templates"
+      : null,
+    () => timetableService.getTemplates(),
+    { keepPreviousData: false, revalidateOnMount: true },
+  );
+  const connectTemplatesLoadError = useSwrLoadError(
+    needsConnectLookup ? connectTemplatesError : undefined,
+    "den Regeltermin",
+    () => tenantMutate("timetable-connect-templates"),
+  );
   // Abweichungen von den Anmeldungen (#5103): Hinweis an Karte und Termin.
-  const rosterDeviations = useRosterDeviations(
+  const {
+    deviations: rosterDeviations,
+    settled: rosterDeviationsSettled,
+    error: rosterDeviationsError,
+    retry: retryRosterDeviations,
+  } = useRosterDeviations(
     templatePeriodID,
     status === "authenticated",
     templateData,
+    resolveConnectTemplate ? connectTemplateID : null,
+  );
+  const connectLoadError = useSwrLoadError(
+    resolveConnectTemplate ? rosterDeviationsError : undefined,
+    "die Prüfung der Kinderlisten",
+    retryRosterDeviations,
   );
   const reviewOnly = params.pruefen === "1";
+  // „Mit Angebot verbinden“ aus der Rückmeldung nach einer Buchungsänderung
+  // (#5137): öffnet einmal den Dialog des Regeltermins. Findet moto kein
+  // passendes Angebot, öffnet der Regeltermin zum Bearbeiten; dort lässt sich
+  // ein Angebot als Quelle wählen.
+  useEffect(() => {
+    if (!connectTemplateID || status !== "authenticated") return;
+    // Ohne Planungsrecht gibt es weder Serienansicht noch Dialog.
+    if (!canManageSchedules) {
+      updateUrlParams({ verbinden: null });
+      return;
+    }
+    if (
+      view !== "series" ||
+      !periodsReady ||
+      (templatePeriodID && !templateData)
+    )
+      return;
+    if (templatesError) return;
+    const template = templates.find((entry) => entry.id === connectTemplateID);
+    if (!template) {
+      if (
+        templatesValidating ||
+        !connectTemplates ||
+        connectTemplatesError ||
+        connectTemplatesValidating
+      )
+        return;
+      const linked = connectTemplates.templates.find(
+        (entry) => entry.id === connectTemplateID,
+      );
+      const periodID = linked && resolveTemplateCalendarPeriodId(linked);
+      const period = calendarPeriods.find((entry) => entry.id === periodID);
+      // Den Zeitraum per ID wählen: per Datum gewänne bei Überlappung der
+      // ältere Zeitraum, und der Regeltermin fehlte weiter in der Liste.
+      if (period?.isActive && period.id !== templatePeriodID) {
+        const inside = period.startDate <= dayISO && dayISO <= period.endDate;
+        updateUrlParams({
+          d: inside ? dayISO : period.startDate,
+          zeitraum: period.id,
+        });
+        return;
+      }
+      updateUrlParams({ verbinden: null });
+      // Kein stummes Ende: der Regeltermin fehlt oder ist nicht mehr planbar.
+      showConnectMessage(
+        linked && period
+          ? `„${linked.name}“ gehört zum Zeitraum „${period.name}“. moto kann ihn von hier aus leider nicht öffnen.`
+          : "Den Regeltermin gibt es nicht mehr.",
+      );
+      return;
+    }
+    if (!rosterDeviationsSettled) return;
+    updateUrlParams({ verbinden: null });
+    const deviation = rosterDeviations.get(template.id);
+    if (deviation) {
+      setConnecting({ template, deviation });
+      return;
+    }
+    setEditingInstance(null);
+    setConvertingInstance(null);
+    setEditingTemplate(template);
+    setEventDefaultRepeat("weekly");
+    setEventModalOpen(true);
+    toast.info(
+      "moto findet kein passendes Angebot. Wählen Sie unter „Personal und Kinder“ das Angebot selbst.",
+    );
+  }, [
+    connectTemplateID,
+    status,
+    view,
+    templateData,
+    rosterDeviationsSettled,
+    templatesError,
+    templatesValidating,
+    connectTemplates,
+    connectTemplatesError,
+    connectTemplatesValidating,
+    calendarPeriods,
+    periodsReady,
+    templatePeriodID,
+    dayISO,
+    rosterDeviations,
+    templates,
+    canManageSchedules,
+    updateUrlParams,
+    toast,
+    showConnectMessage,
+  ]);
   const modalCalendarPeriods = useMemo(() => {
     const periodIDs = new Set(assignedPeriods.map((period) => period.id));
     if (templatePeriodID) periodIDs.add(templatePeriodID);
@@ -1559,6 +1711,22 @@ function TimetablesContent() {
     setEditingInstance(null);
     setEditingTemplate(null);
     setConvertingInstance(null);
+    setSeriesSource(null);
+    setEventDefaultRepeat("weekly");
+    setEventModalOpen(true);
+  }, []);
+
+  // „Regeltermin anlegen“ on an offering without one (#5140): the new
+  // Regeltermin starts fed by that offering, on its booked weekdays.
+  const openSeriesCreateForGap = useCallback((gap: OfferingGap) => {
+    setEditingInstance(null);
+    setEditingTemplate(null);
+    setConvertingInstance(null);
+    setSeriesSource({
+      careOfferingIds: [gap.offering.id],
+      title: gap.offering.name,
+      weekdays: gap.weekdays,
+    });
     setEventDefaultRepeat("weekly");
     setEventModalOpen(true);
   }, []);
@@ -1594,6 +1762,10 @@ function TimetablesContent() {
           ? target
           : firstSchoolDayInPeriod(period.startDate, period.endDate, target),
         block: null,
+        // Per ID wählen: per Datum gewänne bei Überlappung der ältere
+        // Zeitraum, und eingeschlossene Ferien wären nicht erreichbar.
+        // Ein inaktiver Zeitraum wird dadurch nicht aktiv.
+        zeitraum: period.isActive ? period.id : null,
       });
     },
     [todayISO, updateUrlParams, weekendOpen],
@@ -2056,6 +2228,7 @@ function TimetablesContent() {
           setConvertingInstance(null);
           setEventDefaultRepeat("none");
           setQuickPrefill(null);
+          setSeriesSource(null);
         }}
         defaultDate={
           quickPrefill
@@ -2078,6 +2251,7 @@ function TimetablesContent() {
         variant={quickPrefill ? "quick" : "full"}
         defaultStartTime={quickPrefill?.startTime}
         defaultEndTime={quickPrefill?.endTime}
+        defaultSource={seriesSource}
         onSaved={(result) => {
           void tenantMutate(swrKey);
           void tenantMutate(gapsSWRKey);
@@ -2303,6 +2477,8 @@ function TimetablesContent() {
       }
     >
       <LoadErrorAlert error={periodsLoadError} />
+      <LoadErrorAlert error={connectTemplatesLoadError} />
+      <LoadErrorAlert error={connectLoadError} />
       {/* Ein Ladefehler bei vorhandenen Daten: der Plan bleibt stehen. */}
       {view === "series" ? (
         templateData ? (
@@ -2421,6 +2597,15 @@ function TimetablesContent() {
           staffNames={blockStaffNames}
           showDayHeader
           emptyState={weekEmptyState}
+        />
+      )}
+
+      {view === "series" && (
+        <OfferingGapHints
+          periodId={templatePeriodID}
+          canManage={canManageSchedules}
+          onCreateSeries={openSeriesCreateForGap}
+          templatesVersion={templateData}
         />
       )}
 

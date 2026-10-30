@@ -15,6 +15,14 @@ interface BackendThreadView {
   student_name: string;
   school_name: string;
   counterpart_name: string;
+  // Team or leadership conversation, who reads it, and whether the parent may
+  // begin one with the leadership only (#5200).
+  audience: "team" | "leadership";
+  readers: {
+    guardian?: { name: string };
+    school: { kind: string; names: string[] };
+  };
+  leadership_option: { available: boolean; names: string[] };
   messages: BackendMessage[];
 }
 
@@ -22,11 +30,14 @@ interface PostMessageBody {
   body: string;
   // The group thread this message answers (#4784).
   group_thread_id?: string;
+  // "team" (default) or "leadership" (#5200).
+  audience?: "team" | "leadership";
 }
 
 /**
  * Proxy GET /api/parent/me/messages/children/{studentId} → backend. Returns the
  * guardian's conversation about one child (oldest-first), marking it read.
+ * `?audience=leadership` (forwarded) picks the one with the leadership only.
  * Guardian ownership is enforced server-side.
  */
 export const GET = proxyGet<BackendThreadView>(

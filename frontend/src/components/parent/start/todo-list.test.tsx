@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it } from "vitest";
-import deMessages from "~/i18n/messages/de.json";
+import deMessages from "~/i18n/messages/de.generated";
 import { TodoList, type TodoItem } from "./todo-list";
 
 const items: TodoItem[] = Array.from({ length: 6 }, (_, index) => ({

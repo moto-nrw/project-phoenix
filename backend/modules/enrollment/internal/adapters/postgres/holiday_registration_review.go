@@ -19,18 +19,22 @@ import (
 
 // holidayReviewRegistrationRow is one registration as the review reads it.
 type holidayReviewRegistrationRow struct {
-	ID                 int64      `bun:"id"`
-	Status             string     `bun:"status"`
-	FreezeOverride     *string    `bun:"freeze_override"`
-	SubmittedAt        time.Time  `bun:"submitted_at"`
-	GuardianFirstName  string     `bun:"guardian_first_name"`
-	GuardianLastName   string     `bun:"guardian_last_name"`
-	GuardianEmail      string     `bun:"guardian_email"`
-	GuardianPhone      string     `bun:"guardian_phone"`
-	PrivacyConsentAt   time.Time  `bun:"privacy_consent_at"`
-	HealthConsentAt    *time.Time `bun:"health_consent_at"`
-	BindingConfirmedAt *time.Time `bun:"binding_confirmed_at"`
-	BenefitsDeclared   bool       `bun:"benefits_declared"`
+	ID                      int64      `bun:"id"`
+	Status                  string     `bun:"status"`
+	FreezeOverride          *string    `bun:"freeze_override"`
+	SubmittedAt             time.Time  `bun:"submitted_at"`
+	GuardianFirstName       string     `bun:"guardian_first_name"`
+	GuardianLastName        string     `bun:"guardian_last_name"`
+	GuardianEmail           string     `bun:"guardian_email"`
+	GuardianPhone           string     `bun:"guardian_phone"`
+	SecondGuardianFirstName string     `bun:"second_guardian_first_name"`
+	SecondGuardianLastName  string     `bun:"second_guardian_last_name"`
+	SecondGuardianEmail     string     `bun:"second_guardian_email"`
+	SecondGuardianPhone     string     `bun:"second_guardian_phone"`
+	PrivacyConsentAt        time.Time  `bun:"privacy_consent_at"`
+	HealthConsentAt         *time.Time `bun:"health_consent_at"`
+	BindingConfirmedAt      *time.Time `bun:"binding_confirmed_at"`
+	BenefitsDeclared        bool       `bun:"benefits_declared"`
 }
 
 // holidayReviewChildRow is one child as the review reads it. The health
@@ -59,7 +63,8 @@ type holidayReviewBookingRow struct {
 const (
 	reviewRegistrationsQuery = `SELECT id, status, freeze_override, submitted_at,
 			guardian_first_name, guardian_last_name, guardian_email, guardian_phone,
-			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared
+			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared,
+			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone
 		FROM enrollment.holiday_registrations
 		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)
 		ORDER BY submitted_at, id`
@@ -164,6 +169,12 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			},
 			Health:           health[row.ID],
 			PrivacyConsentAt: row.PrivacyConsentAt, HealthConsentAt: row.HealthConsentAt, BindingConfirmedAt: row.BindingConfirmedAt,
+		}
+		if row.SecondGuardianFirstName != "" {
+			details[i].SecondGuardian = &enrollment.HolidayGuardianInput{
+				FirstName: row.SecondGuardianFirstName, LastName: row.SecondGuardianLastName,
+				Email: row.SecondGuardianEmail, Phone: row.SecondGuardianPhone,
+			}
 		}
 	}
 	return details
@@ -352,4 +363,65 @@ func (s *HolidayRegistrationStore) AppendHolidayAudit(ctx context.Context, organ
 		return fmt.Errorf("enrollment postgres: append holiday registration audit: %w", err)
 	}
 	return nil
+}
+
+const (
+	reviewRegistrationAnswersQuery = `SELECT id, form_version, custom_data, legal_acceptances
+		FROM enrollment.holiday_registrations
+		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR id = ?)`
+	reviewChildAnswersQuery = `SELECT id, holiday_registration_id, custom_data
+		FROM enrollment.holiday_registration_children
+		WHERE organization_id = ? AND holiday_period_id = ? AND (?::bigint = 0 OR holiday_registration_id = ?)
+		ORDER BY holiday_registration_id, position`
+)
+
+// ReadHolidayAnswers reads the form version and the answers of the
+// registrations of a period, or of the one registrationID names, with the
+// answers of their children (#5198): two statements for any number of
+// registrations. Only the detail and the export read them; the list does
+// not.
+func (s *HolidayRegistrationStore) ReadHolidayAnswers(ctx context.Context, organizationID, periodID, registrationID int64) (map[int64]enrollment.HolidayRegistrationAnswers, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var registrations []struct {
+		ID               int64                     `bun:"id"`
+		LegalAcceptances map[string]time.Time      `bun:"legal_acceptances,type:jsonb"`
+		FormVersion      int                       `bun:"form_version"`
+		CustomData       enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+	}
+	if err := db.NewRaw(reviewRegistrationAnswersQuery, organizationID, periodID, registrationID, registrationID).
+		Scan(ctx, &registrations); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday registration answers: %w", err)
+	}
+	answers := make(map[int64]enrollment.HolidayRegistrationAnswers, len(registrations))
+	if len(registrations) == 0 {
+		return answers, nil
+	}
+	for _, row := range registrations {
+		answers[row.ID] = enrollment.HolidayRegistrationAnswers{
+			LegalAcceptances: row.LegalAcceptances, FormVersion: row.FormVersion, CustomData: answersOrEmpty(row.CustomData), Children: []enrollment.HolidayChildAnswers{},
+		}
+	}
+	var children []struct {
+		ID             int64                     `bun:"id"`
+		RegistrationID int64                     `bun:"holiday_registration_id"`
+		CustomData     enrollment.HolidayAnswers `bun:"custom_data,type:jsonb"`
+	}
+	if err := db.NewRaw(reviewChildAnswersQuery, organizationID, periodID, registrationID, registrationID).
+		Scan(ctx, &children); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday registration child answers: %w", err)
+	}
+	for _, child := range children {
+		registration, ok := answers[child.RegistrationID]
+		if !ok {
+			continue
+		}
+		registration.Children = append(registration.Children, enrollment.HolidayChildAnswers{
+			ChildID: child.ID, CustomData: answersOrEmpty(child.CustomData),
+		})
+		answers[child.RegistrationID] = registration
+	}
+	return answers, nil
 }

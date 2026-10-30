@@ -189,6 +189,12 @@ jobs:
       METRICS_BEARER_TOKEN: "ci-bundle-ratchet-token"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Keep the default synthetic merge for the regular integration build.
+          # Feature bundle measurements switch to the PR head afterwards.
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
 
       - name: Enable corepack
         run: corepack enable
@@ -223,15 +229,47 @@ jobs:
         working-directory: frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Build frontend
+      - name: Verify bundle budget and observation contracts
+        working-directory: frontend
+        run: node --test scripts/bundle-workflow-permissions.node-test.mjs scripts/perf/bundle-policy.node-test.mjs scripts/perf/bundle-measurement.node-test.mjs scripts/perf/bundle-base.node-test.mjs
+
+      - name: Build frontend merge integration
         working-directory: frontend
         run: pnpm run build
 
-      # Bundle-Size-Ratchet (#2939): `next experimental-analyze` kompiliert
-      # kalt (Chunk-Aufteilung hängt sonst vom Cache-Zustand ab) und vergleicht
-      # Client-JS je Route mit scripts/perf/bundle-baseline.json. Die Baseline
-      # sind Runner-Zahlen: zum Nachziehen das Artefakt `bundle-measured`
-      # laden und als bundle-baseline.json einchecken.
+      - name: Select feature PR head for bundle delta measurements
+        if: github.event_name == 'pull_request' && github.base_ref != 'main'
+        working-directory: frontend
+        env:
+          HEAD_REVISION: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git checkout --detach "$HEAD_REVISION"
+          pnpm install --frozen-lockfile
+
+      - name: Identify bundle observation source and configuration
+        id: bundle-key
+        working-directory: frontend
+        env:
+          BASE_REVISION: ${{ github.event_name == 'pull_request' && github.base_ref != 'main' && github.event.pull_request.base.sha || '' }}
+        run: |
+          if [[ -n "$BASE_REVISION" && ! "$BASE_REVISION" =~ ^0+$ ]]; then
+            merge_base=$(git merge-base HEAD "$BASE_REVISION")
+            node scripts/perf/bundle-measurement.mjs --prepare-ci "$merge_base"
+          else
+            node scripts/perf/bundle-measurement.mjs --prepare-ci
+          fi
+
+      - name: Cold build exact merge-base with the same runner and environment
+        if: github.event_name == 'pull_request' && github.base_ref != 'main'
+        working-directory: frontend
+        run: node scripts/perf/bundle-measurement.mjs --build-base
+
+      # Feature PRs enforce their own delta against a cold merge-base build.
+      # Release PRs into main and nightly enforce only absolute ceilings:
+      # release-cycle growth is not a feature PR regression. The regular merge
+      # build above still catches semantic integration failures before merging.
+      # Keep the regular build: experimental-analyze's cold compilation is not
+      # assumed to cover every Next.js build/type/route-validation contract.
       - name: Bundle size ratchet
         working-directory: frontend
         run: pnpm run perf:bundle-ratchet
@@ -240,7 +278,11 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: bundle-measured
-          path: frontend/perf-results/bundle-measured.json
+          name: bundle-measured-${{ steps.bundle-key.outputs.measurement-key }}
+          overwrite: true
+          path: |
+            frontend/perf-results/bundle-measured.json
+            frontend/perf-results/bundle-base.json
+            frontend/perf-results/bundle-base-identity.json
           retention-days: 14
           if-no-files-found: ignore

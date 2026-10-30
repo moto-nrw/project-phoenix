@@ -20,6 +20,7 @@ const (
 	StudentDocumentCategoryImpfnachweis      = "impfnachweis"
 	StudentDocumentCategoryMedikamentenplan  = "medikamentenplan"
 	StudentDocumentCategorySorgerecht        = "sorgerecht"
+	StudentDocumentCategoryUnfallanzeige     = "unfallanzeige"
 	StudentDocumentCategorySonstiges         = "sonstiges"
 )
 
@@ -32,6 +33,7 @@ var StudentDocumentCategories = []string{
 	StudentDocumentCategoryImpfnachweis,
 	StudentDocumentCategoryMedikamentenplan,
 	StudentDocumentCategorySorgerecht,
+	StudentDocumentCategoryUnfallanzeige,
 	StudentDocumentCategorySonstiges,
 }
 
@@ -45,6 +47,7 @@ var StudentDocumentCategoryLabels = map[string]string{
 	StudentDocumentCategoryImpfnachweis:      "Impfnachweis",
 	StudentDocumentCategoryMedikamentenplan:  "Medikamentenplan",
 	StudentDocumentCategorySorgerecht:        "Sorgerechtsnachweis",
+	StudentDocumentCategoryUnfallanzeige:     "Unfallanzeige",
 	StudentDocumentCategorySonstiges:         "Sonstiges",
 }
 
@@ -57,7 +60,7 @@ type StudentDocument struct {
 	TenantModel
 	Category        string     `bun:"category,notnull" json:"category"`
 	FilenameDisplay string     `bun:"filename_display,notnull" json:"filename_display"`
-	FilenameStored  string     `bun:"filename_stored,notnull" json:"-"`
+	FilenameStored  string     `bun:"filename_stored,nullzero" json:"-"`
 	SizeBytes       int64      `bun:"size_bytes,notnull" json:"size_bytes"`
 	ContentType     string     `bun:"content_type,notnull" json:"content_type"`
 	UploadedBy      int64      `bun:"uploaded_by,notnull" json:"uploaded_by"`

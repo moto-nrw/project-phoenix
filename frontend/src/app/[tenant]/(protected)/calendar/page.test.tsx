@@ -762,16 +762,17 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
 
     expect(mockCreateStaffAppointment).not.toHaveBeenCalled();
-    // Zwei Alerts: der Sammelsatz oben im Panel und der Hinweis am Titel.
+    // Ein Alert oben im Panel liest den Fehler vor; der Hinweis am Titel
+    // steht als Beschreibung am Feld und bleibt still (#5217).
     const alerts = await screen.findAllByRole("alert");
-    expect(alerts).toHaveLength(2);
+    expect(alerts).toHaveLength(1);
     expect(alerts[0]).toHaveTextContent(
       "Bitte prüfen Sie die markierten Felder.",
     );
-    expect(alerts[1]).toHaveTextContent("Bitte geben Sie einen Titel ein.");
-    expect(screen.getByLabelText("Titel")).toHaveAttribute(
-      "aria-invalid",
-      "true",
+    const title = screen.getByLabelText("Titel");
+    expect(title).toHaveAttribute("aria-invalid", "true");
+    expect(title).toHaveAccessibleDescription(
+      "Bitte geben Sie einen Titel ein.",
     );
     expect(mockToastWarning).not.toHaveBeenCalled();
   });
