@@ -1,26 +1,30 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import { RoleGuard } from "~/components/auth/role-guard";
 import { Button, buttonClassName } from "~/components/ui/button";
-import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
+import { StatCard } from "~/components/ui/stat-card";
+import { StatusBadge } from "~/components/ui/status-badge";
+import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { Textarea } from "~/components/ui/textarea";
 import {
+  WeekProtocolBlockBadge,
   WeekProtocolStatusBadge,
-  weekProtocolBlockStatus,
   weekProtocolWeekLabel,
 } from "~/components/week-protocols/week-protocol-status";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
+import { DAY_LOG_STATUS_COLORS } from "~/lib/day-log-api";
 import {
   berlinClockFromISO,
   formatBerlinDate,
   formatDate,
+  formatStatusDate,
   parseISODate,
 } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -44,18 +48,11 @@ import {
 
 const logger = createLogger({ component: "WeekProtocolPage" });
 
-const WEEKDAYS = [
-  "Sonntag",
-  "Montag",
-  "Dienstag",
-  "Mittwoch",
-  "Donnerstag",
-  "Freitag",
-  "Samstag",
-];
+const SHORT_WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
 
-function dayTitle(date: string): string {
-  return `${WEEKDAYS[parseISODate(date).getDay()]}, ${formatDate(date).slice(0, 6)}`;
+/** „Fr 30.10.“ für die Tageskacheln der Wochenübersicht. */
+function shortDay(date: string): string {
+  return `${SHORT_WEEKDAYS[parseISODate(date).getDay()]} ${formatDate(date).slice(0, 6)}`;
 }
 
 function stamp(iso: string): string {
@@ -81,6 +78,16 @@ function stateMessage(protocol: WeekProtocol): string {
         ? `moto hat das Protokoll am ${stamp(protocol.closedAt ?? "")} abgeschlossen. Es lässt sich nicht mehr ändern.`
         : `${protocol.closedByName} hat das Protokoll am ${stamp(protocol.closedAt ?? "")} abgeschlossen. Es lässt sich nicht mehr ändern.`;
   }
+}
+
+/** Was die Kachel eines Tages sagt: wie viele da waren, oder warum nichts. */
+function dayTileValue(day: WeekProtocolDay): string {
+  if (!day.captured) return "Nicht festgehalten";
+  if (day.kind === "holiday") return "Feiertag";
+  if (day.kind === "closing") return "Schließtag";
+  const total = day.present + day.missing.length;
+  if (total === 0) return "Keine Kinder";
+  return `${day.present} von ${total} da`;
 }
 
 function WeekProtocolContent() {
@@ -141,7 +148,7 @@ function WeekProtocolContent() {
 
   return (
     <TenantPage
-      title="Wochenprotokoll"
+      title={protocol?.groupName ?? "Wochenprotokoll"}
       back
       backHref={weekProtocolsPath(protocol?.groupId)}
       backLabel="Zurück zu den Wochenprotokollen"
@@ -150,10 +157,7 @@ function WeekProtocolContent() {
       stats={
         protocol ? (
           <TenantPageStats
-            items={[
-              { value: protocol.groupName, label: "" },
-              { value: weekProtocolWeekLabel(protocol), label: "" },
-            ]}
+            items={[{ value: weekProtocolWeekLabel(protocol), label: "" }]}
           />
         ) : undefined
       }
@@ -193,31 +197,25 @@ function WeekProtocolContent() {
             void save();
           }}
         >
-          <SectionCard title="Stand">
-            <div className="flex flex-wrap items-center gap-3">
-              <WeekProtocolStatusBadge protocol={protocol} />
-              <p className="text-sm text-gray-700">{stateMessage(protocol)}</p>
-            </div>
+          <SectionCard
+            title="Diese Woche"
+            titleBadge={<WeekProtocolStatusBadge protocol={protocol} />}
+            description={stateMessage(protocol)}
+          >
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+              {protocol.days.map((day) => (
+                <li key={day.date}>
+                  <StatCard
+                    variant="tile"
+                    label={shortDay(day.date)}
+                    value={dayTileValue(day)}
+                    tone={day.captured ? undefined : "gray"}
+                  />
+                </li>
+              ))}
+            </ul>
           </SectionCard>
           <FormErrorAlert message={formError.error} />
-          {protocol.days.map((day) => (
-            <DayCard
-              key={day.date}
-              day={day}
-              note={editing ? (notes?.days[day.date] ?? "") : null}
-              onNoteChange={(value) =>
-                setNotes((current) =>
-                  current
-                    ? {
-                        ...current,
-                        days: { ...current.days, [day.date]: value },
-                      }
-                    : current,
-                )
-              }
-              disabled={saving}
-            />
-          ))}
           <SectionCard
             title="Ergänzung für die Woche"
             description="Was in dieser Woche für die Gruppe wichtig war."
@@ -238,12 +236,36 @@ function WeekProtocolContent() {
                   )
                 }
               />
-            ) : (
+            ) : protocol.weekNote ? (
               <p className="text-sm whitespace-pre-line text-gray-900">
-                {protocol.weekNote || "–"}
+                {protocol.weekNote}
               </p>
+            ) : (
+              <p className="text-sm text-gray-500">Noch keine Ergänzung.</p>
             )}
           </SectionCard>
+          {protocol.days
+            // Ein Tag ohne Abend und ohne Ergänzung steht nur in der
+            // Übersicht; beim Ergänzen bekommt jeder Tag sein Feld.
+            .filter((day) => editing || day.captured || day.note)
+            .map((day) => (
+              <DayCard
+                key={day.date}
+                day={day}
+                note={editing ? (notes?.days[day.date] ?? "") : null}
+                onNoteChange={(value) =>
+                  setNotes((current) =>
+                    current
+                      ? {
+                          ...current,
+                          days: { ...current.days, [day.date]: value },
+                        }
+                      : current,
+                  )
+                }
+                disabled={saving}
+              />
+            ))}
           {editing && (
             <EditActions
               onCancel={() => {
@@ -311,23 +333,31 @@ function DayCard({
   onNoteChange: (value: string) => void;
   disabled: boolean;
 }>) {
+  const title = formatStatusDate(day.date);
   return (
-    <SectionCard title={dayTitle(day.date)} description={dayDescription(day)}>
-      <div className="space-y-4">
+    <SectionCard
+      id={`tag-${day.date}`}
+      title={title}
+      titleBadge={dayBadge(day)}
+      description={daySummary(day)}
+    >
+      <div className="space-y-6">
         {day.captured && <DayFacts day={day} />}
         {note === null ? (
-          <DataGrid columns={1}>
-            <DataField label="Ergänzung">
-              <span className="whitespace-pre-line">{day.note || "–"}</span>
-            </DataField>
-          </DataGrid>
+          day.note ? (
+            <DaySection title="Ergänzung">
+              <p className="rounded-xl bg-gray-50 px-3 py-2 text-sm whitespace-pre-line text-gray-900">
+                {day.note}
+              </p>
+            </DaySection>
+          ) : null
         ) : (
           <Textarea
             id={`note-${day.date}`}
             label="Ergänzung"
             // Fünf Felder heißen sichtbar gleich; der Tag macht sie für
             // Screenreader unterscheidbar.
-            aria-label={`Ergänzung für ${dayTitle(day.date)}`}
+            aria-label={`Ergänzung für ${title}`}
             rows={3}
             maxLength={2000}
             value={note}
@@ -340,75 +370,161 @@ function DayCard({
   );
 }
 
-function dayDescription(day: WeekProtocolDay): string | undefined {
-  if (!day.captured) {
-    return "Dieser Tag wurde nicht festgehalten.";
-  }
-  if (day.kind === "holiday") return "Feiertag";
-  if (day.kind === "closing") return "Schließtag";
+function dayBadge(day: WeekProtocolDay) {
+  if (!day.captured)
+    return <StatusBadge label="Nicht festgehalten" tone="gray" />;
+  if (day.kind === "holiday")
+    return <StatusBadge label="Feiertag" tone="blue" />;
+  if (day.kind === "closing")
+    return <StatusBadge label="Schließtag" tone="blue" />;
   return undefined;
 }
 
+/** „4 von 13 Kindern da“, nur an Betreuungstagen. */
+function daySummary(day: WeekProtocolDay): string | undefined {
+  if (!day.captured) {
+    return "An diesem Abend hat moto nichts festgehalten.";
+  }
+  if (day.kind !== "care") return undefined;
+  const total = day.present + day.missing.length;
+  if (total === 0) return "Die Gruppe hatte an diesem Tag keine Kinder.";
+  return `${day.present} von ${total} ${total === 1 ? "Kind" : "Kindern"} da`;
+}
+
+function DaySection({
+  title,
+  count,
+  children,
+}: Readonly<{ title: string; count?: number; children: ReactNode }>) {
+  return (
+    <section>
+      <h3 className="mb-1 text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        {title}
+        {count !== undefined && ` (${count})`}
+      </h3>
+      {children}
+    </section>
+  );
+}
+
+// Die Wörter der Zähler der Tagesauswertung: Kachel und Kinderzeile sagen
+// dasselbe. Das gespeicherte Label bleibt Rückfall für einen fremden Grund.
+const MISSING_REASONS: Record<string, { label: string; color: string }> = {
+  sick: { label: "Krank", color: DAY_LOG_STATUS_COLORS.sick },
+  excused: { label: "Entschuldigt", color: DAY_LOG_STATUS_COLORS.excused },
+  class_trip: {
+    label: "Klassenfahrt",
+    color: DAY_LOG_STATUS_COLORS.class_trip,
+  },
+  absent: { label: "Unentschuldigt", color: DAY_LOG_STATUS_COLORS.absent },
+};
+
 function DayFacts({ day }: Readonly<{ day: WeekProtocolDay }>) {
-  const careDay = day.kind === "care";
+  // Ohne Kinder sagt der Satz unter dem Titel alles; vier Nullen und eine
+  // leere Liste wiederholten ihn nur.
+  const careDay = day.kind === "care" && day.present + day.missing.length > 0;
   return (
     <>
-      <DataGrid columns={4}>
-        <DataField label="Anwesend">{day.present}</DataField>
+      {careDay && (
+        <div
+          className={`grid grid-cols-2 gap-2 ${day.classTrip > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4"}`}
+        >
+          <StatCard variant="tile" label="Anwesend" value={day.present} />
+          <StatCard variant="tile" label="Krank" value={day.sick} />
+          <StatCard variant="tile" label="Entschuldigt" value={day.excused} />
+          {day.classTrip > 0 && (
+            <StatCard
+              variant="tile"
+              label="Klassenfahrt"
+              value={day.classTrip}
+            />
+          )}
+          <StatCard
+            variant="tile"
+            label="Unentschuldigt"
+            value={day.absent}
+            tone={day.absent > 0 ? "red" : undefined}
+          />
+        </div>
+      )}
+      <div className="grid gap-6 lg:grid-cols-2">
         {careDay && (
-          <>
-            <DataField label="Krank">{day.sick}</DataField>
-            <DataField label="Entschuldigt">{day.excused}</DataField>
-            {day.classTrip > 0 && (
-              <DataField label="Klassenfahrt">{day.classTrip}</DataField>
-            )}
-            <DataField label="Fehlt ohne Abmeldung">{day.absent}</DataField>
-          </>
-        )}
-      </DataGrid>
-      <DataGrid columns={1}>
-        {careDay && (
-          <DataField label="Fehlende Kinder">
+          <DaySection title="Fehlende Kinder" count={day.missing.length}>
             {day.missing.length === 0 ? (
-              "–"
+              <p className="py-2 text-sm text-gray-500">
+                Alle Kinder waren da.
+              </p>
             ) : (
-              <ul className="space-y-1">
+              <ul className="divide-y divide-gray-100">
                 {day.missing.map((child) => (
-                  <li key={child.studentId}>
-                    {child.name}: {child.label}
+                  <li
+                    key={child.studentId}
+                    className="flex items-center justify-between gap-3 py-2"
+                  >
+                    <span className="min-w-0 truncate text-sm text-gray-900">
+                      {child.name}
+                    </span>
+                    <StatusColorBadge
+                      label={
+                        MISSING_REASONS[child.reason]?.label ?? child.label
+                      }
+                      color={
+                        MISSING_REASONS[child.reason]?.color ??
+                        DAY_LOG_STATUS_COLORS.absent
+                      }
+                    />
                   </li>
                 ))}
               </ul>
             )}
-          </DataField>
+          </DaySection>
         )}
-        <DataField label="Aktivitäten und Blöcke">
+        <DaySection title="Blöcke" count={day.blocks.length}>
           {day.blocks.length === 0 ? (
-            "–"
+            <p className="py-2 text-sm text-gray-500">
+              Keine Blöcke an diesem Tag.
+            </p>
           ) : (
-            <ul className="space-y-1">
+            <ul className="divide-y divide-gray-100">
               {day.blocks.map((block) => (
-                <li key={`${block.startTime}-${block.title}`}>
-                  {block.startTime} bis {block.endTime} {block.title}:{" "}
-                  {weekProtocolBlockStatus(block)}
+                <li
+                  key={`${block.startTime}-${block.title}`}
+                  className="flex items-start justify-between gap-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-gray-900">
+                      {block.title}
+                    </p>
+                    <p className="text-xs text-gray-500 tabular-nums">
+                      {block.startTime} bis {block.endTime} Uhr
+                      {block.status === "cancelled" && block.cancelReason
+                        ? ` · ${block.cancelReason}`
+                        : ""}
+                    </p>
+                  </div>
+                  <WeekProtocolBlockBadge block={block} />
                 </li>
               ))}
             </ul>
           )}
-        </DataField>
-        {day.notices.length > 0 && (
-          <DataField label="Tagesinformationen">
-            <ul className="space-y-1">
-              {day.notices.map((notice) => (
-                <li key={notice.title}>
-                  <span className="font-medium">{notice.title}</span>
-                  {notice.body ? `: ${notice.body}` : ""}
-                </li>
-              ))}
-            </ul>
-          </DataField>
-        )}
-      </DataGrid>
+        </DaySection>
+      </div>
+      {day.notices.length > 0 && (
+        <DaySection title="Tagesinformationen" count={day.notices.length}>
+          <ul className="divide-y divide-gray-100">
+            {day.notices.map((notice) => (
+              <li key={notice.title} className="py-2">
+                <p className="text-sm font-medium text-gray-900">
+                  {notice.title}
+                </p>
+                {notice.body && (
+                  <p className="mt-0.5 text-sm text-gray-600">{notice.body}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </DaySection>
+      )}
     </>
   );
 }

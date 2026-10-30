@@ -135,16 +135,33 @@ describe("WeekProtocolPage", () => {
 
   it("shows what each evening recorded and who acts next", () => {
     renderPage();
-    expect(screen.getByText("Bären")).toBeInTheDocument();
-    expect(screen.getByText("07.09. bis 13.09.2026")).toBeInTheDocument();
-    expect(screen.getAllByText("Mia Kurz: Krank")).toHaveLength(3);
     expect(
-      screen.getAllByText("14:00 bis 15:00 Fußball: Ausgefallen: Regen"),
-    ).toHaveLength(3);
-    expect(screen.getByText("Feiertag")).toBeInTheDocument();
-    expect(
-      screen.getByText("Dieser Tag wurde nicht festgehalten."),
+      screen.getByRole("heading", { name: "Bären", level: 1 }),
     ).toBeInTheDocument();
+    expect(screen.getByText("KW 37 · 07.09.–13.09.2026")).toBeInTheDocument();
+    expect(screen.getByText("Entwurf")).toBeInTheDocument();
+
+    // Each recorded care day lists its missing children with the counter's
+    // word: the stored label "Abwesend" reads "Unentschuldigt".
+    expect(screen.getAllByText("Mia Kurz")).toHaveLength(3);
+    expect(screen.getAllByText("Ole Lang")).toHaveLength(3);
+    expect(screen.queryByText("Abwesend")).not.toBeInTheDocument();
+    expect(screen.getAllByText("Unentschuldigt").length).toBeGreaterThanOrEqual(
+      3,
+    );
+    expect(screen.getAllByText("Fußball")).toHaveLength(3);
+    expect(screen.getAllByText("14:00 bis 15:00 Uhr · Regen")).toHaveLength(3);
+    expect(screen.getAllByText("Ausgefallen")).toHaveLength(3);
+
+    // The overview names every day; an unrecorded day gets no card of its
+    // own, a holiday says so.
+    expect(screen.getByText("Nicht festgehalten")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: /Mittwoch/ }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("Feiertag")).toHaveLength(2);
+    expect(screen.getAllByText("9 von 11 da")).toHaveLength(3);
+
     expect(
       screen.getByText(/Sonst schließt moto es am 21\.09\.2026/),
     ).toBeInTheDocument();
@@ -155,9 +172,12 @@ describe("WeekProtocolPage", () => {
     state.saveNotes.mockResolvedValue(protocol({ weekNote: "Ruhig" }));
     renderPage();
     fireEvent.click(screen.getByRole("button", { name: "Ergänzen" }));
-    fireEvent.change(screen.getByLabelText("Ergänzung für Montag, 07.09."), {
-      target: { value: "Elternabend" },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Ergänzung für Montag, 07.09.2026"),
+      {
+        target: { value: "Elternabend" },
+      },
+    );
     fireEvent.change(screen.getByLabelText("Ergänzung für die Woche"), {
       target: { value: "Ruhig" },
     });

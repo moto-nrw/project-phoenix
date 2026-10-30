@@ -124,16 +124,34 @@ func weekProtocolAttendanceRecord(day weekProtocolDayResponse) WeekProtocolRepor
 		{Label: "Krank", Value: strconv.Itoa(day.Sick)},
 		{Label: "Entschuldigt", Value: strconv.Itoa(day.Excused)},
 		{Label: "Klassenfahrt", Value: strconv.Itoa(day.ClassTrip)},
-		{Label: "Fehlt ohne Abmeldung", Value: strconv.Itoa(day.Absent)},
+		{Label: "Unentschuldigt", Value: strconv.Itoa(day.Absent)},
 	}}
 	if len(day.Missing) > 0 {
 		sub := WeekProtocolReportBlock{Title: "Fehlende Kinder"}
 		for _, child := range day.Missing {
-			sub.Fields = append(sub.Fields, WeekProtocolReportField{Label: child.Name, Value: child.Label})
+			sub.Fields = append(sub.Fields, WeekProtocolReportField{Label: child.Name, Value: weekProtocolAbsenceLabel(child.Reason, child.Label)})
 		}
 		record.Blocks = []WeekProtocolReportBlock{sub}
 	}
 	return record
+}
+
+// weekProtocolAbsenceLabel names a missing child's reason with the words of
+// the Tagesauswertung's counters, so the counter and the child's line agree.
+// The stored label of the day log stays the fallback for an unknown reason.
+func weekProtocolAbsenceLabel(reason, stored string) string {
+	switch reason {
+	case timetable.WeekProtocolAbsenceSick:
+		return "Krank"
+	case timetable.WeekProtocolAbsenceExcused:
+		return "Entschuldigt"
+	case timetable.WeekProtocolAbsenceClassTrip:
+		return "Klassenfahrt"
+	case timetable.WeekProtocolAbsenceAbsent:
+		return "Unentschuldigt"
+	default:
+		return stored
+	}
 }
 
 func weekProtocolBlockRecord(day weekProtocolDayResponse) WeekProtocolReportCard {

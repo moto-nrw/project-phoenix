@@ -251,6 +251,7 @@ func TestWeekProtocolRoutesNotesCloseAndPDF(t *testing.T) {
 	assert.Equal(t, "Freitag, 10.09.2027", friday.Title)
 	assert.Equal(t, "Fehlende Kinder", friday.Cards[0].Blocks[0].Title)
 	assert.Equal(t, fmt.Sprint([]string{"Mia Kurz", "Ole Lang"}), fmt.Sprint([]string{friday.Cards[0].Blocks[0].Fields[0].Label, friday.Cards[0].Blocks[0].Fields[1].Label}))
+	assert.Equal(t, "Unentschuldigt", friday.Cards[0].Blocks[0].Fields[1].Value, "the child's line uses the counter's word, not the stored label")
 	assert.Equal(t, "Ausflug in den Park", friday.Cards[len(friday.Cards)-1].Fields[0].Value)
 	assert.Equal(t, "Ruhige Woche", doc.Sections[5].Cards[0].Fields[0].Value)
 }

@@ -28,18 +28,20 @@ import {
 
 const columns: DataTableColumn<WeekProtocol>[] = [
   {
-    key: "week",
-    header: "Woche",
-    stacked: "title",
-    className: "font-medium text-gray-800",
-    render: weekProtocolWeekLabel,
-    sortValue: (protocol) => protocol.weekStart,
-  },
-  {
     key: "group",
     header: "Gruppe",
+    stacked: "title",
+    className: "font-medium text-gray-800",
     render: (protocol) => protocol.groupName,
     sortValue: (protocol) => protocol.groupName,
+  },
+  {
+    key: "week",
+    header: "Woche",
+    render: weekProtocolWeekLabel,
+    // Neueste Woche zuerst; innerhalb der Woche bleibt die Reihenfolge des
+    // Backends (nach Gruppe), weil die Sortierung stabil ist.
+    sortValue: (protocol) => protocol.weekStart,
   },
   {
     key: "status",
@@ -99,7 +101,7 @@ function WeekProtocolsContent() {
         onRowClick={(protocol) => router.push(weekProtocolPath(protocol.id))}
         stackedOnMobile
         stackedLayout="row"
-        stackedDetailKey="group"
+        stackedDetailKey="week"
         defaultSortKey="week"
         defaultSortDirection="desc"
         pageSize={20}
