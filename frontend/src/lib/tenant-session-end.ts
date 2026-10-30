@@ -23,7 +23,11 @@ export function runTenantSessionEnd(
   const onPageShow = (event: PageTransitionEvent) => {
     if (event.persisted) cancel();
   };
-  const stopOwnerListener = onOtherTabOwnerChange(cancel);
+  const stopOwnerListener = onOtherTabOwnerChange((owner) => {
+    // A second tab echoes this logout by clearing its ended session's storage.
+    // Only a newly bound owner supersedes the explicit exit, not that echo.
+    if (owner !== null) cancel();
+  });
   const dispose = () => {
     window.removeEventListener("pagehide", cancel);
     window.removeEventListener("pageshow", onPageShow);

@@ -76,12 +76,21 @@ beforeEach(() => {
   vi.resetAllMocks();
   preview.active = false;
   preview.update.mockResolvedValue({ user: {} });
+  let href = "http://school-a.localhost/home";
   Object.defineProperty(window, "location", {
     configurable: true,
     value: {
       protocol: "http:",
       port: "",
-      href: "http://school-a.localhost/home",
+      get href() {
+        return href;
+      },
+      set href(destination: string) {
+        href = destination;
+        // The browser leaves this document after a successful navigation.
+        // Ownership tests hold pagehide explicitly; these cases do not.
+        queueMicrotask(() => window.dispatchEvent(new Event("pagehide")));
+      },
     },
   });
   Object.defineProperty(navigator, "serviceWorker", {

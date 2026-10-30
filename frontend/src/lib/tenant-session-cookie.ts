@@ -37,5 +37,25 @@ export async function signOutTenant(
   // waking this document's SessionProvider while navigation is pending.
   // Keep the menu's relative home destination, as its SDK redirect:false
   // path did; Auth.js' configured base URL can be a different tenant host.
-  window.location.href = callbackUrl === "/" ? "/" : (data.url ?? callbackUrl);
+  await new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      window.removeEventListener("pagehide", finish);
+      signal.removeEventListener("abort", finish);
+    };
+    const finish = () => {
+      cleanup();
+      resolve();
+    };
+    // Assigning href only starts navigation. Keep the caller's exit slot while
+    // the old document can still receive session echoes or a stalled response.
+    window.addEventListener("pagehide", finish, { once: true });
+    signal.addEventListener("abort", finish, { once: true });
+    try {
+      window.location.href =
+        callbackUrl === "/" ? "/" : (data.url ?? callbackUrl);
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
 }
