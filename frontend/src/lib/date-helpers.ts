@@ -171,8 +171,9 @@ export function todayISO(): string {
 
 /**
  * Today's calendar date in the school's timezone (Europe/Berlin) as
- * "YYYY-MM-DD". Use this — not todayISO() — whenever the value is compared
- * against a backend DATE the server derives from `timezone.TodayDate()`
+ * "YYYY-MM-DD". Use this for school-day defaults, validity and attendance,
+ * and whenever the value is compared against a backend DATE derived from
+ * `calendar.TodayDate()`
  * (always Berlin). A browser in another timezone can be a calendar day off
  * around midnight, which would otherwise send a week the backend rejects as
  * out of range. Built from Intl parts (not toISOString) so the date-safety

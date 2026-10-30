@@ -85,7 +85,6 @@ import {
   formatDate,
   berlinTodayISO,
   parseISODate,
-  todayISO,
   toISODate,
 } from "~/lib/date-helpers";
 import {
@@ -153,7 +152,7 @@ function pendingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
 }
 
 function upcomingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
-  const today = todayISO();
+  const today = berlinTodayISO();
   return absences.filter(
     (absence) =>
       (absence.status === "approved" || absence.status === "reported") &&
@@ -162,7 +161,7 @@ function upcomingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
 }
 
 function historicalAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
-  const today = todayISO();
+  const today = berlinTodayISO();
   return absences
     .filter(
       (absence) =>

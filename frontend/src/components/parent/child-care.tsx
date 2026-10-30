@@ -57,12 +57,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
-import {
-  berlinTodayISO,
-  parseISODate,
-  toISODate,
-  todayISO,
-} from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import type { SignatureValue } from "~/lib/signature";
 import {
@@ -730,7 +725,7 @@ export function SickNoteModal({
 }>) {
   const t = useTranslations("parentChildCare");
   const datePicker = useLocalizedDatePicker();
-  const initial = todayISO();
+  const initial = berlinTodayISO();
   const [from, setFrom] = useState(initial);
   const [to, setTo] = useState(initial);
   const [selectedStatus, setStatus] = useState<StudentStatusKind>("sick");
@@ -1881,7 +1876,7 @@ export function SickStatusSummary({
   // A within-window date with no matching status day was NOT dropped for being
   // out of range — it was superseded or cleared. Inside the window the status
   // days are authoritative; approved requests only fill gaps outside it.
-  const windowStart = todayISO();
+  const windowStart = berlinTodayISO();
   const windowEnd = (() => {
     const d = parseISODate(windowStart);
     d.setMonth(d.getMonth() + 2);

@@ -25,7 +25,7 @@ import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
-import { berlinTodayISO, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -99,7 +99,7 @@ function formatWeekday(dateKey: string): string {
 }
 
 function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
-  const todayKey = todayISO();
+  const todayKey = berlinTodayISO();
 
   const chartData = useMemo<HistoryChartPoint[]>(() => {
     return days
@@ -352,7 +352,7 @@ function HistoryTable({
   readonly onCorrected: () => void;
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
-  const todayKey = todayISO();
+  const todayKey = berlinTodayISO();
   // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
   // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
   const { data: session } = useSession();

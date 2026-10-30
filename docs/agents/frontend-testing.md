@@ -6,13 +6,18 @@ Paths start at `frontend/`; commands run from `frontend/`.
 
 ## Projects
 
-`vitest.config.ts` runs three projects. `api-node` covers `src/app/api/**`.
+`vitest.config.ts` runs four projects. `api-node` covers `src/app/api/**`.
 `logic-node` runs the files listed in `src/test/node-test-files.ts` in the
 node environment with only `setup-common.ts`. Everything else runs in
 `app-dom` (happy-dom plus `setup.ts`). List a new `*.test.ts` in
 `node-test-files.ts` when it renders nothing and uses no DOM, window, storage,
 next-intl, SWR or tenant-context mock, and confirm it passes with
 `pnpm vitest run --project logic-node`.
+
+`school-date-dom` runs `sick-report-modal.test.tsx` in happy-dom with forked
+processes. Its regression cases change `TZ` to UTC and Asia/Tokyo at runtime;
+Node worker threads do not apply those timezone changes. The cases assert the
+local date first so an ineffective timezone change cannot hide the defect.
 
 ## Scope
 

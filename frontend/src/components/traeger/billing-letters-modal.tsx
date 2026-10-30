@@ -14,7 +14,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { toISODate, todayISO } from "~/lib/date-helpers";
+import { toISODate, berlinTodayISO } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import {
@@ -257,7 +257,7 @@ export function BillingLettersModal({
           id="payment_due_on"
           label="Zahlen bis"
           value={dueDate}
-          min={todayISO()}
+          min={berlinTodayISO()}
           minDateError="Das Datum darf nicht in der Vergangenheit liegen."
           error={formErrors.fieldError("payment_due_on")}
           onChange={setDueDate}

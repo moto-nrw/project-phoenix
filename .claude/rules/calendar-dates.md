@@ -50,7 +50,8 @@ math.
 | Need | Use | Never |
 |---|---|---|
 | `Date` → `"YYYY-MM-DD"` | `toISODate(d)` from `~/lib/date-helpers` | `d.toISOString().split("T")[0]` / `.slice(0, 10)` |
-| Today as `"YYYY-MM-DD"` | `todayISO()` | `new Date().toISOString()...` |
+| School today as `"YYYY-MM-DD"` (defaults, validity, attendance, backend DATE comparisons) | `berlinTodayISO()`; `useBerlinToday()` for views that stay mounted across midnight | `todayISO()`, `new Date().toISOString()...` |
+| Browser-local today (local audit filters, birthdate input maxima) | `todayISO()` | using the browser day for school dates |
 | `"YYYY-MM-DD"` → `Date` (local midnight) | `parseISODate(s)` | `new Date("YYYY-MM-DD")` (UTC midnight) |
 | Render a date string in German | `formatDate(s)` from `~/lib/date-helpers` (handles date-only and timestamps) | new file-local `formatDate` duplicates |
 
@@ -125,7 +126,7 @@ rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # 
 - [ ] Ad-hoc repo result structs (ModelTableExpr pattern) scanning DATE columns use `calendar.Date` too — the registry test does NOT see these
 - [ ] API contract checked: a model-serialized date field emits `"YYYY-MM-DD"` — verify consumers when flipping a previously RFC3339 field
 - [ ] Tests construct dates via `calendar.NewDate(...)`/`TodayDate()` — never `time.Now()`-derived instants for calendar days
-- [ ] Frontend serializes via `toISODate`/`todayISO`/`parseISODate` — no `.toISOString()` date extraction
+- [ ] Frontend serializes via `toISODate`/`berlinTodayISO` (school day)/`todayISO` (browser day)/`parseISODate` — no `.toISOString()` date extraction
 
 ## Scope boundary
 

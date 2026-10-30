@@ -85,6 +85,7 @@ export default defineConfig({
             ...baseTestExcludes,
             ...apiTestFiles,
             ...nodeLogicTestFiles,
+            "src/components/staff/sick-report-modal.test.tsx",
           ],
           environment: "happy-dom",
           // happy-dom simuliert sonst 1024x768; Komponenten mit
@@ -110,6 +111,19 @@ export default defineConfig({
               },
             },
           },
+          setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
+          sequence: { groupOrder: 1 },
+        },
+      },
+      {
+        extends: true,
+        test: {
+          name: "school-date-dom",
+          include: ["src/components/staff/sick-report-modal.test.tsx"],
+          environment: "happy-dom",
+          // Node only applies runtime TZ changes in processes, not threads.
+          // Keep real non-Berlin browser zones in this regression suite.
+          pool: "forks",
           setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
           sequence: { groupOrder: 1 },
         },

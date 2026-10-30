@@ -41,7 +41,7 @@ import type {
   MorningAttendanceStatus,
 } from "~/lib/class-day-api";
 import { dayHintAuthorSuffix } from "~/lib/class-day-api";
-import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
+import { formatDate, parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 import {
   HOMEWORK_DESCRIPTION_MAX_LENGTH,
   HOMEWORK_SUBJECT_MAX_LENGTH,
@@ -327,9 +327,9 @@ export function ClassDayClass({
   const changes = countDayChanges(report ?? null);
   const exceptionLine =
     report && !weekend
-      ? classArrivalExceptionLine(report, dateISO, todayISO())
+      ? classArrivalExceptionLine(report, dateISO, berlinTodayISO())
       : null;
-  const isToday = dateISO === todayISO();
+  const isToday = dateISO === berlinTodayISO();
   // Beobachtungen der OGS (#4797): nur die Lehrkraft der Klasse bekommt den
   // Link, und nur bei Kindern mit OGS-Datensatz.
   const sharedNotesHref =
