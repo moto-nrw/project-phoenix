@@ -123,6 +123,29 @@ describe("Eltern-Nachricht senden: Ablehnung je Code", () => {
     mockPostMessage.mockReset();
   });
 
+  it("behält den Verlauf und sperrt Senden, wenn die Schule Nachrichten ausschaltet", async () => {
+    mockPostMessage.mockRejectedValue(
+      new ApiError("messaging disabled", 403, {
+        code: "communication.parent_messaging_disabled",
+      }),
+    );
+    await typeAndSend("Bis morgen");
+
+    expect(
+      await screen.findByText(
+        /Die Eltern-Nachrichten sind für diese Schule ausgeschaltet/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Hallo")).toBeInTheDocument();
+    // Anker: der geladene Verlauf und die nicht gesendete Blase bleiben sichtbar.
+    expect(screen.getByText("Nicht gesendet")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Senden" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+    expect(mockPostMessage).toHaveBeenCalledTimes(1);
+  });
+
   it("verwirft die Unterhaltung bei 403 general.permission und zeigt die Ablehnung", async () => {
     mockPostMessage.mockRejectedValue(
       new ApiError("Forbidden", 403, { code: "general.permission" }),

@@ -120,6 +120,31 @@ describe("Gruppennachricht senden: Ablehnung je Code", () => {
     mockPostGroupMessage.mockReset();
   });
 
+  it("behält den Verlauf und sperrt Senden, wenn die Schule Nachrichten ausschaltet", async () => {
+    mockPostGroupMessage.mockRejectedValue(
+      new ApiError("messaging disabled", 403, {
+        code: "communication.parent_messaging_disabled",
+      }),
+    );
+    await typeAndSend("Bitte Kuchen mitbringen");
+
+    expect(
+      await screen.findByText(
+        /Die Eltern-Nachrichten sind für diese Schule ausgeschaltet/,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Wer bringt einen Kuchen mit?"),
+    ).toBeInTheDocument();
+    // Anker: der geladene Verlauf und die nicht gesendete Blase bleiben sichtbar.
+    expect(screen.getByText("Nicht gesendet")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Senden" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+    expect(mockPostGroupMessage).toHaveBeenCalledTimes(1);
+  });
+
   it("verwirft die Gruppennachricht bei 404, wenn es sie nicht mehr gibt", async () => {
     mockPostGroupMessage.mockRejectedValue(
       new ApiError("group thread not found", 404, { code: "general.input" }),

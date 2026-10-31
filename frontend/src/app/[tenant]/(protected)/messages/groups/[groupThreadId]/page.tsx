@@ -1,5 +1,7 @@
 "use client";
 
+import { isParentMessagingDisabled } from "~/lib/parent-messages-api";
+
 import { messageKeys } from "~/lib/swr/portal-keys";
 
 import { useCallback, useState } from "react";
@@ -48,7 +50,9 @@ function GroupMessageContent() {
   const params = useParams();
   const threadId = params.groupThreadId as string;
   const { tenant } = useTenant();
-  const messagingEnabled = tenant?.messagingEnabled === true;
+  const [disabledThreadId, setDisabledThreadId] = useState<string>();
+  const messagingEnabled =
+    tenant?.messagingEnabled === true && disabledThreadId !== threadId;
 
   const {
     data: confirmed,
@@ -99,7 +103,7 @@ function GroupMessageContent() {
 
   const send = async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    if (!body || sending || !messagingEnabled) return;
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     sendAction.dismiss();
@@ -133,11 +137,15 @@ function GroupMessageContent() {
       setRefusal({ id: threadId, error: err });
       return;
     }
+    if (isParentMessagingDisabled(err)) {
+      setDisabledThreadId(threadId);
+      return;
+    }
     void sendError.show(err, { object: "die Nachricht" });
   };
 
   const close = async () => {
-    if (closing) return;
+    if (closing || !messagingEnabled) return;
     setClosing(true);
     try {
       const next = await closeGroupThread(threadId);
@@ -148,6 +156,10 @@ function GroupMessageContent() {
         error: err instanceof Error ? err.message : String(err),
       });
       setConfirmClose(false);
+      if (isParentMessagingDisabled(err)) {
+        setDisabledThreadId(threadId);
+        return;
+      }
       void showActionError(err, {
         object: "die Gruppennachricht",
         retry: () => setConfirmClose(true),

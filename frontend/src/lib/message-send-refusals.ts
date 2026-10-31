@@ -8,6 +8,7 @@ import type { ErrorCode } from "~/lib/error-codes.generated";
  *
  * Not listed on purpose, because they are states and keep the conversation:
  * the school switched messaging off (`communication.staff_messaging_disabled`,
+ * `communication.parent_messaging_disabled`,
  * `care.notes_disabled`), the leadership is not reachable
  * (`communication.leadership_messages_unavailable`), the child left the OGS
  * (`care.child_care_ended`, reading stays open), session-level codes
@@ -23,8 +24,8 @@ import type { ErrorCode } from "~/lib/error-codes.generated";
  * Staff reply to parents, POST /api/messages/threads/{id}
  * (`modules/communication/http/parentmessages/api.go`, `renderMessagingError`):
  * 403 without code for `users:read` missing or `ErrParentMessagingForbidden`,
- * 404 for a thread that is gone. The 403 of a school that switched parent
- * messaging off carries the same class code (#5416).
+ * 404 for a thread that is gone. A school that switched parent messaging off
+ * answers with `communication.parent_messaging_disabled`, a state (#5416).
  */
 export const PARENT_THREAD_SEND_REFUSALS: readonly ErrorCode[] = [
   "general.permission",
