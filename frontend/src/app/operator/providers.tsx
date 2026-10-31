@@ -2,9 +2,11 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
-import { useSessionPollInterval } from "~/lib/session-end-state";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
-import { SessionAccountBinding } from "~/components/auth/session-account-binding";
+import {
+  SessionAccountBinding,
+  useSessionPollInterval,
+} from "~/components/auth/session-account-binding";
 import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { operatorPath } from "~/lib/operator-url";

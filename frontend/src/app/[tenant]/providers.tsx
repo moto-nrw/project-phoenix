@@ -8,7 +8,10 @@ import { SWRConfig } from "swr";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
-import { SessionAccountBinding } from "~/components/auth/session-account-binding";
+import {
+  SessionAccountBinding,
+  useSessionPollInterval,
+} from "~/components/auth/session-account-binding";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
@@ -18,7 +21,6 @@ import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { primeSessionCache } from "~/lib/session-cache";
 import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
-import { useSessionPollInterval } from "~/lib/session-end-state";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { mutate, scopedSWRKey, tenantSWRScope } from "~/lib/swr";
 import { dataGenerationOf, stampSWRValue } from "~/lib/swr/generation";

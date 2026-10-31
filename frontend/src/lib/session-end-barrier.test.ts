@@ -7,7 +7,7 @@ import {
   listenForSessionEnds,
   resetSessionBarrierForTests,
 } from "./session-end-barrier";
-import { useSessionPollInterval } from "./session-end-state";
+import { useSessionPollInterval } from "~/components/auth/session-account-binding";
 
 /**
  * #5399: from the start of a logout no answer of the ending session may set

@@ -1,4 +1,3 @@
-import { useSyncExternalStore } from "react";
 import type * as SessionEndBarrier from "./session-end-barrier";
 
 /**
@@ -15,10 +14,14 @@ let barrier: typeof SessionEndBarrier | null = null;
 let closed = false;
 const listeners = new Set<() => void>();
 
-const subscribe = (listener: () => void) => {
+/** For useSyncExternalStore: notified when the barrier closes or opens. */
+export const subscribeSessionBarrier = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
 };
+
+/** Whether this tab holds its BFF requests for a session end. */
+export const isSessionBarrierClosed = () => closed;
 
 /** The installed barrier, or null on a page without one. */
 export const sessionEndBarrier = () => barrier;
@@ -31,18 +34,4 @@ export function installSessionEndBarrier(installed: typeof SessionEndBarrier) {
 export function announceSessionBarrier(next: boolean) {
   closed = next;
   for (const listener of listeners) listener();
-}
-
-/**
- * The SessionProvider's `refetchInterval`: none while a logout runs (#5399).
- * Its timer stops at once instead of asking for the ending session.
- */
-export function useSessionPollInterval(seconds: number): number {
-  return useSyncExternalStore(
-    subscribe,
-    () => closed,
-    () => false,
-  )
-    ? 0
-    : seconds;
 }
