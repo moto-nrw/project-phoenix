@@ -64,8 +64,12 @@ export const messageKeys = {
     resourceKey("group-message-audience-", { type: id, targetId }),
   teamChatInbox: (onlyUnread: boolean) =>
     `team-chat-inbox-${encodeURIComponent(String(onlyUnread))}`,
+  /** Every filter of the team-chat inbox. */
+  teamChatInboxFamily: () => "team-chat-inbox-",
   messagesInbox: (onlyUnread: boolean) =>
     `messages-inbox-${encodeURIComponent(String(onlyUnread))}`,
+  /** Every filter of the parent-message inbox. */
+  messagesInboxFamily: () => "messages-inbox-",
   groupMessages: () => "group-messages",
   messageThread: (id: string | undefined) =>
     `message-thread-${encodeURIComponent(id ?? "")}`,
@@ -95,11 +99,11 @@ export const timetableKeys = {
 // School portal (Lehrkräfte).
 export const schoolPortalKeys = {
   classDayClasses: () => "class-day-my-classes",
+  parentConferences: () => "school-parent-conferences",
   absenceList: (schoolClass: string, from = "", to = "") =>
     `school-absence-list-${schoolClass}-${from}-${to}`,
 } as const;
 
-  parentConferences: () => "school-parent-conferences",
 export const weekProtocolKeys = {
   list: (groupId?: string | null) =>
     `week-protocols-${encodeURIComponent(groupId ?? "all")}`,

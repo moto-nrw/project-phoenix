@@ -8,6 +8,14 @@ const { mockGetConversation, mockPostMessage, mockListChildThreads } =
     mockListChildThreads: vi.fn(),
   }));
 
+// The send overlay (#5011) is bound to the signed-in session's scope.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "1", scope: "parents" }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
+}));
+
 vi.mock("~/lib/parent-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/parent-api")>()),
   getChildConversation: mockGetConversation,

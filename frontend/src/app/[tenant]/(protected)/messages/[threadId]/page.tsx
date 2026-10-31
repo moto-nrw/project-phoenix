@@ -13,6 +13,7 @@ import {
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSWRSeedFrom } from "~/lib/swr";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
@@ -148,8 +149,8 @@ function MessageThreadContent() {
   }, [seedFrom, threadId]);
 
   const {
-    data: thread,
-    error: loadError,
+    data: confirmedThread,
+    error: readerError,
     isLoading,
     isValidating,
     mutate,
@@ -176,6 +177,25 @@ function MessageThreadContent() {
         }),
     },
   );
+
+  // Eine gesendete Nachricht steht sofort im Verlauf (#5011), markiert, bis
+  // die Antwort sie bestätigt oder ihr Fehlschlag sie als nicht gesendet
+  // zeigt.
+  const send = useOptimisticAction(
+    messageKeys.messageThread(threadId),
+    confirmedThread,
+  );
+  const thread = send.data;
+  // Lehnt der Server beim Senden die Unterhaltung ab, ist sie verworfen
+  // (#5011). Die Ablehnung steht dann dort, wo der Verlauf fehlt, bis ein
+  // neuer Abruf wieder Daten liefert.
+  const [refusal, setRefusal] = useState<{
+    readonly id: string;
+    readonly error: unknown;
+  }>();
+  const loadError =
+    readerError ??
+    (thread || refusal?.id !== threadId ? undefined : refusal.error);
 
   // The thread is readable school-wide, the request detail and queue only
   // within the review scope (#3886). Ask the backend whether that scope
@@ -278,7 +298,7 @@ function MessageThreadContent() {
   };
 
   const [draft, setDraft] = useState("");
-  const [isSending, setIsSending] = useState(false);
+  const isSending = send.pending;
   // Ein Sendefehler steht direkt über dem Eingabefeld (#2517).
   const sendError = useApiFormError();
   const latestSendRef = useRef<() => void>(() => undefined);
@@ -312,11 +332,12 @@ function MessageThreadContent() {
   // the badge against the STILL-stale (lit) count before the read cursor advanced.
   // isValidating stays true until the GET resolves, so this fires only once the
   // real read has happened (mirrors the messagesLoading gate above).
+  // Only the server's data counts: a message on its way marks nothing read.
   useEffect(() => {
-    if (thread && !isValidating && typeof window !== "undefined") {
+    if (confirmedThread && !isValidating && typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("messages-unread-refresh"));
     }
-  }, [thread, isValidating]);
+  }, [confirmedThread, isValidating]);
 
   // Keep the newest message in view when the list changes.
   useEffect(() => {
@@ -334,31 +355,60 @@ function MessageThreadContent() {
       );
       return;
     }
-    setIsSending(true);
     sendError.clear();
-    try {
-      const updated = await postMessage(threadId, body, messages.at(-1)?.id);
-      // Show the sent message immediately. The postMessage response now carries
-      // the rebuilt "current → requested" diff inline on every still-open request
-      // (like the GET path), so the optimistic replace keeps the review card's
-      // comparison intact even before the revalidate lands — staff can't end up
-      // confirming without the preview. Revalidate stays as a freshness backstop.
-      await mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
-        revalidate: true,
-      });
-      setDraft("");
-    } catch (err) {
-      logger.error("thread_message_send_failed", {
-        error: err instanceof Error ? err.message : String(err),
-        thread_id: threadId,
-      });
-      void sendError.show(err, {
-        object: "die Nachricht",
-        retry: () => latestSendRef.current(),
-      });
-    } finally {
-      setIsSending(false);
+    // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
+    send.dismiss();
+    // The handled boundary is the last message the server confirmed, never
+    // a bubble still on its way.
+    const lastConfirmedId = confirmedThread?.messages.at(-1)?.id;
+    setDraft("");
+    const outcome = await send.run({
+      optimistic: (current, { id }) => ({
+        ...current,
+        messages: [
+          ...current.messages,
+          {
+            id,
+            kind: "message",
+            sender_kind: "staff",
+            sender_name: "",
+            body,
+            created_at: "",
+          },
+        ],
+      }),
+      request: () => postMessage(threadId, body, lastConfirmedId),
+      // The postMessage response carries the rebuilt "current → requested"
+      // diff inline on every still-open request (like the GET path), so the
+      // review card keeps its comparison before the revalidate lands.
+      // Revalidate stays as a freshness backstop.
+      commit: (updated) =>
+        void mutate((prev) => (prev ? { ...prev, messages: updated } : prev), {
+          revalidate: true,
+        }),
+      keepFailed: true,
+      refusal: {
+        matches: (key) =>
+          key === messageKeys.messageThread(threadId) ||
+          key.startsWith(messageKeys.messagesInboxFamily()),
+      },
+    });
+    if (outcome.status !== "failed") return;
+    const err = outcome.error;
+    // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
+    setDraft((current) => (current === "" ? body : current));
+    logger.error("thread_message_send_failed", {
+      error: err instanceof Error ? err.message : String(err),
+      thread_id: threadId,
+    });
+    if (outcome.refused) {
+      setRefusal({ id: threadId, error: err });
+      return;
     }
+    void sendError.show(err, {
+      object: "die Nachricht",
+      retry: () => latestSendRef.current(),
+    });
   };
   // „Wiederholen“ sendet den Text, der dann im Feld steht.
   useLayoutEffect(() => {
@@ -524,6 +574,7 @@ function MessageThreadContent() {
                         own={message.sender_kind === "staff"}
                         senderName={message.sender_name}
                         createdAt={message.created_at}
+                        pending={send.stateOf(message.id)}
                         readReceiptLabel={
                           message.sender_kind === "staff" &&
                           message.read_by_guardian

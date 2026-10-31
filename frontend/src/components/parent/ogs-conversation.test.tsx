@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ApiError } from "~/lib/api-error";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { catalogText } from "~/test/error-catalog-text";
@@ -13,6 +13,14 @@ vi.mock("~/lib/parent-api", async (importOriginal) => ({
   getChildConversation: mockGetConversation,
   postChildMessage: mockPostMessage,
   getChildToday: vi.fn(),
+}));
+
+// The send overlay (#5011) is bound to the signed-in session's scope.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "1", scope: "parents" }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
 }));
 
 vi.mock("~/lib/parent-url", () => ({
@@ -110,6 +118,77 @@ describe("OgsConversation errors", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/not allowed/)).not.toBeInTheDocument();
+    expect(field).toHaveValue("Hallo OGS");
+  });
+});
+
+// #5011: die Nachricht steht sofort im Verlauf, markiert, bis die Antwort
+// sie bestätigt; ein Fehler markiert sie als nicht gesendet.
+describe("OgsConversation optimistic send", () => {
+  const bubble = (text: string) => screen.getByText(text, { selector: "span" });
+
+  it("shows the message within 100 ms, marked, and confirms it", async () => {
+    mockGetConversation.mockResolvedValue(thread);
+    let answer: (value: unknown) => void = () => {};
+    mockPostMessage.mockReturnValueOnce(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+
+    render(<OgsConversation studentId="42" />);
+
+    const field = await screen.findByLabelText("Nachricht");
+    fireEvent.change(field, { target: { value: "Hallo OGS" } });
+    const started = performance.now();
+    fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+
+    // Kein await: die Blase steht vor der Antwort.
+    expect(bubble("Hallo OGS")).toBeInTheDocument();
+    expect(screen.getByText("Wird gesendet")).toBeInTheDocument();
+    expect(performance.now() - started).toBeLessThan(100);
+    expect(field).toHaveValue("");
+
+    answer({
+      ...thread,
+      messages: [
+        {
+          id: "m1",
+          kind: "message",
+          sender_kind: "guardian",
+          sender_name: "Sabine Schneider",
+          body: "Hallo OGS",
+          created_at: "2026-09-09T10:00:00Z",
+        },
+      ],
+    });
+    await waitFor(() =>
+      expect(screen.queryByText("Wird gesendet")).not.toBeInTheDocument(),
+    );
+    expect(screen.getAllByText("Hallo OGS", { selector: "span" })).toHaveLength(
+      1,
+    );
+  });
+
+  it("marks a failed message as not sent and puts the text back", async () => {
+    mockGetConversation.mockResolvedValue(thread);
+    mockPostMessage.mockRejectedValueOnce(
+      new ApiError("weg", 503, { code: "general.unavailable" }),
+    );
+
+    render(<OgsConversation studentId="42" />);
+
+    const field = await screen.findByLabelText("Nachricht");
+    fireEvent.change(field, { target: { value: "Hallo OGS" } });
+    fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Nachricht"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nicht gesendet")).toBeInTheDocument();
+    expect(bubble("Hallo OGS")).toBeInTheDocument();
     expect(field).toHaveValue("Hallo OGS");
   });
 });

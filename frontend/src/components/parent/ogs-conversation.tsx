@@ -56,6 +56,8 @@ import {
 } from "~/components/parent/child-care";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { parentKeys } from "~/lib/swr/parent-keys";
 import { formatChatTime } from "~/lib/date-helpers";
 
 const logger = createLogger({ component: "OgsConversation" });
@@ -119,10 +121,19 @@ export function OgsConversation({
   // under this audience's title and readers.
   const audienceRef = useLatest(audience);
 
-  const thread =
+  const confirmedThread =
     loadedThread && (loadedThread.audience ?? "team") === audience
       ? loadedThread
       : null;
+  // A sent message shows at once (#5011), marked until the answer confirms
+  // it or its failure marks it as not sent. Bound to the session's scope
+  // and generation like the SWR readers.
+  const conversationKey = parentKeys.conversation(studentId, audience);
+  const send = useOptimisticAction(
+    conversationKey,
+    confirmedThread ?? undefined,
+  );
+  const thread = send.data ?? null;
   const [loading, setLoading] = useState(true);
   // A failed load shows in the thread with retry (#2518). Only shown while
   // nothing is on screen: a failed background refresh keeps the visible chat.
@@ -135,7 +146,7 @@ export function OgsConversation({
   const care = useChildCare(studentId);
   const [today, setToday] = useState<ChildToday>(UNKNOWN_CHILD_TODAY);
   const [activeModal, setActiveModal] = useState<OgsActionKey | null>(null);
-  const [sending, setSending] = useState(false);
+  const sending = send.pending;
   const {
     error: sendError,
     show: showSendError,
@@ -321,46 +332,76 @@ export function OgsConversation({
     if (el) el.scrollTop = el.scrollHeight;
   }, [thread, care.loading]);
 
+  const { run: runSend, dismiss: dismissFailedSend } = send;
   const handleSend = useCallback(async () => {
     const body = draft.trim();
     if (!body || sending) return;
-    setSending(true);
     clearSendError();
-    try {
-      const view = await postChildMessage(studentId, body, undefined, audience);
-      // Claim the token AFTER the POST resolves so this authoritative result wins.
-      // A successful send means the thread is loadable, so clear any stale
-      // load error left by an earlier failed background refresh. A result for
-      // a conversation no longer on screen (the route changed the audience
-      // meanwhile) claims nothing: the load of the new one must win.
-      if (
-        audienceRef.current === audience &&
-        applyThread(++applySeqRef.current, view)
-      ) {
-        clearLoadError();
-      }
-      setDraft("");
-      // Sending advances the reader's own cursor (any prior staff messages are now
-      // read), so refresh the sidebar badge.
+    // A new attempt replaces the bubble marked as not sent.
+    dismissFailedSend();
+    setDraft("");
+    const outcome = await runSend({
+      optimistic: (current, { id }) => ({
+        ...current,
+        messages: [
+          ...current.messages,
+          {
+            id,
+            kind: "message",
+            sender_kind: "guardian",
+            sender_name: "",
+            body,
+            created_at: "",
+          },
+        ],
+      }),
+      request: () => postChildMessage(studentId, body, undefined, audience),
+      // Claim the token AFTER the POST resolves so this authoritative result
+      // wins. A successful send means the thread is loadable, so clear any
+      // stale load error left by an earlier failed background refresh. A
+      // result for a conversation no longer on screen (the route changed the
+      // audience meanwhile) claims nothing: the load of the new one must win.
+      commit: (view) => {
+        if (
+          audienceRef.current === audience &&
+          applyThread(++applySeqRef.current, view)
+        ) {
+          clearLoadError();
+        }
+      },
+      keepFailed: true,
+      refusal: { matches: (key) => key === conversationKey },
+    });
+    if (outcome.status === "done") {
+      // Sending advances the reader's own cursor (any prior staff messages
+      // are now read), so refresh the sidebar badge.
       nudgeUnreadBadge();
-    } catch (err) {
-      logger.warn("ogs_message_send_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showSendError(err, {
-        object: tm("errorObjectMessage"),
-        retry: () => void sendRef.current(),
-      });
+      return;
+    }
+    if (outcome.status !== "failed") return;
+    const err = outcome.error;
+    // The text goes back into the field unless a new one is there.
+    setDraft((current) => (current === "" ? body : current));
+    logger.warn("ogs_message_send_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    void showSendError(err, {
+      object: tm("errorObjectMessage"),
+      retry: () => void sendRef.current(),
+    });
+    if (outcome.refused) {
+      // The school refused this conversation: drop what is on screen and
+      // ask again, so only what the server still grants shows.
+      ++applySeqRef.current;
+      setThread(null);
+      void refreshRef.current();
+    } else if (
+      err instanceof ApiError &&
+      err.code === "communication.leadership_messages_unavailable"
+    ) {
       // The leadership is gone since the chat loaded: reload it, so the
       // composer gives way to the hint about the team conversation.
-      if (
-        err instanceof ApiError &&
-        err.code === "communication.leadership_messages_unavailable"
-      ) {
-        void refreshRef.current();
-      }
-    } finally {
-      setSending(false);
+      void refreshRef.current();
     }
   }, [
     draft,
@@ -373,6 +414,9 @@ export function OgsConversation({
     clearSendError,
     showSendError,
     tm,
+    runSend,
+    dismissFailedSend,
+    conversationKey,
   ]);
   // The retry sends the current draft, not the one of the failed attempt.
   const sendRef = useRef(handleSend);
@@ -535,6 +579,14 @@ export function OgsConversation({
                       !genericStaffSender && !sameSenderAsPrevious
                     }
                     tone="parent"
+                    pending={send.stateOf(message.id)}
+                    pendingLabel={
+                      send.stateOf(message.id) === "failed"
+                        ? tm("notSent")
+                        : send.stateOf(message.id) === "pending"
+                          ? tm("sending")
+                          : undefined
+                    }
                     deliveryStatus={
                       message.sender_kind === "guardian"
                         ? message.read_by_staff
