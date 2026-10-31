@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -67,7 +68,10 @@ func makeVacationHintScenario(t *testing.T) *vacationHintScenario {
 	require.Equal(t, 4, result.InstancesCreated)
 
 	repositories := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
-	rows := compose.SchoolVacationHintRows{
+	rows := struct {
+		ports.LegacyInstanceReads
+		timetable.ActivityGroupQuery
+	}{
 		LegacyInstanceReads: repositories.ActivityInstance.Reads,
 		ActivityGroupQuery:  repositories.Timetable,
 	}

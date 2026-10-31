@@ -12745,7 +12745,7 @@
       "target_owner": "school-calendar"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.SchoolVacationHintRows.ListLegacyInstances",
+      "binding": "struct{github.com/moto-nrw/project-phoenix/modules/timetable/compose.PresenceReads; github.com/moto-nrw/project-phoenix/modules/timetable.ActivityGroupQuery}.ListLegacyInstances",
       "binding_digest": "08b9b7d25d2aa8196653d09c36a6e04e",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationHintRows.ListLegacyInstances",
       "source_owner": "timetable-activities",

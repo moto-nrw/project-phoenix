@@ -93,6 +93,20 @@ func mountStaffRoutes(
 	return nil
 }
 
+func schoolVacationHints(
+	db transactionruntime.Database, groups timetableModule.ActivityGroupQuery, days schoolcalendar.Calendar,
+	vacations schoolcalendar.SchoolVacationOwner,
+) (timetableModule.SchoolVacationHintQuery, error) {
+	rows := struct {
+		timetableCompose.PresenceReads
+		timetableModule.ActivityGroupQuery
+	}{
+		PresenceReads:      owners.MustPresenceReads(db),
+		ActivityGroupQuery: groups,
+	}
+	return timetableCompose.NewSchoolVacationHints(rows, days, vacations, nil)
+}
+
 // mountSchoolPortalRoutes serves the school portal ("moto schule", #2207) at
 // the root: public /school/auth/* (login and the school-scope MFA exchange)
 // plus the class-day surface. Token refresh and logout go through the shared
@@ -125,11 +139,7 @@ func mountSchoolPortalRoutes(
 	if err != nil {
 		return err
 	}
-	vacationHintRows := timetableCompose.SchoolVacationHintRows{
-		LegacyInstanceReads: owners.MustPresenceReads(db),
-		ActivityGroupQuery:  timetableOwner,
-	}
-	vacationHints, err := timetableCompose.NewSchoolVacationHints(vacationHintRows, calendar, vacations, nil)
+	vacationHints, err := schoolVacationHints(db, timetableOwner, calendar, vacations)
 	if err != nil {
 		return err
 	}

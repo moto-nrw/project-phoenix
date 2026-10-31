@@ -16724,11 +16724,11 @@
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.SchoolVacationHintRows.ListLegacyInstances",
+      "binding": "struct{github.com/moto-nrw/project-phoenix/modules/timetable/compose.PresenceReads; github.com/moto-nrw/project-phoenix/modules/timetable.ActivityGroupQuery}.ListLegacyInstances",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationHintRows.ListLegacyInstances",
-      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/timetable/compose.SchoolVacationHintRows.ListLegacyInstances. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through the root-bound presence read for SchoolVacationHintRows.ListLegacyInstances. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
