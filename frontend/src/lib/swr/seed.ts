@@ -10,8 +10,10 @@
 
 // swr/no-direct-import permits package imports inside this shared wrapper only.
 import { mutate as swrMutate, useSWRConfig } from "swr";
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import {
+  currentSWRDataGeneration,
+  subscribeSWRDataGeneration,
   dataGenerationOf,
   isCurrentSWRValue,
   lockMutation,
@@ -56,12 +58,20 @@ export function writeSWRSeeds(entries: Readonly<Record<string, unknown>>) {
 export function useSWRSeedFrom() {
   const scoped = useSWRCacheKey();
   const { cache } = useSWRConfig();
+  // Memoized callers must withdraw their seed on a source/target/scope drop,
+  // even if their entity ID and source matcher have not changed (G16/G21).
+  const revision = useSyncExternalStore(
+    subscribeSWRDataGeneration,
+    currentSWRDataGeneration,
+    currentSWRDataGeneration,
+  );
   return useCallback(
     <S, T>(
       source: string | ((key: string) => boolean),
       target: string,
       derive: (data: S) => T | undefined,
     ): T | undefined => {
+      if (revision !== currentSWRDataGeneration()) return undefined;
       const prefix = scoped("");
       const targetKey = scoped(target);
       if (prefix === null || targetKey === null) return undefined;
@@ -86,6 +96,6 @@ export function useSWRSeedFrom() {
       }
       return undefined;
     },
-    [scoped, cache],
+    [scoped, cache, revision],
   );
 }

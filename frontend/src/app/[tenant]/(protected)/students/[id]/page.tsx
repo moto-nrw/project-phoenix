@@ -494,10 +494,16 @@ function StudentDetailPageContent() {
     refreshData,
   } = useStudentData(studentId);
   const seedFrom = useSWRSeedFrom();
-  const preview = seedFrom(
-    studentKeys.previewSources,
-    studentKeys.detail(studentId),
-    (data: unknown) => studentKeys.preview(data, studentId),
+  const preview = useMemo(
+    () =>
+      loading
+        ? seedFrom(
+            studentKeys.previewSources,
+            studentKeys.detail(studentId),
+            (data: unknown) => studentKeys.preview(data, studentId),
+          )
+        : undefined,
+    [loading, seedFrom, studentId],
   );
   // Die Antwort sagt, was dieses Kind dem Konto erlaubt; die Routen dahinter
   // verlangen zusätzlich ein Recht der Sitzung. Der Gast liest das Kind nur
@@ -512,6 +518,10 @@ function StudentDetailPageContent() {
     (hasPermission(session, "users:update") ||
       hasPermission(session, "users:absence"));
   const hasFullAccess = childGrantsFullAccess && sessionReadsChildDetails;
+  // Fetch in parallel while child grants are unknown. This is not an access
+  // grant: the backend authorizes every request; display gates stay false.
+  const shouldFetchChildDetails =
+    sessionReadsChildDetails && (loading || childGrantsFullAccess);
   // Ein Feriengast der ausrichtenden OGS (#4666) zeigt nur Betreuung, Notfall
   // und Abholung aus der Ferienanmeldung, keine Reiter der Kindakte.
   const isHolidayGuest = student?.school_class === HOLIDAY_GUEST_SCHOOL_CLASS;
@@ -710,13 +720,17 @@ function StudentDetailPageContent() {
   // fetch-on-mount effect could not be woken that way and left the header
   // showing the previous pickup time until a manual reload.
   const { data: pickupData } = useSWRAuth(
-    hasFullAccess && studentId ? studentKeys.pickupData(studentId) : null,
+    shouldFetchChildDetails && studentId
+      ? studentKeys.pickupData(studentId)
+      : null,
     async () => fetchStudentPickupData(studentId),
     { revalidateOnFocus: false },
   );
 
   const { data: arrivalData } = useSWRAuth(
-    hasFullAccess && studentId ? studentKeys.arrivalData(studentId) : null,
+    shouldFetchChildDetails && studentId
+      ? studentKeys.arrivalData(studentId)
+      : null,
     async () => fetchArrivalData(studentId),
     { revalidateOnFocus: false },
   );
@@ -747,7 +761,7 @@ function StudentDetailPageContent() {
     sessionStatus === "authenticated" &&
     hasPermission(session, "users:update");
   const { data: statusDays = [], mutate: mutateStatusDays } = useSWRAuth(
-    canReadStatusDays && studentId
+    (shouldFetchChildDetails || canReadStatusDays) && studentId
       ? `student-status-days-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
       : null,
     async () =>
@@ -756,7 +770,7 @@ function StudentDetailPageContent() {
   );
   const { data: partialAbsences = [], mutate: mutatePartialAbsences } =
     useSWRAuth(
-      hasFullAccess && studentId
+      shouldFetchChildDetails && studentId
         ? `student-partial-absences-${studentId}-${statusDayRange.from}-${statusDayRange.to}`
         : null,
       async () =>

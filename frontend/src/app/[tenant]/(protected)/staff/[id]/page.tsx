@@ -211,7 +211,7 @@ export default function StaffDetailContent() {
         ? "document"
         : null;
   const profileRequest = useSWRAuth<Staff>(
-    limitedProfile ? `staff-detail-${staffId}` : null,
+    limitedProfile ? staffKeys.profileKey(staffId) : null,
     () =>
       limitedProfile === "financial"
         ? staffService.getFinancialProfile(staffId)
@@ -232,12 +232,6 @@ export default function StaffDetailContent() {
     () => staffService.getStaffRecord(staffId),
     { keepPreviousData: false },
   );
-  const seedFrom = useSWRSeedFrom();
-  const preview = seedFrom(
-    staffKeys.previewSources,
-    staffKeys.recordKey(staffId),
-    (data: unknown) => staffKeys.preview(data, staffId),
-  );
   const recordData = recordRequest.data;
   const fullStaff = useMemo(
     () => (recordData ? mapStaffRecord(recordData) : undefined),
@@ -251,6 +245,19 @@ export default function StaffDetailContent() {
   const staffRequest = limitedProfile ? profileRequest : recordRequest;
   const staff = limitedProfile ? profile : fullStaff;
   const { isLoading, error } = staffRequest;
+  const seedFrom = useSWRSeedFrom();
+  const detailKey = limitedProfile
+    ? staffKeys.profileKey(staffId)
+    : staffKeys.recordKey(staffId);
+  const preview = useMemo(
+    () =>
+      isLoading
+        ? seedFrom(staffKeys.previewSources, detailKey, (data: unknown) =>
+            staffKeys.preview(data, staffId),
+          )
+        : undefined,
+    [isLoading, seedFrom, detailKey, staffId],
+  );
   const mutateStaff = staffRequest.mutate;
   // Ohne schmales Profil ist ein Fehler des Datensatzes der Ladefehler der
   // ganzen Seite, nicht des Reiters.
@@ -309,7 +316,7 @@ export default function StaffDetailContent() {
   const refreshRecord = useCallback(async () => {
     await Promise.all([
       tenantMutate(staffKeys.recordKey(staffId)),
-      tenantMutate(`staff-detail-${staffId}`),
+      tenantMutate(staffKeys.profileKey(staffId)),
       refreshStaffFamily(),
     ]);
   }, [staffId, tenantMutate, refreshStaffFamily]);
@@ -686,7 +693,7 @@ export default function StaffDetailContent() {
           : (preview?.name ?? "Mitarbeiter")
       }
       stats={staff ? statusLine : preview?.context}
-      statsLoading={!staff && !preview}
+      statsLoading={!staff && !preview?.context}
       back
       backHref={referrer}
       backLabel={backLabel}

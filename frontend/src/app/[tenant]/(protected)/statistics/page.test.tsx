@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import StatisticsPage from "./page";
 import { SWRConfig } from "~/lib/swr/testing";
 import { SessionProvider } from "next-auth/react";
@@ -182,6 +182,8 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
   });
 
   it("zeigt einen Ladefehler mit Katalogtext und lädt auf Wiederholen neu", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
     mockFetchReport.mockRejectedValueOnce(
       new ApiError("down", 503, { code: "general.unavailable" }),
     );
@@ -192,6 +194,13 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
         catalogText("general.unavailable", "die Statistik"),
       ),
     ).toBeInTheDocument();
+    expect(logged).toHaveBeenCalledWith(
+      "swr_fetch_failed",
+      expect.objectContaining({
+        error_code: "general.unavailable",
+        status: 503,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(mockFetchReport).toHaveBeenCalledTimes(2));
   });

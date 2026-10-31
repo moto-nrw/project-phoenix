@@ -80,11 +80,19 @@ in a branch with `null`).
 
 `studentKeys`, `roomKeys` and `staffKeys` own `previewSources` and `preview`.
 The projection returns only `{ id, name, context }`, never a full record or
-access flags. A detail page calls `useSWRSeedFrom(factory.previewSources,
+access flags. A detail page calls `useSWRSeedFrom()(factory.previewSources,
 factory.detailKey(id), data => factory.preview(data, id))` (children use
-`detail`, staff use `recordKey`). The matcher runs only over the current
+`detail`, staff use the active `recordKey` or limited `profileKey`). The matcher runs only over the current
 school/account scope and skips old generations, including lists older than a
-discarded detail key. No preview is written over a complete detail response.
+discarded detail key. The helper stamps its derived value but does not write
+it into the SWR cache. Pages use it only for the loading header, not as the
+complete detail response.
+
+The pages memoize this projection for a loading attempt. The helper callback
+changes on scope or data-generation revisions, so a memoized preview is
+withdrawn when its source or target is discarded. The old list is checked
+before stamping; a target newer than the source cannot be reseeded (G16/G21).
+Unrelated renders do not scan the cache or call `stampSWRValue` again.
 
 Show the preview only in the existing loading header. The body, actions,
 permission flags and detail-only fields wait for the detail request; that

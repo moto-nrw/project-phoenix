@@ -142,10 +142,16 @@ function RoomDetailPageContent() {
     useRoomDetail(roomId);
 
   const seedFrom = useSWRSeedFrom();
-  const preview = seedFrom(
-    roomKeys.previewSources,
-    roomKeys.detailKey(roomId),
-    (data: unknown) => roomKeys.preview(data, roomId),
+  const preview = useMemo(
+    () =>
+      loading
+        ? seedFrom(
+            roomKeys.previewSources,
+            roomKeys.detailKey(roomId),
+            (data: unknown) => roomKeys.preview(data, roomId),
+          )
+        : undefined,
+    [loading, seedFrom, roomId],
   );
 
   // Spiegel der Backend-Gates auf PUT/DELETE /api/rooms/{id}.

@@ -41,7 +41,7 @@ export function StudentDetailLoadingPage({
       backLabel={backLabel}
       leading={<Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
       stats={preview?.context}
-      statsLoading={!preview}
+      statsLoading={!preview?.context}
       tabs={{
         value: "stammdaten",
         onChange: () => {},

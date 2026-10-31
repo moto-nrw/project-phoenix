@@ -1,4 +1,11 @@
-import { act, render, screen } from "@testing-library/react";
+import { useMemo } from "react";
+import {
+  act,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "~/lib/swr/testing";
 import { useSWRAuth, useSWRSeedFrom, useTenantMutateMatching } from "./index";
@@ -294,6 +301,80 @@ describe("list to detail identity previews", () => {
       expect(
         screen.queryByRole("heading", { name: "Aula" }),
       ).not.toBeInTheDocument();
+    },
+  );
+
+  it("memoizes a loading seed and never revives its fallback after a target drop or remount (G16/G21)", async () => {
+    const cache = new Map();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SWRConfig value={{ provider: () => cache }}>{children}</SWRConfig>
+    );
+    const list = renderHook(
+      () => useSWRAuth(roomKeys.key(), async () => [{ id: "7", name: "Aula" }]),
+      { wrapper },
+    );
+    await waitFor(() => expect(list.result.current.data).toBeDefined());
+    list.unmount();
+    const derive = vi.fn((data: unknown) => roomKeys.preview(data, "7"));
+    let retained: ListPreview | undefined;
+    let staleSeedFrom!: ReturnType<typeof useSWRSeedFrom>;
+    let clear!: ReturnType<typeof useTenantMutateMatching>;
+    function Detail({ nonce }: { nonce: number }) {
+      const seedFrom = useSWRSeedFrom();
+      staleSeedFrom ??= seedFrom;
+      const preview = useMemo(
+        () =>
+          seedFrom(roomKeys.previewSources, roomKeys.detailKey("7"), derive),
+        [seedFrom],
+      );
+      if (preview) retained = preview;
+      const reader = useSWRAuth(
+        roomKeys.detailKey("7"),
+        () => new Promise<ListPreview>(() => {}),
+        { fallbackData: preview ?? retained },
+      );
+      clear = useTenantMutateMatching([roomKeys.detailKey("7")]);
+      return (
+        <>
+          <h1>{preview?.name ?? reader.data?.name ?? "Lädt"}</h1>
+          <p>{nonce}</p>
+        </>
+      );
+    }
+    const view = render(<Detail nonce={0} />, { wrapper });
+    expect(screen.getByRole("heading", { name: "Aula" })).toBeInTheDocument();
+    view.rerender(<Detail nonce={1} />);
+    expect(derive).toHaveBeenCalledTimes(1);
+    await act(async () => clear({ clear: true }));
+    // Anker: die Detailseite bleibt geladen, aber die alte Identität ist zurückgezogen.
+    expect(screen.getByRole("heading", { name: "Lädt" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Aula" }),
+    ).not.toBeInTheDocument();
+    expect(
+      staleSeedFrom(roomKeys.previewSources, roomKeys.detailKey("7"), derive),
+    ).toBeUndefined();
+    view.unmount();
+    render(<Detail nonce={2} />, { wrapper });
+    // Anker: auch ein neuer Leser ist sichtbar und übernimmt den alten Fallback nicht.
+    expect(screen.getByRole("heading", { name: "Lädt" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Aula" }),
+    ).not.toBeInTheDocument();
+    expect(derive).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([StudentDetailLoadingPage, RoomDetailLoadingPage])(
+    "reserves the status line for a preview without context",
+    (Page) => {
+      const { container } = render(<Page preview={{ name: "Vorschau" }} />);
+      expect(
+        screen.getByRole("heading", { name: "Vorschau" }),
+      ).toBeInTheDocument();
+      // The shared TenantPage's status-line skeleton reserves its normal height.
+      expect(
+        container.querySelector(".animate-pulse.h-4.w-56"),
+      ).toBeInTheDocument();
     },
   );
 

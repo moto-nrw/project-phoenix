@@ -26,7 +26,7 @@ export function RoomDetailLoadingPage({
       backLabel={backLabel}
       leading={<Skeleton className="h-10 w-10 shrink-0 rounded-xl" />}
       stats={preview?.context}
-      statsLoading={!preview}
+      statsLoading={!preview?.context}
       tabs={{
         value: "uebersicht",
         onChange: () => {},

@@ -14,6 +14,7 @@ export const staffKeys = {
     const name = previewText(row?.name);
     return name ? { id, name, context: previewText(row?.role) } : undefined;
   },
+  profileKey: (id: string) => `staff-detail-${encodeURIComponent(id)}`,
   recordKey: (id: string) => `staff-record-${encodeURIComponent(id)}`,
   family: SWR_FAMILIES.staff,
   key: (params: StaffFilters = {}, options: { strict?: boolean } = {}) =>

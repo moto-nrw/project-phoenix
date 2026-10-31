@@ -18,7 +18,7 @@
   "src/app/[tenant]/(protected)/ogs-groups/page.tsx": 1,
   "src/app/[tenant]/(protected)/parent-announcements/[id]/page.tsx": 2,
   "src/app/[tenant]/(protected)/parent-announcements/page.tsx": 3,
-  "src/app/[tenant]/(protected)/staff/[id]/page.tsx": 4,
+  "src/app/[tenant]/(protected)/staff/[id]/page.tsx": 3,
   "src/app/[tenant]/(protected)/staff/page.tsx": 4,
   "src/app/[tenant]/(protected)/students/[id]/page.tsx": 3,
   "src/app/[tenant]/(protected)/students/search/page.tsx": 3,
