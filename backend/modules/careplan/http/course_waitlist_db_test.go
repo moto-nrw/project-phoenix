@@ -192,6 +192,10 @@ func TestCourseWaitlistsReadsOneAGWithoutQueue(t *testing.T) {
 	tc := setupStudentsRoute(t, fixedCalendarClock)
 	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Leere", "Liste")
 	group := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Theater-AG", 8)
+	request := createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Erledigt")
+	_, err := tc.db.NewRaw(`UPDATE enrollment.offering_change_requests SET status = ? WHERE id = ? AND tenant_id = ?`,
+		careplan.OfferingChangeRejected, request.request.ID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
 
 	waitlists := fetchCourseWaitlists(t, tc, testutil.AdminTestClaims(int(reviewer.ID)), fmt.Sprintf("?activity_group_id=%d", group.ID))
 
@@ -201,6 +205,39 @@ func TestCourseWaitlistsReadsOneAGWithoutQueue(t *testing.T) {
 	require.NotNil(t, waitlists[0].FreeSlots)
 	assert.Equal(t, 8, *waitlists[0].FreeSlots)
 	assert.False(t, waitlists[0].SlotFreeForNext, "nobody waits, so there is nothing to confirm")
+}
+
+func TestCourseWaitlistsIgnoreUnlinkedExplicitAG(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Keine", "Kurs-AG")
+	group := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Hausaufgaben", 8)
+
+	assert.Empty(t, fetchCourseWaitlists(t, tc, testutil.AdminTestClaims(int(reviewer.ID)), fmt.Sprintf("?activity_group_id=%d", group.ID)),
+		"an activity without an active care offering is not a course waitlist")
+}
+
+func TestCourseWaitlistsReadSourcedOfferingForEmptyExplicitAG(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Angebotsquelle", "Leere")
+	group := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Theater-AG", 8)
+	request := createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Erledigt")
+	_, err := tc.db.NewRaw(`UPDATE enrollment.care_offerings SET activity_group_id = NULL WHERE id = ? AND tenant_id = ?`,
+		request.courseID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+	_, err = tc.db.NewRaw(`UPDATE activities.groups
+		SET is_template = TRUE, target_group_type = 'angebot', source_care_offering_ids = ?::jsonb
+		WHERE id = ? AND tenant_id = ?`, fmt.Sprintf("[%d]", request.courseID), group.ID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+	_, err = tc.db.NewRaw(`UPDATE enrollment.offering_change_requests SET status = ? WHERE id = ? AND tenant_id = ?`,
+		careplan.OfferingChangeRejected, request.request.ID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+
+	waitlists := fetchCourseWaitlists(t, tc, testutil.AdminTestClaims(int(reviewer.ID)), fmt.Sprintf("?activity_group_id=%d", group.ID))
+	require.Len(t, waitlists, 1)
+	assert.Equal(t, strconv.FormatInt(group.ID, 10), waitlists[0].ActivityGroupID)
+	assert.Empty(t, waitlists[0].Entries)
 }
 
 func TestCourseWaitlistsRejectMalformedPendingRequest(t *testing.T) {

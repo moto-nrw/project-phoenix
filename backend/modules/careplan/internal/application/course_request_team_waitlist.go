@@ -417,11 +417,13 @@ func (s *OfferingChanges) courseWaitlistsFor(
 	if len(groupIDs) == 0 {
 		return []careplan.CourseWaitlist{}, nil
 	}
+	if ok, err := s.loadExplicitEmptyWaitlistOfferings(ctx, queue, entries, explicitGroupID, today); err != nil {
+		return nil, err
+	} else if !ok {
+		return []careplan.CourseWaitlist{}, nil
+	}
 	groups, err := s.waitlistGroups(ctx, groupIDs, today, queue)
 	if err != nil {
-		return nil, err
-	}
-	if err := s.loadExplicitEmptyWaitlistOfferings(ctx, queue, groups, entries, explicitGroupID); err != nil {
 		return nil, err
 	}
 	taken, offeringTaken, err := s.waitlistOccupancy(ctx, groups, entries, today, queue)
@@ -431,30 +433,51 @@ func (s *OfferingChanges) courseWaitlistsFor(
 	return queue.waitlists(groups, entries, taken, offeringTaken), nil
 }
 
-// loadExplicitEmptyWaitlistOfferings adds the offering limits an activity
-// view can show before anyone waits. A queued AG instead uses the first
-// child's selected offerings, the same inputs its approval will check.
+// loadExplicitEmptyWaitlistOfferings resolves an otherwise empty explicit AG
+// through active care offerings. This both supplies its offering limits and
+// keeps arbitrary activity groups out of the course-only view. A queued AG
+// instead uses the first child's selected offerings, the same inputs its
+// approval will check.
 func (s *OfferingChanges) loadExplicitEmptyWaitlistOfferings(
 	ctx context.Context,
 	queue *teamCourseQueue,
-	groups []ports.CourseGroup,
 	entries map[int64][]careplan.CourseWaitlistEntry,
 	explicitGroupID int64,
-) error {
+	today calendar.Date,
+) (bool, error) {
 	if explicitGroupID <= 0 || len(entries[explicitGroupID]) > 0 {
-		return nil
-	}
-	if !slices.ContainsFunc(groups, func(group ports.CourseGroup) bool { return group.ID == explicitGroupID }) {
-		return nil
+		return true, nil
 	}
 	offerings, err := s.listOfferings(ctx, careplan.CareOfferingFilter{
-		ActivityGroupIDs: []int64{explicitGroupID}, ActiveOnly: true, Order: careplan.OfferingOrderCatalog,
-	}, "course waitlist: list offerings for empty activity group")
+		ActiveOnly: true, Order: careplan.OfferingOrderCatalog,
+	}, "course waitlist: list active offerings for empty activity group")
 	if err != nil {
-		return err
+		return false, err
 	}
-	queue.emptyOfferingsByGroup[explicitGroupID] = offeringPointers(offerings)
-	return nil
+	references := make([]ports.CourseOfferingReference, 0, len(offerings))
+	for _, offering := range offerings {
+		references = append(references, ports.CourseOfferingReference{OfferingID: offering.ID, ActivityGroupID: offering.ActivityGroupID})
+	}
+	groupsByOffering, err := s.deps.Planning.CourseGroupsForOfferings(ctx, references, today)
+	if err != nil {
+		return false, fmt.Errorf("course waitlist: load course group for empty activity group: %w", err)
+	}
+	linked := make([]careplan.CareOffering, 0, len(offerings))
+	for _, offering := range offerings {
+		groups := groupsByOffering[offering.ID]
+		if !slices.ContainsFunc(groups, func(group ports.CourseGroup) bool {
+			return group.ID == explicitGroupID && group.Active
+		}) {
+			continue
+		}
+		linked = append(linked, offering)
+		queue.groupsByOffering[offering.ID] = groups
+	}
+	if len(linked) == 0 {
+		return false, nil
+	}
+	queue.emptyOfferingsByGroup[explicitGroupID] = offeringPointers(linked)
+	return true, nil
 }
 
 func offeringPointers(offerings []careplan.CareOffering) []*careplan.CareOffering {
