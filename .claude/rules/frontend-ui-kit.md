@@ -206,7 +206,7 @@ Green shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`,
 
 ### Concept icons — one symbol per domain concept
 
-`MOTO_CONCEPTS` in `lib/moto-concepts.ts` is the single source for which symbol and tone a concept gets. Render it with `<MotoConceptIcon concept="…" />` (`~/components/ui/moto-concept-icon`); never import the Phosphor glyph and pick a tone by hand. The people concepts:
+Each concept's definition in `lib/concepts/<key>.ts` (collected in `MOTO_CONCEPTS`, `lib/moto-concepts.ts`) is the single source for which symbol and tone it gets. Render it with `<MotoConceptIcon concept={childrenConcept} />` (`~/components/ui/moto-concept-icon`), importing the definition from its own module so a page carries only the glyphs it shows; production code never imports the `MOTO_CONCEPTS` registry at runtime (`moto-concepts.test.ts` fails on it). Never import the Phosphor glyph and pick a tone by hand. The people concepts:
 
 | Concept     | Key        | Phosphor glyph           | Tone         |
 | ----------- | ---------- | ------------------------ | ------------ |
@@ -218,7 +218,7 @@ Green shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`,
 
 - One head always means a child, two heads parents, three heads a group, also where the icon is monochrome (sidebar entries, tab triggers, help tiles in `HELP_ICONS`): keep the glyph, drop the tone.
 - Deliberate exceptions: the profile menu (`UserIcon` = the signed-in user) and the neutral gray meta icons on the child card (`tone="neutral"`, same glyph as the concept).
-- Need a new concept? Add it to `MOTO_CONCEPTS`; don't define a one-off glyph/tone pair.
+- Need a new concept? Add a module under `lib/concepts/` and its entry in `MOTO_CONCEPTS`; don't define a one-off glyph/tone pair.
 
 ### Spacing & padding
 

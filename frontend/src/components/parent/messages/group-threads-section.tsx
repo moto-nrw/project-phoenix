@@ -10,6 +10,7 @@ import { ParentSection } from "~/components/parent/shell/parent-section";
 import type { GroupThreadSummary } from "~/lib/parent-api";
 import { formatChatClockTime, formatChatDateTime } from "~/lib/date-helpers";
 import { parentPath } from "~/lib/parent-url";
+import { groupsConcept } from "~/lib/concepts/groups";
 
 /**
  * Gruppennachrichten der OGS (#4784): what the OGS wrote to the group, class
@@ -35,7 +36,7 @@ export function GroupThreadsSection({
     <ParentSection
       title={t("sectionTitle")}
       description={t("sectionDescription")}
-      concept="groups"
+      concept={groupsConcept}
     >
       {error && <LoadErrorAlert error={error} />}
       {threads.length > 0 && (

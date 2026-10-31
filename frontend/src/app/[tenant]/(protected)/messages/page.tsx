@@ -29,6 +29,9 @@ import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { childrenConcept } from "~/lib/concepts/children";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { parentsConcept } from "~/lib/concepts/parents";
 
 const logger = createLogger({ component: "MessagesInboxPage" });
 
@@ -239,7 +242,12 @@ function MessagesInboxContent() {
       empty={
         bodyReplaced && !loadFailed
           ? {
-              icon: <MotoConceptIcon concept="parentConversations" size={48} />,
+              icon: (
+                <MotoConceptIcon
+                  concept={parentConversationsConcept}
+                  size={48}
+                />
+              ),
               title: filtersActive
                 ? "Keine passenden Nachrichten"
                 : "Noch keine Nachrichten",
@@ -276,7 +284,7 @@ function MessagesInboxContent() {
                   {/* Absender und Kind tragen die Symbole aus dem
                       Konzeptregister, wie in den Anfragen (#4361). */}
                   <div className="flex min-w-0 items-center gap-2">
-                    <MotoConceptIcon concept="parents" size={20} />
+                    <MotoConceptIcon concept={parentsConcept} size={20} />
                     <h3 className="truncate text-base font-semibold text-gray-900">
                       {thread.guardian_name}
                     </h3>
@@ -298,7 +306,7 @@ function MessagesInboxContent() {
                     <span className="flex-shrink-0">
                       {relationshipLabel(thread.relationship_type)} von
                     </span>
-                    <MotoConceptIcon concept="children" size={16} />
+                    <MotoConceptIcon concept={childrenConcept} size={16} />
                     <span className="truncate font-medium text-gray-700">
                       {thread.student_name}
                     </span>

@@ -41,6 +41,7 @@ import {
   type BillingKeyDateCount,
   type BillingKeyDay,
 } from "~/lib/operator/billing-api";
+import { reportsConcept } from "~/lib/concepts/reports";
 
 const logger = createLogger({ component: "OperatorBillingPage" });
 
@@ -332,7 +333,7 @@ function OperatorBillingPageContent() {
     <div className="-mt-1.5 w-full space-y-6">
       <PageHeaderWithSearch
         title="Stichtagszahlen"
-        concept="reports"
+        concept={reportsConcept}
         tabs={{
           items: [{ id: "billing", label: "Stichtagszahlen" }],
           activeTab: "billing",

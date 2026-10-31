@@ -7,6 +7,7 @@ import { teacherService } from "@/lib/teacher-api";
 import { displayEmail } from "~/lib/demo-build";
 
 import { mapTeacherResponse } from "~/lib/teacher-helpers";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "TeachersConfig" });
 
@@ -35,7 +36,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     plural: "Personal",
   },
 
-  concept: "staff",
+  concept: staffConcept,
 
   backUrl: "/database",
 

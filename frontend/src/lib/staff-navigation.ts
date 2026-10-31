@@ -7,7 +7,7 @@ import {
   UsersIcon,
 } from "@phosphor-icons/react/ssr";
 
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import {
   getActivePlanningSubPage,
   PLANNING_SUB_PAGES,
@@ -19,6 +19,20 @@ import {
   PARENT_SUB_PAGES,
   STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
+import { accountsConcept } from "~/lib/concepts/accounts";
+import { announcementsConcept } from "~/lib/concepts/announcements";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { listsConcept } from "~/lib/concepts/lists";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
+import { messagesConcept } from "~/lib/concepts/messages";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
+import { payrollConcept } from "~/lib/concepts/payroll";
+import { pollsConcept } from "~/lib/concepts/polls";
+import { staffPlanConcept } from "~/lib/concepts/staffPlan";
+import { substitutionConcept } from "~/lib/concepts/substitution";
+import { weekProtocolsConcept } from "~/lib/concepts/weekProtocols";
 
 /**
  * Der Baum der Mitarbeiter-Navigation (#2826): welche Seite in welcher
@@ -186,22 +200,22 @@ export const STAFF_NAV_DEFAULT_OPEN_GROUPS: readonly StaffNavGroupKey[] = [
  * Seitenleiste; die Katalogseiten (Eltern, Team, Planung) hatten mobil und
  * auf dem Desktop bisher verschiedene Bilder.
  */
-export const STAFF_NAV_CONCEPTS: Readonly<Record<string, MotoConceptKey>> = {
-  "/messages": "parentConversations",
-  "/parent-announcements": "parentMessages",
-  "/admin/guardian-approvals": "accounts",
-  "/eltern/bankverbindungen": "payroll",
-  "/meal-plan": "mealPlan",
-  "/team-chat": "messages",
-  "/tagesinformationen": "announcements",
-  "/umfragen": "polls",
-  "/betreuungsplan": "carePlan",
-  "/dienstplan": "staffPlan",
-  "/vertretung": "substitution",
-  "/lists": "lists",
-  "/wochenprotokolle": "weekProtocols",
-  "/calendar-periods": "calendarPeriods",
-  "/payroll": "payroll",
+export const STAFF_NAV_CONCEPTS: Readonly<Record<string, MotoConcept>> = {
+  "/messages": parentConversationsConcept,
+  "/parent-announcements": parentMessagesConcept,
+  "/admin/guardian-approvals": accountsConcept,
+  "/eltern/bankverbindungen": payrollConcept,
+  "/meal-plan": mealPlanConcept,
+  "/team-chat": messagesConcept,
+  "/tagesinformationen": announcementsConcept,
+  "/umfragen": pollsConcept,
+  "/betreuungsplan": carePlanConcept,
+  "/dienstplan": staffPlanConcept,
+  "/vertretung": substitutionConcept,
+  "/lists": listsConcept,
+  "/wochenprotokolle": weekProtocolsConcept,
+  "/calendar-periods": calendarPeriodsConcept,
+  "/payroll": payrollConcept,
 };
 
 /**

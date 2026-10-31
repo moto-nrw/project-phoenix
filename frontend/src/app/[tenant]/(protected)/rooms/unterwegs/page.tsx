@@ -8,6 +8,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { TransitStudentsSection } from "~/components/rooms/transit-students-section";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { RoomsGridSkeleton } from "../page-skeleton";
+import { transitConcept } from "~/lib/concepts/transit";
 
 /** Der Rückweg der Kindakte aus dieser Liste. */
 const TRANSIT_PATH = "/rooms/unterwegs";
@@ -71,7 +72,7 @@ function TransitPageContent() {
       back
       backHref={referrer}
       backLabel={backLabel}
-      leading={<MotoConceptIcon concept="transit" size={40} />}
+      leading={<MotoConceptIcon concept={transitConcept} size={40} />}
     >
       <TransitStudentsSection
         dayStatus={transitDayStatus}

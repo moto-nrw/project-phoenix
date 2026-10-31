@@ -111,6 +111,13 @@ import type {
   InstanceStatus,
 } from "~/lib/timetable-types";
 import { isNotScheduledRow } from "~/lib/timetable-types";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { childrenConcept } from "~/lib/concepts/children";
+import { presentConcept } from "~/lib/concepts/present";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
+import { substitutionConcept } from "~/lib/concepts/substitution";
+import { supervisionConcept } from "~/lib/concepts/supervision";
 
 export type LifecycleAction = "start" | "complete" | "cancel" | "reopen";
 
@@ -487,7 +494,7 @@ function AssignedStaffSection({
             {canManageStaffPool ? (
               <UserPlus className="h-3.5 w-3.5" />
             ) : (
-              <MotoConceptIcon concept="staff" size={16} />
+              <MotoConceptIcon concept={staffConcept} size={16} />
             )}
             {canManageStaffPool ? "Person hinzuziehen" : "Personalpool ansehen"}
           </span>
@@ -904,7 +911,7 @@ export function InstanceDetailModal({
               )}
               className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
             >
-              <MotoConceptIcon concept="substitution" size={18} />
+              <MotoConceptIcon concept={substitutionConcept} size={18} />
               Vertretung eintragen
             </Link>
           )}
@@ -1123,13 +1130,13 @@ export function InstanceDetailModal({
 
             <Section title="Details">
               <Row
-                icon={<MotoConceptIcon concept="careTimes" size={18} />}
+                icon={<MotoConceptIcon concept={careTimesConcept} size={18} />}
                 label="Zeit"
               >
                 {instance.startTime} – {instance.endTime}
               </Row>
               <Row
-                icon={<MotoConceptIcon concept="rooms" size={18} />}
+                icon={<MotoConceptIcon concept={roomsConcept} size={18} />}
                 label="Raum"
               >
                 {instanceRoomLabel(instance)}
@@ -1138,7 +1145,7 @@ export function InstanceDetailModal({
                 {instance.planningTrackName ?? "Keine Planungsspur"}
               </Row>
               <Row
-                icon={<MotoConceptIcon concept="staff" size={18} />}
+                icon={<MotoConceptIcon concept={staffConcept} size={18} />}
                 label={`Personal (${instance.staffCount})`}
               >
                 {instance.staffCount === 0
@@ -1151,7 +1158,7 @@ export function InstanceDetailModal({
               </Row>
               {showTimetableCounts && instance.activityType !== "duty" ? (
                 <Row
-                  icon={<MotoConceptIcon concept="children" size={18} />}
+                  icon={<MotoConceptIcon concept={childrenConcept} size={18} />}
                   label="Kinder"
                 >
                   {instance.expectedStudentsCount +
@@ -1626,7 +1633,7 @@ function StatsRow({ instance }: StatsRowProps) {
       <div className="flex flex-wrap items-center gap-1.5">
         {showTimetableCounts && instance.activityType !== "duty" && (
           <TimetableRatioPill
-            icon={<MotoConceptIcon concept="present" size={16} />}
+            icon={<MotoConceptIcon concept={presentConcept} size={16} />}
             label="Anwesend"
             value={totalStudents === 0 ? "–" : `${present} / ${totalStudents}`}
             tone={attendanceStudentTone(present, totalStudents)}
@@ -1634,7 +1641,7 @@ function StatsRow({ instance }: StatsRowProps) {
         )}
         {occupancy && (
           <TimetableRatioPill
-            icon={<MotoConceptIcon concept="children" size={16} />}
+            icon={<MotoConceptIcon concept={childrenConcept} size={16} />}
             label="Grenze"
             value={`${occupancy.currentStudentsCount} / ${occupancy.participantLimit}`}
             tone={participantLimitTone(
@@ -1644,7 +1651,7 @@ function StatsRow({ instance }: StatsRowProps) {
           />
         )}
         <TimetableRatioPill
-          icon={<MotoConceptIcon concept="staff" size={16} />}
+          icon={<MotoConceptIcon concept={staffConcept} size={16} />}
           label="Personal"
           value={
             instance.staffCount === 0
@@ -1657,7 +1664,7 @@ function StatsRow({ instance }: StatsRowProps) {
           )}
         />
         <TimetableRatioPill
-          icon={<MotoConceptIcon concept="supervision" size={16} />}
+          icon={<MotoConceptIcon concept={supervisionConcept} size={16} />}
           label="Besetzung"
           value={
             instance.requiredStaffCount === 0

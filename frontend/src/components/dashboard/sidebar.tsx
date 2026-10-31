@@ -82,7 +82,7 @@ import {
   sidebarRowClasses,
 } from "~/components/dashboard/sidebar-geometry";
 import { navigationIcons } from "~/lib/navigation-icons";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { NotificationBadge } from "~/components/ui/notification-badge";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -111,6 +111,37 @@ import {
   type StaffNavEntry,
   type StaffNavSectionKey,
 } from "~/lib/staff-navigation";
+import { databaseConcept } from "~/lib/concepts/database";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { supervisionConcept } from "~/lib/concepts/supervision";
+import { accountsConcept } from "~/lib/concepts/accounts";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { announcementsConcept } from "~/lib/concepts/announcements";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { childrenConcept } from "~/lib/concepts/children";
+import { dashboardConcept } from "~/lib/concepts/dashboard";
+import { dayReportConcept } from "~/lib/concepts/dayReport";
+import { devicesConcept } from "~/lib/concepts/devices";
+import { emergencyConcept } from "~/lib/concepts/emergency";
+import { filesConcept } from "~/lib/concepts/files";
+import { groupAccessConcept } from "~/lib/concepts/groupAccess";
+import { helpConcept } from "~/lib/concepts/help";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
+import { operatorsConcept } from "~/lib/concepts/operators";
+import { organizationsConcept } from "~/lib/concepts/organizations";
+import { peopleConcept } from "~/lib/concepts/people";
+import { reportsConcept } from "~/lib/concepts/reports";
+import { requestsConcept } from "~/lib/concepts/requests";
+import { rfidConcept } from "~/lib/concepts/rfid";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { schoolsConcept } from "~/lib/concepts/schools";
+import { settingsConcept } from "~/lib/concepts/settings";
+import { staffConcept } from "~/lib/concepts/staff";
+import { staffPlanConcept } from "~/lib/concepts/staffPlan";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
 
 // Type für Navigation Items
 interface NavItem {
@@ -118,7 +149,7 @@ interface NavItem {
   label: string;
   // SVG path; only drawn when the item has no concept icon.
   icon?: string;
-  concept?: MotoConceptKey;
+  concept?: MotoConcept;
   requiresAdmin?: boolean;
   // Show when the caller holds this tenant permission (admins always pass). Use
   // instead of requiresAdmin for items open to more than admins, e.g. the
@@ -169,7 +200,7 @@ const NAV_ITEMS: NavItem[] = [
     // Baustein sieht.
     ...STAFF_FLAT_PAGES.dashboard,
     icon: "M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z",
-    concept: "dashboard",
+    concept: dashboardConcept,
     activeColor: "text-moto-blue",
     alwaysShow: true,
   },
@@ -182,7 +213,7 @@ const NAV_ITEMS: NavItem[] = [
     // timetable.enabled) siehe filteredNavItems.
     ...STAFF_FLAT_PAGES.tagesplan,
     icon: navigationIcons.betreuungsplan,
-    concept: "carePlan",
+    concept: carePlanConcept,
     activeColor: "text-moto-green",
     requiresPermission: "schedules:read",
     hideForAdmin: true,
@@ -193,13 +224,13 @@ const NAV_ITEMS: NavItem[] = [
     // AG-Leitung, wäre der Eintrag eine Sackgasse.
     ...STAFF_FLAT_PAGES.studentSearch,
     icon: navigationIcons.userSingle,
-    concept: "children",
+    concept: childrenConcept,
     requiresPermission: STUDENT_READ_PERMISSIONS,
   },
   {
     ...STAFF_FLAT_PAGES.activities,
     icon: "M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2",
-    concept: "activities",
+    concept: activitiesConcept,
     activeColor: "text-moto-coral",
     // Dasselbe Recht wie GET /api/activities (#4573, AG-Leitung).
     requiresPermission: ["activities:list", "activities:read"],
@@ -207,14 +238,14 @@ const NAV_ITEMS: NavItem[] = [
   {
     ...STAFF_FLAT_PAGES.rooms,
     icon: navigationIcons.rooms,
-    concept: "rooms",
+    concept: roomsConcept,
     activeColor: "text-moto-navy",
     // Dasselbe Recht wie GET /api/rooms (#4573, AG-Leitung).
     requiresPermission: "rooms:read",
   },
   {
     ...STAFF_FLAT_PAGES.staff,
-    concept: "staff",
+    concept: staffConcept,
     icon: "M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2",
     activeColor: "text-moto-orange",
     // Dasselbe Recht wie GET /api/staff (#4573, AG-Leitung).
@@ -223,7 +254,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     ...STAFF_FLAT_PAGES.calendar,
     icon: navigationIcons.calendar,
-    concept: "calendar",
+    concept: calendarConcept,
     activeColor: "text-moto-indigo",
     // Backend gates GET /api/calendar/my on calendar:own; match it so
     // restricted/custom roles without the permission don't land on a 403 page.
@@ -234,14 +265,14 @@ const NAV_ITEMS: NavItem[] = [
     // zusätzliche Aufsichten. Einzelne Aktionen bleiben serverseitig geprüft.
     ...STAFF_FLAT_PAGES.substitutions,
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
-    concept: "groupAccess",
+    concept: groupAccessConcept,
     activeColor: "text-moto-purple",
     // Die Seite öffnet nur mit substitutions:read (#4573, AG-Leitung).
     requiresPermission: "substitutions:read",
   },
   {
     ...STAFF_FLAT_PAGES.infoDisplays,
-    concept: "infoDisplays",
+    concept: infoDisplaysConcept,
     icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
     activeColor: "text-moto-blue",
     requiresPermission: ["display:read", "display:manage"],
@@ -249,7 +280,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     ...STAFF_FLAT_PAGES.timeTracking,
     icon: "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0Z",
-    concept: "timeTracking",
+    concept: timeTrackingConcept,
     // Die eigene Zeiterfassung liest das Backend nur mit time_tracking:own;
     // externe Kräfte (#4573) erfassen keine Arbeitszeit.
     requiresPermission: "time_tracking:own",
@@ -259,7 +290,7 @@ const NAV_ITEMS: NavItem[] = [
     // Ohne Betreuungsplan der Schule gibt es keine Schichten (filteredNavItems).
     ...STAFF_FLAT_PAGES.ownShiftPlan,
     icon: navigationIcons.dienstplan,
-    concept: "staffPlan",
+    concept: staffPlanConcept,
     requiresPermission: "time_tracking:own",
   },
   {
@@ -268,7 +299,7 @@ const NAV_ITEMS: NavItem[] = [
     // Berichts-Einträgen einsortiert. Opt-in über
     // gdpr.attendance_log_enabled — Gating siehe filteredNavItems.
     ...STAFF_FLAT_PAGES.dayLog,
-    concept: "dayReport",
+    concept: dayReportConcept,
     icon: "M9 12h6m-6 4h6M9 8h6M5 21h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v14a2 2 0 002 2zM9 3v2m6-2v2",
     activeColor: "text-moto-green",
     requiresPermission: "users:read",
@@ -281,7 +312,7 @@ const NAV_ITEMS: NavItem[] = [
     // das users:absence+users:read-Paar nicht ausdrücken kann.
     ...STAFF_FLAT_PAGES.anfragen,
     icon: navigationIcons.tray,
-    concept: "requests",
+    concept: requestsConcept,
     activeColor: "text-moto-blue",
   },
   {
@@ -289,7 +320,7 @@ const NAV_ITEMS: NavItem[] = [
     // Ordner sichtbar sind, entscheidet das Backend pro Ordner.
     ...STAFF_FLAT_PAGES.dateien,
     icon: "M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z",
-    concept: "files",
+    concept: filesConcept,
     activeColor: "text-moto-indigo",
     alwaysShow: true,
   },
@@ -299,7 +330,7 @@ const NAV_ITEMS: NavItem[] = [
     ...STAFF_FLAT_PAGES.statistics,
     icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z",
     requiresAllPermissions: ["config:read", "users:read"],
-    concept: "reports",
+    concept: reportsConcept,
     activeColor: "text-moto-blue",
   },
   {
@@ -308,13 +339,13 @@ const NAV_ITEMS: NavItem[] = [
     ...STAFF_FLAT_PAGES.holidayWeeks,
     icon: navigationIcons.calendar,
     requiresPermission: "config:read",
-    concept: "holidayWeeks",
+    concept: holidayWeeksConcept,
     activeColor: "text-moto-orange",
   },
   {
     ...STAFF_FLAT_PAGES.emergency,
     icon: navigationIcons.emergency,
-    concept: "emergency",
+    concept: emergencyConcept,
     activeColor: "text-moto-wine",
     // Die Notfallliste exportiert das Backend nur mit users:read (#4573,
     // AG-Leitung).
@@ -324,7 +355,7 @@ const NAV_ITEMS: NavItem[] = [
   {
     ...STAFF_FLAT_PAGES.help,
     icon: navigationIcons.book,
-    concept: "help",
+    concept: helpConcept,
     activeColor: "text-moto-green",
     alwaysShow: true,
     bottomPinned: true,
@@ -332,7 +363,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     ...STAFF_FLAT_PAGES.settings,
-    concept: "settings",
+    concept: settingsConcept,
     icon: "M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065zM15 12a3 3 0 11-6 0 3 3 0 016 0z",
     activeColor: "text-gray-500",
     // Die Einstellungen schreibt das Backend mit config:manage; dasselbe
@@ -365,7 +396,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/organizations",
         label: "Träger",
         icon: navigationIcons.rooms,
-        concept: "organizations",
+        concept: organizationsConcept,
         activeColor: "text-moto-petrol",
         alwaysShow: true,
       },
@@ -373,7 +404,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/schools",
         label: "Schulen",
         icon: navigationIcons.buildingOffice,
-        concept: "schools",
+        concept: schoolsConcept,
         activeColor: "text-moto-gold",
         alwaysShow: true,
       },
@@ -381,7 +412,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/accounts",
         label: "Konten",
         icon: navigationIcons.profile,
-        concept: "accounts",
+        concept: accountsConcept,
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -389,7 +420,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/devices",
         label: "Geräte",
         icon: navigationIcons.device,
-        concept: "devices",
+        concept: devicesConcept,
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -397,7 +428,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/persons",
         label: "Personen",
         icon: navigationIcons.userSingle,
-        concept: "people",
+        concept: peopleConcept,
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -405,7 +436,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/unregistered-tags",
         label: "Unbekannte RFID",
         icon: navigationIcons.security,
-        concept: "rfid",
+        concept: rfidConcept,
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -418,7 +449,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/billing",
         label: "Stichtagszahlen",
         icon: navigationIcons.chart,
-        concept: "reports",
+        concept: reportsConcept,
         activeColor: OPERATOR_VERWALTUNG_ACTIVE_COLOR,
         alwaysShow: true,
       },
@@ -431,7 +462,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/announcements",
         label: "Ankündigungen",
         icon: navigationIcons.bell,
-        concept: "announcements",
+        concept: announcementsConcept,
         activeColor: "text-moto-amber",
         alwaysShow: true,
       },
@@ -444,7 +475,7 @@ const OPERATOR_NAV_SECTIONS: readonly OperatorNavSection[] = [
         href: "/operator/operators",
         label: "Operatoren",
         icon: navigationIcons.group,
-        concept: "operators",
+        concept: operatorsConcept,
         activeColor: "text-moto-purple",
         alwaysShow: true,
       },
@@ -1088,7 +1119,7 @@ function SidebarContent({
   };
 
   const renderNavIcon = (item: NavItem) => {
-    const concept = item.concept ? MOTO_CONCEPTS[item.concept] : null;
+    const concept = item.concept ?? null;
     const isActive = !item.comingSoon && isActiveLink(item.href);
     if (concept) {
       if (isActive) {
@@ -1589,7 +1620,7 @@ function SidebarContent({
     showGroupAccordion && !openCareGroupMode && !childSearchOnlyNavigation ? (
       <SidebarAccordionSection
         icon={GROUP_NAV_ICON}
-        concept="groups"
+        concept={groupsConcept}
         label={OGS_GROUPS_LABEL}
         tourId="nav-section-groups"
         activeColor="text-moto-green"
@@ -1637,7 +1668,7 @@ function SidebarContent({
       <>
         <SidebarAccordionSection
           icon={SUPERVISION_NAV_ICON}
-          concept="supervision"
+          concept={supervisionConcept}
           label={
             supervisionNavRooms.length > 1
               ? "Aktuelle Aufsichten"
@@ -1692,7 +1723,7 @@ function SidebarContent({
     databaseSubPages.length > 0 ? (
       <SidebarAccordionSection
         icon={DATABASE_NAV_ICON}
-        concept="database"
+        concept={databaseConcept}
         label={DATABASE_SECTION.label}
         activeColor="text-gray-500"
         isExpanded={expanded === "database"}
@@ -1743,13 +1774,13 @@ function SidebarContent({
       renderNavItem({
         href: ENROLLMENT_SECTION.href,
         label: ENROLLMENT_SECTION.label,
-        concept: "enrollments",
+        concept: enrollmentsConcept,
         locked: true,
       })
     ) : showEnrollments ? (
       <SidebarAccordionSection
         icon={ENROLLMENT_NAV_ICON}
-        concept="enrollments"
+        concept={enrollmentsConcept}
         label={ENROLLMENT_SECTION.label}
         activeColor="text-moto-green"
         isExpanded={expanded === "enrollments"}

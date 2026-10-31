@@ -37,7 +37,13 @@ import { useNFCEnabled } from "~/lib/tenant-context";
 import { useTenantMutate } from "~/lib/swr/hooks";
 import { useSettingsSchema } from "~/lib/hooks/use-settings-schema";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { devicesConcept } from "~/lib/concepts/devices";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
+import { notificationsConcept } from "~/lib/concepts/notifications";
+import { permissionsConcept } from "~/lib/concepts/permissions";
+import { settingsConcept } from "~/lib/concepts/settings";
 
 // Settings whose value affects the supervision context (sidebar / mobile nav)
 // and therefore require an immediate re-fetch after save/reset instead of
@@ -453,7 +459,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
  * NFC tablets (#3735), so the page can say why instead of landing nowhere.
  */
 export function useSettingsTabs(): {
-  tabs: { id: string; label: string; icon: MotoConceptKey }[];
+  tabs: { id: string; label: string; icon: MotoConcept }[];
   renderTab: (tabId: string) => React.ReactNode;
   highlightTabId: string | null;
   highlightNeedsNfc: boolean;
@@ -469,18 +475,18 @@ export function useSettingsTabs(): {
   }
 
   // Tab icon mapping (MOTO-Konzepte statt SVG-Pfaden)
-  const defaultTabConcept: MotoConceptKey = "settings";
-  const tabConcepts: Record<string, MotoConceptKey> = {
-    operations: "settings",
-    meals: "mealPlan",
-    reminders: "notifications",
-    notifications: "notifications",
-    gdpr: "permissions",
-    devices: "devices",
-    enrollment: "enrollments",
-    system: "settings",
-    general: "settings",
-    security: "permissions",
+  const defaultTabConcept: MotoConcept = settingsConcept;
+  const tabConcepts: Record<string, MotoConcept> = {
+    operations: settingsConcept,
+    meals: mealPlanConcept,
+    reminders: notificationsConcept,
+    notifications: notificationsConcept,
+    gdpr: permissionsConcept,
+    devices: devicesConcept,
+    enrollment: enrollmentsConcept,
+    system: settingsConcept,
+    general: settingsConcept,
+    security: permissionsConcept,
   };
 
   // When the schema fetch failed, render placeholder tabs so SettingsContent
@@ -505,11 +511,11 @@ export function useSettingsTabs(): {
   const personalizationTab: {
     id: string;
     label: string;
-    icon: MotoConceptKey;
+    icon: MotoConcept;
   } = {
     id: "settings-personalisierung",
     label: "Personalisierung",
-    icon: "settings",
+    icon: settingsConcept,
   };
 
   // "Startseite für alle" is what the school prescribes for everybody (#2875).
@@ -527,11 +533,11 @@ export function useSettingsTabs(): {
   const homeBlocksTab: {
     id: string;
     label: string;
-    icon: MotoConceptKey;
+    icon: MotoConcept;
   } = {
     id: "settings-startseite",
     label: "Startseite für alle",
-    icon: "settings",
+    icon: settingsConcept,
   };
 
   const tabs = [

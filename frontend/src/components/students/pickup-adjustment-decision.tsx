@@ -18,6 +18,7 @@ import type {
   PickupAdjustmentMatch,
   PickupAdjustmentPreview,
 } from "~/lib/pickup-schedule-api";
+import { pickupConcept } from "~/lib/concepts/pickup";
 
 interface PickupAdjustmentDecisionProps {
   preview: PickupAdjustmentPreview;
@@ -174,7 +175,7 @@ function OfferingDetails(props: PickupAdjustmentDecisionProps) {
   return (
     <InfoSection
       title="Angebot ändern"
-      icon={<MotoConceptIcon concept="pickup" size={16} />}
+      icon={<MotoConceptIcon concept={pickupConcept} size={16} />}
     >
       <div className="space-y-4">
         <EffectiveDateField {...props} />

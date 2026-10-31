@@ -21,6 +21,7 @@
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { formatDate } from "~/lib/date-helpers";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
 
 /** Was auf den Schließtag gelegt werden soll, steuert nur die Wortwahl. */
 export type ClosingDaySubject = "termin" | "schicht";
@@ -52,7 +53,7 @@ export function ClosingDayChip({
       title={title}
       className={`inline-flex max-w-full items-center gap-1 rounded-full bg-gray-100 px-1.5 py-0.5 text-[10px] leading-tight font-medium text-gray-700 ${className ?? ""}`}
     >
-      <MotoConceptIcon concept="closingDays" size={14} />
+      <MotoConceptIcon concept={closingDaysConcept} size={14} />
       {text === undefined ? (
         <span
           className={wrap ? "break-words" : "truncate"}

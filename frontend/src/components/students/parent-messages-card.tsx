@@ -21,6 +21,7 @@ import { NewMessageModal } from "~/components/messaging/new-message-modal";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
 
 const logger = createLogger({ component: "ParentMessagesCard" });
 
@@ -104,7 +105,7 @@ export function ParentMessagesCard({
       <ConceptSectionHeader
         className="mb-4"
         title="Nachrichten mit den Eltern"
-        concept="parentConversations"
+        concept={parentConversationsConcept}
         actions={
           messagingEnabled ? (
             <Button

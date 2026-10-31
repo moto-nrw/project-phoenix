@@ -53,6 +53,10 @@ import {
   ParentPageHeader,
   ParentPageSkeleton,
 } from "~/components/parent/parent-page";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { childrenConcept } from "~/lib/concepts/children";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { sickConcept } from "~/lib/concepts/sick";
 
 const logger = createLogger({ component: "ChildPage" });
 
@@ -223,7 +227,11 @@ export function ChildPage({
             data-testid="child-profile-icon"
             className="grid size-11 shrink-0 place-items-center rounded-xl bg-gray-50"
           >
-            <MotoConceptIcon concept="children" size={28} aria-hidden="true" />
+            <MotoConceptIcon
+              concept={childrenConcept}
+              size={28}
+              aria-hidden="true"
+            />
           </span>
         }
         backHref={
@@ -517,7 +525,7 @@ function ChildAreaTabs({
                 })
               : conferenceT("entryDescription", { child: child.first_name })
           }
-          concept="calendar"
+          concept={calendarConcept}
           actions={
             <ButtonLink
               href={parentPath(
@@ -581,7 +589,7 @@ function ChildAreaTabs({
           className="mt-0 space-y-5 data-[state=inactive]:hidden"
         >
           {(sickDays.length > 0 || excusedRequests.length > 0) && (
-            <ParentSection title={t("care.absenceTitle")} concept="sick">
+            <ParentSection title={t("care.absenceTitle")} concept={sickConcept}>
               <SickStatusSummary
                 studentId={child.student_id}
                 sickDays={sickDays}
@@ -689,7 +697,7 @@ function PickupSummary({
   return (
     <div className="flex min-w-0 items-start gap-3">
       <MotoConceptIcon
-        concept="pickup"
+        concept={pickupConcept}
         size={28}
         className="mt-0.5"
         aria-hidden="true"
