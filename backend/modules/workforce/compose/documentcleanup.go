@@ -23,6 +23,14 @@ func NewDocumentCleanup(db *bun.DB, now func() time.Time) (*workforce.DocumentCl
 	return workforce.NewDocumentCleanup(service.Enqueue, service.Claim, service.Finish, service.Backlog), nil
 }
 
+// NewPayrollDispatch builds the automatic send of the month file (#4805).
+func NewPayrollDispatch(db *bun.DB, bound workforce.PayrollDispatchPorts) (workforce.PayrollDispatch, error) {
+	if db == nil {
+		return nil, errors.New("payroll dispatch: database is required")
+	}
+	return application.NewTenantPayrollDispatch(postgres.New(postgres.DatabaseRuntime(db)), bound)
+}
+
 // NewStaffDocumentFileRecovery builds the removal of stored staff document
 // files over the document service, the offboarding cleanup queue and the
 // upload directory the root binds. Every dependency is required.

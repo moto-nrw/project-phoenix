@@ -8,21 +8,28 @@ import { schoolClassesLabel } from "~/lib/school-class-label";
  */
 export interface RosterDeviation {
   templateId: string;
-  /** The offering the children list matches best. */
-  offering: { id: string; name: string };
+  /**
+   * The suggested source, best first. Several offerings together can explain
+   * the children list (#5139), for example Randstunde and Ganztag.
+   */
+  offerings: Array<{ id: string; name: string }>;
   /** Suggested filter, taken from the series' Klasse or Jahrgang target. */
   gradeLevels: number[];
   schoolClasses: string[];
-  /** Children in the series without a booking on that weekday. */
-  unbookedCount: number;
-  /** Booked children the series does not list. */
-  missingCount: number;
-  /** Every offering that passes the rule, best first. */
-  candidates: Array<{ id: string; name: string }>;
   /**
-   * Several candidates fit the children fully (#5138), typical for a Klasse
-   * or Jahrgang target. The school picks; nothing is preselected, and the
-   * counts belong to no named offering.
+   * Children in the series without a booking of any suggested offering on
+   * that weekday.
+   */
+  unbookedCount: number;
+  /** Children a suggested offering books whom the series does not list. */
+  missingCount: number;
+  /** The suggested offerings, then every other one that passes the rule. */
+  candidates: Array<{ id: string; name: string }>;
+  /** The equal combinations when ambiguous (#5139), otherwise empty. */
+  combinations: Array<Array<{ id: string; name: string }>>;
+  /**
+   * Another offering fits as well as a suggested one (#5138). The school
+   * picks; nothing is preselected, and the counts belong to no named choice.
    */
   ambiguous: boolean;
 }
@@ -67,12 +74,13 @@ interface BackendOfferingRef {
 
 interface BackendRosterDeviation {
   template_id: number;
-  offering: BackendOfferingRef;
+  offerings?: BackendOfferingRef[] | null;
   grade_levels?: number[] | null;
   school_classes?: string[] | null;
   unbooked_count: number;
   missing_count: number;
   candidates?: BackendOfferingRef[] | null;
+  combinations?: BackendOfferingRef[][] | null;
   ambiguous?: boolean;
 }
 
@@ -117,12 +125,15 @@ export function mapRosterDeviations(
 ): RosterDeviation[] {
   return (raw.deviations ?? []).map((deviation) => ({
     templateId: String(deviation.template_id),
-    offering: offeringRef(deviation.offering),
+    offerings: (deviation.offerings ?? []).map(offeringRef),
     gradeLevels: deviation.grade_levels ?? [],
     schoolClasses: deviation.school_classes ?? [],
     unbookedCount: deviation.unbooked_count,
     missingCount: deviation.missing_count,
     candidates: (deviation.candidates ?? []).map(offeringRef),
+    combinations: (deviation.combinations ?? []).map((combination) =>
+      combination.map(offeringRef),
+    ),
     ambiguous: deviation.ambiguous ?? false,
   }));
 }
@@ -156,29 +167,59 @@ function joinNames(names: readonly string[]): string {
   return `${names.slice(0, -1).join(", ")} und ${names.at(-1)}`;
 }
 
-function childCount(count: number, singular: string, plural: string): string {
-  return `${count} ${count === 1 ? singular : plural}`;
+function quotedNames(
+  offerings: ReadonlyArray<{ name: string }>,
+  conjunction: "und" | "oder",
+): string {
+  const names = offerings.map((offering) => `„${offering.name}“`);
+  if (names.length <= 1) return names[0] ?? "";
+  return `${names.slice(0, -1).join(", ")} ${conjunction} ${names.at(-1)}`;
 }
 
 /** „A“, „B“ oder „C“: the names a choice is made between. */
 function offeringChoiceNames(
   offerings: ReadonlyArray<{ name: string }>,
 ): string {
-  const names = offerings.map((offering) => `„${offering.name}“`);
-  if (names.length <= 1) return names[0] ?? "";
-  return `${names.slice(0, -1).join(", ")} oder ${names.at(-1)}`;
+  return quotedNames(offerings, "oder");
+}
+
+/**
+ * „A“ oder „B“ after „für“: a child of a combined source books at least one
+ * of the offerings, not necessarily all of them.
+ */
+export function offeringNamesFor(
+  offerings: ReadonlyArray<{ name: string }>,
+): string {
+  return quotedNames(offerings, "oder");
+}
+
+/** „A“ und „B“: offerings that are taken together. */
+export function offeringSetNames(
+  offerings: ReadonlyArray<{ name: string }>,
+): string {
+  return quotedNames(offerings, "und");
 }
 
 /** The hint text on the Regeltermin card and in the details. */
 export function describeRosterDeviation(deviation: RosterDeviation): string {
   if (deviation.ambiguous) {
-    // The counts compare with one offering; none is chosen yet.
+    // The counts compare with the suggestion; no choice is made yet. Equal
+    // combinations are named whole (#5139): „A“ und „B“ oder zu „C“ und „D“.
+    if (deviation.combinations.some((combination) => combination.length > 1)) {
+      return `Weicht von Anmeldungen ab: passt zu ${deviation.combinations
+        .map(offeringSetNames)
+        .join(" oder zu ")}`;
+    }
     return `Weicht von Anmeldungen ab: passt zu ${offeringChoiceNames(deviation.candidates)}`;
   }
-  const parts: string[] = [];
+  // „dort“ refers to every named offering (#5139): a child counts only when
+  // none of them books it on that day.
+  const parts = [`passt zu ${offeringSetNames(deviation.offerings)}`];
   if (deviation.unbookedCount > 0) {
     parts.push(
-      `${childCount(deviation.unbookedCount, "Kind", "Kinder")} ohne Buchung`,
+      deviation.unbookedCount === 1
+        ? "1 Kind ist dort nicht angemeldet"
+        : `${deviation.unbookedCount} Kinder sind dort nicht angemeldet`,
     );
   }
   if (deviation.missingCount > 0) {
@@ -188,11 +229,10 @@ export function describeRosterDeviation(deviation: RosterDeviation): string {
         : `${deviation.missingCount} angemeldete Kinder fehlen`,
     );
   }
-  parts.push(`passt zu „${deviation.offering.name}“`);
   return `Weicht von Anmeldungen ab: ${parts.join(" · ")}`;
 }
 
-/** One line naming which children of the offering the series takes. */
+/** One line naming which children of the offerings the series takes. */
 export function describeSelectionFilter(selection: OfferingSelection): string {
   if (selection.schoolClasses.length > 0) {
     return `Nur Kinder der ${schoolClassesLabel(selection.schoolClasses, joinNames)}`;
@@ -203,7 +243,9 @@ export function describeSelectionFilter(selection: OfferingSelection): string {
       ? `Nur Kinder des Jahrgangs ${grades[0]}`
       : `Nur Kinder der Jahrgänge ${joinNames(grades)}`;
   }
-  return "Alle angemeldeten Kinder des Angebots";
+  return selection.offeringIds.length > 1
+    ? "Alle angemeldeten Kinder der Angebote"
+    : "Alle angemeldeten Kinder des Angebots";
 }
 
 export function previewQuery(

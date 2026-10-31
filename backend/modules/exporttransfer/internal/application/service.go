@@ -103,7 +103,7 @@ func (s *Service) Transfer(ctx context.Context, request exporttransfer.Request) 
 	if err := s.runtime.WithinTenant(finalizeCtx, func(txCtx context.Context) error {
 		return s.journal.Complete(txCtx, id, token, entry)
 	}); err != nil {
-		return exporttransfer.Outcome{}, fmt.Errorf("%w: record outcome: %w", ErrUnavailable, err)
+		return exporttransfer.Outcome{}, fmt.Errorf("%w: record outcome: %w", exporttransfer.ErrUnknownSettlement, err)
 	}
 	return result, nil
 }
@@ -132,7 +132,7 @@ func (s *Service) logTransferFailure(request exporttransfer.Request, result expo
 func transferIntent(request exporttransfer.Request, target domain.Target) domain.JournalEntry {
 	return domain.JournalEntry{
 		ActorAccountID: request.ActorAccountID, ActorName: request.ActorName,
-		Kind: request.Kind, Format: request.Format, Filename: request.Filename,
+		Kind: request.Kind, Format: request.Format, Period: request.Period, Channel: domain.ChannelSFTP, Filename: request.Filename,
 		ByteSize: int64(len(request.Data)), TargetHost: target.Host, TargetPort: target.Port,
 		TargetDirectory: target.RemoteDirectory, Reason: domain.ReasonInternal,
 	}
@@ -177,4 +177,26 @@ func (s *Service) unscopedTransferResult(ctx context.Context, request exporttran
 		}
 	}
 	return exporttransfer.Outcome{}, fmt.Errorf("%w: transaction lifecycle is required", ErrUnavailable)
+}
+
+// RecordEmail journals one settled e-mail send in the caller's tenant
+// transaction. Nothing is transferred here: the mail went through Delivery.
+func (s *Service) RecordEmail(ctx context.Context, record exporttransfer.EmailRecord) error {
+	if record.Recipient == "" || record.Filename == "" {
+		return fmt.Errorf("%w: an e-mail send needs a recipient and a file", ErrUnavailable)
+	}
+	if !record.Delivered && record.Reason != domain.ReasonMailFailed {
+		return fmt.Errorf("%w: a failed e-mail send names %s", ErrUnavailable, domain.ReasonMailFailed)
+	}
+	entry := domain.JournalEntry{
+		ActorAccountID: record.ActorAccountID, ActorName: record.ActorName,
+		Kind: record.Kind, Format: record.Format, Period: record.Period, Filename: record.Filename,
+		ByteSize: record.ByteSize, Success: record.Delivered, Channel: domain.ChannelEmail, TargetEmail: record.Recipient,
+	}
+	if !record.Delivered {
+		entry.Reason = domain.ReasonMailFailed
+	}
+	return s.runtime.WithinTenant(ctx, func(txCtx context.Context) error {
+		return s.journal.Record(txCtx, entry)
+	})
 }

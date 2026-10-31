@@ -187,6 +187,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/workforce/internal/application/PayrollDispatch.Overview",
+      "reason": "Owner-edge translation of the payroll dispatch row (#4805) onto the public PayrollDispatchView: derives the correction flag from the sequence and leaves the file, lease and link fingerprint out; no forwarding without translation."
+    },
+    {
+      "decision": "0090",
       "id": "modules/workforce/internal/application/Service.AllowanceSummary",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

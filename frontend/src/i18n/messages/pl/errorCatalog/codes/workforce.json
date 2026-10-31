@@ -66,5 +66,6 @@
   "vacation_quota_exceeded": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "vacation_quota_reason_required": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "vacation_request_in_past": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
-  "work_session_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "work_session_overlap": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "payroll_download_unavailable": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

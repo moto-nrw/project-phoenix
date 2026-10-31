@@ -66,5 +66,6 @@
   "vacation_quota_exceeded": "{object} could not be changed. Please check its current status.",
   "vacation_quota_reason_required": "{object} could not be saved. Please check your entries.",
   "vacation_request_in_past": "{object} could not be saved. Please check your entries.",
-  "work_session_overlap": "{object} could not be changed. Please check its current status."
+  "work_session_overlap": "{object} could not be changed. Please check its current status.",
+  "payroll_download_unavailable": "{object} could not be changed. Please check its current status."
 }

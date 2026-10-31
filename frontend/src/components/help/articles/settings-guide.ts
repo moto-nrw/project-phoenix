@@ -107,7 +107,7 @@ export function settingsGuideTopic(): HelpTopic {
         ordered: false,
         steps: [
           "`Kalenderzugang mit App-Passwort erlauben`: Das Team sieht seine Termine in einem Kalenderprogramm.",
-          "`Zeitkonten per SFTP übertragen`: Nach der vollständigen Einrichtung können Sie die Zeitkonten im Export-Dialog selbst übertragen.",
+          "`Zeitkonten per SFTP übertragen`: Nach der vollständigen Einrichtung können Sie die Zeitkonten im Export-Dialog selbst übertragen. Auch der automatische Versand an das Lohnbüro nutzt diese Gegenstelle, wenn unter `Abrechnung` der `Versandweg` `SFTP` gewählt ist.",
         ],
       },
       {
