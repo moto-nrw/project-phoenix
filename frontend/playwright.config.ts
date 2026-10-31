@@ -3,6 +3,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { frontendPort } from "./e2e/frontend-port";
+import { assertPortServesThisCheckout } from "./e2e/own-server";
 
 function loadLocalEnv(): void {
   for (const file of [
@@ -35,6 +36,8 @@ loadLocalEnv();
 // Next ignores PORT from .env files; pin the value read before loading them so
 // `next dev`, the config and the spec workers agree on one port.
 process.env.PORT = String(frontendPort);
+// reuseExistingServer must not pick up another checkout's frontend.
+assertPortServesThisCheckout(frontendPort);
 
 function requiredEnv(name: string): string {
   const value = process.env[name];

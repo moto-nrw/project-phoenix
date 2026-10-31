@@ -10626,7 +10626,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAttendance.GroupDayAttendance",
-      "binding_digest": "b29c7afdb68db42d3b7ce48a451bcf02",
+      "binding_digest": "16c659d6afc90c7fbb4729a440698d51",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
@@ -10634,10 +10634,26 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolSeedAttendance.GroupDayAttendance",
-      "binding_digest": "cd956a2dfe6769783f3030c76a00eac6",
+      "binding_digest": "a2635a7af87c6e26ee331f8b30883e7b",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
+      "target_owner": "presence-legacy-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAttendance.SchoolDayAttendance",
+      "binding_digest": "dd38f5ce38e44cea865aa73581cf1d56",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.SchoolDayAttendance",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.SchoolDayLog",
+      "target_owner": "presence-legacy-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolSeedAttendance.SchoolDayAttendance",
+      "binding_digest": "b720e7474511a16e62b1e2939da85316",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.SchoolDayAttendance",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.SchoolDayLog",
       "target_owner": "presence-legacy-view"
     },
     {

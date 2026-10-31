@@ -1577,9 +1577,30 @@
     },
     {
       "build": "production",
+      "evidence": "func (a weekProtocolAttendance) GroupDayAttendance(ctx context.Context, day calendar.Date, groupIDs []int64) ([]timetableModule.WeekProtocolGroupDay, error) {\n\tlogs, err := a.dayLog.GroupDayLogs(ctx, day, groupIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]timetableModule.WeekProtocolGroupDay, 0, len(logs))\n\tfor _, log := range logs {\n\t\tresult = append(result, weekProtocolGroupDayOf(log))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/weekProtocolAttendance.GroupDayAttendance",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a weekProtocolAttendance) SchoolDayAttendance(ctx context.Context, day calendar.Date) (timetableModule.WeekProtocolGroupDay, error) {\n\tlog, err := a.dayLog.SchoolDayLog(ctx, day)\n\tif err != nil {\n\t\treturn timetableModule.WeekProtocolGroupDay{}, err\n\t}\n\treturn weekProtocolGroupDayOf(log), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/weekProtocolAttendance.SchoolDayAttendance",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (a weekProtocolSeedAttendance) GroupDayAttendance(ctx context.Context, _ calendar.Date, groupIDs []int64) ([]timetableModule.WeekProtocolGroupDay, error) {\n\treturn a.source.GroupDayAttendance(ctx, a.today(), groupIDs)\n}",
       "form": "unclassified-evidence",
       "id": "api/weekProtocolSeedAttendance.GroupDayAttendance",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a weekProtocolSeedAttendance) SchoolDayAttendance(ctx context.Context, _ calendar.Date) (timetableModule.WeekProtocolGroupDay, error) {\n\treturn a.source.SchoolDayAttendance(ctx, a.today())\n}",
+      "form": "unclassified-evidence",
+      "id": "api/weekProtocolSeedAttendance.SchoolDayAttendance",
       "owner": "roots"
     },
     {
