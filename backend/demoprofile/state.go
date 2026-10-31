@@ -184,9 +184,10 @@ type SeedStateBootstrap struct {
 }
 
 type SeedStateAccounts struct {
-	Local    []AccountCredentials `json:"local,omitempty"`
-	Admin    []AccountCredentials `json:"admin"`
-	Betreuer []AccountCredentials `json:"betreuer"`
+	Lehrkraft []AccountCredentials `json:"lehrkraft,omitempty"`
+	Local     []AccountCredentials `json:"local,omitempty"`
+	Admin     []AccountCredentials `json:"admin"`
+	Betreuer  []AccountCredentials `json:"betreuer"`
 }
 
 type ParentCredentials struct {

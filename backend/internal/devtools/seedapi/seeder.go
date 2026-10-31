@@ -90,6 +90,7 @@ type Seeder struct {
 	definition demoProfileDefinition
 
 	localCarePlanAccount *AccountCredentials
+	schoolTeacherAccount *AccountCredentials
 }
 
 // SeedResult contains counts of created entities
@@ -126,12 +127,17 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 	if statePath == "" {
 		statePath = DefaultSeedStatePath
 	}
+	client := NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose)
 	definition := fullOperationProfileDefinition()
+	if !localSeedAccountsEnabled(client.baseURL, options) {
+		delete(definition.Settings, profileSettingSchoolWriteScope)
+		delete(definition.Settings, profileSettingSchoolMorning)
+	}
 	if options.ProductScreenshots {
 		definition.Settings[profileSettingWeekendFollowsFriday] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
 	}
 	return &Seeder{
-		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),
+		client:     client,
 		random:     random,
 		verbose:    verbose,
 		options:    options,
@@ -571,6 +577,9 @@ func makeBootstrapSeedState(bootstrap *bootstrapSeedState) SeedStateBootstrap {
 }
 
 func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
+	if s.schoolTeacherAccount != nil {
+		state.Accounts.Lehrkraft = append(state.Accounts.Lehrkraft, *s.schoolTeacherAccount)
+	}
 	if s.localCarePlanAccount != nil {
 		state.Accounts.Local = append(state.Accounts.Local, *s.localCarePlanAccount)
 	}

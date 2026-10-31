@@ -378,14 +378,21 @@ origin never gets it. Every portal's route wrapper
 (`createResponseAwareAuth`, so `withTenantAuth` too) refuses a header that
 names another account than the cookie with 409
 `identity.session_account_mismatch` before the route runs
-(`frontend/src/server/auth/session-account-check.ts`). Exempt are the tenant
-routes above and the logout of every other portal. The refusal takes
+(`frontend/src/server/auth/session-account-check.ts`). Account exemptions
+are independent of the school exemptions: only
+portal logout, `/api/auth/token` (cookie-only renewal, no token in the
+answer) and `/api/logs` pass. Tenant switching and preview-end must match
+the account; invitation acceptance does not use this wrapper. The refusal takes
 the path of the school refusal: the session cache wakes the provider,
 `TenantGuard` hides the page, and the provider's new account resets the SWR
 scope and leaves the page (`PersonalStorageGuard`). A request without the
-header passes (logged at debug): RSC navigation, server actions, the event
-stream (`EventSource`) and image or download links cannot send it. For
-these the window until the provider learns the new account remains.
+header passes (logged at debug): RSC navigation, server actions and image
+or download links cannot send it. For those requests the window until the
+provider learns the new account remains. SSE uses fetch streaming and names
+the account on the actual stream request, including every reconnect (#5374);
+a refusal is read directly, not through a preflight or probe. Every portal
+re-arms mismatch reporting when its provider confirms a session, including
+another lookup of the same account.
 
 ### Session revocation per request (#5194)
 

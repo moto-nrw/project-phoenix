@@ -41,7 +41,6 @@ func TestSeedOperationsDemoStepCreatesOperationalPlanningData(t *testing.T) {
 	want := []string{
 		"/api/settings/values/operations.meal_plan_enabled",
 		"/api/settings/values/operations.meal_registration_enabled",
-		"/api/settings/values/operations.school_portal_write_scope",
 		"/api/timetable/closing-days",
 	}
 	for _, day := range demoMealDates(todaySeedDate()) {

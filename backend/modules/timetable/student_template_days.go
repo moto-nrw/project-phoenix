@@ -33,6 +33,11 @@ type ManualStudentPlanQuery struct {
 	// Bookings are what the student books after the change, one entry per
 	// offering and weekday. None means the student books nothing.
 	Bookings []StudentDayBooking
+	// OtherBookings are what the student books through other enrollments
+	// the change leaves as they are (#5366). They carry a Regeltermin like
+	// Bookings, and one without a pickup time keeps the day on the net-loss
+	// rule like one of Bookings.
+	OtherBookings []StudentDayBooking
 }
 
 // StudentDayBooking is one offering the student books on one ISO weekday.
@@ -41,7 +46,8 @@ type ManualStudentPlanQuery struct {
 // Regeltermin's kind (RosterOfferingKindFor) and the Regeltermin ends no
 // later than the offering's pickup time: the booked care runs until the child
 // is picked up. The times decide only when the Regeltermin has an end and
-// every booking of the day has a pickup time; otherwise the Regeltermin
+// every booking of the day, in any enrollment, has a pickup time; otherwise
+// the Regeltermin
 // counts as lost exactly on a net-loss weekday, whatever the kinds (#5342).
 type StudentDayBooking struct {
 	Weekday       int

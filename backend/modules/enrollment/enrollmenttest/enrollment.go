@@ -22,6 +22,7 @@ const ChildStatusApproved = enrollment.ChildStatusApproved
 // The phase, request and child values the shared fixtures write.
 const (
 	PhaseKindSchoolYear                  = enrollment.PhaseKindSchoolYear
+	PhaseKindCustom                      = enrollment.PhaseKindCustom
 	PhaseCareOverflowWaitlist            = enrollment.PhaseCareOverflowWaitlist
 	PhaseCareOfferingSelectionOptional   = enrollment.PhaseCareOfferingSelectionOptional
 	PhaseCareOfferingSelectionAtLeastOne = enrollment.PhaseCareOfferingSelectionAtLeastOne

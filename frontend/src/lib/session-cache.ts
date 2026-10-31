@@ -20,6 +20,7 @@ import {
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
 import { hasSessionAccess } from "./session-access";
 import { SESSION_PROVIDER_POLL_SECONDS } from "./session-provider-poll";
+import { isTenantSessionEnding } from "./tenant-session-end";
 
 let cached: {
   session: Awaited<ReturnType<typeof getSession>>;
@@ -35,6 +36,11 @@ let cachedTenantId: number | undefined;
 // Parallel requests of one page are refused together; the provider needs to
 // hear it once. Its next answer (primeSessionCache) re-arms the report.
 let mismatchReported = false;
+
+/** A confirmed SessionProvider answer re-arms mismatch reports in every portal. */
+export function confirmSessionSnapshot() {
+  mismatchReported = false;
+}
 
 const TTL_MS = 10_000; // 10 second cache window
 
@@ -115,7 +121,7 @@ export function clearSessionCache() {
 export function primeSessionCache(
   session: Awaited<ReturnType<typeof getSession>>,
 ) {
-  mismatchReported = false;
+  confirmSessionSnapshot();
   if (!hasSessionAccess(session)) {
     if (hasSessionAccess(cached?.session) || inflight) clearSessionCache();
     return;
@@ -162,6 +168,10 @@ export function announceSessionChange() {
  * the cookie's session; TenantGuard then switches back to this school.
  */
 function handleSessionTenantMismatch() {
+  // A deliberate logout/relogin owns the cookie deletion and destination.
+  // Waking SessionProvider here can reissue the old shared cookie after its
+  // deletion response arrives.
+  if (isTenantSessionEnding()) return;
   if (mismatchReported) return;
   mismatchReported = true;
   clearSessionCache();
