@@ -66,6 +66,7 @@ var seedCoverageExemptions = map[string]string{
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",
 	"active.staff_month_balance_snapshots": "empty in prod too",
+	"active.payroll_dispatches":            "not in prod yet (migration newer than the deployed image); only a month close queues a dispatch, and the seeder closes no month (see active.staff_month_balance_snapshots)",
 	"active.staff_vacation_openings":       "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
@@ -131,7 +132,6 @@ var seedCoverageExemptions = map[string]string{
 	"users.student_care_exit_removals":        "transient by design (#2487): holds a planned exit's removed plan only until the exit is cancelled or takes effect",
 	"users.student_care_exit_source_removals": "transient by design: holds source bookings and weekly plans only until a planned care exit is cancelled or takes effect",
 	"users.student_document_file_cleanup":     "empty in prod too",
-	"users.student_documents":                 "empty in prod too",
 }
 
 // Coverage debt is deliberately separate from durable exemptions. Adding an

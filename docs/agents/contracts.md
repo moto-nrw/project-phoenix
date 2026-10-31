@@ -216,7 +216,8 @@ order of its requests. All fields are additive; an older kiosk ignores them.
   one for each session whose count it changed (migration 1.15.705). A room's
   revision sums its entry rows (a session started, moved or reopened there)
   and room rows (a session left or ended there) plus the session revision of
-  every session the room ever held (migration 1.15.710). The read, not the
+  every session the room held since the last nightly close (migration
+  1.15.710, #5273). The read, not the
   writer, decides which sessions a room held, so a visit write racing a room
   change raises both rooms. Every committed change of a count raises the
   revision of its scope; events are never updated, so neither revision
@@ -234,8 +235,11 @@ order of its requests. All fields are additive; an older kiosk ignores them.
 - **No session lock.** The triggers only insert and the event table has no
   key to a session or room row; visit and session writers take the same locks
   as before #5128. The nightly close collapses the rows of each scope without
-  changing a revision and folds a deleted session's events into room rows of
-  the rooms it entered.
+  changing a revision and folds a deleted session's events, and the entries
+  of every settled session, into room rows of the rooms it entered. Settling
+  locks ended sessions and their visits with `SKIP LOCKED`, so a writer of an
+  ended session may wait for the nightly close; writers of running sessions
+  do not (ADR 0133, addendum #5273).
 - **Restarts and processes.** The events live in the database. Neither a
   backend restart nor several backend processes reset or fork a revision.
 - **Kiosk rule.** Within one scope (activity, room, session), accept a count
@@ -363,6 +367,32 @@ layout redirects it to the school's subdomain (path and query from the
 proxy's `X-Moto-Original-Path`; the browser keeps the fragment), the BFF
 refuses a school's session on the bare domain, and `TenantGuard` moves a tab
 still on path mode to the subdomain.
+
+All tabs of a portal also share one account: another account that signs in
+in tab B replaces tab A's session before tab A hears of it (#5183). Every
+browser request to the tab's own `/api/` therefore names the account its
+`SessionProvider` shows in `X-Moto-Session-Account`, set centrally by
+`SessionAccountBinding` (mounted first in every portal's providers), the
+fetch observer and the Axios interceptor of `api-transport.ts`; another
+origin never gets it. Every portal's route wrapper
+(`createResponseAwareAuth`, so `withTenantAuth` too) refuses a header that
+names another account than the cookie with 409
+`identity.session_account_mismatch` before the route runs
+(`frontend/src/server/auth/session-account-check.ts`). Account exemptions
+are independent of the school exemptions: only
+portal logout, `/api/auth/token` (cookie-only renewal, no token in the
+answer) and `/api/logs` pass. Tenant switching and preview-end must match
+the account; invitation acceptance does not use this wrapper. The refusal takes
+the path of the school refusal: the session cache wakes the provider,
+`TenantGuard` hides the page, and the provider's new account resets the SWR
+scope and leaves the page (`PersonalStorageGuard`). A request without the
+header passes (logged at debug): RSC navigation, server actions and image
+or download links cannot send it. For those requests the window until the
+provider learns the new account remains. SSE uses fetch streaming and names
+the account on the actual stream request, including every reconnect (#5374);
+a refusal is read directly, not through a preflight or probe. Every portal
+re-arms mismatch reporting when its provider confirms a session, including
+another lookup of the same account.
 
 ### Session revocation per request (#5194)
 

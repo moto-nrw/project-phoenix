@@ -322,29 +322,40 @@ func TestDatedCorrection_InactiveSourceDropAllSources(t *testing.T) {
 	runInactiveSourceSwitchAway(t, "mehrquellen-inaktiv-alle-ab@example.com", divergingPeriodCase{}, false)
 }
 
-// The exception is for the resyncs of a template's stored sources. The
-// resync behind a catalog edit (the catalog's guard) and the template save
-// keep refusing a template with an inactive source and write nothing.
-func TestInactiveSource_CatalogEditAndTemplateSaveStillRefuse(t *testing.T) {
+// The catalog resync and the template save skip the stored inactive source
+// as every resync does (#5313): the catalog edit of either offering and the
+// save keeping both stored sources succeed and plan only B. A save that
+// selects A anew (A not among the stored ids) is still refused and writes
+// nothing.
+func TestInactiveSource_CatalogEditAndTemplateSaveSkipInactiveSource(t *testing.T) {
 	t.Parallel()
 	f := setupMultiSourceCorrection(t, "mehrquellen-inaktiv-streng@example.com", divergingPeriodCase{phaseStart: inactiveSourceToday.AddDays(-10)})
-	snapshot := map[int64][]timetable.StudentEnrollment{f.studentID: f.rowsOf(t, f.studentID), f.neighbourID: f.rowsOf(t, f.neighbourID)}
 	f.deactivate(t, f.first.ID)
-
-	scoped, ok := f.env.bookings.(enrollmentTest.SourcedTemplateResyncer)
-	require.True(t, ok, "decision service must implement the offering-scoped resync")
-	for _, offeringID := range []int64{f.first.ID, f.second.ID} {
-		err := scoped.ResyncTemplatesSourcedFromOffering(testpkg.Ctx(t), offeringID, inactiveSourceToday)
-		require.Error(t, err, "the catalog edit of offering %d is refused", offeringID)
-		assert.Contains(t, err.Error(), "is inactive")
-	}
-	err := offeringResyncer(t, f.env).ResyncTemplateOfferingRoster(testpkg.Ctx(t), timetable.OfferingRosterResyncInput{
+	save := timetable.OfferingRosterResyncInput{
 		TemplateID:       f.template.ID,
 		OfferingIDs:      f.template.SourceCareOfferingIDs,
 		CalendarPeriodID: f.template.CalendarPeriodID,
 		EffectiveFrom:    inactiveSourceToday,
-	})
-	require.Error(t, err, "the template save is refused")
+	}
+	snapshot := map[int64][]timetable.StudentEnrollment{f.studentID: f.rowsOf(t, f.studentID), f.neighbourID: f.rowsOf(t, f.neighbourID)}
+	err := offeringResyncer(t, f.env).ResyncTemplateOfferingRoster(testpkg.Ctx(t), save)
+	require.Error(t, err, "a save selecting the inactive source anew is refused")
 	assert.Contains(t, err.Error(), "is inactive")
-	f.requireUnchangedSince(t, "refused resyncs", snapshot, nil)
+	f.requireUnchangedSince(t, "refused save", snapshot, nil)
+
+	scoped, ok := f.env.bookings.(enrollmentTest.SourcedTemplateResyncer)
+	require.True(t, ok, "decision service must implement the offering-scoped resync")
+	require.NoError(t, scoped.ResyncTemplatesSourcedFromOffering(testpkg.Ctx(t), f.first.ID, inactiveSourceToday),
+		"the catalog edit of the inactive source is saved")
+	child := f.childRow(t, "catalog edit")
+	neighbour := f.singleRowOf(t, "catalog edit", f.neighbourID)
+	settled := map[int64][]timetable.StudentEnrollment{f.studentID: {child}, f.neighbourID: {neighbour}}
+	require.NoError(t, scoped.ResyncTemplatesSourcedFromOffering(testpkg.Ctx(t), f.second.ID, inactiveSourceToday),
+		"the catalog edit of the valid source is saved")
+	f.requireUnchangedSince(t, "catalog edit of the valid source", settled, nil)
+
+	save.StoredOfferingIDs = f.template.SourceCareOfferingIDs
+	require.NoError(t, offeringResyncer(t, f.env).ResyncTemplateOfferingRoster(testpkg.Ctx(t), save),
+		"the save keeping the stored inactive source is saved")
+	f.requireUnchangedSince(t, "template save", settled, nil)
 }

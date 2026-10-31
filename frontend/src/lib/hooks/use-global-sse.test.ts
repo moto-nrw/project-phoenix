@@ -9,6 +9,7 @@ const { mockUseSession, mockUseSSE, mockMutate, capturedOptions } = vi.hoisted(
   () => {
     const capturedOptions: {
       onMessage?: (event: unknown) => void;
+      onError?: (event: Event) => void;
       enabled?: boolean;
       reconnectKey?: string | number;
     } = {};

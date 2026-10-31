@@ -249,11 +249,11 @@ export function StepPersonalKinder({
   );
   const applyOfferingSuggestion = (
     suggestion: OfferingSuggestion,
-    offeringId: string,
+    offeringIds: string[],
   ) => {
     setSuggestedRoster(draftRoster);
     changeTargetGroupType("angebot");
-    changeSourceOfferings([offeringId]);
+    changeSourceOfferings(offeringIds);
     if (suggestion.schoolClasses.length > 0) {
       changeSourceFilterMode("klasse");
       update("sourceSchoolClasses", suggestion.schoolClasses);
@@ -808,8 +808,8 @@ export function StepPersonalKinder({
           {offeringSuggestion ? (
             <OfferingSuggestionRow
               suggestion={offeringSuggestion}
-              onApply={(offeringId) =>
-                applyOfferingSuggestion(offeringSuggestion, offeringId)
+              onApply={(offeringIds) =>
+                applyOfferingSuggestion(offeringSuggestion, offeringIds)
               }
             />
           ) : null}

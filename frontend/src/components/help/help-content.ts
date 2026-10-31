@@ -116,6 +116,7 @@ function leadTopics(
     articles.manageStudentTopic(),
     articles.studentNotesTopic(),
     articles.endCareTopic(),
+    articles.accidentReportTopic(),
     articles.deleteStudentTopic(),
     articles.gradeTransitionTopic(),
     articles.classListEntriesTopic(),
@@ -163,6 +164,7 @@ function leadTopics(
     // --- Auswerten und exportieren ---
     articles.absenceReportTopic(),
     articles.statisticsTopic(),
+    articles.careTimeComparisonTopic(),
     articles.holidayWeeksTopic(),
     articles.holidayGuestGroupTopic(),
     articles.exportsTopic(),

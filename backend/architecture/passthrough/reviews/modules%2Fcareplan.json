@@ -812,11 +812,6 @@
     },
     {
       "decision": "0090",
-      "id": "modules/careplan/internal/application/StudentDocuments.CanSeeStudentDocumentCategory",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "modules/careplan/internal/application/StudentDocuments.ListDeletedStudentDocumentsPendingFileCleanup",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

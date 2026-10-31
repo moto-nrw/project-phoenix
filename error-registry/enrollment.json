@@ -127,6 +127,42 @@
       "legacy": "enrollment.care_offering_selection_invalid"
     },
     {
+      "code": "enrollment.care_offering_template_mixed_phases",
+      "class": "business_rejection",
+      "parameters": [
+        "offering",
+        "template"
+      ],
+      "legacy": "enrollment.care_offering_template_mixed_phases"
+    },
+    {
+      "code": "enrollment.care_offering_template_no_active_source",
+      "class": "business_rejection",
+      "parameters": [
+        "offering",
+        "template"
+      ],
+      "legacy": "enrollment.care_offering_template_no_active_source"
+    },
+    {
+      "code": "enrollment.care_offering_template_outside_period",
+      "class": "business_rejection",
+      "parameters": [
+        "offering",
+        "template"
+      ],
+      "legacy": "enrollment.care_offering_template_outside_period"
+    },
+    {
+      "code": "enrollment.care_offering_template_source_invalid",
+      "class": "business_rejection",
+      "parameters": [
+        "offering",
+        "template"
+      ],
+      "legacy": "enrollment.care_offering_template_source_invalid"
+    },
+    {
       "code": "enrollment.care_offering_template_period_mismatch",
       "class": "input",
       "parameters": [],

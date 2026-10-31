@@ -988,3 +988,7 @@ func (p *recordingEventPublisher) SupervisionRefresh(context.Context, string, st
 func (p *recordingEventPublisher) DashboardCountsChanged(context.Context, []string) {
 	p.announcements++
 }
+
+func (m *mockVisitRepository) PrepareVisitWrites(context.Context, studentpresence.VisitWriteScope) error {
+	return nil
+}

@@ -2,28 +2,28 @@ package api
 
 import "slices"
 
-// seedEnrollmentCourseBookings are the courses and the holiday care the
-// approved online enrollments book besides their care days, by child
-// (Sophie Sharma books the holiday care alone). The phase then shows
+// seedEnrollmentCourseBookings are the courses the approved online
+// enrollments book besides their care days, by child. The phase then shows
 // believable occupancy: nine of twelve places in the Fußball-AG, all eight of
 // the Theater-AG, so the parents app keeps a full course whose request lands
-// on the waiting list (#3075), and eight of twenty in the Ferienbetreuung.
-// Before, the Fußball-AG stood at 0 of 12.
+// on the waiting list (#3075). Before, the Fußball-AG stood at 0 of 12. The
+// holiday care belongs to its own holiday phase (#5139), so a school-year
+// enrollment does not book it.
 var seedEnrollmentCourseBookings = map[string][]string{
 	"Zeynep Çelik":     {"ag-theater"},
 	"Emma Klein":       {"ag-theater"},
 	"Oskar Wolf":       {"ag-fussball"},
 	"Zofia Kowalczyk":  {"ag-fussball", "ag-theater"},
-	"Ben Hartmann":     {"ag-fussball", "ferienbetreuung"},
-	"Clara Neumann":    {"ag-fussball", "ag-theater", "ferienbetreuung"},
+	"Ben Hartmann":     {"ag-fussball"},
+	"Clara Neumann":    {"ag-fussball", "ag-theater"},
 	"Artem Kovalenko":  {"ag-fussball", "ag-theater"},
-	"Omar Al-Hassan":   {"ag-fussball", "ferienbetreuung"},
+	"Omar Al-Hassan":   {"ag-fussball"},
 	"Amelie Vogt":      {"ag-theater"},
 	"Felix Kovac":      {"ag-fussball"},
-	"Hannah Schmitz":   {"ag-theater", "ferienbetreuung"},
-	"Viktor Reimer":    {"ag-fussball", "ferienbetreuung"},
-	"Elias Sommerfeld": {"ag-fussball", "ferienbetreuung"},
-	"Sofia Rossi":      {"ag-theater", "ferienbetreuung"},
+	"Hannah Schmitz":   {"ag-theater"},
+	"Viktor Reimer":    {"ag-fussball"},
+	"Elias Sommerfeld": {"ag-fussball"},
+	"Sofia Rossi":      {"ag-theater"},
 }
 
 // withSeedCourseBookings adds the child's courses to the offerings an

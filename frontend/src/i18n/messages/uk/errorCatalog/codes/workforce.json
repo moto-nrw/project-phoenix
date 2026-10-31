@@ -66,5 +66,6 @@
   "vacation_quota_exceeded": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "vacation_quota_reason_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "vacation_request_in_past": "Не вдалося зберегти: {object}. Перевірте введені дані.",
-  "work_session_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "work_session_overlap": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "payroll_download_unavailable": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

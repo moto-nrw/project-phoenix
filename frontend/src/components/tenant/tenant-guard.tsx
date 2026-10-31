@@ -20,6 +20,7 @@ import { Button } from "~/components/ui/button";
 import { credentialError } from "~/components/auth/credential-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
+import { isTenantSessionEnding } from "~/lib/tenant-session-end";
 
 const logger = createLogger({ component: "TenantGuard" });
 
@@ -137,6 +138,9 @@ function GuardedTenant({
     null,
   );
   const refusalActive = useRef(false);
+  // The refusal named another account (#5183), not another school: the
+  // check ends on this school, and PersonalStorageGuard leaves the page.
+  const [accountRefused, setAccountRefused] = useState(false);
   const setRefusal = useCallback((state: "checking" | "failed" | null) => {
     refusalActive.current = state !== null;
     setRefusalState(state);
@@ -169,6 +173,7 @@ function GuardedTenant({
   );
 
   const checkSessionSchool = useCallback(() => {
+    if (isTenantSessionEnding()) return;
     const run = ++refusalRun.current;
     setRefusal("checking");
     const deadline = Date.now() + REFUSAL_CHECK_MS;
@@ -193,7 +198,7 @@ function GuardedTenant({
         if (answer !== undefined) break;
         await new Promise((resolve) => setTimeout(resolve, REFUSAL_RETRY_MS));
       }
-      if (run !== refusalRun.current) return;
+      if (run !== refusalRun.current || isTenantSessionEnding()) return;
       if (!timedOut && answer === null) {
         // update() answers null for a failed lookup and for a session that
         // ended meanwhile (logout in another tab). Only the second has a way
@@ -214,7 +219,7 @@ function GuardedTenant({
           )
           .catch(() => false)
           .finally(() => clearTimeout(stop));
-        if (run !== refusalRun.current) return;
+        if (run !== refusalRun.current || isTenantSessionEnding()) return;
         if (signedOut) {
           latest.current.redirect("/?error=SessionExpired");
           return;
@@ -235,7 +240,8 @@ function GuardedTenant({
 
   useEffect(
     () =>
-      onSessionTenantMismatch(() => {
+      onSessionTenantMismatch((code) => {
+        if (isTenantSessionEnding()) return;
         const current = latest.current;
         // A tab still on path mode (<domain>/<school>/...) has no school in
         // its host; only the school's subdomain binds its requests.
@@ -258,6 +264,7 @@ function GuardedTenant({
         ) {
           return;
         }
+        setAccountRefused(code === "identity.session_account_mismatch");
         checkSessionSchool();
       }),
     [redirect, checkSessionSchool],
@@ -293,6 +300,9 @@ function GuardedTenant({
   useEffect(() => {
     if (status !== "authenticated") return;
     if (sessionHasAccess) return;
+    // A second tab can echo this logout's storage invalidation through its
+    // provider. The explicit exit already owns cookie deletion/navigation.
+    if (isTenantSessionEnding()) return;
 
     logger.warn("tenant_session_invalid", {
       error: sessionError,
@@ -311,13 +321,14 @@ function GuardedTenant({
       }
 
       try {
+        if (isTenantSessionEnding()) return;
         await signOut({ redirect: false });
       } catch (err) {
         logger.warn("invalid_session_signout_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
       } finally {
-        redirect("/?error=SessionExpired");
+        if (!isTenantSessionEnding()) redirect("/?error=SessionExpired");
       }
     })();
   }, [status, sessionHasAccess, sessionError, redirect]);
@@ -530,7 +541,11 @@ function GuardedTenant({
   if (refusal === "checking") {
     return (
       <div className="flex min-h-[200px] items-center justify-center">
-        <div className="text-sm text-gray-500">Schule wird gewechselt...</div>
+        <div className="text-sm text-gray-500">
+          {accountRefused
+            ? "Seite wird neu geladen..."
+            : "Schule wird gewechselt..."}
+        </div>
       </div>
     );
   }
@@ -553,7 +568,8 @@ function GuardedTenant({
 
   if (
     signingOutExpiredSession ||
-    (status === "authenticated" && !sessionHasAccess)
+    (status === "authenticated" && !sessionHasAccess) ||
+    (isTenantSessionEnding() && !sessionHasAccess)
   ) {
     return (
       <div className="flex min-h-[200px] items-center justify-center">

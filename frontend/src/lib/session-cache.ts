@@ -36,6 +36,11 @@ let cachedTenantId: number | undefined;
 // hear it once. Its next answer (primeSessionCache) re-arms the report.
 let mismatchReported = false;
 
+/** A confirmed SessionProvider answer re-arms mismatch reports in every portal. */
+export function confirmSessionSnapshot() {
+  mismatchReported = false;
+}
+
 const TTL_MS = 10_000; // 10 second cache window
 
 /**
@@ -115,7 +120,7 @@ export function clearSessionCache() {
 export function primeSessionCache(
   session: Awaited<ReturnType<typeof getSession>>,
 ) {
-  mismatchReported = false;
+  confirmSessionSnapshot();
   if (!hasSessionAccess(session)) {
     if (hasSessionAccess(cached?.session) || inflight) clearSessionCache();
     return;
@@ -282,7 +287,7 @@ export async function sessionFetch(
       if (!hasSessionAccess(freshSession)) throw authenticationRequiredError();
       return transportFetch(url, mergedInit);
     }
-    // handleAuthFailure already signed out
+    // Expiry signed out, or an explicit tenant logout already owns the exit.
     throw authenticationRequiredError();
   }
 

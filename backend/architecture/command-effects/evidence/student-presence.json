@@ -5409,6 +5409,14 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.PrepareVisitWrites",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "binding_digest": "e227a8013824f329765590468b7e22d7",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.QueryGroupSupervisions",
@@ -6481,6 +6489,14 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.PrepareVisitWrites",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.QueryGroupSupervisions",
       "binding_digest": "e227a8013824f329765590468b7e22d7",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
@@ -7057,6 +7073,38 @@
       "target_owner": "care-plan"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverruns",
+      "binding_digest": "da24ddbb662d1645c6ac077946069698",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverruns",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrolledOn",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverruns",
+      "binding_digest": "348f7cbb577318156fd8ea47dc1fcad6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverruns",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.Config.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverrunsForExport",
+      "binding_digest": "da24ddbb662d1645c6ac077946069698",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverrunsForExport",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrolledOn",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverrunsForExport",
+      "binding_digest": "348f7cbb577318156fd8ea47dc1fcad6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.CareTimeOverrunsForExport",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.Config.Now",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.Report",
       "binding_digest": "da24ddbb662d1645c6ac077946069698",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.Report",
@@ -7084,6 +7132,22 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.ReportForExport",
       "binding_digest": "348f7cbb577318156fd8ea47dc1fcad6",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.ReportForExport",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.Config.Now",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.StudentCareTimes",
+      "binding_digest": "da24ddbb662d1645c6ac077946069698",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.StudentCareTimes",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrolledOn",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.StudentCareTimes",
+      "binding_digest": "348f7cbb577318156fd8ea47dc1fcad6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatisticsReports.StudentCareTimes",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.Config.Now",
       "target_owner": ""
@@ -9513,6 +9577,14 @@
       "target_owner": ""
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.PrepareVisitWrites",
+      "binding_digest": "e227a8013824f329765590468b7e22d7",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentPresence.PrepareVisitWrites",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.QueryGroupSupervisions",
       "binding_digest": "e227a8013824f329765590468b7e22d7",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.StudentPresence.QueryGroupSupervisions",
@@ -10402,7 +10474,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsPlannedCareDays.PlannedCareDays",
-      "binding_digest": "14e13ccfd14f98cb523fbecd4541a2b5",
+      "binding_digest": "38e2f116e5bf6270a5f6101ecd3a0fe1",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayQuery.ResolvePlannedForRange",
@@ -10410,7 +10482,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StatisticsPlannedCareDays.PlannedCareDays",
-      "binding_digest": "9f0a3c22da16512df888787742ebade4",
+      "binding_digest": "697e26b45f16b16f19acc28ff605bf4a",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.PlannedCareDays.PlannedCareDays",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareDayStatus.Expected",
@@ -11316,6 +11388,14 @@
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.PatchSessionAttendance",
       "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.PatchSessionAttendance",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.PrepareVisitWrites",
+      "binding_digest": "fb0eab4ca11fb48b2c18d763ad42a20c",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.PrepareVisitWrites",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"

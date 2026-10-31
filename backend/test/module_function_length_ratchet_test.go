@@ -83,7 +83,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/iot/compose/compose.go:(*Resource).Router":                      105,
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
 	"api/root_serve.go:composeServeRoot":                                 511,
-	"api/root_test_root.go:composeTestRootWith":                          283,
+	"api/root_test_root.go:composeTestRootWith":                          282,
 	"api/serve_mounts_students.go:mountStudentRoutes":                    117,
 	"api/serve_mounts_students.go:requestReviewDependencies":             100,
 	"api/settings_composition.go:newSettingsResource":                    61,
@@ -546,7 +546,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/seedapi/enrollment_weekly_profile.go:verifyEnrollmentProfileCare": 62,
 	// ADR 0087.
-	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 261,
+	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedEnrollment": 258,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go:(parentEnrollmentSeedStep).seedParentAccounts": 61,
 	// ADR 0087.

@@ -1,4 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
+import { networkPorts } from "./e2e/network/ports.mjs";
+
+const ports = networkPorts("network");
 
 // Installed Playwright otherwise writes the DOM (including form values) into
 // error-context.md even when screenshots and traces are disabled.
@@ -39,12 +42,16 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "node e2e/network/server.mjs",
+    command: "node e2e/network/server.mjs --stop-with-stdin",
+    // Compile the real login page before browser action timeouts begin. Every
+    // run starts cold; a health endpoint alone does not mean login is ready.
     // Node, unlike Chromium, cannot assume wildcard .localhost resolution.
-    url: "http://127.0.0.1:13843/api/health",
+    url: `http://127.0.0.1:${ports.frontend}/school-a`,
     reuseExistingServer: false,
+    gracefulShutdown: { signal: "SIGTERM", timeout: 10_000 },
     timeout: 120_000,
     stdout: "ignore",
-    stderr: "ignore",
+    // The server writes only its own start errors; Next's output stays off.
+    stderr: "pipe",
   },
 });

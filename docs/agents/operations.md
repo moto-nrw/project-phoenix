@@ -29,6 +29,7 @@ through `devbox run` when the current process has not loaded the project environ
 | Full container stack | `docker compose --profile full up -d`, logs via `docker compose logs -f server` |
 | Frontend quality | `cd frontend && pnpm run check` |
 | Frontend E2E flows | seeded native stack, then `scripts/dev-native.sh frontend pnpm run test:e2e` |
+| Synthetic network E2E suites | `cd frontend && pnpm run test:network` / `pnpm run test:tenant-switch`, no stack needed ([ports](#synthetic-network-e2e-suites)) |
 | Backend suite | `cd backend && ../scripts/run-go-toolchain.sh go test ./...` |
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
@@ -109,6 +110,66 @@ After `go.mod` changes restart `up`; plain Go
 edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
 machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).
+
+### Synthetic network E2E suites
+
+`test:network` and `test:tenant-switch` start their own synthetic fixture API
+and `next dev` through `frontend/e2e/network/server.mjs`. They need no seeded
+database, backend or native app server, unlike the seeded `test:e2e`. They also
+ignore `PORT` and the worktree's `FRONTEND_HOST_PORT`, so they never compete
+with a running native dev loop.
+
+| Suite | Frontend port | Fixture API port |
+|---|---|---|
+| `test:network` | `NETWORK_E2E_PORT` (13843) | `NETWORK_E2E_API_PORT` (18443) |
+| `test:tenant-switch` | `TENANT_SWITCH_PORT` (13845) | `TENANT_SWITCH_API_PORT` (18445) |
+
+The config, server and specs read the same variables, so origins, readiness
+URL, fixture calls and route matchers follow the chosen ports. Two runs of the
+same suite need different ports and separate worktrees for their Playwright
+result directories:
+
+```bash
+# worktree A
+cd frontend && pnpm run test:tenant-switch
+# worktree B, at the same time
+cd frontend && TENANT_SWITCH_PORT=23845 TENANT_SWITCH_API_PORT=28445 pnpm run test:tenant-switch
+```
+
+A taken port fails the run before any test, without switching ports or reusing
+the other server:
+
+- Frontend port answering the readiness URL: Playwright reports
+  `http://127.0.0.1:<port>/school-a is already used`.
+- Any other listener on either port, on `127.0.0.1` or `::1`: the server
+  reports `Network evidence: <fixture API|frontend> port <port> is already in
+  use on <host>` and names the variable to change.
+- An invalid value: `<variable> must be a port between 1024 and 65535`.
+
+Each run creates its own disposable app root under
+`tmp/network-e2e/run-*`, outside frontend test/type/source discovery: a source
+snapshot and copies of the app's build and TypeScript configuration, with links
+to installed dependencies and public assets. Its Next config wraps the real
+config and plugins, with the repository as the Turbopack workspace boundary.
+Next writes its `.next`, lock, `next-env.d.ts` and TypeScript changes
+only there. Local env files are not copied. Changing suite or ports therefore
+never reuses another run's compilation, and the native dev loop can keep running
+in the same worktree without losing its warm cache or generated files
+([#5371](https://github.com/moto-nrw/project-phoenix/issues/5371)). Source edits
+made after startup take effect on the next run, not in the current snapshot.
+Readiness compiles the tenant login page, not just a health endpoint, before
+browser action timeouts begin. Retries, assertions and test timeouts are unchanged.
+
+Cleanup touches only the run's own processes and app root. Playwright sends
+SIGTERM to the server's process group and allows up to 10 seconds for shutdown;
+the server also stops when the Playwright runner ends and closes its stdin.
+After Next exits, the server removes only its own disposable app root. A direct
+SIGKILL of the server or machine crash can leave that directory behind; later
+runs neither reuse nor sweep it. Remove a leftover only after verifying that
+its owning run has ended. Neither shutdown path sends
+signals to processes by port or name, so a foreign listener stays reachable.
+If a port is still taken, check with `lsof -nP -iTCP:<port> -sTCP:LISTEN`
+whose process it is; stop only your own run, otherwise choose another port.
 
 ### Worktrees
 

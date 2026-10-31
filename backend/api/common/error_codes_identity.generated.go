@@ -49,6 +49,7 @@ const CodeIdentityReadOnlyPreview = "identity.read_only_preview"
 const CodeIdentityRoleNameTaken = "identity.role_name_taken"
 const CodeIdentityRolePlatformPermission = "identity.role_platform_permission"
 const CodeIdentitySessionAccountInactive = "identity.session_account_inactive"
+const CodeIdentitySessionAccountMismatch = "identity.session_account_mismatch"
 const CodeIdentitySessionTenantMismatch = "identity.session_tenant_mismatch"
 const CodeIdentityTenantAccessDenied = "identity.tenant_access_denied"
 const CodeIdentityTenantAccessNotFound = "identity.tenant_access_not_found"
@@ -105,6 +106,7 @@ var errorCodeClassesIdentity = []errorCodeClass{
 	{CodeIdentityRoleNameTaken, "business_rejection"},
 	{CodeIdentityRolePlatformPermission, "input"},
 	{CodeIdentitySessionAccountInactive, "permission"},
+	{CodeIdentitySessionAccountMismatch, "permission"},
 	{CodeIdentitySessionTenantMismatch, "permission"},
 	{CodeIdentityTenantAccessDenied, "permission"},
 	{CodeIdentityTenantAccessNotFound, "business_rejection"},

@@ -336,6 +336,14 @@
     "action": "read"
   },
   {
+    "resource": "student_accidents",
+    "action": "manage"
+  },
+  {
+    "resource": "student_accidents",
+    "action": "read"
+  },
+  {
     "resource": "student_documents",
     "action": "health"
   },

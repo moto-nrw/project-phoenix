@@ -1,25 +1,27 @@
+import { randomBytes } from "node:crypto";
 import {
   test,
   expect,
-  type APIRequestContext,
   type BrowserContext,
   type Page,
   type Route,
 } from "@playwright/test";
+import { networkPorts } from "./ports.mjs";
+
+const port = networkPorts("tenantSwitch").frontend;
 
 // #5194 for the portals with their own host-only cookie: parents, school,
 // operator and caterer. After the portal's logout revoked its family, a
 // response held back from before (same tab or a second tab) writes the old
 // cookie back; the still-unexpired access token must open nothing. The
 // session is opened with the portal's own Auth.js credentials provider and a
-// fixture token pair, the logout runs through the portal's real BFF logout
+// synthetic credential login, the logout runs through the portal's real BFF logout
 // route, and the cookie is cleared through Auth.js. Synthetic data only.
-const fixture = "http://127.0.0.1:18445";
 
 const portals = [
   {
     name: "Eltern",
-    origin: "http://eltern.localhost:13845",
+    origin: `http://eltern.localhost:${port}`,
     basePath: "/api/parent/auth",
     provider: "parent-credentials",
     scope: "parent",
@@ -29,7 +31,7 @@ const portals = [
   },
   {
     name: "Schule",
-    origin: "http://schule.mfa.localhost:13845",
+    origin: `http://schule.mfa.localhost:${port}`,
     basePath: "/api/school/auth",
     provider: "school-credentials",
     scope: "school",
@@ -39,7 +41,7 @@ const portals = [
   },
   {
     name: "Betreiber",
-    origin: "http://operator.localhost:13845",
+    origin: `http://operator.localhost:${port}`,
     basePath: "/api/operator/auth",
     provider: "operator-credentials",
     scope: "platform",
@@ -49,7 +51,7 @@ const portals = [
   },
   {
     name: "Caterer",
-    origin: "http://caterer.localhost:13845",
+    origin: `http://caterer.localhost:${port}`,
     basePath: "/api/caterer/auth",
     provider: "caterer-credentials",
     scope: "caterer",
@@ -76,13 +78,12 @@ async function isolate(context: BrowserContext) {
 }
 
 /** Opens a session in the portal's own Auth.js instance. */
-async function signIn(page: Page, portal: Portal, request: APIRequestContext) {
-  const pair = (await (
-    await request.get(`${fixture}/__fixture/mint?scope=${portal.scope}`)
-  ).json()) as { access_token: string; refresh_token: string };
+async function signIn(page: Page, portal: Portal) {
+  // Token handoff is server-only; use the public credentials contract.
+  const password = randomBytes(24).toString("hex");
   await page.goto(`${portal.origin}/api/health`);
   const status = await page.evaluate(
-    async ({ basePath, provider, pair }) => {
+    async ({ basePath, provider, password }) => {
       const { csrfToken } = (await (
         await fetch(`${basePath}/csrf`)
       ).json()) as {
@@ -90,9 +91,8 @@ async function signIn(page: Page, portal: Portal, request: APIRequestContext) {
       };
       const body = new URLSearchParams({
         csrfToken,
-        internalRefresh: "true",
-        token: pair.access_token,
-        refreshToken: pair.refresh_token,
+        email: "fixture@example.invalid",
+        password,
         json: "true",
       });
       const response = await fetch(`${basePath}/callback/${provider}`, {
@@ -104,7 +104,7 @@ async function signIn(page: Page, portal: Portal, request: APIRequestContext) {
       });
       return response.type === "opaqueredirect" ? 302 : response.status;
     },
-    { basePath: portal.basePath, provider: portal.provider, pair },
+    { basePath: portal.basePath, provider: portal.provider, password },
   );
   expect(status).toBeLessThan(400);
 }
@@ -221,12 +221,11 @@ for (const portal of portals) {
     for (const tabs of ["same tab", "second tab"] as const) {
       test(`${portal.name}: a late ${sourceName} Set-Cookie (${tabs}) restores no access`, async ({
         browser,
-        request,
       }) => {
         const context = await browser.newContext();
         await isolate(context);
         const tab1 = await context.newPage();
-        await signIn(tab1, portal, request);
+        await signIn(tab1, portal);
         expect(await readStatus(tab1, portal.read)).toBe(200);
         const lateTab = tabs === "same tab" ? tab1 : await context.newPage();
         if (lateTab !== tab1) await lateTab.goto(`${portal.origin}/api/health`);
@@ -268,7 +267,6 @@ for (const portal of portals) {
 
   test(`${portal.name}: logout leaves another family of the portal valid`, async ({
     browser,
-    request,
   }) => {
     const device1 = await browser.newContext();
     const device2 = await browser.newContext();
@@ -276,8 +274,8 @@ for (const portal of portals) {
     await isolate(device2);
     const page1 = await device1.newPage();
     const page2 = await device2.newPage();
-    await signIn(page1, portal, request);
-    await signIn(page2, portal, request);
+    await signIn(page1, portal);
+    await signIn(page2, portal);
 
     await logOut(page1, portal);
 

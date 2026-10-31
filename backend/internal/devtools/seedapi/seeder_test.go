@@ -128,7 +128,9 @@ func TestSeedStatisticsDemoStepCreatesAttendanceAndVisits(t *testing.T) {
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
 		"/api/students/101/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/students/102/pickup-exceptions",
 		"/api/students/102/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
+		"/api/iot/attendance/toggle",
 		"/api/students/103/rfid", "/api/iot/attendance/toggle", "/api/iot/checkin",
 		"/api/iot/session/end",
 		// Der Sitzungsstart stempelt die Aufsicht ein, das Sitzungsende bucht
@@ -167,7 +169,7 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 			activityRoomIDs:  map[int64]int64{11: 12},
 			staffIDs:         map[string]int64{"Mara Muster": 13},
 			staffCredentials: []StaffCredentials{{Name: "Mara Muster", Email: "mara@example.com", Password: "Test1234%"}},
-			studentIDByIndex: map[int]int64{0: 101},
+			studentIDByIndex: map[int]int64{0: 100, 1: 101},
 		},
 		StaffPIN: "1234",
 	})
@@ -176,6 +178,10 @@ func TestSeedStatisticsDemoStepCleansUpAfterFailure(t *testing.T) {
 	assert.Contains(t, err.Error(), "end statistics demo session")
 	assert.Equal(t, []string{
 		"/api/iot/session/start",
+		"/api/students/100/rfid",
+		"/api/iot/attendance/toggle",
+		"/api/iot/checkin",
+		"/api/students/101/pickup-exceptions",
 		"/api/students/101/rfid",
 		"/api/iot/session/end",
 		"/auth/login",
@@ -188,6 +194,8 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	t.Parallel()
 
 	type offeringPayload struct {
+		PhaseID       int64             `json:"phase_id"`
+		HolidayCare   bool              `json:"includes_holiday_care"`
 		Name          string            `json:"name"`
 		AvailableDays []string          `json:"available_days"`
 		CountsAsCare  bool              `json:"counts_as_care"`
@@ -204,7 +212,8 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	defer srv.Close()
 
 	step := parentEnrollmentSeedStep{}
-	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, 1)
+	const schoolYearPhaseID, holidayPhaseID = 41, 42
+	_, err := step.createCareOfferings(&Runtime{Client: newTestClient(srv.URL, false)}, AuthRef{}, schoolYearPhaseID, holidayPhaseID)
 	require.NoError(t, err)
 	require.Len(t, received, 6)
 
@@ -215,6 +224,14 @@ func TestParentEnrollmentCareOfferingsIncludePickupBaselines(t *testing.T) {
 	for _, offering := range received {
 		expectedTime, ok := expectedTimes[offering.Name]
 		require.True(t, ok, offering.Name)
+		// The holiday care lives in the holiday phase (#5139).
+		holiday := offering.Name == "Ferienbetreuung Herbst"
+		assert.Equal(t, holiday, offering.HolidayCare, offering.Name)
+		if holiday {
+			assert.EqualValues(t, holidayPhaseID, offering.PhaseID, offering.Name)
+		} else {
+			assert.EqualValues(t, schoolYearPhaseID, offering.PhaseID, offering.Name)
+		}
 		countsAsCare := expectedTime != ""
 		assert.Equal(t, countsAsCare, offering.CountsAsCare, offering.Name)
 		if !countsAsCare {

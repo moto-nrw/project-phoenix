@@ -1,6 +1,7 @@
 // Module-level registry that lets a page block *programmatic* in-app
 // navigation (e.g. a sidebar accordion whose <button> handler calls
-// router.push) the same way `useNavigationGuard` already blocks <a> clicks,
+// router.push, or a logout before session revocation) the same way
+// `useNavigationGuard` already blocks <a> clicks,
 // Back/Forward, and hard unloads.
 //
 // Why this exists: the Next.js App Router commits a router.push before it
@@ -22,15 +23,36 @@ export type ProceedFn = () => void;
 /**
  * Invoked when a blocked navigation is attempted. The blocker is expected to
  * stash `proceed` and open its own confirmation UI, calling `proceed()` if the
- * user confirms and dropping it if they cancel. `href` is the intended
+ * user confirms and notifying `cancel` when it is cancelled or superseded.
+ * `href` is the intended
  * destination, for display in the confirmation.
  */
-export type NavigationBlocker = (proceed: ProceedFn, href: string) => void;
+export type NavigationBlocker = (
+  proceed: ProceedFn,
+  href: string,
+  cancel?: () => void,
+) => void;
 
 // A stack rather than a single slot so nested/overlapping guards behave
 // sanely: the most recently registered (top-most) blocker wins, and removing
 // it restores the previous one.
 const blockers: NavigationBlocker[] = [];
+let confirmedUnloads = 0;
+
+/** A confirmed destructive exit must not ask again after revoking its session. */
+export function allowConfirmedUnload(): () => void {
+  confirmedUnloads += 1;
+  let active = true;
+  return () => {
+    if (!active) return;
+    active = false;
+    confirmedUnloads -= 1;
+  };
+}
+
+export function isUnloadConfirmed(): boolean {
+  return confirmedUnloads > 0;
+}
 
 /**
  * Register a blocker as the active navigation guard. Returns an unregister
@@ -55,9 +77,13 @@ export function registerNavigationBlocker(
  * - Returns `false` when there is no active blocker: the caller navigates
  *   immediately.
  */
-export function attemptNavigation(proceed: ProceedFn, href: string): boolean {
+export function attemptNavigation(
+  proceed: ProceedFn,
+  href: string,
+  cancel?: () => void,
+): boolean {
   const active = blockers[blockers.length - 1];
   if (!active) return false;
-  active(proceed, href);
+  active(proceed, href, cancel);
   return true;
 }

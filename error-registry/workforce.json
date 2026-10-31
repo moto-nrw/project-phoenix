@@ -165,6 +165,12 @@
       "legacy": "payroll_config_incomplete"
     },
     {
+      "code": "workforce.payroll_download_unavailable",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.payroll_download_unavailable"
+    },
+    {
       "code": "workforce.personnel_number_invalid",
       "class": "input",
       "parameters": [],

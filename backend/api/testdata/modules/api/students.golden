@@ -35,6 +35,7 @@ GET /api/students/ogs-group-navigation -> basis
 GET /api/students/school-classes -> basis
 GET /api/students/status-days -> basis
 GET /api/students/{id} -> basis
+GET /api/students/{id}/accident-reports/{documentId}/pdf -> basis
 GET /api/students/{id}/arrival-schedules -> basis
 GET /api/students/{id}/attendance-history -> basis
 GET /api/students/{id}/attendance-history/export -> basis
@@ -80,6 +81,10 @@ POST /api/students/pickup-schedules/bulk -> basis
 POST /api/students/pickup-times/bulk -> basis
 POST /api/students/school-checkin/batch -> basis
 POST /api/students/status-days/bulk -> basis
+POST /api/students/{id}/accident-reports -> basis
+POST /api/students/{id}/accident-reports/{documentId}/corrections -> basis
+POST /api/students/{id}/accident-reports/{documentId}/paper-copy -> basis
+POST /api/students/{id}/accident-reports/{documentId}/signature -> basis
 POST /api/students/{id}/arrival-exceptions -> basis
 POST /api/students/{id}/arrival-notes -> basis
 POST /api/students/{id}/care-end/resume -> basis
@@ -97,6 +102,7 @@ POST /api/students/{id}/school-checkin -> basis
 POST /api/students/{id}/status-days -> basis
 PUT /api/students/class-arrival-exceptions/{schoolClass}/{date} -> basis
 PUT /api/students/{id} -> basis
+PUT /api/students/{id}/accident-reports/{documentId} -> basis
 PUT /api/students/{id}/arrival-exceptions/{exceptionId} -> basis
 PUT /api/students/{id}/arrival-notes/{noteId} -> basis
 PUT /api/students/{id}/arrival-schedules -> basis

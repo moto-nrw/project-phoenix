@@ -20,11 +20,36 @@ var ErrStudentTemplateDaysInvalid = errors.New("invalid student template days re
 
 // ManualStudentPlanQuery asks where a student stays planned from From on, on
 // the given ISO weekdays (1 = Monday … 7 = Sunday), other than through a
-// roster row a booking created.
+// roster row a booking created, without a booking that carries the
+// Regeltermin (#5342).
 type ManualStudentPlanQuery struct {
 	StudentID int64
 	From      calendar.Date
-	Weekdays  []int
+	// Weekdays are the days the booking change dropped a booking on.
+	Weekdays []int
+	// NetLossWeekdays are the days the change drops more offerings on than
+	// it newly books. They decide where pickup time or end is missing.
+	NetLossWeekdays []int
+	// Bookings are what the student books after the change, one entry per
+	// offering and weekday. None means the student books nothing.
+	Bookings []StudentDayBooking
+}
+
+// StudentDayBooking is one offering the student books on one ISO weekday.
+//
+// A booking carries a Regeltermin on that weekday when the offering fits the
+// Regeltermin's kind (RosterOfferingKindFor) and the Regeltermin ends no
+// later than the offering's pickup time: the booked care runs until the child
+// is picked up. The times decide only when the Regeltermin has an end and
+// every booking of the day has a pickup time; otherwise the Regeltermin
+// counts as lost exactly on a net-loss weekday, whatever the kinds (#5342).
+type StudentDayBooking struct {
+	Weekday       int
+	CountsAsCare  bool
+	IncludesLunch bool
+	// PickupTime is the offering's pickup time on the weekday as "HH:MM" or
+	// "HH:MM:SS"; empty when the offering sets none for that day.
+	PickupTime string
 }
 
 // ManualStudentPlan is one Regeltermin series that keeps planning the student
@@ -66,7 +91,7 @@ type StudentTemplateDays interface {
 	// ManualStudentPlan lists the series, in name order, that plan the
 	// student on the asked weekdays from From on through a hand roster row,
 	// a dynamic target or an occurrence roster. Days a booking-created row
-	// still covers are left out.
+	// still covers or a remaining booking carries are left out.
 	ManualStudentPlan(ctx context.Context, query ManualStudentPlanQuery) ([]ManualStudentPlan, error)
 	// RemoveStudentTemplateDays narrows the student's hand roster rows of the
 	// series and removes the student from its planned occurrences on the

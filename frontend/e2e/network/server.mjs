@@ -1,10 +1,16 @@
 import { createServer } from "node:http";
+import { connect } from "node:net";
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { join } from "node:path";
+import { createAppWorkspace } from "./app-workspace.mjs";
+import { networkPorts } from "./ports.mjs";
 
 const sharedTenantCookie = process.env.TENANT_SWITCH_EVIDENCE === "1";
-const frontendPort = sharedTenantCookie ? 13845 : 13843;
-const apiPort = sharedTenantCookie ? 18445 : 18443;
+const ports = networkPorts(sharedTenantCookie ? "tenantSwitch" : "network");
+const frontendPort = ports.frontend;
+const apiPort = ports.api;
 let switchRequests = 0;
 let logoutRequests = 0;
 const schools = ["school-a", "school-b"].map((subdomain, index) => ({
@@ -115,15 +121,6 @@ const api = createServer(async (req, res) => {
       student_photos_enabled: true,
       timetable_enabled: false,
     });
-  } else if (sharedTenantCookie && path === "/__fixture/mint") {
-    // A fresh family of the given portal, as its login would open it.
-    const family = `family-${++familySequence}`;
-    liveFamilies.add(family);
-    const token = fixtureToken({
-      ...claims(url.searchParams.get("scope") ?? ""),
-      family_id: family,
-    });
-    data = { access_token: token, refresh_token: token };
   } else if (sharedTenantCookie && portalReads.has(path)) {
     data = envelope([]);
   } else if (sharedTenantCookie && path === "/operator/auth/logout") {
@@ -171,20 +168,34 @@ const api = createServer(async (req, res) => {
     });
     data = { access_token: token, refresh_token: token };
   } else if (
-    ["/auth/login", "/school/auth/login", "/parent/auth/login"].includes(path)
+    [
+      "/auth/login",
+      "/school/auth/login",
+      "/parent/auth/login",
+      "/operator/auth/login",
+      "/caterer/auth/login",
+    ].includes(path)
   ) {
     const scope = path.startsWith("/school")
       ? "school"
       : path.startsWith("/parent")
         ? "parent"
-        : "";
+        : path.startsWith("/operator")
+          ? "platform"
+          : path.startsWith("/caterer")
+            ? "caterer"
+            : "";
     const family = sharedTenantCookie
       ? `family-${++familySequence}`
       : undefined;
     if (family) liveFamilies.add(family);
     const token = fixtureToken({ ...claims(scope), family_id: family });
     const pair = { access_token: token, refresh_token: token };
-    data = scope === "parent" ? envelope(pair) : pair;
+    data = ["parent", "platform", "caterer"].includes(scope)
+      ? envelope(pair)
+      : scope === "school"
+        ? { status: "authenticated", ...pair }
+        : pair;
   } else if (path === "/auth/session/validate") {
     let body = "";
     for await (const chunk of req) body += chunk;
@@ -214,10 +225,49 @@ const api = createServer(async (req, res) => {
   res.writeHead(200, { "Content-Type": "application/json" });
   res.end(JSON.stringify(data));
 });
-api.listen(apiPort, "127.0.0.1");
+
+const fail = (message) => {
+  process.stderr.write(`Network evidence: ${message}\n`);
+  process.exit(1);
+};
+// macOS lets a wildcard and a loopback listener share a port, so a bind
+// alone does not prove that loopback traffic reaches this run. Any answer on
+// either loopback address means another process owns the port: stop instead
+// of testing against it, and never touch that process.
+const answers = (port, host) =>
+  new Promise((resolve) => {
+    const socket = connect({ port, host });
+    socket.once("connect", () => {
+      socket.destroy();
+      resolve(true);
+    });
+    socket.once("error", () => resolve(false));
+  });
+for (const [service, port, name] of [
+  ["fixture API", apiPort, ports.names.api],
+  ["frontend", frontendPort, ports.names.frontend],
+]) {
+  for (const host of ["127.0.0.1", "::1"]) {
+    if (await answers(port, host)) {
+      fail(
+        `${service} port ${port} is already in use on ${host}. Stop your own earlier run or choose another port with ${name}.`,
+      );
+    }
+  }
+}
+await new Promise((resolve) => {
+  api.once("error", (error) =>
+    fail(
+      `fixture API cannot listen on 127.0.0.1:${apiPort} (${error.code ?? "error"}). Choose another port with ${ports.names.api}.`,
+    ),
+  );
+  api.listen(apiPort, "127.0.0.1", resolve);
+});
 
 // Do not inherit user-specific service configuration or credentials. Explicit
 // empty values also take precedence over Next's automatic .env.local loading.
+const frontendDirectory = fileURLToPath(new URL("../../", import.meta.url));
+const workspace = createAppWorkspace(frontendDirectory);
 const env = {
   PATH: process.env.PATH,
   HOME: process.env.HOME,
@@ -247,22 +297,49 @@ const env = {
   SENTRY_DSN: "",
   SENTRY_AUTH_TOKEN: "",
   NEXT_PUBLIC_LOG_LEVEL: "error",
-  NODE_OPTIONS: "--require ./e2e/network/local-only.cjs",
+  NODE_OPTIONS: `--require ${JSON.stringify(fileURLToPath(new URL("./local-only.cjs", import.meta.url)))}`,
 };
 const next = spawn(
   process.execPath,
-  ["node_modules/next/dist/bin/next", "dev", "--port", String(frontendPort)],
-  { env, stdio: "ignore" },
+  [
+    join(frontendDirectory, "node_modules/next/dist/bin/next"),
+    "dev",
+    "--port",
+    String(frontendPort),
+  ],
+  { cwd: workspace.directory, env, stdio: "ignore" },
 );
+// Only this run's own children: the Next child and the fixture listener.
+let stopping = false;
 const stop = () => {
+  stopping = true;
   next.kill("SIGTERM");
   api.close();
   api.closeAllConnections();
 };
 process.on("SIGTERM", stop);
 process.on("SIGINT", stop);
-next.on("exit", (code) => {
+process.on("exit", () => next.kill("SIGTERM"));
+// Playwright holds stdin open; it closes when the runner ends, even when the
+// runner is killed without tearing the server down.
+if (process.argv.includes("--stop-with-stdin")) {
+  process.stdin.on("end", stop).resume();
+}
+next.on("error", (error) => {
+  api.close();
+  workspace.cleanup();
+  fail(`frontend could not start (${error.message})`);
+});
+next.on("close", (code, signal) => {
+  workspace.cleanup();
+  if (!stopping && code !== 0 && signal === null) {
+    process.stderr.write(
+      `Network evidence: frontend on port ${frontendPort} exited with code ${code}. Check the frontend configuration or choose another port with ${ports.names.frontend}.\n`,
+    );
+  }
   api.close();
   api.closeAllConnections();
-  process.exitCode = code ?? 1;
+  // The open stdin pipe would otherwise keep this process alive.
+  process.stdin.destroy();
+  process.exitCode = stopping ? 0 : (code ?? 1);
 });

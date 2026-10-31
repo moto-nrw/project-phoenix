@@ -49,8 +49,20 @@ func BookingMaterializationOwners(
 // by hand after a booking change (#5102).
 type bookingManualPlans struct{ days timetable.StudentTemplateDays }
 
-func (p bookingManualPlans) ManualStudentPlan(ctx context.Context, studentID int64, from calendar.Date, weekdays []int) ([]careplan.ManualRosterTemplate, error) {
-	plans, err := p.days.ManualStudentPlan(ctx, timetable.ManualStudentPlanQuery{StudentID: studentID, From: from, Weekdays: weekdays})
+func (p bookingManualPlans) ManualStudentPlan(
+	ctx context.Context, studentID int64, from calendar.Date, change careplan.BookingDayChange,
+) ([]careplan.ManualRosterTemplate, error) {
+	bookings := make([]timetable.StudentDayBooking, 0, len(change.Remaining))
+	for _, booking := range change.Remaining {
+		bookings = append(bookings, timetable.StudentDayBooking{
+			Weekday: booking.Weekday, CountsAsCare: booking.CountsAsCare, IncludesLunch: booking.IncludesLunch,
+			PickupTime: booking.PickupTime,
+		})
+	}
+	plans, err := p.days.ManualStudentPlan(ctx, timetable.ManualStudentPlanQuery{
+		StudentID: studentID, From: from, Weekdays: change.DroppedWeekdays,
+		NetLossWeekdays: change.NetLossWeekdays, Bookings: bookings,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -351,6 +363,7 @@ func BookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
 		ID: phase.ID, Name: phase.Name,
 		ServiceStart: calendar.Date(phase.ServiceStartDate), ServiceEnd: calendar.Date(phase.ServiceEndDate),
 		SchoolYear: phase.Kind == enrollmentOwner.PhaseKindSchoolYear,
+		Holiday:    phase.Kind == enrollmentOwner.PhaseKindHoliday,
 	}
 }
 

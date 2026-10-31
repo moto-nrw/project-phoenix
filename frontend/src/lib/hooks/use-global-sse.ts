@@ -46,6 +46,8 @@ import { isOwnAttendanceEvent } from "~/lib/sse-optimistic-mutations";
 
 const logger = createLogger({ component: "GlobalSSE" });
 
+const SSE_ENDPOINT = "/api/sse/events";
+
 export const DEBOUNCE_MS = 500;
 // Bounded random jitter added on top of the debounce (#2057). Every client of
 // a tenant receives the same broadcast at the same instant; without jitter all
@@ -1274,7 +1276,7 @@ export function useGlobalSSE(): SSEHookState {
     groupAccessRevision === 0
       ? tenantID
       : `${tenantID ?? ""}:${groupAccessRevision}`;
-  const sseState = useSSE("/api/sse/events", {
+  const sseState = useSSE(SSE_ENDPOINT, {
     onMessage: handleSSEEvent,
     enabled: isAuthenticated,
     reconnectKey,

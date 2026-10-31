@@ -2209,6 +2209,7 @@ function TimetablesContent() {
         <ConnectOfferingModal
           isOpen
           templateName={connecting.template.name}
+          periodId={templatePeriodID}
           deviation={connecting.deviation}
           onClose={() => setConnecting(null)}
           onConnected={handleOfferingConnected}

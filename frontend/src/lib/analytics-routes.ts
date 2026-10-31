@@ -92,6 +92,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/statistics",
   "/students/:id",
   "/students/:id/change-history",
+  "/students/:id/unfallanzeigen/:reportId",
   "/students/:id/feedback-history",
   "/students/:id/room-history",
   "/students/search",
@@ -212,6 +213,8 @@ export const TRACKED_PUBLIC_ROUTE_TEMPLATES = [
   "/help/:topic*",
   "/help/nfc/erste-schritte",
   "/invite",
+  // Download link of the payroll office (#4805); the link is a credential.
+  "/lohnbuero/:link",
   "/onboarding",
   "/reset-password",
   "/start",

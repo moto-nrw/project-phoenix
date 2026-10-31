@@ -8,7 +8,7 @@ import { HolidayRegistrationLegal } from "./holiday-registration-legal";
 
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -54,13 +54,14 @@ const UPLOAD_EXPIRED = "enrollment.upload_expired";
 
 const logger = createLogger({ component: "HolidayRegistrationForm" });
 
-type Step = "form" | "summary" | "done";
+export type HolidayRegistrationStep = "form" | "summary" | "done";
 
 export function HolidayRegistrationForm({
   token,
   offer,
   family = null,
   onFormChanged,
+  onStepChange,
 }: Readonly<{
   token: string;
   offer: HolidayRegistrationOffer;
@@ -71,6 +72,8 @@ export function HolidayRegistrationForm({
    * answers stay: they are kept by the key of their question.
    */
   onFormChanged?: () => Promise<void>;
+  /** Tells the page which step shows; only the form step has fields (#5334). */
+  onStepChange?: (step: HolidayRegistrationStep) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
   const formRef = useRef<HTMLFormElement>(null);
@@ -78,10 +81,14 @@ export function HolidayRegistrationForm({
   const [draft, setDraft] = useState<RegistrationDraft>(() =>
     registrationFromFamily(family),
   );
-  const [step, setStep] = useState<Step>("form");
+  const [step, setStep] = useState<HolidayRegistrationStep>("form");
   const [captchaToken, setCaptchaToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const fieldError = (name: string) => errorPath.fieldError(name) ?? undefined;
+
+  useEffect(() => {
+    onStepChange?.(step);
+  }, [onStepChange, step]);
 
   const toSummary = () => {
     const errors = validateRegistration(draft, offer);

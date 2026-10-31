@@ -131,6 +131,7 @@ describe("SettingsField", () => {
       ).toBeDisabled();
       fireEvent.change(getByRole("textbox"), { target: { value: "LÖSCHEN" } });
       fireEvent.click(getByRole("button", { name: "Ausschalten und löschen" }));
+      // The API call can precede completion of the async save and render.
       await waitFor(() => {
         if (action === "switch")
           expect(onSave).toHaveBeenCalledExactlyOnceWith(
@@ -141,10 +142,10 @@ describe("SettingsField", () => {
           expect(onReset).toHaveBeenCalledExactlyOnceWith(
             "gdpr.attendance_log_enabled",
           );
+        expect(
+          getByRole("switch", { name: "Anwesenheitsprotokoll" }),
+        ).toHaveAttribute("aria-checked", "false");
       });
-      expect(
-        getByRole("switch", { name: "Anwesenheitsprotokoll" }),
-      ).toHaveAttribute("aria-checked", "false");
       expect(action === "switch" ? onReset : onSave).not.toHaveBeenCalled();
     },
   );

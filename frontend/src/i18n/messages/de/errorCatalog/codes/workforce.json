@@ -66,5 +66,6 @@
   "vacation_quota_exceeded": "Dafür reicht der Resturlaub nicht. Der Urlaubsanspruch muss zuerst erhöht werden.",
   "vacation_quota_reason_required": "Für {object} fehlt eine Angabe. Bitte ergänzen Sie das markierte Feld.",
   "vacation_request_in_past": "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
-  "work_session_overlap": "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende."
+  "work_session_overlap": "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
+  "payroll_download_unavailable": "Dieser Link funktioniert nicht mehr. Er ist abgelaufen oder die Datei wurde schon heruntergeladen. Bitte wenden Sie sich an die Schule."
 }
