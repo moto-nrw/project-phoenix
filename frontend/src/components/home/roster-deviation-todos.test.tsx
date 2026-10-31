@@ -38,12 +38,13 @@ import { RosterDeviationTodos } from "./roster-deviation-todos";
 function deviation(templateId: string): RosterDeviation {
   return {
     templateId,
-    offering: { id: "3", name: "Randstunde" },
+    offerings: [{ id: "3", name: "Randstunde" }],
     gradeLevels: [],
     schoolClasses: [],
     unbookedCount: 4,
     missingCount: 0,
     candidates: [],
+    combinations: [],
     ambiguous: false,
   };
 }

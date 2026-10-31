@@ -95,7 +95,7 @@ describe("mapOfferingSuggestion", () => {
     expect(mapOfferingSuggestion({ suggestion: null })).toBeNull();
     const suggestion = mapOfferingSuggestion({
       suggestion: {
-        offering: { id: 7, name: "Randstunde" },
+        offerings: [{ id: 7, name: "Randstunde" }],
         school_classes: ["1b"],
         grade_levels: null,
         unbooked_count: 2,
@@ -104,9 +104,10 @@ describe("mapOfferingSuggestion", () => {
       },
     });
     expect(suggestion).toEqual({
-      offering: { id: "7", name: "Randstunde" },
+      offerings: [{ id: "7", name: "Randstunde" }],
       schoolClasses: ["1b"],
       gradeLevels: [],
+      combinations: [],
       unbookedCount: 2,
       missingCount: 0,
       candidates: [{ id: "7", name: "Randstunde" }],
@@ -115,7 +116,7 @@ describe("mapOfferingSuggestion", () => {
     expect(
       mapOfferingSuggestion({
         suggestion: {
-          offering: { id: 7, name: "Randstunde" },
+          offerings: [{ id: 7, name: "Randstunde" }],
           unbooked_count: 2,
           missing_count: 0,
           ambiguous: true,
@@ -127,6 +128,48 @@ describe("mapOfferingSuggestion", () => {
       gradeLevels: [],
       schoolClasses: ["1b"],
     });
+    const combined = mapOfferingSuggestion({
+      suggestion: {
+        offerings: [
+          { id: 7, name: "Randstunde" },
+          { id: 4, name: "Ganztag" },
+        ],
+        school_classes: ["1a"],
+        unbooked_count: 0,
+        missing_count: 0,
+      },
+    });
+    expect(suggestionSelection(combined!).offeringIds).toEqual(["7", "4"]);
+  });
+});
+
+describe("mapOfferingSuggestion combinations", () => {
+  it("maps complete alternatives without dropping complementary offerings", () => {
+    const randstunde = { id: 7, name: "Randstunde" };
+    const ganztag = { id: 4, name: "Ganztag" };
+    const spaet = { id: 8, name: "Ganztag spät" };
+    const suggestion = mapOfferingSuggestion({
+      suggestion: {
+        offerings: [ganztag, randstunde],
+        combinations: [
+          [ganztag, randstunde],
+          [spaet, randstunde],
+        ],
+        unbooked_count: 0,
+        missing_count: 0,
+        ambiguous: true,
+      },
+    });
+    expect(suggestion?.combinations).toEqual([
+      [
+        { id: "4", name: "Ganztag" },
+        { id: "7", name: "Randstunde" },
+      ],
+      [
+        { id: "8", name: "Ganztag spät" },
+        { id: "7", name: "Randstunde" },
+      ],
+    ]);
   });
 });
 
