@@ -21,6 +21,10 @@ import {
   type RosterImpactWire,
 } from "~/lib/roster-impact";
 import { CarePlanImpact } from "~/components/students/care-plan-impact";
+import {
+  RequestWaitlistPlaces,
+  useCourseWaitlistRefresh,
+} from "~/components/students/course-waitlist";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -139,6 +143,8 @@ export function OfferingRequestReviewItem({
   approveReasonRequired?: boolean;
 }>) {
   const t = useTranslations("parentMasterData");
+  // Eine Entscheidung verschiebt die Warteliste der AG (#4767).
+  const refreshWaitlists = useCourseWaitlistRefresh();
   const { show: showError } = useApiErrorDisplay();
   // Scheitert die Freigabe im offenen Bestätigungsdialog, steht der Fehler
   // dort: ein Toast läge hinter dem Hintergrund des Dialogs.
@@ -222,6 +228,7 @@ export function OfferingRequestReviewItem({
       } else {
         impactWire = await decideOfferingChangeRequest(...args);
       }
+      refreshWaitlists();
       const impact = approve ? mapRosterImpact(impactWire) : null;
       const notice = approve
         ? approvalNotice(impact)
@@ -544,6 +551,7 @@ export function OfferingRequestReviewItem({
               </div>
             );
           })}
+          <RequestWaitlistPlaces requestId={row.id} />
           {unchanged.length > 0 && (
             <div className="mt-3 border-t border-gray-200 pt-2">
               <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

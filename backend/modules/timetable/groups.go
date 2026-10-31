@@ -123,6 +123,7 @@ type CourseGroupFilter struct {
 // courses through care offerings.
 type CourseGroup struct {
 	ID                    int64
+	Name                  string
 	Active                bool
 	MaxParticipants       int
 	SourceCareOfferingIDs []int64

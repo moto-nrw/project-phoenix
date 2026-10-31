@@ -579,7 +579,7 @@ func (s parentEnrollmentSeedStep) seedOfferingChange(rt *Runtime, adminAuth, par
 	if err != nil {
 		return fmt.Errorf("approve offering change: %w", err)
 	}
-	return nil
+	return seedWaitlistedCourseRequest(rt, parentAuth, studentID, offerings["ag-theater"])
 }
 
 func seedEnrollmentChangeConversation(rt *Runtime, adminAuth AuthRef, original map[string]any, request SeedEnrollmentRequest) error {

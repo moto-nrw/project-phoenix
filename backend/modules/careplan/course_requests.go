@@ -2,6 +2,7 @@ package careplan
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -83,4 +84,33 @@ type CourseRequests interface {
 	CreateCourseRequest(ctx context.Context, input CreateCourseRequestInput) (*OfferingChangeRequest, error)
 	// WithdrawCourseRequest takes back the caller's own open course request.
 	WithdrawCourseRequest(ctx context.Context, requestID, accountID, studentID int64) error
+}
+
+// CourseWaitlistEntry is one open request waiting for an AG, ranked by the
+// rule the parents portal shows: the oldest submission first (#4767).
+type CourseWaitlistEntry struct {
+	RequestID   int64
+	StudentID   int64
+	Rank        int
+	SubmittedAt time.Time
+}
+
+// CourseWaitlist is the team's view of one AG: its places, the children it
+// holds and the open requests waiting for it. FreeSlots is nil for an AG
+// without a Teilnehmergrenze. The waiting position is read, never stored;
+// moving up is the team's ordinary approval of the first request.
+type CourseWaitlist struct {
+	ActivityGroupID  int64
+	Name             string
+	ParticipantLimit *int
+	Participants     int
+	FreeSlots        *int
+	Entries          []CourseWaitlistEntry
+}
+
+// HasFreeSlotForNext reports the moment the team has to act: an AG with a
+// Teilnehmergrenze has a free place and a child is waiting for it. An AG
+// without a limit has no waiting list, only open requests.
+func (w CourseWaitlist) HasFreeSlotForNext() bool {
+	return len(w.Entries) > 0 && w.FreeSlots != nil && *w.FreeSlots > 0
 }

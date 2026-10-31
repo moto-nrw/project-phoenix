@@ -129,6 +129,7 @@ type CourseOfferingReference struct {
 // CourseGroup is the Timetable projection of an AG a course request books.
 type CourseGroup struct {
 	ID                  int64
+	Name                string
 	Active              bool
 	ParticipantLimit    *int
 	ScheduledWeekdays   []int
@@ -142,6 +143,9 @@ type CourseGroup struct {
 type OfferingChangePlanning interface {
 	ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]ManualPlanningOccurrence, error)
 	CourseGroupsForOfferings(ctx context.Context, offerings []CourseOfferingReference, effectiveOn calendar.Date) (map[int64][]CourseGroup, error)
+	// CourseGroupsByID reads the named AGs without locking them, for the
+	// team's waiting lists (#4767). An unknown or non-course id is absent.
+	CourseGroupsByID(ctx context.Context, groupIDs []int64, effectiveOn calendar.Date) ([]CourseGroup, error)
 	LockCourseGroups(ctx context.Context, groupIDs []int64) ([]CourseGroup, error)
 	CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error)
 }

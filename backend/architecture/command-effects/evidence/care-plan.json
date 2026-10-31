@@ -8881,8 +8881,24 @@
       "target_owner": "transaction-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsByID",
+      "binding_digest": "51608c5c15451c57cda95a30bf4ad065",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsByID",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroup.ParticipantLimit",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsByID",
+      "binding_digest": "99d2d389f39be15bbeebad7a2d2e07eb",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsByID",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroupsByID",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CourseGroupsForOfferings",
-      "binding_digest": "945e7e6585326ebef2dbb25b49497a49",
+      "binding_digest": "97faed09e52712b8b834179cb4bbe50f",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CourseGroupsForOfferings",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.CourseGroup.ParticipantLimit",

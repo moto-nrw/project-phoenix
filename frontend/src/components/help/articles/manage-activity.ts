@@ -72,6 +72,8 @@ export function manageActivityTopic(
     differences: [
       "Eine Aktivität kann am Tablet mehrfach gewählt werden. Termine mit Uhrzeit stehen im Betreuungsplan.",
       "Aktivitäten anderer Personen können Sie ansehen, aber nicht immer bearbeiten.",
+      // #4767: Plätze und Warteliste einer AG.
+      "Dürfen Sie Anfragen von Eltern entscheiden? Dann zeigt eine Aktivität unter `Plätze und Warteliste` die belegten Plätze und die Kinder, die warten.",
     ],
     related: [HELP_TOPICS.activeSupervision, HELP_TOPICS.carePlan],
   };
