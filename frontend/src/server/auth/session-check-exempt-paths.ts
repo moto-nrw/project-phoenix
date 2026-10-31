@@ -18,11 +18,19 @@ export const MISMATCH_EXEMPT_PATHS: ReadonlySet<string> = new Set([
 ]);
 
 /**
- * Routes that must work while the cookie holds another account than the
- * tab (#5183): the routes above and the logout of every other portal.
+ * Account exemptions are deliberately independent of school exemptions.
+ * Logout is an intentional exit from the browser's current cookie session,
+ * even when another tab replaced it. Logs must still record reconciliation
+ * failures, but do not read or mutate account data. Token renewal only
+ * persists the current cookie and returns no token or account data; it must
+ * remain reachable for the existing 401 recovery path. Tenant switching
+ * and preview-end act on the cookie's account and must match the
+ * tab; invitation acceptance does not use the response-aware auth wrapper.
  */
 export const ACCOUNT_CHECK_EXEMPT_PATHS: ReadonlySet<string> = new Set([
-  ...MISMATCH_EXEMPT_PATHS,
+  "/api/logs",
+  "/api/auth/token",
+  "/api/auth/logout",
   "/api/operator/auth/logout",
   "/api/parent/auth/logout",
   "/api/school/auth/logout",

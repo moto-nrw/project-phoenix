@@ -2,6 +2,7 @@
 
 import { useLayoutEffect } from "react";
 import { useSession } from "next-auth/react";
+import { confirmSessionSnapshot } from "~/lib/session-cache";
 import { hasSessionAccess } from "~/lib/session-access";
 import { bindSessionAccount } from "~/lib/session-account";
 import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
@@ -29,7 +30,8 @@ export function SessionAccountBinding() {
     // A first lookup still running is no change of the account.
     if (status === "loading") return;
     bindSessionAccount(accountId);
-  }, [status, accountId]);
+    confirmSessionSnapshot();
+  }, [status, accountId, session]);
 
   return null;
 }

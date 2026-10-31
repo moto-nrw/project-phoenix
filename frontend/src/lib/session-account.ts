@@ -10,7 +10,7 @@
  * Set centrally: the fetch observer (session-tenant-mismatch-observer.ts)
  * and the Axios client (api-transport.ts) add it to requests for this
  * origin's `/api/`. A request without it passes: navigation, server
- * actions, the event stream and image or download links cannot send one.
+ * actions and image or download links cannot send one.
  */
 export const SESSION_ACCOUNT_HEADER = "X-Moto-Session-Account";
 

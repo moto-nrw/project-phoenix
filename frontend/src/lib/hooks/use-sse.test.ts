@@ -1,163 +1,236 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { act, renderHook } from "@testing-library/react";
+import { it, expect, vi, beforeEach, afterEach } from "vitest";
+import { act, renderHook, waitFor } from "@testing-library/react";
+import { useSSE } from "./use-sse";
+import {
+  bindSessionAccount,
+  SESSION_ACCOUNT_HEADER,
+} from "~/lib/session-account";
+import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
+import { onSessionTenantMismatch } from "~/lib/api-error";
+import type { SSEEvent } from "~/lib/sse-types";
 
-// A minimal EventSource stand-in that records every addEventListener name so we
-// can assert which NAMED SSE events the hook subscribes to. The browser's real
-// EventSource only delivers a named event (e.g. `event: parent_child_updated`)
-// to a listener registered for that exact name — onmessage fires for UNNAMED
-// events only — so a name missing here is an event the app never receives.
-class MockEventSource {
-  static instances: MockEventSource[] = [];
-  url: string;
-  readyState = 0;
-  onopen: ((this: EventSource, ev: Event) => unknown) | null = null;
-  onmessage: ((this: EventSource, ev: MessageEvent) => unknown) | null = null;
-  onerror: ((this: EventSource, ev: Event) => unknown) | null = null;
-  registered: string[] = [];
+const { mockUseSession } = vi.hoisted(() => ({ mockUseSession: vi.fn() }));
+vi.mock("next-auth/react", () => ({
+  useSession: mockUseSession,
+  getSession: vi.fn(),
+}));
 
-  constructor(url: string) {
-    this.url = url;
-    MockEventSource.instances.push(this);
-  }
-  addEventListener(type: string): void {
-    this.registered.push(type);
-  }
-  close(): void {
-    this.readyState = 2;
-  }
+const fetchMock = vi.fn<typeof fetch>();
+let restoreObserver: () => void;
+let streams: ReadableStreamDefaultController<Uint8Array>[];
+const onMessage = vi.fn();
+const encoder = new TextEncoder();
+function session(id: string) {
+  return { data: { user: { id, token: "access" } }, status: "authenticated" };
+}
+function streamResponse() {
+  return new Response(
+    new ReadableStream<Uint8Array>({
+      start(controller) {
+        streams.push(controller);
+      },
+    }),
+    { headers: { "Content-Type": "text/event-stream" } },
+  );
+}
+function sentAccount(index = 0) {
+  return new Headers(fetchMock.mock.calls[index]?.[1]?.headers).get(
+    SESSION_ACCOUNT_HEADER,
+  );
 }
 
-describe("useSSE — named event registration", () => {
-  let useSSE: typeof import("./use-sse").useSSE;
-
-  beforeEach(async () => {
-    MockEventSource.instances = [];
-    vi.stubGlobal("EventSource", MockEventSource);
-    ({ useSSE } = await import("./use-sse"));
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-    vi.resetModules();
-  });
-
-  it("subscribes to the new #1845 named events so their handlers are reachable", () => {
-    renderHook(() => useSSE("/api/sse/events", { onMessage: () => undefined }));
-
-    const es = MockEventSource.instances.at(-1);
-    expect(es).toBeDefined();
-    // The two events the review flagged as unreachable: without these
-    // registrations the staff review queue and the parents care view only
-    // refresh on focus/manual reload.
-    expect(es!.registered).toContain("change_requests_changed");
-    expect(es!.registered).toContain("parent_child_updated");
-    // Sanity: pre-existing named events stay registered.
-    expect(es!.registered).toContain("parent_message");
-    expect(es!.registered).toContain("student_updated");
-  });
-
-  it("subscribes to class_day_changed for the open class view of moto schule (#4792)", () => {
-    renderHook(() =>
-      useSSE("/api/school/sse/events", { onMessage: () => undefined }),
-    );
-
-    const es = MockEventSource.instances.at(-1);
-    expect(es).toBeDefined();
-    expect(es!.registered).toContain("class_day_changed");
-  });
-
-  it("registers every event type useGlobalSSE handles, so no branch is dead", async () => {
-    // The registration list and the handler switch drifted apart twice already
-    // (staffing_deviation_changed and student_companions_changed both shipped
-    // with a handler no event could ever reach — the backend sends every event
-    // NAMED, so an unregistered name is silently dropped and the only symptom
-    // is a view that never refreshes). Deriving the expected set from the
-    // handler source makes the next omission fail here instead of in
-    // production.
-    const { readFile } = await import("node:fs/promises");
-    const path = await import("node:path");
-    // Resolved from the vitest root (the frontend package dir), not
-    // import.meta.url: under the jsdom environment that URL is not a file: URL,
-    // so readFile rejects it.
-    const source = await readFile(
-      path.resolve(process.cwd(), "src/lib/hooks/use-global-sse.ts"),
-      "utf8",
-    );
-    // The file has exactly one switch, and it switches on event.type.
-    const handled = [...source.matchAll(/case "([a-z_]+)":/g)]
-      .map((m) => m[1])
-      .filter((type): type is string => type !== undefined);
-    expect(handled.length).toBeGreaterThan(10);
-
-    renderHook(() => useSSE("/api/sse/events", { onMessage: () => undefined }));
-    const registered = MockEventSource.instances.at(-1)!.registered;
-
-    expect(handled.filter((type) => !registered.includes(type))).toEqual([]);
-  });
+beforeEach(() => {
+  streams = [];
+  onMessage.mockReset();
+  fetchMock.mockReset().mockImplementation(async () => streamResponse());
+  vi.stubGlobal("fetch", fetchMock);
+  restoreObserver = installSessionTenantMismatchObserver();
+  bindSessionAccount("A");
+  mockUseSession.mockReturnValue(session("A"));
+});
+afterEach(() => {
+  restoreObserver();
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
+  bindSessionAccount(null);
 });
 
-describe("useSSE — connection error log (#2512)", () => {
-  let useSSE: typeof import("./use-sse").useSSE;
-
-  beforeEach(async () => {
-    MockEventSource.instances = [];
-    vi.stubGlobal("EventSource", MockEventSource);
-    ({ useSSE } = await import("./use-sse"));
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-    vi.resetModules();
-  });
-
-  it("classes a dropped stream as unavailable, so Loki counts it with the other failures", () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    renderHook(() =>
-      useSSE("/api/sse/events", {
-        onMessage: () => undefined,
-        maxReconnectAttempts: 0,
-      }),
+it.each([
+  "/api/sse/events",
+  "/api/parent/sse/events",
+  "/api/school/sse/events",
+])(
+  "%s binds the actual stream request and delivers named events",
+  async (endpoint) => {
+    const { result, unmount } = renderHook(() =>
+      useSSE(endpoint, { onMessage }),
     );
-    const es = MockEventSource.instances.at(-1)!;
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(sentAccount()).toBe("A");
+    // Keep the source-derived guard: every consumer branch must be reachable
+    // through a NAMED frame, including future event types.
+    const { readFile } = await import("node:fs/promises");
+    const { resolve } = await import("node:path");
+    const source = await readFile(
+      resolve(process.cwd(), "src/lib/hooks/use-global-sse.ts"),
+      "utf8",
+    );
+    const handled = [...source.matchAll(/case "([a-z_]+)":/g)].map(
+      (match) => match[1]!,
+    );
+    expect(handled.length).toBeGreaterThan(10);
+    const types = [
+      ...new Set([...handled, "parent_child_updated", "class_day_changed"]),
+    ];
+    act(() =>
+      streams[0]!.enqueue(
+        encoder.encode(
+          types
+            .map(
+              (type) =>
+                `event: ${type}\ndata: ${JSON.stringify({ type, data: {} })}\n\n`,
+            )
+            .join(""),
+        ),
+      ),
+    );
+    await waitFor(() => expect(onMessage).toHaveBeenCalledTimes(types.length));
+    expect(
+      onMessage.mock.calls.map(([event]) => (event as SSEEvent).type),
+    ).toEqual(types);
+    const signal = fetchMock.mock.calls[0]![1]!.signal!;
+    unmount();
+    expect(signal.aborted).toBe(true);
+  },
+);
 
+it.each([
+  "identity.session_account_mismatch",
+  "identity.session_tenant_mismatch",
+])(
+  "reports the stream's own %s refusal without a probe or retries",
+  async (code) => {
+    const refusal = vi.fn();
+    const unsubscribe = onSessionTenantMismatch(refusal);
+    fetchMock.mockResolvedValue(Response.json({ code }, { status: 409 }));
+    const { result, rerender } = renderHook(() =>
+      useSSE("/api/sse/events", { onMessage, reconnectInterval: 1 }),
+    );
+    await waitFor(() => expect(refusal).toHaveBeenCalledWith(code));
+    expect(result.current.isConnected).toBe(false);
     act(() => {
-      es.onerror?.call(es as unknown as EventSource, new Event("error"));
+      window.dispatchEvent(new Event("online"));
+      document.dispatchEvent(new Event("visibilitychange"));
     });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // A confirmed new provider account replaces the refused connection.
+    bindSessionAccount("B");
+    mockUseSession.mockReturnValue(session("B"));
+    fetchMock.mockImplementation(async () => streamResponse());
+    rerender();
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    expect(sentAccount(1)).toBe("B");
+    unsubscribe();
+  },
+);
 
-    expect(consoleError).toHaveBeenCalledWith(
-      "sse connection error",
-      expect.objectContaining({
-        endpoint: "/api/sse/events",
-        error_class: "unavailable",
-      }),
+it.each([401, 503, "offline"])(
+  "retries ordinary %s errors, still bound to A",
+  async (failure) => {
+    const refusal = vi.fn();
+    const unsubscribe = onSessionTenantMismatch(refusal);
+    if (typeof failure === "number")
+      fetchMock.mockResolvedValueOnce(new Response(null, { status: failure }));
+    else fetchMock.mockRejectedValueOnce(new TypeError("offline"));
+    const { result } = renderHook(() =>
+      useSSE("/api/sse/events", { onMessage, reconnectInterval: 1 }),
     );
-  });
+    await waitFor(() => expect(result.current.isConnected).toBe(true));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect([sentAccount(), sentAccount(1)]).toEqual(["A", "A"]);
+    expect(refusal).not.toHaveBeenCalled();
+    unsubscribe();
+  },
+);
 
-  it("leaves a stream the server closed unclassed, so it stays an error", () => {
-    const consoleError = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-    renderHook(() =>
-      useSSE("/api/sse/events", {
-        onMessage: () => undefined,
-        maxReconnectAttempts: 0,
+it("binds another reconnect and aborts the old stream on an account change", async () => {
+  const { result, rerender } = renderHook(() =>
+    useSSE("/api/sse/events", { onMessage, reconnectInterval: 1 }),
+  );
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  act(() => streams[0]!.close());
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+  expect(sentAccount(1)).toBe("A");
+  const oldSignal = fetchMock.mock.calls[1]![1]!.signal!;
+  bindSessionAccount("B");
+  mockUseSession.mockReturnValue(session("B"));
+  rerender();
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+  expect(oldSignal.aborted).toBe(true);
+  expect(sentAccount(2)).toBe("B");
+});
+
+it("parses split UTF-8, CRLF, multiline data and ignores heartbeats", async () => {
+  const { result } = renderHook(() => useSSE("/api/sse/events", { onMessage }));
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  const bytes = encoder.encode(
+    ': heartbeat\r\nevent: student_updated\r\ndata: {"type":"student_updated",\r\ndata: "data":{"name":"Müller"}}\r\n\r\n',
+  );
+  // Split every byte: includes CR/LF boundaries and the two-byte ü.
+  act(() => {
+    for (const byte of bytes) streams[0]!.enqueue(new Uint8Array([byte]));
+  });
+  await waitFor(() =>
+    expect(onMessage).toHaveBeenCalledWith({
+      type: "student_updated",
+      data: { name: "Müller" },
+    }),
+  );
+  expect(onMessage).toHaveBeenCalledTimes(1);
+});
+
+it("resumes a refused stream when a lookup confirms the same account again", async () => {
+  fetchMock.mockResolvedValueOnce(
+    Response.json(
+      { code: "identity.session_account_mismatch" },
+      { status: 409 },
+    ),
+  );
+  const { result, rerender } = renderHook(() =>
+    useSSE("/api/sse/events", { onMessage }),
+  );
+  await waitFor(() => expect(result.current.error).toBeTruthy());
+  mockUseSession.mockReturnValue(session("A"));
+  rerender();
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  expect([sentAccount(), sentAccount(1)]).toEqual(["A", "A"]);
+});
+
+it("disabling aborts a pending request and ignores its late result", async () => {
+  let resolve: (response: Response) => void = () => {};
+  fetchMock.mockImplementationOnce(
+    () =>
+      new Promise<Response>((done) => {
+        resolve = done;
       }),
-    );
-    const es = MockEventSource.instances.at(-1)!;
-    // The browser fails the connection on a non-200 answer: readyState CLOSED.
-    es.readyState = 2;
+  );
+  const { result, rerender } = renderHook(
+    ({ enabled }) => useSSE("/api/sse/events", { enabled, onMessage }),
+    { initialProps: { enabled: true } },
+  );
+  const signal = fetchMock.mock.calls[0]![1]!.signal!;
+  rerender({ enabled: false });
+  expect(signal.aborted).toBe(true);
+  await act(async () => resolve(streamResponse()));
+  expect(result.current.status).toBe("idle");
+  expect(onMessage).not.toHaveBeenCalled();
+});
 
-    act(() => {
-      es.onerror?.call(es as unknown as EventSource, new Event("error"));
-    });
-
-    const context = consoleError.mock.calls.find(
-      ([msg]) => msg === "sse connection error",
-    )?.[1] as Record<string, unknown>;
-    expect(context).toMatchObject({ ready_state: 2 });
-    expect(context).not.toHaveProperty("error_class");
-  });
+// Native EventSource support is no longer a prerequisite; fetch owns the stream.
+it("streams even when native EventSource is unavailable", async () => {
+  vi.stubGlobal("EventSource", undefined);
+  const { result } = renderHook(() => useSSE("/api/sse/events", { onMessage }));
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  expect(sentAccount()).toBe("A");
 });

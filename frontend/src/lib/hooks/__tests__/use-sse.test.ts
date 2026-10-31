@@ -4,6 +4,20 @@ import { releaseFakeTimers } from "~/test/clock";
 import { useSSE } from "../use-sse";
 import type { SSEEvent } from "../../sse-types";
 
+// Retry/state tests isolate the transport; fetch-boundary tests live next to
+// use-sse.ts and exercise the real streaming implementation.
+vi.mock("~/lib/fetch-event-source", () => ({
+  FetchEventSource: class {
+    constructor(url: string) {
+      return new EventSource(url);
+    }
+  },
+}));
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null }),
+  getSession: vi.fn(),
+}));
+
 // Mock EventSource
 class MockEventSource {
   public url: string;
@@ -797,7 +811,9 @@ describe("useSSE Hook", () => {
     it("should handle parse errors gracefully", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const onMessage = vi.fn();
-      renderHook(() => useSSE("/api/sse/events", { onMessage }));
+      const { result } = renderHook(() =>
+        useSSE("/api/sse/events", { onMessage }),
+      );
 
       await waitForEventSource();
       mockEventSource?.triggerOpen();
@@ -816,15 +832,8 @@ describe("useSSE Hook", () => {
 
       // Should not crash, onMessage should not be called
       expect(onMessage).not.toHaveBeenCalled();
-    });
-
-    it("should warn when EventSource is not supported", () => {
-      vi.stubGlobal("EventSource", undefined);
-
-      const { result } = renderHook(() => useSSE("/api/sse/events"));
-
       expect(result.current.error).toBe(
-        "Browser does not support Server-Sent Events",
+        "Ungültige Server-Event-Daten empfangen",
       );
     });
   });
