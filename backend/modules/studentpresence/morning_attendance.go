@@ -31,7 +31,9 @@ type MorningAttendanceMark struct {
 
 // MorningAttendanceEntry is one stored mark.
 type MorningAttendanceEntry struct {
-	Child      MorningAttendanceChild
+	Child MorningAttendanceChild
+	// Date is the school morning the mark belongs to.
+	Date       calendar.Date
 	Status     string
 	RecordedAt time.Time
 }
@@ -52,6 +54,10 @@ type MorningAttendance interface {
 	// MorningAttendanceOn returns the stored marks of date for the named
 	// children; a child without a mark has no entry.
 	MorningAttendanceOn(ctx context.Context, date calendar.Date, children []MorningAttendanceChild) ([]MorningAttendanceEntry, error)
+	// MorningAttendanceBetween returns the stored marks of every date from
+	// from to to (both included) for the named children, for the absence
+	// list of a class (#4793).
+	MorningAttendanceBetween(ctx context.Context, from, to calendar.Date, children []MorningAttendanceChild) ([]MorningAttendanceEntry, error)
 	// RecordMorningAttendance stores the marks, replacing a child's earlier
 	// mark of the same date. ErrMorningAttendanceInvalid refuses a mark that
 	// names no child, both kinds of child, or an unknown status.

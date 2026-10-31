@@ -268,6 +268,7 @@ export const HELP_TOPIC_AUDIENCE = {
   [HELP_TOPICS.teacherArrivalChange]: "teacher",
   [HELP_TOPICS.teacherClassTrip]: "teacher",
   [HELP_TOPICS.teacherAbsenceReport]: "teacher",
+  [HELP_TOPICS.teacherAbsenceList]: "teacher",
   [HELP_TOPICS.teacherDayHint]: "teacher",
   [HELP_TOPICS.teacherSharedNotes]: "teacher",
   [HELP_TOPICS.teacherSupervision]: "teacher",

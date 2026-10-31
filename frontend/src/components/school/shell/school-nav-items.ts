@@ -83,6 +83,14 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     portalPath: true,
     badge: "notices",
   },
+  // Fehltage je Kind einer Klasse für Klassenbuch und Zeugnis (#4793).
+  {
+    key: "absenceList",
+    href: "/school/fehlzeiten",
+    label: "Fehlzeiten",
+    concept: "excused",
+    portalPath: true,
+  },
   // Briefe der Lehrkraft an die Eltern ihrer Klasse (#4800).
   {
     key: "parentLetters",

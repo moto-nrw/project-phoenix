@@ -618,6 +618,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (l classDayAccessLog) RecordAbsenceList(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassAbsenceList, entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "api/classDayAccessLog.RecordAbsenceList",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l classDayAccessLog) RecordAbsenceListExport(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassAbsenceListExport, entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "api/classDayAccessLog.RecordAbsenceListExport",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (l classDayAccessLog) RecordClassDayView(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassDayView, entry))\n}",
       "form": "unclassified-evidence",
       "id": "api/classDayAccessLog.RecordClassDayView",

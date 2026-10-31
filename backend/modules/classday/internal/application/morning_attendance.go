@@ -43,6 +43,9 @@ type MorningAttendanceDependencies struct {
 	ReportStatusDays   AbsenceReportStatusDays
 	ReportLog          AbsenceReportLog
 	UnreportedNotifier UnreportedAbsenceNotifier
+	// AbsenceList counts the morning marks of a period for the absence list
+	// of a class (#4793).
+	AbsenceList AbsenceListDependencies
 }
 
 // morningAttendance is the second write seam of the class-day view (#4790):
