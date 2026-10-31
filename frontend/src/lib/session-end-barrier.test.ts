@@ -4,16 +4,15 @@ import {
   beginSessionEnd,
   fetchThroughSessionBarrier,
   isSessionBarrierClosed,
-  listenForSessionEnds,
   resetSessionBarrierForTests,
 } from "./session-end-barrier";
 import { useSessionPollInterval } from "~/components/auth/session-account-binding";
 
 /**
  * #5399: from the start of a logout no answer of the ending session may set
- * its cookie. The barrier aborts the tab's BFF requests whose answer has not
- * arrived (the browser then drops their Set-Cookie), holds new ones and stops
- * the SessionProvider's poll, here and in the other tabs of this origin.
+ * its cookie. The server guarantees it (session-cookie-writes); the barrier
+ * of the logging-out document aborts its BFF requests whose answer has not
+ * arrived, holds new ones and stops the SessionProvider's poll.
  */
 
 interface Sent {
@@ -47,26 +46,6 @@ function through(path: string, init?: RequestInit) {
 }
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-
-/** The barrier's timers; message delivery keeps the real event loop. */
-const BARRIER_TIMERS = ["setTimeout", "clearTimeout"] as const;
-
-/** BroadcastChannel delivers on the event loop, not on (fake) timers. */
-async function flushMessages() {
-  for (let turn = 0; turn < 5; turn++)
-    await new Promise((resolve) => setImmediate(resolve));
-}
-
-/** Another tab of the same origin. */
-function otherTab() {
-  const channel = new BroadcastChannel("moto-session-end");
-  const attempt = crypto.randomUUID();
-  return {
-    post: (type: "begin" | "ended" | "failed") =>
-      channel.postMessage({ type, attempt }),
-    close: () => channel.close(),
-  };
-}
 
 beforeEach(() => {
   sent = [];
@@ -353,250 +332,6 @@ describe("session-end barrier", () => {
 
     expect(sent[0]!.signal?.aborted).toBe(true);
     await expect(cleanup).rejects.toMatchObject({ name: "AbortError" });
-  });
-
-  it("tells an asking tab that its logout still runs", async () => {
-    listenForSessionEnds();
-    const listener = new BroadcastChannel("moto-session-end");
-    const heard: { type: string; attempt: string }[] = [];
-    listener.onmessage = (
-      event: MessageEvent<{ type: string; attempt: string }>,
-    ) => heard.push(event.data);
-    try {
-      const end = beginSessionEnd();
-      await vi.waitFor(() =>
-        expect(heard.map(({ type }) => type)).toEqual(["begin"]),
-      );
-
-      // CSRF or signout hang past the other tab's hold; it asks.
-      listener.postMessage({ type: "ping", attempt: heard[0]!.attempt });
-      await vi.waitFor(() => expect(heard).toEqual([heard[0], heard[0]]));
-
-      end.fail();
-      listener.postMessage({ type: "ping", attempt: heard[0]!.attempt });
-      await vi.waitFor(() =>
-        expect(heard).toEqual([
-          heard[0],
-          heard[0],
-          { type: "failed", attempt: heard[0]!.attempt },
-        ]),
-      );
-      await flush();
-      expect(heard).toHaveLength(3);
-    } finally {
-      listener.close();
-    }
-  });
-
-  describe("another tab of this origin", () => {
-    it("closes with the other tab's logout and opens when it reports the end", async () => {
-      listenForSessionEnds();
-      const running = through("/api/auth/session");
-      await flush();
-      const tab = otherTab();
-
-      tab.post("begin");
-      await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
-      expect(sent[0]!.signal?.aborted).toBe(true);
-
-      tab.post("ended");
-      await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(false));
-      // The read goes out again, now without the deleted cookie.
-      await vi.waitFor(() => expect(sent).toHaveLength(2));
-      sent[1]!.answer();
-      await running;
-      tab.close();
-    });
-
-    it.each(["failed", "ended"] as const)(
-      "keeps holding for a second owner after the first reports %s",
-      async (finish) => {
-        listenForSessionEnds();
-        const first = otherTab();
-        const second = otherTab();
-        try {
-          first.post("begin");
-          second.post("begin");
-          await flushMessages();
-          expect(isSessionBarrierClosed()).toBe(true);
-          const held = through("/api/auth/session");
-
-          first.post(finish);
-          await flushMessages();
-
-          expect(isSessionBarrierClosed()).toBe(true);
-          expect(sent).toHaveLength(0);
-          second.post("failed");
-          await vi.waitFor(() => expect(sent).toHaveLength(1));
-          sent[0]!.answer();
-          await held;
-          expect(isSessionBarrierClosed()).toBe(false);
-        } finally {
-          first.close();
-          second.close();
-        }
-      },
-    );
-
-    it.each(["failed", "ended"] as const)(
-      "keeps a remote hold after this tab reports %s",
-      async (finish) => {
-        const end = beginSessionEnd();
-        const remote = otherTab();
-        try {
-          remote.post("begin");
-          await flushMessages();
-          const held = through("/api/auth/session");
-          if (finish === "failed") end.fail();
-          else {
-            const signout = through("/api/auth/signout", { method: "POST" });
-            sent[0]!.answer();
-            await signout;
-          }
-          await flushMessages();
-          expect(isSessionBarrierClosed()).toBe(true);
-          expect(sent.map(({ url }) => url)).toEqual(
-            finish === "failed" ? [] : ["/api/auth/signout"],
-          );
-
-          remote.post("failed");
-          await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(false));
-          await vi.waitFor(() =>
-            expect(sent.at(-1)!.url).toBe("/api/auth/session"),
-          );
-          sent.at(-1)!.answer();
-          await held;
-        } finally {
-          remote.close();
-        }
-      },
-    );
-
-    it("expires a silent owner without releasing a live owner's hold", async () => {
-      vi.useFakeTimers({ toFake: [...BARRIER_TIMERS] });
-      listenForSessionEnds();
-      const silent = otherTab();
-      const live = otherTab();
-      try {
-        silent.post("begin");
-        await flushMessages();
-        await vi.advanceTimersByTimeAsync(1_000);
-        live.post("begin");
-        await flushMessages();
-        await vi.advanceTimersByTimeAsync(16_000);
-        expect(isSessionBarrierClosed()).toBe(true);
-
-        live.post("failed");
-        await flushMessages();
-        expect(isSessionBarrierClosed()).toBe(false);
-      } finally {
-        silent.close();
-        live.close();
-      }
-    });
-
-    it("opens when the other tab's logout fails", async () => {
-      listenForSessionEnds();
-      const tab = otherTab();
-
-      tab.post("begin");
-      await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
-      tab.post("failed");
-
-      await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(false));
-      tab.close();
-    });
-
-    it("stays closed while the other tab's logout still runs", async () => {
-      vi.useFakeTimers({ toFake: [...BARRIER_TIMERS] });
-      listenForSessionEnds();
-      const owner = new BroadcastChannel("moto-session-end");
-      // A live owner answers every ping, however long its signout hangs.
-      owner.onmessage = (
-        event: MessageEvent<{ type: string; attempt: string }>,
-      ) => {
-        if (event.data.type === "ping" && event.data.attempt === "remote-owner")
-          owner.postMessage({ type: "begin", attempt: event.data.attempt });
-      };
-      try {
-        owner.postMessage({ type: "begin", attempt: "remote-owner" });
-        await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
-        for (let step = 0; step < 6; step++) {
-          await vi.advanceTimersByTimeAsync(10_000);
-          await flushMessages();
-        }
-
-        expect(isSessionBarrierClosed()).toBe(true);
-      } finally {
-        owner.close();
-      }
-    });
-
-    it("aborts what it sent after the hold ran out once the other tab ends", async () => {
-      vi.useFakeTimers({ toFake: [...BARRIER_TIMERS] });
-      listenForSessionEnds();
-      const tab = otherTab();
-      try {
-        tab.post("begin");
-        await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
-        // The other tab went silent: the hold runs out, no answer comes.
-        await vi.advanceTimersByTimeAsync(15_000);
-        await flushMessages();
-        await vi.advanceTimersByTimeAsync(2_000);
-        expect(isSessionBarrierClosed()).toBe(false);
-        const read = through("/api/auth/session");
-        await vi.waitFor(() => expect(sent).toHaveLength(1));
-
-        tab.post("ended");
-
-        await vi.waitFor(() => expect(sent[0]!.signal?.aborted).toBe(true));
-        // The read goes out again, now without the deleted cookie.
-        await vi.waitFor(() => expect(sent).toHaveLength(2));
-        sent[1]!.answer();
-        await read;
-      } finally {
-        tab.close();
-      }
-    });
-
-    it("keeps local ownership past the other tab's timeout", async () => {
-      vi.useFakeTimers();
-      listenForSessionEnds();
-      const tab = otherTab();
-      try {
-        tab.post("begin");
-        await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
-        const end = beginSessionEnd({ keepClosed: true });
-
-        await vi.advanceTimersByTimeAsync(17_000);
-
-        expect(isSessionBarrierClosed()).toBe(true);
-        end.fail();
-        expect(isSessionBarrierClosed()).toBe(false);
-      } finally {
-        tab.close();
-      }
-    });
-
-    it("tells the other tabs when this tab starts and fails a logout", async () => {
-      listenForSessionEnds();
-      const listener = new BroadcastChannel("moto-session-end");
-      const heard: { type: string; attempt: string }[] = [];
-      listener.onmessage = (
-        event: MessageEvent<{ type: string; attempt: string }>,
-      ) => heard.push(event.data);
-
-      const end = beginSessionEnd();
-      end.fail();
-
-      await vi.waitFor(() =>
-        expect(heard).toEqual([
-          { type: "begin", attempt: expect.any(String) },
-          { type: "failed", attempt: heard[0]?.attempt },
-        ]),
-      );
-      listener.close();
-    });
   });
 });
 

@@ -666,6 +666,8 @@ describe("TenantGuard", () => {
   // The browser session carries no token (#5005); the session callback
   // marks a session without one with an error.
   it("signs out invalid authenticated session with no token", async () => {
+    // A page of the shell; the login page clears its own session.
+    mockUsePathname.mockReturnValue("/home");
     mockUseSession.mockReturnValue({
       data: {
         user: {
@@ -705,6 +707,8 @@ describe("TenantGuard", () => {
   it.each(["authenticated", "unauthenticated"])(
     "leaves an ended %s session to the active explicit logout",
     async (status) => {
+      // A page of the shell; the login page clears its own session.
+      mockUsePathname.mockReturnValue("/home");
       let finish!: () => void;
       const flight = runTenantSessionEnd(
         () =>
@@ -748,6 +752,8 @@ describe("TenantGuard", () => {
   );
 
   it("signs out authenticated session with refresh error", async () => {
+    // A page of the shell; the login page clears its own session.
+    mockUsePathname.mockReturnValue("/home");
     mockUseSession.mockReturnValue({
       data: {
         user: {
@@ -781,6 +787,39 @@ describe("TenantGuard", () => {
       "/?error=SessionExpired",
     );
   });
+
+  // #5399: the server reads a session of a revoked family as ended. When its
+  // cookie cannot be deleted, sending the login page to itself again looped;
+  // the login page clears the session and shows its form itself.
+  it.each(["/", "/school-a"])(
+    "leaves an ended session on the login page %s to the page",
+    async (pathname) => {
+      mockUsePathname.mockReturnValue(pathname);
+      mockUseSession.mockReturnValue({
+        data: {
+          user: { tenantId: 1, roles: [] },
+          error: "RefreshTokenError",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      mockUseTenant.mockReturnValue({
+        tenantSlug: "school-a",
+        tenant: tenantA,
+      });
+
+      render(
+        <TenantGuard>
+          <div>Login Form</div>
+        </TenantGuard>,
+      );
+
+      expect(screen.getByText("Login Form")).toBeInTheDocument();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(mockSignOut).not.toHaveBeenCalled();
+      expect(window.location.assign).not.toHaveBeenCalled();
+    },
+  );
 
   // #3375: a switch that "succeeds" can still leave the old school in the
   // session cookie. The guard used to try once and then show

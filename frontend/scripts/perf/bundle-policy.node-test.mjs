@@ -24,17 +24,12 @@ const approved = new Map([
 
 /**
  * Explicit, reviewed increases over the migrated 2 %/10 KiB ceilings:
- * #5260 room detail (logout safeguards) and #5399 (session-end barrier).
- * The parents portal decides public and signed-in pages at run time in one
- * layout, so its public pages carry the barrier; async chunks count too.
- * The parents' Elternsprechtag page (#4801) was budgeted without room for
- * it, although every signed-in page needs the barrier.
+ * #5260 room detail (logout safeguards) and #5399: the parents'
+ * Elternsprechtag page (#4801) was budgeted without room for the
+ * session-end barrier every signed-in page carries.
  */
 const increases = new Map([
   ["/[tenant]/rooms/[id]", 2_048],
-  ["/parents/reset-password", 1_024],
-  ["/parents/accept-guardian-invite/[token]", 1_024],
-  ["/parents/anmeldung/status/[token]", 1_024],
   ["/parents/children/[id]/elternsprechtag", 1_024],
 ]);
 

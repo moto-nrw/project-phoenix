@@ -2,77 +2,61 @@ import { isOwnApiUrl } from "./session-account";
 import { announceSessionBarrier, type SessionEnd } from "./session-end-state";
 
 /**
- * Session-end barrier (#5399). A response sets its cookies when its headers
- * arrive, whatever the JavaScript that sent it does with the result. A
- * session lookup, refresh or BFF call still running when a logout deletes
- * the session cookie could therefore write the session back. From the start
- * of a logout until the cookie is gone, this tab sends nothing to its own BFF
- * that could renew the old session:
+ * Session-end barrier (#5399): an optimization of the document that logs
+ * out, not its security. The guarantee is the server's: a response writes a
+ * session cookie only for a changed session of a live refresh-token family,
+ * and the session route reads a revoked family as ended
+ * (session-cookie-writes, browser-session). Other tabs, a tab started during
+ * a logout and a frozen one need nothing here: their answers pass the same
+ * server gate.
  *
- * 1. Closing the barrier aborts every fetch to this origin's `/api/` whose
- *    response headers have not arrived. The browser then drops their
- *    Set-Cookie. A GET or HEAD is sent again once the barrier opens; any
- *    other method fails, as an interrupted connection would.
- * 2. New requests wait until the barrier opens. Only the exit's own requests
- *    pass: revocation, CSRF, Auth.js signout, the preview end and the push
- *    cleanup.
- * 3. The SessionProvider stops polling while it is closed
- *    (useSessionPollInterval, through session-end-state).
- * 4. Other tabs of this origin close too (BroadcastChannel). After
- *    OTHER_TAB_HOLD_MS they ask (`ping`); each owner answers `begin` with its
- *    attempt ID while that attempt runs, however long CSRF or signout hang.
- *    Another tab opens only once every owner reports `ended` or `failed`,
- *    or fails to answer its own ping within OWNER_REPLY_MS (it is gone).
- *    An `ended` also aborts what an open
- *    tab still has in flight: those requests carry the deleted cookie.
- * 5. The exit's own requests pass only while this tab's attempt runs, and
- *    only for that attempt: started before the logout they are aborted like
- *    any other request; they end with a failed attempt or the deleted cookie.
+ * In this document, from the start of a logout until the cookie is gone:
  *
- * The barrier opens again when the logout fails (the session stays, and
- * waiting requests continue with it) or, unless the owner keeps it closed for
- * its own navigation, once the signout answer deleted the cookie: a request
- * sent after that carries no session. The server keeps a response that only
- * re-read the session from writing its cookie at all (session-cookie-writes).
- * Axios needs no barrier: the browser paths use fetch; Axios only runs on the
- * server, against the backend.
+ * 1. Requests to this origin's `/api/` whose response headers have not
+ *    arrived are aborted, so their answers neither land nor trigger renewals
+ *    and redirects. A GET or HEAD is sent again once the barrier opens; any
+ *    other method fails, as an interrupted connection would. Answered
+ *    requests (an SSE stream, a body still being read) keep running.
+ * 2. New requests wait until the barrier opens; a caller that gives up ends
+ *    the wait. Only the exit's own requests pass (revocation, CSRF, Auth.js
+ *    signout, preview end, push cleanup), and only for the running attempt.
+ * 3. The SessionProvider stops polling (useSessionPollInterval).
+ *
+ * The barrier opens when the logout fails (the session stays, waiting
+ * requests continue with it) or, unless the owner keeps it closed for its own
+ * navigation, once the signout answer deleted the cookie. Axios needs no
+ * barrier: the browser paths use fetch; Axios only runs on the server.
  */
 
-/** Initial hold before checking whether a remote logout still runs. */
-const OTHER_TAB_HOLD_MS = 15_000;
-/** A live owner answers a `ping` at once; silence means it is gone. */
-const OWNER_REPLY_MS = 2_000;
-
-let closedBy: "self" | "other" | null = null;
+let closed = false;
 let reopenAfterDeletion = true;
-/**
- * Requests whose response headers have not arrived: only their Set-Cookie
- * can still land. An answered request keeps running (an SSE stream, a body
- * still being read); its cookies were set before the logout went on.
- */
+/** Requests whose response headers have not arrived. */
 const awaiting = new Set<AbortController>();
-/** The same for the exit requests of this tab's running attempt. */
+/** The same for the exit requests of the running attempt. */
 const exits = new Set<AbortController>();
-/** This tab's latest attempt; live until it failed or deleted the cookie. */
-let attempt: string | null = null;
+/** The latest attempt; live until it failed or deleted the cookie. */
+let attempt: object | null = null;
 let attemptLive = false;
 const waiters = new Set<() => void>();
-const owners = new Map<string, ReturnType<typeof setTimeout>>();
-let channel: BroadcastChannel | undefined;
 
 function abortAll(requests: Set<AbortController>) {
   for (const request of requests) request.abort();
   requests.clear();
 }
 
-function abortInFlight() {
-  abortAll(awaiting);
-}
-
-/** Ends this tab's attempt: its exit requests abort, pings go unanswered. */
 function endAttempt() {
   attemptLive = false;
   abortAll(exits);
+}
+
+function setClosed(next: boolean) {
+  if (next) abortAll(awaiting);
+  else {
+    for (const resume of waiters) resume();
+    waiters.clear();
+  }
+  closed = next;
+  announceSessionBarrier(next);
 }
 
 /** Sends one request that the given set can abort until its headers arrive. */
@@ -89,103 +73,31 @@ async function sendTracked(
   }
 }
 
-type SessionEndMessage = {
-  type: "begin" | "ping" | "ended" | "failed";
-  attempt: string;
-};
-
-function broadcast(type: SessionEndMessage["type"], id: string) {
-  channel?.postMessage({ type, attempt: id } satisfies SessionEndMessage);
-}
-
-/** A remote completion releases only its own hold, never this tab's exit. */
-function releaseOwner(id: string) {
-  clearTimeout(owners.get(id));
-  owners.delete(id);
-  if (closedBy === "other" && owners.size === 0) setClosed(null);
-}
-
-/** Each owner must answer its own ping; another owner's reply cannot keep it. */
-function holdForOwner(id: string) {
-  clearTimeout(owners.get(id));
-  owners.set(
-    id,
-    setTimeout(() => {
-      broadcast("ping", id);
-      owners.set(
-        id,
-        setTimeout(() => releaseOwner(id), OWNER_REPLY_MS),
-      );
-    }, OTHER_TAB_HOLD_MS),
-  );
-}
-
-function releaseLocalHold() {
-  setClosed(owners.size ? "other" : null);
-}
-
-function setClosed(owner: typeof closedBy) {
-  if (owner) abortInFlight();
-  else {
-    for (const resume of waiters) resume();
-    waiters.clear();
-  }
-  closedBy = owner;
-  announceSessionBarrier(owner !== null);
-}
-
-/** Hears the other tabs' logouts; the fetch observer starts it at load. */
-export function listenForSessionEnds() {
-  if (channel || typeof BroadcastChannel === "undefined") return;
-  channel = new BroadcastChannel("moto-session-end");
-  channel.onmessage = ({ data }: MessageEvent<SessionEndMessage>) => {
-    if (!data || typeof data.attempt !== "string") return;
-    const { type, attempt: id } = data;
-    if (type === "ping") {
-      if (attemptLive && attempt === id) broadcast("begin", id);
-      return;
-    }
-    if (type === "begin") {
-      holdForOwner(id);
-      if (!closedBy) setClosed("other");
-      return;
-    }
-    if (type !== "ended" && type !== "failed") return;
-    // Requests sent while open carry the cookie the signout deleted.
-    if (type === "ended") abortInFlight();
-    releaseOwner(id);
-  };
-}
-
-/** Whether this tab holds its BFF requests for a session end. */
+/** Whether this document holds its BFF requests for a session end. */
 export function isSessionBarrierClosed(): boolean {
-  return closedBy !== null;
+  return closed;
 }
 
 /**
- * Starts a logout: closes the barrier here and in the other tabs of this
- * origin. `keepClosed`: the owner navigates itself after the cookie is
- * deleted, so waiting requests never go out (tenant logout and relogin:
- * a late redirect to the source school's login must not race navigation).
+ * Starts a logout of this document. `keepClosed`: the owner navigates itself
+ * after the cookie is deleted, so waiting requests never go out (tenant
+ * logout and relogin: a late redirect to the source school's login must not
+ * race navigation).
  */
 export function beginSessionEnd({
   keepClosed = false,
 }: { keepClosed?: boolean } = {}): SessionEnd {
-  listenForSessionEnds();
-  if (attemptLive && attempt) broadcast("failed", attempt);
   endAttempt();
-  const current = (attempt = crypto.randomUUID());
+  const current = (attempt = {});
   attemptLive = true;
   reopenAfterDeletion = !keepClosed;
-  setClosed("self");
-  broadcast("begin", current);
+  setClosed(true);
   return {
     fail() {
       // Also after the signout (bfcache restore), never for a later attempt.
-      if (attempt !== current || closedBy !== "self") return;
+      if (attempt !== current || !closed) return;
       endAttempt();
-      broadcast("failed", current);
-      releaseLocalHold();
+      setClosed(false);
     },
   };
 }
@@ -216,7 +128,7 @@ export async function fetchThroughSessionBarrier(
       pathname.endsWith("/push/subscriptions"));
   const merged = (own: AbortController) =>
     callerSignal ? AbortSignal.any([callerSignal, own.signal]) : own.signal;
-  if (exit && closedBy === "self" && attemptLive) {
+  if (exit && closed && attemptLive) {
     const current = attempt;
     const own = new AbortController();
     const response = await sendTracked(exits, own, () =>
@@ -230,8 +142,7 @@ export async function fetchThroughSessionBarrier(
       attempt === current
     ) {
       endAttempt();
-      broadcast("ended", current!);
-      if (reopenAfterDeletion) releaseLocalHold();
+      if (reopenAfterDeletion) setClosed(false);
     }
     return response;
   }
@@ -239,7 +150,7 @@ export async function fetchThroughSessionBarrier(
   const repeatable = /^(GET|HEAD)$/i.test(method);
   for (;;) {
     callerSignal?.throwIfAborted();
-    if (closedBy) {
+    if (closed) {
       await new Promise<void>((resolve, reject) => {
         const resume = () => {
           callerSignal?.removeEventListener("abort", cancel);
@@ -264,24 +175,19 @@ export async function fetchThroughSessionBarrier(
     } catch (error) {
       if (!own.signal.aborted || callerSignal?.aborted || !repeatable)
         throw error;
-      // The barrier stopped this read before its answer could set a cookie.
-      // Ask again once it opens, with the cookie that holds then.
+      // The barrier stopped this read; ask again once it opens.
     }
   }
 }
 
 /** Test seam: forget the state of a previous test. */
 export function resetSessionBarrierForTests() {
-  closedBy = null;
+  closed = false;
   reopenAfterDeletion = true;
   awaiting.clear();
   exits.clear();
   attempt = null;
   attemptLive = false;
   waiters.clear();
-  for (const timer of owners.values()) clearTimeout(timer);
-  owners.clear();
   announceSessionBarrier(false);
-  channel?.close();
-  channel = undefined;
 }
