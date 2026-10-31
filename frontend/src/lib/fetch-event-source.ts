@@ -1,19 +1,16 @@
 import { apiErrorFromResponse, isSessionRefusalCode } from "./api-error";
-import {
-  boundSessionAccount,
-  isOwnApiUrl,
-  SESSION_ACCOUNT_HEADER,
-} from "./session-account";
 
 /**
  * One fetch-backed SSE connection. Unlike native EventSource, the actual
- * stream request can name the tab's account and read its refusal envelope.
+ * stream request uses the portal fetch observer's account binding and can
+ * read its refusal envelope. SessionAccountBinding installs the observer
+ * before portal pages connect.
  * Retry policy belongs to useSSE, not to this transport.
  */
 export class FetchEventSource extends EventTarget {
   readyState = 0;
   sessionRefused = false;
-  onopen: ((event: Event) => void) | null = null;
+  onopen: (() => void) | null = null;
   onmessage: ((event: MessageEvent<string>) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;
   private readonly controller = new AbortController();
@@ -32,13 +29,9 @@ export class FetchEventSource extends EventTarget {
     const signal = this.controller.signal;
     let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
     try {
-      const headers = new Headers({ Accept: "text/event-stream" });
-      const account = isOwnApiUrl(this.url) ? boundSessionAccount() : null;
-      if (account !== null) headers.set(SESSION_ACCOUNT_HEADER, account);
       const response = await fetch(this.url, {
-        headers,
+        headers: { Accept: "text/event-stream" },
         cache: "no-store",
-        credentials: "same-origin",
         signal,
       });
       if (signal.aborted) return;
@@ -63,7 +56,7 @@ export class FetchEventSource extends EventTarget {
       }
       reader = response.body.getReader();
       this.readyState = 1;
-      this.onopen?.(new Event("open"));
+      this.onopen?.();
       const decoder = new TextDecoder();
       let buffer = "";
       let eventType = "message";

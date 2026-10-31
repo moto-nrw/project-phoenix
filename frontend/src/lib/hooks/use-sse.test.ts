@@ -5,6 +5,7 @@ import {
   bindSessionAccount,
   SESSION_ACCOUNT_HEADER,
 } from "~/lib/session-account";
+import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
 import { onSessionTenantMismatch } from "~/lib/api-error";
 import type { SSEEvent } from "~/lib/sse-types";
 
@@ -15,6 +16,7 @@ vi.mock("next-auth/react", () => ({
 }));
 
 const fetchMock = vi.fn<typeof fetch>();
+let restoreObserver: () => void;
 let streams: ReadableStreamDefaultController<Uint8Array>[];
 const onMessage = vi.fn();
 const encoder = new TextEncoder();
@@ -42,10 +44,12 @@ beforeEach(() => {
   onMessage.mockReset();
   fetchMock.mockReset().mockImplementation(async () => streamResponse());
   vi.stubGlobal("fetch", fetchMock);
+  restoreObserver = installSessionTenantMismatchObserver();
   bindSessionAccount("A");
   mockUseSession.mockReturnValue(session("A"));
 });
 afterEach(() => {
+  restoreObserver();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   bindSessionAccount(null);
