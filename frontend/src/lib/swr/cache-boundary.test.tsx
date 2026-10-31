@@ -120,6 +120,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "staffOnboardingKeys",
     "studentKeys",
     "timetableKeys",
+    "weekProtocolKeys",
   ],
   "shell-keys": ["SWR_FAMILIES", "announcementKeys", "dashboardKeys"],
   "parent-keys": ["parentKeys"],

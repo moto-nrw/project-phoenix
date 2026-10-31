@@ -92,6 +92,12 @@ export const timetableKeys = {
     `offering-gaps-${encodeURIComponent(periodId)}`,
 } as const;
 
+export const weekProtocolKeys = {
+  list: (groupId?: string | null) =>
+    `week-protocols-${encodeURIComponent(groupId ?? "all")}`,
+  detail: (id: string) => `week-protocol-${encodeURIComponent(id)}`,
+} as const;
+
 export const payrollKeys = {
   status: () => "payroll-status",
   dispatch: () => "payroll-dispatch",
