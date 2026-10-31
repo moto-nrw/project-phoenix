@@ -33,6 +33,19 @@ func (s *OfferingChanges) CourseWaitlists(ctx context.Context, activityGroupID i
 	if err != nil {
 		return nil, fmt.Errorf("course waitlist: list pending: %w", err)
 	}
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+	students, err := s.deps.Students.FindStudents(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("course waitlist: load students: %w", err)
+	}
+	scope, err := s.deps.Scope(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("course waitlist: resolve review scope: %w", err)
+	}
+	rows, _ = visibleOfferingRows(rows, students, scope, careplan.Date(today))
 	slices.SortStableFunc(rows, func(a, b careplan.OfferingChangeRequest) int {
 		if courseRequestAfter(a, b) {
 			return 1

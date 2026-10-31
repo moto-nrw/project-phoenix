@@ -157,6 +157,28 @@ func TestCourseWaitlistsRankFreeSlotAndTenant(t *testing.T) {
 	})
 }
 
+func TestCourseWaitlistsRespectReviewerGroupScope(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Warteliste", "Prüfung")
+	visibleGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Sichtbare Warteliste")
+	hiddenGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Verborgene Warteliste")
+	testpkg.CreateTestGroupTeacher(t, tc.db, visibleGroup.ID, teacher.ID)
+	courseGroup := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Theater-AG", 2)
+
+	hidden := createCourseWaitlistRequest(t, tc, courseGroup.ID, "Verborgen", "Kind")
+	visible := createCourseWaitlistRequest(t, tc, courseGroup.ID, "Sichtbar", "Kind")
+	testpkg.AssignStudentToGroup(t, tc.db, hidden.studentID, hiddenGroup.ID)
+	testpkg.AssignStudentToGroup(t, tc.db, visible.studentID, visibleGroup.ID)
+
+	waitlist := waitlistFor(fetchCourseWaitlists(t, tc, testutil.TeacherTestClaims(int(account.ID)), ""), courseGroup.ID)
+	require.NotNil(t, waitlist)
+	require.Len(t, waitlist.Entries, 1)
+	assert.Equal(t, strconv.FormatInt(visible.request.ID, 10), waitlist.Entries[0].RequestID)
+	assert.Equal(t, "Sichtbar Kind", waitlist.Entries[0].StudentName)
+	assert.Equal(t, 1, waitlist.Entries[0].Rank, "out-of-scope requests must not affect the visible queue position")
+}
+
 func TestCourseWaitlistsReadsOneAGWithoutQueue(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t, fixedCalendarClock)

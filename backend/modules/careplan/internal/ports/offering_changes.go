@@ -83,6 +83,8 @@ type OfferingChangeEnrollment interface {
 // OfferingChangeStudents reads the People Directory students an offering
 // change authorizes against.
 type OfferingChangeStudents interface {
+	// FindStudents returns the non-deleted students among ids, keyed by id.
+	FindStudents(ctx context.Context, ids []int64) (map[int64]careplan.ReviewStudent, error)
 	FindStudent(ctx context.Context, id int64) (*careplan.ReviewStudent, error)
 	// LockStudent takes the student row FOR UPDATE.
 	LockStudent(ctx context.Context, id int64) (*careplan.ReviewStudent, error)

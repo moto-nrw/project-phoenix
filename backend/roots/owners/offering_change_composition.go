@@ -394,6 +394,20 @@ type offeringChangeStudents struct {
 	withdrawals offeringChangeWithdrawalRows
 }
 
+func (s offeringChangeStudents) FindStudents(ctx context.Context, ids []int64) (map[int64]carePlanCompose.ReviewStudent, error) {
+	rows, err := s.students.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	students := make(map[int64]carePlanCompose.ReviewStudent, len(rows))
+	for id, row := range rows {
+		if student := offeringReviewStudent(row); student != nil {
+			students[id] = *student
+		}
+	}
+	return students, nil
+}
+
 func (s offeringChangeStudents) FindStudent(ctx context.Context, id int64) (*carePlanCompose.ReviewStudent, error) {
 	student, err := s.students.FindByID(ctx, id)
 	return offeringReviewStudent(student), err
