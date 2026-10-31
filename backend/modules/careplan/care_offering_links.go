@@ -71,6 +71,9 @@ type OfferingPhase struct {
 	Name         string
 	ServiceStart calendar.Date
 	ServiceEnd   calendar.Date
+	// SchoolYear is true for a school-year phase, whose service follows the
+	// school days; holiday and custom phases are false.
+	SchoolYear bool
 	// Holiday is true for a phase of the kind Ferienbetreuung; its
 	// offerings are never suggested as a Regeltermin source (#5139).
 	Holiday bool

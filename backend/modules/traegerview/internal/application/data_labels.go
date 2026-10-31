@@ -8,6 +8,7 @@ package application
 var dataLabels = map[string]string{
 	"attendance_history":           "Anwesenheit eines Kindes",
 	"attendance_day_log":           "Tagesprotokoll einer Gruppe",
+	"attendance_week_protocol":     "Wochenprotokoll einer Gruppe",
 	"student_status_day_overview":  "Abwesenheiten einer Gruppe",
 	"enrollment_phase_export":      "Anmeldungen einer Anmeldephase (Export)",
 	"enrollment_student_export":    "Anmeldung eines Kindes (Export)",

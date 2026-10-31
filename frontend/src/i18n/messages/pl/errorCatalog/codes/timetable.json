@@ -134,6 +134,10 @@
   "template_weekend": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "too_many_dates": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "understaffed_still_staffed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "week_protocol_not_closed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "week_protocol_not_draft": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "week_protocol_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "week_protocol_notes_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "window_end_before_start": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "window_too_large": "Nie udało się zapisać: {object}. Sprawdź wpisane dane."
 }

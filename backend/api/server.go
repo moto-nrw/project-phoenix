@@ -259,7 +259,7 @@ func composeProcess(config ServeConfig, db transactionruntime.Database, tracker 
 	})
 	documentPermissions := studentDocumentPermissions()
 	if config.Process == ServeWorkerOnly {
-		worker, err := owners.ComposeWorker(db, env, hub, tracer, tracker, newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal, deviceauth.WithAttendanceStaff, documentPermissions, workerAnalytics, analyticsSchoolNames, PlannedStaffExitsJob(db, hub, env.Logger))
+		worker, err := owners.ComposeWorker(db, env, hub, tracer, tracker, newLegacyTokenAdapter, CommunicationSession{}, TimetableRequestSession{}, AttendancePrincipal, deviceauth.WithAttendanceStaff, documentPermissions, workerAnalytics, analyticsSchoolNames, PlannedStaffExitsJob(db, hub, env.Logger), WeekProtocolDayLog)
 		return nil, worker, capacity, err
 	}
 	handler, worker, err := composeServeRoot(db, env, hub, config, tracker, metrics, tracer, metricsToken, config.Process != ServeAPIOnly, documentPermissions)

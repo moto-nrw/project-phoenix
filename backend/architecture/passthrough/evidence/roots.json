@@ -1576,6 +1576,13 @@
       "owner": "roots"
     },
     {
+      "build": "production",
+      "evidence": "func (a weekProtocolSeedAttendance) GroupDayAttendance(ctx context.Context, _ calendar.Date, groupIDs []int64) ([]timetableModule.WeekProtocolGroupDay, error) {\n\treturn a.source.GroupDayAttendance(ctx, a.today(), groupIDs)\n}",
+      "form": "unclassified-evidence",
+      "id": "api/weekProtocolSeedAttendance.GroupDayAttendance",
+      "owner": "roots"
+    },
+    {
       "build": "tool",
       "evidence": "func (a *Adapter) Raw(ctx context.Context, auth AuthRef, method, path string, body any, headers map[string]string) ([]byte, int, error) {\n\treq, err := a.buildRequest(ctx, auth, method, path, body, headers)\n\tif err != nil {\n\t\treturn nil, 0, fmt.Errorf(\"%s %s failed: %w\", method, path, err)\n\t}\n\traw, status, err := a.send(req, auth, method, path)\n\tif err == nil \u0026\u0026 a.tenantSessions != nil {\n\t\terr = a.tenantSessions.record(ctx, auth, method, path, body, raw)\n\t}\n\treturn raw, status, err\n}",
       "form": "unclassified-evidence",
@@ -3813,6 +3820,13 @@
       "evidence": "func (e bookingEnrollment) SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error) {\n\tvalues, err := e.owner.RequestChildOfferingsAtDate(ctx, childID, enrollmentOwner.Date(on))\n\treturn BookedOfferings(values), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingEnrollment.SelectionsAt",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e bookingEnrollment) StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error) {\n\tselections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(on), enrollmentOwner.Date(on))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))\n\tfor _, selection := range selections {\n\t\tif selection != nil \u0026\u0026 selection.StudentID == studentID {\n\t\t\tvalues = append(values, selection.Selection)\n\t\t}\n\t}\n\treturn BookedOfferings(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/bookingEnrollment.StudentSelectionsAt",
       "owner": "roots"
     },
     {

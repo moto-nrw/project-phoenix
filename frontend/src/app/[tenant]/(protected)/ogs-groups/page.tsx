@@ -77,6 +77,7 @@ import {
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
 import { buildGroupOverflowItems } from "./components/group-overflow-items";
+import { weekProtocolsPath } from "~/lib/week-protocols-api";
 import { usePresenceMode } from "~/lib/tenant-context";
 import {
   StudentTable,
@@ -126,7 +127,7 @@ import { type SidebarMemory, useSidebarMemory } from "~/lib/sidebar-memory";
 import { useArrivalOwner } from "~/lib/hooks/use-arrival-owner";
 import { useLatest } from "~/lib/hooks/use-latest";
 import { OgsGroupsPageSkeleton } from "./page-skeleton";
-import { hasEffectiveAdminScope } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
 
@@ -1101,6 +1102,16 @@ function OGSGroupPageContent() {
         canTransfer: canAdministerGroups || currentGroup.isPersonal === true,
         activeTransfersCount: groupTransfer.transfers.length,
         onOpenTransfer: () => groupTransfer.setOpen(true),
+        // Wie das Backend: die Leitung immer, sonst Fachkräfte der eigenen
+        // oder vertretenen Gruppe; Gäste (nur groups:read) nie.
+        onOpenWeekProtocols:
+          canAdministerGroups ||
+          hasPermission(session, "groups:manage") ||
+          (hasPermission(session, "groups:update") &&
+            (currentGroup.isPersonal === true ||
+              currentGroup.viaSubstitution === true))
+            ? () => router.push(weekProtocolsPath(currentGroup.id))
+            : undefined,
       })
     : [];
 

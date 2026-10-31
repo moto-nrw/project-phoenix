@@ -597,7 +597,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"roots/owners/root_worker.go:ComposeWorker": 347,
 	// ADR 0110: the worker passes the retention of the public holiday
 	// registrations.
-	"roots/owners/worker.go:NewWorker": 90,
+	"roots/owners/worker.go:NewWorker": 87,
 	// ADR 0087.
 	"test/booking_consistency_audit_fixture.go:VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows": 72,
 	// ADR 0087.

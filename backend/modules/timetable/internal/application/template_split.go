@@ -388,11 +388,14 @@ func (s *TemplateSplitService) splitInTransaction(
 	if err := validateAssignableCategory(ctx, s.deps.CategoryRepo, in.CategoryID, "split template: validate category"); err != nil {
 		return nil, err
 	}
+	if err := s.lockSplitDays(ctx, in, tenantID); err != nil {
+		return nil, err
+	}
 	old, newGroup, scheduleIDs, err := s.writeSplitSuccessor(ctx, &in, tenantID)
 	if err != nil {
 		return nil, err
 	}
-	preserved, err := s.preserveSplitDeviations(ctx, in, tenantID, old.ID)
+	preserved, err := s.preserveSplitDeviations(ctx, in, old.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -508,19 +511,16 @@ func (s *TemplateSplitService) writeSplitSuccessor(
 	return old, newGroup, scheduleIDs, nil
 }
 
-// preserveSplitDeviations locks the window's days and snapshots the old
-// template's deviations when the split re-materializes a window; without a
+// preserveSplitDeviations snapshots the old template's deviations under the
+// days lockSplitDays acquired before any writes. Without a materialization
 // window there is nothing to preserve.
-func (s *TemplateSplitService) preserveSplitDeviations(ctx context.Context, in TemplateSplitInput, tenantID, oldID int64) (ports.PreservedDeviations, error) {
+func (s *TemplateSplitService) preserveSplitDeviations(ctx context.Context, in TemplateSplitInput, oldID int64) (ports.PreservedDeviations, error) {
 	deviationFrom, deviationTo, preserve := splitMaterializationWindow(in)
 	if !preserve {
 		return nil, nil
 	}
 	if s.deps.Deviations == nil {
 		return nil, &ports.ScheduleError{Op: "split template: preserve deviations", Err: errors.New("deviation preservation is not configured")}
-	}
-	if err := s.deps.Deviations.LockDeviationDays(ctx, tenantID, deviationFrom, deviationTo); err != nil {
-		return nil, &ports.ScheduleError{Op: "split template: lock deviation days", Err: err}
 	}
 	preserved, err := s.deps.Deviations.SnapshotDeviations(ctx, deviationFrom, deviationTo, oldID)
 	if err != nil {

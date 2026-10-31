@@ -172,7 +172,8 @@ test.describe("Planung navigation", () => {
 
   test("/substitutions stays its own page", async ({ page }) => {
     await page.goto("/substitutions");
-    await page.waitForLoadState("networkidle");
+    // TenantAuthWrapper keeps the global SSE connection open. The content
+    // assertions below wait for the page's actual loaded state instead.
     expect(new URL(page.url()).pathname.endsWith("/substitutions")).toBe(true);
     const main = page.locator("main");
     await expect(main.getByText("Laufende Betreuungen")).toBeVisible();

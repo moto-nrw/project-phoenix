@@ -73,6 +73,10 @@ type SeedOptions struct {
 	// session sits at the seed time, since the simulated day fills the
 	// Statistik. The public demo keeps both.
 	ProductScreenshots bool
+	// SeedWeekProtocols asks the local development server to run the weekly
+	// protocol lifecycle after the regular seed data exists. Command roots set
+	// it; focused test servers keep their narrower API contracts.
+	SeedWeekProtocols bool
 }
 
 // Seeder orchestrates the complete API-based seeding process
@@ -86,6 +90,7 @@ type Seeder struct {
 	definition demoProfileDefinition
 
 	localCarePlanAccount *AccountCredentials
+	schoolTeacherAccount *AccountCredentials
 }
 
 // SeedResult contains counts of created entities
@@ -122,12 +127,17 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 	if statePath == "" {
 		statePath = DefaultSeedStatePath
 	}
+	client := NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose)
 	definition := fullOperationProfileDefinition()
+	if !localSeedAccountsEnabled(client.baseURL, options) {
+		delete(definition.Settings, profileSettingSchoolWriteScope)
+		delete(definition.Settings, profileSettingSchoolMorning)
+	}
 	if options.ProductScreenshots {
 		definition.Settings[profileSettingWeekendFollowsFriday] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
 	}
 	return &Seeder{
-		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),
+		client:     client,
 		random:     random,
 		verbose:    verbose,
 		options:    options,
@@ -567,6 +577,9 @@ func makeBootstrapSeedState(bootstrap *bootstrapSeedState) SeedStateBootstrap {
 }
 
 func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
+	if s.schoolTeacherAccount != nil {
+		state.Accounts.Lehrkraft = append(state.Accounts.Lehrkraft, *s.schoolTeacherAccount)
+	}
 	if s.localCarePlanAccount != nil {
 		state.Accounts.Local = append(state.Accounts.Local, *s.localCarePlanAccount)
 	}

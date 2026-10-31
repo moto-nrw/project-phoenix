@@ -318,6 +318,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/staff/{id}/documents"}:                                                         notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/documents/{documentId}"}:                                          notCaptured,
 	{http.MethodPut, "/api/staff/{id}/payroll-number"}:                                                     notCaptured,
+	{http.MethodPut, "/api/week-protocols/{protocolId}/notes"}:                                             notCaptured,
+	{http.MethodPost, "/api/week-protocols/{protocolId}/close"}:                                            event("week_protocol_closed"),
 	{http.MethodPut, "/api/staff/{id}/planned-exit"}:                                                       notCaptured,
 	{http.MethodDelete, "/api/staff/{id}/planned-exit"}:                                                    notCaptured,
 	{http.MethodPut, "/api/staff/{id}/schedule"}:                                                           notCaptured,
@@ -734,9 +736,10 @@ func CoreActionPrefixes() []string {
 }
 
 // CoreActionExcludedPrefixes are routes under those prefixes that do not
-// belong to a portal: the kiosk and CalDAV clients.
+// belong to a portal: the kiosk, CalDAV clients, and the development-only
+// weekly-protocol seeder.
 func CoreActionExcludedPrefixes() []string {
-	return []string{"/api/iot/", "/api/caldav"}
+	return []string{"/api/iot/", "/api/caldav", "/api/week-protocols/seed"}
 }
 
 // IsWritingMethod reports whether a route with method writes, so the route
