@@ -3,8 +3,12 @@
 import * as barrier from "~/lib/session-end-barrier";
 import { installSessionEndBarrier } from "~/lib/session-end-state";
 
-// Installed when the module loads: the pages fetch before any effect runs.
-installSessionEndBarrier(barrier);
+// Installed when the module loads, before the pages fetch; only in the
+// browser, the server has no other tabs to hear.
+if (typeof window !== "undefined") {
+  installSessionEndBarrier(barrier);
+  barrier.listenForSessionEnds();
+}
 
 /**
  * Brings the session-end barrier (#5399) to the pages that use a session:

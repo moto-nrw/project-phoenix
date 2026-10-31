@@ -18,7 +18,7 @@ import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { primeSessionCache } from "~/lib/session-cache";
 import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
-import { useSessionPollInterval } from "~/lib/use-session-poll-interval";
+import { useSessionPollInterval } from "~/lib/session-end-state";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { mutate, scopedSWRKey, tenantSWRScope } from "~/lib/swr";
 import { dataGenerationOf, stampSWRValue } from "~/lib/swr/generation";

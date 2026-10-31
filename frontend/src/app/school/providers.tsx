@@ -2,7 +2,7 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
-import { useSessionPollInterval } from "~/lib/use-session-poll-interval";
+import { useSessionPollInterval } from "~/lib/session-end-state";
 import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-session";
 import { SCHOOL_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
