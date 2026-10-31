@@ -15,6 +15,8 @@
 # The main checkout and the shared test database (TEST_DB_PORT) stay unchanged.
 # Prints key names and port numbers only, never other values.
 set -euo pipefail
+# Every file written here carries copied credentials: keep it private.
+umask 077
 
 root=$(git rev-parse --show-toplevel)
 cd "$root"
@@ -45,7 +47,14 @@ for i in "${!keys[@]}"; do
   current+=("$value")
 done
 
-if [ ! -f .wt.env ] && [ "${current[*]}" = "${defaults[*]}" ]; then
+running_native=false
+for pid_file in tmp/dev-native/*.pid; do
+  [ -f "$pid_file" ] && kill -0 "$(cat "$pid_file")" 2>/dev/null && running_native=true
+done
+if [ ! -f .wt.env ] && [ "${current[*]}" = "${defaults[*]}" ] && [ "$running_native" = true ]; then
+  # Moving ports under running dev servers would leave them unreachable.
+  echo "worktree-ports: this worktree's dev servers still run on the default ports; run scripts/dev-native.sh down to move them to this worktree's own ports" >&2
+elif [ ! -f .wt.env ] && [ "${current[*]}" = "${defaults[*]}" ]; then
   hash=$(printf '%s' "$(cd "$root" && pwd -P)" | cksum | cut -d' ' -f1)
   for ((try = 0; try < slot_count; try++)); do
     slot=$((first_slot + (hash + try) % slot_count))
@@ -56,7 +65,6 @@ if [ ! -f .wt.env ] && [ "${current[*]}" = "${defaults[*]}" ]; then
     [ "$busy" = false ] && break
   done
   [ "$busy" = false ] || { echo "worktree-ports: no free port slot" >&2; exit 1; }
-  # mktemp files are private (0600), which also suits the env files.
   tmp=$(mktemp .env.ports.XXXXXX)
   cat .env >"$tmp"
   for i in "${!keys[@]}"; do

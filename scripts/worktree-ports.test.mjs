@@ -87,6 +87,7 @@ test('a linked worktree on default ports gets a stable slot and its URLs follow'
   assert.match(devEnvAfter, new RegExp(`MAILPIT_URL=http://localhost:${8025 + 10 * slot}$`, 'm'));
   assert.match(devEnvAfter, /localhost:5433\/t/);
   assert.equal(statSync(join(f.linked, '.env')).mode & 0o077, 0, 'env files stay private');
+  assert.equal(statSync(join(f.linked, 'backend/dev.env')).mode & 0o077, 0);
 
   const again = f.run(f.linked);
   assert.equal(again.status, 0, again.stderr);
@@ -103,6 +104,19 @@ test('a slot with a port in use shifts to the next slot', t => {
   assert.equal(result.status, 0, result.stderr);
   const next = (f.port(f.linked, 'FRONTEND_HOST_PORT') - 3000) / 10;
   assert.equal(next, first === 249 ? 50 : first + 1);
+});
+
+test('running dev servers keep their ports until they are stopped', t => {
+  const f = fixture(t);
+  mkdirSync(join(f.linked, 'tmp/dev-native'), { recursive: true });
+  writeFileSync(join(f.linked, 'tmp/dev-native/backend.pid'), `${process.pid}\n`);
+  const result = f.run(f.linked);
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stderr, /dev servers still run on the default ports; run scripts\/dev-native.sh down/);
+  assert.equal(f.read(f.linked), env);
+  rmSync(join(f.linked, 'tmp/dev-native/backend.pid'));
+  assert.equal(f.run(f.linked).status, 0);
+  assert.notEqual(f.port(f.linked, 'FRONTEND_HOST_PORT'), 3000);
 });
 
 test('a wt-managed worktree keeps its lease; only stale default URLs move', t => {
