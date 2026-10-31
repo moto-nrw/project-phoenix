@@ -2473,7 +2473,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r ManualPlanningReader) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {\n\treturn r.Query.CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludeStudentID)\n}",
+      "evidence": "func (r ManualPlanningReader) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludedStudentByGroup map[int64]int64) (map[int64]int, error) {\n\treturn r.Query.CountActiveCourseEnrollments(ctx, groupIDs, from, until, excludedStudentByGroup)\n}",
       "form": "forward-debt",
       "id": "roots/owners/ManualPlanningReader.CountActiveCourseEnrollments",
       "owner": "roots"
@@ -2711,7 +2711,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (q PlanningQuery) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {\n\tambientDB3, databaseErr3 := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)\n\tif databaseErr3 != nil {\n\t\treturn *new(map[int64]int), databaseErr3\n\t}\n\tdb := ambientDB3\n\treturn timetableProjection.New().CountActiveCourseEnrollments(ctx, db, tenant.FromContext(ctx), groupIDs, from, until, excludeStudentID)\n}",
+      "evidence": "func (q PlanningQuery) CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludedStudentByGroup map[int64]int64) (map[int64]int, error) {\n\tambientDB3, databaseErr3 := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)\n\tif databaseErr3 != nil {\n\t\treturn *new(map[int64]int), databaseErr3\n\t}\n\tdb := ambientDB3\n\treturn timetableProjection.New().CountActiveCourseEnrollments(ctx, db, tenant.FromContext(ctx), groupIDs, from, until, excludedStudentByGroup)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/PlanningQuery.CountActiveCourseEnrollments",
       "owner": "roots"
