@@ -516,14 +516,15 @@ a logout or a "Zur Schulanmeldung" from writing the old session back:
    has not arrived are aborted, so the browser drops their Set-Cookie; new
    ones wait; the SessionProvider's poll stops (`useSessionPollInterval`).
    Only the exit's own requests pass (BFF logout, CSRF, Auth.js signout,
-   staff-preview end, push cleanup `DELETE`). The other tabs of the origin
+   staff-preview end, each portal's `…/push/subscriptions` cleanup). The other tabs of the origin
    close too (`BroadcastChannel` `moto-session-end`) and open on the owner's
    `ended` or `failed`, at the latest after 15 s. The barrier opens when the
    logout fails or, outside the tenant shell, once the signout answer deleted
    the cookie; the tenant exit keeps it closed while it navigates. An aborted
    GET or HEAD is sent again when the barrier opens, any other method fails.
-   The fetch observer (`session-tenant-mismatch-observer.ts`) and the Axios
-   interceptor apply it.
+   The fetch observer (`session-tenant-mismatch-observer.ts`) applies it to
+   every fetch; the browser's BFF calls all use fetch, Axios runs only on the
+   server against the backend.
 
 `BroadcastChannel` does not cross origins. A tab on another school's
 subdomain sharing the domain-scoped tenant cookie does not hear the

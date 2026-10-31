@@ -16,7 +16,7 @@
     },
     "/[tenant]/anmeldung/status/[token]": {
       "referenceBytes": 724090,
-      "maxBytes": 738572
+      "maxBytes": 739596
     },
     "/[tenant]/anmeldung/status/[token]/adjust": {
       "referenceBytes": 828477,
@@ -28,7 +28,7 @@
     },
     "/[tenant]/anmeldung/submitted": {
       "referenceBytes": 616346,
-      "maxBytes": 628673
+      "maxBytes": 629697
     }
   }
 }
