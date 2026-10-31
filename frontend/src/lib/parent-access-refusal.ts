@@ -7,10 +7,15 @@ export const PARENT_ACCESS_REFUSAL_CODES = [
 ] as const;
 export const PARENT_ACCESS_REFUSED_EVENT = "parent-access-refused";
 
-export function isParentAccessRefusal(error: unknown): error is ApiError {
+// Denying a write may leave the child readable (#5425); do not suppress its action error.
+export function isParentAccessRefusal(
+  error: unknown,
+  method = "GET",
+): error is ApiError {
   return (
     error instanceof ApiError &&
     (error.status === 401 || error.status === 403 || error.status === 404) &&
-    PARENT_ACCESS_REFUSAL_CODES.some((code) => error.code === code)
+    (error.code === "care.child_not_linked" ||
+      (method === "GET" && error.code === "care.guardian_permission_denied"))
   );
 }

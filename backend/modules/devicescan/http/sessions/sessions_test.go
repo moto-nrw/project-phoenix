@@ -829,8 +829,9 @@ func TestGetCurrentSession_CountCarriesItsRevision(t *testing.T) {
 
 	first := testpkg.CreateTestStudent(t, ctx.db, "First", "Revision", "3a")
 	second := testpkg.CreateTestStudent(t, ctx.db, "Second", "Revision", "3a")
-	testpkg.CreateTestVisit(t, ctx.db, first.ID, group.ID, time.Now(), nil)
-	leaving := testpkg.CreateTestVisit(t, ctx.db, second.ID, group.ID, time.Now(), nil)
+	checkedIn := time.Now().Add(-time.Minute)
+	testpkg.CreateTestVisit(t, ctx.db, first.ID, group.ID, checkedIn, nil)
+	leaving := testpkg.CreateTestVisit(t, ctx.db, second.ID, group.ID, checkedIn, nil)
 	two := current()
 	assert.Equal(t, float64(2), two["active_students"])
 	assert.Equal(t, float64(2), two["active_students_revision"])

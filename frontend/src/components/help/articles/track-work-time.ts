@@ -41,6 +41,7 @@ export function trackWorkTimeTopic(): HelpTopic {
     result:
       "Ihre Arbeitszeit erscheint in der Wochenübersicht und in der Tabelle `Zeiterfassung`.",
     notes: [
+      "Nach dem Stempeln steht oben in der `Stempeluhr` kurz `Wird gespeichert`. Danach meldet moto, ob es geklappt hat.",
       // Live geprueft: `Einstempeln` ist ein runder Knopf mit dem Wort
       // darunter. Ohne gewaehlten Arbeitsort steht dort `Bitte Status wählen`.
       "`Einstempeln` steht unter dem runden Knopf in der Mitte.",

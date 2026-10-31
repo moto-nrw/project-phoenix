@@ -143,8 +143,11 @@ the start-page feeds start independently, then features and day status start
 in parallel as soon as children are known. The child header still reads the
 complete authorized children list, not a new detail preview or permission seed.
 
-The parent API reports `care.child_not_linked` and
+The parent API reports `care.child_not_linked` and read-side
 `care.guardian_permission_denied` (401/403/404) to the authenticated bridge.
+A write-side `care.guardian_permission_denied` does not prove loss of child
+access: the existing action rolls back and rechecks its still-readable resource
+(as in #5425).
 It discards the parent resource family through `useDiscardRefusedEntity`,
 revalidates the children list, and broadcasts only account and refusal code
 to the other tabs. The API captures the originating account before the request;

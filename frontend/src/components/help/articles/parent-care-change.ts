@@ -29,6 +29,16 @@ export function parentCareChangeTopic(): HelpTopic {
         ],
       },
       {
+        // #3075, #4767: Kurse mit Warteliste.
+        title: "Einen Kurs anfragen",
+        steps: [
+          "Gehen Sie im Reiter `Betreuung` zum Abschnitt `Kurse`.",
+          "Tippen Sie beim gewünschten Kurs auf `Anfragen`.",
+          "Ist der Kurs voll? Dann kommt Ihre Anfrage auf die Warteliste. Sie sehen Ihren Platz, zum Beispiel `Warteliste, Platz 2`.",
+          "Wird ein Platz frei, bestätigt die OGS die Anfrage in dieser Reihenfolge. Sie bekommen dann eine Nachricht.",
+        ],
+      },
+      {
         title: "Die gebuchte Betreuung ändern",
         steps: [
           "Gehen Sie zum Abschnitt `Gebuchte Betreuung`.",

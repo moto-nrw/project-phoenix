@@ -190,6 +190,7 @@ func (s *Store) ListCourseGroups(ctx context.Context, filter timetable.CourseGro
 // courseGroupRow is the course-group projection ListCourseGroups scans.
 type courseGroupRow struct {
 	ID                    int64    `bun:"id"`
+	Name                  string   `bun:"name"`
 	Active                bool     `bun:"active"`
 	MaxParticipants       int      `bun:"max_participants"`
 	SourceCareOfferingIDs []int64  `bun:"source_care_offering_ids,type:jsonb,nullzero"`
@@ -203,7 +204,7 @@ type courseGroupRow struct {
 // group or source-offering match.
 func courseGroupListQuery(db bun.IDB, rows *[]courseGroupRow, tenantID int64, filter timetable.CourseGroupFilter) *bun.SelectQuery {
 	query := db.NewSelect().Model(rows).ModelTableExpr(`activities.groups AS "group"`).
-		ColumnExpr(`"group".id, "group".archived_at IS NULL AS active, "group".max_participants,
+		ColumnExpr(`"group".id, "group".name, "group".archived_at IS NULL AS active, "group".max_participants,
 			"group".source_care_offering_ids, "group".source_grade_levels, "group".source_school_classes`)
 	if filter.EffectiveOn == "" {
 		query = query.ColumnExpr(`COALESCE(ARRAY(
@@ -245,6 +246,7 @@ func courseGroupListQuery(db bun.IDB, rows *[]courseGroupRow, tenantID int64, fi
 func courseGroupToDomain(row courseGroupRow) timetable.CourseGroup {
 	return timetable.CourseGroup{
 		ID:                    row.ID,
+		Name:                  row.Name,
 		Active:                row.Active,
 		MaxParticipants:       row.MaxParticipants,
 		SourceCareOfferingIDs: append([]int64(nil), row.SourceCareOfferingIDs...),

@@ -3,7 +3,6 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useLayoutEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -21,6 +20,11 @@ import {
   type RosterImpactWire,
 } from "~/lib/roster-impact";
 import { CarePlanImpact } from "~/components/students/care-plan-impact";
+import {
+  RequestWaitlistPlaces,
+  useCourseWaitlistRefresh,
+  useOpenedFromWaitlist,
+} from "~/components/students/course-waitlist";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -138,7 +142,9 @@ export function OfferingRequestReviewItem({
   decisionDisabledReason?: string;
   approveReasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
+  // Eine Entscheidung verschiebt die Warteliste der AG (#4767).
+  const refreshWaitlists = useCourseWaitlistRefresh();
+  const openedFromWaitlist = useOpenedFromWaitlist(row.id);
   const { show: showError } = useApiErrorDisplay();
   // Scheitert die Freigabe im offenen Bestätigungsdialog, steht der Fehler
   // dort: ein Toast läge hinter dem Hintergrund des Dialogs.
@@ -222,6 +228,7 @@ export function OfferingRequestReviewItem({
       } else {
         impactWire = await decideOfferingChangeRequest(...args);
       }
+      refreshWaitlists();
       const impact = approve ? mapRosterImpact(impactWire) : null;
       const notice = approve
         ? approvalNotice(impact)
@@ -426,6 +433,7 @@ export function OfferingRequestReviewItem({
       type="offering"
       childName={row.student_name}
       grouped={grouped}
+      defaultOpen={openedFromWaitlist}
       summary={`ab ${formatDate(effectiveFrom)}`}
       badge={
         fullWithdrawal ? (
@@ -480,10 +488,10 @@ export function OfferingRequestReviewItem({
               >
                 <span className="text-xs text-gray-500">{entry.label}: </span>
                 {/* Eine Kursanfrage sieht sonst aus wie jede andere
-                    Angebotsänderung (#3075). */}
-                {entry.is_course && (
-                  <StatusBadge tone="green" label={t("courses.title")} />
-                )}
+                    Angebotsänderung (#3075). Das Mitarbeiterportal ist
+                    deutsch und lädt die Eltern-Texte nicht: der Schlüssel
+                    stand dort roh im Badge (#4767). */}
+                {entry.is_course && <StatusBadge tone="green" label="Kurs" />}
                 {entry.automatic && (
                   <StatusBadge tone="blue" label="Automatisch mitgebucht" />
                 )}
@@ -544,6 +552,7 @@ export function OfferingRequestReviewItem({
               </div>
             );
           })}
+          <RequestWaitlistPlaces requestId={row.id} />
           {unchanged.length > 0 && (
             <div className="mt-3 border-t border-gray-200 pt-2">
               <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">

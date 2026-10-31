@@ -1377,3 +1377,48 @@ describe("relationship refusal signals", () => {
     }
   });
 });
+
+describe("readable children after a refused write", () => {
+  it("does not evict child access for a refused write permission", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse(
+          { code: "care.guardian_permission_denied" },
+          { status: 403 },
+        ),
+      );
+      await expect(postChildMessage("42", "Test")).rejects.toMatchObject({
+        code: "care.guardian_permission_denied",
+      });
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+  it("evicts child access when reading the relationship is refused", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse(
+          { code: "care.guardian_permission_denied" },
+          { status: 403 },
+        ),
+      );
+      await expect(getChildFeatures("42")).rejects.toMatchObject({
+        code: "care.guardian_permission_denied",
+      });
+      expect(listener).toHaveBeenCalledOnce();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+});

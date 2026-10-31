@@ -27,6 +27,7 @@ import { SpinnerIcon } from "~/components/ui/icons";
 import { Minus, Plus, Trash2 } from "lucide-react";
 import { InfoIcon } from "@phosphor-icons/react";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
+import { ActivityWaitlistSection } from "./activity-waitlist-section";
 
 const logger = createLogger({ component: "ActivityManagement" });
 
@@ -311,9 +312,7 @@ export function ActivityManagementModal({
                   className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
                 >
                   <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                    <span className="text-[10px] font-bold text-gray-700">
-                      1
-                    </span>
+                    <span className="text-xs font-bold text-gray-700">1</span>
                   </div>
                   Aktivitätsname
                 </label>
@@ -342,9 +341,7 @@ export function ActivityManagementModal({
                   className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
                 >
                   <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                    <span className="text-[10px] font-bold text-gray-700">
-                      2
-                    </span>
+                    <span className="text-xs font-bold text-gray-700">2</span>
                   </div>
                   Kategorie
                 </label>
@@ -380,9 +377,7 @@ export function ActivityManagementModal({
                   className="mb-2 block flex items-center gap-1.5 text-xs font-semibold text-gray-700"
                 >
                   <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center rounded bg-gray-100">
-                    <span className="text-[10px] font-bold text-gray-700">
-                      3
-                    </span>
+                    <span className="text-xs font-bold text-gray-700">3</span>
                   </div>
                   Maximale Teilnehmerzahl
                 </label>
@@ -478,6 +473,8 @@ export function ActivityManagementModal({
                 </label>
               </div>
             </div>
+
+            <ActivityWaitlistSection activityId={activity.id} />
 
             {/* Hinweiskarte. Die Löschabfrage läuft über das
               `ConfirmDeleteModal`, nicht über einen Wechsel dieser Karte

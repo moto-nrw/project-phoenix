@@ -46,14 +46,20 @@ import {
 } from "~/lib/parent-access-refusal";
 
 // Capture the originating account before awaiting the cookie-bound request.
-const responseAccounts = new WeakMap<Response, string | null>();
+const responseOrigins = new WeakMap<
+  Response,
+  { account: string | null; method: string }
+>();
 async function transportFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
   const account = boundSessionAccount();
   const response = await fetchTransport(input, init);
-  responseAccounts.set(response, account);
+  responseOrigins.set(response, {
+    account,
+    method: (init?.method ?? "GET").toUpperCase(),
+  });
   return response;
 }
 
@@ -519,12 +525,13 @@ async function throwResponseError(
     response.status,
     body,
   );
-  const account = responseAccounts.get(response);
+  const origin = responseOrigins.get(response);
+  const account = origin?.account;
   if (
     typeof window !== "undefined" &&
     account &&
     account === boundSessionAccount() &&
-    isParentAccessRefusal(error)
+    isParentAccessRefusal(error, origin?.method)
   ) {
     window.dispatchEvent(
       new CustomEvent(PARENT_ACCESS_REFUSED_EVENT, {
