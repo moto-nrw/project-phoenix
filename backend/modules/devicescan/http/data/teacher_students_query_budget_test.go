@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,5 +47,5 @@ func TestTeacherStudentsQueryBudget(t *testing.T) {
 	add(5)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "api.iot.teacher_students.reads", large)
+	querybudgets.AssertQueryBudget(t, "api.iot.teacher_students.reads", large)
 }

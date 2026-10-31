@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -41,7 +42,7 @@ func TestEnrollmentListChildOfferingsQueryBudget(t *testing.T) {
 	small, large := run(smallID), run(largeID)
 	t.Logf("query budget: 3 children → %d reads, 8 children → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.enrollment.list_child_offerings.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.list_child_offerings.reads", large)
 }
 
 func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
@@ -72,7 +73,7 @@ func TestEnrollmentOfferingSourceOptionsQueryBudget(t *testing.T) {
 	large := run()
 	t.Logf("query budget: 3 offerings → %d reads, 8 offerings → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.enrollment.offering_source_options.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.offering_source_options.reads", large)
 }
 
 func TestTemplateRosterMaintenanceFeedsQueryBudget(t *testing.T) {
@@ -114,7 +115,7 @@ func TestTemplateRosterMaintenanceFeedsQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 3 templates → %d reads, 8 templates → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.enrollment.template_roster_maintenance_feeds.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.template_roster_maintenance_feeds.reads", large)
 }
 
 func TestEnrollmentRolloverReviewQueueQueryBudget(t *testing.T) {
@@ -140,7 +141,7 @@ func TestEnrollmentRolloverReviewQueueQueryBudget(t *testing.T) {
 	large := run()
 	t.Logf("query budget: 3 review rows → %d reads, 8 review rows → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.enrollment.rollover_review_queue.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.rollover_review_queue.reads", large)
 }
 
 func createBudgetRequest(
@@ -362,5 +363,5 @@ func TestOfferingWeekdayBookingsQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 3 children → %d reads, 8 children → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.enrollment.offering_weekday_bookings.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.enrollment.offering_weekday_bookings.reads", large)
 }

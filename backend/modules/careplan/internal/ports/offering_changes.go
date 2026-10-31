@@ -33,6 +33,7 @@ type OfferingChangeRows interface {
 // OfferingCarePeriod is one approved enrollment of a student with the care
 // window of its phase.
 type OfferingCarePeriod struct {
+	StudentID         int64
 	RequestChildID    int64
 	RequestID         int64
 	PhaseID           int64
@@ -63,6 +64,7 @@ type OfferingCatalogState struct {
 // child, request or phase is (nil, nil).
 type OfferingChangeEnrollment interface {
 	StudentCarePeriods(ctx context.Context, studentID int64) ([]OfferingCarePeriod, error)
+	StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]OfferingCarePeriod, error)
 	Child(ctx context.Context, id int64) (*OfferingChangeChild, error)
 	Children(ctx context.Context, ids []int64) ([]OfferingChangeChild, error)
 	Request(ctx context.Context, id int64) (*BookingRequest, error)
@@ -76,11 +78,17 @@ type OfferingChangeEnrollment interface {
 	// CapacityPeak counts the peak occupancy of an offering in [from, until)
 	// without the excluded children.
 	CapacityPeak(ctx context.Context, offeringID int64, excludeChildIDs []int64, from, until calendar.Date) (int, error)
+	// CapacityPeaks counts the peak occupancy of every offering in [from,
+	// until). The team waitlist uses it to show whether its next request can
+	// pass the offering capacity check as well as the AG capacity check.
+	CapacityPeaks(ctx context.Context, offeringIDs []int64, from, until calendar.Date) (map[int64]int, error)
 }
 
 // OfferingChangeStudents reads the People Directory students an offering
 // change authorizes against.
 type OfferingChangeStudents interface {
+	// FindStudents returns the non-deleted students among ids, keyed by id.
+	FindStudents(ctx context.Context, ids []int64) (map[int64]careplan.ReviewStudent, error)
 	FindStudent(ctx context.Context, id int64) (*careplan.ReviewStudent, error)
 	// LockStudent takes the student row FOR UPDATE.
 	LockStudent(ctx context.Context, id int64) (*careplan.ReviewStudent, error)
@@ -129,6 +137,7 @@ type CourseOfferingReference struct {
 // CourseGroup is the Timetable projection of an AG a course request books.
 type CourseGroup struct {
 	ID                  int64
+	Name                string
 	Active              bool
 	ParticipantLimit    *int
 	ScheduledWeekdays   []int
@@ -142,6 +151,9 @@ type CourseGroup struct {
 type OfferingChangePlanning interface {
 	ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]ManualPlanningOccurrence, error)
 	CourseGroupsForOfferings(ctx context.Context, offerings []CourseOfferingReference, effectiveOn calendar.Date) (map[int64][]CourseGroup, error)
+	// CourseGroupsByID reads the named AGs without locking them, for the
+	// team's waiting lists (#4767). An unknown or non-course id is absent.
+	CourseGroupsByID(ctx context.Context, groupIDs []int64, effectiveOn calendar.Date) ([]CourseGroup, error)
 	LockCourseGroups(ctx context.Context, groupIDs []int64) ([]CourseGroup, error)
-	CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error)
+	CountActiveCourseEnrollments(ctx context.Context, groupIDs []int64, from, until calendar.Date, excludedStudentByGroup map[int64]int64) (map[int64]int, error)
 }

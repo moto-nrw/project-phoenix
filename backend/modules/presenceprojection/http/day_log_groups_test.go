@@ -55,3 +55,43 @@ func TestGroupDayLogsReportTodaysVerdicts(t *testing.T) {
 	}
 	assert.Equal(t, map[int64]string{sick.ID: "Krank", missing.ID: "Abwesend"}, labels, "the present child is not missing")
 }
+
+// A school in open care keeps one weekly protocol for the whole school
+// (#5401): its evening run reads every child of the day once, with a group
+// or without one, and nobody of another school.
+func TestSchoolDayLogCountsEveryChildOfTheSchool(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	group := testpkg.CreateTestEducationGroup(t, tc.db, "Restgruppe")
+	present := testpkg.CreateTestStudent(t, tc.db, "Paula", "Ohnegruppe", "1a")
+	alsoPresent := testpkg.CreateTestStudent(t, tc.db, "Pit", "Ohnegruppe", "2a")
+	missing := testpkg.CreateTestStudent(t, tc.db, "Momo", "Fehlt", "1b")
+	grouped := testpkg.CreateTestStudent(t, tc.db, "Gina", "Gruppe", "3a")
+	testpkg.AssignStudentToGroup(t, tc.db, grouped.ID, group.ID)
+	foreignTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, tc.db, foreignTenantID)
+	foreign := testpkg.CreateTestStudentForTenant(t, tc.db, foreignTenantID, "Fritz", "Fremd", "1a")
+	staff := testpkg.CreateTestStaff(t, tc.db, "Schul", "Staff")
+	device := testpkg.CreateTestDevice(t, tc.db, "school-day-log-dev")
+	today := calendar.NewDate(2026, 8, 24)
+	checkIn := today.BerlinMidnight().Add(8 * time.Hour)
+	for _, id := range []int64{present.ID, alsoPresent.ID, grouped.ID} {
+		testpkg.CreateTestAttendanceForDate(t, tc.db, id, staff.ID, device.ID, today, checkIn, nil)
+	}
+
+	var school presenceprojectionhttp.GroupDayLog
+	require.NoError(t, tenant.WithinCurrentTenant(testpkg.Ctx(t), func(ctx context.Context) error {
+		_, err := tc.resource.SchoolDayLog(ctx, today.AddDays(-1))
+		require.ErrorIs(t, err, presenceprojectionhttp.ErrGroupDayLogNotToday, "a past day cannot be read from today's roster")
+		school, err = tc.resource.SchoolDayLog(ctx, today)
+		return err
+	}))
+	assert.Zero(t, school.GroupID, "the whole school is no group")
+	assert.ElementsMatch(t, []int64{present.ID, alsoPresent.ID, missing.ID, grouped.ID}, school.StudentIDs, "every child once, in a group or not")
+	assert.NotContains(t, school.StudentIDs, foreign.ID, "another school's child is not counted")
+	assert.Equal(t, 3, school.Present)
+	assert.Equal(t, 1, school.Absent)
+	require.Len(t, school.MissingChild, 1)
+	assert.Equal(t, missing.ID, school.MissingChild[0].StudentID)
+	assert.Equal(t, "Abwesend", school.MissingChild[0].Label)
+}

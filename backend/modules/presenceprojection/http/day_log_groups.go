@@ -6,6 +6,7 @@ import (
 	"fmt"
 	strconv "strconv"
 
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -67,6 +68,28 @@ func (rs *Resource) GroupDayLogs(ctx context.Context, day calendar.Date, groupID
 		result = append(result, entry)
 	}
 	return result, nil
+}
+
+// SchoolDayLog answers today's day log of the whole school as one log
+// without a group (GroupID 0): every child whose care covers the day, with a
+// group or without one, each once. The weekly protocol of a school in open
+// care records it (#5401); like GroupDayLogs it reads without a request.
+func (rs *Resource) SchoolDayLog(ctx context.Context, day calendar.Date) (GroupDayLog, error) {
+	clock := rs.dayLogClock()
+	if !clock.isToday(day) {
+		return GroupDayLog{}, fmt.Errorf("%w: asked for %s on %s", ErrGroupDayLogNotToday, day, clock.today)
+	}
+	records, err := rs.Persons.ListSchoolStudentsForDay(ctx, day, clock.today)
+	if err != nil {
+		return GroupDayLog{}, err
+	}
+	wholeSchool := func(*peopleModule.StudentState) (int64, bool) { return 0, true }
+	data, err := rs.dayLogDataOf(ctx, records, day, clock, wholeSchool)
+	if err != nil {
+		return GroupDayLog{}, err
+	}
+	resp := buildDayLogResponse(day, []*SchoolGroup{{ID: 0}}, data)
+	return groupDayLogOf(resp.Groups[0])
 }
 
 func groupDayLogOf(group dayLogGroup) (GroupDayLog, error) {

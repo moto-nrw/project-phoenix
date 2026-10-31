@@ -21,7 +21,7 @@ export function previewRow(data: unknown, id: string) {
   if (!Array.isArray(rows)) return undefined;
   for (const value of rows) {
     const row = object(value);
-    if ((row?.student_id ?? row?.id) === id) return row;
+    if ((row?.student_id ?? row?.id ?? row?.thread_id) === id) return row;
   }
   return undefined;
 }

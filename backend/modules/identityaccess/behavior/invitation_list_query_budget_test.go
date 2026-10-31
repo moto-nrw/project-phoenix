@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +44,7 @@ func TestPendingInvitationsQueryBudget(t *testing.T) {
 		add(3, 8)
 		large := run()
 		assert.Equal(t, len(small), len(large), "the listing must not grow a statement per invitation")
-		testpkg.AssertQueryBudget(t, "services.auth.pending_invitations.reads", large)
+		querybudgets.AssertQueryBudget(t, "services.auth.pending_invitations.reads", large)
 		return nil
 	}))
 }

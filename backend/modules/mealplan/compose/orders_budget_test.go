@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/mealplan"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestOrders_QueryBudget pins the statements of reading a week of orders
@@ -52,5 +53,5 @@ func TestOrders_QueryBudget(t *testing.T) {
 	assert.Equal(t, small, large, "query count must not grow with the children")
 	assert.Empty(t, append(append(counter.Operation("INSERT"), counter.Operation("UPDATE")...), counter.Operation("DELETE")...), "a read writes nothing")
 	assert.Empty(t, counter.Matching(func(sql string) bool { return strings.Contains(sql, "pg_advisory") }), "a read takes no lock")
-	testpkg.AssertQueryBudget(t, "modules.mealplan.orders.read_week", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.mealplan.orders.read_week", counter.Queries())
 }

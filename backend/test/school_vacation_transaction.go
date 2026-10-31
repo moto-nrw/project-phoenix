@@ -2,12 +2,12 @@ package test
 
 import "maps"
 
-// schoolVacationTransactionSites are the boundaries ADR 0143 adds for the
+// schoolVacationTransactionSites are the boundaries ADR 0144 adds for the
 // school vacations: the administrative transaction of the daily sync, which
 // renews the vacations of every federal state for all schools at once. A
 // further site needs its own decision.
 var schoolVacationTransactionSites = map[string]string{
-	"modules/schoolcalendar/compose/new.go:NewSchoolVacations:tenant.WithinAdmin#1": "ADR 0143: the daily school vacation sync replaces the vacations of every federal state in calendar.school_vacations, a table without a school that every school reads; it runs once for all schools after the request to the OpenHolidays API and writes nothing else.",
+	"modules/schoolcalendar/compose/new.go:NewSchoolVacations:tenant.WithinAdmin#1": "ADR 0144: the daily school vacation sync replaces the vacations of every federal state in calendar.school_vacations, a table without a school that every school reads; it runs once for all schools after the request to the OpenHolidays API and writes nothing else.",
 }
 
 // withoutReviewedSchoolVacationTransactions removes exactly the reviewed

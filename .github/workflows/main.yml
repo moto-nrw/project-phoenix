@@ -412,7 +412,7 @@ jobs:
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
         run: |
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/ci-failures.test.mjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
 
@@ -495,9 +495,10 @@ jobs:
       || needs.detect-changes.outputs.run-backend-architecture == 'true'
     needs: detect-changes
     # Type-checking base and head is CPU-bound: 4-5 minutes on a standard
-    # runner made this job the last to finish. Blacksmith keeps it below the
-    # test suites, which set the pull request's wall-clock time.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # runner made this job the last to finish. Four Blacksmith vCPUs (141 s)
+    # keep it below the backend test suites, which set the pull request's
+    # wall-clock time; eight vCPUs (~110 s) cost about 50% more.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       issues: read

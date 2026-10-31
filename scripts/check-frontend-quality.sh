@@ -34,6 +34,9 @@ quality_step frontend-types pnpm run typecheck
 # about 6 s and 3 CPU seconds locally, much less than a CI round trip.
 quality_step unused-code pnpm knip
 quality_step production-unused-code pnpm knip:production
+# CI checks the guard inventory in test-frontend; a stale inventory failed 3 of
+# 9 red PR runs on 2026-10-31 and takes about 3 s here.
+[[ "${1:-quality}" == fast ]] && quality_step frontend-guards node ../scripts/test-frontend-changed.mjs --check-guards
 # Pre-push stops here; CI runs the whole-project analysis below.
 [[ "${1:-quality}" == fast ]] && exit 0
 quality_step dependency-graph pnpm depcruise

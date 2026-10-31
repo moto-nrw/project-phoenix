@@ -85,11 +85,17 @@ export function AggregatedRequestList({
   view,
   filters,
   onCountChange,
+  focusRequest = null,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
   /** Meldet die geladene Zeilenzahl an den Seitenkopf (Statuszeile). */
   onCountChange?: (count: number | null, hasMore: boolean) => void;
+  /**
+   * Öffnet die Anfragen dieses Kindes, etwa aus der Warteliste einer AG
+   * (#4767). `nonce` lässt denselben Sprung wiederholen.
+   */
+  focusRequest?: { readonly studentId: string; readonly nonce: number } | null;
 }>) {
   // useTenantSafe statt useTenant: die Liste wird auch außerhalb des
   // Tenant-Providers gerendert (Tests, Einbettungen). Ohne Provider gilt die
@@ -108,6 +114,7 @@ export function AggregatedRequestList({
     loadingMore,
     reviewAccess,
     error: listError,
+    loadMore,
   } = feed;
   const withdrawalsFeed = useWithdrawalFeed(view, filters);
   const {
@@ -207,6 +214,45 @@ export function AggregatedRequestList({
     },
     [returnFocus],
   );
+
+  // Ein Sprung aus der Warteliste wählt das Kind und holt die Liste in den
+  // Blick. Fehlt es auf der ersten Seite, folgt die Liste ihrem Cursor, bis
+  // sie das Kind findet oder keine offene Seite mehr bleibt.
+  const listAreaRef = useRef<HTMLDivElement>(null);
+  const handledFocus = useRef(0);
+  const attemptedFocusLoad = useRef<{
+    nonce: number;
+    cases: readonly OpenCase[];
+  } | null>(null);
+  useEffect(() => {
+    if (!focusRequest || handledFocus.current === focusRequest.nonce) return;
+    const target = openCases.find(
+      (childCase) => childCase.studentID === focusRequest.studentId,
+    );
+    if (!target) {
+      const attempted = attemptedFocusLoad.current;
+      if (
+        hasMore &&
+        !loadingMore &&
+        !listError &&
+        (attempted?.nonce !== focusRequest.nonce ||
+          attempted.cases !== openCases)
+      ) {
+        // Ein fehlgeschlagener Seitenabruf lässt dieselben Fälle stehen. Erst
+        // eine neue Seite darf den automatischen Sprung erneut fortsetzen;
+        // Wiederholen bleibt die ausdrückliche Aktion im Ladefehler.
+        attemptedFocusLoad.current = {
+          nonce: focusRequest.nonce,
+          cases: openCases,
+        };
+        void loadMore();
+      }
+      return;
+    }
+    handledFocus.current = focusRequest.nonce;
+    setSelectedCaseKey(target.key);
+    listAreaRef.current?.scrollIntoView?.({ block: "start" });
+  }, [focusRequest, hasMore, listError, loadMore, loadingMore, openCases]);
 
   const backToList = useCallback(() => {
     setSelectedCaseKey(null);
@@ -364,7 +410,10 @@ export function AggregatedRequestList({
             reasonRequired={reasonRequired}
             open={() => setBulkConfirmOpen(true)}
           />
-          <div className="grid gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
+          <div
+            ref={listAreaRef}
+            className="grid scroll-mt-20 gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
+          >
             {showList && (
               <RequestCaseList
                 buckets={buckets}

@@ -9,6 +9,7 @@ import (
 
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +35,7 @@ func TestListGuardiansQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.users.list_guardians.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.users.list_guardians.reads", large)
 }
 
 func TestStudentGuardiansQueryBudget(t *testing.T) {
@@ -69,5 +70,5 @@ func TestStudentGuardiansQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.users.student_guardians.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.users.student_guardians.reads", large)
 }

@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // The roster review suites (#5103) run on a fixed Monday far ahead of any
@@ -430,7 +431,7 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 3 templates → %d queries, 8 templates → %d queries", small, large)
 	assert.Equal(t, small, large, "query count must not grow with the number of Regeltermine")
-	testpkg.AssertQueryBudget(t, "api.timetable.templates.roster_deviations", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.templates.roster_deviations", counter.Queries())
 }
 
 // TestTemplateRosterDeviationsTiedCombinations (review of #5363): two

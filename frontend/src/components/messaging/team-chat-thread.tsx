@@ -6,15 +6,18 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
   type RefObject,
 } from "react";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
 import { TEAM_CHAT_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { MessagesSquare } from "lucide-react";
+import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
 import { BackLink } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
@@ -70,6 +73,7 @@ export interface TeamChatThreadBack {
 export interface TeamChatThreadParts {
   /** Name des Gegenübers, sobald geladen; davor „Unterhaltung". */
   readonly title: string;
+  readonly previewTitle?: string;
   /** Rollenzusatz zum Namen (z. B. „Lehrkraft"); `null` ohne Zusatz. */
   readonly roleLabel: string | null;
   /** Statuszeile aus echten Zahlen: Nachrichten und wer sie sieht. */
@@ -181,8 +185,11 @@ export function TeamChatThread({
   // Die Schule kann den Chat abschalten, WÄHREND diese Seite offen steht. Dann
   // lädt der Verlauf längst, nur das Senden fällt in den 403. Ohne diesen
   // Merker bliebe der Composer aktiv und jeder weitere Versuch liefe in
-  // denselben Fehler.
-  const [disabledWhileOpen, setDisabledWhileOpen] = useState(false);
+  // denselben Fehler. Schaltet die Schule den Chat wieder ein, endet er.
+  const {
+    switchedOff: disabledWhileOpen,
+    markSwitchedOff: markDisabledWhileOpen,
+  } = useSwitchedOffWhileOpen(flagSaysEnabled, threadID);
   // Das Gegenüber hat die Schule verlassen, während diese Seite offen stand.
   // Der Verlauf bleibt lesbar, geschrieben wird hier nichts mehr.
   const [counterpartGone, setCounterpartGone] = useState(false);
@@ -324,7 +331,7 @@ export function TeamChatThread({
       setCounterpartGone(true);
     } else if (isStaffMessagingDisabled(err)) {
       // Kein roter Fehler: das ist kein Fehlschlag, sondern ein Zustand.
-      setDisabledWhileOpen(true);
+      markDisabledWhileOpen();
     } else {
       void sendError.show(err, {
         object: "die Nachricht",
@@ -350,6 +357,19 @@ export function TeamChatThread({
   const showSkeleton =
     (!thread && isLoading && !threadError && !chatDisabled) ||
     (!thread && errorTextPending);
+
+  const seedFrom = useSWRSeedFrom();
+  const preview = useMemo(
+    () =>
+      showSkeleton && threadKey
+        ? seedFrom(
+            messageKeys.teamChatPreviewSources,
+            threadKey,
+            (data: unknown) => messageKeys.teamChatPreview(data, threadID),
+          )
+        : undefined,
+    [seedFrom, showSkeleton, threadKey, threadID],
+  );
 
   const roleLabel = group
     ? null
@@ -404,7 +424,7 @@ export function TeamChatThread({
   const body = membersPanel ?? (
     <>
       {showSkeleton ? (
-        <TeamThreadSkeleton />
+        <TeamThreadSkeleton header={portal.kind !== "school" || !preview} />
       ) : (
         <div
           ref={scrollRef}
@@ -478,7 +498,10 @@ export function TeamChatThread({
 
   const parts: TeamChatThreadParts = {
     title:
-      (group ? thread?.group_name : thread?.counterpart_name) ?? "Unterhaltung",
+      (group ? thread?.group_name : thread?.counterpart_name) ??
+      preview?.name ??
+      "Unterhaltung",
+    previewTitle: preview?.name,
     roleLabel: roleLabel ?? null,
     stats,
     audience,
@@ -511,6 +534,7 @@ function DefaultThreadFrame({
   const {
     title,
     roleLabel,
+    previewTitle,
     state,
     empty,
     error,
@@ -546,7 +570,7 @@ function DefaultThreadFrame({
     >
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
         <BackLink href={back.href} label={back.label} className="mb-2" />
-        {!loading && (
+        {(!loading || previewTitle) && (
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
@@ -557,7 +581,11 @@ function DefaultThreadFrame({
                   </span>
                 )}
               </h1>
-              <p className="mt-0.5 text-sm text-gray-500">{audience}</p>
+              {loading ? (
+                <Skeleton className="mt-0.5 h-5 w-56" />
+              ) : (
+                <p className="mt-0.5 text-sm text-gray-500">{audience}</p>
+              )}
             </div>
             {actions}
           </div>

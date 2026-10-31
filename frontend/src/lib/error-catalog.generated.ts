@@ -215,6 +215,8 @@ export const ERROR_CATALOG = {
         "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
       "communication.notifications_disabled":
         "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
+      "communication.parent_messaging_disabled":
+        "Die Schule hat Eltern-Nachrichten ausgeschaltet. Das geht gerade nicht.",
       "communication.parent_news_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.poll_not_open":
@@ -1686,6 +1688,8 @@ export const ERROR_CATALOG = {
         "No child in this group has parents with access to moto. The message was not sent.",
       "communication.leadership_messages_unavailable":
         "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
+      "communication.parent_messaging_disabled":
+        "The school has turned off parent messaging. This is not possible right now.",
       "communication.staff_group_create_forbidden":
         "Teachers cannot start a group chat. Please ask the after-school team.",
       "communication.staff_group_manage_forbidden":
@@ -2166,6 +2170,8 @@ export const ERROR_CATALOG = {
         "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
       "communication.leadership_messages_unavailable":
         "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
+      "communication.parent_messaging_disabled":
+        "Школа отключила сообщения для родителей. Сейчас это невозможно.",
       "communication.survey_already_answered":
         "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
@@ -2570,6 +2576,8 @@ export const ERROR_CATALOG = {
         "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
       "communication.leadership_messages_unavailable":
         "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
+      "communication.parent_messaging_disabled":
+        "Shkolla i ka çaktivizuar mesazhet për prindërit. Kjo nuk është e mundur tani.",
       "communication.survey_already_answered":
         "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
@@ -2986,6 +2994,8 @@ export const ERROR_CATALOG = {
         "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
       "communication.leadership_messages_unavailable":
         "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
+      "communication.parent_messaging_disabled":
+        "Szkoła wyłączyła wiadomości dla rodziców. To teraz nie jest możliwe.",
       "communication.survey_already_answered":
         "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
       "communication.survey_not_open":
@@ -3391,6 +3401,8 @@ export const ERROR_CATALOG = {
         "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
       "communication.leadership_messages_unavailable":
         "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
+      "communication.parent_messaging_disabled":
+        "Okul veli mesajlaşmasını kapattı. Bu şu anda mümkün değil.",
       "communication.survey_already_answered":
         "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
@@ -3798,6 +3810,8 @@ export const ERROR_CATALOG = {
         "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
       "communication.leadership_messages_unavailable":
         "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS.",
+      "communication.parent_messaging_disabled":
+        "Школа вимкнула повідомлення для батьків. Зараз це неможливо.",
       "communication.survey_already_answered":
         "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
       "communication.survey_not_open":

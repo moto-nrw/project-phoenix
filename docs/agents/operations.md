@@ -34,7 +34,8 @@ through `devbox run` when the current process has not loaded the project environ
 | Backend suite with immediate sweep | `scripts/run-go-toolchain.sh scripts/test-backend.sh` |
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
 | Changed-code tests | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` |
-| Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure) |
+| Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure). Live output lists package results; a failure adds a summary and keeps the full output in the printed `test-changed-go.log.gz` |
+| Red PR check | `node scripts/ci-failures.mjs [branch or PR]`: failed jobs and steps, their error lines, the local reproduction, and a warning when the previous push failed in the same job |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
 
@@ -116,6 +117,9 @@ Seeded E2E (`test:e2e`) and guide generation use the frontend port from
 them through `scripts/dev-native.sh frontend`, which sets `PORT` to the
 worktree's `FRONTEND_HOST_PORT`. Playwright then reuses or starts only the
 worktree's own frontend and never tests another checkout's server on 3000.
+If the port already serves a frontend started from another checkout, the
+Playwright config stops with that checkout's path (`e2e/own-server.ts`, local
+runs with `lsof` only).
 
 ### Synthetic network E2E suites
 
