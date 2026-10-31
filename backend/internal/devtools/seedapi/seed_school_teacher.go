@@ -1,0 +1,107 @@
+package api
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/url"
+)
+
+// seedSchoolTeacherStep drives moto schule with its own school-scoped session.
+// Registration and class assignment stay on their public admin contracts;
+// today's entries go through the same guards and owner commands as the UI.
+type seedSchoolTeacherStep struct{ seeder *Seeder }
+
+func (seedSchoolTeacherStep) Name() string { return "Seeding school teacher and today's class entries" }
+
+func (s seedSchoolTeacherStep) Run(_ context.Context, rt *Runtime) error {
+	fs := rt.FixedSeeder
+	if fs == nil || rt.Bootstrap == nil || len(fs.staffCredentials) == 0 || len(DemoStudents) == 0 {
+		return fmt.Errorf("school teacher requires bootstrap, staff credentials and students")
+	}
+	roleID := fs.roleIDs["lehrkraft"]
+	studentID := fs.studentIDByIndex[0]
+	if roleID <= 0 || studentID <= 0 {
+		return fmt.Errorf("school teacher requires lehrkraft role and first OGS child")
+	}
+	// Reuse the seed's existing password source, including --staff-password.
+	// The private seed state documents the login, never source or logs.
+	password := fs.staffCredentials[0].Password
+	email := scopedEmail("lehrkraft@example.test", fs.accountScope)
+	username := "lehrkraft"
+	if fs.accountScope != "" {
+		username += "-" + fs.accountScope
+	}
+	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/auth/register", map[string]any{
+		"email": email, "username": username, "password": password, "confirm_password": password,
+		"first_name": "Lena", "last_name": "Weber", "role_id": roleID,
+	})
+	if err != nil {
+		return fmt.Errorf("register school teacher: %w", err)
+	}
+	var account struct {
+		Data struct {
+			ID             int64 `json:"id"`
+			SchoolIdentity *struct {
+				StaffID int64 `json:"staff_id,string"`
+			} `json:"school_identity"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &account); err != nil {
+		return fmt.Errorf("decode school teacher: %w", err)
+	}
+	if account.Data.ID <= 0 || account.Data.SchoolIdentity == nil || account.Data.SchoolIdentity.StaffID <= 0 {
+		return fmt.Errorf("school teacher created without account or staff identity")
+	}
+	staffID := account.Data.SchoolIdentity.StaffID
+	class := DemoStudents[0].Class
+	if _, err := rt.Client.PutWithAuth(rt.TenantAuth, fmt.Sprintf("/api/staff/%d/school-classes", staffID), map[string]any{
+		"school_classes": []string{class},
+	}); err != nil {
+		return fmt.Errorf("assign school teacher's class: %w", err)
+	}
+	s.seeder.schoolTeacherAccount = &AccountCredentials{
+		Key: "lehrkraft", AccountID: account.Data.ID, StaffID: staffID,
+		Email: email, Password: password, Name: "Lena Weber",
+	}
+	raw, err = rt.Client.PostPublic("/school/auth/login", map[string]any{
+		"email": email, "password": password, "tenant_slug": rt.Bootstrap.TenantSlug,
+	})
+	if err != nil {
+		return fmt.Errorf("school teacher login: %w", err)
+	}
+	var session struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(raw, &session); err != nil {
+		return fmt.Errorf("decode school teacher session: %w", err)
+	}
+	if session.AccessToken == "" {
+		return fmt.Errorf("school teacher login returned no school session")
+	}
+	auth := AuthRef{Kind: AuthBearer, Token: session.AccessToken}
+	if err := seedTeacherClassDay(rt, auth, class, studentID); err != nil {
+		return err
+	}
+	fmt.Println("  School teacher assigned; today's arrival exception, class/child hints and morning attendance created")
+	return nil
+}
+
+func seedTeacherClassDay(rt *Runtime, auth AuthRef, class string, studentID int64) error {
+	// todaySeedDate derives the calendar day in Europe/Berlin, not UTC.
+	dayPath := url.PathEscape(class) + "/" + todaySeedDate().String()
+	for _, entry := range []struct {
+		path string
+		body any
+	}{
+		{"arrival-exceptions/" + dayPath, map[string]any{"arrival_time": "12:00", "reason": "Der Unterricht endet heute früher."}},
+		{"day-hints/" + dayPath, map[string]any{"body": "Die Klasse hat heute viel gearbeitet. Bitte starten Sie ruhig in den Nachmittag."}},
+		{"day-hints/" + dayPath + fmt.Sprintf("/students/%d", studentID), map[string]any{"body": "Bitte erinnern Sie das Kind heute ans Trinken."}},
+		{"morning-attendance/" + dayPath, map[string]any{"marks": []map[string]any{{"student_id": studentID, "status": "present"}}}},
+	} {
+		if _, err := rt.Client.PutWithAuth(auth, "/school/class-day/"+entry.path, entry.body); err != nil {
+			return fmt.Errorf("seed school class day %s: %w", entry.path, err)
+		}
+	}
+	return nil
+}

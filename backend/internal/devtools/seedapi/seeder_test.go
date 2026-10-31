@@ -600,7 +600,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	assert.Equal(t, DefaultProfileKey, profile.Key)
 	assert.Equal(t, "vollbetrieb", profile.School.TenantSlug)
 	assert.Equal(t, "ines.lindner@ganztag-nord.example", profile.Credentials.SchoolAdmin.Email)
-	assert.Equal(t, fullOperationProfileDefinition().Settings, profile.Settings)
+	assertSeedProfileSettings(t, fullOperationProfileDefinition().Settings, profile.Settings)
 	assert.Equal(t, len(DemoStudents), profile.Expected.Students)
 	assert.Len(t, profile.Entities.Students, len(DemoStudents))
 	assert.Len(t, profile.Devices, len(DemoDevices)+1)
@@ -641,7 +641,7 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	bookings, err := state.SelectProfile("anmeldung-buchungen")
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentProfile.Organization.ID, bookings.Organization.ID)
-	assert.Equal(t, enrollmentBookingsProfileDefinition().Settings, bookings.Settings)
+	assertSeedProfileSettings(t, enrollmentBookingsProfileDefinition().Settings, bookings.Settings)
 	assert.Len(t, bookings.Entities.Students, 12)
 	assert.Len(t, bookings.Devices, 2)
 	assert.Equal(t, []string{"anmeldung-buchungen", "anmeldung-wochenplan"}, state.Organizations["demo-traeger-sued"].Profiles)
@@ -1846,6 +1846,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 				"refresh_token": "refresh",
 			})
 
+		case "/school/auth/login":
+			_, _ = fmt.Fprint(w, `{"status":"success","access_token":"school-token"}`)
+
 		case "/parent/auth/login":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success",
@@ -1869,6 +1872,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 					{"id": "1", "name": "admin"},
 					{"id": "2", "name": "user"},
 					{"id": "3", "name": "guest"},
+					{"id": "4", "name": "lehrkraft"},
 				},
 			})
 
@@ -2060,4 +2064,17 @@ func serveRegularBookingSeedAPI(t *testing.T, w seedHTTPResponseWriter, r *seedH
 		return false
 	}
 	return true
+}
+
+// The private state is pretty-printed, which changes whitespace inside raw
+// JSON arrays. Check all keys, managers and JSON values, not that whitespace.
+func assertSeedProfileSettings(t *testing.T, want, got map[string]SeedSetting) {
+	t.Helper()
+	require.Len(t, got, len(want))
+	for key, expected := range want {
+		actual, ok := got[key]
+		require.True(t, ok, "missing setting %s", key)
+		assert.Equal(t, expected.ManagedBy, actual.ManagedBy, key)
+		assert.JSONEq(t, string(expected.Value), string(actual.Value), key)
+	}
 }
