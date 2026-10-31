@@ -12,7 +12,7 @@
     },
     "/parents/anmeldung/status/[token]": {
       "referenceBytes": 809997,
-      "maxBytes": 826197
+      "maxBytes": 827221
     },
     "/parents/anmeldung/status/[token]/adjust": {
       "referenceBytes": 989792,
