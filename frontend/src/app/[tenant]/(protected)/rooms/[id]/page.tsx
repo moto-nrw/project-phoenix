@@ -56,7 +56,6 @@ import { createLogger } from "~/lib/logger";
 import { exportPlan } from "~/lib/plan-export-api";
 import { NO_PLAN_FILTER } from "~/lib/plan-filter";
 import { roomPlanCareDay } from "~/lib/room-plan";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { formatFloor, isSystemRoom, type Room } from "~/lib/room-helpers";
 import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
 import {
@@ -67,6 +66,7 @@ import { usePresenceMode, useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { resolveDetailReferrer, useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { RoomDetailLoadingPage } from "./page-skeleton";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 const logger = createLogger({ component: "RoomDetailPage" });
 
@@ -404,8 +404,8 @@ function RoomDetailPageContent() {
       backLabel={backLabel}
       leading={
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.rooms.icon}
-          tone={MOTO_CONCEPTS.rooms.tone}
+          icon={roomsConcept.icon}
+          tone={roomsConcept.tone}
           size={40}
         />
       }

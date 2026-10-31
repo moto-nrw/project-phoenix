@@ -10,14 +10,22 @@
  * `MOTO_CONCEPTS`, damit das Schul-Portal dieselbe Bildsprache spricht wie
  * das übrige Produkt.
  */
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { announcementsConcept } from "~/lib/concepts/announcements";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { classDayConcept } from "~/lib/concepts/classDay";
+import { excusedConcept } from "~/lib/concepts/excused";
+import { helpConcept } from "~/lib/concepts/help";
+import { messagesConcept } from "~/lib/concepts/messages";
+import { newsConcept } from "~/lib/concepts/news";
+import { presentConcept } from "~/lib/concepts/present";
 
 export interface SchoolNavItem {
   /** Stabiler Schlüssel für Listen und Tests. */
   readonly key: string;
   readonly href: string;
   readonly label: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   /**
    * Ziele außerhalb des Portals öffnen in einem neuen Tab, damit die
    * Klassenansicht beim Nachschlagen nicht verloren geht.
@@ -56,21 +64,21 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     key: "classDay",
     href: "/school",
     label: "Klassenansicht",
-    concept: "classDay",
+    concept: classDayConcept,
     portalPath: true,
   },
   {
     key: "supervisions",
     href: "/school/aufsichten",
     label: "Meine Aufsichten",
-    concept: "present",
+    concept: presentConcept,
     portalPath: true,
   },
   {
     key: "messages",
     href: "/school/nachrichten",
     label: "Nachrichten",
-    concept: "messages",
+    concept: messagesConcept,
     portalPath: true,
     badge: "teamChat",
     optional: "teamChat",
@@ -79,7 +87,7 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     key: "notices",
     href: "/school/tagesinformationen",
     label: "Tagesinformationen",
-    concept: "announcements",
+    concept: announcementsConcept,
     portalPath: true,
     badge: "notices",
   },
@@ -88,7 +96,7 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     key: "absenceList",
     href: "/school/fehlzeiten",
     label: "Fehlzeiten",
-    concept: "excused",
+    concept: excusedConcept,
     portalPath: true,
   },
   // Briefe der Lehrkraft an die Eltern ihrer Klasse (#4800).
@@ -96,7 +104,7 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     key: "parentLetters",
     href: "/school/elternbriefe",
     label: "Elternbriefe",
-    concept: "news",
+    concept: newsConcept,
     portalPath: true,
   },
   // Termine der OGS, Schließtage, Ferien und die eigenen Schultermine (#4798).
@@ -104,7 +112,7 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
     key: "calendar",
     href: "/school/kalender",
     label: "Kalender",
-    concept: "calendar",
+    concept: calendarConcept,
     portalPath: true,
   },
 ];
@@ -122,7 +130,7 @@ export const SCHOOL_SECONDARY_NAV: readonly SchoolNavItem[] = [
     // Lehrkraft-Anleitung keinen Ablauf und bleiben deshalb weg.
     href: "/help?role=teacher",
     label: "Hilfe",
-    concept: "help",
+    concept: helpConcept,
     newTab: true,
   },
 ];

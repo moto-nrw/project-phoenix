@@ -1,509 +1,177 @@
-import {
-  AddressBookIcon,
-  ArrowsLeftRightIcon,
-  BackpackIcon,
-  BellIcon,
-  BookOpenIcon,
-  BriefcaseIcon,
-  BuildingsIcon,
-  BusIcon,
-  CakeIcon,
-  CalendarCheckIcon,
-  CalendarDotsIcon,
-  CalendarIcon,
-  CalendarPlusIcon,
-  CalendarSlashIcon,
-  CalendarXIcon,
-  ChalkboardTeacherIcon,
-  ChatCircleTextIcon,
-  ChartBarIcon,
-  ChatsCircleIcon,
-  ClipboardTextIcon,
-  ClockIcon,
-  ClockCounterClockwiseIcon,
-  CoinsIcon,
-  ContactlessPaymentIcon,
-  DatabaseIcon,
-  DevicesIcon,
-  DoorIcon,
-  DoorOpenIcon,
-  DotsThreeIcon,
-  EnvelopeIcon,
-  EnvelopeOpenIcon,
-  FolderOpenIcon,
-  EyeIcon,
-  FileArrowDownIcon,
-  FileTextIcon,
-  FingerprintSimpleIcon,
-  FirstAidKitIcon,
-  ForkKnifeIcon,
-  GearIcon,
-  HouseIcon,
-  HouseLineIcon,
-  IdentificationCardIcon,
-  InvoiceIcon,
-  ListBulletsIcon,
-  ListChecksIcon,
-  LockKeyIcon,
-  MegaphoneIcon,
-  MonitorIcon,
-  NotePencilIcon,
-  NotebookIcon,
-  PersonSimpleWalkIcon,
-  PresentationChartIcon,
-  QuestionIcon,
-  ShieldCheckIcon,
-  ShieldWarningIcon,
-  SignOutIcon,
-  SunHorizonIcon,
-  SunIcon,
-  TranslateIcon,
-  TrayIcon,
-  TrendUpIcon,
-  UserCheckIcon,
-  UserCircleGearIcon,
-  UserGearIcon,
-  UserIcon,
-  UserPlusIcon,
-  UserSwitchIcon,
-  UsersIcon,
-  UsersFourIcon,
-  UsersThreeIcon,
-  VanIcon,
-} from "@phosphor-icons/react/ssr";
-import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
-import type { MotoDuotoneTone } from "~/lib/location-helper";
+// Registry of every concept: concept name → symbol, tone and label.
+//
+// The definitions live one per module in `~/lib/concepts/<key>`. A page that
+// renders a fixed concept imports that module directly, so its bundle carries
+// only that glyph instead of all of them (about 73 kB, see #5135). Import this
+// registry only where the concept key is known at runtime (data-driven
+// navigation, status mappings); it pulls in every glyph.
+import { dashboardConcept } from "~/lib/concepts/dashboard";
+import { childrenConcept } from "~/lib/concepts/children";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
+import { parentsConcept } from "~/lib/concepts/parents";
+import { activitiesConcept } from "~/lib/concepts/activities";
+import { supervisionConcept } from "~/lib/concepts/supervision";
+import { responsibilityConcept } from "~/lib/concepts/responsibility";
+import { organizationsConcept } from "~/lib/concepts/organizations";
+import { schoolsConcept } from "~/lib/concepts/schools";
+import { classDayConcept } from "~/lib/concepts/classDay";
+import { peopleConcept } from "~/lib/concepts/people";
+import { operatorsConcept } from "~/lib/concepts/operators";
+import { presentConcept } from "~/lib/concepts/present";
+import { transitConcept } from "~/lib/concepts/transit";
+import { schoolyardConcept } from "~/lib/concepts/schoolyard";
+import { sickConcept } from "~/lib/concepts/sick";
+import { excusedConcept } from "~/lib/concepts/excused";
+import { homeConcept } from "~/lib/concepts/home";
+import { atSchoolConcept } from "~/lib/concepts/atSchool";
+import { classTripConcept } from "~/lib/concepts/classTrip";
+import { freeRoomsConcept } from "~/lib/concepts/freeRooms";
+import { utilizationConcept } from "~/lib/concepts/utilization";
+import { emergencyConcept } from "~/lib/concepts/emergency";
+import { notArrivalConcept } from "~/lib/concepts/notArrival";
+import { unknownConcept } from "~/lib/concepts/unknown";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { staffPlanConcept } from "~/lib/concepts/staffPlan";
+import { substitutionConcept } from "~/lib/concepts/substitution";
+import { groupAccessConcept } from "~/lib/concepts/groupAccess";
+import { timeTrackingConcept } from "~/lib/concepts/timeTracking";
+import { dayReportConcept } from "~/lib/concepts/dayReport";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
+import { payrollConcept } from "~/lib/concepts/payroll";
+import { contributionsConcept } from "~/lib/concepts/contributions";
+import { billingConcept } from "~/lib/concepts/billing";
+import { messagesConcept } from "~/lib/concepts/messages";
+import { parentMessagesConcept } from "~/lib/concepts/parentMessages";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { newsConcept } from "~/lib/concepts/news";
+import { announcementsConcept } from "~/lib/concepts/announcements";
+import { pollsConcept } from "~/lib/concepts/polls";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { feedbackConcept } from "~/lib/concepts/feedback";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
+import { databaseConcept } from "~/lib/concepts/database";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { reportsConcept } from "~/lib/concepts/reports";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { weekProtocolsConcept } from "~/lib/concepts/weekProtocols";
+import { listsConcept } from "~/lib/concepts/lists";
+import { devicesConcept } from "~/lib/concepts/devices";
+import { infoDisplaysConcept } from "~/lib/concepts/infoDisplays";
+import { accountsConcept } from "~/lib/concepts/accounts";
+import { rolesConcept } from "~/lib/concepts/roles";
+import { permissionsConcept } from "~/lib/concepts/permissions";
+import { passkeysConcept } from "~/lib/concepts/passkeys";
+import { exportsConcept } from "~/lib/concepts/exports";
+import { gradeTransitionsConcept } from "~/lib/concepts/gradeTransitions";
+import { pickupConcept } from "~/lib/concepts/pickup";
+import { transportConcept } from "~/lib/concepts/transport";
+import { birthdaysConcept } from "~/lib/concepts/birthdays";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { requestsConcept } from "~/lib/concepts/requests";
+import { documentsConcept } from "~/lib/concepts/documents";
+import { filesConcept } from "~/lib/concepts/files";
+import { rfidConcept } from "~/lib/concepts/rfid";
+import { helpConcept } from "~/lib/concepts/help";
+import { settingsConcept } from "~/lib/concepts/settings";
+import { notificationsConcept } from "~/lib/concepts/notifications";
+import { languageConcept } from "~/lib/concepts/language";
+import { logoutConcept } from "~/lib/concepts/logout";
+import { moreConcept } from "~/lib/concepts/more";
+import type { MotoConceptDefinition } from "~/lib/concepts/define";
 
-type MotoConceptKind = "core" | "status" | "function";
-type MotoConceptSection =
-  | "people"
-  | "presence"
-  | "planning"
-  | "communication"
-  | "administration"
-  | "system";
+export type { MotoConceptDefinition } from "~/lib/concepts/define";
 
-export interface MotoConceptDefinition {
-  readonly label: string;
-  readonly icon: PhosphorIcon;
-  readonly tone: MotoDuotoneTone;
-  readonly kind: MotoConceptKind;
-  readonly section: MotoConceptSection;
-  readonly weight: IconProps["weight"];
-}
+const registry = {
+  dashboard: dashboardConcept,
+  children: childrenConcept,
+  groups: groupsConcept,
+  rooms: roomsConcept,
+  staff: staffConcept,
+  parents: parentsConcept,
+  activities: activitiesConcept,
+  supervision: supervisionConcept,
+  responsibility: responsibilityConcept,
+  organizations: organizationsConcept,
+  schools: schoolsConcept,
+  classDay: classDayConcept,
+  people: peopleConcept,
+  operators: operatorsConcept,
+  present: presentConcept,
+  transit: transitConcept,
+  schoolyard: schoolyardConcept,
+  sick: sickConcept,
+  excused: excusedConcept,
+  home: homeConcept,
+  atSchool: atSchoolConcept,
+  classTrip: classTripConcept,
+  freeRooms: freeRoomsConcept,
+  utilization: utilizationConcept,
+  emergency: emergencyConcept,
+  notArrival: notArrivalConcept,
+  unknown: unknownConcept,
+  calendar: calendarConcept,
+  carePlan: carePlanConcept,
+  careTimes: careTimesConcept,
+  staffPlan: staffPlanConcept,
+  substitution: substitutionConcept,
+  groupAccess: groupAccessConcept,
+  timeTracking: timeTrackingConcept,
+  dayReport: dayReportConcept,
+  calendarPeriods: calendarPeriodsConcept,
+  closingDays: closingDaysConcept,
+  payroll: payrollConcept,
+  contributions: contributionsConcept,
+  billing: billingConcept,
+  messages: messagesConcept,
+  parentMessages: parentMessagesConcept,
+  parentConversations: parentConversationsConcept,
+  news: newsConcept,
+  announcements: announcementsConcept,
+  polls: pollsConcept,
+  confirmations: confirmationsConcept,
+  feedback: feedbackConcept,
+  mealPlan: mealPlanConcept,
+  database: databaseConcept,
+  enrollments: enrollmentsConcept,
+  reports: reportsConcept,
+  holidayWeeks: holidayWeeksConcept,
+  weekProtocols: weekProtocolsConcept,
+  lists: listsConcept,
+  devices: devicesConcept,
+  infoDisplays: infoDisplaysConcept,
+  accounts: accountsConcept,
+  roles: rolesConcept,
+  permissions: permissionsConcept,
+  passkeys: passkeysConcept,
+  exports: exportsConcept,
+  gradeTransitions: gradeTransitionsConcept,
+  pickup: pickupConcept,
+  transport: transportConcept,
+  birthdays: birthdaysConcept,
+  changeHistory: changeHistoryConcept,
+  requests: requestsConcept,
+  documents: documentsConcept,
+  files: filesConcept,
+  rfid: rfidConcept,
+  help: helpConcept,
+  settings: settingsConcept,
+  notifications: notificationsConcept,
+  language: languageConcept,
+  logout: logoutConcept,
+  more: moreConcept,
+} as const;
 
-export const MOTO_CONCEPTS = {
-  dashboard: concept("Home", HouseLineIcon, "neutral", "function", "system"),
-  children: concept("Kinder", UserIcon, "greenVivid", "core", "people"),
-  groups: concept("Gruppen", UsersThreeIcon, "greenDeep", "core", "people"),
-  rooms: concept("Räume", DoorIcon, "navy", "core", "people"),
-  staff: concept(
-    "Mitarbeiter",
-    IdentificationCardIcon,
-    "orange",
-    "core",
-    "people",
-  ),
-  parents: concept("Eltern", UsersIcon, "blue", "core", "people"),
-  activities: concept("Aktivitäten", ListChecksIcon, "coral", "core", "people"),
-  supervision: concept("Aufsicht", EyeIcon, "purple", "core", "people"),
-  // Primary responsibility for a slot, as opposed to merely supervising it.
-  // Carries the ShieldCheck the ResponsibilityBadge used before the concept
-  // system existed; "function" kind keeps it out of the unique-primary-color
-  // rule that only governs core and status concepts.
-  responsibility: concept(
-    "Zuständig",
-    ShieldCheckIcon,
-    "teal",
-    "function",
-    "people",
-  ),
-  organizations: concept(
-    "Träger",
-    BuildingsIcon,
-    "petrol",
-    "core",
-    "administration",
-  ),
-  schools: concept(
-    "Schulen",
-    ChalkboardTeacherIcon,
-    "gold",
-    "core",
-    "administration",
-  ),
-  // Schul-Portal ("moto schule", #2207): der Klassentag einer Lehrkraft.
-  // Gleiches Bild wie "Schulen", aber im Blau des Schul-Portals — dort geht
-  // es um EINE Klasse am heutigen Tag, nicht um die Schulliste des Betriebs.
-  classDay: concept(
-    "Klassenansicht",
-    ChalkboardTeacherIcon,
-    "blue",
-    "function",
-    "planning",
-  ),
-  people: concept("Personen", AddressBookIcon, "teal", "core", "people"),
-  operators: concept("Operatoren", UsersFourIcon, "mint", "core", "people"),
-
-  present: concept(
-    "Anwesend",
-    UserCheckIcon,
-    "greenDeep",
-    "status",
-    "presence",
-  ),
-  transit: concept(
-    "Unterwegs",
-    PersonSimpleWalkIcon,
-    "magenta",
-    "status",
-    "presence",
-  ),
-  // Orange, matching LOCATION_COLORS.SCHOOLYARD (#F78C10) — the badge for
-  // this very status. Every other status concept sits in the hue family of
-  // its badge; Schulhof was the one that did not, so the dashboard tile and
-  // the student-list pill showed the same status in two colors. Amber is
-  // reserved for LOCATION_COLORS.WARNING now.
-  schoolyard: concept("Schulhof", SunIcon, "orange", "status", "presence"),
-  sick: concept("Krank", FirstAidKitIcon, "red", "status", "presence"),
-  excused: concept(
-    "Entschuldigt",
-    ShieldCheckIcon,
-    "purple",
-    "status",
-    "presence",
-  ),
-  home: concept("Zuhause", HouseIcon, "neutral", "status", "presence"),
-  // Petrol like LOCATION_COLORS.AT_SCHOOL: an expected child before the first
-  // check-in is still in class, not at home (#3260).
-  atSchool: concept("Schule", BackpackIcon, "petrol", "status", "presence"),
-  classTrip: concept("Klassenfahrt", BusIcon, "cyan", "status", "presence"),
-  freeRooms: concept("Freie Räume", DoorOpenIcon, "mint", "status", "presence"),
-  // Gold, not orange: orange belongs to the Schulhof status above, and the
-  // unique-primary-color rule for status concepts allows only one owner.
-  // Auslastung is a metric rather than a presence state, so it has no badge
-  // hue of its own to match.
-  utilization: concept(
-    "Auslastung",
-    ChartBarIcon,
-    "gold",
-    "status",
-    "presence",
-  ),
-  emergency: concept(
-    "Notfall",
-    ShieldWarningIcon,
-    "wine",
-    "status",
-    "presence",
-  ),
-  notArrival: concept(
-    "Kommt heute nicht",
-    CalendarXIcon,
-    "navy",
-    "status",
-    "presence",
-  ),
-  unknown: concept("Unbekannt", QuestionIcon, "stone", "status", "presence"),
-
-  calendar: concept("Kalender", CalendarIcon, "indigo", "function", "planning"),
-  carePlan: concept(
-    "Betreuungsplan",
-    CalendarDotsIcon,
-    "indigo",
-    "function",
-    "planning",
-  ),
-  careTimes: concept(
-    "Betreuungszeiten",
-    ClockIcon,
-    "indigo",
-    "function",
-    "planning",
-  ),
-  staffPlan: concept(
-    "Dienstplan",
-    ClipboardTextIcon,
-    "indigo",
-    "function",
-    "planning",
-  ),
-  substitution: concept(
-    "Vertretung",
-    ArrowsLeftRightIcon,
-    "indigo",
-    "function",
-    "planning",
-  ),
-  groupAccess: concept(
-    "Gruppenübergaben",
-    UserSwitchIcon,
-    "purple",
-    "function",
-    "planning",
-  ),
-  timeTracking: concept(
-    "Zeiterfassung",
-    ClockIcon,
-    "timeTracking",
-    "function",
-    "planning",
-  ),
-  dayReport: concept(
-    "Tagesauswertung",
-    CalendarCheckIcon,
-    "greenDeep",
-    "function",
-    "planning",
-  ),
-  calendarPeriods: concept(
-    "Kalenderzeiträume",
-    CalendarPlusIcon,
-    "indigo",
-    "function",
-    "planning",
-  ),
-  closingDays: concept(
-    "Schließtage",
-    CalendarSlashIcon,
-    "stone",
-    "function",
-    "planning",
-  ),
-  payroll: concept(
-    "Abrechnung",
-    BriefcaseIcon,
-    "neutral",
-    "function",
-    "planning",
-  ),
-  // Träger-Portal (#5145): die Regeln für den Ferienbeitrag (#4664) und die
-  // Abrechnungsläufe an die Familien (#4668). Die Abrechnung des Trägers ist
-  // eine Rechnung an Familien, nicht die Lohnabrechnung (`payroll`).
-  contributions: concept(
-    "Beiträge",
-    CoinsIcon,
-    "gold",
-    "function",
-    "administration",
-  ),
-  billing: concept(
-    "Beitragsabrechnung",
-    InvoiceIcon,
-    "petrol",
-    "function",
-    "administration",
-  ),
-
-  messages: concept(
-    "Nachrichten",
-    ChatsCircleIcon,
-    "blue",
-    "function",
-    "communication",
-  ),
-  parentMessages: concept(
-    "Elternmitteilungen",
-    EnvelopeIcon,
-    "blue",
-    "function",
-    "communication",
-  ),
-  parentConversations: concept(
-    "Nachrichten mit Eltern",
-    ChatCircleTextIcon,
-    "blue",
-    "function",
-    "communication",
-  ),
-  news: concept(
-    "Elternbriefe",
-    EnvelopeOpenIcon,
-    "blue",
-    "function",
-    "communication",
-  ),
-  announcements: concept(
-    "Ankündigungen",
-    MegaphoneIcon,
-    "amber",
-    "function",
-    "communication",
-  ),
-  polls: concept(
-    "Umfragen",
-    QuestionIcon,
-    "purple",
-    "function",
-    "communication",
-  ),
-  confirmations: concept(
-    "Bestätigungen",
-    ListChecksIcon,
-    "indigo",
-    "function",
-    "communication",
-  ),
-  feedback: concept(
-    "Feedback",
-    NotePencilIcon,
-    "coral",
-    "function",
-    "communication",
-  ),
-  mealPlan: concept(
-    "Speiseplan",
-    ForkKnifeIcon,
-    "greenDeep",
-    "function",
-    "communication",
-  ),
-
-  database: concept(
-    "Datenverwaltung",
-    DatabaseIcon,
-    "neutral",
-    "function",
-    "administration",
-  ),
-  enrollments: concept(
-    "Anmeldungen",
-    UserPlusIcon,
-    "greenDeep",
-    "function",
-    "administration",
-  ),
-  reports: concept(
-    "Statistik",
-    PresentationChartIcon,
-    "indigo",
-    "function",
-    "administration",
-  ),
-  // Ferienwochen der ausrichtenden OGS (#4665): die bestätigten Kinder der
-  // Wochen, die die Schule für ihren Träger ausrichtet.
-  holidayWeeks: concept(
-    "Ferienwochen",
-    SunHorizonIcon,
-    "orange",
-    "function",
-    "administration",
-  ),
-  // Wochenprotokoll je Gruppe (#4769): die Woche aus den Abenden der Tage.
-  weekProtocols: concept(
-    "Wochenprotokolle",
-    NotebookIcon,
-    "greenDeep",
-    "function",
-    "planning",
-  ),
-  lists: concept(
-    "Tageslisten",
-    ListBulletsIcon,
-    "neutral",
-    "function",
-    "administration",
-  ),
-  devices: concept("Geräte", DevicesIcon, "neutral", "function", "system"),
-  infoDisplays: concept(
-    "Info-Displays",
-    MonitorIcon,
-    "blue",
-    "function",
-    "system",
-  ),
-  accounts: concept(
-    "Konten",
-    UserCircleGearIcon,
-    "neutral",
-    "function",
-    "system",
-  ),
-  roles: concept("Rollen", UserGearIcon, "purple", "function", "system"),
-  permissions: concept(
-    "Berechtigungen",
-    LockKeyIcon,
-    "purple",
-    "function",
-    "system",
-  ),
-  passkeys: concept(
-    "Passkeys",
-    FingerprintSimpleIcon,
-    "purple",
-    "function",
-    "system",
-    "regular",
-  ),
-  exports: concept(
-    "Exporte",
-    FileArrowDownIcon,
-    "neutral",
-    "function",
-    "system",
-  ),
-  gradeTransitions: concept(
-    "Schuljahreswechsel",
-    TrendUpIcon,
-    "gold",
-    "function",
-    "administration",
-  ),
-  pickup: concept("Abholung", ClockIcon, "gold", "function", "planning"),
-  transport: concept("Fahrdienst", VanIcon, "cyan", "function", "planning"),
-  birthdays: concept("Geburtstage", CakeIcon, "magenta", "function", "people"),
-  changeHistory: concept(
-    "Änderungsverlauf",
-    ClockCounterClockwiseIcon,
-    "stone",
-    "function",
-    "administration",
-  ),
-  // Anfragen-Modul (#2429): eingereichte Wünsche von Eltern und
-  // Mitarbeitenden, über die die OGS entscheidet.
-  requests: concept("Anfragen", TrayIcon, "blue", "function", "communication"),
-  // Dokumente des Trägers an die Familie (#4671), etwa Bestätigungsschreiben.
-  documents: concept(
-    "Dokumente",
-    FileTextIcon,
-    "petrol",
-    "function",
-    "communication",
-  ),
-  // Dateiablage (#2596): gemeinsame Dateien der OGS mit Ordner-Freigaben.
-  files: concept("Dateien", FolderOpenIcon, "neutral", "function", "system"),
-  rfid: concept(
-    "RFID",
-    ContactlessPaymentIcon,
-    "neutral",
-    "function",
-    "system",
-  ),
-  help: concept("Hilfe", BookOpenIcon, "greenDeep", "function", "system"),
-  settings: concept("Einstellungen", GearIcon, "neutral", "function", "system"),
-  notifications: concept(
-    "Benachrichtigungen",
-    BellIcon,
-    "neutral",
-    "function",
-    "system",
-  ),
-  // Die drei Huellen-Konzepte der Eltern-App. Sie stehen in der Navigation
-  // neben den Zielen und muessen deshalb dieselbe Duotone-Sprache sprechen.
-  language: concept("Sprache", TranslateIcon, "petrol", "function", "system"),
-  logout: concept("Abmelden", SignOutIcon, "neutral", "function", "system"),
-  more: concept("Mehr", DotsThreeIcon, "stone", "function", "system"),
-} as const satisfies Record<string, MotoConceptDefinition>;
+/** Every concept under its own key; a mismatched key fails to compile. */
+export const MOTO_CONCEPTS: {
+  readonly [K in keyof typeof registry]: MotoConceptDefinition<K>;
+} = registry;
 
 export type MotoConceptKey = keyof typeof MOTO_CONCEPTS;
 
-function concept(
-  label: string,
-  icon: PhosphorIcon,
-  tone: MotoDuotoneTone,
-  kind: MotoConceptKind,
-  section: MotoConceptSection,
-  weight: IconProps["weight"] = "duotone",
-): MotoConceptDefinition {
-  return { label, icon, tone, kind, section, weight };
-}
+/** A concept definition, as the concept components take it. */
+export type MotoConcept = MotoConceptDefinition<MotoConceptKey>;

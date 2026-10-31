@@ -26,6 +26,7 @@ import {
   SchoolRestoreModal,
   SchoolSoftDeleteModal,
 } from "../provisioning/operator-entity-modals";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 export default function OperatorSchoolsPage() {
   const { status } = useSession();
@@ -194,7 +195,7 @@ export default function OperatorSchoolsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Schulen"
-        concept="schools"
+        concept={schoolsConcept}
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}

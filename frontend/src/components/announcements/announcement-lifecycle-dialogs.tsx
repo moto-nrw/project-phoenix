@@ -17,6 +17,7 @@ import {
 import type { Announcement } from "~/lib/parent-announcements-api";
 import { isClassLetter, withApiBase } from "~/lib/parent-announcements-api";
 import { summarizeTargets } from "./announcement-meta";
+import { reportsConcept } from "~/lib/concepts/reports";
 
 const logger = createLogger({ component: "AnnouncementLifecycle" });
 
@@ -321,7 +322,7 @@ export function buildAnnouncementMenuItems(
 function viewItem(onView: () => void): OverflowMenuItem {
   return {
     label: "Anzeigen",
-    icon: <MotoConceptIcon concept="reports" size={16} />,
+    icon: <MotoConceptIcon concept={reportsConcept} size={16} />,
     onClick: onView,
   };
 }

@@ -97,6 +97,9 @@ import {
 } from "~/components/enrollment/phase-enrollment-actions";
 import { PhaseExpiryWarnings } from "~/components/enrollment/phase-expiry-warnings";
 import { useTenantMutate } from "~/lib/swr";
+import { calendarPeriodsConcept } from "~/lib/concepts/calendarPeriods";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
@@ -889,7 +892,7 @@ export function PhasesEditor() {
           className="inline-flex shrink-0 items-center justify-center gap-2"
         >
           <MotoConceptIcon
-            concept="calendarPeriods"
+            concept={calendarPeriodsConcept}
             colorMode="inherit"
             size={16}
           />
@@ -907,7 +910,7 @@ export function PhasesEditor() {
                 "Legen Sie zuerst fest, für welchen Zeitraum Eltern anmelden können, zum Beispiel für ein Halbjahr, ein Schuljahr oder eine Ferienbetreuung.",
               icon: (
                 <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-                  <MotoConceptIcon concept="calendarPeriods" size={24} />
+                  <MotoConceptIcon concept={calendarPeriodsConcept} size={24} />
                 </span>
               ),
             }
@@ -1043,7 +1046,7 @@ export function PhasesEditor() {
           <EnrollmentStatTile
             leading={
               <MotoConceptIcon
-                concept="calendarPeriods"
+                concept={calendarPeriodsConcept}
                 colorMode="inherit"
                 size={16}
               />
@@ -1052,12 +1055,14 @@ export function PhasesEditor() {
             value={phases.length}
           />
           <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="careTimes" size={16} />}
+            leading={<MotoConceptIcon concept={careTimesConcept} size={16} />}
             label="Aktiv"
             value={activePhaseCount}
           />
           <EnrollmentStatTile
-            leading={<MotoConceptIcon concept="calendarPeriods" size={18} />}
+            leading={
+              <MotoConceptIcon concept={calendarPeriodsConcept} size={18} />
+            }
             label="In Vorbereitung"
             value={Math.max(phases.length - activePhaseCount, 0)}
           />
@@ -1120,7 +1125,7 @@ function FormSchemaCell({
         className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100"
         aria-hidden="true"
       >
-        <MotoConceptIcon concept="enrollments" size={16} />
+        <MotoConceptIcon concept={enrollmentsConcept} size={16} />
       </span>
       <span className="min-w-0">
         <span className="block truncate font-medium text-gray-900">
@@ -1234,19 +1239,19 @@ function PhaseActions({
     },
     {
       label: "Manuelle Anmeldung",
-      icon: <MotoConceptIcon concept="enrollments" size={18} />,
+      icon: <MotoConceptIcon concept={enrollmentsConcept} size={18} />,
       disabled: saving,
       onClick: () => setManualOpen(true),
     },
     {
       label: "Anmeldungen ansehen",
-      icon: <MotoConceptIcon concept="enrollments" size={16} />,
+      icon: <MotoConceptIcon concept={enrollmentsConcept} size={16} />,
       href: enrollmentsHref,
       onClick: () => undefined,
     },
     {
       label: "Formular zuweisen",
-      icon: <MotoConceptIcon concept="enrollments" size={16} />,
+      icon: <MotoConceptIcon concept={enrollmentsConcept} size={16} />,
       disabled: saving,
       onClick: onAssignForm,
     },
@@ -1254,7 +1259,7 @@ function PhaseActions({
       label: "Anschlussphase erstellen",
       icon: (
         <MotoConceptIcon
-          concept="calendarPeriods"
+          concept={calendarPeriodsConcept}
           colorMode="inherit"
           size={16}
         />

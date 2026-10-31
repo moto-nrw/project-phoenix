@@ -24,6 +24,7 @@ import {
   type StudentStatusKind,
   StudentStatusDayConflictError,
 } from "~/lib/student-status-days-api";
+import { classTripConcept } from "~/lib/concepts/classTrip";
 
 const logger = createLogger({ component: "ClassTripBulkStatusModal" });
 
@@ -237,7 +238,11 @@ export function ClassTripBulkStatusModal({
     >
       <div className="space-y-4 p-4">
         <div className="border-moto-blue/25 bg-moto-blue/10 flex items-start gap-3 rounded-lg border p-3 text-sm text-gray-700">
-          <MotoConceptIcon concept="classTrip" size={18} className="mt-0.5" />
+          <MotoConceptIcon
+            concept={classTripConcept}
+            size={18}
+            className="mt-0.5"
+          />
           {schoolReport ? (
             <p>
               Die OGS sieht die ausgewählten Kinder an diesen Tagen als

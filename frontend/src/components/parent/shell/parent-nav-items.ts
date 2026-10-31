@@ -11,7 +11,19 @@
  * kommen aus `MOTO_CONCEPTS`, damit die Eltern-App dieselbe Bildsprache
  * spricht wie das uebrige Produkt.
  */
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { calendarConcept } from "~/lib/concepts/calendar";
+import { childrenConcept } from "~/lib/concepts/children";
+import { dashboardConcept } from "~/lib/concepts/dashboard";
+import { documentsConcept } from "~/lib/concepts/documents";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
+import { helpConcept } from "~/lib/concepts/help";
+import { logoutConcept } from "~/lib/concepts/logout";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
+import { moreConcept } from "~/lib/concepts/more";
+import { newsConcept } from "~/lib/concepts/news";
+import { parentConversationsConcept } from "~/lib/concepts/parentConversations";
+import { settingsConcept } from "~/lib/concepts/settings";
 
 /**
  * Woher ein Zaehler kommt. Die Huelle loest das zu einer Zahl auf, damit diese
@@ -36,7 +48,7 @@ export interface ParentNavItem {
   readonly external?: boolean;
   /** Schluessel im Katalog "parentNav", identisch in allen Sprachkatalogen. */
   readonly tKey: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly badge?: ParentNavBadgeSource;
   readonly gate?: ParentNavGate;
 }
@@ -49,7 +61,7 @@ export type ParentMoreItem =
       readonly key: string;
       readonly action: "logout";
       readonly tKey: string;
-      readonly concept: MotoConceptKey;
+      readonly concept: MotoConcept;
     };
 
 /** Die vier Alltagsziele. Das fuenfte Feld der Bottom-Navigation ist "Mehr". */
@@ -58,26 +70,26 @@ export const PARENT_PRIMARY_NAV: readonly ParentNavItem[] = [
     key: "start",
     href: "/parents",
     tKey: "start",
-    concept: "dashboard",
+    concept: dashboardConcept,
   },
   {
     key: "children",
     href: "/parents/children",
     tKey: "children",
-    concept: "children",
+    concept: childrenConcept,
   },
   {
     key: "messages",
     href: "/parents/messages",
     tKey: "messages",
-    concept: "parentConversations",
+    concept: parentConversationsConcept,
     badge: "messages",
   },
   {
     key: "calendar",
     href: "/parents/calendar",
     tKey: "calendar",
-    concept: "calendar",
+    concept: calendarConcept,
   },
 ];
 
@@ -94,7 +106,7 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     key: "news",
     href: "/parents/news",
     tKey: "news",
-    concept: "news",
+    concept: newsConcept,
     badge: "news",
     gate: "news",
   },
@@ -103,7 +115,7 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     key: "mealPlan",
     href: "/parents/meal-plan",
     tKey: "mealPlan",
-    concept: "mealPlan",
+    concept: mealPlanConcept,
     gate: "mealPlan",
   },
   {
@@ -112,7 +124,7 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     key: "documents",
     href: "/parents/documents",
     tKey: "documents",
-    concept: "documents",
+    concept: documentsConcept,
   },
   {
     // Die Anleitung liegt ausserhalb des Portals, auf der oeffentlichen
@@ -123,7 +135,7 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     key: "help",
     href: "/help?role=parent",
     tKey: "help",
-    concept: "help",
+    concept: helpConcept,
     external: true,
   },
   {
@@ -131,21 +143,21 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     key: "settings",
     href: "/parents/settings",
     tKey: "settings",
-    concept: "settings",
+    concept: settingsConcept,
   },
   {
     kind: "link",
     key: "enroll",
     href: "/parents/anmeldung",
     tKey: "enroll",
-    concept: "enrollments",
+    concept: enrollmentsConcept,
   },
   {
     kind: "action",
     key: "logout",
     action: "logout",
     tKey: "logout",
-    concept: "logout",
+    concept: logoutConcept,
   },
 ];
 
@@ -153,8 +165,8 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
 export const PARENT_MORE_ENTRY = {
   key: "more",
   tKey: "more",
-  concept: "more",
-} as const satisfies { key: string; tKey: string; concept: MotoConceptKey };
+  concept: moreConcept,
+} as const satisfies { key: string; tKey: string; concept: MotoConcept };
 
 /** Zaehler, die auf das "Mehr"-Symbol aufaddiert werden. */
 export const PARENT_MORE_BADGE_SOURCES: readonly ParentNavBadgeSource[] = [

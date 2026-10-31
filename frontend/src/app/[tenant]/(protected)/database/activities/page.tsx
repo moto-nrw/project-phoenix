@@ -16,7 +16,6 @@ import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { formatCount } from "~/lib/format-utils";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import type {
   ActiveFilter,
   FilterConfig,
@@ -38,6 +37,7 @@ import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
+import { activitiesConcept } from "~/lib/concepts/activities";
 
 const logger = createLogger({ component: "DatabaseActivitiesPage" });
 
@@ -368,8 +368,8 @@ function ActivitiesPageContent() {
                   : "Legen Sie die erste Aktivität an, um sie verplanen zu können.",
               icon: (
                 <MotoDuotoneIcon
-                  icon={MOTO_CONCEPTS.activities.icon}
-                  tone={MOTO_CONCEPTS.activities.tone}
+                  icon={activitiesConcept.icon}
+                  tone={activitiesConcept.tone}
                   size={48}
                 />
               ),
@@ -431,8 +431,8 @@ function ActivitiesPageContent() {
           badge={{
             icon: (
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.activities.icon}
-                tone={MOTO_CONCEPTS.activities.tone}
+                icon={activitiesConcept.icon}
+                tone={activitiesConcept.tone}
                 size={20}
               />
             ),

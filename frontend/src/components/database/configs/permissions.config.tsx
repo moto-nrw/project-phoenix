@@ -17,6 +17,7 @@ import {
   RESOURCES,
   ACTION_LABELS,
 } from "@/components/permissions/permission-selector";
+import { permissionsConcept } from "~/lib/concepts/permissions";
 
 function displayName(p: Permission) {
   return formatPermissionDisplay(p.resource, p.action);
@@ -54,7 +55,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     plural: "Berechtigungen",
   },
 
-  concept: "permissions",
+  concept: permissionsConcept,
 
   backUrl: "/database",
 
@@ -66,7 +67,7 @@ export const permissionsConfig = defineEntityConfig<Permission>({
     sections: [
       {
         title: "Berechtigungsdetails",
-        concept: "permissions",
+        concept: permissionsConcept,
         columns: 2,
         fields: [
           {

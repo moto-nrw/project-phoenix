@@ -43,6 +43,7 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { useInvalidateClosingDays } from "~/lib/hooks/use-closing-days";
 import { createLogger } from "~/lib/logger";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
 
 const logger = createLogger({ component: "ClosingDaysEditor" });
 
@@ -264,7 +265,7 @@ export function ClosingDaysEditor({
       <EmptyState
         icon={
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100">
-            <MotoConceptIcon concept="closingDays" size={28} />
+            <MotoConceptIcon concept={closingDaysConcept} size={28} />
           </span>
         }
         title="Noch keine Schließtage"

@@ -57,6 +57,7 @@ import {
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import { formatChatTime } from "~/lib/date-helpers";
+import { childrenConcept } from "~/lib/concepts/children";
 
 const logger = createLogger({ component: "OgsConversation" });
 
@@ -413,7 +414,7 @@ export function OgsConversation({
                   title={tm("aboutChild", { name: thread.student_name })}
                 >
                   <MotoConceptIcon
-                    concept="children"
+                    concept={childrenConcept}
                     size={16}
                     aria-hidden="true"
                   />

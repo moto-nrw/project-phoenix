@@ -58,7 +58,14 @@ import { createLogger } from "~/lib/logger";
 import { displayEmail } from "~/lib/demo-build";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
+import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { childrenConcept } from "~/lib/concepts/children";
+import { feedbackConcept } from "~/lib/concepts/feedback";
+import { groupsConcept } from "~/lib/concepts/groups";
+import { mealPlanConcept } from "~/lib/concepts/mealPlan";
+import { roomsConcept } from "~/lib/concepts/rooms";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "StudentDetailComponents" });
 
@@ -69,7 +76,7 @@ const logger = createLogger({ component: "StudentDetailComponents" });
 export function PersonIcon({
   className = "h-5 w-5",
 }: Readonly<{ className?: string }>) {
-  const concept = MOTO_CONCEPTS.children;
+  const concept = childrenConcept;
   return (
     <MotoDuotoneIcon
       icon={concept.icon}
@@ -481,8 +488,8 @@ export function StudentHeaderStats({
           {student.group_name ? (
             <span className="inline-flex items-center gap-2">
               <MotoDuotoneIcon
-                icon={MOTO_CONCEPTS.groups.icon}
-                tone={MOTO_CONCEPTS.groups.tone}
+                icon={groupsConcept.icon}
+                tone={groupsConcept.tone}
                 size={18}
               />
               <span className="truncate">{student.group_name}</span>
@@ -722,8 +729,8 @@ export function SupervisorsCard({
         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
           <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-gray-100 sm:h-10 sm:w-10">
             <MotoDuotoneIcon
-              icon={MOTO_CONCEPTS.staff.icon}
-              tone={MOTO_CONCEPTS.staff.tone}
+              icon={staffConcept.icon}
+              tone={staffConcept.tone}
               size={22}
             />
           </div>
@@ -1141,7 +1148,7 @@ function EnrollmentExtraInfoItems({
 // =============================================================================
 
 interface HistoryButtonProps {
-  concept: MotoConceptKey;
+  concept: MotoConcept;
   title: string;
   description: string;
   disabled?: boolean;
@@ -1217,15 +1224,15 @@ export function StudentHistorySection({
       title="Historien"
       icon={
         <MotoDuotoneIcon
-          icon={MOTO_CONCEPTS.changeHistory.icon}
-          tone={MOTO_CONCEPTS.changeHistory.tone}
+          icon={changeHistoryConcept.icon}
+          tone={changeHistoryConcept.tone}
           size={20}
         />
       }
     >
       <div className="grid grid-cols-1 gap-2">
         <HistoryButton
-          concept="rooms"
+          concept={roomsConcept}
           title="Anwesenheitsprotokoll"
           description={
             readOnly
@@ -1242,7 +1249,7 @@ export function StudentHistorySection({
           }
         />
         <HistoryButton
-          concept="feedback"
+          concept={feedbackConcept}
           title="Feedbackhistorie"
           description={
             readOnly
@@ -1259,13 +1266,13 @@ export function StudentHistorySection({
           }
         />
         <HistoryButton
-          concept="mealPlan"
+          concept={mealPlanConcept}
           title="Mensaverlauf"
           description="Mahlzeiten und Bestellungen"
           disabled
         />
         <HistoryButton
-          concept="changeHistory"
+          concept={changeHistoryConcept}
           title="Änderungsverlauf"
           description={
             changeHistoryDisabled

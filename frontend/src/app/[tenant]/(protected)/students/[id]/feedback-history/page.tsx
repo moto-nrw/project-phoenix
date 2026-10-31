@@ -25,6 +25,7 @@ import type { Student } from "~/lib/student-helpers";
 import { fetchStudentFeedback, type FeedbackEntry } from "~/lib/feedback-api";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { feedbackConcept } from "~/lib/concepts/feedback";
 
 const logger = createLogger({ component: "StudentFeedbackHistoryPage" });
 
@@ -296,7 +297,7 @@ function StudentFeedbackHistoryPageContent() {
       <TenantPage
         back
         {...back}
-        leading={<ConceptIconTile concept="feedback" variant="page" />}
+        leading={<ConceptIconTile concept={feedbackConcept} variant="page" />}
         title={student?.name ?? "Feedbackhistorie"}
         stats={studentMeta || feedbackLine}
         statsLoading={loading}
@@ -328,7 +329,9 @@ function StudentFeedbackHistoryPageContent() {
         <SectionCard
           title="Feedback-Übersicht"
           description={FEEDBACK_HISTORY_DESCRIPTION}
-          leading={<ConceptIconTile concept="feedback" variant="section" />}
+          leading={
+            <ConceptIconTile concept={feedbackConcept} variant="section" />
+          }
         >
           <>
             {/* Proportion bar */}

@@ -2,7 +2,7 @@ import { ChevronRight } from "lucide-react";
 import type { ReactNode } from "react";
 import { MotoNavIcon } from "~/components/ui/moto-nav-icon";
 import { NavLink, type NavLinkProps } from "~/components/ui/nav-link";
-import type { MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 
 const ITEM =
   "relative z-10 flex min-h-[44px] items-center justify-center gap-2.5 rounded-full py-2.5 transition-colors duration-200";
@@ -66,7 +66,7 @@ type PortalNavLinkProps = Omit<
   "children" | "className" | "aria-current" | "aria-label" | "target" | "rel"
 > & {
   readonly label: string;
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   readonly active: boolean;
   /** Ziele außerhalb des Portals (die Hilfe) öffnen in einem neuen Tab. */
   readonly newTab?: boolean;

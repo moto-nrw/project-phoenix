@@ -8,6 +8,7 @@ import { displayEmail } from "~/lib/demo-build";
 import type { ExternalAccountStatus } from "~/lib/staff-api";
 import type { WireID } from "~/lib/wire-id";
 import { toOptionalIdString } from "~/lib/wire-id";
+import { staffConcept } from "~/lib/concepts/staff";
 
 const logger = createLogger({ component: "TeachersConfig" });
 
@@ -126,7 +127,7 @@ export const teachersConfig = defineEntityConfig<Teacher>({
     plural: "Personal",
   },
 
-  concept: "staff",
+  concept: staffConcept,
 
   backUrl: "/database",
 

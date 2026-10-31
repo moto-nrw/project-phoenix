@@ -308,7 +308,7 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1349"],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1353"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@796",
     ],
@@ -317,11 +317,11 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@2056",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2004",
+      "Bedingung löschen@2008",
     ],
     "src/components/enrollment/enrollment-form-editor.tsx": [
-      "abweichend bearbeiten@2512",
-      "Auswahlzeit entfernen@3436",
+      "abweichend bearbeiten@2523",
+      "Auswahlzeit entfernen@3447",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@593",
@@ -333,10 +333,10 @@ const ROW_ACTION_BASELINE = new Map(
     ],
     "src/components/students/companion-picker.tsx": ["entfernen@297"],
     "src/components/students/student-create-modal.tsx": [
-      "Erziehungsberechtigte/n entfernen@723",
+      "Erziehungsberechtigte/n entfernen@725",
     ],
     "src/components/timetable/substitution-slide-over.tsx": [
-      "Rückgängig Entfernen@803",
+      "Rückgängig Entfernen@804",
     ],
   }),
 );
@@ -1222,7 +1222,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1171",
+      "Bearbeiten@1178",
     ],
   }),
 );
@@ -1584,7 +1584,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // kennt für sie noch keine Bauart (Entscheidung in #3119 offen gelassen).
     // Bis sie eine bekommen, bleibt der Bestand stehen und wächst nicht.
     "src/app/[tenant]/(protected)/calendar/page.tsx": [
-      "Termin bearbeiten Termin erstellen@1062",
+      "Termin bearbeiten Termin erstellen@1063",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
       "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@605",
@@ -1593,10 +1593,10 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@267",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@987",
+      "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@991",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@934",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@937",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@145",
@@ -1618,7 +1618,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Zwei-Faktor-Authentifizierung verwalten@374",
     ],
     "src/components/teachers/caregiver-capability-modal.tsx": [
-      "resolve Zuordnungen auflösen: Betreuung verwalten:@330",
+      "resolve Zuordnungen auflösen: Betreuung verwalten:@332",
     ],
   }),
 );

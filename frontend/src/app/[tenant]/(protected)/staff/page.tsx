@@ -59,6 +59,7 @@ import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { staffOverviewService } from "~/lib/staff-overview-api";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
 import { StaffCardsSkeleton } from "./page-skeleton";
+import { staffConcept } from "~/lib/concepts/staff";
 
 /**
  * Die Personenkarte: eine Kachel, wenn sie weiterführt, sonst eine reine
@@ -785,7 +786,7 @@ function StaffPageContent() {
           description: searchTerm
             ? "Zu dieser Suche gibt es keine Person. Setzen Sie die Suche zurück, um alle zu sehen."
             : "Hier erscheint, wer die Schule verlassen hat.",
-          icon: <MotoConceptIcon concept="staff" size={48} />,
+          icon: <MotoConceptIcon concept={staffConcept} size={48} />,
           action: searchTerm ? (
             <Button
               type="button"
@@ -810,7 +811,7 @@ function StaffPageContent() {
           description: staffFilterActive
             ? "Zu dieser Suche gibt es keine Person. Setzen Sie die Suche zurück, um alle zu sehen."
             : "Es ist noch niemand angelegt. Mitarbeitende legen Sie im Reiter „Stammdaten“ an.",
-          icon: <MotoConceptIcon concept="staff" size={48} />,
+          icon: <MotoConceptIcon concept={staffConcept} size={48} />,
           action: staffFilterActive ? (
             <Button
               type="button"

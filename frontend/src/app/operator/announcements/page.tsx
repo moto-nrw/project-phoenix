@@ -47,6 +47,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 import { Alert } from "~/components/ui/alert";
+import { announcementsConcept } from "~/lib/concepts/announcements";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
 
@@ -455,7 +456,7 @@ export default function OperatorAnnouncementsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Ankündigungen"
-        concept="announcements"
+        concept={announcementsConcept}
         badge={
           announcements
             ? { count: announcements.length, label: "Gesamt" }

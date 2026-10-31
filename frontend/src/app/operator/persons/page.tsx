@@ -19,6 +19,7 @@ import {
 } from "~/components/ui/page-skeletons";
 import { OrgSchoolFilter } from "../provisioning/provisioning-tables-shared";
 import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
+import { peopleConcept } from "~/lib/concepts/people";
 
 function OperatorPersonsPageContent() {
   useSetBreadcrumb({ pageTitle: "Personen" });
@@ -78,7 +79,11 @@ function OperatorPersonsPageContent() {
 
   return (
     <div className="-mt-1.5 w-full">
-      <PageHeaderWithSearch title="Personen" concept="people" tabs={tabs} />
+      <PageHeaderWithSearch
+        title="Personen"
+        concept={peopleConcept}
+        tabs={tabs}
+      />
 
       <OrgSchoolFilter
         idPrefix="person"

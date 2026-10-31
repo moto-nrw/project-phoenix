@@ -44,7 +44,7 @@ import {
 } from "~/contexts/ToastContext";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { configToFormSection, type SectionConfig } from "~/lib/database/types";
-import { MOTO_CONCEPTS, type MotoConceptKey } from "~/lib/moto-concepts";
+import type { MotoConcept } from "~/lib/moto-concepts";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "CatalogPage" });
@@ -94,7 +94,7 @@ interface CatalogRemove<T> {
 
 export interface CatalogConfig<T extends CatalogItem> {
   /** Symbol und Farbton der Fläche, aus `MOTO_CONCEPTS`. */
-  readonly concept: MotoConceptKey;
+  readonly concept: MotoConcept;
   /** Seitentitel, Mehrzahl: „Terminkategorien". */
   readonly title: string;
   /** Einzahl für Knöpfe und Rückfragen: „Terminkategorie". */
@@ -512,7 +512,7 @@ export function CatalogPage<T extends CatalogItem>({
     [config, selected],
   );
 
-  const concept = MOTO_CONCEPTS[config.concept];
+  const concept = config.concept;
 
   const detail = selected ? (
     <DetailPanel

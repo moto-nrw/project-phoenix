@@ -20,6 +20,7 @@ import { useOrgSchoolFilter } from "../provisioning/use-org-school-filter";
 import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
+import { devicesConcept } from "~/lib/concepts/devices";
 
 const DEVICE_SWR_PREFIXES = [
   "operator-all-devices",
@@ -169,7 +170,7 @@ function OperatorDevicesPageContent() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Geräte"
-        concept="devices"
+        concept={devicesConcept}
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}

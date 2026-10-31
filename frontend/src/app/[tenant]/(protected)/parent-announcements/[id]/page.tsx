@@ -32,13 +32,15 @@ import type { Activity } from "~/lib/activity-helpers";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { fetchAnnouncement } from "~/lib/parent-announcements-api";
 import type { Announcement } from "~/lib/parent-announcements-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { AnnouncementDetailLoadingPage } from "./page-skeleton";
+import { announcementsConcept } from "~/lib/concepts/announcements";
+import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { pollsConcept } from "~/lib/concepts/polls";
 
 /** SWR-Schlüssel der Liste, die nach jeder Lebenszyklus-Aktion neu lädt. */
 const LIST_KEY = "parent-announcements-list";
@@ -204,10 +206,10 @@ function AnnouncementDetailPageContent() {
 
   const concept =
     kind === "poll"
-      ? MOTO_CONCEPTS.polls
+      ? pollsConcept
       : kind === "declaration"
-        ? MOTO_CONCEPTS.confirmations
-        : MOTO_CONCEPTS.announcements;
+        ? confirmationsConcept
+        : announcementsConcept;
 
   return (
     <TenantPage

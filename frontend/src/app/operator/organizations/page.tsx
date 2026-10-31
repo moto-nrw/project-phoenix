@@ -27,6 +27,7 @@ import {
   OrgRestoreModal,
   OrgSoftDeleteModal,
 } from "../provisioning/operator-entity-modals";
+import { organizationsConcept } from "~/lib/concepts/organizations";
 
 function KpiCard({ label, value }: Readonly<{ label: string; value: number }>) {
   return (
@@ -243,7 +244,7 @@ export default function OperatorOrganizationsPage() {
     <div className="-mt-1.5 w-full">
       <PageHeaderWithSearch
         title="Träger"
-        concept="organizations"
+        concept={organizationsConcept}
         tabs={tabs}
         actionButton={actionButton}
         mobileActionButton={mobileActionButton}

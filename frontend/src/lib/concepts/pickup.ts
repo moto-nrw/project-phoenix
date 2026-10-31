@@ -1,0 +1,11 @@
+import { ClockIcon } from "@phosphor-icons/react/ssr";
+import { defineMotoConcept } from "./define";
+
+export const pickupConcept = defineMotoConcept(
+  "pickup",
+  "Abholung",
+  ClockIcon,
+  "gold",
+  "function",
+  "planning",
+);

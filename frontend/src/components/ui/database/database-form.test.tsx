@@ -17,6 +17,7 @@ import type { FormField, FormSection } from "./database-form";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { roomsConcept } from "~/lib/concepts/rooms";
 
 type KitDatabaseFormProps = ComponentProps<typeof KitDatabaseForm>;
 
@@ -767,7 +768,7 @@ describe("DatabaseForm", () => {
   // wird - der concept-lose Zweig rendert eine eigene Ueberschrift.
   it.each([
     ["ohne concept", mockSections],
-    ["mit concept", [{ ...mockSections[0]!, concept: "rooms" as const }]],
+    ["mit concept", [{ ...mockSections[0]!, concept: roomsConcept }]],
   ])("nutzt %s standardmaessig h2", (_label, sections) => {
     render(<DatabaseForm {...defaultProps} sections={sections} />);
 
@@ -778,7 +779,7 @@ describe("DatabaseForm", () => {
 
   it.each([
     ["ohne concept", mockSections],
-    ["mit concept", [{ ...mockSections[0]!, concept: "rooms" as const }]],
+    ["mit concept", [{ ...mockSections[0]!, concept: roomsConcept }]],
   ])(
     "reicht sectionLevel %s bis zur Ueberschrift durch",
     (_label, sections) => {

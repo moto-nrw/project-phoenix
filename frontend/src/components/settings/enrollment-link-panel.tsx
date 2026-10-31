@@ -6,6 +6,7 @@ import type { SchemaTab } from "~/lib/settings-api";
 import { createLogger } from "~/lib/logger";
 import { ConceptSectionHeader } from "~/components/ui/concept-section-header";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 
 const logger = createLogger({ component: "EnrollmentLinkPanel" });
 
@@ -89,7 +90,7 @@ export function EnrollmentLinkPanel({ tab }: Props) {
           // mit h3, und auf Mobile ist der Tab-Titel im MobileBackHeader h2.
           level={3}
           title="Anmeldelink für Eltern"
-          concept="enrollments"
+          concept={enrollmentsConcept}
           subtitle="Teilen Sie diesen Link mit Eltern, damit sie ihre Kinder anmelden können. Jeder mit dem Link kann ihn öffnen. Eltern brauchen dafür kein Konto."
         />
         <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
