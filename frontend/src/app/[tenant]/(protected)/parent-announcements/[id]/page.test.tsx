@@ -59,7 +59,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: (data: unknown) => setBreadcrumbMock(data),
 }));
 
-vi.mock("~/lib/swr", () => ({
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
   useSWRAuth: (key: string | null) =>
     key?.startsWith("parent-announcement-")
       ? { ...swrState, mutate: detailMutateMock }

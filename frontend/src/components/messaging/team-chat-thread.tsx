@@ -6,12 +6,13 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
   type RefObject,
 } from "react";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
 import { TEAM_CHAT_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
@@ -355,6 +356,19 @@ export function TeamChatThread({
     (!thread && isLoading && !threadError && !chatDisabled) ||
     (!thread && errorTextPending);
 
+  const seedFrom = useSWRSeedFrom();
+  const preview = useMemo(
+    () =>
+      showSkeleton && threadKey
+        ? seedFrom(
+            messageKeys.teamChatPreviewSources,
+            threadKey,
+            (data: unknown) => messageKeys.teamChatPreview(data, threadID),
+          )
+        : undefined,
+    [seedFrom, showSkeleton, threadKey, threadID],
+  );
+
   const roleLabel = group
     ? null
     : staffRoleKindLabel(thread?.counterpart_role_kind, portal.kind);
@@ -482,7 +496,9 @@ export function TeamChatThread({
 
   const parts: TeamChatThreadParts = {
     title:
-      (group ? thread?.group_name : thread?.counterpart_name) ?? "Unterhaltung",
+      (group ? thread?.group_name : thread?.counterpart_name) ??
+      preview?.name ??
+      "Unterhaltung",
     roleLabel: roleLabel ?? null,
     stats,
     audience,
