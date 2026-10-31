@@ -5,7 +5,7 @@
  * normale Freigabe der ersten Anfrage in /anfragen.
  */
 
-export interface CourseWaitlistEntryWire {
+interface CourseWaitlistEntryWire {
   readonly request_id: string;
   readonly student_id: string;
   readonly student_name: string;
@@ -23,7 +23,7 @@ export interface CourseWaitlistWire {
   readonly entries: readonly CourseWaitlistEntryWire[];
 }
 
-export interface CourseWaitlistEntry {
+interface CourseWaitlistEntry {
   readonly requestId: string;
   readonly studentId: string;
   readonly studentName: string;
