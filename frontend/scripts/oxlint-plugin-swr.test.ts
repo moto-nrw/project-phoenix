@@ -53,6 +53,18 @@ describe.concurrent("swr/no-direct-import", () => {
       'export function useProbe(id: string) { return useSWRWithId("student", id, async () => []); }',
     ],
     [
+      "a hook bound to a local",
+      'export function useProbe() { const h = useSWRAuth; return h("literal", async () => []); }',
+    ],
+    [
+      "a hook destructured from a namespace",
+      'import * as Lib from "~/lib/swr"; export function useProbe() { const { useSWRAuth: h } = Lib; return h("literal", async () => []); }',
+    ],
+    [
+      "a hook bound before its namespace member",
+      'import * as Lib from "~/lib/swr"; const h = Lib.useSWRAuth; export function useProbe() { return h(`room-${1}`, async () => []); }',
+    ],
+    [
       "an aliased hook",
       'import { useSWRAuth as useA } from "~/lib/swr"; export function useProbe() { return useA("literal", async () => []); }',
     ],
@@ -155,6 +167,10 @@ describe.concurrent("swr/no-direct-import", () => {
     [
       "scope controls",
       'import { resumeSWRSession } from "~/lib/swr/scope"; resumeSWRSession();',
+    ],
+    [
+      "SWRConfig destructured from a namespace",
+      'import * as Lib from "~/lib/swr"; const { SWRConfig } = Lib; void SWRConfig;',
     ],
     [
       "the test-only provider",
@@ -324,4 +340,41 @@ describe.concurrent("swr/no-direct-import", () => {
       expect(result.output).toContain(RULE);
     }
   });
+});
+
+describe.concurrent("swr/no-test-support-import", () => {
+  it.each([
+    [
+      "a test helper",
+      'import { setTestClock } from "~/test/clock"; void setTestClock;',
+    ],
+    [
+      "a re-export of test support",
+      'export { SWRConfig } from "~/test/swr-support";',
+    ],
+    [
+      "test support under @/",
+      'import * as Support from "@/test/setup"; void Support;',
+    ],
+    [
+      "test support by a relative path",
+      'import { setTestClock } from "../test/clock"; void setTestClock;',
+    ],
+    ["test support imported dynamically", 'void import("~/test/clock");'],
+  ])("rejects %s in production code", async (_name, source) => {
+    const result = await lintSource(source);
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain("swr(no-test-support-import)");
+  });
+
+  it.each(["src/components/probe.test.tsx", "src/test/helper.ts"])(
+    "leaves test support to tests: %s",
+    async (file) => {
+      const result = await lintSource(
+        'import { setTestClock } from "~/test/clock"; void setTestClock;',
+        file,
+      );
+      expect(result.output).not.toContain("swr(no-test-support-import)");
+    },
+  );
 });

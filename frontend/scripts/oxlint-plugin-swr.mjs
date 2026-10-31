@@ -299,6 +299,22 @@ const noCacheAccess = {
         if (node.callee.type === "Identifier" && node.callee.name === "require")
           target(node, node.arguments[0]);
       },
+      VariableDeclarator(node) {
+        // const { SWRConfig } = Lib
+        if (
+          node.id.type !== "ObjectPattern" ||
+          node.init?.type !== "Identifier"
+        )
+          return;
+        const key = namespaces.get(node.init.name);
+        if (!key) return;
+        for (const property of node.id.properties) {
+          if (property.type !== "Property" || property.computed)
+            context.report({ node: property, messageId: "opaque" });
+          else
+            checkName(property, key, property.key.name ?? property.key.value);
+        }
+      },
       MemberExpression(node) {
         if (node.object.type !== "Identifier") return;
         const key = namespaces.get(node.object.name);
@@ -382,7 +398,17 @@ const noFreeKey = {
     const hooks = new Set(KEYED_HOOKS);
     const namespaces = new Set();
     const locals = new Map();
-    const keys = [];
+    const aliases = [];
+    const calls = [];
+    // Whether `node` names a keyed hook: an import under any alias, a
+    // namespace member, or a local bound to one of those.
+    const isHook = (node) =>
+      (node?.type === "Identifier" && hooks.has(node.name)) ||
+      (node?.type === "MemberExpression" &&
+        !node.computed &&
+        node.object.type === "Identifier" &&
+        namespaces.has(node.object.name) &&
+        KEYED_HOOKS.has(node.property.name));
     return {
       ImportDeclaration(node) {
         if (!isSWRModule(resolveModule(paths, packageName(node.source))))
@@ -396,21 +422,51 @@ const noFreeKey = {
         }
       },
       VariableDeclarator(node) {
-        if (node.id.type === "Identifier" && node.init)
+        if (!node.init) return;
+        if (node.id.type === "Identifier") {
           locals.set(node.id.name, node.init);
+          aliases.push([node.id.name, node.init]);
+        } else if (
+          node.id.type === "ObjectPattern" &&
+          node.init.type === "Identifier"
+        ) {
+          // const { useSWRAuth: h } = Lib
+          for (const property of node.id.properties) {
+            const name = property.key?.name ?? property.key?.value;
+            if (
+              property.type === "Property" &&
+              property.value?.type === "Identifier" &&
+              KEYED_HOOKS.has(name)
+            )
+              aliases.push([
+                property.value.name,
+                {
+                  type: "MemberExpression",
+                  computed: false,
+                  object: node.init,
+                  property: { type: "Identifier", name },
+                },
+              ]);
+          }
+        }
       },
       CallExpression(node) {
-        const { callee } = node;
-        const keyed =
-          (callee.type === "Identifier" && hooks.has(callee.name)) ||
-          (callee.type === "MemberExpression" &&
-            callee.object.type === "Identifier" &&
-            namespaces.has(callee.object.name) &&
-            KEYED_HOOKS.has(callee.property.name ?? callee.property.value));
-        if (keyed && node.arguments[0]) keys.push(node.arguments[0]);
+        if (node.arguments[0]) calls.push(node);
       },
-      // Locals may be declared after the hook call that reads them.
+      // Locals and aliases may be declared after the call that uses them.
       "Program:exit"(node) {
+        for (let changed = true; changed;) {
+          changed = false;
+          for (const [name, init] of aliases) {
+            if (!hooks.has(name) && isHook(init)) {
+              hooks.add(name);
+              changed = true;
+            }
+          }
+        }
+        const keys = calls
+          .filter((call) => isHook(call.callee))
+          .map((call) => call.arguments[0]);
         let actual = 0;
         for (const key of keys) {
           if (isFactoryKey(key, factories, locals)) continue;
@@ -429,11 +485,57 @@ const noFreeKey = {
   },
 };
 
+// #5007: test support (src/test/**, ~/lib/swr/testing) re-exports SWR's
+// provider and other doubles. Production code reaches it by no path; the
+// target is resolved like every module reference above.
+const noTestSupportImport = {
+  meta: {
+    type: "problem",
+    schema: [],
+    messages: {
+      support:
+        "{{target}} is test support. Production code must not import it, also not through a re-export.",
+    },
+  },
+  create(context) {
+    const paths = filePaths(context);
+    const file = fileKey(context);
+    if (isTestFile(file) || /\.stories\.[jt]sx?$/.test(file)) return {};
+    function check(node, sourceNode) {
+      const key = resolveModule(paths, packageName(sourceNode));
+      if (key === "src/test" || key?.startsWith("src/test/"))
+        context.report({ node, messageId: "support", data: { target: key } });
+    }
+    return {
+      ImportDeclaration(node) {
+        check(node, node.source);
+      },
+      ExportNamedDeclaration(node) {
+        if (node.source) check(node, node.source);
+      },
+      ExportAllDeclaration(node) {
+        check(node, node.source);
+      },
+      ImportExpression(node) {
+        check(node, node.source);
+      },
+      TSImportType(node) {
+        check(node, node.source ?? node.argument);
+      },
+      CallExpression(node) {
+        if (node.callee.type === "Identifier" && node.callee.name === "require")
+          check(node, node.arguments[0]);
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "swr" },
   rules: {
     "no-direct-import": noDirectImport,
     "no-free-key": noFreeKey,
     "no-cache-access": noCacheAccess,
+    "no-test-support-import": noTestSupportImport,
   },
 };
