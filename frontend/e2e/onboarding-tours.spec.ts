@@ -13,6 +13,7 @@ import {
 } from "../src/components/staff-onboarding/staff-onboarding-steps";
 import { STAFF_ONBOARDING_STEP_KEYS } from "../src/lib/staff-onboarding-api";
 import { loadSeedAccess } from "../scripts/seed-state";
+import { frontendPort } from "./frontend-port";
 import {
   loginToTenant,
   MISSING_SEED_ACCESS,
@@ -59,7 +60,7 @@ const setupAccess = seedAccess
   ? loadSeedAccess({ profile: SETUP_PROFILE, role: "school_admin" })
   : null;
 const setupBase = setupAccess
-  ? `http://${setupAccess.slug}.localhost:3000`
+  ? `http://${setupAccess.slug}.localhost:${frontendPort}`
   : "";
 const staffAccess = seedAccess ? loadSeedAccess({ role: "betreuer" }) : null;
 

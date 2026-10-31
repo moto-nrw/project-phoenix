@@ -35,7 +35,7 @@ import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 //
 // Login und Tenant-Herkunft: e2e/tenant-session.ts.
 //
-// Der lokale Stack bedient die Tenant-App nur unter {slug}.localhost:3000 (bare
+// Der lokale Stack bedient die Tenant-App nur unter {slug}.localhost:<PORT> (bare
 // localhost ist die Marketing-Seite); die geschützten Routen rendern ohne
 // Session eine leere Hülle statt auf eine Login-Maske umzuleiten. Die
 // Login-Maske liegt auf der Tenant-Wurzel `/`. SSE hält das Netzwerk dauerhaft
