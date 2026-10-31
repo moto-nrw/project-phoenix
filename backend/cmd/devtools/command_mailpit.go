@@ -171,13 +171,7 @@ func tryFetchMail(ctx context.Context, client *http.Client, baseURL, listPath, r
 	}
 	// Mailpit returns messages newest-first.
 	for _, m := range list.Messages {
-		if m.Created.Before(notBefore.Add(-2 * time.Second)) {
-			continue
-		}
-		if !addressedTo(m.To, recipient) {
-			continue
-		}
-		if !match(m) {
+		if !matchesMail(m, recipient, notBefore, match) {
 			continue
 		}
 		found, err := fetchFromMessage(ctx, client, baseURL, m.ID, extract)
@@ -189,6 +183,12 @@ func tryFetchMail(ctx context.Context, client *http.Client, baseURL, listPath, r
 		}
 	}
 	return "", nil
+}
+
+func matchesMail(message mailpitMessageSummary, recipient string, notBefore time.Time, match mailMatcher) bool {
+	return !message.Created.Before(notBefore.Add(-2*time.Second)) &&
+		addressedTo(message.To, recipient) &&
+		match(message)
 }
 
 func addressedTo(addrs []mailpitAddress, recipient string) bool {
