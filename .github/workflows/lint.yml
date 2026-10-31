@@ -79,7 +79,6 @@ jobs:
     permissions:
       contents: read
     env:
-      GOLANGCI_LINT_VERSION: v2.14.0
       GOLANGCI_LINT_CACHE: /home/runner/.cache/golangci-lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -102,7 +101,8 @@ jobs:
       - name: Compute backend lint cache key
         id: lint-cache-key
         env:
-          LINT_CACHE_PREFIX: backend-lint-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-golangci-${{ env.GOLANGCI_LINT_VERSION }}-${{ hashFiles('backend/go.sum') }}-
+          # lint.yml pins the golangci-lint version, so a bump starts a new cache.
+          LINT_CACHE_PREFIX: backend-lint-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum', '.github/workflows/lint.yml') }}-
           LINT_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'backend/.golangci.yml') }}
         run: |
           echo "prefix=$LINT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
@@ -129,7 +129,7 @@ jobs:
       - name: golang ci lint
         uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v6
         with:
-          version: ${{ env.GOLANGCI_LINT_VERSION }}
+          version: v2.14.0
           args: --timeout 10m ${{ steps.packages.outputs.args }}
           working-directory: backend
           # The step above owns the lint cache.
