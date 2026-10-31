@@ -129,15 +129,15 @@ func TestDetectOfferingGapsHandListPatterns(t *testing.T) {
 	t.Parallel()
 	children := studentRange(800, 6)
 	handLists := []OfferingGapTemplate{
-		{Occurrences: gapRuns(1, 2, 3, 4), Kind: RosterOfferingCare, Roster: &TemplatePlannedRoster{Entries: entriesFor(children)}},
-		{Occurrences: gapRuns(5), Kind: RosterOfferingCare, Roster: &TemplatePlannedRoster{Entries: entriesFor(children)}},
+		{Occurrences: gapRuns(1, 2, 3, 4), Times: clockTimes(13*60, 16*60, 1, 2, 3, 4), Kind: RosterOfferingCare, Roster: &TemplatePlannedRoster{Entries: entriesFor(children)}},
+		{Occurrences: gapRuns(5), Times: clockTimes(13*60, 16*60, 5), Kind: RosterOfferingCare, Roster: &TemplatePlannedRoster{Entries: entriesFor(children)}},
 	}
 	bookings := gapBookings(gapGanztag, "Ganztag", "2a", 800, 6, 1, 2, 3, 4, 5)
 	assert.Empty(t, DetectOfferingGaps(withArrivals(schoolAArrivals()), handLists, bookings), "hand-kept care lists every day plan the children")
 
 	otherChildren := []OfferingGapTemplate{
-		{Occurrences: gapRuns(1, 2, 3, 4, 5), Kind: RosterOfferingCare, Roster: &TemplatePlannedRoster{Entries: entriesFor(studentRange(900, 6))}},
-		{Occurrences: gapRuns(1, 2, 3, 4, 5), Kind: RosterOfferingLunch, Roster: &TemplatePlannedRoster{Entries: entriesFor(children)}},
+		{Occurrences: gapRuns(1, 2, 3, 4, 5), Times: clockTimes(13*60, 16*60, 1, 2, 3, 4, 5), Kind: RosterOfferingCare, Roster: &TemplatePlannedRoster{Entries: entriesFor(studentRange(900, 6))}},
+		{Occurrences: gapRuns(1, 2, 3, 4, 5), Times: clockTimes(12*60, 12*60+30, 1, 2, 3, 4, 5), Kind: RosterOfferingLunch, Roster: &TemplatePlannedRoster{Entries: entriesFor(children)}},
 	}
 	gaps := DetectOfferingGaps(gapScope, otherChildren, bookings)
 	require.Len(t, gaps, 1, "a hand list without the children and a Mensa list change nothing")

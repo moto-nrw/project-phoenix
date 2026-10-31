@@ -62,9 +62,6 @@ type OfferingGapScope struct {
 	From       calendar.Date
 	Until      calendar.Date
 	ClosedDays map[calendar.Date]bool
-	// PeriodID is the planning period; enrollment rows pinned to another
-	// period plan nobody here. 0 skips that check.
-	PeriodID int64
 	// Arrivals is the Klassentag of the booked classes.
 	Arrivals OfferingGapArrivals
 }

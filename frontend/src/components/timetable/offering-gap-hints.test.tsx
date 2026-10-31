@@ -183,7 +183,7 @@ describe("OfferingGapHints", () => {
 
     expect(
       screen.getAllByText(
-        /Fehlt „Regeltermin anlegen“\? Dann sind einige Kinder an diesen Tagen schon eingeplant oder noch im Unterricht\./,
+        /Fehlt „Regeltermin anlegen“\? Dann sind einige Kinder an diesen Tagen schon ganz oder teilweise eingeplant\. Oder sie haben noch Unterricht\. Prüfen Sie ihre Regeltermine und ergänzen Sie, was fehlt\./,
       ),
     ).toHaveLength(1);
     expect(

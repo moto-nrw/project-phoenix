@@ -85,9 +85,10 @@ type TemplateRosterEntry struct {
 }
 
 // Plans reports whether the roster puts the child on the template's
-// occurrence on date in the planning period, with materialization's rule
-// for enrollment rows (isEnrollmentValidOn). A periodID of 0 skips the
-// period check.
+// occurrence on date, with materialization's rule for enrollment rows
+// (isEnrollmentValidOn). periodID is the period materialization selects for
+// that occurrence; a row pinned to another period, or to any period when
+// periodID is unknown (0), does not apply.
 func (r TemplatePlannedRoster) Plans(studentID int64, date calendar.Date, periodID int64) bool {
 	if slices.Contains(r.TargetStudentIDs, studentID) {
 		return true
@@ -102,7 +103,7 @@ func (e TemplateRosterEntry) appliesOn(date calendar.Date, periodID int64) bool 
 	switch {
 	case e.ValidFrom != nil && e.ValidFrom.After(date),
 		e.ValidUntil != nil && !e.ValidUntil.After(date),
-		periodID != 0 && e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID,
+		e.CalendarPeriodID != nil && *e.CalendarPeriodID != periodID,
 		e.Weekday != nil && *e.Weekday != weekday:
 		return false
 	}

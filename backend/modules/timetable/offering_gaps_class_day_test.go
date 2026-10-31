@@ -263,7 +263,8 @@ func TestDetectOfferingGapsLunchByMensaWithoutTimes(t *testing.T) {
 
 // TestDetectOfferingGapsRosterRowsByDate: a hand-kept row covers the dates
 // it applies on, as materialization fills the occurrence: its validity, its
-// planning period and its weekdays.
+// planning period materialization selects for the occurrence and its
+// weekdays.
 func TestDetectOfferingGapsRosterRowsByDate(t *testing.T) {
 	t.Parallel()
 	may := calendar.NewDate(2030, 5, 1)
@@ -278,7 +279,7 @@ func TestDetectOfferingGapsRosterRowsByDate(t *testing.T) {
 		{name: "row ending before the end of scope", entry: TemplateRosterEntry{StudentID: 500, ValidUntil: &may}, wantGap: true},
 		{name: "row starting after the scope start", entry: TemplateRosterEntry{StudentID: 500, ValidFrom: &may}, wantGap: true},
 		{name: "row of another planning period", entry: TemplateRosterEntry{StudentID: 500, CalendarPeriodID: &otherPeriod}, wantGap: true},
-		{name: "row of the planning period", entry: TemplateRosterEntry{StudentID: 500, CalendarPeriodID: new(int64(9))}},
+		{name: "row of the occurrence's planning period", entry: TemplateRosterEntry{StudentID: 500, CalendarPeriodID: new(int64(9))}},
 		{name: "row for Monday", entry: TemplateRosterEntry{StudentID: 500, Weekday: &monday}},
 		{name: "row for Tuesday only", entry: TemplateRosterEntry{StudentID: 500, Weekday: new(2)}, wantGap: true},
 		{name: "row selecting Wednesday", entry: TemplateRosterEntry{StudentID: 500, SelectedWeekdays: []int{3}}, wantGap: true},
@@ -288,9 +289,13 @@ func TestDetectOfferingGapsRosterRowsByDate(t *testing.T) {
 			t.Parallel()
 			template := classTemplate(nil, clock1145, clock1245, 1)
 			template.Roster = &TemplatePlannedRoster{Entries: []TemplateRosterEntry{tc.entry}}
-			scope := gapScope
-			scope.PeriodID = 9
-			gaps := DetectOfferingGaps(scope, []OfferingGapTemplate{template}, gapBookings(gapRandstunde, "Randstunde", "2c", 500, 1, 1))
+			for date, clocks := range template.Times {
+				for i := range clocks {
+					clocks[i].PeriodID = 9
+				}
+				template.Times[date] = clocks
+			}
+			gaps := DetectOfferingGaps(gapScope, []OfferingGapTemplate{template}, gapBookings(gapRandstunde, "Randstunde", "2c", 500, 1, 1))
 			assert.Equal(t, tc.wantGap, len(gaps) == 1, "%+v", gaps)
 		})
 	}
@@ -515,6 +520,48 @@ func TestDetectOfferingGapsNewSeriesPartialPlanning(t *testing.T) {
 			require.Len(t, gaps, 1, "partial planning must leave the gap visible")
 			assert.Equal(t, []int{1}, gaps[0].Weekdays)
 			assert.Equal(t, tc.blocked, gaps[0].NewSeriesPlansCovered)
+		})
+	}
+}
+
+// TestDetectOfferingGapsOccurrencePeriod: each occurrence is filled from the
+// period materialization selects for it. A row pinned to an overlapping
+// period does not put the child on that occurrence, with or without clock
+// times; a pinned row of the occurrence's own period does, and an unknown
+// period never matches a pinned row.
+func TestDetectOfferingGapsOccurrencePeriod(t *testing.T) {
+	t.Parallel()
+	const schoolYear, halfYear = int64(11), int64(12)
+	child := studentRange(760, 1)
+	arrivals := weeklyArrivals(map[string]map[int]int{"2a": {1: clock1145}})
+	template := func(occurrencePeriod int64, rowPeriod *int64) OfferingGapTemplate {
+		template := classTemplate(nil, clock1145, clock1245, 1)
+		template.Roster = &TemplatePlannedRoster{Entries: []TemplateRosterEntry{{StudentID: child[0], CalendarPeriodID: rowPeriod}}}
+		for date, clocks := range template.Times {
+			for i := range clocks {
+				clocks[i].PeriodID = occurrencePeriod
+			}
+			template.Times[date] = clocks
+		}
+		return template
+	}
+	withTimes := classDayBookings("2a", 760, 1, 1)
+	withoutTimes := gapBookings(gapRandstunde, "Randstunde", "2a", 760, 1, 1)
+	cases := []struct {
+		name     string
+		template OfferingGapTemplate
+		wantGap  bool
+	}{
+		{name: "row pinned to an overlapping period", template: template(schoolYear, new(halfYear)), wantGap: true},
+		{name: "row pinned to the occurrence's period", template: template(schoolYear, new(schoolYear))},
+		{name: "row without a pin", template: template(schoolYear, nil)},
+		{name: "unknown occurrence period and a pinned row", template: template(0, new(halfYear)), wantGap: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.wantGap, len(DetectOfferingGaps(withArrivals(arrivals), []OfferingGapTemplate{tc.template}, withTimes)) == 1, "with clock times")
+			assert.Equal(t, tc.wantGap, len(DetectOfferingGaps(gapScope, []OfferingGapTemplate{tc.template}, withoutTimes)) == 1, "strict day rule")
 		})
 	}
 }

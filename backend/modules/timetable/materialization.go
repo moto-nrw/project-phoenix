@@ -119,11 +119,13 @@ type MaterializationCapability interface {
 	ProjectOccurrences(ctx context.Context, templateIDs []int64, from, to calendar.Date) (OccurrenceProjection, error)
 }
 
-// OccurrenceClock is the clock window of one projected occurrence, in
-// minutes after midnight.
+// OccurrenceClock is one projected occurrence: its clock window in minutes
+// after midnight and the planning period materialization selects for it
+// (selectPeriod), whose roster rows fill it.
 type OccurrenceClock struct {
 	StartMinute int
 	EndMinute   int
+	PeriodID    int64
 }
 
 // MaxOccurrenceProjectionDays bounds a read-only projection: one school year

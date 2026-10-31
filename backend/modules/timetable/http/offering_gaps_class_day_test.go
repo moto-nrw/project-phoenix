@@ -138,6 +138,59 @@ func TestOfferingGapsClassDayMovedOccurrence(t *testing.T) {
 	assert.Equal(t, []int{1, 3}, gaps[0].Weekdays, "the cancelled Wednesday is open as well")
 }
 
+// TestOfferingGapsOverlappingPeriodsFollowTheMaterializedPeriod: a
+// Regeltermin without a period pin materializes each date in the active
+// period with the lowest id that contains it. A roster row pinned to an
+// overlapping period with a higher id does not put the child on that
+// occurrence, so it must not hide the gap when the check runs for that
+// period. A row without a pin plans the child in every period.
+func TestOfferingGapsOverlappingPeriodsFollowTheMaterializedPeriod(t *testing.T) {
+	t.Parallel()
+	s, arrivals := buildClassDayGapsModule(t)
+	schoolYear := createTemplateTestPeriodRange(t, s.db, "Gap-Schuljahr", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	halfYear := createTemplateTestPeriodRange(t, s.db, "Gap-Halbjahr", rosterReviewMonday.AddDays(-10), rosterReviewMonday.AddDays(60), 1, nil)
+	require.Less(t, schoolYear.ID, halfYear.ID, "materialization picks the lowest id among overlapping periods")
+	child := createClassStudents(t, s.db, "1a", 1)
+	saveClassArrivals(t, s, arrivals, "1a", map[string]string{"mon": "11:45", "wed": "11:45"})
+
+	w := doTemplateJSON(t, s.router, http.MethodPost, "/templates", map[string]any{
+		"name":              "Randstunde ohne Zeitraum",
+		"type":              timetableModule.GroupTypeCare,
+		"weekdays":          []int{timetableModule.WeekdayMonday, timetableModule.WeekdayWednesday},
+		"start_time":        "11:45",
+		"end_time":          "12:45",
+		"room_id":           s.roomID,
+		"category_id":       s.category.ID,
+		"target_group_type": timetableModule.TargetGroupTypeNone,
+		"student_ids":       []int64{},
+		"staff_ids":         []int64{s.staffA},
+	})
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	templateID := decodeTemplateData[createTemplateResponse](t, w).TemplateID
+	_, err := s.owner.CreateStudentEnrollment(s.ctx, timetableModule.StudentEnrollmentInput{
+		StudentID: child[0], ActivityGroupID: templateID, ValidFrom: rosterReviewMonday.AddDays(-10).String(), CalendarPeriodID: &halfYear.ID,
+	})
+	require.NoError(t, err)
+
+	s.sources.bookings = withGrade(classDayRandstunde("1a", child, true, 1, 3), 1)
+	gaps := s.listGaps(t, halfYear.ID)
+	require.Len(t, gaps, 1, "with clock times: the row pinned to the Halbjahr is not on the school-year occurrence: %+v", gaps)
+	assert.Equal(t, []int{1, 3}, gaps[0].Weekdays)
+
+	s.sources.bookings = withGrade(classDayRandstunde("1a", child, false, 1, 3), 1)
+	gaps = s.listGaps(t, halfYear.ID)
+	require.Len(t, gaps, 1, "without clock times, the strict day rule follows the same period: %+v", gaps)
+	assert.Equal(t, []int{1, 3}, gaps[0].Weekdays)
+
+	_, err = s.owner.CreateStudentEnrollment(s.ctx, timetableModule.StudentEnrollmentInput{
+		StudentID: child[0], ActivityGroupID: templateID, ValidFrom: rosterReviewMonday.AddDays(-10).String(),
+	})
+	require.NoError(t, err)
+	assert.Empty(t, s.listGaps(t, halfYear.ID), "a row without a period pin plans the child in the school year too")
+	s.sources.bookings = withGrade(classDayRandstunde("1a", child, true, 1, 3), 1)
+	assert.Empty(t, s.listGaps(t, halfYear.ID), "and covers the need with clock times")
+}
+
 // TestOfferingGapsClassDayQueryBudget measures the check with clock times:
 // it adds the Klassentag (plans, changes) and one batch of rosters to the
 // scenario without them, flat in the number of Regeltermine.

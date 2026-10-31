@@ -83,7 +83,7 @@ func (rs *Resource) offeringGaps(ctx context.Context, periodID int64) ([]timetab
 	if err != nil || rs.OfferingSourceOptions == nil {
 		return []timetable.OfferingGap{}, err
 	}
-	scope := timetable.OfferingGapScope{From: max(rs.todayDate(), calendar.Date(period.StartDate)), Until: calendar.Date(period.EndDate), PeriodID: period.ID}
+	scope := timetable.OfferingGapScope{From: max(rs.todayDate(), calendar.Date(period.StartDate)), Until: calendar.Date(period.EndDate)}
 	if scope.From.After(scope.Until) {
 		return []timetable.OfferingGap{}, nil
 	}

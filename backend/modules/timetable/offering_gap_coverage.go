@@ -89,7 +89,7 @@ func (p offeringGapPlan) covers(booking OfferingWeekdayBooking, date calendar.Da
 	need, known := p.need(booking, date)
 	if !known {
 		return slices.ContainsFunc(p.templates, func(t offeringGapIndexedTemplate) bool {
-			return !t.HasOfferingSource && t.Kind.standsInFor(booking) && t.plans(booking.StudentID, date, p.scope.PeriodID)
+			return !t.HasOfferingSource && t.Kind.standsInFor(booking) && len(t.plannedClocks(booking.StudentID, date)) > 0
 		})
 	}
 	if need.empty() {
@@ -97,9 +97,7 @@ func (p offeringGapPlan) covers(booking OfferingWeekdayBooking, date calendar.Da
 	}
 	clocks := make([]OccurrenceClock, 0)
 	for _, t := range p.templates {
-		if t.plans(booking.StudentID, date, p.scope.PeriodID) {
-			clocks = append(clocks, t.Times[date]...)
-		}
+		clocks = append(clocks, t.plannedClocks(booking.StudentID, date)...)
 	}
 	return need.coveredBy(clocks)
 }
@@ -128,15 +126,24 @@ func (kind RosterOfferingKind) standsInFor(booking OfferingWeekdayBooking) bool 
 	return kind != RosterOfferingAny && kind.admits(booking)
 }
 
-// plans reports whether the Regeltermin has an occurrence on date with the
-// child on it, with TemplatePlannedRoster.Plans' rule.
-func (t offeringGapIndexedTemplate) plans(studentID int64, date calendar.Date, periodID int64) bool {
+// plannedClocks are the Regeltermin's occurrences on date that have the
+// child on them, with TemplatePlannedRoster.Plans' rule: each occurrence is
+// filled from the period materialization selects for it, so a row pinned to
+// an overlapping period does not count there. A date without a projected
+// occurrence plans nobody.
+func (t offeringGapIndexedTemplate) plannedClocks(studentID int64, date calendar.Date) []OccurrenceClock {
 	if !t.Occurrences[date] {
-		return false
+		return nil
 	}
-	return t.targets[studentID] || slices.ContainsFunc(t.entries[studentID], func(entry TemplateRosterEntry) bool {
-		return entry.appliesOn(date, periodID)
-	})
+	planned := make([]OccurrenceClock, 0, len(t.Times[date]))
+	for _, clock := range t.Times[date] {
+		if t.targets[studentID] || slices.ContainsFunc(t.entries[studentID], func(entry TemplateRosterEntry) bool {
+			return entry.appliesOn(date, clock.PeriodID)
+		}) {
+			planned = append(planned, clock)
+		}
+	}
+	return planned
 }
 
 // coveredBy reports whether the occurrences cover the need without a gap
@@ -193,7 +200,7 @@ func (p offeringGapPlan) plansDuringNeed(booking OfferingWeekdayBooking, date ca
 		return false
 	}
 	return slices.ContainsFunc(p.templates, func(t offeringGapIndexedTemplate) bool {
-		return t.plans(booking.StudentID, date, p.scope.PeriodID) && slices.ContainsFunc(t.Times[date], func(clock OccurrenceClock) bool {
+		return slices.ContainsFunc(t.plannedClocks(booking.StudentID, date), func(clock OccurrenceClock) bool {
 			return clock.StartMinute < clock.EndMinute && clock.StartMinute < need.until && clock.EndMinute > need.from
 		})
 	})

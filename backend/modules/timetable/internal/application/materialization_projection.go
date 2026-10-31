@@ -104,7 +104,7 @@ func (w *materializationWorld) occurrenceDates(tmpl *activityContract.Group, sch
 }
 
 // occurrenceClocks are the effective clock windows of the template's
-// schedules materialized on date.
+// schedules materialized on date, each with the period candidateSlot selects.
 func (w *materializationWorld) occurrenceClocks(tmpl *activityContract.Group, schedules []*activityContract.Schedule, date calendar.Date) []timetable.OccurrenceClock {
 	isoWd := planWeekday(date, w.weekendFollowsFriday)
 	exc := w.exceptionIdx[exceptionKey{tmpl.ID, date}]
@@ -113,10 +113,11 @@ func (w *materializationWorld) occurrenceClocks(tmpl *activityContract.Group, sc
 		if sch.Weekday != isoWd {
 			continue
 		}
-		if params, _, skip := candidateSlot(tmpl, sch, date, w.periods, w.days, exc, w.timeframeByID, nil); skip == candidateKept {
+		if params, period, skip := candidateSlot(tmpl, sch, date, w.periods, w.days, exc, w.timeframeByID, nil); skip == candidateKept {
 			clocks = append(clocks, timetable.OccurrenceClock{
 				StartMinute: params.StartTime.Hour()*60 + params.StartTime.Minute(),
 				EndMinute:   params.EndTime.Hour()*60 + params.EndTime.Minute(),
+				PeriodID:    period.ID,
 			})
 		}
 	}
