@@ -450,7 +450,7 @@ jobs:
           FULL_SUITE: ${{ inputs.full-frontend-suite }}
           BASE_REF: ${{ inputs.base_ref }}
         run: |
-          test_args=(--project app-dom)
+          test_args=(--project app-dom --project school-date-dom)
           if [ "$PROJECT" = node ]; then
             test_args=(--project api-node --project logic-node)
           elif [ "$PROJECT" = guards ]; then

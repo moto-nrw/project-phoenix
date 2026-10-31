@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Fast local gate for the complete PR diff: secrets, guidance, lint and types.
-# Expensive whole-repo analysis (build, ratchets, deadcode, knip, architecture,
+# Fast local gate for the complete PR diff: secrets, guidance, lint, types and
+# unused code (knip).
+# Expensive whole-repo analysis (build, ratchets, deadcode, architecture,
 # react-doctor) and tests run in CI; license and vulnerability scans nightly.
 # PHX_PREPUSH=skip skips the gate; CI still checks the push.
 set -euo pipefail

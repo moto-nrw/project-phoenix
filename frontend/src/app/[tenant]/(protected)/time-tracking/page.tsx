@@ -2928,7 +2928,7 @@ function CreateAbsenceModal({
   /** Gates the "Name hinzufügen" affordance on time_tracking:manage (#2403). */
   readonly canManageAbsenceTypes: boolean;
 }) {
-  const todayStr = toISODate(new Date());
+  const todayStr = berlinTodayISO();
   // One option space for the standard types and the school's own names — see
   // absence-type-select for why the value is a string, not an AbsenceType.
   const [absenceType, setAbsenceType] = useState<string>("sick");
@@ -2960,7 +2960,7 @@ function CreateAbsenceModal({
   // Reset form when modal opens
   useEffect(() => {
     if (isOpen) {
-      const today = toISODate(new Date());
+      const today = berlinTodayISO();
       setAbsenceType("sick");
       setDateStart(today);
       setDateEnd(today);
@@ -3280,7 +3280,7 @@ function TimeTrackingContent() {
   //   after `ref` in the same week are never fetched and the table
   //   silently drops them)
   const { toDate, chartFromDate, weekFromDate } = (() => {
-    const ref = new Date();
+    const ref = parseISODate(berlinTodayISO());
     ref.setDate(ref.getDate() + weekOffset * 7);
     const days = getWeekDays(ref);
     const sunday = days[6] ?? ref;

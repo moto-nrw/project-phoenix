@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 // grade-transitions-manager.test.tsx
 // Behavior tests for the Jahrgangsstufenwechsel admin flow (#405)
 
@@ -170,20 +173,30 @@ describe("GradeTransitionsManager", () => {
     ).toBeInTheDocument();
   });
 
-  it("prefills the editor from suggestions", async () => {
-    render(<GradeTransitionsManager />);
+  it.each(schoolDateCases("2026-05-01"))(
+    "prefills the editor from suggestions in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-01");
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Neuer Schuljahreswechsel/i }),
-    );
+      render(<GradeTransitionsManager />);
 
-    // Both suggested rows appear with counts
-    expect(await screen.findByText("1a")).toBeInTheDocument();
-    expect(screen.getByText("4a")).toBeInTheDocument();
-    expect(screen.getByDisplayValue("2a")).toBeInTheDocument();
-    // The graduating row shows the Abgang selection
-    expect(screen.getAllByText(/Abgang/i).length).toBeGreaterThan(0);
-  });
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: /Neuer Schuljahreswechsel/i,
+        }),
+      );
+
+      expect(await screen.findByLabelText("Schuljahr (neu)")).toHaveValue(
+        "2026-2027",
+      );
+      // Both suggested rows appear with counts
+      expect(await screen.findByText("1a")).toBeInTheDocument();
+      expect(screen.getByText("4a")).toBeInTheDocument();
+      expect(screen.getByDisplayValue("2a")).toBeInTheDocument();
+      // The graduating row shows the Abgang selection
+      expect(screen.getAllByText(/Abgang/i).length).toBeGreaterThan(0);
+    },
+  );
 
   it("creates a draft with null to_class for Abgang rows and shows the preview", async () => {
     api.createGradeTransition.mockResolvedValue(draftTransition);

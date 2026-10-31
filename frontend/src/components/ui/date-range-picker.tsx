@@ -1,4 +1,6 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { parseISODate } from "~/lib/date-helpers";
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -297,7 +299,8 @@ export function RangeCalendarInline({
   modifiers: extraModifiers,
   modifiersClassNames: extraModifiersClassNames,
 }: RangeCalendarProps) {
-  const [month, setMonth] = useState(value?.from ?? new Date());
+  const today = useBerlinToday();
+  const [month, setMonth] = useState(value?.from ?? parseISODate(today));
   const isSingleMonth = useIsSingleMonthCalendar();
   // Manual draft state. We use `mode="single"` on the underlying DayPicker
   // and manage the two-click range logic ourselves, react-day-picker v10's
@@ -419,6 +422,7 @@ export function RangeCalendarInline({
           }
         >
           <LazyDayPicker
+            today={parseISODate(today)}
             mode="single"
             selected={undefined}
             onDayClick={handleDayClick}

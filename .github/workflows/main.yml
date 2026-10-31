@@ -412,7 +412,7 @@ jobs:
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
         run: |
-          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs
+          node --test scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py
 
@@ -494,9 +494,10 @@ jobs:
       github.event_name == 'push'
       || needs.detect-changes.outputs.run-backend-architecture == 'true'
     needs: detect-changes
-    # Standard runners are free for this public repository. Blacksmith minutes
-    # go to the test suites, which set the pull request's wall-clock time.
-    runs-on: ubuntu-latest
+    # Type-checking base and head is CPU-bound: 4-5 minutes on a standard
+    # runner made this job the last to finish. Blacksmith keeps it below the
+    # test suites, which set the pull request's wall-clock time.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
       issues: read
@@ -520,6 +521,7 @@ jobs:
           fi
           git fetch --no-tags --unshallow origin "${refs[@]}"
       - name: Setup Go with cache
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
@@ -527,6 +529,23 @@ jobs:
           # The development cache build.yml saves under this key. The
           # architecture module pins the same golang.org/x versions.
           cache-dependency-path: backend/go.sum
+      # setup-go's go.sum-only key is immutable. The ratchet loads packages
+      # through go list -export, so keep a source-keyed build layer with the
+      # last source build as a warm fallback, as test.yml does.
+      - name: Compute architecture build cache key
+        id: build-cache-key
+        env:
+          ARCH_CACHE_PREFIX: architecture-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum', 'scripts/backend-architecture/go.sum') }}-
+          ARCH_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'scripts/backend-architecture/**/*.go') }}
+        run: |
+          echo "prefix=$ARCH_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$ARCH_CACHE_PREFIX$ARCH_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+      - name: Restore architecture build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
       - name: Check deterministic architecture ratchet
         env:
           BASE_REF: ${{ github.base_ref }}

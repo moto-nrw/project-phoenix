@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 // Eine Klasse an einem Tag ("moto schule", #1772/#2294).
 //
@@ -41,7 +42,7 @@ import type {
   MorningAttendanceStatus,
 } from "~/lib/class-day-api";
 import { dayHintAuthorSuffix } from "~/lib/class-day-api";
-import { formatDate, parseISODate, todayISO } from "~/lib/date-helpers";
+import { formatDate, parseISODate } from "~/lib/date-helpers";
 import {
   HOMEWORK_DESCRIPTION_MAX_LENGTH,
   HOMEWORK_SUBJECT_MAX_LENGTH,
@@ -200,6 +201,7 @@ export function ClassDayClass({
 }: ClassDayClassProps) {
   // Kein Default-Prop: eine `new Date()` in der Signatur bricht die
   // referenzielle Gleichheit bei jedem Render.
+  const today = useBerlinToday();
   const at = now ?? new Date();
   const searchParams = useSearchParams();
   const dateISO = classDayDateParam(searchParams.get("tag"));
@@ -327,9 +329,9 @@ export function ClassDayClass({
   const changes = countDayChanges(report ?? null);
   const exceptionLine =
     report && !weekend
-      ? classArrivalExceptionLine(report, dateISO, todayISO())
+      ? classArrivalExceptionLine(report, dateISO, today)
       : null;
-  const isToday = dateISO === todayISO();
+  const isToday = dateISO === today;
   // Beobachtungen der OGS (#4797): nur die Lehrkraft der Klasse bekommt den
   // Link, und nur bei Kindern mit OGS-Datensatz.
   const sharedNotesHref =

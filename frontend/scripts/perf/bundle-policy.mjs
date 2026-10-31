@@ -4,6 +4,12 @@ import { join } from "node:path";
 export const BUDGET_FORMAT = "moto-bundle-budget/v1";
 const TOLERANCE_RATIO = 0.02;
 const TOLERANCE_BYTES = 10 * 1024;
+// A merge-base this close to its ceiling turns any PR that grows shared code by
+// a few bytes red (#5396: 4 of 5 bundle failures were 13 to 201 bytes over).
+// Such PRs are judged by their own delta; development pushes, the nightly and
+// release PRs still enforce the ceiling, so resetting it stays a reviewed
+// policy change.
+export const NEAR_CEILING_BYTES = 1024;
 
 export function legacyCeiling(referenceBytes) {
   return (
@@ -119,10 +125,17 @@ export function compareBudgets(budgets, measured, base = null) {
       );
     }
     if (bytes > budget.maxBytes) {
-      // An already over-budget base must not make an unrelated PR red.
-      const messages = baseBytes > budget.maxBytes ? warnings : failures;
+      // A base over or just under the ceiling must not make an unrelated PR red.
+      const inherited =
+        baseBytes !== undefined &&
+        baseBytes > budget.maxBytes - NEAR_CEILING_BYTES;
+      const messages = inherited ? warnings : failures;
       messages.push(
-        `${route}: ${bytes} Bytes überschreiten die genehmigte Obergrenze ${budget.maxBytes} Bytes. Bundle verkleinern oder eine begründete Policy-Änderung reviewen lassen; eine neue Messung erhöht kein Budget.`,
+        `${route}: ${bytes} Bytes überschreiten die genehmigte Obergrenze ${budget.maxBytes} Bytes. ${
+          inherited
+            ? `Die Merge-Basis lag mit ${baseBytes} Bytes schon an der Obergrenze; für diese PR zählt nur ihr eigenes Delta. Die Obergrenze in einer eigenen, begründeten Policy-Änderung neu setzen.`
+            : "Bundle verkleinern oder eine begründete Policy-Änderung reviewen lassen; eine neue Messung erhöht kein Budget."
+        }`,
       );
     }
   }

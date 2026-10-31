@@ -171,8 +171,9 @@ export function todayISO(): string {
 
 /**
  * Today's calendar date in the school's timezone (Europe/Berlin) as
- * "YYYY-MM-DD". Use this — not todayISO() — whenever the value is compared
- * against a backend DATE the server derives from `timezone.TodayDate()`
+ * "YYYY-MM-DD". Use this for school-day defaults, validity and attendance,
+ * and whenever the value is compared against a backend DATE derived from
+ * `calendar.TodayDate()`
  * (always Berlin). A browser in another timezone can be a calendar day off
  * around midnight, which would otherwise send a week the backend rejects as
  * out of range. Built from Intl parts (not toISOString) so the date-safety
@@ -475,43 +476,31 @@ export function formatDuration(minutes: number | null): string {
  * Get the start date for a given time range filter
  * @param timeRange The time range filter option
  * @param referenceDate Optional reference date (defaults to now)
- * @returns Start date at midnight for the filter range
+ * @returns Instant at Berlin midnight for the filter range
  */
 export function getStartDateForTimeRange(
   timeRange: string,
   referenceDate: Date = new Date(),
 ): Date {
-  const now = referenceDate;
-  let startDate: Date;
+  const startDate = parseISODate(berlinTodayISO(referenceDate));
 
   switch (timeRange) {
     case "today":
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       break;
     case "week": {
-      const dayOfWeek = now.getDay();
-      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      startDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - daysFromMonday,
-      );
+      const daysFromMonday = (startDate.getDay() + 6) % 7;
+      startDate.setDate(startDate.getDate() - daysFromMonday);
       break;
     }
     case "month":
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setDate(1);
       break;
     case "7days":
     default:
-      startDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - 6,
-      );
+      startDate.setDate(startDate.getDate() - 6);
   }
 
-  startDate.setHours(0, 0, 0, 0);
-  return startDate;
+  return new Date(berlinDateTimeISO(startDate, "00:00"));
 }
 
 /**

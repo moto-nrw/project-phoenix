@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   render,
   screen,
@@ -831,6 +834,25 @@ describe("StudentDetailPage", () => {
   });
 
   describe("Full Access View", () => {
+    it.each(schoolDateCases("2026-05-27"))(
+      "fetches the Berlin status-day range in %s",
+      async (zone, instant) => {
+        setSchoolDateClock(zone, instant, "2026-05-27");
+        render(
+          <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+            <StudentDetailPage />
+          </SWRConfig>,
+        );
+        await waitFor(() =>
+          expect(mockFetchStudentStatusDays).toHaveBeenCalledWith(
+            "1",
+            "2026-05-13",
+            "2026-08-25",
+          ),
+        );
+      },
+    );
+
     it("uses Berlin's calendar day for the header plans", async () => {
       setTestClock("2026-09-12T12:00:00+02:00");
       vi.mocked(useWeekendFollowsFriday).mockReturnValue(true);

@@ -17,6 +17,7 @@ import { format } from "date-fns/format";
 import { subMonths } from "date-fns/subMonths";
 import { de } from "date-fns/locale/de";
 import "react-day-picker/style.css";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
 import { Input } from "~/components/ui/input";
@@ -619,7 +620,10 @@ function DatePickerCalendar({
   readonly required?: boolean;
   readonly onChange: (date: Date | null) => void;
 }) {
-  const [month, setMonth] = useState(value ?? defaultMonth ?? new Date());
+  const today = useBerlinToday();
+  const [month, setMonth] = useState(
+    value ?? defaultMonth ?? parseISODate(today),
+  );
   const controlledMonthTime = value?.getTime();
 
   useEffect(() => {
@@ -644,6 +648,7 @@ function DatePickerCalendar({
       />
       <Suspense fallback={<CalendarGridSkeleton month={month} />}>
         <LazyDayPicker
+          today={parseISODate(today)}
           mode="single"
           selected={value ?? undefined}
           required={required}
@@ -707,13 +712,15 @@ function MultipleDatePickerCalendar({
   compact,
   calendarLayout,
 }: MultipleDatePickerCalendarProps) {
-  const [month, setMonth] = useState(values[0] ?? new Date());
+  const today = useBerlinToday();
+  const [month, setMonth] = useState(values[0] ?? parseISODate(today));
 
   return (
     <div className={getCalendarContainerClass(calendarLayout, compact)}>
       <CalendarNavHeader month={month} onMonthChange={setMonth} />
       <Suspense fallback={<CalendarGridSkeleton month={month} />}>
         <LazyDayPicker
+          today={parseISODate(today)}
           mode="multiple"
           selected={values}
           disabled={disabledDates}

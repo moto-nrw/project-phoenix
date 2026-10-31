@@ -1,3 +1,4 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
 import {
   describe,
   it,
@@ -19,14 +20,21 @@ vi.mock("react-day-picker", () => ({
     onSelect,
     required,
     month,
+    today,
   }: {
     selected?: Date | Date[];
     onSelect: (date: Date | undefined) => void;
     required?: boolean;
     month?: Date;
+    today?: Date;
   }) => (
     <div
       data-testid="day-picker"
+      data-today={
+        today
+          ? `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+          : ""
+      }
       data-required={required}
       data-month={month?.toISOString()}
     >
@@ -88,6 +96,7 @@ describe("DatePicker", () => {
   });
 
   afterEach(() => {
+    vi.unstubAllEnvs();
     vi.clearAllMocks();
   });
 
@@ -992,3 +1001,20 @@ describe("ISODatePicker name", () => {
     );
   });
 });
+
+it.each(schoolDateCases("2026-05-27"))(
+  "marks the Berlin day in the calendar in %s",
+  async (zone, instant) => {
+    setSchoolDateClock(zone, instant, "2026-05-27");
+    render(
+      <DatePicker value={null} onChange={vi.fn()} calendarLayout="inline" />,
+    );
+    fireEvent.click(screen.getByText("Datum auswählen"));
+    expect(await screen.findByTestId("day-picker")).toHaveAttribute(
+      "data-today",
+      "2026-05-27",
+    );
+  },
+);
+
+afterEach(() => vi.unstubAllEnvs());

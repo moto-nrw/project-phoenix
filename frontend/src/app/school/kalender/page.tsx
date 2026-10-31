@@ -47,7 +47,7 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
-import { berlinTodayISO, toISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, toISODate, parseISODate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -99,7 +99,9 @@ export default function SchoolCalendarPage() {
   const toast = useToast();
   const { show: showActionError } = useApiErrorDisplay();
 
-  const [referenceDate, setReferenceDate] = useState(() => new Date());
+  const [referenceDate, setReferenceDate] = useState(() =>
+    parseISODate(berlinTodayISO()),
+  );
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [showWeekend, setShowWeekend] = useState(false);
 

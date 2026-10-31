@@ -24,13 +24,13 @@ env:
   GOTOOLCHAIN: local
 
 # Runners: standard GitHub runners are free for this public repository and run
-# every job here except frontend-build and full backend lint. Full lint took
-# 4:07 on a hosted runner after the test suites were split; affected-package
-# PR lint stays on the free runner. frontend-build stays on
-# Blacksmith: on a frontend-only pull request it runs about as long as
-# test-frontend, and its per-commit Next.js cache would churn the 10 GB GitHub
-# cache.
-# nightly.yml runs this workflow on development to keep the GitHub caches warm.
+# every job here except frontend-build and backend-lint. backend-lint sets the
+# pull request's wall-clock time: affected-package lint of ~220 packages took
+# 6-8 minutes on a hosted runner, full lint 2-3 minutes on Blacksmith.
+# frontend-build stays on Blacksmith: on a frontend-only pull request it runs
+# about as long as test-frontend, and its per-commit Next.js cache would churn
+# the 10 GB GitHub cache.
+# nightly.yml runs this workflow on development to keep the caches warm.
 
 jobs:
   error-code-registry:
@@ -75,9 +75,11 @@ jobs:
 
   backend-lint:
     if: ${{ inputs.run-backend }}
-    runs-on: ${{ inputs.full-backend && 'blacksmith-8vcpu-ubuntu-2404' || 'ubuntu-latest' }}
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
+    env:
+      GOLANGCI_LINT_CACHE: /home/runner/.cache/golangci-lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -85,11 +87,34 @@ jobs:
           # Package selection reads file names only; no file contents needed.
           filter: blob:none
       - name: Setup Go with cache
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
+      # golangci-lint type-checks from Go build cache export data; its own
+      # cache is only ~2 MB. setup-go's go.sum-only key is immutable and holds
+      # build.yml's binary build, so lint started cold. Keep a source-keyed
+      # layer with the last source build as a warm fallback, as test.yml does.
+      # The golangci-lint action's own cache key is also immutable per week.
+      - name: Compute backend lint cache key
+        id: lint-cache-key
+        env:
+          # lint.yml pins the golangci-lint version, so a bump starts a new cache.
+          LINT_CACHE_PREFIX: backend-lint-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum', '.github/workflows/lint.yml') }}-
+          LINT_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'backend/.golangci.yml') }}
+        run: |
+          echo "prefix=$LINT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$LINT_CACHE_PREFIX$LINT_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+      - name: Restore backend lint cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.lint-cache-key.outputs.key }}
+          restore-keys: ${{ steps.lint-cache-key.outputs.prefix }}
       - name: Select backend packages
         id: packages
         env:
@@ -107,6 +132,8 @@ jobs:
           version: v2.14.0
           args: --timeout 10m ${{ steps.packages.outputs.args }}
           working-directory: backend
+          # The step above owns the lint cache.
+          skip-cache: true
 
   frontend-quality:
     if: ${{ inputs.run-frontend }}
