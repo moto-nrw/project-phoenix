@@ -1,8 +1,18 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import StaffDetailContent from "./page";
+import { SWRConfig } from "~/lib/swr/testing";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import { staffKeys } from "~/lib/swr/staff-keys";
 
 // Echtes SWR mit dem globalen Cache (#4993): Der Test zählt die Abrufe, die
 // die Seite tatsächlich auslöst. Jeder Test nimmt eine eigene Personal-ID,
@@ -14,6 +24,8 @@ const server = vi.hoisted(() => ({
   firstName: "Mila",
   notes: null as string | null,
   requests: [] as string[],
+  recordPending: null as Promise<Response> | null,
+  profilePending: null as Promise<Response> | null,
 }));
 const { mockUpdateTeacher } = vi.hoisted(() => ({
   mockUpdateTeacher: vi.fn(
@@ -88,7 +100,9 @@ function respond(input: RequestInfo | URL): Promise<Response> {
   const path = new URL(raw, "http://localhost").pathname;
   server.requests.push(path);
   const detail = /^\/api\/staff\/(\d+)$/.exec(path);
+  if (detail && server.recordPending) return server.recordPending;
   const profile = /^\/api\/staff\/financial-profile\/(\d+)$/.exec(path);
+  if (profile && server.profilePending) return server.profilePending;
   const body = detail?.[1]
     ? { data: staffPayload(detail[1]) }
     : profile?.[1]
@@ -142,8 +156,102 @@ describe("StaffDetailContent: Personal-Datensatz (#4993)", () => {
     server.firstName = "Mila";
     server.notes = null;
     server.requests = [];
+    server.recordPending = null;
+    server.profilePending = null;
     window.scrollTo = vi.fn();
     vi.stubGlobal("fetch", vi.fn(respond));
+  });
+
+  it("zeigt den Listenkopf vor der Detailantwort, aber noch keine Kontofelder", async () => {
+    route.id = "104";
+    signIn(["users:read"]);
+    const cache = new Map();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SWRConfig value={{ provider: () => cache }}>{children}</SWRConfig>
+    );
+    const list = renderHook(
+      () =>
+        useSWRAuth(staffKeys.key(), async () => [
+          {
+            id: "104",
+            name: "Vorschau Person",
+            role: "Betreuung",
+            email: "mila@example.test",
+          },
+          { id: "105", name: "Zweite Person" },
+        ]),
+      { wrapper },
+    );
+    await waitFor(() => expect(list.result.current.data).toBeDefined());
+    list.unmount();
+    let finish!: (response: Response) => void;
+    server.recordPending = new Promise((resolve) => {
+      finish = resolve;
+    });
+    const detail = render(<StaffDetailContent />, { wrapper });
+    // Anker: Der echte Seitenkopf ist aus der Liste sichtbar.
+    expect(
+      screen.getByRole("heading", { name: "Vorschau Person" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("mila@example.test")).not.toBeInTheDocument();
+    await act(async () =>
+      finish(
+        new Response(JSON.stringify({ data: staffPayload("104") }), {
+          status: 200,
+        }),
+      ),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Mila Muster" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("mila@example.test")).toBeInTheDocument();
+    server.recordPending = new Promise(() => {});
+    route.id = "105";
+    detail.rerender(<StaffDetailContent />);
+    // Anker: Das zweite Objekt zeigt seinen Listenkopf, nicht die erste Akte.
+    expect(
+      screen.getByRole("heading", { name: "Zweite Person" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("mila@example.test")).not.toBeInTheDocument();
+  });
+
+  it("binds a limited-profile preview to the profile key and reserves missing context", async () => {
+    route.id = "106";
+    signIn(["staff:financial", "users:read"]);
+    const cache = new Map();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SWRConfig value={{ provider: () => cache }}>{children}</SWRConfig>
+    );
+    const list = renderHook(
+      () =>
+        useSWRAuth(staffKeys.key(), async () => [
+          { id: "106", name: "Profilvorschau" },
+        ]),
+      { wrapper },
+    );
+    await waitFor(() => expect(list.result.current.data).toBeDefined());
+    list.unmount();
+    server.profilePending = new Promise(() => {});
+    const view = render(<StaffDetailContent />, { wrapper });
+    expect(
+      screen.getByRole("heading", { name: "Profilvorschau" }),
+    ).toBeInTheDocument();
+    expect(
+      view.container.querySelector(".animate-pulse.h-4.w-56"),
+    ).toBeInTheDocument();
+    expect(server.requests).toContain("/api/staff/financial-profile/106");
+    const tools = renderHook(
+      () => useTenantMutateMatching([staffKeys.profileKey("106")]),
+      { wrapper },
+    );
+    await act(async () => tools.result.current({ clear: true }));
+    // Anker: das schmale Profil lädt weiter, ohne eine verworfene Vorschau zu zeigen.
+    expect(
+      screen.getByRole("heading", { name: "Mitarbeiter" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Profilvorschau" }),
+    ).not.toBeInTheDocument();
   });
 
   it("lädt GET /api/staff/{id} für Kopf und Konto-Reiter nur einmal", async () => {

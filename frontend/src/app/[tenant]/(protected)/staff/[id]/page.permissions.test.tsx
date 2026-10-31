@@ -107,6 +107,7 @@ vi.mock("~/lib/database/service-factory", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
+  useSWRSeedFrom: () => () => undefined,
   useTenantMutate: () => vi.fn(),
   useTenantMutateMatching: () => vi.fn(),
   useInvalidateMatching: () => vi.fn(),

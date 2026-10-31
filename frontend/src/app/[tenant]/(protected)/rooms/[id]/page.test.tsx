@@ -74,6 +74,7 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
+  useSWRSeedFrom: () => () => undefined,
   useTenantMutate: () => vi.fn(() => Promise.resolve()),
   useTenantMutateMatching: () => vi.fn(() => Promise.resolve()),
 }));
