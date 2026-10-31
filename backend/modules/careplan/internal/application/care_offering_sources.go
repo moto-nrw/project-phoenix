@@ -103,8 +103,9 @@ func (c *CareOfferingCatalog) LoadOfferingSources(ctx context.Context, offeringI
 // and rejects duplicate ids and mixed enrollment phases: the union's seeded
 // rows carry ONE phase, and a child holding offerings of two phases would
 // surface under two request-child tags. Per offering it must exist in the
-// tenant and be active, and the shared phase's service window must lie
-// within the calendar period (nil skips the period check). Every declaration
+// tenant and be active, and the shared phase's service window must overlap
+// the calendar period; it is clipped to that overlap (nil skips the period
+// check). Every declaration
 // path uses this guard, so no path can persist a source rule the others
 // would reject.
 //
@@ -294,9 +295,9 @@ func (c *CareOfferingCatalog) acceptOfferingSource(
 	return nil
 }
 
-// establishSourcePhase loads the phase of the first surviving offering. It
-// becomes the shared phase; the window check runs once since every later
-// offering must match it.
+// establishSourcePhase loads the phase of the first surviving offering,
+// clipped to the period. It becomes the shared phase; the window check runs
+// once since every later offering must match it.
 func (c *CareOfferingCatalog) establishSourcePhase(
 	ctx context.Context,
 	offering careplan.CareOffering,
@@ -310,14 +311,19 @@ func (c *CareOfferingCatalog) establishSourcePhase(
 		}
 		return careplan.OfferingPhase{}, fmt.Errorf("offering roster resync: load phase: %w", err)
 	}
-	if period != nil && !tolerateDrift {
-		if err := careplan.ValidatePhaseWithinPeriod(phase, period); err != nil {
-			return careplan.OfferingPhase{}, c.refuseSource(ports.OfferingSourceRefusal{
-				Kind: ports.OfferingSourceOutsidePeriod, Reason: err.Error(), Offering: offering.Name,
-			})
-		}
+	// The shared phase is clipped to the period's overlap, so every roster row
+	// a resync seeds stops where the period does. Only a phase without any
+	// overlap is refused; the detach fallback keeps it unclipped.
+	clipped, err := careplan.ClipPhaseToPeriod(phase, period)
+	if err == nil {
+		return clipped, nil
 	}
-	return phase, nil
+	if tolerateDrift {
+		return phase, nil
+	}
+	return careplan.OfferingPhase{}, c.refuseSource(ports.OfferingSourceRefusal{
+		Kind: ports.OfferingSourceOutsidePeriod, Reason: err.Error(), Offering: offering.Name,
+	})
 }
 
 // offeringPhaseName resolves a phase name for the mixed-phase error message;

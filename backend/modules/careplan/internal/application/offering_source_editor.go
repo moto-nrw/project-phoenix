@@ -152,9 +152,12 @@ func offeringSourceOption(
 	return option
 }
 
-// offeringSourcePhases returns the tenant's phases keyed by id, restricted to
-// those fitting the calendar period when one is given. The loaded period is
-// returned alongside so the caller can scope its child counts to it.
+// offeringSourcePhases returns the tenant's phases keyed by id. With a
+// calendar period it keeps only the phases overlapping it, each clipped to
+// the overlap the period can plan (careplan.ClipPhaseToPeriod), so the picker,
+// the gap and deviation checks and a save all judge a phase the same way. The
+// loaded period is returned alongside so the caller can scope its child
+// counts to it.
 func (m *BookingMaterialization) offeringSourcePhases(ctx context.Context, calendarPeriodID *int64) (map[int64]careplan.OfferingPhase, *careplan.LinkedPeriod, error) {
 	phases, err := m.deps.Enrollment.Phases(ctx)
 	if err != nil {
@@ -166,10 +169,11 @@ func (m *BookingMaterialization) offeringSourcePhases(ctx context.Context, calen
 	}
 	byID := make(map[int64]careplan.OfferingPhase, len(phases))
 	for _, phase := range phases {
-		if careplan.ValidatePhaseWithinPeriod(phase, period) != nil {
+		clipped, err := careplan.ClipPhaseToPeriod(phase, period)
+		if err != nil {
 			continue
 		}
-		byID[phase.ID] = phase
+		byID[phase.ID] = clipped
 	}
 	return byID, period, nil
 }

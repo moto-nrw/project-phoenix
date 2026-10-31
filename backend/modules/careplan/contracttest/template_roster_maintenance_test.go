@@ -303,11 +303,14 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *te
 	ctx := testpkg.Ctx(t)
 
 	source := createSourceOffering(t, env, "FeedAusserhalbZeitraum", nil)
+	// The period starts after the phase ends: no overlap. A phase that only
+	// reaches past the period is clipped and stays valid (see
+	// offering_source_period_overlap_test.go).
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName("feed-too-short"+"-"+
 		t.Name()),
 
-		calendar.Date(env.sourcePhase.ServiceStartDate),
-		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1),
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(30))
 	reader, ok := env.bookings.(careplan.OfferingSourceEditor)
 	require.True(t, ok)
 
