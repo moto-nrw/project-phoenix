@@ -79,14 +79,14 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 // vacation absences EARLIER in the same calendar year. Yesterday satisfies
 // both for all but the first days of January. There is deliberately no
 // previous-year fallback: the service only books takeovers into the running
-// vacation year, so in early January no usable Stichtag exists and the fixture
-// skips instead of exercising a case the service rejects by design.
+// vacation year, so in early January no usable Stichtag exists. The fixture
+// date is fixed, so that case is a broken fixture and fails.
 func openingCutoffDate(t *testing.T) calendar.Date {
 	t.Helper()
 	today := calendar.NewDate(2026, 8, 24)
 	cutoff := today.AddDays(-1)
 	if cutoff.Year() != today.Year() || calendar.NewDate(today.Year(), time.January, 1).DaysUntil(cutoff) < 5 {
-		t.Skip("no closed Stichtag with room for earlier absences in the current vacation year yet")
+		t.Fatal("fixture date leaves no closed Stichtag with room for earlier absences in its vacation year")
 	}
 	return cutoff
 }

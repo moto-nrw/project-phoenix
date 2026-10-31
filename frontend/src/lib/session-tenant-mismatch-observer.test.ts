@@ -214,3 +214,15 @@ describe("the tab's account on every request to its own BFF", () => {
     expect(getSessionMock).toHaveBeenCalledTimes(2);
   });
 });
+
+describe("session-end barrier in the fetch observer (#5399)", () => {
+  it("sends unchanged where no barrier is installed", async () => {
+    fetchMock.mockResolvedValue(new Response("{}"));
+    const { sessionEndBarrier } = await import("./session-end-state");
+    expect(sessionEndBarrier()).toBeNull();
+
+    await fetch("/api/me/profile");
+
+    expect(fetchMock.mock.calls[0]?.[1]?.signal).toBeUndefined();
+  });
+});

@@ -9,6 +9,15 @@ const { requestHeaders } = vi.hoisted(() => ({
 vi.mock("next/headers", () => ({
   headers: vi.fn(async () => requestHeaders.current),
 }));
+const { familyState } = vi.hoisted(() => ({
+  familyState: vi.fn<() => Promise<"live" | "ended" | "unknown">>(),
+}));
+
+// #5399: a snapshot needs a family Identity & Access confirms live.
+vi.mock("~/server/auth/token-validation", () => ({
+  portalOfScope: (scope: unknown) => scope,
+  sessionFamilyState: familyState,
+}));
 
 import { readCatererSessionSnapshot } from "./caterer-session-snapshot.server";
 import { readOperatorSessionSnapshot } from "./operator-session-snapshot.server";
@@ -114,9 +123,25 @@ async function sendPortalCookie(
 
 beforeEach(() => {
   requestHeaders.current = new Headers();
+  familyState.mockReset();
+  familyState.mockResolvedValue("live");
 });
 
 describe.each(PORTALS)("$name session snapshot", (portal) => {
+  it.each(["ended", "unknown"] as const)(
+    "leaves a session of a %s family to the session route (#5399)",
+    async (state) => {
+      await sendPortalCookie(portal);
+      familyState.mockResolvedValue(state);
+
+      await expect(portal.read()).resolves.toBeNull();
+      expect(familyState).toHaveBeenCalledWith(
+        ACCESS_TOKEN_PARTS.join("."),
+        portal.scope,
+      );
+    },
+  );
+
   it("returns the session from a valid cookie", async () => {
     await sendPortalCookie(portal);
 

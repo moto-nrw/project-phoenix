@@ -1,12 +1,6 @@
 import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { cache } from "react";
-import { cookies } from "next/headers";
-import { NextResponse } from "next/server";
-import {
-  getModifiedCookieValues,
-  type ResponseCookies,
-} from "next/dist/server/web/spec-extension/adapters/request-cookies";
 import { withServerSessionMutation } from "./session-mutation";
 import * as Sentry from "@sentry/nextjs";
 import type { NextAuthRequest, NextAuthResult } from "next-auth";
@@ -20,6 +14,10 @@ import {
   type SentryPortal,
 } from "~/lib/sentry-context";
 import { sessionAccountMismatchResponse } from "./session-account-check";
+import {
+  gateSessionCookieWrites,
+  takeJarSessionCookies,
+} from "./session-cookie-writes";
 import { withForcedSessionRenewal, type ServerSession } from "./shared";
 
 export type ResponseRouteHandler<Context = RouteContext> = (
@@ -102,10 +100,12 @@ export function createResponseAwareAuth(
     return current.freshSession;
   };
 
-  /** Capture Auth.js server-action cookies, including deletions and chunks.
-   * Next's mutable cookies are only fallbacks: handleAuth appends the old
-   * session afterwards. Commit the replacement explicitly after that wrapper.
-   * The pinned Next adapter retains options that cookies().getAll() omits.
+  /** Take Auth.js server-action session cookies, including deletions and
+   * chunks, out of Next's cookie jar. Left there, Next would append them
+   * after the route returned, past gateSessionCookieWrites (#5399); and as
+   * mere fallbacks they would lose against the old session that handleAuth
+   * appends. finishResponse commits the replacement after that wrapper and
+   * passes it through the gate.
    */
   const mutateSession = async <T>(
     action: () => Promise<T>,
@@ -116,14 +116,7 @@ export function createResponseAwareAuth(
       throw new Error("Session mutation requires a response context");
     const result = await withServerSessionMutation(action);
     if (!accepts(result)) throw new Error("Session mutation was refused");
-    const jar = await cookies();
-    const response = new NextResponse(null);
-    for (const cookie of getModifiedCookieValues(
-      jar as unknown as ResponseCookies,
-    )) {
-      response.cookies.set(cookie);
-    }
-    current.replacementCookies = response.headers.getSetCookie();
+    current.replacementCookies = await takeJarSessionCookies();
     if (!current.replacementCookies.length)
       throw new Error("Session mutation produced no cookies");
     return result;
@@ -183,10 +176,12 @@ export function createResponseAwareAuth(
       return finishResponse(response, current);
     };
 
-  function finishResponse(
+  async function finishResponse(
     response: Response,
     current: SessionContext,
-  ): Response {
+  ): Promise<Response> {
+    // Every authenticated BFF route of every portal leaves through here.
+    applyPrivateNoStore(response.headers);
     // Auth.js appends the outer session cookie after the route callback.
     // Append explicit retry cookies afterwards so the freshly rotated cookie
     // wins when multiple Set-Cookie headers use the same cookie name.
@@ -211,9 +206,10 @@ export function createResponseAwareAuth(
       for (const cookie of replacements)
         response.headers.append("Set-Cookie", cookie);
     }
-    // Every authenticated BFF route of every portal leaves through here.
-    applyPrivateNoStore(response.headers);
-    return response;
+    // The one exit of session cookies (#5399), together with the ones still
+    // in Next's cookie jar: never an unchanged re-encoding, an ended session
+    // or one whose family a logout revoked while this request ran.
+    return gateSessionCookieWrites(current.request, response);
   }
 
   /** Public session minting: capture server-action cookies without reading or

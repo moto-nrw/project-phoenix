@@ -88,6 +88,7 @@ const guards = [
   "src/app/api/proxy-routes.test.ts",
   "src/app/api/route-cache-policy.test.ts",
   "src/server/auth/route-handler-coverage.test.ts",
+  "src/app/api/auth/session-cookie-inventory.test.ts",
   "src/lib/app-route-invariants.test.ts",
   "src/lib/analytics-routes.test.ts",
   "src/lib/help-topics.test.ts",
@@ -99,6 +100,7 @@ const guards = [
   "src/components/ui/plan-design-guards.test.ts",
   "src/components/settings/settings-filter.test.ts",
   "src/components/school-setup/setup-tour-targets.test.ts",
+  "src/components/auth/session-end-barrier.test.tsx",
   "src/lib/hooks/use-sse.test.ts",
   "src/lib/service-worker.test.ts",
   "src/styles/moto-token-drift.test.ts",
@@ -243,8 +245,17 @@ const cacheGuards = mode === "guards" && !process.env.GITHUB_ACTIONS && process.
 const guardsRecord = cacheGuards && resolve(cwd, "..", git(["rev-parse", "--git-path", "test-frontend-guards.pass"]).trim());
 const key = cacheGuards && guardsKey();
 if (cacheGuards && existsSync(guardsRecord) && readFileSync(guardsRecord, "utf8") === key) {
-  console.log("==> vitest guards: same inputs as the last passing run, skipped (PHX_GUARDS_CACHE=off reruns)");
-  process.exit(0);
+  // A share of hits runs anyway (PHX_CACHE_VERIFY_RATE, default 0.05), so a
+  // key that misses an input fails visibly instead of passing silently.
+  const raw = process.env.PHX_CACHE_VERIFY_RATE;
+  const rate = raw === undefined || raw === "" ? 0.05 : Number(raw);
+  if (!(rate >= 0 && rate <= 1)) throw new Error("PHX_CACHE_VERIFY_RATE must be a number from 0 to 1");
+  if (Math.random() >= rate) {
+    console.log("==> vitest guards: same inputs as the last passing run, skipped (PHX_GUARDS_CACHE=off reruns)");
+    process.exit(0);
+  }
+  rmSync(guardsRecord, { force: true });
+  console.log("==> vitest guards: same inputs as the last passing run; running anyway to verify the cache. A failure here means the cache key misses an input: report it.");
 }
 console.log(`==> vitest ${mode}`);
 const selected = mode === "guards" ? [] : JSON.parse(

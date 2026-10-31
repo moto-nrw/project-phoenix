@@ -163,24 +163,26 @@ func TestStatusFlagClearDue(t *testing.T) {
 func TestCheckAndRunStatusFlagClear_SkipsOutsideEndOfDay(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
-	if statusFlagClearDue(time.Now()) {
-		t.Skip("running inside the end-of-day minute")
-	}
-	// db is deliberately nil here to prove the short-circuit: any attempted
-	// UPDATE would fail and clear nothing, but the settings would be read.
-	settings := &fakeStatusFlagSettings{
-		overrides: map[string]string{
-			"operations.sick_clear_mode":    "end_of_day",
-			"operations.excused_clear_mode": "end_of_day",
-		},
-	}
-	s := unitScheduler(&unitSchedulerDependencies{settings: settings})
+	// synctest fixes the clock at 2000-01-01 UTC, outside the end-of-day
+	// minute, so the case runs at every wall-clock time.
+	synctest.Test(t, func(t *testing.T) {
+		require.False(t, statusFlagClearDue(time.Now()))
+		// db is deliberately nil here to prove the short-circuit: any attempted
+		// UPDATE would fail and clear nothing, but the settings would be read.
+		settings := &fakeStatusFlagSettings{
+			overrides: map[string]string{
+				"operations.sick_clear_mode":    "end_of_day",
+				"operations.excused_clear_mode": "end_of_day",
+			},
+		}
+		s := unitScheduler(&unitSchedulerDependencies{settings: settings})
 
-	task := &ScheduledTask{Name: "status-flag-clear"}
-	s.checkAndRunStatusFlagClear(context.Background(), task)
-	assert.False(t, task.Running, "task should not be running")
-	_, present := s.lastStatusFlagClear.Load(int64(0))
-	assert.False(t, present, "no tenant may be marked as cleared outside the end-of-day minute")
+		task := &ScheduledTask{Name: "status-flag-clear"}
+		s.checkAndRunStatusFlagClear(context.Background(), task)
+		assert.False(t, task.Running, "task should not be running")
+		_, present := s.lastStatusFlagClear.Load(int64(0))
+		assert.False(t, present, "no tenant may be marked as cleared outside the end-of-day minute")
+	})
 }
 
 // TestRunStatusFlagClear_FiresBothModes — at the end of the day, with both
@@ -346,21 +348,22 @@ func TestRunStatusFlagClear_ArchiveFailureKeepsTheDayOpen(t *testing.T) {
 // statusFlagClearDue guard short-circuits before touching rows.
 func TestCheckAndRunStatusFlagClear_EndToEnd_DoesNothingWhenTimeDoesNotMatch(t *testing.T) {
 	t.Parallel()
-	if statusFlagClearDue(time.Now()) {
-		t.Skip("running inside the end-of-day minute")
-	}
-	archives := &statusFlagArchives{}
-	s := unitScheduler(&unitSchedulerDependencies{
-		studentStatusDayRepo: archives,
-		settings: &fakeStatusFlagSettings{
-			overrides: map[string]string{
-				"operations.sick_clear_mode":    "end_of_day",
-				"operations.excused_clear_mode": "end_of_day",
+	// synctest fixes the clock outside the end-of-day minute (see above).
+	synctest.Test(t, func(t *testing.T) {
+		require.False(t, statusFlagClearDue(time.Now()))
+		archives := &statusFlagArchives{}
+		s := unitScheduler(&unitSchedulerDependencies{
+			studentStatusDayRepo: archives,
+			settings: &fakeStatusFlagSettings{
+				overrides: map[string]string{
+					"operations.sick_clear_mode":    "end_of_day",
+					"operations.excused_clear_mode": "end_of_day",
+				},
 			},
-		},
-		logger: slog.Default()})
+			logger: slog.Default()})
 
-	s.checkAndRunStatusFlagClear(context.Background(), &ScheduledTask{Name: "status-flag-clear"})
+		s.checkAndRunStatusFlagClear(context.Background(), &ScheduledTask{Name: "status-flag-clear"})
 
-	assert.Empty(t, archives.calls, "no flag may be archived outside the end-of-day minute")
+		assert.Empty(t, archives.calls, "no flag may be archived outside the end-of-day minute")
+	})
 }
