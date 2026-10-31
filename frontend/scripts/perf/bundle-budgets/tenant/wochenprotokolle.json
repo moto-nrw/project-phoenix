@@ -1,0 +1,14 @@
+{
+  "format": "moto-bundle-budget/v1",
+  "_doc": "Genehmigte komprimierte Client-JS-Budgets. Referenz und Obergrenze sind Policy, keine laufenden Messwerte. Initial aus der bisherigen CI-Baseline mit unveränderter Toleranz (2 % oder 10 KiB) übernommen. Erhöhungen und neue Routen benötigen ein begründetes Review. Wochenprotokolle (#4769): lokal gemessen (925847 / 924605 Bytes, macOS) und mit dem Verhältnis Linux/macOS von /[tenant]/day-log hochgerechnet.",
+  "routes": {
+    "/[tenant]/wochenprotokolle": {
+      "referenceBytes": 954154,
+      "maxBytes": 973237
+    },
+    "/[tenant]/wochenprotokolle/[protocolId]": {
+      "referenceBytes": 952874,
+      "maxBytes": 971931
+    }
+  }
+}

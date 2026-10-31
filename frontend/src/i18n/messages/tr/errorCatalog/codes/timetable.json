@@ -134,6 +134,10 @@
   "template_weekend": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "too_many_dates": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "understaffed_still_staffed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "week_protocol_not_closed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "week_protocol_not_draft": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "week_protocol_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "week_protocol_notes_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "window_end_before_start": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "window_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
 }

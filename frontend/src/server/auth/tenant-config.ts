@@ -28,6 +28,9 @@ import {
 } from "./shared";
 
 export const tenantAuthConfig = {
+  // Keep session minting and every BFF reader on the validated application
+  // secret instead of relying on Auth.js process-environment inference.
+  secret: env.NEXTAUTH_SECRET,
   providers: [
     DiscordProvider,
     CredentialsProvider({

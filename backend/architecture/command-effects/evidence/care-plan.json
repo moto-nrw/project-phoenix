@@ -793,6 +793,30 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "ad2275e7e18d506e2e8c50b1ebac3483",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "612303696cc2c79ec9975e19a69f327f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.ListEnded",
       "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.ListEnded",
@@ -2247,6 +2271,30 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChangeDependencies.Today",
       "target_owner": ""
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "49b7b1e2078d7672183c8bc9c2886972",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "ad2275e7e18d506e2e8c50b1ebac3483",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "binding_digest": "612303696cc2c79ec9975e19a69f327f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding.masterDataDirectory.FindStudents",
@@ -5657,8 +5705,8 @@
       "target_owner": "audit-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
-      "binding_digest": "3a587bdb139363c30ed7326bb0590745",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
+      "binding_digest": "d5d70a2681e3724a795af2869aa2855f",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/http.ReportRenderer.RenderReport",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",

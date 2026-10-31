@@ -7414,6 +7414,26 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceBetween",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence/internal/application.Service.MorningAttendanceBetween; modules/studentpresence/internal/application/morning_attendance.go:14. May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceBetween",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/studentpresence.Owner.MorningAttendanceBetween; modules/studentpresence.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim. Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
       "classification": "query",
       "effect": "query",
@@ -9772,6 +9792,46 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.RunWeekProtocolEvening",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/schoolstructure.Capability.ListGroups (school-structure) through modules/timetable.Owner.RunWeekProtocolEvening. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.RunWeekProtocolEvening",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through modules/timetable.Owner.RunWeekProtocolEvening. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.RunWeekProtocolEvening",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/schoolstructure.Owner.ListGroups (school-structure) through modules/timetable.Owner.RunWeekProtocolEvening. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.RunWeekProtocolEvening",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through modules/timetable.Owner.RunWeekProtocolEvening. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.UpdateActivityInstance",
       "classification": "leaf",
@@ -10859,6 +10919,46 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.RunWeekProtocolEvening",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/schoolstructure.Capability.ListGroups (school-structure) through modules/timetable/internal/application.Service.RunWeekProtocolEvening. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.RunWeekProtocolEvening",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through modules/timetable/internal/application.Service.RunWeekProtocolEvening. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.RunWeekProtocolEvening",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/schoolstructure.Owner.ListGroups (school-structure) through modules/timetable/internal/application.Service.RunWeekProtocolEvening. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.RunWeekProtocolEvening",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through modules/timetable/internal/application.Service.RunWeekProtocolEvening. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
     },
     {
       "adr": "0067",
@@ -13929,6 +14029,36 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAttendance.GroupDayAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/presenceprojection/http.Resource.GroupDayLogs (presence-legacy-view) through api.weekProtocolAttendance.GroupDayAttendance. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
+      "target_owner": "presence-legacy-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolSeedAttendance.GroupDayAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
+      "reason": "Read-only development seed adapter: timetable-activities reaches modules/presenceprojection/http.Resource.GroupDayLogs (presence-legacy-view) through api.weekProtocolSeedAttendance.GroupDayAttendance. It reads the current day while the local seed records sample data for Sunday; no persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
+      "target_owner": "presence-legacy-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolRenderer.RenderReport",
+      "reason": "Read-only target: timetable-activities renders the PDF of a closed weekly protocol (#4769), by hand or automatically, through modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) via roots/owners.RecordReports.RenderReport; Timetable stores the returned bytes in its own table. No persistent, lock or scope effect in the target.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
+      "target_owner": "document-rendering"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
       "classification": "query",
       "effect": "query",
@@ -15805,6 +15935,70 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.SchoolDayHintQuery.ListSchoolDayHints",
       "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAccessLog.RecordWeekProtocolAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolAccessLog.RecordWeekProtocolAccess",
+      "reason": "Platform protocol participation (mutation): timetable-activities reaches modules/auditlog/compose.Command.Append (audit-platform) through api.weekProtocolAccessLog.RecordWeekProtocolAccess. #4769: every opening of a weekly protocol or its PDF appends one data access log entry in the school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAccessLog.RecordWeekProtocolAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolAccessLog.RecordWeekProtocolAccess",
+      "reason": "Platform protocol participation (mutation): timetable-activities reaches modules/auditlog/records.AppendStore.Append (audit-platform) through api.weekProtocolAccessLog.RecordWeekProtocolAccess. #4769: every opening of a weekly protocol or its PDF appends one data access log entry in the school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAccessLog.RecordWeekProtocolAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolAccessLog.RecordWeekProtocolAccess",
+      "reason": "Platform protocol participation (mutation): timetable-activities reaches modules/auditlog/records.Command.Append (audit-platform) through api.weekProtocolAccessLog.RecordWeekProtocolAccess. #4769: every opening of a weekly protocol or its PDF appends one data access log entry in the school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAccessLog.RecordWeekProtocolAccess",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolAccessLog.RecordWeekProtocolAccess",
+      "reason": "Platform protocol participation (mutation): timetable-activities reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through api.weekProtocolAccessLog.RecordWeekProtocolAccess. #4769: every opening of a weekly protocol or its PDF appends one data access log entry in the school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.HasCurrentStaff",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolCaller.HasCurrentStaff",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/identityaccess.CallerContext.HasCurrentStaff (identity-access) through roots/owners.CallerRows.HasCurrentStaff. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.HasCurrentStaff",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.MyGroupIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolCaller.MyGroupIDs",
+      "reason": "Read-only newly exposed target: timetable-activities reaches modules/identityaccess.CallerContext.MyGroupIDs (identity-access) through roots/owners.CallerRows.MyGroupIDs. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.MyGroupIDs",
+      "target_owner": "identity-access"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.CurrentPersonName",

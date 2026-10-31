@@ -134,6 +134,10 @@
   "template_weekend": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "too_many_dates": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "understaffed_still_staffed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "week_protocol_not_closed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "week_protocol_not_draft": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "week_protocol_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "week_protocol_notes_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "window_end_before_start": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "window_too_large": "Не вдалося зберегти: {object}. Перевірте введені дані."
 }

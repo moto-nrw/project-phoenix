@@ -885,6 +885,30 @@
       "legacy": "understaffed_still_staffed"
     },
     {
+      "code": "timetable.week_protocol_not_closed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.week_protocol_not_closed"
+    },
+    {
+      "code": "timetable.week_protocol_not_draft",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.week_protocol_not_draft"
+    },
+    {
+      "code": "timetable.week_protocol_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.week_protocol_not_found"
+    },
+    {
+      "code": "timetable.week_protocol_notes_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "timetable.week_protocol_notes_invalid"
+    },
+    {
       "code": "timetable.window_end_before_start",
       "class": "input",
       "parameters": [],

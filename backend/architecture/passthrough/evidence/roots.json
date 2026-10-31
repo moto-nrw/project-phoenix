@@ -618,6 +618,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (l classDayAccessLog) RecordAbsenceList(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassAbsenceList, entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "api/classDayAccessLog.RecordAbsenceList",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l classDayAccessLog) RecordAbsenceListExport(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassAbsenceListExport, entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "api/classDayAccessLog.RecordAbsenceListExport",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (l classDayAccessLog) RecordClassDayView(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassDayView, entry))\n}",
       "form": "unclassified-evidence",
       "id": "api/classDayAccessLog.RecordClassDayView",
@@ -1559,6 +1573,13 @@
       "evidence": "func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {\n\tids, err := s.organizations.ListTraegerSchoolIDs(ctx, organizationID)\n\tif errors.Is(err, organizationtenancy.ErrOrganizationInactive) || errors.Is(err, organizationtenancy.ErrOrganizationNotFound) {\n\t\treturn nil, traegerview.ErrTraegerUnavailable\n\t}\n\treturn ids, err\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerSchoolIDs.ListTraegerSchoolIDs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a weekProtocolSeedAttendance) GroupDayAttendance(ctx context.Context, _ calendar.Date, groupIDs []int64) ([]timetableModule.WeekProtocolGroupDay, error) {\n\treturn a.source.GroupDayAttendance(ctx, a.today(), groupIDs)\n}",
+      "form": "unclassified-evidence",
+      "id": "api/weekProtocolSeedAttendance.GroupDayAttendance",
       "owner": "roots"
     },
     {

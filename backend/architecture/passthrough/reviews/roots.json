@@ -442,6 +442,16 @@
     },
     {
       "decision": "0090",
+      "id": "api/classDayAccessLog.RecordAbsenceList",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "api/classDayAccessLog.RecordAbsenceListExport",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "api/classDayAccessLog.RecordClassDayView",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -1114,6 +1124,11 @@
       "decision": "0090",
       "id": "api/traegerSchoolIDs.ListTraegerSchoolIDs",
       "reason": "#4657: root translation of a deactivated, deleted or unknown Träger at Organisation \u0026 Tenancy onto the Träger projection's ErrTraegerUnavailable, which ends the Träger session with 401."
+    },
+    {
+      "decision": "0090",
+      "id": "api/weekProtocolSeedAttendance.GroupDayAttendance",
+      "reason": "The development-only seed adapter reads the current day from the live attendance projection while recording its sample data on Sunday, so the local seed can demonstrate draft and PDF states without weakening the production projection."
     },
     {
       "decision": "0090",

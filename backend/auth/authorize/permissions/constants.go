@@ -124,6 +124,9 @@ const (
 
 	// Special group actions
 	GroupsAssign = ResourceGroups + ":assign"
+	// GroupsManage is the full control over groups the leadership holds;
+	// the weekly protocols (#4769) read it as the leadership's reach.
+	GroupsManage = ResourceGroups + ":" + ActionManage
 )
 
 // Feedback permissions

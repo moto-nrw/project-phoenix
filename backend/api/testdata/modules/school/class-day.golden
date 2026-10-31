@@ -5,6 +5,8 @@ DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId} -> 
 DELETE /school/class-day/handover/{schoolClass}/{date} -> unterricht_vormittag
 DELETE /school/class-day/homework/{schoolClass}/{homeworkId} -> unterricht_vormittag
 GET /school/class-day/ -> unterricht_vormittag
+GET /school/class-day/absence-list -> unterricht_vormittag
+GET /school/class-day/absence-list/export -> unterricht_vormittag
 GET /school/class-day/arrival-exceptions -> unterricht_vormittag
 GET /school/class-day/arrival-exceptions/block-start -> unterricht_vormittag
 GET /school/class-day/classes -> unterricht_vormittag

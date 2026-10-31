@@ -46,7 +46,7 @@ type ResourceConfig struct {
 	SettingsService         TenantSettings
 	StudentConsents         StudentConsentCapability
 	StudentHistoryService   studentpresence.StudentHistory
-	StudentStatusDayService studentpresence.StatusDays
+	StudentStatusDayService studentpresence.StatusDayReads
 	UserContextService      CallerContext
 	CompareSchoolClasses    func(string, string) int
 	CompareGermanNames      func(string, string, string, string) int

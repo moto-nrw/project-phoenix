@@ -199,6 +199,7 @@ export const STAFF_NAV_CONCEPTS: Readonly<Record<string, MotoConceptKey>> = {
   "/dienstplan": "staffPlan",
   "/vertretung": "substitution",
   "/lists": "lists",
+  "/wochenprotokolle": "weekProtocols",
   "/calendar-periods": "calendarPeriods",
   "/payroll": "payroll",
 };

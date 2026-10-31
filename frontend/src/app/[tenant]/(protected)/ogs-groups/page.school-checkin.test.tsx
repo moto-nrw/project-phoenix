@@ -172,6 +172,7 @@ Object.defineProperty(window, "localStorage", {
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: () => false,
   hasEffectiveAdminScope: () => false,
+  hasPermission: () => false,
   isCaregiver: () => true,
   hasRole: (_: unknown, r: string) => r === "user",
 }));

@@ -260,7 +260,7 @@ export const FEATURES = Object.freeze([
   },
   {
     name: 'Abwesenheiten',
-    pages: { ogs: ['/absences'] },
+    pages: { ogs: ['/absences'], school: ['/fehlzeiten'] },
     events: ['absence_reported', 'absence_request_submitted', 'arrival_exception_changed', 'class_trip_reported'],
   },
   {
@@ -283,7 +283,7 @@ export const FEATURES = Object.freeze([
   },
   {
     name: 'Tagesplan und Tagesinfos',
-    pages: { ogs: ['/tagesplan', '/tagesinformationen', '/day-log', '/betreuungsplan', '/planung', '/timetables'], school: ['/tagesinformationen'] },
+    pages: { ogs: ['/tagesplan', '/tagesinformationen', '/day-log', '/betreuungsplan', '/planung', '/timetables', '/wochenprotokolle', '/wochenprotokolle/:protocolId'], school: ['/tagesinformationen'] },
   },
   {
     name: 'Kalender und Speiseplan',

@@ -95,6 +95,9 @@ const (
 	DeletionTypeAppointmentTombstoneRetention = "appointment_tombstone_retention"
 	DeletionTypeGradeTransitionRetention      = "grade_transition_retention"
 	DeletionTypeRemovedFileRetention          = "removed_file_retention"
+	// The weekly protocols of the groups (#4769), with their days, after the
+	// school's attendance window counted from the week's Sunday.
+	DeletionTypeWeekProtocolRetention = "week_protocol_retention"
 	// The surveys (#4781) after the school's parent and staff message windows.
 	DeletionTypeParentSurveyRetention = "parent_survey_retention"
 	DeletionTypeStaffSurveyRetention  = "staff_survey_retention"
@@ -151,6 +154,7 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeRemovedFileRetention,
 		DeletionTypeParentSurveyRetention,
 		DeletionTypeStaffSurveyRetention,
+		DeletionTypeWeekProtocolRetention,
 		DeletionTypeAuthEventRetention,
 		DeletionTypeDataAccessLogRetention,
 		DeletionTypeDeletionLogRetention,
