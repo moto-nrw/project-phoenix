@@ -38,6 +38,7 @@ function OperatorDevicesPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
@@ -59,12 +60,12 @@ function OperatorDevicesPageContent() {
     error: schoolDevicesError,
     isLoading: schoolDevicesLoading,
   } = useSWRAuth(
-    isAuthenticated && selectedSchool
-      ? operatorProvisioningKeys.schoolDevices(selectedSchool.id)
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolDevices(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolDevices(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolDevices(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -75,12 +76,12 @@ function OperatorDevicesPageContent() {
     error: orgDevicesError,
     isLoading: orgDevicesLoading,
   } = useSWRAuth(
-    isAuthenticated && filterOrgId && !selectedSchool
+    isAuthenticated && filterOrgId && !urlSchoolId
       ? operatorProvisioningKeys.orgDevices(filterOrgId)
       : null,
     () => operatorProvisioningService.listOrganizationDevices(filterOrgId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -91,12 +92,12 @@ function OperatorDevicesPageContent() {
     error: allDevicesError,
     isLoading: allDevicesLoading,
   } = useSWRAuth(
-    isAuthenticated && !filterOrgId && !selectedSchool
+    isAuthenticated && !filterOrgId && !urlSchoolId
       ? operatorProvisioningKeys.allDevices()
       : null,
     () => operatorProvisioningService.listAllDevices(),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },

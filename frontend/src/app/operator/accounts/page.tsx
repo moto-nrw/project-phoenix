@@ -36,6 +36,7 @@ function OperatorAccountsPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
@@ -69,12 +70,12 @@ function OperatorAccountsPageContent() {
     error: schoolAccountsError,
     isLoading: schoolAccountsLoading,
   } = useSWRAuth(
-    isAuthenticated && selectedSchool
-      ? operatorProvisioningKeys.schoolAccounts(selectedSchool.id)
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolAccounts(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolAccounts(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolAccounts(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -85,12 +86,12 @@ function OperatorAccountsPageContent() {
     error: orgAccountsError,
     isLoading: orgAccountsLoading,
   } = useSWRAuth(
-    isAuthenticated && filterOrgId && !selectedSchool
+    isAuthenticated && filterOrgId && !urlSchoolId
       ? operatorProvisioningKeys.orgAccounts(filterOrgId)
       : null,
     () => operatorProvisioningService.listOrganizationAccounts(filterOrgId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -101,12 +102,12 @@ function OperatorAccountsPageContent() {
     error: allAccountsError,
     isLoading: allAccountsLoading,
   } = useSWRAuth(
-    isAuthenticated && !filterOrgId && !selectedSchool
+    isAuthenticated && !filterOrgId && !urlSchoolId
       ? operatorProvisioningKeys.allAccounts()
       : null,
     () => operatorProvisioningService.listAllAccounts(),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },

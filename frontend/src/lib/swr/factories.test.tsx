@@ -88,7 +88,9 @@ describe("shared resource factories", () => {
           expect(result.current.reader.data).toEqual({ name: scope }),
         );
         expect(result.current.key).toBe(
-          `${scope || "tenant"}:42:account-7:${factory.key()}`,
+          scope === "platform"
+            ? `operator:account-7:${factory.key()}`
+            : `${scope || "tenant"}:42:account-7:${factory.key()}`,
         );
         unmount();
       }

@@ -30,6 +30,7 @@ function OperatorPersonsPageContent() {
     activeOrganizations,
     filterOrgId,
     selectedSchool,
+    urlSchoolId,
     filteredSchools,
     handleOrgFilterChange,
     handleSchoolFilterChange,
@@ -46,12 +47,12 @@ function OperatorPersonsPageContent() {
     isLoading: schoolPersonsLoading,
     mutate: mutateSchoolPersons,
   } = useSWRAuth(
-    isAuthenticated && selectedSchool
-      ? operatorProvisioningKeys.schoolPersons(selectedSchool.id)
+    isAuthenticated && urlSchoolId
+      ? operatorProvisioningKeys.schoolPersons(urlSchoolId)
       : null,
-    () => operatorProvisioningService.listSchoolPersons(selectedSchool!.id),
+    () => operatorProvisioningService.listSchoolPersons(urlSchoolId),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
