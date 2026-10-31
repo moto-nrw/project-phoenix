@@ -112,11 +112,25 @@ func (r ManualPlanningReader) CourseGroupsForOfferings(ctx context.Context, offe
 
 func timetableCourseGroup(group timetable.CourseGroup) carePlanCompose.CourseGroup {
 	return carePlanCompose.CourseGroup{
-		ID: group.ID, Active: group.Active, ParticipantLimit: group.ParticipantLimit(),
+		ID: group.ID, Name: group.Name, Active: group.Active, ParticipantLimit: group.ParticipantLimit(),
 		ScheduledWeekdays:   append([]int(nil), group.ScheduledWeekdays...),
 		SourceGradeLevels:   append([]int(nil), group.SourceGradeLevels...),
 		SourceSchoolClasses: append([]string(nil), group.SourceSchoolClasses...),
 	}
+}
+
+// CourseGroupsByID reads the AGs by id through the Timetable owner's
+// course-group read, without a lock.
+func (r ManualPlanningReader) CourseGroupsByID(ctx context.Context, groupIDs []int64, effectiveOn calendar.Date) ([]carePlanCompose.CourseGroup, error) {
+	groups, err := timetable.CourseGroupsByID(ctx, r.CourseGroups, groupIDs, effectiveOn)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanCompose.CourseGroup, 0, len(groups))
+	for _, group := range groups {
+		result = append(result, timetableCourseGroup(group))
+	}
+	return result, nil
 }
 
 func (r ManualPlanningReader) LockCourseGroups(ctx context.Context, groupIDs []int64) ([]carePlanCompose.CourseGroup, error) {

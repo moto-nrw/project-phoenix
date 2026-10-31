@@ -14,3 +14,12 @@ func (m *Service) StudentCarePeriods(ctx context.Context, studentID int64) ([]*e
 	}
 	return m.store.StudentCarePeriods(ctx, studentID)
 }
+
+// StudentCarePeriodsByStudentIDs reads approved care periods for a set of
+// students in one tenant-scoped query.
+func (m *Service) StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]*enrollment.StudentCarePeriod, error) {
+	if err := m.transactions.RequireTransaction(ctx); err != nil {
+		return nil, err
+	}
+	return m.store.StudentCarePeriodsByStudentIDs(ctx, studentIDs)
+}

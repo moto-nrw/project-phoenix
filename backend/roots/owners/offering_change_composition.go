@@ -292,7 +292,23 @@ func (e offeringChangeEnrollment) StudentCarePeriods(ctx context.Context, studen
 	result := make([]carePlanCompose.OfferingCarePeriod, 0, len(periods))
 	for _, period := range periods {
 		result = append(result, carePlanCompose.OfferingCarePeriod{
-			RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
+			StudentID: studentID, RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
+			PhaseName: period.PhaseName, ServiceStart: period.ServiceStartDate, ServiceEnd: period.ServiceEndDate,
+			TargetGradeLevel: period.TargetGradeLevel, TargetSchoolClass: period.TargetSchoolClass,
+		})
+	}
+	return result, nil
+}
+
+func (e offeringChangeEnrollment) StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]carePlanCompose.OfferingCarePeriod, error) {
+	periods, err := enrollmentOwner.StudentCarePeriodRecordsByStudentIDs(ctx, e.owner, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanCompose.OfferingCarePeriod, 0, len(periods))
+	for _, period := range periods {
+		result = append(result, carePlanCompose.OfferingCarePeriod{
+			StudentID: period.StudentID, RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
 			PhaseName: period.PhaseName, ServiceStart: period.ServiceStartDate, ServiceEnd: period.ServiceEndDate,
 			TargetGradeLevel: period.TargetGradeLevel, TargetSchoolClass: period.TargetSchoolClass,
 		})

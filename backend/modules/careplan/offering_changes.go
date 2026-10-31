@@ -246,6 +246,10 @@ type OfferingChangeRequests interface {
 	// MarkDone closes a request whose effective date has passed without
 	// applying it.
 	MarkDone(ctx context.Context, requestID int64, expectedVersion, reason string, reviewedBy int64) error
+	// CourseWaitlists lists the AGs open requests wait for on the given day,
+	// each with its ranked queue (#4767). A positive activityGroupID reads
+	// that one AG, also while nobody waits for it.
+	CourseWaitlists(ctx context.Context, activityGroupID int64, on calendar.Date) ([]CourseWaitlist, error)
 }
 
 // OfferingConflictCandidate is a pending request the parent-request conflict

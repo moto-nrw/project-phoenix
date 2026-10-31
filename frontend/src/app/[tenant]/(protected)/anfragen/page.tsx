@@ -7,6 +7,10 @@ import { redirect } from "next/navigation";
 import type { DateRange } from "react-day-picker";
 
 import { AggregatedRequestList } from "~/components/students/aggregated-request-list";
+import {
+  CourseWaitlistOverview,
+  CourseWaitlistProvider,
+} from "~/components/students/course-waitlist";
 import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
 import { StaffAbsenceRequestList } from "~/components/staff/staff-absence-request-list";
 import { RequestFeedDialog } from "~/components/students/request-feed-dialog";
@@ -14,7 +18,10 @@ import type { StaffAbsenceRequestFilters } from "~/components/staff/staff-absenc
 import { PickupExtensionAccessProvider } from "~/components/timetable/pickup-extension-access";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { errorAlertActions } from "~/components/ui/form-error-alert";
+import {
+  errorAlertActions,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type {
   ActiveFilter,
@@ -31,6 +38,11 @@ import { useChangeRequestAccess } from "~/lib/hooks/use-change-request-access";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTimetableEnabled } from "~/lib/tenant-context";
+import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
+import type { CourseWaitlist } from "~/lib/course-waitlist-helpers";
+import { useSWRAuth } from "~/lib/swr";
+
+const NO_WAITLISTS: readonly CourseWaitlist[] = [];
 
 type AnfragenTabId = "eltern" | "mitarbeitende";
 
@@ -528,18 +540,64 @@ function ElternTab({
   // einer späteren Abholzeit direkt nach dem Termin gefragt (#3261).
   const canPlanBlocks =
     timetableEnabled && hasPermission(session, "schedules:manage");
+  // Warteliste je AG (#4767): wer Angebotsanfragen entscheidet, sieht den
+  // Platz des Kindes und den Hinweis, wenn ein Platz frei wird.
+  const showWaitlists =
+    view === "open" && hasPermission(session, "users:update");
+  const waitlistsSWR = useSWRAuth(
+    showWaitlists ? "course-waitlists" : null,
+    () => fetchCourseWaitlists(),
+  );
+  const waitlistLoadError = useSwrLoadError(
+    waitlistsSWR.error,
+    "die Wartelisten der AGs",
+    () => waitlistsSWR.mutate(),
+  );
+  const refreshWaitlists = useCallback(() => {
+    void waitlistsSWR.mutate();
+  }, [waitlistsSWR]);
+  const waitlists = waitlistsSWR.data ?? NO_WAITLISTS;
+  // „Zur Anfrage“ in der Warteliste öffnet das Kind in der Liste darunter.
+  const [focusRequest, setFocusRequest] = useState<{
+    studentId: string;
+    requestId: string;
+    nonce: number;
+  } | null>(null);
+  const openRequest = useCallback((studentId: string, requestId: string) => {
+    setFocusRequest((current) => ({
+      studentId,
+      requestId,
+      nonce: (current?.nonce ?? 0) + 1,
+    }));
+  }, []);
   return (
-    <div className="w-full">
+    <div className="flex w-full flex-col gap-4">
+      {showWaitlists && waitlistLoadError && (
+        <LoadErrorAlert error={waitlistLoadError} actionLayout="responsive" />
+      )}
+      {showWaitlists && (
+        <CourseWaitlistOverview
+          waitlists={waitlists}
+          onOpenRequest={openRequest}
+        />
+      )}
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
-      <PickupExtensionAccessProvider value={canPlanBlocks}>
-        <AggregatedRequestList
-          key={view}
-          view={view}
-          filters={filters}
-          onCountChange={onCountChange}
-        />
-      </PickupExtensionAccessProvider>
+      <CourseWaitlistProvider
+        waitlists={waitlists}
+        refresh={refreshWaitlists}
+        openRequestId={focusRequest?.requestId ?? null}
+      >
+        <PickupExtensionAccessProvider value={canPlanBlocks}>
+          <AggregatedRequestList
+            key={view}
+            view={view}
+            filters={filters}
+            onCountChange={onCountChange}
+            focusRequest={focusRequest}
+          />
+        </PickupExtensionAccessProvider>
+      </CourseWaitlistProvider>
     </div>
   );
 }
