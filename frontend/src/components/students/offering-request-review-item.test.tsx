@@ -145,6 +145,25 @@ describe("OfferingRequestReviewItem", () => {
     expect(screen.getByText("Mo, Di")).toBeInTheDocument();
   });
 
+  it("marks a course line in German, not with a raw message key", () => {
+    renderItem(
+      request({
+        diff: [
+          {
+            offering_id: "6",
+            label: "Theater-AG",
+            old: "nicht gebucht",
+            new: "alle Betreuungstage",
+            is_course: true,
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Kurs")).toBeInTheDocument();
+    expect(screen.getByText("Theater-AG:")).toBeInTheDocument();
+  });
+
   it("approves the request and reports the notice", async () => {
     mockDecide.mockResolvedValue(undefined);
     const onDecided = vi.fn();

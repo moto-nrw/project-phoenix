@@ -3,7 +3,6 @@
 import type { ErrorCode } from "~/lib/error-codes.generated";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useLayoutEffect, useRef, useState } from "react";
-import { useTranslations } from "next-intl";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -142,7 +141,6 @@ export function OfferingRequestReviewItem({
   decisionDisabledReason?: string;
   approveReasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
   // Eine Entscheidung verschiebt die Warteliste der AG (#4767).
   const refreshWaitlists = useCourseWaitlistRefresh();
   const { show: showError } = useApiErrorDisplay();
@@ -487,10 +485,10 @@ export function OfferingRequestReviewItem({
               >
                 <span className="text-xs text-gray-500">{entry.label}: </span>
                 {/* Eine Kursanfrage sieht sonst aus wie jede andere
-                    Angebotsänderung (#3075). */}
-                {entry.is_course && (
-                  <StatusBadge tone="green" label={t("courses.title")} />
-                )}
+                    Angebotsänderung (#3075). Das Mitarbeiterportal ist
+                    deutsch und lädt die Eltern-Texte nicht: der Schlüssel
+                    stand dort roh im Badge (#4767). */}
+                {entry.is_course && <StatusBadge tone="green" label="Kurs" />}
                 {entry.automatic && (
                   <StatusBadge tone="blue" label="Automatisch mitgebucht" />
                 )}
