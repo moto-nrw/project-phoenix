@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -450,5 +451,5 @@ func TestCourseWaitlistsQueryBudget(t *testing.T) {
 
 	t.Logf("1 request → %d statements, 4 requests over 2 AGs → %d statements", len(small), len(large))
 	assert.Len(t, large, len(small), "the statement count must not grow with the queue")
-	testpkg.AssertQueryBudget(t, "api.students.course_waitlists.list", large)
+	querybudgets.AssertQueryBudget(t, "api.students.course_waitlists.list", large)
 }
