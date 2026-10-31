@@ -12409,7 +12409,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetableprojection/compose.New; modules/timetableprojection/compose/compose.go:5. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed after the group-specific excluded-student map was added: read/value/construction method with no owned-row mutation or locking read at this terminal. Target modules/timetableprojection/compose.New; modules/timetableprojection/compose/compose.go:5. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose.New",
       "target_owner": "timetable-legacy-view"
@@ -12419,7 +12419,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/timetableprojection/internal/adapters/postgres.Reader.CountActiveCourseEnrollments; modules/timetableprojection/internal/adapters/postgres/projection.go:77. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed after the group-specific excluded-student map was added: read/value/construction method with no owned-row mutation or locking read at this terminal. Target modules/timetableprojection/internal/adapters/postgres.Reader.CountActiveCourseEnrollments; modules/timetableprojection/internal/adapters/postgres/projection.go:77. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetableprojection/internal/adapters/postgres.Reader.CountActiveCourseEnrollments",
       "target_owner": "timetable-legacy-view"
@@ -12429,7 +12429,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
-      "reason": "Read-only newly exposed target: care-plan reaches modules/transactionruntime/compose.Database.Pool (transaction-runtime) through roots/owners.ManualPlanningReader.CountActiveCourseEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Reviewed after the group-specific excluded-student map was added: care-plan reaches modules/transactionruntime/compose.Database.Pool (transaction-runtime) through roots/owners.ManualPlanningReader.CountActiveCourseEnrollments. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose.Database.Pool",
       "target_owner": "transaction-runtime"
