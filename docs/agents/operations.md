@@ -385,6 +385,31 @@ Mailpit. Delete that directory to force fresh logins; it is local credential
 state and must not be uploaded. Keep the same working directory between seed
 and simulation commands.
 
+## Shared machine resources
+
+Several agent sessions, worktrees and their dev servers share one machine.
+These mistakes damage another session's work, not your own:
+
+1. **Stopping by pattern.** `pkill -f`, `pgrep … | xargs kill`, `killall` and
+   killing whatever holds a port match by name, path or port. Your own agent's
+   command line contains your worktree path, and other sessions run the same
+   tools. Stop a PID you captured when you started it, or a listener whose
+   working directory you checked (`lsof -a -p <pid> -d cwd`) is your worktree.
+   `scripts/dev-native.sh down` stops only its own PID files.
+2. **Shared state.** The Git stash stack belongs to every worktree: no bare
+   `git stash`/`git stash pop`. The test database server on `TEST_DB_PORT` is
+   shared on purpose; tests isolate through clones and run IDs, so never drop
+   its databases or stop it while other runs may use it. Never run
+   `docker compose down -v`, `docker volume rm` or `docker * prune` for a
+   Compose project that is not your worktree's.
+3. **Shared ports.** Every linked worktree gets its own frontend, backend,
+   Postgres and Mailpit ports: `wt add` leases them, and
+   `scripts/worktree-ports.sh` (run by `scripts/dev-native.sh` and
+   `devbox run bootstrap`) assigns a stable slot from the worktree path when a
+   worktree still has the main checkout's defaults. It also moves `localhost`
+   URLs in `.env`, `backend/dev.env` and `frontend/.env.local` that still name a
+   default port. The main checkout keeps 3000/8080.
+
 ## Cleanup CLI
 
 Run these inside the server container; use the documented dry-run shape before
