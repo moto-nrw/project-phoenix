@@ -24,12 +24,13 @@ env:
   GOTOOLCHAIN: local
 
 # Runners: standard GitHub runners are free for this public repository and run
-# every job here except frontend-build and backend-lint. backend-lint sets the
-# pull request's wall-clock time: affected-package lint of ~220 packages took
-# 6-8 minutes on a hosted runner, full lint 2-3 minutes on Blacksmith.
-# frontend-build stays on Blacksmith: on a frontend-only pull request it runs
-# about as long as test-frontend, and its per-commit Next.js cache would churn
-# the 10 GB GitHub cache.
+# every job here except frontend-build and backend-lint. Blacksmith bills per
+# vCPU-minute, so a larger runner pays off on the job that sets the pull
+# request's wall-clock time, or where it cuts the job's time in half or more.
+# frontend-build sets it for frontend pull requests: eight vCPUs took 142 s
+# instead of 185 s. Its per-commit Next.js cache would also churn the 10 GB
+# GitHub cache. backend-lint took 6-8 minutes on a hosted runner; a cold full
+# lint took 195 s on four vCPUs and 101 s on eight, at the same cost.
 # nightly.yml runs this workflow on development to keep the caches warm.
 
 jobs:
@@ -213,7 +214,7 @@ jobs:
 
   frontend-build:
     if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: blacksmith-8vcpu-ubuntu-2404
     permissions:
       contents: read
     env:
