@@ -1,5 +1,7 @@
 {
   "no_school_portal_role": "Nie masz dostępu do: {object}. Skontaktuj się ze szkołą.",
   "setup_completed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "setup_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "setup_incomplete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "parent_conference_slot_taken": "Ten termin został właśnie zajęty. Proszę wybrać inną godzinę.",
+  "parent_conference_change_closed": "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem."
 }

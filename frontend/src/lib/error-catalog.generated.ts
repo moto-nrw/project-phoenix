@@ -863,6 +863,10 @@ export const ERROR_CATALOG = {
         "Diesen Raum gibt es nicht mehr. Bitte wählen Sie ihn in der Liste neu aus.",
       "rooms.not_released":
         "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
+      "school.parent_conference_change_closed":
+        "Bis 24 Stunden vor dem Termin können Sie buchen, umbuchen oder absagen. Danach wenden Sie sich bitte direkt an die Lehrkraft.",
+      "school.parent_conference_slot_taken":
+        "Dieser Termin ist gerade vergeben worden. Bitte wählen Sie eine andere Uhrzeit.",
       "school.setup_completed":
         "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
       "school.setup_incomplete":
@@ -1921,6 +1925,10 @@ export const ERROR_CATALOG = {
         "The fee cannot be calculated for these weeks. Please reload the page.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
+      "school.parent_conference_change_closed":
+        "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
+      "school.parent_conference_slot_taken":
+        "Someone has just booked this time. Please choose another time.",
       "staff.exit_already_due":
         "The last working day is over. The exit is already running and can no longer be changed.",
       "staff.exit_day_in_past":
@@ -2359,6 +2367,10 @@ export const ERROR_CATALOG = {
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
+      "school.parent_conference_change_closed":
+        "Записаться, перенести или отменить встречу можно не позднее чем за 24 часа. После этого обратитесь, пожалуйста, напрямую к учителю.",
+      "school.parent_conference_slot_taken":
+        "Это время только что заняли. Пожалуйста, выберите другое время.",
       "students.care_exception_raced":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
@@ -2771,6 +2783,10 @@ export const ERROR_CATALOG = {
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
+      "school.parent_conference_change_closed":
+        "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
+      "school.parent_conference_slot_taken":
+        "Kjo orë sapo u rezervua. Ju lutemi zgjidhni një orë tjetër.",
       "students.care_exception_raced":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
@@ -3172,6 +3188,10 @@ export const ERROR_CATALOG = {
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
+      "school.parent_conference_change_closed":
+        "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem.",
+      "school.parent_conference_slot_taken":
+        "Ten termin został właśnie zajęty. Proszę wybrać inną godzinę.",
       "students.care_exception_raced":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
@@ -3577,6 +3597,10 @@ export const ERROR_CATALOG = {
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
+      "school.parent_conference_change_closed":
+        "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin.",
+      "school.parent_conference_slot_taken":
+        "Bu saat az önce başkası tarafından alındı. Lütfen başka bir saat seçin.",
       "students.care_exception_raced":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
@@ -3975,6 +3999,10 @@ export const ERROR_CATALOG = {
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
+      "school.parent_conference_change_closed":
+        "Забронювати, перенести або скасувати зустріч можна не пізніше ніж за 24 години. Після цього зверніться, будь ласка, безпосередньо до вчителя.",
+      "school.parent_conference_slot_taken":
+        "Цей час щойно забронювали. Будь ласка, виберіть інший час.",
       "students.care_exception_raced":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":

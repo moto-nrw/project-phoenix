@@ -62,6 +62,11 @@ func (rs *Resource) mountCalendarRoutes(r chi.Router) {
 	r.Get("/me/calendar/feed", rs.calendarFeedURL)
 	r.Post("/me/calendar/feed/rotate", rs.rotateCalendarFeed)
 	r.Post("/me/calendar/recipients/{recipientId}/response", rs.respondToCalendarInvitation)
+	// Elternsprechtag (#4801): the coming days of the child's class, and
+	// booking, moving or cancelling the child's slot.
+	r.Get("/me/children/{studentId}/parent-conferences", rs.listChildParentConferences)
+	r.Put("/me/children/{studentId}/parent-conferences/{conferenceId}/booking", rs.bookChildParentConference)
+	r.Delete("/me/children/{studentId}/parent-conferences/{conferenceId}/booking", rs.cancelChildParentConference)
 }
 
 func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {

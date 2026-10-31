@@ -12,6 +12,11 @@ import (
 // TombstoneRetentionDays after the cancellation (DeleteFeedTombstonesBefore).
 type AppointmentRetention interface {
 	DeleteExpiredAppointments(ctx context.Context, retentionDays int) (int, error)
+	// DeleteParentConferenceAppointmentsBefore deletes the appointments of
+	// Elternsprechtag bookings (#4801) that start before cutoff, cancelled
+	// ones included: when the school year ends, its bookings end, and the
+	// calendar keeps nothing of them.
+	DeleteParentConferenceAppointmentsBefore(ctx context.Context, cutoff Date) (int, error)
 }
 
 // Owner is the whole Appointments owner surface: the Capability and the

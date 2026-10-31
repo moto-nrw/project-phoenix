@@ -94,6 +94,10 @@ const (
 	// Schulverwaltung in moto schule that a child of one of their classes was
 	// reported sick or excused for today (#4792).
 	TypeSchoolClassAbsenceReported = "school_class_absence_reported"
+	// TypeSchoolParentConferenceBooking tells a Lehrkraft in moto schule that
+	// a family booked, moved or cancelled a slot at her Elternsprechtag
+	// (#4801). The calendar produces it under the same key.
+	TypeSchoolParentConferenceBooking = "school_parent_conference_booking"
 	// TypeSchoolUnreportedAbsence tells the Schulverwaltung in moto schule
 	// how many children the Lehrkräfte marked absent this morning without a
 	// report (#4791). It names no child.
@@ -500,5 +504,16 @@ func registerSchoolTypes() {
 		Permission:  permissionClassDayAbsenceReportWrite,
 		DefaultOn:   true,
 		SortOrder:   2,
+	})
+
+	// No school gate: the Lehrkraft offered the day herself and decides
+	// here whether her phone rings for its bookings.
+	RegisterType(TypeDefinition{
+		Key:         TypeSchoolParentConferenceBooking,
+		Label:       "Buchungen am Elternsprechtag",
+		Description: "Wenn Eltern einen Termin an Ihrem Elternsprechtag buchen, verschieben oder absagen.",
+		Group:       GroupAppointments,
+		Portal:      PortalSchool,
+		SortOrder:   1,
 	})
 }
