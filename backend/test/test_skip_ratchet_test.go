@@ -85,6 +85,7 @@ func TestTestSkipRatchetFindsSkipsOnTestHandlesOnly(t *testing.T) {
 import "testing"
 
 func TestWeekend(t *testing.T) {
+	t.Parallel()
 	t.Run("sub", func(t *testing.T) { t.Skip("weekend") })
 }
 
