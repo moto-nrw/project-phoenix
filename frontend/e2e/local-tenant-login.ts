@@ -1,6 +1,13 @@
 import { expect, type BrowserContext, type Page } from "@playwright/test";
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -125,15 +132,71 @@ export async function loginToLocalTenant(
     .update(JSON.stringify([origin, credentials.email, credentials.password]))
     .digest("hex");
   const path = join(cacheDirectory, `${key}.json`);
+  if (await restoreSession(page, origin, cacheDirectory, path)) return;
+  // Parallel workers share one account, and the backend sends at most three
+  // MFA codes per account in fifteen minutes. On a cold cache one worker logs
+  // in while the others wait and then reuse its session.
+  mkdirSync(cacheDirectory, { recursive: true, mode: 0o700 });
+  await withLoginLock(`${path}.lock`, async () => {
+    if (await restoreSession(page, origin, cacheDirectory, path)) return;
+    await loginThroughUI(page, origin, credentials);
+    saveSession(cacheDirectory, path, await page.context().cookies(origin));
+  });
+}
+
+async function restoreSession(
+  page: Page,
+  origin: string,
+  cacheDirectory: string,
+  path: string,
+): Promise<boolean> {
   const cached = readSession(path);
-  if (cached) {
-    await page.context().addCookies(cached);
-    if (await hasSession(page, origin)) {
-      await page.goto(`${origin}/`, { waitUntil: "domcontentloaded" });
-      saveSession(cacheDirectory, path, await page.context().cookies(origin));
-      return;
+  if (!cached) return false;
+  await page.context().addCookies(cached);
+  if (!(await hasSession(page, origin))) return false;
+  await page.goto(`${origin}/`, { waitUntil: "domcontentloaded" });
+  saveSession(cacheDirectory, path, await page.context().cookies(origin));
+  return true;
+}
+
+async function withLoginLock(
+  lock: string,
+  run: () => Promise<void>,
+): Promise<void> {
+  for (;;) {
+    try {
+      mkdirSync(lock);
+      break;
+    } catch (error) {
+      if (!(
+        error instanceof Error &&
+        "code" in error &&
+        error.code === "EEXIST"
+      ))
+        throw error;
     }
+    let age: number;
+    try {
+      age = Date.now() - statSync(lock).mtimeMs;
+    } catch {
+      continue;
+    }
+    // A worker torn down mid-login leaves its lock; a login takes seconds.
+    if (age > 60_000) rmSync(lock, { recursive: true, force: true });
+    else await new Promise((resolve) => setTimeout(resolve, 250));
   }
+  try {
+    await run();
+  } finally {
+    rmSync(lock, { recursive: true, force: true });
+  }
+}
+
+async function loginThroughUI(
+  page: Page,
+  origin: string,
+  credentials: Credentials,
+): Promise<void> {
   await page.goto(`${origin}/`, { waitUntil: "domcontentloaded" });
   await page.waitForSelector('input[type="email"]', { timeout: 30_000 });
   await page.fill('input[type="email"]', credentials.email);
@@ -174,5 +237,4 @@ export async function loginToLocalTenant(
       throw new Error("Test-Login hat noch keine vollständige Sitzung.");
     }
   }).toPass({ timeout: 30_000, intervals: [250, 500] });
-  saveSession(cacheDirectory, path, await page.context().cookies(origin));
 }
