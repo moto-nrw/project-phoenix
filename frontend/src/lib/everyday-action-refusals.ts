@@ -72,6 +72,11 @@ export const MEAL_PARTICIPATION_REFUSALS: readonly ErrorCode[] = [
   "general.permission",
   "care.child_not_linked",
 ];
+// On GET this code confirms lost read access, rather than a write-only limit.
+export const MEAL_PARTICIPATION_READ_REFUSALS: readonly ErrorCode[] = [
+  ...MEAL_PARTICIPATION_REFUSALS,
+  "care.guardian_permission_denied",
+];
 export const MEAL_PARTICIPATION_RECHECK: readonly ErrorCode[] = [
   "care.guardian_permission_denied",
 ];

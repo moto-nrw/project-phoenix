@@ -357,6 +357,108 @@ afterEach(() => {
   resetSWRScope({ revalidate: false });
 });
 
+it("clears the current session after checkout and permits another check-in", async () => {
+  mocks.current.mockResolvedValue(opened);
+  const closed = { ...opened, checkOutTime: new Date().toISOString() };
+  mocks.checkOut.mockResolvedValue(closed);
+  mocks.checkIn.mockResolvedValue({ ...opened, id: "session-2" });
+  const { result, unmount } = renderHook(
+    () => {
+      const reader = useSWRAuth<WorkSession | null>(
+        timeTrackingKeys.current(),
+        mocks.current,
+      );
+      return {
+        reader,
+        action: useOptimisticStamp(reader.data, reader.mutate, "2026-09-09"),
+      };
+    },
+    { wrapper: Wrapper },
+  );
+  await waitFor(() => expect(result.current.reader.data).toEqual(opened));
+  await act(async () => {
+    const outcome = await result.current.action.stamp(null);
+    expect(outcome).toEqual({ status: "done", result: closed });
+  });
+  expect(result.current.reader.data).toBeNull();
+  expect(result.current.action.data).toBeNull();
+  await act(async () => {
+    await result.current.action.stamp("present");
+  });
+  expect(result.current.reader.data?.id).toBe("session-2");
+  expect(mocks.checkIn).toHaveBeenCalledOnce();
+  expect(mocks.current).toHaveBeenCalledOnce();
+  unmount();
+});
+
+it.each([
+  ["care.guardian_permission_denied", true],
+  ["care.child_not_linked", true],
+  ["general.permission", true],
+  ["general.unavailable", false],
+  ["identity.session_account_mismatch", false],
+] as const)(
+  "handles a revalidation rejected with %s after a refused write",
+  async (code, refused) => {
+    const { result, unmount } = renderHook(
+      () => ({
+        current: useMealParticipation(
+          "1",
+          "child-1",
+          "2026-09-07",
+          "2026-10-02",
+        ),
+        otherRange: useMealParticipation(
+          "1",
+          "child-1",
+          "2026-09-14",
+          "2026-10-02",
+        ),
+        otherChild: useMealParticipation(
+          "1",
+          "child-2",
+          "2026-09-07",
+          "2026-10-02",
+        ),
+      }),
+      { wrapper: Wrapper },
+    );
+    await waitFor(() => {
+      expect(result.current.current.data).toEqual(meals);
+      expect(result.current.otherRange.data).toEqual(meals);
+      expect(result.current.otherChild.data).toEqual(meals);
+    });
+    const error = new ApiError("diag", 403, { code });
+    mocks.day.mockRejectedValue(
+      new ApiError("diag", 403, { code: "care.guardian_permission_denied" }),
+    );
+    mocks.meals.mockImplementation(() =>
+      Promise.reject(new ApiError("diag", 403, { code })),
+    );
+    await act(async () => {
+      await result.current.current.saveDay("2026-09-09", true);
+    });
+    await waitFor(() => expect(result.current.current.error).toEqual(error));
+    if (refused) {
+      await waitFor(() => {
+        expect(result.current.current.data).toBeUndefined();
+        expect(result.current.otherRange.data).toBeUndefined();
+      });
+      await act(async () => {
+        expect(
+          await result.current.current.saveDay("2026-09-09", true),
+        ).toEqual({ status: "discarded" });
+      });
+      expect(mocks.day).toHaveBeenCalledOnce();
+    } else {
+      expect(result.current.current.data).toEqual(meals);
+      expect(result.current.otherRange.data).toEqual(meals);
+    }
+    expect(result.current.otherChild.data).toEqual(meals);
+    unmount();
+  },
+);
+
 for (const scenario of cases) {
   describe(scenario.name, () => {
     async function setup() {

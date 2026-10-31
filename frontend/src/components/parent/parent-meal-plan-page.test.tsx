@@ -616,6 +616,69 @@ describe("ParentMealPlanPage", () => {
     });
   });
 
+  it("hides participation and the open editor when the follow-up read denies access", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getChildMealPlan.mockResolvedValue([
+      { date: mocks.today, position: 0, dish: "Gemüse-Reis", note: "" },
+    ]);
+    mocks.getMealParticipation.mockResolvedValueOnce({
+      weekdays: [1],
+      cutoff_time: "09:00",
+      model: "ongoing_single",
+      schedule_changeable: true,
+      sick_cancels_after_deadline: false,
+      days: [
+        {
+          date: mocks.today,
+          participating: false,
+          regular_participating: false,
+          source: "none",
+          changeable: true,
+          can_register: true,
+          can_cancel: true,
+          register_until: "2026-08-12T15:00:00+02:00",
+          cancel_until: "2026-08-12T15:00:00+02:00",
+        },
+      ],
+    });
+    const denied = new ApiError("diag", 403, {
+      code: "care.guardian_permission_denied",
+    });
+    mocks.getMealParticipation.mockRejectedValue(denied);
+    mocks.replaceMealParticipationSchedule.mockRejectedValue(denied);
+    render(<ParentMealPlanPage />);
+    // Anker: Die Teilnahmedaten sind vor dem Rechteentzug geladen.
+    await screen.findByText("Nicht zum Mittagessen angemeldet");
+    fireEvent.click(screen.getByRole("button", { name: "Ändern" }));
+    expect(
+      screen.getByRole("checkbox", { name: "Dienstag" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("checkbox", { name: "Dienstag" }),
+      ).not.toBeInTheDocument(),
+    );
+    // Anker: Der Speiseplan und der Ladefehler bleiben sichtbar, nicht die Teilnahmedaten.
+    expect(screen.getByText("Gemüse-Reis")).toBeInTheDocument();
+    expect(screen.getAllByRole("alert").length).toBeGreaterThan(0);
+    expect(
+      screen.queryByText("Nicht zum Mittagessen angemeldet"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Ändern" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Speichern" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps dishes and participation visible while a saved day revalidates", async () => {
     mocks.getChildFeatures.mockResolvedValue({
       meal_plan_enabled: true,

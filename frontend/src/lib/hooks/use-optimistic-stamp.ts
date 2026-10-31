@@ -58,7 +58,8 @@ export function useOptimisticStamp(
               ? timeTrackingService.checkIn(status)
               : timeTrackingService.checkIn(status, reason),
         commit: (saved) => {
-          void mutate(saved, { revalidate: false });
+          // The current-session reader contains only an active work block.
+          void mutate(status === null ? null : saved, { revalidate: false });
         },
         refusal: {
           codes: STAMP_REFUSALS,

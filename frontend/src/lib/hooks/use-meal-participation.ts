@@ -1,10 +1,12 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useSWRAuth } from "~/lib/swr";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { parentKeys } from "~/lib/swr/parent-keys";
 import {
+  MEAL_PARTICIPATION_READ_REFUSALS,
   MEAL_PARTICIPATION_RECHECK,
   MEAL_PARTICIPATION_REFUSALS,
   needsRecheck,
@@ -27,6 +29,7 @@ export function useMealParticipation(
   to: string,
   asOf = from,
 ) {
+  const discard = useDiscardRefusedEntity();
   const key = parentKeys.mealParticipation(schoolId, studentId, from, to, asOf);
   const reader = useSWRAuth(
     key,
@@ -36,6 +39,16 @@ export function useMealParticipation(
       revalidateOnFocus: false,
     },
   );
+  useEffect(() => {
+    // Discard after SWR stores the read error, so the refusal stays visible.
+    discard(reader.error, {
+      codes: MEAL_PARTICIPATION_READ_REFUSALS,
+      matches: (candidate) =>
+        candidate.startsWith(
+          parentKeys.mealParticipationFamily(schoolId, studentId),
+        ),
+    });
+  }, [discard, reader.error, schoolId, studentId]);
   const action = useOptimisticAction(key, reader.data);
   const inFlight = useRef(false);
   async function change<R>(
