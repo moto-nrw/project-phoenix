@@ -1,10 +1,14 @@
 "use client";
 
+import { isParentMessagingDisabled } from "~/lib/parent-messages-api";
+
 import { messageKeys } from "~/lib/swr/portal-keys";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
+import { GROUP_THREAD_SEND_REFUSALS } from "~/lib/message-send-refusals";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -17,6 +21,7 @@ import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import {
@@ -46,13 +51,41 @@ function GroupMessageContent() {
   const params = useParams();
   const threadId = params.groupThreadId as string;
   const { tenant } = useTenant();
-  const messagingEnabled = tenant?.messagingEnabled === true;
+  const flagSaysEnabled = tenant?.messagingEnabled === true;
+  const { switchedOff, markSwitchedOff } = useSwitchedOffWhileOpen(
+    flagSaysEnabled,
+    threadId,
+  );
+  const messagingEnabled = flagSaysEnabled && !switchedOff;
 
-  const { data, error, isLoading, mutate } = useSWRAuth<GroupThreadDetail>(
+  const {
+    data: confirmed,
+    error: readerError,
+    isLoading,
+    mutate,
+  } = useSWRAuth<GroupThreadDetail>(
     messageKeys.groupMessage(threadId),
     () => fetchGroupThread(threadId),
     { keepPreviousData: false, revalidateOnFocus: false },
   );
+  // Eine weitere Nachricht steht sofort im Verlauf (#5011), markiert, bis
+  // die Antwort sie bestätigt oder ihr Fehlschlag sie als nicht gesendet
+  // zeigt.
+  const sendAction = useOptimisticAction(
+    messageKeys.groupMessage(threadId),
+    confirmed,
+  );
+  const data = sendAction.data;
+  // Lehnt der Server beim Senden die Gruppennachricht ab, ist sie verworfen
+  // (#5011). Die Ablehnung steht dann dort, wo sie fehlt, bis ein neuer
+  // Abruf wieder Daten liefert.
+  const [refusal, setRefusal] = useState<{
+    readonly id: string;
+    readonly error: unknown;
+  }>();
+  const error =
+    readerError ??
+    (data || refusal?.id !== threadId ? undefined : refusal.error);
   const loadError = useSwrLoadError(error, "die Gruppennachricht", mutate);
 
   // Group-thread broadcasts deliberately omit the thread id from staff events,
@@ -66,7 +99,7 @@ function GroupMessageContent() {
   });
 
   const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
+  const sending = sendAction.pending;
   const sendError = useApiFormError();
   const [confirmClose, setConfirmClose] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -74,25 +107,49 @@ function GroupMessageContent() {
 
   const send = async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    if (!body || sending || !messagingEnabled) return;
     sendError.clear();
-    setSending(true);
-    try {
-      const next = await postGroupMessage(threadId, body);
-      setDraft("");
-      await mutate(next, { revalidate: false });
-    } catch (err) {
-      logger.error("group_message_send_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void sendError.show(err, { object: "die Nachricht" });
-    } finally {
-      setSending(false);
+    // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
+    sendAction.dismiss();
+    setDraft("");
+    const outcome = await sendAction.run({
+      optimistic: (current, { id }) => ({
+        ...current,
+        messages: [
+          ...current.messages,
+          { id, sender_name: "", body, created_at: "" },
+        ],
+      }),
+      request: () => postGroupMessage(threadId, body),
+      commit: (next) => void mutate(next, { revalidate: false }),
+      keepFailed: true,
+      refusal: {
+        codes: GROUP_THREAD_SEND_REFUSALS,
+        matches: (key) =>
+          key === messageKeys.groupMessage(threadId) ||
+          key === messageKeys.groupMessages(),
+      },
+    });
+    if (outcome.status !== "failed") return;
+    const err = outcome.error;
+    // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
+    setDraft((current) => (current === "" ? body : current));
+    logger.error("group_message_send_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    if (outcome.refused) {
+      setRefusal({ id: threadId, error: err });
+      return;
     }
+    if (isParentMessagingDisabled(err)) {
+      markSwitchedOff();
+      return;
+    }
+    void sendError.show(err, { object: "die Nachricht" });
   };
 
   const close = async () => {
-    if (closing) return;
+    if (closing || !messagingEnabled) return;
     setClosing(true);
     try {
       const next = await closeGroupThread(threadId);
@@ -103,6 +160,10 @@ function GroupMessageContent() {
         error: err instanceof Error ? err.message : String(err),
       });
       setConfirmClose(false);
+      if (isParentMessagingDisabled(err)) {
+        markSwitchedOff();
+        return;
+      }
       void showActionError(err, {
         object: "die Gruppennachricht",
         retry: () => setConfirmClose(true),
@@ -115,6 +176,19 @@ function GroupMessageContent() {
   const showSkeleton =
     (isLoading && !data) ||
     (Boolean(error) && !data && formErrorMessage(loadError) === null);
+
+  const seedFrom = useSWRSeedFrom();
+  const preview = useMemo(
+    () =>
+      showSkeleton
+        ? seedFrom(
+            messageKeys.groupMessages(),
+            messageKeys.groupMessage(threadId),
+            (source: unknown) => messageKeys.groupPreview(source, threadId),
+          )
+        : undefined,
+    [seedFrom, showSkeleton, threadId],
+  );
 
   if (!showSkeleton && !data) {
     return (
@@ -140,7 +214,7 @@ function GroupMessageContent() {
 
   return (
     <TenantPage
-      title={thread?.title ?? "Gruppennachricht"}
+      title={thread?.title ?? preview?.name ?? "Gruppennachricht"}
       {...GROUPS_BACK}
       stats={stats}
       statsLoading={showSkeleton}
@@ -177,6 +251,7 @@ function GroupMessageContent() {
               own
               senderName={message.sender_name}
               createdAt={message.created_at}
+              pending={sendAction.stateOf(message.id)}
             />
           ))}
         </div>

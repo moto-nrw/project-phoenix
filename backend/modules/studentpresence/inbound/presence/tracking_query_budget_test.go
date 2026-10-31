@@ -16,6 +16,7 @@ import (
 	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 func init() { testutil.SeedTestJWTConfig() }
@@ -89,5 +90,5 @@ func TestTrackingIndicatorsIssuesOneSettingValuesQuery(t *testing.T) {
 	assert.Equal(t, []string{"Bibliothek"}, resp.Data.Labels,
 		"empty label keys must still be skipped by the per-key reads")
 	// Toggle + three label keys must share one config.setting_values query.
-	testpkg.AssertQueryBudget(t, "api.active.tracking_indicators.setting_values", queries)
+	querybudgets.AssertQueryBudget(t, "api.active.tracking_indicators.setting_values", queries)
 }

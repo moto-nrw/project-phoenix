@@ -159,6 +159,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "system_announcement_immutable"
+    },
+    {
+      "code": "communication.parent_messaging_disabled",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "communication.parent_messaging_disabled"
     }
   ]
 }

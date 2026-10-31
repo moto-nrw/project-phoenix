@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -541,5 +542,5 @@ func TestGetStudentWeek_QueryBudget_BatchedNotNPlusOne(t *testing.T) {
 	statements := counter.Operation("SELECT")
 	t.Logf("14-day /week fired %d statements (%d including transaction control)",
 		len(statements), counter.Total())
-	testpkg.AssertQueryBudget(t, "api.timetable.student_week.14d", statements)
+	querybudgets.AssertQueryBudget(t, "api.timetable.student_week.14d", statements)
 }

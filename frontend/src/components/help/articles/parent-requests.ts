@@ -43,6 +43,10 @@ export function parentRequestsTopic(groupMode: HelpGroupMode): HelpTopic {
       "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
       // #5137: Klassen-Regeltermine holen das Kind wieder herein.
       "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Nur so fehlt das Kind dauerhaft.",
+      // #4767: Warteliste je AG; Nachrücken ist die normale Freigabe.
+      "Fragen Eltern einen Platz in einer vollen AG an? Dann zeigt die Anfrage zum Beispiel `Warteliste Platz 2`. Die älteste Anfrage ist zuerst dran.",
+      "Oben steht die Karte `Wartelisten`. Sie zeigt je AG die belegten Plätze und die wartenden Kinder in Reihenfolge. `Zur Anfrage` öffnet die Anfrage des Kindes.",
+      "Ist in einer AG ein Platz frei, steht dort `Platz frei` und beim ersten Kind `Als Nächstes dran`. Wählen Sie bei seiner Anfrage `Freigeben`, dann rückt es nach.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
       // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
       // Freigabe haengen koennte.

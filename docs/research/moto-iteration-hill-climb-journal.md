@@ -236,11 +236,260 @@ Lock, der Test wartet bis zu einer Minute darauf; Assertions unverändert.
 Nachher grün nach 7,1 s Wartezeit. PR #5404. Offen in #5395: der
 lastabhängige `mfa status unavailable` und die feste E-Mail bei `-count>1`.
 
+### Runde 10: Gewichtetes Heavy-Gate und Rest von #5395
+
+Nach Freigabe des Nutzers hat `~/bin/agent-heavy` jetzt 4 Einheiten: Standard-Jobs
+belegen 2, `--light` 1. Wartet ein schwerer Job länger als 20 s, sperrt er neue
+leichte Zulassungen. 7 Verhaltenstests (isoliertes State-Verzeichnis), dreimal
+grün; die alte Version scheitert an 5. Die globalen Agent-Anweisungen nennen
+`--light` für mittlere Jobs. Nicht nachgemessen: Wartezeiten mit dem neuen Gate.
+
+#5395: Die feste E-Mail-Adresse brach `-count>1` (duplicate key), behoben in
+#5410. `mfa status unavailable` ließ sich nicht reproduzieren: zwei gleichzeitige
+Läufe des ganzen `api`-Pakets aus zwei Worktrees, bei Last 6 und bei Last 38
+(14 CPU-Burner), jeweils grün.
+
+### Runde 11: Seed und CI-Pfad, kein billiger Hebel
+
+Seed auf dem nativen Stack, je mit vorherigem `migrate reset` (6 bis 9 s):
+
+| Lauf | Seed s | Last |
+| --- | ---: | --- |
+| alle vier Profile | 106,0 / 89,4 | 10 / 5 |
+| nur `vollbetrieb` | 88,5 / 81,0 | 9 / 5 |
+
+Der Seeder arbeitet sequenziell über die HTTP-API: rund 4 600 Requests pro Lauf;
+die Summe der Server-Latenzen entspricht der Wandzeit. Größter Posten
+`manual-approved-enrollments` mit 291 ms pro Aufruf, etwa 17 s pro Lauf.
+Hypothese Seed-Cache geprüft: `pg_dump` der geseedeten DB 0,4 s (3,4 MB),
+`pg_restore` 4,3 s. Verworfen trotz 20-facher Beschleunigung: 36 von 361
+Worktrees wurden in 7 Tagen geseedet, etwa 5 Seeds pro Tag; ein Cache gilt nur
+für denselben Berliner Tag, dieselbe Backend-Revision und dieselben Env-Schlüssel
+und braucht Rollen vor dem Restore. Ersparnis wenige Minuten pro Tag.
+
+CI-Pfad (15 grüne PR-Läufe von `main.yml`): Zuletzt fertig wurden `backend-lint`
+(bis 524 s, Schritt `golang ci lint` 193 s im Mittel, 476 s maximal),
+`Seed & simulate smoke` (bis 337 s), `CI and release script suites` (bis 259 s)
+und `frontend-build` (bis 211 s). Der Lint-Cache wird bereits in #5409 (anderer
+Autor, am 31.10. gemergt) angegangen. Der Restore-Shard (167 s) läuft nur bei
+Änderungen an Backup-, Release- oder Workflow-Dateien. Der Seed-Smoke ist ein
+bewusster Integrationstest. Kein Eingriff.
+
+### Runde 12: Query-Budget-Register als eigenes Paket
+
+Frequenz statt Einzelbefehl: 83 von 383 gemergten Backend-PRs der letzten 14
+Tage änderten Produktionsdateien von `backend/test`, 157 Mal eine Datei unter
+`test/query-budgets/`. Das Register war per `//go:embed` Teil des Pakets `test`.
+Jede Budget-Änderung baute deshalb alle 174 Importeure neu und wählte sie aus,
+obwohl nur 40 Pakete `AssertQueryBudget` aufrufen.
+
+- Hypothese: Ein eigenes Paket neben den JSON-Dateien beschränkt Auswahl und
+  Test-Cache-Invalidierung auf die Budget-Aufrufer.
+- Zielmetrik: Laufzeit und CPU von `test-changed.sh --fast` nach einer
+  Budget-Änderung.
+- Vertrag: dieselben Budgets, Pfade, Prüfregeln und Ratchets; jeder Aufruf
+  bleibt für `TestQueryBudgetRatchet` sichtbar.
+- Abbruch: Architektur-Check rot oder ein Aufrufer fällt aus der Auswahl.
+
+Ergebnis (#5430), je ein Lauf unter Last 5 bis 21:
+
+| | vorher | nachher |
+| --- | ---: | ---: |
+| Pakete | 174 | 42 |
+| Wandzeit s | 571 | 358 |
+| CPU-s | 1752 | 1261 |
+
+Beide Läufe waren grün. Den Rest bestimmen `internal/architecture` (101 s; liest
+die Budgets bewusst), `api` (90 s) und `organizationtenancy/compose` (82 s).
+Behalten.
+
+### Runde 13: Paket-Worker auf macOS, `-p 4` verworfen
+
+`go-package-workers.sh` begrenzt macOS auf 2 Paket-Binaries, weil gleichzeitige
+Clones auf Docker Desktops virtueller Platte normale Fixture-Queries aushungern.
+A/B mit Sonde in `sharedkernel/calendar`, abwechselnd (Zeit im Gate):
+
+| `-p` | Wandzeit s | CPU-s |
+| --- | ---: | ---: |
+| 2 | 415 / 387 | 988 / 765 |
+| 4 | 239 / 249 | 790 / 780 |
+
+Ein einzelner Lauf ist mit `-p 4` 38 % schneller. Gegenprobe mit zwei
+gleichzeitigen `-p 4`-Läufen auf demselben Test-DB-Server, so viel wie das
+gewichtete Gate zulässt: Ein Lauf scheiterte, weil `CreateTestAccount` nach 45 s
+mit `read tcp …:5453: i/o timeout` abbrach. Das ist genau der dokumentierte
+Fehlermodus. Abbruchkriterium erreicht, Grenze bleibt 2. Eine Lockerung
+bräuchte eine Grenze pro Test-DB-Server statt pro Lauf.
+
+### Runde 14: CI-Fehler nach der Bundle-Neubasierung
+
+Nachmessung für 31.10. 12:45 bis 22:00 UTC (nach #5400), gleiche Methode wie
+Runde 6: 54 PR-Läufe, 9 fehlgeschlagen, alle im Frontend. Ein Lauf kann mehrere
+Klassen haben.
+
+| Klasse | Läufe | Branches | Vom bestehenden Pre-Push abgedeckt |
+| --- | ---: | ---: | --- |
+| knip, ungenutzte Exporte | 4 | 2 | ja |
+| oxlint (SWR-Schlüssel, doppelter Bezeichner) | 3 | 3 | ja |
+| Guard-Inventar `--check-guards` | 3 | 2 | nein |
+| Bundle | 2 | 2 | nein; ein echtes PR-Delta (+45 KB), eine Grenze 144 Bytes über |
+| depcruise, Zyklus | 1 | 1 | nein |
+| Vitest `dom-2` | 1 | 1 | nein |
+
+7 der 9 Läufe scheiterten an einer Prüfung, die der Pre-Push schon ausführt; diese
+Pushes liefen also ohne den Hook (andere Rechner, `PHX_PREPUSH=skip` oder
+`--no-verify`). Auf 2 von 4 Branches scheiterte derselbe Job zweimal in Folge.
+Zwei Änderungen:
+
+- `--check-guards` läuft jetzt im schnellen Frontend-Gate des Pre-Push
+  (etwa 3 s). Probe: eine neue Testdatei mit `node:fs` ohne Inventareintrag
+  scheitert lokal mit derselben Assertion wie in CI.
+- `scripts/ci-failures.mjs` zeigt für den letzten Lauf eines Branches die roten
+  Jobs und Schritte, deren Fehlerzeilen (höchstens 30 plus 12 Zeilen Ende) und
+  den lokalen Befehl, und warnt, wenn der vorige Push im selben Job scheiterte.
+  An #4767 gegen echte Logs geprüft: 5 rote Jobs auf etwa 70 Zeilen.
+
+Beifund: #5430 benennt `testpkg.AssertQueryBudget` um. Offene PRs, die neue
+Aufrufer hinzufügen, scheitern nach dem Merge der Basis am Build (#4767).
+
+### Runde 15: `deadcode` lokal, verworfen
+
+Über 233 rote PR-Läufe (25. bis 31.10.) scheiterten 11 an `deadcode`, auf 6
+Branches; einer davon fünfmal hintereinander. Kosten lokal (Last 18 bis 30):
+
+| Modus | Wandzeit s | CPU-s | Peak-RSS |
+| --- | ---: | ---: | ---: |
+| Tests (`-test`) | 30 | 55 | 11,9 GB |
+| Produktion | 10 | 16 | 4,4 GB |
+| Tests, `GOMEMLIMIT=3GiB` | 53 | 194 | 8,2 GB |
+| Produktion, `GOMEMLIMIT=3GiB` | 9 | 22 | 3,2 GB |
+
+Der Live-Heap im Testmodus liegt über 3 GiB; das Limit erzwingt nur GC-Arbeit.
+Pro Backend-Push 12 GB bei mehreren Agents auf einer Maschine sind nicht
+vertretbar. Stattdessen nennt `ci-failures.mjs` für `backend-quality` den
+lokalen Befehl `scripts/check-deadcode.sh`, damit nach einem roten Lauf nicht
+erneut ungeprüft gepusht wird.
+
+### Runde 16: Go-Testausgabe für Agents begrenzt
+
+Ein gescheitertes Paket gibt alles aus, was sein Binary geschrieben hat; einmal
+494 MB aus `api`. `test-changed.sh` schrieb das per `tee` in die Ausgabe des
+Agents. Jetzt gehen live nur Paketergebnisse und Build-Fehler durch; ein Fehler
+ergänzt die Zusammenfassung, die jetzt auch `t.Fatal`-Meldungen enthält, und
+behält die volle Ausgabe gzip-komprimiert unter `test-changed-go.log.gz`.
+Probe mit einem Test, der 20 000 Zeilen schreibt und scheitert: vorher
+20 000 Zeilen live, nachher 14 Zeilen mit Meldung; Log 52 KB komprimiert.
+
+### Runde 17: DOM-freie Tests auf node
+
+Von 200 `*.test.ts`-Dateien in `app-dom` enthielten 79 keine DOM-Hinweise
+(`render`, `screen`, `window`, Storage, `userEvent` …). Unter `environment: node`
+mit nur `setup-common.ts` bestanden 72 unverändert. 15 davon importieren direkt
+Module, die nach `window`, `document`, Storage oder `navigator` verzweigen; sie
+bleiben in `app-dom`, weil sie unter node nur den Server-Zweig prüfen würden.
+Die übrigen 57 laufen jetzt in `logic-node`. A/B, je zweimal:
+
+| Projekt | Tests | user s | sys s | Wandzeit s |
+| --- | ---: | ---: | ---: | ---: |
+| `app-dom` | 506/506 | 18,4 / 19,2 | 6,5 / 6,4 | 6,2 / 6,3 |
+| `logic-node` | 506/506 | 8,4 / 8,1 | 1,6 / 1,4 | 3,9 / 2,4 |
+
+Etwa 15 CPU-s weniger pro Lauf über diese Dateien. An der vollen Suite
+(rund 500 CPU-s in `app-dom`) sind das etwa 3 %; der größere Posten bleibt der
+happy-dom-Aufbau der übrigen Dateien.
+
+### Runde 18: Guard-Lauf nur bei geänderten Eingaben
+
+Bei Backend- oder Markdown-Änderungen ohne Frontend-Änderung startet
+`test-changed.sh` die 46 Guard-Dateien. Sie lesen Dateien außerhalb des
+Vitest-Modulgraphs, ein engerer Schlüssel wäre also unsicher. Der Schlüssel
+deckt deshalb den ganzen Checkout ab (Scratch-Index, `git add -A`,
+`write-tree`; 0,2 s), dazu die installierten Abhängigkeiten, die Env-Dateien
+von Frontend und Vitest, Node und die Optionen. Gemessen: 14,7 s, unveränderte
+Wiederholung 0,34 s. Jede Dateiänderung, auch ungetrackt, ist ein Fehltreffer;
+ein Fehlschlag wird nie gespeichert; CI nutzt keine alten Ergebnisse.
+
+### Runde 19: E2E prüft den Besitzer des wiederverwendeten Servers
+
+Runde 1 band Playwright an `PORT`. Von 30 geprüften Checkouts stehen aber 6,
+der Hauptcheckout eingeschlossen, ohne eigenes Port-Lease auf 3000/8080. Zwei solche Worktrees testen
+lokal den Server des jeweils anderen. Die Konfiguration bricht jetzt ab, wenn
+der Listener ein Frontend aus einem anderen Checkout ist (`lsof`, Prozess-cwd).
+Probe: Listener mit cwd im Nachbar-Worktree, Abbruch mit dessen Pfad; mit
+eigenem cwd oder ohne Listener läuft die Konfiguration weiter. Die
+synthetischen Suites nutzen nie einen bestehenden Server und waren seit #5372
+nicht betroffen.
+
+### Runde 20: Muster aus t3code
+
+Abgleich mit dem öffentlichen Repo von T3 Code (`pingdotgg/t3code`, Stand
+31.10.): `check:changed` als ein Befehl für CIs schnelle Checks, Ports aus dem
+Worktree-Pfad, ein Block „The three ways to hurt yourself“, Lint-Regeln gegen
+Wartezeiten und unbegründete Skips in Tests, und `test:cached --verify-hits`.
+Übernommen in den Runden 21 bis 24. Nicht übernommen: geteilter Remote-Testcache
+(Infrastruktur und Kosten), Evals mit bezahlten Modellen, Seeding aus einer
+Kopie der echten lokalen Datenbank (Datenschutz).
+
+### Runde 21: Eigene Ports für jeden Worktree
+
+6 von 30 geprüften Checkouts standen ohne Port-Lease auf 3000/8080; auch
+`wt`-Worktrees ließen `CATERER_URL` und `TRAEGER_URL` auf 3000.
+`scripts/worktree-ports.sh` (aus `dev-native.sh` und Bootstrap) vergibt einem
+verlinkten Worktree auf Default-Ports einen festen Slot aus dem Pfad-Hash auf
+dem Raster von `wt`, überspringt belegte Slots und zieht alte `localhost`-URLs
+nach. Probe mit frischem Worktree: Slot 93, 21 Zeilen umgeschrieben, zweiter
+Lauf ohne Änderung. #5441. Dazu die Regeln für die geteilte Maschine in
+`CLAUDE.md`: kein Beenden nach Muster, kein nacktes `git stash`, kein Prune
+fremder Ressourcen. Anlass war eigenes Verhalten während der Messungen
+(`pkill` auf eine Messschleife, ein verwaister Gate-Wartender blieb zurück).
+
+### Runde 22: Skips nur mit Grund
+
+15 Quell-Ratchets übersprangen sich still, wenn sie das Backend-Verzeichnis
+nicht fanden. Zwei Scheduler-Tests übersprangen ihren Fall in der
+Tagesend-Minute, vier Fixtures hatten Skips, die mit ihrem festen Datum nie
+greifen konnten. Ratchets scheitern jetzt, die Scheduler-Tests laufen in
+`synctest`, die Fixtures scheitern bei Bruch. `TestTestSkipRatchet` verlangt für
+jeden Skip `environment: …` oder `quarantine #Issue: …`. #5440. Der erste
+CI-Lauf scheiterte an der Hermetik-Regel für den Fixture-Quelltext;
+`ci-failures.mjs` zeigte genau die entscheidenden Zeilen.
+
+### Runde 23: Ein Befehl vor dem Push
+
+`scripts/check-changed.mjs` führt den Pre-Push-Gate im neuen `--worktree`-Modus
+(auch ungetrackte Dateien, Secret-Scan über Branch-Historie und Arbeitsbaum)
+und `test-changed.sh --fast` aus. Alle Anleitungen zeigen darauf.
+Erster Versuch mit parallelen Schritten unter Last 25 bis 30: 5 Guard-Tests
+liefen in ihr 5-s-Timeout. Parallel nur noch bei Last unter der halben
+CPU-Zahl. Probe mit Kommentaränderung in einem Blatt-Paket:
+
+| Lauf | Dauer | Ergebnis |
+| --- | ---: | --- |
+| frisch | 32 s | static 9,8 s, tests 20,7 s, grün |
+| unverändert | 0 s | letzte Zusammenfassung |
+| Stichprobe erzwungen | 23 s | grün |
+
+Eine ungetrackte Datei mit einem Token-Muster lässt den Worktree-Secret-Scan mit
+dem echten gitleaks scheitern. Vier Sol-Runden fanden unter anderem fehlende
+Env-Variablen und generierte Typen im Cache-Schlüssel, versteckte Pfade bei
+Umbenennungen (auch im Hook-Modus) und einen Schlüssel ohne HEAD, der eine
+committete und wieder entfernte Credential verdeckt hätte.
+
+### Runde 24: Stichproben gegen falsche Cache-Treffer
+
+Pre-Push-Cache, Guard-Cache und `check-changed` führen einen Anteil ihrer
+Treffer trotzdem aus (`PHX_CACHE_VERIFY_RATE`, Standard 5 %). Scheitert die
+Prüfung, verschwindet der gespeicherte Pass und die Meldung nennt den Schlüssel
+als Ursache. Tests mit Rate 1 belegen das für alle drei Caches.
+
 ## Verworfen
 
 - Frontend-Guards bei Backend-Änderungen verkleinern: Die 45 Guard-Dateien sind
   ein bewusst fail-closed Inventar von IO-Grenzen. Kürzen würde den Testvertrag
   ändern, nicht nur Kosten senken.
+- `-p 4` auf macOS (Runde 13): einzeln 38 % schneller, unter paralleler Last
+  DB-Timeouts.
+- `deadcode` im Pre-Push (Runde 15): 30 s und 11,9 GB pro Backend-Push.
 
 ## Unknown Unknowns
 
@@ -274,18 +523,24 @@ Startfehler des Testplatzes, erst danach reine Laufzeit.
 
 ## Nächster belegter Engpass
 
-1. Heavy-Gate nach Last gewichten: Leichte Go-Aufgaben skalieren bis vier
-   Agents fast linear (Runde 8), das Gate lässt nur zwei zu; schwere
-   (`go-central-change`, 9,2 GB) brauchen den Schutz. `agent-heavy` ist
-   nutzerlokal, eine Änderung braucht die Zustimmung des Nutzers.
+1. Wirkung des gewichteten Gates nachmessen (Runde 10): Wartezeit am Gate und
+   Durchsatz mit gemischten leichten und schweren Jobs.
 2. Zentrale Go-Änderung: 418 s und 923 CPU-s für 129 Pakete im Schnellmodus.
-3. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s, ohne
-   Ergebnis-Cache bei unveränderter Wiederholung. Setup 31 s und Environment
-   60 s der Vitest-Zeit sind der größte Posten.
-4. Seed beim ersten Browser-Lauf: 120 s von etwa 3 min bis zum ersten
-   Browser-Ergebnis in einem frischen Worktree.
-5. Frontend-Guards bei reinen Go-Änderungen: 45 Dateien, 15,7 s bei jeder
-   Wiederholung, auch wenn Go alles aus dem Cache liefert.
+   Häufigster Auslöser (Budget-Dateien) in Runde 12 entschärft; übrig bleiben
+   echte Änderungen an `test/fixtures*.go` und Shared-Kernel-Paketen. Eine
+   DB-Parallelitätsgrenze pro Test-Server statt pro Lauf würde `-p 4` erlauben.
+3. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s. Setup 31 s
+   und Environment 60 s der Vitest-Zeit sind der größte Posten; Runde 17 nahm
+   57 Dateien aus happy-dom heraus, der Rest rendert wirklich.
+4. Pushes ohne Pre-Push-Hook (Runde 14): 7 von 9 roten Läufen hätte der Hook
+   abgefangen. Unklar ist, ob Hooks auf anderen Rechnern installiert sind oder
+   übersprungen werden; erst messen, dann entscheiden.
 
 Erledigt aus dieser Liste: Bundle-Obergrenzen nahe der Basis (#5400, Neubasierung
-nach Entscheidung des Nutzers in #5396).
+nach Entscheidung des Nutzers in #5396), Heavy-Gate nach Last gewichtet (Runde 10),
+Query-Budget-Paket (Runde 12), CI-Fehlerbericht und Guard-Inventar im Pre-Push
+(Runde 14), begrenzte Go-Testausgabe (Runde 16), DOM-freie Tests auf node
+(Runde 17), Guard-Cache (Runde 18), Server-Besitzer bei E2E (Runde 19),
+Ports pro Worktree (Runde 21), Skip-Ratchet (Runde 22), `check-changed`
+(Runde 23), Cache-Stichproben (Runde 24). Verworfen: Seed-Cache (Runde 11), `-p 4` auf macOS (Runde 13), `deadcode` im
+Pre-Push (Runde 15).

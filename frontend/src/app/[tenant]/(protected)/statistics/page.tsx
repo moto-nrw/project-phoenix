@@ -1,5 +1,8 @@
 "use client";
 
+import { useSWRAuth } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
+
 // Statistik (#2606): attendance and absence quotas per child, group and
 // period plus room utilization over the same window. Everything shown here
 // is read-only and derived from what check-in, sick notes and room visits
@@ -151,14 +154,9 @@ export default function StatisticsPage() {
   const [occupancyReloadKey, setOccupancyReloadKey] = useState(0);
   const [view, setView] = useState<StatisticsView>("groups");
   const [courseView, setCourseView] = useState<CourseView>("by-course");
-  const [data, setData] = useState<StatisticsReport | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [forbidden, setForbidden] = useState(false);
   // Ladefehler im Gerüst mit Wiederholen, Exportfehler als Toast (#2517).
   const load = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = load;
-  const [reloadKey, setReloadKey] = useState(0);
-  const [failed, setFailed] = useState(false);
   const [exporting, setExporting] = useState<string | null>(null);
   const { show: showExportError } = useApiErrorDisplay();
   const retryExportRef = useRef<() => void>(() => undefined);
@@ -219,57 +217,50 @@ export default function StatisticsPage() {
   );
   const filterKey = `${fromISO}-${toISO}-${groupIds.join(",")}-${schoolClasses.join(",")}`;
 
-  useEffect(() => {
-    if (!fromISO || !toISO) return;
-    let cancelled = false;
-    setLoading(true);
-    setForbidden(false);
-    setFailed(false);
-    clearLoadError();
-    fetchStatisticsReport(fromISO, toISO, filter, MAIN_SECTIONS)
-      .then((report) => {
-        if (cancelled) return;
-        setData(report);
-        // Bei leerer Auswahl ist dies zugleich der ungefilterte
-        // Filterkatalog. Klassen stammen aus den Kindern; Kinder ohne Klasse
-        // haben keinen Eintrag.
-        if (groupIds.length === 0 && schoolClasses.length === 0) {
-          updateFilterCatalog(report, `${fromISO}-${toISO}`);
-        }
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        setData(null);
-        logger.error("statistics_fetch_failed", {
+  const {
+    data = null,
+    isLoading: loading,
+    error: reportError,
+    mutate: reloadReport,
+  } = useSWRAuth<StatisticsReport>(
+    fromISO && toISO
+      ? studentKeys.statisticsReport({
           from: fromISO,
           to: toISO,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        if (error instanceof ApiError && error.status === 403) {
-          setForbidden(true);
-          return;
-        }
-        setFailed(true);
-        void showLoadError(error, {
-          object: "die Statistik",
-          retry: () => setReloadKey((key) => key + 1),
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+          ...filter,
+          sections: MAIN_SECTIONS,
+        })
+      : null,
+    () => fetchStatisticsReport(fromISO!, toISO!, filter, MAIN_SECTIONS),
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      shouldRetryOnError: false,
+    },
+  );
+  const forbidden =
+    reportError instanceof ApiError && reportError.status === 403;
+  const failed = !!reportError && !forbidden;
+  useEffect(() => {
+    if (!reportError || forbidden) {
+      clearLoadError();
+      return;
+    }
+    void showLoadError(reportError, {
+      object: "die Statistik",
+      retry: () => reloadReport(),
+    });
+  }, [reportError, forbidden, clearLoadError, showLoadError, reloadReport]);
+  useEffect(() => {
+    if (data && groupIds.length === 0 && schoolClasses.length === 0) {
+      updateFilterCatalog(data, `${fromISO}-${toISO}`);
+    }
   }, [
-    fromISO,
-    toISO,
-    filter,
+    data,
     groupIds.length,
     schoolClasses.length,
-    reloadKey,
-    showLoadError,
-    clearLoadError,
+    fromISO,
+    toISO,
     updateFilterCatalog,
   ]);
 

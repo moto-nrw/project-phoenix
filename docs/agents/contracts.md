@@ -425,8 +425,9 @@ pass alone is not confirmation. Every portal shell revokes through its BFF logou
 (`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
 Auth.js clears the cookie; a failed revocation keeps the session and shows
 the error with a retry, as does the tenant relogin action. Portal cookies
-are host-only, but a late response of the same portal can still write one
-back; the revoked family makes it worthless. Migration 1.15.707 gives every
+are host-only; a late response of the same portal may write one back only
+in the narrow cases [below](#late-responses-after-logout-5399), and the
+revoked family makes it worthless. Migration 1.15.707 gives every
 live chain from before families (head plus rotated predecessors linked by
 `replacement_token`, same account, generation + 1) one family, so it keeps
 signing in through one forced renewal. It works one account per
@@ -444,10 +445,10 @@ family and ends with the admin's session.
 In the frontend a backend 401 for an unexpired token renews the session at
 once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
 used by `uncachedAuth` and by `withAuthResponse` for routes without their own
-retry). A revoked family fails that refresh, the response carries the ended
-session (`RefreshTokenError`), and a written-back copy of that cookie ends on
-its next read without a backend call. A live family continues with fresh
-tokens.
+retry). A revoked family fails that refresh; the response ends the session
+in its body but writes no cookie (#5399, below), and `/api/auth/token`
+answers 401 for a revoked family, so the browser signs out. A live family
+continues with fresh tokens.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
@@ -493,6 +494,86 @@ calling the backend; failed installation revokes the freshly minted family.
 The regular parent Credentials login and Träger handoff continue to redeem
 credentials/proofs server-side. The internal Next.js cookie adapter remains
 pinned and protected by the cookie-order/chunk-deletion integration tests.
+
+### Late responses after logout (#5399)
+
+A response sets its cookies when its headers arrive, whatever the JavaScript
+that sent it does with the result. The server is the source of truth that a
+response started before a logout or a "Zur Schulanmeldung" cannot bring the
+old session back; the browser only saves requests.
+
+1. **Write gate, the one exit.** Every session cookie of every portal
+   leaves through `gateSessionCookieWrites`
+   (`frontend/src/server/auth/session-cookie-writes.ts`). It has two callers:
+   `withBrowserSession`, which wraps every action of the six Auth.js routes
+   (signin, callbacks, session, `update()`, signout, …), and `finishResponse`
+   in `frontend/src/server/auth/route-handler.ts`, where every BFF route ends
+   (refresh, forced renewal, `mutateSession` for login, MFA, school switch
+   and preview). Auth.js' server helpers (`signIn`, `unstable_update`) write
+   Next's mutable cookie jar, which Next appends after the route returned;
+   the gate takes the session cookies out of the jar and decides on them
+   with the response's own. Mirrored backend cookies drop session cookie
+   names (`withoutSessionCookies`). Proxy, server components and server
+   actions write no session cookie.
+   `frontend/src/app/api/auth/session-cookie-inventory.test.ts` lists every
+   Auth.js action, route and instance and every cookie writer and fails on a
+   new one that bypasses the exit. A cookie leaves
+   only for a changed session (sign-in, rotation, `update()` with a change,
+   school switch, preview) whose refresh-token family Identity & Access
+   confirms live while the response is built. An unchanged re-encoding
+   (claims `iat`, `exp`, `jti` ignored), an ended session and a session of a
+   revoked family write nothing; deletions pass. When the family cannot be
+   read (503, timeout), only a refresh token this request was just issued
+   (sign-in, rotation) lands: Identity & Access issues one only for a live
+   family, and dropping it would strand the browser on the consumed token
+   after the recovery grace. A refused group also drops its chunk cleanup, so
+   the browser keeps its previous cookie. The cookie's lifetime equals the
+   refresh lifetime and moves with each rotation.
+2. **Read gate.** The session route asks the family on every call and reads
+   a revoked family as ended (`RefreshTokenError`); the layout snapshots of
+   every portal (`readFreshPortalToken`, `readTenantSessionSnapshot`) hydrate
+   only a live family. A family that cannot be read (503) and an expired
+   access token, which the backend refuses before it reads the family, leave
+   the shown session as it is; its own refresh decides.
+3. **Family check.** `POST /auth/session/validate` without a refresh token
+   reads the access token's family (`ValidateSessionTokens`,
+   `verifyAccessFamily` in
+   `backend/modules/identityaccess/internal/application/session_validation.go`):
+   `VerifyAccessSession` for account portals, the latest operator session of
+   the family for the operator. 401 means revoked, foreign or an expired
+   token, 503 means the family could not be read. The BFF calls it through
+   `sessionFamilyState` (`frontend/src/server/auth/token-validation.ts`).
+
+Invariants: no response sets a session cookie of a family Identity & Access
+answers as revoked while the response is built, whichever tab, subdomain or frozen
+document sent the request and however late it arrives. A cookie built in the
+moment before the revocation and delivered after the deletion still lands;
+it names a revoked family, opens nothing (#5194) and reads as ended on the
+next session read or page load; delivered only after a new login, it replaces
+that login's cookie and asks for the login again. The same holds for a
+just-issued refresh token that lands while the family check had no answer. A
+session cookie the gate cannot decode counts as no session and passes; the
+gate reads with `NEXTAUTH_SECRET`, which Auth.js uses too while no
+environment sets `AUTH_SECRET`. A school switch that committed before the
+logout mints a family of its own, which the logout of the old family does not
+revoke (#5422).
+
+**Session-end barrier** (`frontend/src/lib/session-end-barrier.ts`): an
+optimization of the document that logs out, not a guarantee. Every portal's
+logout and the tenant relogin close it before revocation: requests to the
+tab's own `/api/` whose response headers have not arrived are aborted; new
+ones wait (or end at once when their caller aborts); the SessionProvider's
+poll stops (`useSessionPollInterval`). An aborted GET or HEAD is sent again
+when the barrier opens, any other method fails; answered requests (an SSE
+stream, a body still being read) keep running. The exit's own requests (BFF
+logout, CSRF, Auth.js signout, staff-preview end, `DELETE
+…/push/subscriptions`) pass only for the running attempt. The barrier opens
+when the logout fails or, outside the tenant shell, once the signout answer
+deleted the cookie; the tenant exit keeps it closed while it navigates.
+`<SessionEndBarrier />` installs it in the tenant shell's protected layout
+and the other portals' providers; the fetch observer applies it once
+installed. Other tabs, a tab started during a logout and the public tenant
+pages need no barrier: their answers pass the same server gates.
 
 ### Login, refresh, and MFA
 

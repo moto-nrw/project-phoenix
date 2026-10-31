@@ -84,8 +84,7 @@ never cached; dirty trees and missing tools fail even with a warm cache.
 Docs-only follow-up pushes reuse unchanged static results. Vulnerability scans
 always run. Runner/workflow-only changes run hook tests, not both full stacks.
 Affected/integration tests are not automatic hook steps: contributors still run
-`scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` before
-pushing code. CI keeps independent validation, tests, builds, bundle limits,
+`scripts/run-go-toolchain.sh scripts/check-changed.mjs` before pushing code. CI keeps independent validation, tests, builds, bundle limits,
 Storybook and seed smoke; it does not consume local success records.
 `scripts/pre-push.test.mjs` exercises selection and failure propagation in
 isolated Git repositories without running expensive analyzers.

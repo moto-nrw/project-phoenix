@@ -25,6 +25,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type masterDataBankAccount struct {
@@ -388,7 +389,7 @@ func TestTraegerMasterDataQueryBudget(t *testing.T) {
 	addAccount("Ferien", traegerOtherIBAN)
 	addAccount("Mensa", "GB82WEST12345698765432")
 	assert.Len(t, read(), len(one), "the master data reads the same statements for any number of bank accounts")
-	testpkg.AssertQueryBudget(t, "api.traeger.master_data", one)
+	querybudgets.AssertQueryBudget(t, "api.traeger.master_data", one)
 }
 
 func TestTraegerLogoUploadNormalizesInterlacedPNG(t *testing.T) {

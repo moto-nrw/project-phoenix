@@ -49,6 +49,7 @@ const PUBLIC_SURFACE: Record<string, () => Promise<object>> = {
   mutate: () => import("./mutate"),
   "config-boundaries": () => import("./config-boundaries"),
   "scope-boundary": () => import("./scope-boundary"),
+  "course-waitlist-keys": () => import("./course-waitlist-keys"),
   "portal-keys": () => import("./portal-keys"),
   "shell-keys": () => import("./shell-keys"),
   "parent-keys": () => import("./parent-keys"),
@@ -62,6 +63,7 @@ const PUBLIC_SURFACE: Record<string, () => Promise<object>> = {
   me: () => import("./me"),
   "search-students-key": () => import("./search-students-key"),
   "room-derived-caches": () => import("./room-derived-caches"),
+  optimistic: () => import("./optimistic"),
 };
 const REVIEWED_EXPORTS: Record<string, string[]> = {
   index: [
@@ -103,16 +105,19 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
   mutate: ["mutate"],
   "config-boundaries": ["IsolatedSWRCache", "SWRSeedBoundary"],
   "scope-boundary": ["SWRScopeBoundary"],
+  "course-waitlist-keys": ["activityWaitlistKeys", "courseWaitlistKeys"],
   "portal-keys": [
     "announcementKeys",
     "dashboardKeys",
     "databaseKeys",
+    "displayKeys",
     "homeLayoutKeys",
     "messageKeys",
     "operatorAnnouncementKeys",
     "operatorBillingKeys",
     "operatorInvitationKeys",
     "operatorProvisioningKeys",
+    "parentAnnouncementKeys",
     "parentKeys",
     "payrollKeys",
     "schoolPortalKeys",
@@ -120,6 +125,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "staffMergeKeys",
     "staffOnboardingKeys",
     "studentKeys",
+    "timeTrackingKeys",
     "timetableKeys",
     "weekProtocolKeys",
   ],
@@ -141,6 +147,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "searchStudentsKeyTargetsGroup",
   ],
   "room-derived-caches": ["ROOM_DERIVED_CACHE_KEY_FRAGMENTS"],
+  optimistic: ["useOptimisticAction"],
 };
 
 // #5007: outside ~/lib/swr no cache access bypasses the generation lock.

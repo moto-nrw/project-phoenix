@@ -100,6 +100,9 @@ case "$*" in
     fi
     echo "test:$PHX_TEST_TEMPLATE:$*" >>"$TEST_CHANGED_CALL_LOG"
     if [ "${PHX_FIXTURE_TEST_STATUS:-0}" -ne 0 ]; then
+      echo 'noise from a logger in the failed package'
+      echo '--- FAIL: TestProbe (0.01s)'
+      echo '    probe_test.go:12: probe assertion message'
       echo 'FAIL github.com/moto-nrw/project-phoenix/probe'
       exit "$PHX_FIXTURE_TEST_STATUS"
     fi
@@ -201,6 +204,7 @@ guards=(
   src/app/api/proxy-routes.test.ts
   src/app/api/route-cache-policy.test.ts
   src/server/auth/route-handler-coverage.test.ts
+  src/app/api/auth/session-cookie-inventory.test.ts
   src/lib/app-route-invariants.test.ts
   src/lib/analytics-routes.test.ts
   src/lib/help-topics.test.ts
@@ -212,6 +216,7 @@ guards=(
   src/components/ui/plan-design-guards.test.ts
   src/components/settings/settings-filter.test.ts
   src/components/school-setup/setup-tour-targets.test.ts
+  src/components/auth/session-end-barrier.test.tsx
   src/lib/hooks/use-sse.test.ts
   src/lib/service-worker.test.ts
   src/styles/moto-token-drift.test.ts
@@ -293,6 +298,15 @@ for wrapper in test-backend.sh test-changed.sh; do
   if [ "$wrapper" = test-changed.sh ]; then
     grep -q 'go test failure summary' "$output_log"
     grep -q '^FAIL github.com/moto-nrw/project-phoenix/probe$' "$output_log"
+    grep -q '^    probe_test.go:12: probe assertion message$' "$output_log"
+    # Live output and summary stay bounded; the full output is kept compressed.
+    if grep -q 'noise from a logger' "$output_log"; then
+      echo 'failed package output leaked into the live log' >&2
+      exit 1
+    fi
+    grep -q 'full go test output: .*test-changed-go.log.gz' "$output_log"
+    gzip -dc "$(git -C "$fixture" rev-parse --path-format=absolute --git-path test-changed-go.log.gz)" |
+      grep -q 'noise from a logger'
   fi
   unset PHX_FIXTURE_TEST_STATUS PHX_FIXTURE_SWEEP_STATUS
 

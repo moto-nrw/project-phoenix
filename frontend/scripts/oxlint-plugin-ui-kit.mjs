@@ -504,7 +504,6 @@ const TINY_TEXT_BASELINE_FILES = new Set([
   "src/app/help/nfc/erste-schritte/page.tsx",
   "src/app/operator/provisioning/soft-delete-shared.tsx",
   "src/components/active-supervisions/planned-now-section.tsx",
-  "src/components/activities/activity-management-modal.tsx",
   "src/components/auth/role-permission-management-modal.tsx",
   "src/components/calendar/personal-calendar.tsx",
   "src/components/dashboard/header/reminders-bell.tsx",
@@ -563,8 +562,7 @@ src/app/[tenant]/(protected)/time-tracking/page.tsx|text-[10px]@1335 text-[11px]
 src/app/[tenant]/(protected)/time-tracking/week-chart.tsx|text-[10px]@198
 src/app/help/nfc/erste-schritte/page.tsx|text-[11px]@231 text-[11px]@271
 src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@230
-src/components/active-supervisions/planned-now-section.tsx|text-[11px]@446
-src/components/activities/activity-management-modal.tsx|text-[10px]@314 text-[10px]@345 text-[10px]@383
+src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
 src/components/calendar/personal-calendar.tsx|text-[11px]@905 text-[11px]@933 text-[11px]@1020 text-[11px]@1081 text-[11px]@1089 text-[11px]@1095 text-[11px]@1142 text-[11px]@1148 text-[10px]@1168 text-[11px]@1221 text-[11px]@1301 text-[11px]@1312 text-[11px]@1317
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@42 text-[10px]@96

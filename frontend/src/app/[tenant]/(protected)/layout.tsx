@@ -1,6 +1,7 @@
 "use client";
 
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
+import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
 import { GroupAttendanceCountProvider } from "~/lib/group-attendance-count-context";
 import { TeacherShellProvider } from "~/lib/shell-auth-context";
 import { AppShell } from "~/components/dashboard/app-shell";
@@ -21,6 +22,8 @@ export default function ProtectedLayout({
   useSettingsCacheBridge();
   return (
     <ShellIntlProvider>
+      {/* Logouts of this shell stop late session answers (#5399). */}
+      <SessionEndBarrier />
       <TeacherShellProvider>
         <BreadcrumbProvider>
           <GroupAttendanceCountProvider>

@@ -10,10 +10,11 @@ import { networkPorts } from "./ports.mjs";
 
 const port = networkPorts("tenantSwitch").frontend;
 
-// #5194 for the portals with their own host-only cookie: parents, school,
-// operator and caterer. After the portal's logout revoked its family, a
-// response held back from before (same tab or a second tab) writes the old
-// cookie back; the still-unexpired access token must open nothing. The
+// #5194, #5399 for the portals with their own host-only cookie: parents,
+// school, operator and caterer. After the portal's logout revoked its family,
+// a response held back from before (same tab or a second tab) must neither
+// write the old cookie back nor open anything: an answer that only re-read
+// the session carries no session cookie (#5399). The
 // session is opened with the portal's own Auth.js credentials provider and a
 // synthetic credential login, the logout runs through the portal's real BFF logout
 // route, and the cookie is cleared through Auth.js. Synthetic data only.
@@ -237,29 +238,27 @@ for (const portal of portals) {
           () => source.start(lateTab),
           portal.cookie,
         );
-        expect(await pending.held).toBe(true);
+        // Before #5399 Auth.js wrote the unchanged session with every answer.
+        expect(await pending.held).toBe(false);
 
         await logOut(tab1, portal);
         expect(await sessionCookie(context, portal)).toBeUndefined();
 
-        // The held answer arrives late and writes the old cookie back.
+        // The held answer arrives late; the deleted cookie stays deleted.
         await pending.release();
-        expect(await sessionCookie(context, portal)).toBeDefined();
+        expect(await sessionCookie(context, portal)).toBeUndefined();
 
-        // A fresh page of the portal still reads nothing protected.
+        // A fresh page of the portal reads nothing protected and no session.
         const fresh = await context.newPage();
         await fresh.goto(`${portal.origin}/api/health`);
         expect(await readStatus(fresh, portal.read)).toBe(401);
-        await expect
-          .poll(() =>
-            fresh.evaluate(async (path) => {
-              const body = (await (await fetch(path)).json()) as {
-                error?: string;
-              } | null;
-              return body?.error ?? null;
-            }, `${portal.basePath}/session`),
-          )
-          .toBe("RefreshTokenError");
+        expect(
+          await fresh.evaluate(
+            async (path) => (await fetch(path)).json(),
+            `${portal.basePath}/session`,
+          ),
+        ).toBeNull();
+        expect(await sessionCookie(context, portal)).toBeUndefined();
         await context.close();
       });
     }

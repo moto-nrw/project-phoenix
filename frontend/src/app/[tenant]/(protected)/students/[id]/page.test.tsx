@@ -43,7 +43,7 @@ vi.mock("swr", async (importOriginal) => {
   return {
     ...actual,
     mutate: mockScopedMutate,
-    useSWRConfig: () => ({ mutate: mockSWRMutate }),
+    useSWRConfig: () => ({ ...actual.useSWRConfig(), mutate: mockSWRMutate }),
   };
 });
 

@@ -10,8 +10,10 @@
 
 // swr/no-direct-import permits package imports inside this shared wrapper only.
 import { mutate as swrMutate, useSWRConfig } from "swr";
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import {
+  currentSWRDataGeneration,
+  subscribeSWRDataGeneration,
   dataGenerationOf,
   isCurrentSWRValue,
   lockMutation,
@@ -47,7 +49,8 @@ export function writeSWRSeeds(entries: Readonly<Record<string, unknown>>) {
 
 /**
  * Seeds the factory key `target` from the cached data of the factory key
- * `source`, both in the session's scope. `derive` sees only data of the
+ * `source` (or the first matching list), both in the session's scope.
+ * A matcher receives only unscoped resource keys. `derive` sees only data of the
  * source's current generation; its result carries that generation, so a
  * later drop of the source hides the seed too. Returns the seed, or
  * undefined without a session, current source data or derived value.
@@ -55,24 +58,44 @@ export function writeSWRSeeds(entries: Readonly<Record<string, unknown>>) {
 export function useSWRSeedFrom() {
   const scoped = useSWRCacheKey();
   const { cache } = useSWRConfig();
+  // Memoized callers must withdraw their seed on a source/target/scope drop,
+  // even if their entity ID and source matcher have not changed (G16/G21).
+  const revision = useSyncExternalStore(
+    subscribeSWRDataGeneration,
+    currentSWRDataGeneration,
+    currentSWRDataGeneration,
+  );
   return useCallback(
     <S, T>(
-      source: string,
+      source: string | ((key: string) => boolean),
       target: string,
       derive: (data: S) => T | undefined,
     ): T | undefined => {
-      const sourceKey = scoped(source);
+      if (revision !== currentSWRDataGeneration()) return undefined;
+      const prefix = scoped("");
       const targetKey = scoped(target);
-      if (sourceKey === null || targetKey === null) return undefined;
-      const data = (cache.get(sourceKey) as { data?: S } | undefined)?.data;
-      if (data === undefined || isCurrentSWRValue(sourceKey, data) !== true)
-        return undefined;
-      const seeded = derive(data);
-      if (seeded !== undefined) {
-        stampSWRValue(targetKey, seeded, dataGenerationOf(sourceKey));
+      if (prefix === null || targetKey === null) return undefined;
+      const candidates =
+        typeof source === "string"
+          ? [scoped(source)!]
+          : [...cache.keys()].filter(
+              (key) =>
+                key.startsWith(prefix) && source(key.slice(prefix.length)),
+            );
+      for (const sourceKey of candidates) {
+        const data = (cache.get(sourceKey) as { data?: S } | undefined)?.data;
+        if (data === undefined || isCurrentSWRValue(sourceKey, data) !== true)
+          continue;
+        // A discarded target must not be resurrected from an older list.
+        if (dataGenerationOf(sourceKey) < dataGenerationOf(targetKey)) continue;
+        const seeded = derive(data);
+        if (seeded !== undefined) {
+          stampSWRValue(targetKey, seeded, dataGenerationOf(sourceKey));
+          return seeded;
+        }
       }
-      return seeded;
+      return undefined;
     },
-    [scoped, cache],
+    [scoped, cache, revision],
   );
 }

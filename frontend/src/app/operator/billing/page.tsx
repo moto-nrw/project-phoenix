@@ -191,7 +191,7 @@ function KeyDaySection({
             <CustomSelect
               id="billing-key-day"
               name="key_day"
-              labelId="billing-key-day-label"
+              ariaLabelledBy="billing-key-day-label"
               value={draft}
               options={KEY_DAY_OPTIONS}
               onChange={setDraft}

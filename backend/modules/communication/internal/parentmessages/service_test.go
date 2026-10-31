@@ -38,6 +38,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // --- test doubles -------------------------------------------------------
@@ -521,7 +522,7 @@ func TestListInboxQueryBudgetStaysFlat(t *testing.T) {
 	inbox, err := testpkg.MeasuredTenantQuery1(t, counter.Context(ctx), db, counter, svc.ListInbox, false)
 	require.NoError(t, err)
 	require.Len(t, inbox, 3)
-	testpkg.AssertQueryBudget(t, "modules.communication.parent_messages.list_inbox", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.communication.parent_messages.list_inbox", counter.Queries())
 }
 
 // TestListGuardians_ReturnsAccountHoldingGuardian: the staff recipient picker
@@ -570,7 +571,7 @@ func TestListReachableStudentIDsQueryBudgetStaysFlat(t *testing.T) {
 		for _, chain := range chains {
 			assert.Contains(t, ids, chain.StudentID)
 		}
-		testpkg.AssertQueryBudget(t, "modules.communication.parent_messages.list_reachable_students", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.communication.parent_messages.list_reachable_students", counter.Queries())
 		return len(counter.Queries())
 	}
 

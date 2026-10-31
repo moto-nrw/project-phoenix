@@ -30,6 +30,7 @@ GET /api/students/class-arrival-times/{schoolClass} -> basis
 GET /api/students/day-log -> basis
 GET /api/students/day-log/export -> basis
 GET /api/students/ended-care -> basis
+GET /api/students/offering-change-requests/course-waitlists -> basis
 GET /api/students/ogs-group-live -> basis
 GET /api/students/ogs-group-navigation -> basis
 GET /api/students/school-classes -> basis

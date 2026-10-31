@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -250,6 +250,42 @@ printf '%s\\n' "$@" > '${f.root}/args'
 `, 0o755);
   assert.equal(f.run("HEAD").status, 0);
   assert.match(readFileSync(join(f.root, "args"), "utf8"), /permission-labels\.test\.ts/);
+});
+
+test("a guards-only pass is reused only for identical inputs and never after a failure", t => {
+  const f = fixture(t);
+  f.git("checkout", "--", "frontend/src/lib/product.ts");
+  f.write("backend/auth/authorize/permissions/catalog.json", "[]");
+  // The stub's own output file must not count as a changed input.
+  f.write(".gitignore", "frontend/node_modules\nargs\n");
+  const local = { ...f.env, GITHUB_ACTIONS: "", PHX_GUARDS_CACHE: "", PHX_CACHE_VERIFY_RATE: "0" };
+  const run = (extra = {}) => {
+    rmSync(join(f.root, "args"), { force: true });
+    const result = spawnSync(process.execPath, [join(f.root, "scripts/test-frontend-changed.mjs"), "HEAD"],
+      { encoding: "utf8", env: { ...local, ...extra } });
+    assert.equal(result.status, extra.FAIL ? 3 : 0, result.stderr);
+    return { ran: existsSync(join(f.root, "args")), stdout: result.stdout };
+  };
+  f.write("bin/pnpm", `#!/bin/sh
+if [ "$3" = list ]; then exit 7; fi
+printf '%s\\n' "$@" > '${f.root}/args'
+[ -z "$FAIL" ] || exit 3
+`, 0o755);
+  assert.equal(run({ FAIL: "1" }).ran, true);
+  assert.equal(run().ran, true, "a failed run must not be reused");
+  const cached = run();
+  assert.equal(cached.ran, false);
+  assert.match(cached.stdout, /same inputs as the last passing run/);
+  f.write("backend/untracked-probe.go", "package probe\n");
+  assert.equal(run().ran, true, "an untracked file changes the inputs");
+  assert.equal(run({ PHX_GUARDS_CACHE: "off" }).ran, true);
+  assert.equal(run({ GITHUB_ACTIONS: "true" }).ran, true);
+  assert.equal(run().ran, false);
+  // A sampled hit runs anyway; when it fails, the wrong pass is forgotten.
+  const verified = run({ PHX_CACHE_VERIFY_RATE: "1", FAIL: "1" });
+  assert.equal(verified.ran, true);
+  assert.match(verified.stdout, /running anyway to verify the cache/);
+  assert.equal(run({ FAIL: "1" }).ran, true, "the failed verification removed the cached pass");
 });
 
 test("tests and declarations in every allowed source directory stay incremental", t => {

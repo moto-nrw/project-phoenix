@@ -122,6 +122,7 @@ const PUBLIC_MODULES = new Set(
     "mutate",
     "config-boundaries",
     "scope-boundary",
+    "course-waitlist-keys",
     "portal-keys",
     "shell-keys",
     "parent-keys",
@@ -135,6 +136,8 @@ const PUBLIC_MODULES = new Set(
     "me",
     "search-students-key",
     "room-derived-caches",
+    // #5011: optimistic overlays; commits go through the locked writers.
+    "optimistic",
   ].map((name) => (name ? `${SWR_DIR}/${name}` : SWR_DIR)),
 );
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs"];

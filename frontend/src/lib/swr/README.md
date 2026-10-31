@@ -34,7 +34,21 @@ void invalidateFamily(rooms.family);
    `revalidateIfStale: false` would suppress the request in SWR 2.5.1.
 3. The callback returned by `useTenantMutate()` supports optimistic
    data, rollback and `populateCache` under the generation lock. Prefer the
-   reader's bound `mutate` when it already owns that key.
+   reader's bound `mutate` when it already owns that key. For an action the
+   user should see at once (send, check in, toggle), use
+   `useOptimisticAction(key, confirmed)` from `~/lib/swr/optimistic`: the
+   expected result is an overlay on the confirmed data per scoped key and
+   data generation, never a cache write. A failure drops exactly its own
+   overlay, concurrent actions keep theirs, and after a scope or data bump
+   neither overlay, answer nor rollback appears. A `run` kept from before a
+   bump of its key (a closure, a retry handler) starts nothing. `commit`
+   writes the answer through the reader's bound `mutate` (or local state);
+   `refusal` drops the resource on a 401/403/404 with one of the codes the
+   caller lists for its backend route (no default; message routes:
+   `~/lib/message-send-refusals`). A business 403, a session code or a
+   failure without a response only rolls back. SWR's own `optimisticData` restores the
+   value before the first optimistic write and lets a newer mutation swallow
+   an older one's rollback, so concurrent actions would overwrite each other.
 4. Family prefixes end in `-`. `useInvalidateFamily` matches that prefix
    within the current scope, including `$inf$` keys and preloads. The existing
    `useTenantMutateMatching([factory.family])` remains available for combined
@@ -75,3 +89,38 @@ hook keys fail oxlint; both legacy baselines are shrink-only. A free key is
 anything at a `useSWRAuth`, `useImmutableSWR` or `useSWRWithId` call that is
 not built by an export of `~/lib/swr` (directly, through a local constant or
 in a branch with `null`).
+
+## List-to-detail previews
+
+`studentKeys`, `roomKeys` and `staffKeys` own `previewSources` and `preview`.
+The projection returns only `{ id, name, context }`, never a full record or
+access flags. A detail page calls `useSWRSeedFrom()(factory.previewSources,
+factory.detailKey(id), data => factory.preview(data, id))` (children use
+`detail`, staff use the active `recordKey` or limited `profileKey`). The matcher runs only over the current
+school/account scope and skips old generations, including lists older than a
+discarded detail key. The helper stamps its derived value but does not write
+it into the SWR cache. Pages use it only for the loading header, not as the
+complete detail response.
+
+The pages memoize this projection for a loading attempt. The helper callback
+changes on scope or data-generation revisions, so a memoized preview is
+withdrawn when its source or target is discarded. The old list is checked
+before stamping; a target newer than the source cannot be reseeded (G16/G21).
+Unrelated renders do not scan the cache or call `stampSWRValue` again.
+
+Show the preview only in the existing loading header. The body, actions,
+permission flags and detail-only fields wait for the detail request; that
+request always runs. Detail readers use `keepPreviousData: false`, so changing
+the entity cannot reuse the previous entity's complete record. Without a
+matching list the existing loading state remains unchanged.
+
+Message previews use `messageKeys.teamChatPreview` / `groupPreview`; staff
+announcements use `parentAnnouncementKeys.preview`. Only the list-visible
+name/title enters the loading header. Last-message text, unread parts, group
+members, recipients, private replies and permission flags never enter it.
+These sources do not match any parents-portal resource: relationship-filtered
+parent conversations continue to wait for their authorized detail response.
+For a list-known published/expired poll, type and status enable only the
+scoped evaluation request in parallel with the detail. The confirmed detail
+alone renders the evaluation and its actions; the same evaluation key is
+shared with the panel, so mounting it does not repeat the request.

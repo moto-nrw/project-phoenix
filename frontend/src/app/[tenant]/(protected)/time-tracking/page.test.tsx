@@ -1068,6 +1068,37 @@ describe("TimeTrackingPage", () => {
       });
     });
 
+    // #5012: the card shows the stamp at once, marked as not confirmed.
+    it("shows a pending check-in at once and takes it back on failure", async () => {
+      setupDefaultMocks();
+      let reject!: (error: unknown) => void;
+      vi.mocked(timeTrackingService.checkIn).mockReturnValue(
+        new Promise((_, no) => {
+          reject = no;
+        }),
+      );
+      render(<TimeTrackingPage />);
+      selectPresentMode();
+
+      fireEvent.click(screen.getByLabelText("Einstempeln"));
+
+      expect(screen.getByRole("status")).toHaveTextContent("Wird gespeichert");
+      expect(screen.getByLabelText("Ausstempeln")).toBeDisabled();
+
+      await act(async () => {
+        reject(
+          new ApiError("already checked in", 409, {
+            code: "workforce.already_checked_in",
+          }),
+        );
+      });
+
+      expect(await screen.findByLabelText("Einstempeln")).toBeInTheDocument();
+      expect(screen.getByRole("status")).not.toHaveTextContent(
+        "Wird gespeichert",
+      );
+    });
+
     it("shows toast error on check-in failure", async () => {
       const mockToast = {
         success: vi.fn(),

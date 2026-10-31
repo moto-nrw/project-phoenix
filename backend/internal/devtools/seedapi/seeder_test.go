@@ -1546,6 +1546,14 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		// The waiting-list seed (#4767) reads the family's child before it
+		// asks for the Theater-AG; the real route answers with a list.
+		if r.URL.Path == "/parent/me/children" && r.Method == seedHTTPMethodGet {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"status": "success", "data": []map[string]any{{"student_id": "3001", "first_name": "Seed", "last_name": "Kind"}},
+			})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/parent/me/children/") && strings.HasSuffix(r.URL.Path, "/pickup-signature-statement") && r.Method == seedHTTPMethodPost {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{"statement": "Serverseitig erzeugte Abholerlaubnis."},

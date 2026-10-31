@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
@@ -250,5 +251,5 @@ func TestDocumentInboxQueryBudget(t *testing.T) {
 	documents, err := portal.ListBillingDocuments(counter.Context(ctx), chain.AccountID)
 	require.NoError(t, err)
 	assert.Len(t, documents, 3)
-	testpkg.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "workflows.parentportal.billing_documents.list", counter.Queries())
 }

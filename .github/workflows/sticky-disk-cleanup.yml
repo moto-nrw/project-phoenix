@@ -1,0 +1,147 @@
+name: Sticky Disk Cleanup
+
+# Deletes every Blacksmith sticky disk of this repository once a day (#4034).
+#
+# build.yml keeps its Docker layer caches on sticky disks (setup-docker-builder
+# v2, one disk per cache-key). Blacksmith bills them at 0.50 $/GB/month and only
+# evicts a disk after 7 days without use, which never happens with daily builds.
+# BuildKit GC or a prune does not help: the block devices have no discard
+# support, so the billed size tracks every byte ever written, not what the
+# filesystem holds (useblacksmith/stickydisk#65). Deleting the disk is the only
+# way to reset the bill; the next build after 03:00 recreates it with a cold
+# layer cache.
+#
+# useblacksmith/stickydisk-delete cannot target v2 Docker cache disks
+# (useblacksmith/stickydisk-delete#31), so this job uses the Blacksmith CLI,
+# following simstudioai/sim's disk-gc workflow.
+#
+# Setup: an org admin mints the token once with
+#   blacksmith org-token create --label sticky-disk-cleanup --organization moto-nrw
+# and stores it as the repository secret BLACKSMITH_CLI_TOKEN.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+      timezone: Europe/Berlin
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: List the disks without deleting them.
+        type: boolean
+        required: false
+        default: false
+
+# Nothing in this job reads the repository.
+permissions: {}
+
+concurrency:
+  group: sticky-disk-cleanup
+  cancel-in-progress: false
+
+jobs:
+  delete:
+    name: Delete sticky disks
+    # GitHub-hosted on purpose: the CLI is a pure API client, and cleanup has to
+    # keep working while Blacksmith runners are unavailable and disks still bill.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Pinned binary + checksum instead of `curl https://get.blacksmith.sh | sh`:
+      # this job holds an org-wide token. Blacksmith publishes a .sha256 sidecar
+      # next to each binary; bump both values together.
+      BLACKSMITH_CLI_VERSION: v0.5.3
+      BLACKSMITH_CLI_SHA256: 089a301ea5cc93a7560c7f1106911547fdfd46fc5c0cef7079e2a62a22e971ce
+      # The CLI self-updates on every invocation otherwise, defeating the pin.
+      BLACKSMITH_DISABLE_AUTO_UPDATE: '1'
+      BLACKSMITH_ORG: moto-nrw
+      TARGET_REPO: ${{ github.repository }}
+      DRY_RUN: ${{ inputs.dry_run || 'false' }}
+
+    steps:
+      - name: Install Blacksmith CLI
+        run: |
+          set -euo pipefail
+          url="https://clireleases.blacksmith.sh/cli/${BLACKSMITH_CLI_VERSION}/linux/amd64/blacksmith"
+          curl -fsSL "$url" -o /usr/local/bin/blacksmith
+          echo "${BLACKSMITH_CLI_SHA256}  /usr/local/bin/blacksmith" | sha256sum -c -
+          chmod +x /usr/local/bin/blacksmith
+
+      - name: Authenticate
+        env:
+          BLACKSMITH_CLI_TOKEN: ${{ secrets.BLACKSMITH_CLI_TOKEN }}
+        run: |
+          set -euo pipefail
+          # GitHub always sets the variable; a missing secret makes it empty.
+          if [ -z "$BLACKSMITH_CLI_TOKEN" ]; then
+            echo "::error::BLACKSMITH_CLI_TOKEN is not set. Mint one with 'blacksmith org-token create' and add it as a repository secret."
+            exit 1
+          fi
+          printf '%s' "$BLACKSMITH_CLI_TOKEN" \
+            | blacksmith auth login --api-token - --non-interactive --organization "$BLACKSMITH_ORG"
+
+      - name: Delete all sticky disks
+        run: |
+          set -euo pipefail
+
+          list_disks() {
+            blacksmith stickydisk list --repo "$TARGET_REPO" --per-page 100 --format json > "$1"
+            # Fail on an unexpected CLI output shape instead of deleting nothing
+            # and reporting success.
+            if ! jq -e '.entries | type == "array"' "$1" > /dev/null; then
+              echo "::error::Unexpected 'blacksmith stickydisk list' output; check the pinned CLI version."
+              exit 1
+            fi
+          }
+
+          list_disks disks.json
+          if [ "$(jq '.entries | length' disks.json)" -ge 100 ]; then
+            echo "::error::The listing filled a whole page; add pagination before relying on this job."
+            exit 1
+          fi
+
+          # One delete per key removes every architecture variant of it.
+          jq -r '
+            .entries
+            | group_by(.key)
+            | map("\(.[0].key)\t\(map(.size_bytes) | add / 1000000000 * 100 | round / 100)")
+            | .[]
+          ' disks.json > keys.tsv
+
+          count=$(wc -l < keys.tsv | tr -d ' ')
+          total_gb=$(awk -F'\t' '{s+=$2} END {printf "%.1f", s+0}' keys.tsv)
+          {
+            echo "### Sticky disk cleanup"
+            echo ""
+            echo "Dry run **${DRY_RUN}** · **${count}** keys · **${total_gb} GB**"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=0
+          while IFS=$'\t' read -r key gb; do
+            [ -n "$key" ] || continue
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "- would delete \`${key}\` (${gb} GB)" >> "$GITHUB_STEP_SUMMARY"
+              continue
+            fi
+            if blacksmith stickydisk delete --repo "$TARGET_REPO" --key "$key" --yes; then
+              echo "- deleted \`${key}\` (${gb} GB)" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- FAILED \`${key}\`" >> "$GITHUB_STEP_SUMMARY"
+              failed=1
+            fi
+          done < keys.tsv
+
+          if [ "$DRY_RUN" != "true" ] && [ "$failed" -eq 0 ]; then
+            # A delete that matched nothing (e.g. a disk type the CLI does not
+            # cover) would otherwise pass silently and keep the bill growing.
+            list_disks remaining.json
+            remaining=$(jq -r '[.entries[].key] | unique | join(", ")' remaining.json)
+            if [ -n "$remaining" ]; then
+              echo "::error::Sticky disks still listed after delete: ${remaining}"
+              exit 1
+            fi
+          fi
+
+          # Fail loudly: a revoked token or a changed CLI would otherwise silently
+          # bring back the growing bill.
+          exit "$failed"

@@ -22,6 +22,15 @@ vi.mock("~/server/auth/tenant-config", () => ({
 vi.mock("~/server/auth/shared", () => ({
   ACCESS_TOKEN_REFRESH_BUFFER_MS: 5 * 60 * 1000,
 }));
+const { familyState } = vi.hoisted(() => ({
+  familyState: vi.fn<() => Promise<"live" | "ended" | "unknown">>(),
+}));
+
+// #5399: a snapshot needs a family Identity & Access confirms live.
+vi.mock("~/server/auth/token-validation", () => ({
+  portalOfScope: (scope: unknown) => scope,
+  sessionFamilyState: familyState,
+}));
 
 import { readTenantSessionSnapshot } from "./tenant-session-snapshot.server";
 
@@ -42,6 +51,8 @@ const validToken = () => ({
 
 beforeEach(() => {
   mockGetToken.mockReset();
+  familyState.mockReset();
+  familyState.mockResolvedValue("live");
 });
 
 describe("readTenantSessionSnapshot", () => {
@@ -101,4 +112,15 @@ describe("readTenantSessionSnapshot", () => {
 
     await expect(readTenantSessionSnapshot()).resolves.toBeNull();
   });
+
+  it.each(["ended", "unknown"] as const)(
+    "leaves a session of a %s family to the session route (#5399)",
+    async (state) => {
+      mockGetToken.mockResolvedValue(validToken());
+      familyState.mockResolvedValue(state);
+
+      await expect(readTenantSessionSnapshot()).resolves.toBeNull();
+      expect(familyState).toHaveBeenCalledWith("backend-access", undefined);
+    },
+  );
 });

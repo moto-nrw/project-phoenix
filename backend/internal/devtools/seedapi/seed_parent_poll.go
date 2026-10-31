@@ -79,50 +79,82 @@ type seedParentPollOption struct {
 // parents and three of four family app accounts. The first parent and every
 // child they share stay unanswered: the parent portal shows them the open
 // poll.
+//
+// The families sign in and answer in parallel. Which family answers for a
+// child and which appointments it picks are planned in between, in family
+// order, so they stay the same as when the families answered one by one.
 func seedParentPollAnswers(rt *Runtime) (int, error) {
 	defer rt.Client.BindAuth(rt.TenantAuth)
 	if len(rt.Parents[0].StudentIDs) == 0 {
 		return 0, errors.New("the first demo parent has no children to keep the poll open for")
 	}
-	firstFamily := firstFamilyChildren(rt)
-	answered := 0
-	for _, parent := range respondingFamilies(rt) {
-		count, err := seedParentPollAnswer(rt, parent, firstFamily, answered)
-		if err != nil {
-			return answered, err
+	families := respondingFamilies(rt)
+	views := make([]seedParentPollView, len(families))
+	if err := forEachParallel(rt, families, func(worker *Runtime, index int, parent ParentCredentials) error {
+		view, err := seedParentPollViewOf(worker, parent)
+		views[index] = view
+		return err
+	}); err != nil {
+		return 0, err
+	}
+	answers := planSeedParentPollAnswers(views, firstFamilyChildren(rt))
+	if err := forEachParallel(rt, views, func(worker *Runtime, index int, view seedParentPollView) error {
+		for _, answer := range answers[index] {
+			if _, err := worker.Client.PostWithAuth(view.auth, "/parent/me/news/"+view.poll.ID+"/respond", answer); err != nil {
+				return fmt.Errorf("answer parent poll: %w", err)
+			}
 		}
-		answered += count
+		return nil
+	}); err != nil {
+		return 0, err
+	}
+	answered := 0
+	for _, family := range answers {
+		answered += len(family)
 	}
 	return answered, nil
 }
 
-// seedParentPollAnswer answers the poll as one parent for each of their
-// children outside the first family. `previous` counts the answers so far and
-// varies the chosen appointments.
-func seedParentPollAnswer(rt *Runtime, parent ParentCredentials, firstFamily map[string]bool, previous int) (int, error) {
+// seedParentPollView is the poll as one responding parent sees it.
+type seedParentPollView struct {
+	auth AuthRef
+	poll seedParentPollItem
+}
+
+func seedParentPollViewOf(rt *Runtime, parent ParentCredentials) (seedParentPollView, error) {
 	auth, err := rt.Adapter.LoginParent(context.Background(), parent.Email, parent.Password)
 	if err != nil {
-		return 0, fmt.Errorf("login parent to answer the poll: %w", err)
+		return seedParentPollView{}, fmt.Errorf("login parent to answer the poll: %w", err)
 	}
 	poll, err := seedParentPollFor(rt, auth)
-	if err != nil || len(poll.Options) == 0 {
-		return 0, err
-	}
-	count := 0
-	for _, child := range poll.Children {
-		if firstFamily[child.StudentID] || len(child.SelectedOptions) > 0 {
+	return seedParentPollView{auth: auth, poll: poll}, err
+}
+
+// planSeedParentPollAnswers lets each parent answer for each of their
+// children outside the first family that nobody answered yet, in family
+// order. The number of answers before one varies its appointments.
+func planSeedParentPollAnswers(views []seedParentPollView, firstFamily map[string]bool) [][]map[string]any {
+	answers := make([][]map[string]any, len(views))
+	answeredChild := map[string]bool{}
+	previous := 0
+	for index, view := range views {
+		if len(view.poll.Options) == 0 {
 			continue
 		}
-		if _, err := rt.Client.PostWithAuth(auth, "/parent/me/news/"+poll.ID+"/respond", map[string]any{
-			"student_id":   child.StudentID,
-			"option_ids":   seedParentPollChoice(poll.Options, previous+count),
-			"published_at": poll.PublishedAt,
-		}); err != nil {
-			return count, fmt.Errorf("answer parent poll: %w", err)
+		for _, child := range view.poll.Children {
+			if firstFamily[child.StudentID] || answeredChild[child.StudentID] || len(child.SelectedOptions) > 0 {
+				continue
+			}
+			answeredChild[child.StudentID] = true
+			answers[index] = append(answers[index], map[string]any{
+				"student_id":   child.StudentID,
+				"option_ids":   seedParentPollChoice(view.poll.Options, previous),
+				"published_at": view.poll.PublishedAt,
+			})
+			previous++
 		}
-		count++
 	}
-	return count, nil
+	return answers
 }
 
 func seedParentPollFor(rt *Runtime, auth AuthRef) (seedParentPollItem, error) {

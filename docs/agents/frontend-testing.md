@@ -12,7 +12,15 @@ node environment with only `setup-common.ts`. Everything else runs in
 `app-dom` (happy-dom plus `setup.ts`). List a new `*.test.ts` in
 `node-test-files.ts` when it renders nothing and uses no DOM, window, storage,
 next-intl, SWR or tenant-context mock, and confirm it passes with
-`pnpm vitest run --project logic-node`.
+`pnpm vitest run --project logic-node`. Keep a test in `app-dom` when a module
+it imports branches on `window`, `document` or storage: under node it would
+pass on the server branch only.
+
+`scripts/test-changed.sh` runs only the filesystem guards when the frontend
+itself did not change (backend or Markdown inputs). Locally it skips that run
+when every non-ignored file, the installed dependencies, the frontend env files
+and Node are unchanged since the last pass; `PHX_GUARDS_CACHE=off` forces it.
+CI never reuses a result.
 
 `school-date-dom` runs the school-date component suites listed in
 `schoolDateTestFiles` in `frontend/vitest.config.ts`, using happy-dom and forked
