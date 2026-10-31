@@ -2,11 +2,15 @@
 package common
 
 const CodeSchoolNoSchoolPortalRole = "school.no_school_portal_role"
+const CodeSchoolParentConferenceChangeClosed = "school.parent_conference_change_closed"
+const CodeSchoolParentConferenceSlotTaken = "school.parent_conference_slot_taken"
 const CodeSchoolSetupCompleted = "school.setup_completed"
 const CodeSchoolSetupIncomplete = "school.setup_incomplete"
 
 var errorCodeClassesSchool = []errorCodeClass{
 	{CodeSchoolNoSchoolPortalRole, "permission"},
+	{CodeSchoolParentConferenceChangeClosed, "business_rejection"},
+	{CodeSchoolParentConferenceSlotTaken, "business_rejection"},
 	{CodeSchoolSetupCompleted, "business_rejection"},
 	{CodeSchoolSetupIncomplete, "business_rejection"},
 }

@@ -18,7 +18,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import {
-  SCHOOL_EVENT_TYPE_LABELS,
+  CALENDAR_SCHOOL_EVENT_TYPE_LABELS,
   type CalendarAppointmentOverview,
   type CalendarEvent,
   type CalendarResponseStatus,
@@ -157,7 +157,7 @@ function toneOf(event: CalendarEvent) {
 /** „Ausflug“, „Pädagogischer Tag“ … für einen Schultermin, sonst nichts. */
 function schoolEventTypeLabel(event: CalendarEvent): string | undefined {
   return event.school_event_type
-    ? SCHOOL_EVENT_TYPE_LABELS[event.school_event_type]
+    ? CALENDAR_SCHOOL_EVENT_TYPE_LABELS[event.school_event_type]
     : undefined;
 }
 

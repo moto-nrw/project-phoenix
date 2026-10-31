@@ -87,6 +87,14 @@
   ],
   "data_objects": [
     {
+      "name": "calendar.parent_conference_bookings",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.parent_conferences",
+      "write_owner": "school-calendar"
+    },
+    {
       "name": "calendar.staff_feed_tombstones",
       "write_owner": "school-calendar"
     },

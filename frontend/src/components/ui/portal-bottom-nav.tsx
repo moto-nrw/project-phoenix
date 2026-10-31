@@ -38,7 +38,7 @@ export function PortalBottomNav({
   return (
     <nav
       aria-label="Hauptnavigation"
-      className="fixed inset-x-0 bottom-0 z-30 lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 lg:hidden print:hidden"
     >
       {/* Die Leiste schwebt, ihr Rand ist also durchsichtig — ohne diesen
           Verlauf laeuft der Inhalt daneben und darunter sichtbar weiter und

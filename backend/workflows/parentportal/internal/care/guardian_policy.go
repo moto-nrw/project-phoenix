@@ -16,6 +16,7 @@ type GuardianPolicy interface {
 
 // Relationship permission names are the workflow's action protocol, not grants.
 const (
+	GuardianPermissionConferenceBook          = "parent_portal.conference.book"
 	GuardianPermissionConsentManage           = "parent_portal.consent.manage"
 	GuardianPermissionDeclarationSubmit       = "parent_portal.declarations.submit"
 	GuardianPermissionEnrollmentSubmit        = "parent_portal.enrollment.submit"

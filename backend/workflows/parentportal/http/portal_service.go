@@ -72,6 +72,11 @@ type PortalService interface {
 
 	GetProfile(ctx context.Context, accountID int64) (*parentService.Profile, error)
 
+	// ParentConferenceChild resolves a child for the Elternsprechtag
+	// (#4801): parent_portal.access to see the days, and
+	// parent_portal.conference.book when book is set.
+	ParentConferenceChild(ctx context.Context, accountID, studentID int64, book bool) (*parentService.Child, error)
+
 	UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*parentService.Profile, error)
 
 	// SubmitSickNote reports the parent's child sick or excused for one or more
