@@ -1,7 +1,9 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useRef, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import {
@@ -26,7 +28,7 @@ import {
   formatDate,
   parseISODate,
   toISODate,
-  todayISO,
+  berlinTodayISO,
 } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -36,7 +38,7 @@ import type { TraegerErasureOrder } from "~/lib/operator/provisioning-helpers";
 const logger = createLogger({ component: "TraegerErasureOrderSection" });
 
 function tomorrow(): Date {
-  const date = parseISODate(todayISO());
+  const date = parseISODate(berlinTodayISO());
   date.setDate(date.getDate() + 1);
   return date;
 }
@@ -59,8 +61,10 @@ export function TraegerErasureOrderSection({
     error,
     isLoading,
     mutate,
-  } = useSWR(["operator-org-erasure-order", organizationId], () =>
-    operatorProvisioningService.getTraegerErasureOrder(organizationId),
+  } = useSWRAuth(
+    operatorProvisioningKeys.orgErasureOrder(organizationId),
+    () => operatorProvisioningService.getTraegerErasureOrder(organizationId),
+    { keepPreviousData: false },
   );
   const loadError = useSwrLoadError(
     error,
@@ -295,7 +299,7 @@ function RecordErasureOrderForm({
               id="traeger-erasure-order-confirmed-on"
               value={confirmedOn}
               onChange={setConfirmedOn}
-              maxDate={parseISODate(todayISO())}
+              maxDate={parseISODate(berlinTodayISO())}
               placeholder="Datum auswählen"
               controlSize="lg"
               required

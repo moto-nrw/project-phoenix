@@ -1,3 +1,6 @@
+import { groupKeys } from "~/lib/swr/groups-keys";
+import { staffKeys } from "~/lib/swr/staff-keys";
+import { meKeys } from "~/lib/swr/me-keys";
 /**
  * Tests for use-global-sse.ts hook
  *
@@ -9,6 +12,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { SSEEvent, SSEHookOptions, SSEHookState } from "~/lib/sse-types";
+import { roomKeys } from "~/lib/swr/rooms-keys";
 import { act, renderHook } from "@testing-library/react";
 
 // Mock dependencies
@@ -17,6 +21,16 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
     data: { user: { token: "test-token", tenantId: 1, roles: ["user"] } },
   })),
+}));
+
+// Matchers stay observable here; the factory integration tests exercise real
+// scoped invalidation, including infinite and preload-only keys.
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
+  useInvalidateFamily: () => (family: string) =>
+    mutate(
+      (key: unknown) => typeof key === "string" && key.includes(`:${family}`),
+    ),
 }));
 
 vi.mock("swr", () => ({
@@ -103,6 +117,18 @@ describe("useGlobalSSE", () => {
       .filter((m): m is (key: string) => boolean => typeof m === "function");
     return inventory.filter((key) => matchers.some((m) => m(key)));
   }
+
+  it.each([
+    ["student_checkin", [roomKeys.key()]],
+    ["group_access_changed", [groupKeys.key(), staffKeys.key(), meKeys.key()]],
+    ["staff_time_tracking_changed", [staffKeys.key()]],
+  ] as const)("invalidates shared resource families on %s", (type, keys) => {
+    renderHook(() => useGlobalSSE());
+    fire({ type, data: { student_id: "7" }, active_group_id: "1" });
+    act(() => vi.advanceTimersByTime(500));
+    const inventory = keys.map((key) => `school-a:account-7:${key}`);
+    expect(matchedKeys(inventory)).toEqual(inventory);
+  });
 
   describe("hook initialization", () => {
     it("returns SSE connection state", () => {
@@ -1042,7 +1068,9 @@ describe("useGlobalSSE", () => {
         const m = call[0];
         return (
           typeof m === "function" &&
-          (m as (key: string) => boolean)("my-tenant:rooms-list")
+          (m as (key: string) => boolean)(
+            `my-tenant:account-1:${roomKeys.key({ includeSystem: true })}`,
+          )
         );
       });
       expect(listCall).toBeDefined();

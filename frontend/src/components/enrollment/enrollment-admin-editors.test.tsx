@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   act,
   fireEvent,
@@ -5162,4 +5165,20 @@ describe("information PDF validation", () => {
       screen.queryByRole("textbox", { name: "Bezeichnung für Eltern: PDF 1" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-07-01"))(
+    "defaults the school year from Berlin July in %s",
+    async (zone, instant) => {
+      mocks.listSchemas.mockResolvedValue([schema()]);
+      setSchoolDateClock(zone, instant, "2026-07-01");
+      mocks.listPhases.mockResolvedValue([phase()]);
+      render(<PhasesEditor />);
+      await screen.findByText("Schuljahr 2026/27");
+      fireEvent.click(
+        screen.getAllByRole("button", { name: "Neue Anmeldephase" })[0]!,
+      );
+      expect(inputByName("service_start_date")).toHaveValue("2026-09-01");
+      expect(inputByName("service_end_date")).toHaveValue("2027-07-31");
+    },
+  );
 });

@@ -23,7 +23,8 @@ import {
 } from "~/lib/change-request-list-api";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import { mutate, SWRConfig, type Cache } from "~/lib/swr";
+import { mutate } from "~/lib/swr";
+import { SWRConfig, type Cache } from "~/lib/swr/testing";
 
 import {
   useMergedRequestFeed,

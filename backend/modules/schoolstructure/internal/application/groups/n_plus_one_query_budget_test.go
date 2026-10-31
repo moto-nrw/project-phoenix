@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -32,5 +33,5 @@ func TestSuggestMappingsQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.education.suggest_mappings.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.education.suggest_mappings.reads", large)
 }

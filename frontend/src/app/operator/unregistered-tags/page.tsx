@@ -1,8 +1,9 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -58,7 +59,11 @@ function OperatorUnregisteredTagsPageContent() {
     if (!isAuthenticated) return null;
     const orgPart = filterOrgId || "all-orgs";
     const schoolPart = selectedSchool?.id ?? "all-schools";
-    return `operator-unregistered-tags-${resolvedFilter}-${orgPart}-${schoolPart}`;
+    return operatorProvisioningKeys.unregisteredTags(
+      resolvedFilter,
+      orgPart,
+      schoolPart,
+    );
   }, [filterOrgId, isAuthenticated, resolvedFilter, selectedSchool?.id]);
 
   const {
@@ -66,7 +71,7 @@ function OperatorUnregisteredTagsPageContent() {
     error: scansError,
     isLoading,
     mutate,
-  } = useSWR(
+  } = useSWRAuth(
     swrKey,
     () =>
       operatorProvisioningService.listUnregisteredTagScans({

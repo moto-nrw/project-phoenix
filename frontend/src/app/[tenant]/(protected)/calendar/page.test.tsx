@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   fireEvent,
   render as rtlRender,
@@ -497,6 +500,18 @@ describe("StaffCalendarPage", () => {
     );
   });
 
+  it.each(schoolDateCases("2026-06-01"))(
+    "opens the Berlin staff-calendar week in %s",
+    (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-06-01");
+      render(<StaffCalendarPage />);
+      expect(mockUseSWRAuth).toHaveBeenCalledWith(
+        "staff-calendar-week-2026-06-01-2026-06-07",
+        expect.any(Function),
+      );
+    },
+  );
+
   it("renders events and stores RSVP responses", async () => {
     render(<StaffCalendarPage />);
 
@@ -649,44 +664,61 @@ describe("StaffCalendarPage", () => {
     );
   });
 
-  it("creates a weekly recurring appointment for selected staff", async () => {
-    render(<StaffCalendarPage />);
+  it.each(schoolDateCases("2026-05-27"))(
+    "creates a weekly recurring appointment for selected staff in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-27");
 
-    fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
-    fireEvent.change(screen.getByLabelText("Titel"), {
-      target: { value: "Elterngespräch" },
-    });
-    fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
-    expect(
-      screen.getByText("Mitarbeitende: Anna Mitarbeiterin"),
-    ).toBeInTheDocument();
+      render(<StaffCalendarPage />);
 
-    fireEvent.click(screen.getByLabelText("Wiederholung"));
-    fireEvent.click(screen.getByRole("option", { name: "Wöchentlich" }));
-    fireEvent.click(screen.getByLabelText("Mo"));
-    fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+      fireEvent.click(screen.getByRole("button", { name: "Neuer Termin" }));
+      fireEvent.change(screen.getByLabelText("Titel"), {
+        target: { value: "Elterngespräch" },
+      });
+      fireEvent.click(screen.getByLabelText("Anna Mitarbeiterin"));
+      expect(
+        screen.getByText("Mitarbeitende: Anna Mitarbeiterin"),
+      ).toBeInTheDocument();
 
-    await waitFor(() =>
-      expect(mockCreateStaffAppointment).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: "Elterngespräch",
-          start_date: expect.any(String),
-          end_date: expect.any(String),
-          delivery_mode: "rsvp_required",
-          targets: [{ type: "staff", id: "7" }],
-          recurrence: expect.objectContaining({
-            frequency: "weekly",
-            interval_count: 1,
-            weekdays: ["monday"],
+      fireEvent.click(screen.getByLabelText("Wiederholung"));
+      fireEvent.click(screen.getByRole("option", { name: "Wöchentlich" }));
+      fireEvent.click(screen.getByLabelText("Mo"));
+      fireEvent.click(screen.getByRole("button", { name: "Termin speichern" }));
+
+      await waitFor(() =>
+        expect(mockCreateStaffAppointment).toHaveBeenCalledWith(
+          expect.objectContaining({
+            title: "Elterngespräch",
+            start_date: "2026-05-27",
+            end_date: "2026-05-27",
+            delivery_mode: "rsvp_required",
+            targets: [{ type: "staff", id: "7" }],
+            recurrence: expect.objectContaining({
+              frequency: "weekly",
+              interval_count: 1,
+              weekdays: ["monday"],
+            }),
           }),
+        ),
+      );
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Der Termin „Elterngespräch“ ist gespeichert.",
+      );
+      await waitFor(() => expect(mockMutate).toHaveBeenCalled());
+      const nextInstant = schoolDateCases("2026-05-28").find(
+        ([name]) => name === zone,
+      )![1];
+      setSchoolDateClock(zone, nextInstant, "2026-05-28");
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Neuer Termin",
+          hidden: true,
         }),
-      ),
-    );
-    expect(mockToastSuccess).toHaveBeenCalledWith(
-      "Der Termin „Elterngespräch“ ist gespeichert.",
-    );
-    await waitFor(() => expect(mockMutate).toHaveBeenCalled());
-  });
+      );
+      expect(screen.getByLabelText("Startdatum")).toHaveValue("2026-05-28");
+      expect(screen.getByLabelText("Enddatum")).toHaveValue("2026-05-28");
+    },
+  );
 
   // Die Lehrkräfte erreicht ein Termin in moto schule (#4798).
   it("invites all teachers as one target", async () => {

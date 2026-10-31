@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,11 +30,11 @@ func TestGroupQueryBudgetsStayFlat(t *testing.T) {
 		large := captureGroupQueries(t, ctx, module, counter, groupIDs)
 
 		assertQueryCountStable(t, small, large, "modules.timetable.groups.list")
-		testpkg.AssertQueryBudget(t, "modules.timetable.groups.list", large["modules.timetable.groups.list"])
+		querybudgets.AssertQueryBudget(t, "modules.timetable.groups.list", large["modules.timetable.groups.list"])
 		assertQueryCountStable(t, small, large, "modules.timetable.group_targets.list")
-		testpkg.AssertQueryBudget(t, "modules.timetable.group_targets.list", large["modules.timetable.group_targets.list"])
+		querybudgets.AssertQueryBudget(t, "modules.timetable.group_targets.list", large["modules.timetable.group_targets.list"])
 		assertQueryCountStable(t, small, large, "modules.timetable.target_students.list")
-		testpkg.AssertQueryBudget(t, "modules.timetable.target_students.list", large["modules.timetable.target_students.list"])
+		querybudgets.AssertQueryBudget(t, "modules.timetable.target_students.list", large["modules.timetable.target_students.list"])
 
 		return nil
 	}))

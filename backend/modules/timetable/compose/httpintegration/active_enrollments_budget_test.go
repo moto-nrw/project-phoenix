@@ -12,6 +12,7 @@ import (
 	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestActiveStudentEnrollmentsQueryBudgetStaysFlat pins the child's current
@@ -63,5 +64,5 @@ func TestActiveStudentEnrollmentsQueryBudgetStaysFlat(t *testing.T) {
 	enroll(3, 5)
 	large := reads(8)
 	require.Len(t, large, len(small), "the read grew with the number of activities")
-	testpkg.AssertQueryBudget(t, "modules.timetable.active_enrollments.list", large)
+	querybudgets.AssertQueryBudget(t, "modules.timetable.active_enrollments.list", large)
 }

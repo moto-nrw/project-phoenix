@@ -1,3 +1,4 @@
+import type { ParentConferenceOffer } from "~/lib/parent-conferences";
 import {
   ApiError,
   transportFetch,
@@ -226,6 +227,7 @@ export interface SickNoteSubmitResult {
 
 // Resolved per-tenant parent-portal feature toggles for a child.
 export interface ChildFeatures {
+  readonly conference_book_allowed?: boolean;
   // Zustand, keine Fähigkeit: Das Kind ist nicht mehr in Betreuung (#2487).
   // Ist es true, sind alle Schreib-Flags unten false — das Portal zeigt dann
   // ein Nur-Lesen-Profil mit einem Satz dazu statt Knöpfe, die alle gleich
@@ -601,6 +603,42 @@ export async function grantChildPhotoConsent(
   );
 }
 
+const parentConferencesUrl = (studentId: string) =>
+  `/api/parent/me/children/${encodeURIComponent(studentId)}/parent-conferences`;
+
+/** The coming Elternsprechtage of the child's class (#4801). */
+export async function fetchChildParentConferences(
+  studentId: string,
+): Promise<ParentConferenceOffer[]> {
+  return (
+    (await getJson<ParentConferenceOffer[] | null>(
+      parentConferencesUrl(studentId),
+    )) ?? []
+  );
+}
+
+/** Books the slot for the child, or moves the child's booking there. */
+export async function bookChildParentConference(
+  studentId: string,
+  conferenceId: string,
+  startTime: string,
+): Promise<ParentConferenceOffer> {
+  return putJson<ParentConferenceOffer>(
+    `${parentConferencesUrl(studentId)}/${encodeURIComponent(conferenceId)}/booking`,
+    { start_time: startTime },
+  );
+}
+
+/** Cancels the child's booking of the day. */
+export async function cancelChildParentConference(
+  studentId: string,
+  conferenceId: string,
+): Promise<void> {
+  await deleteJson<unknown>(
+    `${parentConferencesUrl(studentId)}/${encodeURIComponent(conferenceId)}/booking`,
+  );
+}
+
 /**
  * Fetches the enrollment phases the calling parent's account may apply to,
  * across every school (linked or not). The backend pre-filters by eligibility
@@ -614,14 +652,6 @@ export async function listEnrollableSchools(): Promise<EnrollablePhase[]> {
 
 export async function fetchParentProfile(): Promise<ParentProfile> {
   return getJson<ParentProfile>("/api/parent/me/profile");
-}
-
-// The authenticated account owns this response. All parent-portal consumers
-// use the same key so the header and locale state read one SWR cache entry.
-export function parentProfileCacheKey(
-  accountID: string,
-): readonly [string, string] {
-  return ["parent-profile", accountID];
 }
 
 export async function updateParentPortalLocale(

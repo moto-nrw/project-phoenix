@@ -20,6 +20,7 @@ import useSWR, {
   type Middleware,
   type SWRConfiguration,
   type SWRResponse,
+  type MutatorOptions,
 } from "swr";
 import {
   useCallback,
@@ -46,6 +47,7 @@ import {
   lockMutation,
   requestGenerationOf,
   startOf,
+  preloadSWR,
 } from "./generation";
 import {
   authGeneration,
@@ -158,6 +160,109 @@ function currentResult<V>(
   );
 }
 
+/**
+ * The options a reader of ~/lib/swr takes (#5007), an allowlist in type and
+ * at runtime. Each is checked against the generation lock:
+ * - timing only, every load still runs the locked fetcher:
+ *   `dedupingInterval`, `focusThrottleInterval`, `refreshInterval`,
+ *   `revalidateIfStale`, `revalidateOnFocus`, `revalidateOnMount`,
+ *   `revalidateOnReconnect`;
+ * - retries, which the lock drops after a generation moved:
+ *   `errorRetryCount`, `shouldRetryOnError`;
+ * - read-side values the lock judges: `fallbackData` (shown only under the
+ *   fallback rules), `keepPreviousData` (only while no generation moved);
+ * - `isPaused`, which can only add pauses to the session pause;
+ * - `onSuccess` and `onError`, called with the value or failure alone,
+ *   never with SWR's configuration and its cache or mutate.
+ * Left out on purpose: `use` (a middleware gets raw useSWR and its mutate),
+ * `provider`, `fallback`, `fetcher`, `compare`, `onErrorRetry` and every
+ * other key of SWRConfiguration.
+ */
+export const READER_OPTION_KEYS = [
+  "dedupingInterval",
+  "errorRetryCount",
+  "fallbackData",
+  "focusThrottleInterval",
+  "isPaused",
+  "keepPreviousData",
+  "onError",
+  "onSuccess",
+  "refreshInterval",
+  "revalidateIfStale",
+  "revalidateOnFocus",
+  "revalidateOnMount",
+  "revalidateOnReconnect",
+  "shouldRetryOnError",
+] as const satisfies readonly (keyof SWRConfiguration)[];
+
+export type ReaderOptions<T, E = Error> = Pick<
+  SWRConfiguration<T, E>,
+  Exclude<(typeof READER_OPTION_KEYS)[number], "onSuccess" | "onError">
+> & {
+  onSuccess?: (data: T) => void;
+  onError?: (error: E) => void;
+};
+
+/**
+ * The options of a mutation through ~/lib/swr. lockMutation stamps
+ * `optimisticData` and guards `populateCache`; the others decide only
+ * whether to revalidate, roll back or throw.
+ */
+export const MUTATION_OPTION_KEYS = [
+  "optimisticData",
+  "populateCache",
+  "revalidate",
+  "rollbackOnError",
+  "throwOnError",
+] as const satisfies readonly (keyof MutatorOptions)[];
+
+const allowedReaderKeys = new Set<string>(READER_OPTION_KEYS);
+const allowedMutationKeys = new Set<string>(MUTATION_OPTION_KEYS);
+// A clear writes nothing but `undefined`: it may revalidate and report a
+// failed revalidation, never populate or show optimistic data.
+const clearOptionKeys = new Set<string>(["revalidate", "throwOnError"]);
+
+/**
+ * Copies the allowed keys of `options`; any other key throws outside
+ * production and is dropped in production. Copied, never spread: a key the
+ * type let through by assignability does not reach SWR.
+ */
+function copyAllowed(
+  options: object | undefined,
+  allowed: ReadonlySet<string>,
+  kind: string,
+): Record<string, unknown> {
+  const copy: Record<string, unknown> = {};
+  if (options === undefined || options === null) return copy;
+  for (const [name, value] of Object.entries(options)) {
+    if (allowed.has(name)) copy[name] = value;
+    else if (process.env.NODE_ENV !== "production")
+      throw new TypeError(`~/lib/swr ${kind} takes no option '${name}'`);
+  }
+  return copy;
+}
+
+function readerConfig<T, E>(
+  options: ReaderOptions<T, E> | undefined,
+): SWRConfiguration<T, E> {
+  const { onSuccess, onError, ...rest } = copyAllowed(
+    options,
+    allowedReaderKeys,
+    "reader",
+  ) as ReaderOptions<T, E>;
+  return {
+    ...rest,
+    ...(onSuccess ? { onSuccess: (data: T) => onSuccess(data) } : {}),
+    ...(onError ? { onError: (error: E) => onError(error) } : {}),
+  };
+}
+
+function mutationOptions(options: unknown): unknown {
+  return typeof options === "object" && options !== null
+    ? copyAllowed(options, allowedMutationKeys, "mutation")
+    : options;
+}
+
 /** A bound mutate of `key` whose writes go through the generation lock. */
 function lockBoundMutate<T>(
   key: string | null,
@@ -176,17 +281,25 @@ function lockBoundMutate<T>(
     // SWR's bound mutate follows the hook's latest key. A retained callback
     // must write to the same captured key that its generation lock checks.
     // SWR counts the arguments: `mutate()` revalidates, while an explicit
-    // `undefined` writes it. Pass revalidations through unchanged.
+    // `undefined` clears the entry. A clear takes only `revalidate` and
+    // `throwOnError`: populateCache or optimisticData would write past the
+    // lock.
     if (args[0] === undefined) {
-      return currentResult(
-        key,
-        (mutate as (...given: unknown[]) => Promise<T | undefined>)(
-          key,
-          ...args,
-        ),
+      if (args.length === 0) return currentResult(key, mutate(key));
+      const clear = copyAllowed(
+        typeof args[1] === "boolean"
+          ? { revalidate: args[1] }
+          : ((args[1] ?? undefined) as object | undefined),
+        clearOptionKeys,
+        "clear",
       );
+      return currentResult(key, mutate(key, undefined, clear as never));
     }
-    const [locked, lockedOptions] = lockMutation(key, args[0], args[1]);
+    const [locked, lockedOptions] = lockMutation(
+      key,
+      args[0],
+      mutationOptions(args[1]),
+    );
     return currentResult(
       key,
       mutate(key, locked as never, lockedOptions as never),
@@ -211,7 +324,8 @@ function lockBoundMutate<T>(
 function useScopedSWR<T, E>(
   key: string | null,
   fetcher: () => Promise<T>,
-  options: SWRConfiguration<T, E> | undefined,
+  options: ReaderOptions<T, E> | undefined,
+  base: SWRConfiguration = swrConfig,
 ): SWRResponse<T, E> {
   const { prefix, generation } = useSWRScope();
   const { mutate: cacheMutate } = useSWRConfig();
@@ -224,17 +338,19 @@ function useScopedSWR<T, E>(
     currentSWRDataGeneration,
   );
   const shown = useRef({ generation, moved });
-  const configured = options?.keepPreviousData ?? swrConfig.keepPreviousData;
+  const configured = options?.keepPreviousData ?? base.keepPreviousData;
   const keep =
     configured === true &&
     shown.current.generation === generation &&
     shown.current.moved === moved;
 
-  const response = useSWR<T, E>(fullKey, fetcher, {
-    ...swrConfig,
-    ...options,
+  // The public fetcher contract has no SWR key argument. In particular a
+  // factory's optional params must not receive the full scoped cache key.
+  const response = useSWR<T, E>(fullKey, () => fetcher(), {
+    ...(base as SWRConfiguration<T, E>),
+    ...readerConfig(options),
     keepPreviousData: keep,
-    use: [generationLockMiddleware, ...(options?.use ?? [])],
+    use: [generationLockMiddleware],
   });
 
   const raw = response.data;
@@ -344,7 +460,7 @@ function useScopedSWR<T, E>(
 export function useSWRAuth<T, E = Error>(
   key: string | null,
   fetcher: () => Promise<T>,
-  options?: SWRConfiguration<T, E>,
+  options?: ReaderOptions<T, E>,
 ): SWRResponse<T, E> {
   // Fetches only while the session grants access (hasSessionAccess) and, in
   // the school portal, carries its school: swrScopePrefix is null otherwise.
@@ -382,7 +498,7 @@ export function useImmutableSWR<T, E = Error>(
   key: string | null,
   fetcher: () => Promise<T>,
 ): SWRResponse<T, E> {
-  return useSWRAuth<T, E>(key, fetcher, immutableConfig);
+  return useScopedSWR<T, E>(key, fetcher, undefined, immutableConfig);
 }
 
 /**
@@ -398,7 +514,7 @@ export function useImmutableSWR<T, E = Error>(
  * @example
  * ```tsx
  * const tenantMutate = useTenantMutate();
- * await tenantMutate("database-teachers-list");
+ * await tenantMutate(staffKeys.teachersKey());
  * ```
  */
 export function useTenantMutate() {
@@ -414,7 +530,7 @@ export function useTenantMutate() {
     (
       key: string,
       data?: unknown,
-      options?: { revalidate?: boolean },
+      options?: MutatorOptions,
     ): Promise<unknown> => {
       if (prefix === null || isSWRSessionPending())
         return Promise.resolve(undefined);
@@ -428,7 +544,11 @@ export function useTenantMutate() {
         return currentResult(cacheKey, swrMutate(cacheKey));
       }
       // A write that settles after the generation moved is not kept.
-      const [locked, lockedOptions] = lockMutation(cacheKey, data, options);
+      const [locked, lockedOptions] = lockMutation(
+        cacheKey,
+        data,
+        mutationOptions(options),
+      );
       return currentResult(
         cacheKey,
         swrMutate(cacheKey, locked, lockedOptions as never),
@@ -557,7 +677,7 @@ export function useSWRWithId<T, E = Error>(
   baseKey: string,
   id: string | null | undefined,
   fetcher: (id: string) => Promise<T>,
-  options?: SWRConfiguration<T, E>,
+  options?: ReaderOptions<T, E>,
 ): SWRResponse<T, E> {
   return useScopedSWR<T, E>(
     id == null ? null : `${baseKey}-${id}`,
@@ -600,6 +720,97 @@ export function useDiscardRefusedEntity() {
         discardScopedEntries(cache, prefix, entity.matches, error);
       }
       return true;
+    },
+    [prefix, cache],
+  );
+}
+
+/** Resolve a factory key for cache reads/seeds without duplicating session scoping. */
+export function useSWRCacheKey() {
+  const { prefix } = useSWRScope();
+  return useCallback(
+    (key: string) => (prefix === null ? null : scopedSWRKey(prefix, key)),
+    [prefix],
+  );
+}
+
+/** Hover/intent preload, held to the same session and generation as mounted readers. */
+export function useSWRPreload() {
+  const { prefix } = useSWRScope();
+  useSyncExternalStore(
+    subscribeSWRDataGeneration,
+    currentSWRDataGeneration,
+    currentSWRDataGeneration,
+  );
+  const originatingGeneration = currentSWRGeneration();
+  return useCallback(
+    <T>(key: string, fetcher: () => Promise<T>): Promise<T | undefined> => {
+      if (prefix === null || isSWRSessionPending())
+        return Promise.resolve(undefined);
+      const fullKey = scopedSWRKey(prefix, key);
+      if (dataGenerationOf(fullKey) > originatingGeneration)
+        return Promise.resolve(undefined);
+      const start = startOf(fullKey);
+      return preloadSWR(fullKey, fetcher).then(
+        (value) =>
+          isStillCurrent(fullKey, start) &&
+          isCurrentSWRValue(fullKey, value) !== false
+            ? value
+            : undefined,
+        (error: unknown) => {
+          if (
+            isDiscardedAnswer(error) ||
+            !isStillCurrent(fullKey, start) ||
+            !isCurrentSWRError(fullKey, error)
+          )
+            return undefined;
+          throw error;
+        },
+      );
+    },
+    [prefix, originatingGeneration],
+  );
+}
+
+/**
+ * Invalidate every entry of the session's scope whose resource key `matches`,
+ * wherever SWR keeps it (invalidateSWRKeys). `matches` gets the key without
+ * the scope prefix, as the factories build it; `() => true` refreshes every
+ * entry of the session. The predicate form of useTenantMutateMatching: the
+ * cache of another school or account is never touched, and without a
+ * signed-in session nothing matches. Components outside ~/lib/swr have no
+ * other access to the cache (#5007).
+ */
+export function useInvalidateMatching() {
+  const { prefix } = useSWRScope();
+  const { cache } = useSWRConfig();
+  return useCallback(
+    (matches: (key: string) => boolean, options?: { clear?: boolean }) => {
+      if (prefix === null || isSWRSessionPending()) return Promise.resolve([]);
+      const scope = scopedSWRKey(prefix, "");
+      return invalidateSWRKeys(
+        cache,
+        (key) => key.startsWith(scope) && matches(key.slice(scope.length)),
+        options?.clear ? "clear" : "revalidate",
+      );
+    },
+    [prefix, cache],
+  );
+}
+
+/** Invalidate a resource family, including unmounted, infinite and preloaded keys. */
+export function useInvalidateFamily() {
+  const { prefix } = useSWRScope();
+  const { cache } = useSWRConfig();
+  return useCallback(
+    (family: string, options?: { clear?: boolean }) => {
+      if (prefix === null || isSWRSessionPending()) return Promise.resolve([]);
+      const start = scopedSWRKey(prefix, family);
+      return invalidateSWRKeys(
+        cache,
+        (key) => key.startsWith(start),
+        options?.clear ? "clear" : "revalidate",
+      );
     },
     [prefix, cache],
   );

@@ -650,3 +650,22 @@ func TestDisablingBookingAuthorityObsoletesOnlyOpenBookingCompletions(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, 1, resolvedTotal)
 }
+
+func TestHistoricalParticipationRetainsDatedAlumni(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	scope := testpkg.NewTenantScope(t, db)
+	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Abschluss", "Historisch", "4a")
+	lastDay := calendar.Date("2026-08-25")
+	testpkg.SetStudentLifecycle(t, db, student.ID, string(peopleValues.StudentStatusAlumnus), nil, &lastDay)
+	service := bookingAuthorityService(t, db, false)
+	historical, err := service.HistoricalParticipatingStudentIDsByDate(scope.Context(), []int64{student.ID}, lastDay.AddDays(-1), lastDay.AddDays(1))
+	require.NoError(t, err)
+	assert.True(t, historical[lastDay.AddDays(-1)][student.ID])
+	assert.True(t, historical[lastDay][student.ID])
+	assert.False(t, historical[lastDay.AddDays(1)][student.ID])
+	current, err := service.ParticipatingStudentIDsByDate(scope.Context(), []int64{student.ID}, lastDay.AddDays(-1), lastDay)
+	require.NoError(t, err)
+	assert.False(t, current[lastDay.AddDays(-1)][student.ID])
+	assert.False(t, current[lastDay][student.ID])
+}

@@ -193,7 +193,7 @@ function SelectField({
       </label>
       <CustomSelect
         id={id}
-        labelId={`${id}-label`}
+        ariaLabelledBy={`${id}-label`}
         value={value}
         onChange={onChange}
         options={[...options]}

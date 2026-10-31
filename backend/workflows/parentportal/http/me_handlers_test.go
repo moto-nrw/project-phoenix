@@ -28,6 +28,9 @@ import (
 type fakeParentService struct {
 	declarationProof *parentService.DeclarationProof
 
+	conferenceChild         *parentService.Child
+	conferenceChildErr      error
+	gotConferenceBook       []bool
 	documents               []parentService.BillingDocument
 	documentFile            parentService.BillingDocumentFile
 	documentsErr            error

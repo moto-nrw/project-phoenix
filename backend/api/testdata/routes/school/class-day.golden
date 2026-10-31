@@ -5,6 +5,8 @@ DELETE /school/class-day/day-hints/{schoolClass}/{date}/students/{studentId}
 DELETE /school/class-day/handover/{schoolClass}/{date}
 DELETE /school/class-day/homework/{schoolClass}/{homeworkId}
 GET /school/class-day/
+GET /school/class-day/absence-list
+GET /school/class-day/absence-list/export
 GET /school/class-day/arrival-exceptions
 GET /school/class-day/arrival-exceptions/block-start
 GET /school/class-day/classes

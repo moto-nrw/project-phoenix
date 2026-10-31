@@ -177,8 +177,8 @@ func calendarOutbox(value *deliveryCompose.MailIntent) *calendarCompose.EmailOut
 }
 
 func calendarNotification(value calendarCompose.Notification) deliveryCompose.NotificationEvent {
-	return deliveryCompose.NotificationEvent{Type: value.Type, IdempotencyKey: value.IdempotencyKey, RelatedType: value.RelatedType, RelatedID: value.RelatedID, Title: value.Title, Body: value.Body, DeepLink: value.DeepLink, Priority: value.Priority,
-		Audience: deliveryCompose.NotificationAudience{TenantID: value.Audience.TenantID, Scope: deliveryCompose.NotificationAudienceScope(value.Audience.Scope), GuardianAccountIDs: value.Audience.GuardianAccountIDs, StudentIDs: value.Audience.StudentIDs}}
+	return deliveryCompose.NotificationEvent{Type: value.Type, IdempotencyKey: value.IdempotencyKey, RelatedType: value.RelatedType, RelatedID: value.RelatedID, Title: value.Title, Body: value.Body, DeepLink: value.DeepLink, SchoolDeepLink: value.SchoolDeepLink, Priority: value.Priority,
+		Audience: deliveryCompose.NotificationAudience{TenantID: value.Audience.TenantID, Scope: deliveryCompose.NotificationAudienceScope(value.Audience.Scope), GuardianAccountIDs: value.Audience.GuardianAccountIDs, StudentIDs: value.Audience.StudentIDs, StaffAccountIDs: value.Audience.StaffAccountIDs}}
 }
 
 type calendarNotificationPort struct {

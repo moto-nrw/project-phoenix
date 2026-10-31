@@ -31,7 +31,40 @@ func (s *Service) MorningAttendanceOn(ctx context.Context, date calendar.Date, c
 	}
 	err = s.runWrite(ctx, "list_morning_attendance", func(txCtx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
-		result, stats, err = s.store.ListMorningAttendance(txCtx, date, studentIDs, entryIDs)
+		result, stats, err = s.store.ListMorningAttendance(txCtx, date, date, studentIDs, entryIDs)
+		return stats, err
+	})
+	return result, err
+}
+
+// MorningAttendanceBetween returns the stored morning marks dated from from
+// to to (both included) for the named children (#4793).
+func (s *Service) MorningAttendanceBetween(ctx context.Context, from, to calendar.Date, children []studentpresence.MorningAttendanceChild) (result []studentpresence.MorningAttendanceEntry, err error) {
+	for _, day := range []calendar.Date{from, to} {
+		if _, err := calendar.ParseDate(day.String()); err != nil {
+			return nil, fmt.Errorf("%w: %w", studentpresence.ErrMorningAttendanceInvalid, err)
+		}
+	}
+	if to.Before(from) {
+		return nil, studentpresence.ErrMorningAttendanceInvalid
+	}
+	studentIDs, entryIDs := make([]int64, 0, len(children)), make([]int64, 0)
+	for _, child := range children {
+		if !validMorningAttendanceChild(child) {
+			return nil, studentpresence.ErrMorningAttendanceInvalid
+		}
+		if child.StudentID > 0 {
+			studentIDs = append(studentIDs, child.StudentID)
+		} else {
+			entryIDs = append(entryIDs, child.ClassListEntryID)
+		}
+	}
+	if len(studentIDs) == 0 && len(entryIDs) == 0 {
+		return []studentpresence.MorningAttendanceEntry{}, nil
+	}
+	err = s.runWrite(ctx, "list_morning_attendance_between", func(txCtx context.Context) (ports.Stats, error) {
+		var stats ports.Stats
+		result, stats, err = s.store.ListMorningAttendance(txCtx, from, to, studentIDs, entryIDs)
 		return stats, err
 	})
 	return result, err

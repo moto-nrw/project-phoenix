@@ -20,6 +20,10 @@
 // Re-export hooks
 export {
   useSWRAuth,
+  useSWRCacheKey,
+  useSWRPreload,
+  useInvalidateFamily,
+  useInvalidateMatching,
   useImmutableSWR,
   useTenantMutate,
   useTenantMutateMatching,
@@ -28,8 +32,17 @@ export {
   activityWaitlistKeys,
   courseWaitlistKeys,
 } from "./course-waitlist-keys";
-export { scopedSWRKey, tenantSWRScope } from "./scope";
+export {
+  authGeneration,
+  scopedSWRKey,
+  tenantSWRScope,
+  useSWRSessionRefresh,
+} from "./scope";
+export { stampSWRSeeds, writeSWRSeeds, useSWRSeedFrom } from "./seed";
+export { IsolatedSWRCache, SWRSeedBoundary } from "./config-boundaries";
+export { SWRScopeBoundary } from "./scope-boundary";
 
-// Re-export SWR utilities that consumers might need
-export { SWRConfig, type Cache } from "swr";
+// Types only: no export of this module hands out the cache (#5007).
+export type { ReaderOptions } from "./hooks";
+export type { SWRConfiguration, SWRResponse, KeyedMutator } from "swr";
 export { mutate } from "./mutate";

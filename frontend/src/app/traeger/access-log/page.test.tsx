@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   fireEvent,
   render,
@@ -42,6 +45,21 @@ vi.mock("~/lib/traeger-api", () => ({
 vi.mock("~/lib/file-download", () => ({
   downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),
 }));
+
+const captureRange = vi.hoisted(() => vi.fn());
+vi.mock("~/components/ui/date-range-picker", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/components/ui/date-range-picker")>();
+  return {
+    ...actual,
+    DateRangePicker: (
+      props: React.ComponentProps<typeof actual.DateRangePicker>,
+    ) => {
+      captureRange(props);
+      return <actual.DateRangePicker {...props} />;
+    },
+  };
+});
 
 import TraegerAccessLogPage from "./page";
 
@@ -275,4 +293,30 @@ describe("TraegerAccessLogPage", () => {
       screen.queryByRole("button", { name: "Lena Leitung" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-09-09"))(
+    "uses Berlin days for defaults, presets and the maximum in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-09-09");
+      renderPage();
+      await screen.findByRole("table");
+      expect(mockFetchLog).toHaveBeenCalledWith(
+        expect.objectContaining({ from: "2026-08-11", to: "2026-09-09" }),
+        1,
+        undefined,
+      );
+      expect(captureRange.mock.calls.at(-1)![0].toMax).toEqual(
+        new Date(2026, 8, 9),
+      );
+      fireEvent.click(screen.getByRole("button", { name: /Sep\./ }));
+      fireEvent.click(await screen.findByRole("button", { name: "Heute" }));
+      await waitFor(() =>
+        expect(mockFetchLog).toHaveBeenLastCalledWith(
+          expect.objectContaining({ from: "2026-09-09", to: "2026-09-09" }),
+          1,
+          undefined,
+        ),
+      );
+    },
+  );
 });

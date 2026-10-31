@@ -135,6 +135,8 @@ export const ERROR_CATALOG = {
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "care.sick_note_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
+      "classday.absence_list_invalid_period":
+        "Dieser Zeitraum geht nicht. Bis darf nicht vor Von liegen. Wählen Sie höchstens ein Schuljahr.",
       "classday.absence_report_conflict":
         "Für dieses Kind steht heute schon etwas, zum Beispiel eine frühere Abholung. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
       "classday.absence_report_no_school_day":
@@ -213,6 +215,8 @@ export const ERROR_CATALOG = {
         "Nachrichten nur an die Leitung sind hier zurzeit nicht möglich. Bitte schreiben Sie an das ganze OGS-Team.",
       "communication.notifications_disabled":
         "Ihre Schule hat Benachrichtigungen ausgeschaltet. Eine Testbenachrichtigung ist deshalb nicht möglich.",
+      "communication.parent_messaging_disabled":
+        "Die Schule hat Eltern-Nachrichten ausgeschaltet. Das geht gerade nicht.",
       "communication.parent_news_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.poll_not_open":
@@ -861,6 +865,10 @@ export const ERROR_CATALOG = {
         "Diesen Raum gibt es nicht mehr. Bitte wählen Sie ihn in der Liste neu aus.",
       "rooms.not_released":
         "Dieser Raum ist nicht mehr freigegeben. Bitte wählen Sie einen anderen Raum.",
+      "school.parent_conference_change_closed":
+        "Bis 24 Stunden vor dem Termin können Sie buchen, umbuchen oder absagen. Danach wenden Sie sich bitte direkt an die Lehrkraft.",
+      "school.parent_conference_slot_taken":
+        "Dieser Termin ist gerade vergeben worden. Bitte wählen Sie eine andere Uhrzeit.",
       "school.setup_completed":
         "Die Einrichtung der Schule ist schon abgeschlossen. Bitte laden Sie die Seite neu.",
       "school.setup_incomplete":
@@ -1630,6 +1638,8 @@ export const ERROR_CATALOG = {
         "{object} contains invalid details. Please check your entries.",
       "care.sick_note_disabled":
         "{object} is not available here at the moment. Please ask your contact person.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -1676,6 +1686,8 @@ export const ERROR_CATALOG = {
         "No child in this group has parents with access to moto. The message was not sent.",
       "communication.leadership_messages_unavailable":
         "Messages to the leadership only are not possible here right now. Please write to the whole OGS team.",
+      "communication.parent_messaging_disabled":
+        "The school has turned off parent messaging. This is not possible right now.",
       "communication.staff_group_create_forbidden":
         "Teachers cannot start a group chat. Please ask the after-school team.",
       "communication.staff_group_manage_forbidden":
@@ -1917,6 +1929,10 @@ export const ERROR_CATALOG = {
         "The fee cannot be calculated for these weeks. Please reload the page.",
       "parent_billing.parent_document_not_found":
         "This document is no longer available. Please reload the page.",
+      "school.parent_conference_change_closed":
+        "You can book, change or cancel up to 24 hours before the meeting. After that, please contact the teacher directly.",
+      "school.parent_conference_slot_taken":
+        "Someone has just booked this time. Please choose another time.",
       "staff.exit_already_due":
         "The last working day is over. The exit is already running and can no longer be changed.",
       "staff.exit_day_in_past":
@@ -2112,6 +2128,8 @@ export const ERROR_CATALOG = {
         "Указаны неверные данные: {object}. Проверьте введённые данные.",
       "care.sick_note_disabled":
         "Сейчас здесь недоступно: {object}. Обратитесь к контактному лицу.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -2150,6 +2168,8 @@ export const ERROR_CATALOG = {
         "Ни у одного ребёнка в этой группе нет родителей с доступом к moto. Сообщение не отправлено.",
       "communication.leadership_messages_unavailable":
         "Сообщения только для руководства сейчас здесь недоступны. Пожалуйста, напишите всей команде OGS.",
+      "communication.parent_messaging_disabled":
+        "Школа отключила сообщения для родителей. Сейчас это невозможно.",
       "communication.survey_already_answered":
         "Вы уже участвовали в этом опросе. Ответ изменить нельзя.",
       "communication.survey_not_open": "Этот опрос больше не принимает ответы.",
@@ -2353,6 +2373,10 @@ export const ERROR_CATALOG = {
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
       "parent_billing.parent_document_not_found":
         "Этот документ больше недоступен. Пожалуйста, обновите страницу.",
+      "school.parent_conference_change_closed":
+        "Записаться, перенести или отменить встречу можно не позднее чем за 24 часа. После этого обратитесь, пожалуйста, напрямую к учителю.",
+      "school.parent_conference_slot_taken":
+        "Это время только что заняли. Пожалуйста, выберите другое время.",
       "students.care_exception_raced":
         "Данные изменились: {object}. Проверьте свои данные ещё раз.",
       "students.care_offerings_disabled":
@@ -2510,6 +2534,8 @@ export const ERROR_CATALOG = {
         "Ka të dhëna të pavlefshme: {object}. Kontrolloni çfarë keni shkruar.",
       "care.sick_note_disabled":
         "Për momentin nuk është i disponueshëm këtu: {object}. Pyetni personin tuaj të kontaktit.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -2548,6 +2574,8 @@ export const ERROR_CATALOG = {
         "Asnjë fëmijë në këtë grup nuk ka prindër me qasje në moto. Mesazhi nuk u dërgua.",
       "communication.leadership_messages_unavailable":
         "Mesazhet vetëm për drejtuesit nuk janë të mundshme këtu tani. Ju lutemi shkruajini gjithë ekipit të OGS.",
+      "communication.parent_messaging_disabled":
+        "Shkolla i ka çaktivizuar mesazhet për prindërit. Kjo nuk është e mundur tani.",
       "communication.survey_already_answered":
         "Ju keni marrë pjesë tashmë në këtë sondazh. Përgjigjja nuk mund të ndryshohet.",
       "communication.survey_not_open": "Ky sondazh nuk pranon më përgjigje.",
@@ -2763,6 +2791,10 @@ export const ERROR_CATALOG = {
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
       "parent_billing.parent_document_not_found":
         "Ky dokument nuk është më i disponueshëm. Ju lutemi rifreskoni faqen.",
+      "school.parent_conference_change_closed":
+        "Mund të rezervoni, ndryshoni ose anuloni deri 24 orë para takimit. Pas kësaj, ju lutemi kontaktoni drejtpërdrejt mësuesin.",
+      "school.parent_conference_slot_taken":
+        "Kjo orë sapo u rezervua. Ju lutemi zgjidhni një orë tjetër.",
       "students.care_exception_raced":
         "Ndërkohë është ndryshuar: {object}. Kontrolloni përsëri të dhënat tuaja.",
       "students.care_offerings_disabled":
@@ -2920,6 +2952,8 @@ export const ERROR_CATALOG = {
         "Nieprawidłowe dane: {object}. Sprawdź wpisane dane.",
       "care.sick_note_disabled":
         "Obecnie niedostępne tutaj: {object}. Zapytaj swoją osobę kontaktową.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -2958,6 +2992,8 @@ export const ERROR_CATALOG = {
         "Żadne dziecko w tej grupie nie ma rodziców z dostępem do moto. Wiadomość nie została wysłana.",
       "communication.leadership_messages_unavailable":
         "Wiadomości tylko do kierownictwa nie są tu obecnie możliwe. Prosimy napisać do całego zespołu OGS.",
+      "communication.parent_messaging_disabled":
+        "Szkoła wyłączyła wiadomości dla rodziców. To teraz nie jest możliwe.",
       "communication.survey_already_answered":
         "Ta ankieta ma już Twoją odpowiedź. Nie można jej zmienić.",
       "communication.survey_not_open":
@@ -3162,6 +3198,10 @@ export const ERROR_CATALOG = {
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
       "parent_billing.parent_document_not_found":
         "Ten dokument nie jest już dostępny. Proszę odświeżyć stronę.",
+      "school.parent_conference_change_closed":
+        "Rezerwację można dokonać, zmienić lub odwołać najpóźniej 24 godziny przed spotkaniem. Później prosimy o bezpośredni kontakt z nauczycielem.",
+      "school.parent_conference_slot_taken":
+        "Ten termin został właśnie zajęty. Proszę wybrać inną godzinę.",
       "students.care_exception_raced":
         "W międzyczasie zmieniono: {object}. Sprawdź ponownie swoje dane.",
       "students.care_offerings_disabled":
@@ -3319,6 +3359,8 @@ export const ERROR_CATALOG = {
         "{object} geçersiz bilgiler içeriyor. Lütfen girdiğiniz bilgileri kontrol edin.",
       "care.sick_note_disabled":
         "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -3357,6 +3399,8 @@ export const ERROR_CATALOG = {
         "Bu gruptaki hiçbir çocuğun moto erişimi olan velisi yok. Mesaj gönderilmedi.",
       "communication.leadership_messages_unavailable":
         "Yalnızca yönetime mesaj göndermek şu anda burada mümkün değil. Lütfen tüm OGS ekibine yazın.",
+      "communication.parent_messaging_disabled":
+        "Okul veli mesajlaşmasını kapattı. Bu şu anda mümkün değil.",
       "communication.survey_already_answered":
         "Bu ankete zaten katıldınız. Yanıtınız değiştirilemez.",
       "communication.survey_not_open": "Bu anket artık yanıt kabul etmiyor.",
@@ -3565,6 +3609,10 @@ export const ERROR_CATALOG = {
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
       "parent_billing.parent_document_not_found":
         "Bu belge artık mevcut değil. Lütfen sayfayı yenileyin.",
+      "school.parent_conference_change_closed":
+        "Görüşmeden 24 saat öncesine kadar randevu alabilir, değiştirebilir veya iptal edebilirsiniz. Sonrasında lütfen doğrudan öğretmenle iletişime geçin.",
+      "school.parent_conference_slot_taken":
+        "Bu saat az önce başkası tarafından alındı. Lütfen başka bir saat seçin.",
       "students.care_exception_raced":
         "{object} bu arada değiştirildi. Lütfen bilgilerinizi yeniden kontrol edin.",
       "students.care_offerings_disabled":
@@ -3720,6 +3768,8 @@ export const ERROR_CATALOG = {
         "Указано неправильні дані: {object}. Перевірте введені дані.",
       "care.sick_note_disabled":
         "Зараз тут недоступно: {object}. Зверніться до контактної особи.",
+      "classday.absence_list_invalid_period":
+        "This period does not work. To must not be before From. Choose at most one school year.",
       "classday.absence_report_conflict":
         "This child already has an entry for today, for example an early pickup. Nothing was saved. Please talk to the after-school care.",
       "classday.absence_report_no_school_day":
@@ -3758,6 +3808,8 @@ export const ERROR_CATALOG = {
         "Жодна дитина в цій групі не має батьків із доступом до moto. Повідомлення не надіслано.",
       "communication.leadership_messages_unavailable":
         "Повідомлення лише для керівництва зараз тут недоступні. Будь ласка, напишіть усій команді OGS.",
+      "communication.parent_messaging_disabled":
+        "Школа вимкнула повідомлення для батьків. Зараз це неможливо.",
       "communication.survey_already_answered":
         "Ви вже брали участь у цьому опитуванні. Відповідь змінити не можна.",
       "communication.survey_not_open":
@@ -3961,6 +4013,10 @@ export const ERROR_CATALOG = {
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
       "parent_billing.parent_document_not_found":
         "Цей документ більше недоступний. Будь ласка, оновіть сторінку.",
+      "school.parent_conference_change_closed":
+        "Забронювати, перенести або скасувати зустріч можна не пізніше ніж за 24 години. Після цього зверніться, будь ласка, безпосередньо до вчителя.",
+      "school.parent_conference_slot_taken":
+        "Цей час щойно забронювали. Будь ласка, виберіть інший час.",
       "students.care_exception_raced":
         "Дані змінилися: {object}. Перевірте свої дані ще раз.",
       "students.care_offerings_disabled":

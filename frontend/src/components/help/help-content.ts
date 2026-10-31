@@ -216,6 +216,7 @@ const PARENT_DRAFT_TOPICS: readonly HelpTopic[] = [
   articles.parentNewsTopic(),
   articles.parentSurveysTopic(),
   articles.parentCalendarTopic(),
+  articles.parentConferenceTopic(),
   articles.parentMealPlanTopic(),
   articles.parentDocumentsTopic(),
 
@@ -265,6 +266,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   articles.teacherSharedNotesTopic(),
   articles.teacherClassTripTopic(),
   articles.teacherAbsenceReportTopic(),
+  articles.teacherAbsenceListTopic(),
 
   // --- Aufsicht ---
   articles.teacherSupervisionTopic(),
@@ -276,6 +278,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   articles.teacherNoticesTopic(),
   articles.teacherParentLettersTopic(),
   articles.teacherCalendarTopic(),
+  articles.teacherParentConferenceTopic(),
 
   // --- Wenn etwas nicht klappt ---
   articles.teacherLoginProblemTopic(),

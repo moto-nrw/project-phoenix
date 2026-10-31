@@ -442,6 +442,16 @@
     },
     {
       "decision": "0090",
+      "id": "api/classDayAccessLog.RecordAbsenceList",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
+      "id": "api/classDayAccessLog.RecordAbsenceListExport",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "api/classDayAccessLog.RecordClassDayView",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

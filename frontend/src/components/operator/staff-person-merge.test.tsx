@@ -1,3 +1,12 @@
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: {
+      user: { id: "account-1", tenantId: 1, scope: "operator" },
+      expires: "2099-01-01",
+    },
+    status: "authenticated",
+  }),
+}));
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SWRConfig } from "swr";

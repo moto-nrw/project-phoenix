@@ -23,8 +23,8 @@ vi.mock("next/navigation", () => ({
 }));
 
 const mockSWRData = vi.fn();
-vi.mock("swr", () => ({
-  default: (key: string | null) => {
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: (key: string | null) => {
     const data = mockSWRData(key);
     return { data, error: undefined, isLoading: false, mutate: vi.fn() };
   },

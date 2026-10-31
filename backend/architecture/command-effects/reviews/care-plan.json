@@ -1134,6 +1134,37 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation enters the existing Care Lifecycle tenant unit through TransactionRunner.RunInTx. Scope and transaction ownership stay with the platform protocol (ADR 0098); this report performs no owner writes.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation reads the booking-led care setting through ResolveBool when resolving dated departure boundaries. No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation reads the booking-led care setting through ResolveBool when resolving dated departure boundaries. No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareLifecycle.ListEnded",
       "classification": "platform",
       "effect": "scope",
@@ -1629,7 +1660,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0142",
+      "approval_adr": "0143",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.CareOfferings.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -3253,6 +3284,37 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation enters the existing Care Lifecycle tenant unit through TransactionRunner.RunInTx. Scope and transaction ownership stay with the platform protocol (ADR 0098); this report performs no owner writes.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation reads the booking-led care setting through ResolveBool when resolving dated departure boundaries. No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.HistoricalParticipatingStudentIDsByDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan.HistoricalCareParticipation.HistoricalParticipatingStudentIDsByDate",
+      "reason": "Historical absence participation reads the booking-led care setting through ResolveBool when resolving dated departure boundaries. No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveBool",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding.masterDataDirectory.FindStudents",
       "classification": "query",
       "effect": "query",
@@ -3656,7 +3718,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0142",
+      "approval_adr": "0143",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/careplan/internal/application.OfferingChanges.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -3688,7 +3750,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0142",
+      "approval_adr": "0143",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeLifecycle.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -4776,7 +4838,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0142",
+      "approval_adr": "0143",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",
@@ -4808,7 +4870,7 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0142",
+      "approval_adr": "0143",
       "binding": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingChangeCapability.CourseWaitlists",
       "classification": "unresolved",
       "effect": "unresolved",

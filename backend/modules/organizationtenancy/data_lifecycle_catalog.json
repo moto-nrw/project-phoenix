@@ -97,6 +97,8 @@
     {"name": "calendar.appointment_reminder_push_deliveries", "scope": "tenant", "export": "include", "personKeys": {"guardian_profile_id": "users.guardian_profiles.id"}},
     {"name": "calendar.appointment_targets", "scope": "tenant", "export": "include"},
     {"name": "calendar.appointments", "scope": "tenant", "export": "include", "personKeys": {"organizer_staff_id": "users.staff_school_memberships.id"}},
+    {"name": "calendar.parent_conference_bookings", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "guardian_profile_id": "users.guardian_profiles.id"}},
+    {"name": "calendar.parent_conferences", "scope": "tenant", "export": "include", "personKeys": {"organizer_staff_id": "users.staff_school_memberships.id", "organizer_account_id": "auth.accounts.id"}},
     {"name": "calendar.recurrence_rules", "scope": "tenant", "export": "include"},
     {"name": "calendar.staff_feed_tombstones", "scope": "tenant", "export": "include", "personKeys": {"staff_id": "users.staff_school_memberships.id"}},
     {"name": "config.home_block_policies", "scope": "tenant", "export": "include", "personKeys": {"updated_by": "auth.accounts.id"}},

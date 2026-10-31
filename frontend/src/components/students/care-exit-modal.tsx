@@ -31,7 +31,7 @@ import {
   formatDate,
   parseISODate,
   toISODate,
-  todayISO,
+  berlinTodayISO,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
@@ -103,9 +103,9 @@ export function CareExitModal({
   }, [completionId, firstBookinglessDay]);
   const initialLastCareDay =
     completionLastCareDay ??
-    (plannedLastCareDay && plannedLastCareDay >= todayISO()
+    (plannedLastCareDay && plannedLastCareDay >= berlinTodayISO()
       ? plannedLastCareDay
-      : todayISO());
+      : berlinTodayISO());
   const isCorrection = Boolean(plannedLastCareDay);
   const [step, setStep] = useState<1 | 2>(1);
   const [lastCareDay, setLastCareDay] = useState(initialLastCareDay);
@@ -322,7 +322,8 @@ export function CareExitModal({
 
           <p className="text-sm text-gray-600">
             {completionId && !isCorrection
-              ? completionLastCareDay && completionLastCareDay >= todayISO()
+              ? completionLastCareDay &&
+                completionLastCareDay >= berlinTodayISO()
                 ? `Der letzte Betreuungstag ist am ${formatDate(completionLastCareDay)}. Das Kind nimmt an diesem Tag noch teil.`
                 : "Der letzte Betreuungstag liegt in der Vergangenheit. Mit diesem Schritt wird das frühere Ende dokumentiert."
               : isCorrection
@@ -339,7 +340,7 @@ export function CareExitModal({
                 label="Letzter Betreuungstag"
                 value={lastCareDay}
                 onChange={setLastCareDay}
-                min={completionId ? undefined : todayISO()}
+                min={completionId ? undefined : berlinTodayISO()}
                 max={completionLastCareDay ?? undefined}
                 required
               />

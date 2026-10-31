@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { HolidayGuestSheet } from "~/lib/holiday-host-api";
-import { SWRConfig } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { HolidayGuestSection } from "./holiday-guest-section";
 

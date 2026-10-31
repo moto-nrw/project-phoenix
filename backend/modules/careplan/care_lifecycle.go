@@ -289,6 +289,13 @@ type CareParticipation interface {
 	ParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error)
 }
 
+// HistoricalCareParticipation reconstructs participation for retained reports.
+// Alumni remain included before a known dated departure boundary. Alumni
+// without such a boundary remain excluded; current visibility is separate.
+type HistoricalCareParticipation interface {
+	HistoricalParticipatingStudentIDsByDate(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[calendar.Date]map[int64]bool, error)
+}
+
 // BookingAuthority reviews and applies the switch to booking-led care.
 type BookingAuthority interface {
 	PreviewBookingAuthorityImpact(ctx context.Context, on calendar.Date) (*BookingAuthorityImpact, error)
@@ -304,5 +311,6 @@ type CareLifecycle interface {
 	CareExitArchive
 	CareWithdrawals
 	CareParticipation
+	HistoricalCareParticipation
 	BookingAuthority
 }

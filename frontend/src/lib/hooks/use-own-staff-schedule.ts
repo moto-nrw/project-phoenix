@@ -1,10 +1,10 @@
 "use client";
 
+import { me as meKeys } from "~/lib/swr/me";
 import { useCallback } from "react";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { staffScheduleService, type StaffSchedule } from "~/lib/staff-api";
 import { useSWRAuth } from "~/lib/swr";
-import { userContextService } from "~/lib/usercontext-api";
 
 export interface OwnStaffSchedule {
   /** The caller's staff ID, or null while unknown or without a staff record. */
@@ -37,8 +37,8 @@ export function useOwnStaffSchedule(): OwnStaffSchedule {
     error: staffError,
     mutate: mutateStaff,
   } = useSWRAuth(
-    contextReady && !contextStaffId ? "time-tracking-own-staff" : null,
-    () => userContextService.getCurrentStaff(),
+    contextReady && !contextStaffId ? meKeys.key() : null,
+    meKeys.fetcher,
     { revalidateOnFocus: false },
   );
   const ownStaffId = contextStaffId ?? fallbackStaff?.id ?? null;

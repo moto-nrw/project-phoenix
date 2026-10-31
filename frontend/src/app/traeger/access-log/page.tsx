@@ -26,7 +26,7 @@ import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import {
   formatBerlinDate,
   parseISODate,
-  todayISO,
+  berlinTodayISO,
   toISODate,
 } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
@@ -119,7 +119,7 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
 
 /** The last 30 days up to today, as the page opens. */
 function lastThirtyDays(): DateRange {
-  const today = parseISODate(todayISO());
+  const today = parseISODate(berlinTodayISO());
   return {
     from: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29),
     to: today,
@@ -127,7 +127,7 @@ function lastThirtyDays(): DateRange {
 }
 
 function rangePresets() {
-  const today = parseISODate(todayISO());
+  const today = parseISODate(berlinTodayISO());
   const daysBack = (days: number) =>
     new Date(today.getFullYear(), today.getMonth(), today.getDate() - days);
   return [
@@ -369,7 +369,7 @@ export default function TraegerAccessLogPage() {
             value={range}
             onChange={setRange}
             presets={rangePresets()}
-            toMax={parseISODate(todayISO())}
+            toMax={parseISODate(berlinTodayISO())}
             className="w-full sm:w-auto"
             triggerClassName="w-full sm:w-auto"
           />

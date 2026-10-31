@@ -28,6 +28,9 @@ type schoolCalls struct {
 	gotUpdateID int64
 	gotUpdate   calendarSvc.SchoolAppointmentRequest
 	gotDeleteID int64
+
+	gotConferenceID int64
+	gotConference   calendarSvc.ParentConferenceRequest
 }
 
 func (f *fakeCalendarService) ListSchoolCalendar(_ context.Context, from, to calendarSvc.Date) (*calendarSvc.SchoolCalendarView, error) {

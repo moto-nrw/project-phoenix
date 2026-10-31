@@ -33,7 +33,6 @@ import {
 } from "~/lib/timetable-helpers";
 import { isStaleAfterSessionSave } from "~/components/staff/staff-session-table";
 import { absenceTypeService } from "~/lib/absence-type-api";
-import { useSWRConfig } from "swr";
 import type { StaffAbsenceRow, StaffHistoryDetails } from "~/lib/staff-api";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
 import type { DayProjection, MonthSummary } from "~/lib/time-tracking-helpers";
@@ -57,7 +56,11 @@ import {
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { usePeriodMetrics } from "~/lib/hooks/use-period-metrics";
 import { timeTrackingService } from "~/lib/time-tracking-api";
-import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import {
+  useInvalidateMatching,
+  useSWRAuth,
+  useTenantMutateMatching,
+} from "~/lib/swr";
 
 import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
@@ -302,9 +305,9 @@ export function ZeiterfassungTab({
   const accountStartsInFuture =
     accountStartDate !== "" && accountStartDate > todayISO;
   const [showReopenModal, setShowReopenModal] = useState(false);
-  const { mutate: globalMutate } = useSWRConfig();
+  const invalidate = useInvalidateMatching();
   const refreshAfterBackfill = () =>
-    globalMutate(
+    invalidate(
       (key) =>
         isStaleAfterSessionSave(key, staffId) ||
         isStaleAfterMonthReopen(key, staffId),
@@ -481,9 +484,7 @@ export function ZeiterfassungTab({
               });
               // Reopen verschiebt den Kettenstart: alle Monatskarten und
               // Zeitkonten-Antworten dieses Tenants sind potenziell veraltet.
-              await globalMutate((key) =>
-                isStaleAfterMonthReopen(key, staffId),
-              );
+              await invalidate((key) => isStaleAfterMonthReopen(key, staffId));
             }}
             onClose={() => setShowReopenModal(false)}
           />

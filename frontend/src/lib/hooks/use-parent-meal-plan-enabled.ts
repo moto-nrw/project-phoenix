@@ -1,6 +1,8 @@
 "use client";
 
-import useSWR from "swr";
+import { parentKeys } from "~/lib/swr/parent-keys";
+
+import { useSWRAuth } from "~/lib/swr";
 
 import { getChildFeatures, listMyChildren, type Child } from "~/lib/parent-api";
 
@@ -41,17 +43,20 @@ export function useParentMealPlanEnabled(
   enabled: boolean,
   children?: readonly Child[] | null,
 ): boolean {
-  const { data } = useSWR(
+  const { data } = useSWRAuth(
     enabled && children !== null
       ? children === undefined
-        ? "parent-meal-plan-enabled"
-        : [
-            "parent-meal-plan-enabled",
-            children.map((child) => child.student_id).join(","),
-          ]
+        ? parentKeys.mealPlanEnabled()
+        : parentKeys.mealPlanEnabled(
+            children
+              .map((child) => `${child.tenant_id}:${child.student_id}`)
+              .sort()
+              .join(","),
+          )
       : null,
     () => fetchAnyMealPlanEnabled(children ?? undefined),
     {
+      keepPreviousData: false,
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
     },

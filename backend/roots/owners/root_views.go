@@ -88,6 +88,7 @@ func BuildCalendarApp(
 	cfg = BindCalendarFeedFacts(cfg, organizations, identity, identity, people.Persons)
 	cfg = BindCalendarCaller(cfg, caller)
 	cfg.Appointments, cfg.SchoolDays = appointments, calendar
+	cfg.ParentConferences = BuildServeParentConferences(db)
 	cfg.Runtime, cfg.CalendarRenderer = calendarCompose.NewTenantRuntime(db.Pool()), calendarCompose.NewCalendarRenderer(calendar)
 	cfg.Outbox, cfg.PushOutbox = NewCalendarOutbox(delivery.Outbox), deliveryCompose.NewDurablePushOutbox(delivery.Runtime.Module)
 	cfg.Settings, cfg.CalDAVPolicy = settings, NewCalendarCalDAVPolicy(settings)

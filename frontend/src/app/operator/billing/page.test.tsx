@@ -43,7 +43,10 @@ const {
 vi.unmock("swr");
 
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ status: "authenticated", data: { user: {} } }),
+  useSession: () => ({
+    status: "authenticated",
+    data: { user: { id: "operator-1", scope: "operator" } },
+  }),
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({

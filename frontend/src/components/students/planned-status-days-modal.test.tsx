@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { PlannedStatusDaysModal } from "./planned-status-days-modal";
@@ -1514,3 +1517,27 @@ describe("PlannedStatusDaysModal", () => {
     ).toBeInTheDocument();
   });
 });
+
+it.each(schoolDateCases("2026-05-27"))(
+  "submits the Berlin class-trip default in %s",
+  async (zone, instant) => {
+    setSchoolDateClock(zone, instant, "2026-05-27");
+    const onSubmit = vi.fn().mockResolvedValue(undefined);
+    render(
+      <PlannedStatusDaysModal
+        isOpen
+        status="class_trip"
+        studentName="Kevin Anders"
+        isSubmitting={false}
+        existingDays={[]}
+        onClose={vi.fn()}
+        loadExistingDays={loadNoExistingDays}
+        onSubmit={onSubmit}
+      />,
+    );
+    expect(screen.getByLabelText("Von")).toHaveValue("2026-05-27");
+    expect(screen.getByLabelText("Bis")).toHaveValue("2026-05-27");
+    await clickEnabledButton("Klassenfahrt speichern");
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(["2026-05-27"]));
+  },
+);

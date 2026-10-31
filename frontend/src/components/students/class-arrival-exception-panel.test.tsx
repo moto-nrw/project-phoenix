@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "~/lib/api-error";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -200,19 +203,24 @@ describe("ClassArrivalExceptionPanel", () => {
     expect(save).toBeDisabled();
   });
 
-  it("limits dates to weekdays in the loaded list horizon", async () => {
-    render(
-      <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
-    );
+  it.each(schoolDateCases("2026-05-27"))(
+    "limits dates to weekdays in the loaded list horizon in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-27");
 
-    const picker = await screen.findByLabelText("Datum");
-    expect(picker).toHaveAttribute("id", "class-arrival-exception-date");
-    const expectedMax = new Date();
-    expectedMax.setHours(0, 0, 0, 0);
-    expectedMax.setDate(expectedMax.getDate() + 60);
-    expect(picker).toHaveAttribute("data-max-date", toISODate(expectedMax));
-    expect(picker).toHaveAttribute("data-saturday-disabled", "true");
-  });
+      render(
+        <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
+      );
+
+      const picker = await screen.findByLabelText("Datum");
+      expect(picker).toHaveAttribute("id", "class-arrival-exception-date");
+      const expectedMax = new Date(2026, 4, 27);
+      expectedMax.setHours(0, 0, 0, 0);
+      expectedMax.setDate(expectedMax.getDate() + 60);
+      expect(picker).toHaveAttribute("data-max-date", toISODate(expectedMax));
+      expect(picker).toHaveAttribute("data-saturday-disabled", "true");
+    },
+  );
 
   it("opens weekend dates when the school runs the weekend on Friday's plan (#3921)", async () => {
     render(

@@ -79,6 +79,16 @@ const (
 	// Schulverwaltung account, deduplicated like the class day view to one
 	// row per actor, report date and calendar day of access.
 	ResourceTypeSchoolDayView = "school_day_view"
+	// ResourceTypeClassAbsenceList records serving the absence list of one
+	// class in moto schule (#4793): the absence days of every child of the
+	// class in a period. StudentID stays NULL; metadata carries
+	// school_class, from, to and student_count. Every read writes its own
+	// row, without deduplication: the page loads the list only on a change
+	// of class or period.
+	ResourceTypeClassAbsenceList = "class_absence_list"
+	// ResourceTypeClassAbsenceListExport records every PDF or Excel export
+	// of that list (#4793); metadata adds the format.
+	ResourceTypeClassAbsenceListExport = "class_absence_list_export"
 	// ResourceTypeSupervisionStudentSheet records serving ONE child's pickup
 	// and emergency contacts to a supervisor running the block that child is
 	// in (#2527). The class day view (ResourceTypeClassDayView) deliberately

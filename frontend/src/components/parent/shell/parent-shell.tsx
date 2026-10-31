@@ -1,6 +1,8 @@
 "use client";
 
-import useSWR from "swr";
+import { parentKeys } from "~/lib/swr/parent-keys";
+
+import { useSWRAuth } from "~/lib/swr";
 import { useParentMealPlanEnabled } from "~/lib/hooks/use-parent-meal-plan-enabled";
 import { useParentMessagesUnread } from "~/lib/hooks/use-parent-messages-unread";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
@@ -35,9 +37,10 @@ export function ParentShell({
   const { unreadCount: messagesUnread } =
     useParentMessagesUnread(authenticated);
   const { unreadCount: newsOpen } = useParentNewsUnread(authenticated);
-  const { data: linkedChildren } = useSWR(
-    authenticated ? "parent-shell-children" : null,
+  const { data: linkedChildren } = useSWRAuth(
+    authenticated ? parentKeys.shellChildren() : null,
     listMyChildren,
+    { keepPreviousData: false },
   );
   const newsEnabled = useParentNewsEnabled(
     authenticated,

@@ -14,6 +14,7 @@ import (
 
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // draftRosterParam writes one `roster` value: the children planned on a
@@ -258,9 +259,9 @@ func TestDraftOfferingSourceQueryBudget(t *testing.T) {
 
 	suggestSmall, suggestLarge := run("/offering-sources/suggestion", class[:3]), run("/offering-sources/suggestion", class)
 	assert.Equal(t, suggestSmall, suggestLarge, "the suggestion must not grow with the children")
-	testpkg.AssertQueryBudget(t, "api.timetable.offering_sources.suggestion", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.offering_sources.suggestion", counter.Queries())
 
 	previewSmall, previewLarge := run("/offering-sources/preview", class[:3]), run("/offering-sources/preview", class)
 	assert.Equal(t, previewSmall, previewLarge, "the preview must not grow with the children")
-	testpkg.AssertQueryBudget(t, "api.timetable.offering_sources.preview", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.offering_sources.preview", counter.Queries())
 }

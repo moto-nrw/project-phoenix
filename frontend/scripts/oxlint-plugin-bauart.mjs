@@ -308,7 +308,7 @@ const ROW_ACTION_BASELINE = new Map(
     // Formular-intern (Eintrag eines Formularwerts, kein gespeichertes
     // Objekt): fest an die bestehende Stelle gebunden, damit keine neue
     // Zeilenaktion dieselbe Ausnahme nutzen kann.
-    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1349"],
+    "src/app/[tenant]/(protected)/calendar/page.tsx": ["entfernen@1351"],
     "src/app/[tenant]/(protected)/meal-plan/page.tsx": [
       "Gericht entfernen@796",
     ],
@@ -1222,7 +1222,7 @@ const OWN_OBJECT_ENTRY_EXCEPTIONS = new Map(
   Object.entries({
     // Teilentschuldigungen genau dieses Kindes an genau diesen Tagen.
     "src/components/students/planned-status-days-modal.tsx": [
-      "Bearbeiten@1171",
+      "Bearbeiten@1174",
     ],
   }),
 );
@@ -1584,19 +1584,19 @@ const EDIT_OVERLAY_BASELINE = new Map(
     // kennt für sie noch keine Bauart (Entscheidung in #3119 offen gelassen).
     // Bis sie eine bekommen, bleibt der Bestand stehen und wächst nicht.
     "src/app/[tenant]/(protected)/calendar/page.tsx": [
-      "Termin bearbeiten Termin erstellen@1062",
+      "Termin bearbeiten Termin erstellen@1064",
     ],
     "src/app/[tenant]/(protected)/database/students/class-list/page.tsx": [
       "edit Eintrag bearbeiten Klassenlisteneintrag anlegen@605",
     ],
     "src/components/database/grade-transitions/transition-editor.tsx": [
-      "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@267",
+      "Schuljahreswechsel bearbeiten Neuer Schuljahreswechsel@269",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
       "Betreuungsangebot duplizieren new Neues Betreuungsangebot Betreuungsangebot bearbeiten@987",
     ],
     "src/components/enrollment/phases-editor.tsx": [
-      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@934",
+      "Anmeldephase übertragen new Neue Anmeldephase Anmeldephase bearbeiten@939",
     ],
     "src/components/files/folder-modal.tsx": [
       "Ordner bearbeiten Neuer Ordner@145",

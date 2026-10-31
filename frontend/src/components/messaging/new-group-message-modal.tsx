@@ -1,7 +1,10 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import { useMemo, useState } from "react";
-import useSWR from "swr";
+import { groups as groupResource } from "~/lib/swr/groups";
+import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
@@ -11,7 +14,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
-import { groupService, studentService } from "~/lib/api";
+import { studentService, type Group } from "~/lib/api";
 import { fetchActivities } from "~/lib/activity-api";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -22,7 +25,6 @@ import {
   createGroupThread,
   fetchGroupAudience,
 } from "~/lib/parent-group-threads-api";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "NewGroupMessageModal" });
 
@@ -49,13 +51,13 @@ interface Option {
 
 /** The choices for one target kind, loaded only while the kind is picked. */
 function useTargetOptions(type: GroupTargetType) {
-  const tenantSlug = useTenantSlugSafe() ?? "";
-  const { data, error, mutate } = useSWR<Option[]>(
-    [`${tenantSlug}:group-message-targets`, type],
+  const { data, error, mutate } = useSWRAuth<Group[] | Option[]>(
+    type === "group"
+      ? groupResource.key()
+      : messageKeys.groupMessageTargets(type),
     async () => {
       if (type === "group") {
-        const groups = await groupService.getGroups();
-        return groups.map((g) => ({ value: g.id, label: g.name }));
+        return groupResource.fetcher();
       }
       if (type === "activity_group") {
         const activities = await fetchActivities();
@@ -64,7 +66,7 @@ function useTargetOptions(type: GroupTargetType) {
       const classes = await studentService.getSchoolClasses();
       return classes.map((c) => ({ value: c, label: c }));
     },
-    { revalidateOnFocus: false },
+    { revalidateOnFocus: false, keepPreviousData: false },
   );
   const loadError = useSwrLoadError(
     error,
@@ -77,7 +79,11 @@ function useTargetOptions(type: GroupTargetType) {
   );
   const options = useMemo(
     () =>
-      [...(data ?? [])].sort((a, b) => a.label.localeCompare(b.label, "de")),
+      (data ?? [])
+        .map((option) =>
+          "id" in option ? { value: option.id, label: option.name } : option,
+        )
+        .sort((a, b) => a.label.localeCompare(b.label, "de")),
     [data],
   );
   return { options, loading: !data && !error, loadError };
@@ -88,11 +94,10 @@ function AudiencePreview({
   type,
   id,
 }: Readonly<{ type: GroupTargetType; id: string }>) {
-  const tenantSlug = useTenantSlugSafe() ?? "";
-  const { data, error, mutate } = useSWR<GroupChild[]>(
-    [`${tenantSlug}:group-message-audience`, type, id],
+  const { data, error, mutate } = useSWRAuth<GroupChild[]>(
+    messageKeys.groupMessageAudience(type, id),
     () => fetchGroupAudience(type, id),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(
     error,

@@ -1,6 +1,10 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { setTestClock } from "~/test/clock";
 import {
+  act,
   render,
   screen,
   fireEvent,
@@ -1160,4 +1164,47 @@ describe("ClassDayClass class trips (#4799)", () => {
       }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-09-09"))(
+    "updates the class arrival label at Berlin midnight in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-09-09");
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const load = vi.fn(() =>
+        Promise.resolve(
+          report({
+            class_arrival_exception: {
+              arrival_time: "12:45",
+              reason: "Unterricht fällt aus",
+              origin: "ogs",
+            },
+          }),
+        ),
+      );
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={load}
+          fetchClasses={() =>
+            Promise.resolve({
+              classes: ["4a"],
+              can_write_arrival_exception: false,
+            })
+          }
+        />,
+      );
+      expect(
+        await screen.findByText(
+          "Heute kommt die Klasse um 12:45 Uhr (Unterricht fällt aus)",
+        ),
+      ).toBeInTheDocument();
+      await act(async () => {
+        setTestClock("2026-09-09T22:01:00Z");
+        vi.advanceTimersByTime(60_000);
+      });
+      await waitFor(() =>
+        expect(load).toHaveBeenLastCalledWith("4a", "2026-09-10"),
+      );
+    },
+  );
 });
