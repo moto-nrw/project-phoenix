@@ -59,7 +59,7 @@ import {
   arrivalScheduleSourceLabel,
 } from "~/lib/arrival-schedule-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
-import { parseISODate } from "~/lib/date-helpers";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 import {
   createStudentPickupException,
   createStudentPickupNote,
@@ -129,8 +129,8 @@ function weeklyArrivalPayload(data: CarePlanWeeklySubmit) {
 
 function weeklyPickupAdjustmentPayload(
   data: CarePlanWeeklySubmit,
-  adjustment?: CarePlanWeeklyAdjustment,
-  effectiveFrom = formatDateISO(new Date()),
+  adjustment: CarePlanWeeklyAdjustment | undefined,
+  effectiveFrom: string,
 ): PickupAdjustmentPayload {
   return {
     schedules: data.pickupSchedules.map((schedule) => ({
@@ -156,7 +156,7 @@ async function applyWeeklyPickupAdjustment(
     preview = await previewStudentPickupAdjustment(studentId, payload);
     if (
       preview.resolution_required ||
-      payload.effective_from > formatDateISO(new Date())
+      payload.effective_from > berlinTodayISO()
     ) {
       return preview;
     }
@@ -350,8 +350,8 @@ export function CareScheduleManager({
   const weekRange = useMemo(
     () =>
       formatWeekRange(
-        weekDays[0] ?? new Date(),
-        weekDays[weekDays.length - 1] ?? new Date(),
+        weekDays[0] ?? parseISODate(berlinTodayISO()),
+        weekDays[weekDays.length - 1] ?? parseISODate(berlinTodayISO()),
       ),
     [weekDays],
   );
@@ -689,8 +689,10 @@ export function CareScheduleManager({
         }
         return;
       }
-      const today = formatDateISO(new Date());
-      const weekStart = formatDateISO(weekDays[0] ?? new Date());
+      const today = berlinTodayISO();
+      const weekStart = formatDateISO(
+        weekDays[0] ?? parseISODate(berlinTodayISO()),
+      );
       const basePayload = weeklyPickupAdjustmentPayload(
         data,
         adjustment,

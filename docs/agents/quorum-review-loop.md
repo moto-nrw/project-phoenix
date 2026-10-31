@@ -24,6 +24,13 @@ gate. To verify a gate change before it merges, pass the command explicitly:
 quorum babysit <pr-number> --test-cmd 'scripts/run-go-toolchain.sh scripts/test-changed.sh --fast'
 ```
 
+With a shared admission gate such as `~/bin/agent-heavy`, wrap only the
+`--test-cmd`, never `quorum babysit` itself. The loop mostly waits for reviews
+and holds an outer slot for its whole lifetime; a nested gate call inherits that
+slot. On 31 October 2026 one wrapped babysit loop held one of two slots 28 % of
+38 sampled minutes at about one CPU second per minute, while other agents
+queued up to 490 s for test runs.
+
 The existing package-worker budget and `-parallel 8` remain unchanged.
 Concurrent sessions add their load against the same test server; the run-ID
 lock prevents clone-name collisions, not concurrent DB load. A smaller gate

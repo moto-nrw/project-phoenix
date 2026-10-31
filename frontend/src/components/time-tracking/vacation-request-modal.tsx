@@ -1,4 +1,5 @@
 "use client";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DateRange } from "react-day-picker";
@@ -178,7 +179,7 @@ export function VacationRequestModal({
   readonly remainingDays: number;
   readonly existingVacations: readonly StaffAbsence[];
 }) {
-  const today = useMemo(() => new Date(), []);
+  const today = useMemo(() => parseISODate(berlinTodayISO()), []);
   const vacationPresets = useMemo(() => buildVacationPresets(today), [today]);
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [startHalf, setStartHalf] = useState(false);

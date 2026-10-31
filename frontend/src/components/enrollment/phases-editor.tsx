@@ -84,7 +84,12 @@ import {
 } from "~/components/ui/slide-over";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
-import { formatChatDateTime, formatDate } from "~/lib/date-helpers";
+import {
+  formatChatDateTime,
+  formatDate,
+  parseISODate,
+  berlinTodayISO,
+} from "~/lib/date-helpers";
 import {
   DataTable,
   DataTableStatusBadge,
@@ -170,7 +175,7 @@ type SchemaSource = "base" | "reuse";
 function blankInput(): PhaseInput {
   // Pre-fill service dates with the next school year so admins do not
   // start from "0001-01-01". They can edit before saving.
-  const now = new Date();
+  const now = parseISODate(berlinTodayISO());
   const startYear =
     now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
   return {

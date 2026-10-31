@@ -43,6 +43,7 @@ import {
   formatDate as formatCalendarDate,
   parseISODate,
   toISODate,
+  berlinTodayISO,
 } from "~/lib/date-helpers";
 import {
   StudentStatusDayConflictError,
@@ -192,7 +193,9 @@ export function PlannedStatusDaysModal({
         ? "Klassenfahrt speichern"
         : "Entschuldigen";
   const currentWeekDates = useMemo(() => {
-    const monday = startOfWeek(new Date(), { weekStartsOn: 1 });
+    const monday = startOfWeek(parseISODate(berlinTodayISO()), {
+      weekStartsOn: 1,
+    });
     return Array.from({ length: 5 }, (_, index) => addDays(monday, index));
   }, []);
   const activeExistingDays = useMemo(
@@ -371,7 +374,7 @@ export function PlannedStatusDaysModal({
 
   const resetForm = useCallback(
     (prefillClassTrip: boolean) => {
-      const today = new Date();
+      const today = parseISODate(berlinTodayISO());
       const todayKey = toISODate(today);
       setSelectionMode("individual");
       clearSubmitError();

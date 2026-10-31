@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
@@ -6,7 +7,13 @@ import { useParams, useSearchParams } from "next/navigation";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useSession } from "next-auth/react";
-import { getStartDateForTimeRange, toISODate } from "~/lib/date-helpers";
+import {
+  getStartDateForTimeRange,
+  toISODate,
+  berlinTodayISO,
+  berlinDateTimeISO,
+  parseISODate,
+} from "~/lib/date-helpers";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
@@ -169,16 +176,20 @@ function StudentFeedbackHistoryPageContent() {
     };
   }, [attempt, clearPageError, showPageError, studentId]);
 
+  const today = useBerlinToday();
   const filteredFeedbackHistory = useMemo(() => {
     if (feedbackHistory === null) return [];
     if (timeRange === "all") return feedbackHistory;
-    const now = new Date();
-    const startDate = getStartDateForTimeRange(timeRange, now);
-    return feedbackHistory.filter((entry) => {
-      const entryDate = new Date(entry.timestamp);
-      return entryDate >= startDate;
-    });
-  }, [feedbackHistory, timeRange]);
+    const reference = new Date(berlinDateTimeISO(parseISODate(today), "00:00"));
+    const startDay = berlinTodayISO(
+      getStartDateForTimeRange(timeRange, reference),
+    );
+    // The API combines a Berlin DATE and wall-clock TIME without an offset.
+    // Compare calendar days, not browser-interpreted instants.
+    return feedbackHistory.filter(
+      (entry) => entry.timestamp.slice(0, 10) >= startDay,
+    );
+  }, [feedbackHistory, timeRange, today]);
 
   // Counts
   const positiveFeedbackCount = filteredFeedbackHistory.filter(

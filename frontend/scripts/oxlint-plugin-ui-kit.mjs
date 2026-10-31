@@ -566,12 +566,12 @@ src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@230
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@446
 src/components/activities/activity-management-modal.tsx|text-[10px]@314 text-[10px]@345 text-[10px]@383
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@900 text-[11px]@928 text-[11px]@1015 text-[11px]@1076 text-[11px]@1084 text-[11px]@1090 text-[11px]@1137 text-[11px]@1143 text-[10px]@1163 text-[11px]@1216 text-[11px]@1296 text-[11px]@1307 text-[11px]@1312
+src/components/calendar/personal-calendar.tsx|text-[11px]@905 text-[11px]@933 text-[11px]@1020 text-[11px]@1081 text-[11px]@1089 text-[11px]@1095 text-[11px]@1142 text-[11px]@1148 text-[10px]@1168 text-[11px]@1221 text-[11px]@1301 text-[11px]@1312 text-[11px]@1317
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@42 text-[10px]@96
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@969 text-[11px]@988
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1469
 src/components/enrollment/enrollment-form.tsx|text-[11px]@2189
-src/components/enrollment/phases-editor.tsx|text-[11px]@763 text-[11px]@768
+src/components/enrollment/phases-editor.tsx|text-[11px]@768 text-[11px]@773
 src/components/files/files-page.tsx|text-[11px]@171 text-[11px]@281
 src/components/guardians/guardian-contact-actions.tsx|text-[10px]@141
 src/components/guardians/guardian-list.tsx|text-[10px]@377
@@ -582,12 +582,12 @@ src/components/planning/closing-day-marker.tsx|text-[10px]@54
 src/components/staff/absence-request-row.tsx|text-[11px]@107
 src/components/staff/dienstplan-resource-grid.tsx|text-[11px]@484 text-[11px]@580 text-[11px]@589 text-[11px]@596 text-[10px]@730
 src/components/staff/staff-session-table.tsx|text-[11px]@1194
-src/components/students/care-schedule-manager.tsx|text-[10px]@1229 text-[11px]@1390 text-[11px]@1479 text-[11px]@1489 text-[11px]@1519
-src/components/students/planned-status-days-modal.tsx|text-[10px]@934 text-[11px]@934
+src/components/students/care-schedule-manager.tsx|text-[10px]@1231 text-[11px]@1392 text-[11px]@1481 text-[11px]@1491 text-[11px]@1521
+src/components/students/planned-status-days-modal.tsx|text-[10px]@937 text-[11px]@937
 src/components/students/school-checkin-fab.tsx|text-[10px]@199
 src/components/time-tracking/edit-history-accordion.tsx|text-[10px]@118 text-[10px]@139 text-[10px]@150
-src/components/time-tracking/leave-requests-card.tsx|text-[10px]@542
-src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@372
+src/components/time-tracking/leave-requests-card.tsx|text-[10px]@544
+src/components/time-tracking/vacation-request-modal.tsx|text-[11px]@373
 src/components/timetable/bulk-substitution-modal.tsx|text-[11px]@481 text-[11px]@525
 src/components/timetable/event-form/multi-select-field.tsx|text-[11px]@146 text-[10px]@295 text-[11px]@301
 src/components/timetable/event-form/step-termin.tsx|text-[10px]@161 text-[11px]@231 text-[11px]@264 text-[11px]@341 text-[11px]@347 text-[11px]@395
@@ -595,7 +595,7 @@ src/components/timetable/gap-jump-list.tsx|text-[10px]@108 text-[11px]@131 text-
 src/components/timetable/instance-block.tsx|text-[10px]@299 text-[10px]@338 text-[10px]@345 text-[10px]@355
 src/components/timetable/instance-detail-modal.tsx|text-[10px]@326 text-[9px]@446 text-[9px]@1079 text-[11px]@1393 text-[11px]@1419 text-[11px]@1595 text-[10px]@1704 text-[11px]@1727
 src/components/timetable/month-planner-grid.tsx|text-[11px]@66 text-[11px]@142 text-[11px]@151 text-[11px]@172 text-[9px]@204 text-[10px]@238
-src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@200 text-[10px]@216 text-[11px]@225 text-[10px]@267 text-[10px]@291 text-[10px]@364 text-[10px]@378 text-[10px]@390 text-[11px]@398 text-[11px]@405
+src/components/timetable/period-switcher-dropdown.tsx|text-[11px]@201 text-[10px]@217 text-[11px]@226 text-[10px]@268 text-[10px]@292 text-[10px]@365 text-[10px]@379 text-[10px]@391 text-[11px]@399 text-[11px]@406
 src/components/timetable/staff-pool-slide-over.tsx|text-[10px]@404 text-[11px]@469
 src/components/timetable/substitution-person-card.tsx|text-[11px]@56 text-[11px]@334 text-[11px]@341 text-[11px]@348 text-[11px]@356 text-[11px]@368
 src/components/timetable/substitution-slide-over.tsx|text-[10px]@579 text-[9px]@584 text-[11px]@743 text-[11px]@747 text-[10px]@787 text-[10px]@791 text-[10px]@795 text-[10px]@799 text-[11px]@1241

@@ -17,7 +17,7 @@ import {
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import { formatDate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import { employmentTypeLabels } from "~/lib/staff-helpers";
@@ -178,7 +178,7 @@ export function StammdatenTab({
     return <LoadErrorAlert error={stammdatenLoadError} />;
   }
 
-  const today = todayISO();
+  const today = berlinToday;
   const editing = draft !== null;
   const sectionsEditable = canEditSections && Boolean(stammdaten);
   const payrollEditable = canManagePayroll && !payrollLoading;

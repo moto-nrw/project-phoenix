@@ -79,7 +79,11 @@ expand_refs() {
 
 load_env() {
   local line key val shell_env_keys=$'\n'
-  while IFS= read -r key; do shell_env_keys+="$key"$'\n'; done < <(compgen -e)
+  # `export -p`, not `compgen -e`: Devbox's Bash lacks programmable completion.
+  while IFS= read -r line; do
+    [[ $line =~ ^(declare\ -x|export)\ ([A-Za-z_][A-Za-z0-9_]*) ]] &&
+      shell_env_keys+="${BASH_REMATCH[2]}"$'\n'
+  done < <(export -p)
   while IFS= read -r line || [ -n "$line" ]; do
     case "$line" in '' | '#'*) continue ;; esac
     line=${line#export }
