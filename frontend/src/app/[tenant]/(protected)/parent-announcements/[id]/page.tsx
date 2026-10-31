@@ -127,7 +127,8 @@ function AnnouncementDetailPageContent() {
   // Start with list-known type/status. Only the confirmed detail renders results.
   const loadEvaluation = announcement
     ? isPoll(announcement)
-    : preview?.poll && preview.status !== "draft";
+    : preview?.poll &&
+      (preview.status === "published" || preview.status === "expired");
   useSWRAuth(
     loadEvaluation
       ? parentAnnouncementKeys.pollEvaluation(announcementId)

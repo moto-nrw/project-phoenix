@@ -17,6 +17,7 @@ import { TEAM_CHAT_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { MessagesSquare } from "lucide-react";
+import { Skeleton } from "~/components/ui/skeleton";
 import { Alert } from "~/components/ui/alert";
 import { BackLink } from "~/components/ui/back-link";
 import { Button } from "~/components/ui/button";
@@ -72,6 +73,7 @@ export interface TeamChatThreadBack {
 export interface TeamChatThreadParts {
   /** Name des Gegenübers, sobald geladen; davor „Unterhaltung". */
   readonly title: string;
+  readonly previewTitle?: string;
   /** Rollenzusatz zum Namen (z. B. „Lehrkraft"); `null` ohne Zusatz. */
   readonly roleLabel: string | null;
   /** Statuszeile aus echten Zahlen: Nachrichten und wer sie sieht. */
@@ -499,6 +501,7 @@ export function TeamChatThread({
       (group ? thread?.group_name : thread?.counterpart_name) ??
       preview?.name ??
       "Unterhaltung",
+    previewTitle: preview?.name,
     roleLabel: roleLabel ?? null,
     stats,
     audience,
@@ -531,6 +534,7 @@ function DefaultThreadFrame({
   const {
     title,
     roleLabel,
+    previewTitle,
     state,
     empty,
     error,
@@ -566,7 +570,7 @@ function DefaultThreadFrame({
     >
       <div className="moto-content-surface flex min-h-0 flex-1 flex-col rounded-2xl border p-4 backdrop-blur-sm sm:p-6">
         <BackLink href={back.href} label={back.label} className="mb-2" />
-        {!loading && (
+        {(!loading || previewTitle) && (
           <div className="mb-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <h1 className="truncate text-lg font-semibold text-gray-900 sm:text-xl">
@@ -577,7 +581,11 @@ function DefaultThreadFrame({
                   </span>
                 )}
               </h1>
-              <p className="mt-0.5 text-sm text-gray-500">{audience}</p>
+              {loading ? (
+                <Skeleton className="mt-0.5 h-5 w-56" />
+              ) : (
+                <p className="mt-0.5 text-sm text-gray-500">{audience}</p>
+              )}
             </div>
             {actions}
           </div>

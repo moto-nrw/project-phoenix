@@ -60,10 +60,7 @@ export const messageKeys = {
   teamChatPreviewSources: (key: string) => key.startsWith("team-chat-inbox-"),
   teamChatPreview(data: unknown, id: string): ListPreview | undefined {
     // Only identity shown in the inbox, never the last message or unread data.
-    if (!Array.isArray(data)) return undefined;
-    const row = data.find(
-      (value: { thread_id?: string }) => value.thread_id === id,
-    );
+    const row = previewRow(data, id);
     const name = previewText(
       row?.kind === "group" ? row.group_name : row?.counterpart_name,
     );

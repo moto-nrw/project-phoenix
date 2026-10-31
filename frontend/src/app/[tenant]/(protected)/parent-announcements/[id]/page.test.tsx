@@ -13,6 +13,13 @@ import type { Announcement } from "~/lib/parent-announcements-api";
 import { catalogText } from "~/test/error-catalog-text";
 import AnnouncementDetailPage from "./page";
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 // Erfolgsmeldungen kommen als Toast (#2517).
 function render(ui: ReactElement) {
   return rtlRender(ui, { wrapper: ToastProvider });

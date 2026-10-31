@@ -7,6 +7,9 @@ import { ToastProvider } from "~/contexts/ToastContext";
 import AnnouncementDetailPage from "./page";
 
 vi.unmock("swr");
+vi.mock("~/lib/activity-api", () => ({
+  fetchActivities: () => new Promise(() => {}),
+}));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: { user: { id: "7", tenantId: 1 } },
@@ -65,17 +68,96 @@ it.each(["none", "single_choice"])(
     expect(screen.queryByText("Geheime Antwort")).not.toBeInTheDocument();
     expect(fetch).toHaveBeenCalledWith(
       "/api/parent-announcements/4",
-      expect.anything(),
+      undefined,
     );
     if (response_type !== "none") {
       expect(fetch).toHaveBeenCalledWith(
         "/api/parent-announcements/4/poll-results",
-        expect.anything(),
+        undefined,
       );
       expect(fetch).toHaveBeenCalledWith(
         "/api/parent-announcements/4/poll-children",
-        expect.anything(),
+        undefined,
       );
     }
   },
 );
+
+it("loads evaluation before detail and reuses it only after detail confirms the poll", async () => {
+  const cache = new Map();
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <SWRConfig value={{ provider: () => cache }}>
+      <ToastProvider>{children}</ToastProvider>
+    </SWRConfig>
+  );
+  const list = renderHook(
+    () =>
+      useSWRAuth(parentAnnouncementKeys.list(), async () => [
+        {
+          id: "4",
+          title: "Sommerfest",
+          status: "published",
+          response_type: "single_choice",
+        },
+      ]),
+    { wrapper },
+  );
+  await waitFor(() => expect(list.result.current.data).toBeDefined());
+  list.unmount();
+  let finish!: (response: Response) => void;
+  const pending = new Promise<Response>((resolve) => {
+    finish = resolve;
+  });
+  vi.mocked(fetch).mockImplementation(async (input) => {
+    const url = String(input);
+    if (url.endsWith("/poll-results"))
+      return Response.json({
+        data: {
+          answered_count: 1,
+          child_count: 1,
+          target_child_count: 1,
+          options: [
+            { option_id: "1", label: "Auswertung bestätigt", count: 1 },
+          ],
+        },
+      });
+    if (url.endsWith("/poll-children")) return Response.json({ data: [] });
+    return pending;
+  });
+  render(<AnnouncementDetailPage />, { wrapper });
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/parent-announcements/4/poll-results",
+    undefined,
+  );
+  expect(fetch).toHaveBeenCalledWith(
+    "/api/parent-announcements/4/poll-children",
+    undefined,
+  );
+  // Anker: die bekannte Identität steht im Kopf, die bereits geladenen Ergebnisse noch nicht.
+  expect(
+    screen.getByRole("heading", { name: "Sommerfest" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("Auswertung bestätigt")).not.toBeInTheDocument();
+  finish(
+    Response.json({
+      data: {
+        id: "4",
+        title: "Sommerfest",
+        body: "Bestätigter Detailtext",
+        status: "published",
+        priority: "info",
+        response_type: "single_choice",
+        delivery_mode: "standard",
+        targets: [],
+        options: [],
+      },
+    }),
+  );
+  expect(await screen.findByText("Bestätigter Detailtext")).toBeInTheDocument();
+  expect(await screen.findByText("Auswertung bestätigt")).toBeInTheDocument();
+  expect(
+    vi
+      .mocked(fetch)
+      .mock.calls.filter(([url]) => String(url).endsWith("/poll-results")),
+  ).toHaveLength(1);
+});
