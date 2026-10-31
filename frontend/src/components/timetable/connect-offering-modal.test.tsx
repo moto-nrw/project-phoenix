@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
+import { duplicateIds } from "~/test/helpers/duplicate-ids";
 import type { OfferingPreview, RosterDeviation } from "~/lib/roster-deviation";
 
 const { mockPreview, mockConnect, mockToastSuccess, mockOfferingSources } =
@@ -206,14 +207,6 @@ describe("ConnectOfferingModal (#5103)", () => {
   });
 
   it("keeps every HTML ID unique before, during and after choosing an offering (#5350)", async () => {
-    // Reads the whole document: the open menu is portaled to <body>.
-    const duplicateIds = () => {
-      const counts = new Map<string, number>();
-      for (const element of document.querySelectorAll("[id]")) {
-        counts.set(element.id, (counts.get(element.id) ?? 0) + 1);
-      }
-      return [...counts].filter(([, count]) => count > 1).map(([id]) => id);
-    };
     render(
       <ConnectOfferingModal
         isOpen
@@ -224,11 +217,14 @@ describe("ConnectOfferingModal (#5103)", () => {
       />,
     );
 
+    // Anker: the offering field is rendered, named by its label.
     const select = screen.getByRole("button", { name: "Angebote" });
     expect(select).toHaveTextContent("Angebote wählen");
     expect(duplicateIds()).toEqual([]);
 
     fireEvent.click(select);
+    // Anker: the open menu carries the field name.
+    expect(screen.getByRole("dialog", { name: "Angebote" })).toBeVisible();
     fireEvent.click(await screen.findByRole("checkbox", { name: "Ganztag" }));
     expect(duplicateIds()).toEqual([]);
 

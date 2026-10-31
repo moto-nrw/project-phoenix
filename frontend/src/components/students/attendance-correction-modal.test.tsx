@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { duplicateIds } from "~/test/helpers/duplicate-ids";
+
 import { AttendanceCorrectionModal } from "./attendance-correction-modal";
 
 const { mockGetCachedSession } = vi.hoisted(() => ({
@@ -192,15 +194,8 @@ describe("AttendanceCorrectionModal", () => {
     ).toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
   });
-  it("keeps every HTML ID unique and names both selects by their labels", () => {
-    // Reads the whole document: the open listbox is portaled to <body>.
-    const duplicateIds = () => {
-      const counts = new Map<string, number>();
-      for (const element of document.querySelectorAll("[id]")) {
-        counts.set(element.id, (counts.get(element.id) ?? 0) + 1);
-      }
-      return [...counts].filter(([, count]) => count > 1).map(([id]) => id);
-    };
+
+  it("keeps every HTML ID unique and names both selects by their labels (#5350)", () => {
     render(
       <AttendanceCorrectionModal
         isOpen
@@ -211,11 +206,13 @@ describe("AttendanceCorrectionModal", () => {
       />,
     );
 
+    // Anker: both selects rendered, named by their field labels.
     const status = screen.getByRole("combobox", { name: "Anwesenheit" });
     expect(screen.getByRole("combobox", { name: "Hinweis" })).toBeVisible();
     expect(duplicateIds()).toEqual([]);
 
     fireEvent.click(status);
+    // Anker: the portaled listbox is open and named by the field label.
     expect(screen.getByRole("listbox", { name: "Anwesenheit" })).toBeVisible();
     expect(duplicateIds()).toEqual([]);
 
