@@ -482,33 +482,22 @@ export function getStartDateForTimeRange(
   timeRange: string,
   referenceDate: Date = new Date(),
 ): Date {
-  const now = parseISODate(berlinTodayISO(referenceDate));
-  let startDate: Date;
+  const startDate = parseISODate(berlinTodayISO(referenceDate));
 
   switch (timeRange) {
     case "today":
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       break;
     case "week": {
-      const dayOfWeek = now.getDay();
-      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      startDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - daysFromMonday,
-      );
+      const daysFromMonday = (startDate.getDay() + 6) % 7;
+      startDate.setDate(startDate.getDate() - daysFromMonday);
       break;
     }
     case "month":
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      startDate.setDate(1);
       break;
     case "7days":
     default:
-      startDate = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() - 6,
-      );
+      startDate.setDate(startDate.getDate() - 6);
   }
 
   return new Date(berlinDateTimeISO(startDate, "00:00"));
