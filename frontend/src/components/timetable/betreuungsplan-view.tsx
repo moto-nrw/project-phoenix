@@ -40,6 +40,7 @@ import { CalendarX, Printer } from "lucide-react";
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
 import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
+import { SchoolVacationHints } from "~/components/timetable/school-vacation-hints";
 import { buildPlanningTrackLegend } from "~/components/timetable/planning-track-legend";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
@@ -2490,6 +2491,8 @@ function TimetablesContent() {
       <LoadErrorAlert error={gapsLoadError} />
       <LoadErrorAlert error={namesLoadError} />
       {canManageSchedules && <LoadErrorAlert error={ackLoadError} />}
+      {/* #5345: Regeltermine in den nächsten Schulferien. */}
+      <SchoolVacationHints enabled={canManageSchedules} />
 
       {canManageSchedules && shouldLoadInstances && (
         <ConflictWarningsBanner

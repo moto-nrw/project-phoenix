@@ -18,6 +18,7 @@ import { useSession } from "next-auth/react";
 
 import { hasPermission } from "~/lib/auth-utils";
 import { closingDayService } from "~/lib/closing-day-api";
+import { SCHOOL_VACATION_HINTS_KEY } from "~/lib/school-vacations-api";
 import {
   expandClosingDaysToMap,
   type ClosingDayRange,
@@ -66,7 +67,15 @@ async function getTimeTrackingClosingDays(
 /** Invalidates the tenant-scoped full closing-day list after CRUD writes. */
 export function useInvalidateClosingDays() {
   const tenantMutate = useTenantMutate();
-  return useCallback(() => tenantMutate(CLOSING_DAYS_SWR_KEY), [tenantMutate]);
+  return useCallback(
+    () =>
+      Promise.all([
+        tenantMutate(CLOSING_DAYS_SWR_KEY),
+        // Ein neuer Schließtag ändert die Zahl im Ferienhinweis (#5345).
+        tenantMutate(SCHOOL_VACATION_HINTS_KEY),
+      ]),
+    [tenantMutate],
+  );
 }
 
 /**
