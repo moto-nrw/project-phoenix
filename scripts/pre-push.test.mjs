@@ -57,7 +57,8 @@ test('Lefthook forwards every push to the runner and CI shares its quality comma
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'phoenix-pre-push-'));
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 }));
-  const env = gitTestEnvironment();
+  // Cache-hit verification is sampled; tests choose it explicitly.
+  const env = { ...gitTestEnvironment(), PHX_CACHE_VERIFY_RATE: '0' };
   function run(command, args, options = {}) {
     return spawnSync(command, args, { cwd: root, env, encoding: 'utf8', ...options });
   }
@@ -443,6 +444,32 @@ test('changed installed tools invalidate results; missing tools also fail on a w
   assert.equal(f.check({ FAIL_QUALITY: '1' }).status, 9);
   rmSync(join(f.root, '.devbox/nix/profile/default/bin/golangci-lint'));
   assert.match(f.check().stderr, /Pinned golangci-lint is missing/);
+});
+
+test('a sampled cache hit runs the check again and forgets a pass that no longer holds', t => {
+  const f = fixture(t);
+  f.commit('backend/example.go', 'package example\n');
+  assert.equal(f.check().status, 0);
+  assert.match(f.check().stdout, /\[backend-lint\] cache hit \(/);
+  const verified = f.check({ PHX_CACHE_VERIFY_RATE: '1' });
+  assert.equal(verified.status, 0, verified.stderr);
+  assert.match(verified.stdout, /\[backend-lint\] cache hit; running anyway to verify it/);
+  assert.match(verified.stdout, /\[backend-lint\] cache hit verified/);
+  const wrong = f.check({ PHX_CACHE_VERIFY_RATE: '1', FAIL_QUALITY: '1' });
+  assert.equal(wrong.status, 9);
+  assert.match(wrong.stderr, /\[backend-lint\] the cached pass for these inputs was wrong; entry removed/);
+  assert.match(f.check().stdout, /\[backend-lint\] cache miss/);
+});
+
+test('worktree mode checks uncommitted and untracked changes without caching', t => {
+  const f = fixture(t);
+  f.write('backend/untracked.go', 'package example\n');
+  const result = f.run('bash', ['scripts/pre-push.sh', '--worktree', 'base'], { env: f.env });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /backend=true frontend=false/);
+  assert.match(result.stdout, /\[backend-lint\] starting/);
+  assert.doesNotMatch(result.stdout, /cache (hit|miss)/);
+  assert.doesNotMatch(result.stderr, /clean working tree/);
 });
 
 test('a warm cache cannot hide dirty source or source changes during validation', t => {
