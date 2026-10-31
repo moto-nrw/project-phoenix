@@ -344,7 +344,9 @@ function MessageThreadContent() {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [thread]);
+    // A send error shrinks the list; keep the bubble marked as not sent in
+    // view (#5011).
+  }, [thread, sendError.error]);
 
   const handleSend = async () => {
     const body = draft.trim();

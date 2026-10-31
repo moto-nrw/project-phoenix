@@ -330,7 +330,9 @@ export function OgsConversation({
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [thread, care.loading]);
+    // A send error shrinks the list; keep the bubble marked as not sent in
+    // view (#5011).
+  }, [thread, care.loading, sendError]);
 
   const { run: runSend, dismiss: dismissFailedSend } = send;
   const handleSend = useCallback(async () => {
