@@ -57,6 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Go with cache
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
@@ -64,6 +65,24 @@ jobs:
           cache-dependency-path: |
             backend/go.sum
             backend/tools/go.sum
+
+      # setup-go's go.sum-only key is immutable, so the production build and
+      # deadcode started from an old build cache. Keep a source-keyed layer
+      # with the last source build as a warm fallback, as test.yml does.
+      - name: Compute backend quality build cache key
+        id: build-cache-key
+        env:
+          QUALITY_CACHE_PREFIX: backend-quality-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum', 'backend/tools/go.sum') }}-
+          QUALITY_SOURCE_HASH: ${{ hashFiles('backend/**/*.go') }}
+        run: |
+          echo "prefix=$QUALITY_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$QUALITY_CACHE_PREFIX$QUALITY_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+      - name: Restore backend quality build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
       - name: Backend quality (shared with pre-push)
         # Source ratchets run once per PR: test.yml selects ./test for every
