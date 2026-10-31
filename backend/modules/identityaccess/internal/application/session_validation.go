@@ -78,14 +78,26 @@ func (s *AccountAuthentication) verifyAccessFamily(ctx context.Context, claims d
 
 func (s *AccountAuthentication) validateOperatorSession(ctx context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) error {
 	operator, err := s.sessions.findOperatorByID(ctx, claims.AccountID)
-	if err != nil || !operator.Active {
+	if errors.Is(err, identityaccess.ErrOperatorNotFound) {
+		return identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return err
+	}
+	if !operator.Active {
 		return identityaccess.ErrInvalidToken
 	}
 	if refreshClaims == nil {
 		return nil
 	}
 	session, err := s.sessions.findOperatorSessionForUpdate(ctx, refreshClaims.Token)
-	if err != nil || session.OperatorID != operator.ID || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
+	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
+		return identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return err
+	}
+	if session.OperatorID != operator.ID || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil
@@ -108,58 +120,96 @@ func (s *AccountAuthentication) validateSessionInTx(txCtx context.Context, claim
 		return s.validateOperatorSession(txCtx, claims, refreshClaims)
 	}
 	account, found, _, err := findLoginAccount(txCtx, s.runtime, s.store, claims.AccountID, false)
-	if err != nil || !found || !account.Active {
+	if err != nil {
+		return err
+	}
+	if !found || !account.Active {
 		return identityaccess.ErrInvalidToken
 	}
-	if !s.sessionReachesSchool(txCtx, account.ID, claims, portal) {
-		return identityaccess.ErrInvalidToken
+	if err := s.sessionReachesSchool(txCtx, account.ID, claims, portal); err != nil {
+		return err
 	}
-	if portal == domain.ScopeOrg && !s.activeTraegerMember(txCtx, account.ID, claims.OrgID) {
-		return identityaccess.ErrInvalidToken
+	if portal == domain.ScopeOrg {
+		if err := s.activeTraegerMember(txCtx, account.ID, claims.OrgID); err != nil {
+			return err
+		}
 	}
 	if refreshClaims == nil {
 		return nil
 	}
 	session, err := s.sessions.findAccountSessionByToken(txCtx, refreshClaims.Token)
-	if err != nil || session.AccountID != account.ID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || !sessionOfTraeger(session, claims) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
+	if errors.Is(err, identityaccess.ErrAccountSessionNotFound) {
+		return identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return err
+	}
+	if session.AccountID != account.ID || (claims.TenantID > 0 && session.TenantID != claims.TenantID) || !sessionOfTraeger(session, claims) || session.PortalScope != domain.PersistedPortalScope(claims.Scope) || !session.Expiry.After(time.Now()) || session.RotatedAt != nil || session.ReplacementTokenHash != nil || session.FamilyID != claims.FamilyID {
 		return identityaccess.ErrInvalidToken
 	}
 	return nil
 }
 
-// activeTraegerMember re-reads the Träger membership a Träger session rests
-// on; any failure reads as no membership.
-func (s *AccountAuthentication) activeTraegerMember(ctx context.Context, accountID, organizationID int64) bool {
+// activeTraegerMember re-reads the Träger membership a Träger session rests on.
+func (s *AccountAuthentication) activeTraegerMember(ctx context.Context, accountID, organizationID int64) error {
 	if s.traeger == nil {
-		return false
+		return errAccountAuthenticationUnavailable
 	}
 	organizations, err := s.traeger.ListAccountTraegerOrganizations(ctx, accountID)
-	return err == nil && containsTraeger(organizations, organizationID)
+	if err != nil {
+		return err
+	}
+	if !containsTraeger(organizations, organizationID) {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
 }
 
 // sessionReachesSchool re-checks the school of a school-bound token: an
 // active mapping, or for a Träger school session the Träger, which must still
 // grant the school (ADR 0084 section 5). A token without a school passes.
-func (s *AccountAuthentication) sessionReachesSchool(ctx context.Context, accountID int64, claims domain.SessionClaims, portal string) bool {
+func (s *AccountAuthentication) sessionReachesSchool(ctx context.Context, accountID int64, claims domain.SessionClaims, portal string) error {
 	if claims.ViaTraeger {
-		return portal == "tenant" && claims.TenantID > 0 && claims.OrgID > 0 && s.traegerGrantsSchool(ctx, accountID, claims.OrgID, claims.TenantID)
+		if portal != "tenant" || claims.TenantID <= 0 || claims.OrgID <= 0 {
+			return identityaccess.ErrInvalidToken
+		}
+		return s.traegerGrantsSchool(ctx, accountID, claims.OrgID, claims.TenantID)
 	}
 	if claims.TenantID <= 0 {
-		return true
+		return nil
 	}
 	active, _, err := s.store.LockActiveTenantMappingShared(ctx, accountID, claims.TenantID)
-	return err == nil && active
+	if err != nil {
+		return err
+	}
+	if !active {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
 }
 
 // traegerGrantsSchool re-checks a Träger school session: active membership,
-// the right "In OGS wechseln" and a live school of the Träger. Any failure
-// reads as no access.
-func (s *AccountAuthentication) traegerGrantsSchool(ctx context.Context, accountID, organizationID, schoolID int64) bool {
-	if s.traeger == nil || s.requireTraegerSchoolSwitch(ctx, accountID, organizationID) != nil {
-		return false
+// the right "In OGS wechseln" and a live school of the Träger. Failed reads
+// remain unavailable; only confirmed loss of access invalidates the token.
+func (s *AccountAuthentication) traegerGrantsSchool(ctx context.Context, accountID, organizationID, schoolID int64) error {
+	if s.traeger == nil {
+		return errAccountAuthenticationUnavailable
+	}
+	err := s.requireTraegerSchoolSwitch(ctx, accountID, organizationID)
+	if errors.Is(err, identityaccess.ErrNoTraegerMembership) || errors.Is(err, identityaccess.ErrTraegerSchoolSwitchForbidden) {
+		return identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return err
 	}
 	school, found, err := s.schools.FindSchool(ctx, schoolID)
-	return err == nil && found && !school.Deleted && school.Active && school.OrganizationID == organizationID
+	if err != nil {
+		return err
+	}
+	if !found || school.Deleted || !school.Active || school.OrganizationID != organizationID {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
 }
 
 // sessionOfTraeger reports whether a token's session names the Träger the

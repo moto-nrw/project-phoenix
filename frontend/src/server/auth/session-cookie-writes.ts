@@ -174,9 +174,14 @@ export async function gateSessionCookieWrites(
       (write): write is CookieWrite =>
         write !== null && chunkIndex(write.name, base) !== null,
     );
-    if (own.some((write) => write.deletes)) continue;
-    // The last write of a name wins in the browser.
-    const latest = new Map(own.map((write) => [write.name, write.value]));
+    // Auth.js cleans obsolete chunks alongside replacements. Only the final
+    // non-deleted values form the session to validate; cleanup is not a bypass.
+    const latest = new Map<string, string>();
+    for (const write of own) {
+      if (write.deletes) latest.delete(write.name);
+      else latest.set(write.name, write.value);
+    }
+    if (!latest.size) continue;
     const written = joinChunks(latest, base);
     const before = joinChunks(presented, base);
     const [next, previous] = await Promise.all([
@@ -190,7 +195,7 @@ export async function gateSessionCookieWrites(
   response.headers.delete("Set-Cookie");
   setCookies.forEach((cookie, index) => {
     const write = writes[index];
-    if (!write || !refused.has(baseName(write.name)))
+    if (!write || write.deletes || !refused.has(baseName(write.name)))
       response.headers.append("Set-Cookie", cookie);
   });
   return response;

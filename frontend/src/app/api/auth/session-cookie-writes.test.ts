@@ -194,6 +194,63 @@ describe("gateSessionCookieWrites", () => {
     expect(written(answer)).toEqual([]);
   });
 
+  it.each(["shrink", "unchunk", "chunk"])(
+    "validates replacement writes alongside %s cleanup",
+    async (shape) => {
+      const before = await sealed(SESSION);
+      for (const status of [200, 401, 503]) {
+        backend.mockClear();
+        familyStatus = status;
+        const after = await sealed({ ...SESSION, token: "access-2" });
+        const deletions =
+          shape === "chunk"
+            ? [`${NAME}=; Path=/; Max-Age=0`]
+            : [
+                `${NAME}.0=; Path=/; Max-Age=0`,
+                `${NAME}.1=; Path=/; Max-Age=0`,
+              ];
+        const replacements =
+          shape === "unchunk"
+            ? [`${NAME}=${after}; Path=/`]
+            : shape === "shrink"
+              ? [`${NAME}.0=${after}; Path=/`]
+              : [
+                  `${NAME}.0=${after.slice(0, 40)}; Path=/`,
+                  `${NAME}.1=${after.slice(40)}; Path=/`,
+                ];
+        const answer = await gateSessionCookieWrites(
+          request(
+            shape === "chunk"
+              ? `${NAME}=${before}`
+              : `${NAME}.0=${before.slice(0, 40)}; ${NAME}.1=${before.slice(40)}`,
+          ),
+          response(...deletions, ...replacements, "other=1; Path=/"),
+        );
+
+        expect(familyChecks()).toHaveLength(1);
+        expect(answer.headers.getSetCookie()).toEqual([
+          ...deletions,
+          ...(status === 200 ? replacements : []),
+          "other=1; Path=/",
+        ]);
+      }
+    },
+  );
+
+  it("drops an unchanged replacement but keeps obsolete chunk deletions", async () => {
+    const before = await sealed(SESSION);
+    const deletion = `${NAME}.1=; Path=/; Max-Age=0`;
+    const answer = await gateSessionCookieWrites(
+      request(
+        `${NAME}.0=${before.slice(0, 40)}; ${NAME}.1=${before.slice(40)}`,
+      ),
+      response(deletion, `${NAME}.0=${await sealed(SESSION)}; Path=/`),
+    );
+
+    expect(answer.headers.getSetCookie()).toEqual([deletion]);
+    expect(familyChecks()).toEqual([]);
+  });
+
   it("asks once per access token", async () => {
     const answer = await gateSessionCookieWrites(
       request(`${NAME}=${await sealed(SESSION)}`),

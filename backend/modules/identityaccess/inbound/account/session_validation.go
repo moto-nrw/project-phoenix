@@ -29,7 +29,7 @@ func (rs *Resource) validateSession(w http.ResponseWriter, r *http.Request) {
 	}
 	claims, err := rs.Sessions.ValidateSessionTokens(r.Context(), input.AccessToken, input.RefreshToken, input.Portal)
 	if err != nil && !errors.Is(err, identityaccess.ErrInvalidToken) {
-		// The family could not be read (#5399): the BFF keeps the session
+		// Validation could not complete (#5399): the BFF keeps the session
 		// it shows and writes no cookie, but does not end it on a hiccup.
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("session validation unavailable")))
 		return
