@@ -21,6 +21,7 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -779,7 +780,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	queryCounter := testpkg.CaptureQueriesForContext(t, db)
 	calendar, err := service.AuthenticateStaffCalDAV(queryCounter.Context(testpkg.Ctx(t)), strings.ToUpper(account.Email), access.CalDAV.AppPassword)
 	require.NoError(t, err)
-	testpkg.AssertQueryBudget(t, "services.calendar.caldav_snapshot", queryCounter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.calendar.caldav_snapshot", queryCounter.Queries())
 	require.NotEmpty(t, calendar.Items)
 	assert.Equal(t, testpkg.Tenant(t), calendar.TenantID)
 

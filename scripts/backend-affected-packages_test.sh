@@ -48,6 +48,13 @@ printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/modules/de
 printf 'package listrenderer\n\nconst Value = 1\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/service.go"
 printf 'package email\n' >"$fixture/backend/templates/email/template_test.go"
 printf 'package test\n' >"$fixture/backend/test/test.go"
+# The query-budget register is its own package: only packages asserting budgets
+# depend on it, while ordinary importers of the shared test package do not.
+mkdir -p "$fixture/backend"/{test/query-budgets/api/students,budgetuser,fixtureuser}
+printf 'package querybudgets\n' >"$fixture/backend/test/query-budgets/register.go"
+printf '{}\n' >"$fixture/backend/test/query-budgets/api/students/list.json"
+printf 'package budgetuser\n\nimport _ \"example.test/project/test/query-budgets\"\n' >"$fixture/backend/budgetuser/budgetuser_test.go"
+printf 'package fixtureuser\n\nimport _ \"example.test/project/test\"\n' >"$fixture/backend/fixtureuser/fixtureuser_test.go"
 cat >"$fixture/backend/modules/delivery/localeconsumer/consumer.go" <<'EOF'
 package localeconsumer
 
@@ -268,10 +275,10 @@ for artifact in command-effects passthrough; do
   assert_output $'example.test/project/internal/architecture\nexample.test/project/internal/passthrough\nexample.test/project/test'
   rm -r "$fixture/backend/architecture/$artifact"
 done
-mkdir -p "$fixture/backend/test/query-budgets/api/students"
-printf '{}\n' >"$fixture/backend/test/query-budgets/api/students/list.json"
-assert_output $'example.test/project/internal/architecture\nexample.test/project/test'
-rm -r "$fixture/backend/test/query-budgets"
+printf '{"changed":true}\n' >"$fixture/backend/test/query-budgets/api/students/list.json"
+assert_output $'example.test/project/budgetuser\nexample.test/project/internal/architecture\nexample.test/project/test\nexample.test/project/test/query-budgets'
+assert_output_direct $'example.test/project/budgetuser\nexample.test/project/internal/architecture\nexample.test/project/test/query-budgets'
+git -C "$fixture" restore backend/test/query-budgets/api/students/list.json
 
 
 printf '\n// changed\n' >>"$fixture/backend/go.mod"

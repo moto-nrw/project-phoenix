@@ -98,7 +98,7 @@ import (
 // count as growth, so both trees share one entry. A method moved to another
 // module still raises that module's entry.
 //
-// Form: a budget per module, like test/query_budgets.go, not an allowlist per
+// Form: a budget per module, like test/query-budgets/, not an allowlist per
 // method. The key is the module directory relative to the backend root
 // ("modules/identityaccess", "workflows/reminderdelivery"); the value is the
 // number of pass-throughs measured in it.

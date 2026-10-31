@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -190,7 +191,7 @@ func TestInstanceStaffListQueryBudgetStaysFlat(t *testing.T) {
 		counter := testpkg.CaptureQueries(t, db)
 		_, err := module.ListInstanceStaff(ctx, timetable.InstanceStaffFilter{InstanceIDs: []int64{instance.ID}})
 		require.NoError(t, err)
-		testpkg.AssertQueryBudget(t, "modules.timetable.instance_staff.list", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.timetable.instance_staff.list", counter.Queries())
 
 		return nil
 	}))

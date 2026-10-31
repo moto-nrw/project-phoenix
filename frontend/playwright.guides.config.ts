@@ -1,6 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 import { frontendPort } from "./e2e/frontend-port";
+import { assertPortServesThisCheckout } from "./e2e/own-server";
 
 // Dedicated config for build-time PDF generation of the printed NFC onepager
 // (pnpm run generate:guides). Kept separate from playwright.config.ts so the
@@ -16,6 +17,9 @@ import { frontendPort } from "./e2e/frontend-port";
 // when the operator/parents/tenant hostnames are unset. Locally those come from
 // .env.local; in CI the generate:guides step sets them plus SKIP_ENV_VALIDATION.
 // No values are baked in here.
+// reuseExistingServer must not pick up another checkout's frontend.
+assertPortServesThisCheckout(frontendPort);
+
 export default defineConfig({
   testDir: "./scripts",
   testMatch: "generate-guides.ts",

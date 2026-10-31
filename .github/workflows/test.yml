@@ -611,7 +611,9 @@ jobs:
 
       # setup-go's go.sum-only key is immutable. All scenarios build the same
       # binaries, so they share one source-keyed layer with the last source
-      # build as a warm fallback. nightly.yml saves it on development.
+      # build as a warm fallback. Only nightly.yml saves it, on development:
+      # a ~330 MB save per pull request push filled the 10 GB repository
+      # cache and evicted the development entry that pull requests restore.
       - name: Compute seed smoke build cache key
         id: build-cache-key
         env:
@@ -621,7 +623,8 @@ jobs:
           echo "prefix=$SEED_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$SEED_CACHE_PREFIX$SEED_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore seed smoke build cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}
@@ -632,6 +635,22 @@ jobs:
         run: |
           go build -o "${RUNNER_TEMP}/phoenix" .
           go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
+
+      # Downloading the test modules and compiling the coverage ratchet took
+      # 12 s after the seed, for a test that runs 0.1 s. It compiles now while
+      # the seeder waits on the server; the ratchet step waits for it.
+      - name: Compile the seed coverage ratchet in the background
+        if: ${{ matrix.scenario == 'profiles' }}
+        working-directory: backend
+        run: |
+          (
+            if go test -c -o "${RUNNER_TEMP}/seed-coverage.test" ./internal/devtools/seedapi/ \
+              > "${RUNNER_TEMP}/seed-coverage-build.log" 2>&1; then
+              echo ok > "${RUNNER_TEMP}/seed-coverage-build.status"
+            else
+              echo failed > "${RUNNER_TEMP}/seed-coverage-build.status"
+            fi
+          ) > /dev/null 2>&1 &
 
       - name: Run migrations
         working-directory: backend
@@ -644,9 +663,15 @@ jobs:
       # these settings the log printed at job end names a lock wait and its
       # blocker, or a slow statement with its duration; a hang that leaves
       # neither points at the runner rather than at the query.
+      #
+      # The seed commits thousands of small transactions into this throwaway
+      # database. synchronous_commit = off answers a commit before its WAL
+      # reaches the disk; a crash could lose the last commits, but not
+      # corrupt the database, and a crash fails the job anyway.
       - name: Log Postgres lock waits and slow statements
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 \
+            -c "ALTER SYSTEM SET synchronous_commit = off" \
             -c "ALTER SYSTEM SET log_lock_waits = on" \
             -c "ALTER SYSTEM SET log_min_duration_statement = '1s'" \
             -c "ALTER SYSTEM SET log_autovacuum_min_duration = '1s'" \
@@ -853,8 +878,28 @@ jobs:
 
       - name: Check seed coverage ratchet
         if: ${{ matrix.scenario == 'profiles' }}
-        working-directory: backend
-        run: go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet -v
+        working-directory: backend/internal/devtools/seedapi
+        run: |
+          status_file="${RUNNER_TEMP}/seed-coverage-build.status"
+          for _ in $(seq 1 300); do
+            test -s "${status_file}" && break
+            sleep 1
+          done
+          if [ "$(cat "${status_file}" 2>/dev/null)" != ok ]; then
+            echo "compiling the seed coverage ratchet failed or did not finish in 300 s"
+            cat "${RUNNER_TEMP}/seed-coverage-build.log" || true
+            exit 1
+          fi
+          "${RUNNER_TEMP}/seed-coverage.test" -test.run TestSeedCoverageRatchet -test.v
+
+      # profiles also compiled the coverage ratchet, so its build cache is the
+      # fullest of the three scenarios.
+      - name: Save seed smoke build cache
+        if: ${{ github.event_name != 'pull_request' && matrix.scenario == 'profiles' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
 
       - name: Postgres activity and socket queues
         if: failure()

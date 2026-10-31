@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -292,13 +293,13 @@ func TestBillingQueryBudget(t *testing.T) {
 	written, err := billing.RecordDueBillingKeyDates(ctx, berlinTime(2099, time.September, 20, 9, 0))
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, written, 4)
-	testpkg.AssertQueryBudget(t, "modules.organizationtenancy.billing.capture", withoutTransactionControl(counter.Queries()))
+	querybudgets.AssertQueryBudget(t, "modules.organizationtenancy.billing.capture", withoutTransactionControl(counter.Queries()))
 
 	counter.Reset()
 	rows, err := billing.ListBillingKeyDateCounts(ctx)
 	require.NoError(t, err)
 	require.GreaterOrEqual(t, len(rows), 4)
-	testpkg.AssertQueryBudget(t, "modules.organizationtenancy.billing.key_date_counts", withoutTransactionControl(counter.Queries()))
+	querybudgets.AssertQueryBudget(t, "modules.organizationtenancy.billing.key_date_counts", withoutTransactionControl(counter.Queries()))
 }
 
 // withoutTransactionControl drops BEGIN, COMMIT, ROLLBACK and the role and

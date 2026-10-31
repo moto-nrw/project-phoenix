@@ -194,11 +194,12 @@ describe.concurrent("swr/no-direct-import", () => {
       import { IsolatedSWRCache, SWRSeedBoundary, useInvalidateMatching, useSWRSeedFrom, stampSWRSeeds, mutate } from "~/lib/swr";
       import { useSWRAuth } from "@/lib/swr/hooks";
       import { roomKeys } from "../lib/swr/rooms-keys";
+      import { courseWaitlistKeys } from "~/lib/swr/course-waitlist-keys";
       import { messageKeys } from "~/lib/swr/portal-keys.ts";
       import * as Lib from "~/lib/swr/index";
       export { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
       void IsolatedSWRCache; void SWRSeedBoundary; void useInvalidateMatching; void useSWRSeedFrom;
-      void stampSWRSeeds; void mutate; void useSWRAuth; void roomKeys; void messageKeys;
+      void stampSWRSeeds; void mutate; void useSWRAuth; void roomKeys; void courseWaitlistKeys; void messageKeys;
       void Lib.useTenantMutate;
     `);
     expect(result.status, result.output).toBe(0);

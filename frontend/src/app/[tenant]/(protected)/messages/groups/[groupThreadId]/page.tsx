@@ -4,9 +4,9 @@ import { isParentMessagingDisabled } from "~/lib/parent-messages-api";
 
 import { messageKeys } from "~/lib/swr/portal-keys";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
 import { GROUP_THREAD_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { Alert } from "~/components/ui/alert";
@@ -177,6 +177,19 @@ function GroupMessageContent() {
     (isLoading && !data) ||
     (Boolean(error) && !data && formErrorMessage(loadError) === null);
 
+  const seedFrom = useSWRSeedFrom();
+  const preview = useMemo(
+    () =>
+      showSkeleton
+        ? seedFrom(
+            messageKeys.groupMessages(),
+            messageKeys.groupMessage(threadId),
+            (source: unknown) => messageKeys.groupPreview(source, threadId),
+          )
+        : undefined,
+    [seedFrom, showSkeleton, threadId],
+  );
+
   if (!showSkeleton && !data) {
     return (
       <TenantPage
@@ -201,7 +214,7 @@ function GroupMessageContent() {
 
   return (
     <TenantPage
-      title={thread?.title ?? "Gruppennachricht"}
+      title={thread?.title ?? preview?.name ?? "Gruppennachricht"}
       {...GROUPS_BACK}
       stats={stats}
       statsLoading={showSkeleton}

@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestParentConferenceListsQueryBudget guards both Elternsprechtag lists
@@ -67,7 +68,7 @@ func TestParentConferenceListsQueryBudget(t *testing.T) {
 	assert.Equal(t, smallFamily, largeFamily, "the family's offers do not grow with the days")
 
 	teacherRun()
-	testpkg.AssertQueryBudget(t, "services.calendar.list_school_parent_conferences", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.calendar.list_school_parent_conferences", counter.Queries())
 	familyRun()
-	testpkg.AssertQueryBudget(t, "services.calendar.list_child_parent_conferences", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "services.calendar.list_child_parent_conferences", counter.Queries())
 }

@@ -1,13 +1,16 @@
 "use client";
 
 import { groups as groupsKeys } from "~/lib/swr/groups";
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { AnnouncementDetail } from "~/components/announcements/announcement-detail";
+import {
+  AnnouncementDetail,
+  logPollResultsError,
+} from "~/components/announcements/announcement-detail";
 import { AnnouncementReminderDialog } from "~/components/announcements/announcement-reminder-dialog";
 import {
   buildAnnouncementMenuItems,
@@ -33,19 +36,22 @@ import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
-import { fetchAnnouncement } from "~/lib/parent-announcements-api";
+import {
+  fetchAnnouncement,
+  fetchPollResults,
+  fetchPollChildren,
+  isPoll,
+} from "~/lib/parent-announcements-api";
 import type { Announcement } from "~/lib/parent-announcements-api";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useSWRAuth, useSWRSeedFrom, useTenantMutate } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { resolveDetailReferrer } from "~/lib/tenant-path";
 import { AnnouncementDetailLoadingPage } from "./page-skeleton";
 
-/** SWR-Schlüssel der Liste, die nach jeder Lebenszyklus-Aktion neu lädt. */
-const LIST_KEY = "parent-announcements-list";
+import { parentAnnouncementKeys } from "~/lib/swr/portal-keys";
 
-function announcementDetailKey(id: string): string {
-  return `parent-announcement-${id}`;
-}
+/** SWR-Schlüssel der Liste, die nach jeder Lebenszyklus-Aktion neu lädt. */
+const LIST_KEY = parentAnnouncementKeys.list();
 
 const BACK_LABEL: Record<AnnouncementKind, string> = {
   announcement: "Zurück zu den Mitteilungen",
@@ -103,9 +109,45 @@ function AnnouncementDetailPageContent() {
     error: loadError,
     mutate,
   } = useSWRAuth<Announcement | undefined>(
-    announcementDetailKey(announcementId),
+    parentAnnouncementKeys.detail(announcementId),
     () => fetchAnnouncement(announcementId),
-    { revalidateOnFocus: false },
+    { revalidateOnFocus: false, keepPreviousData: false },
+  );
+
+  const seedFrom = useSWRSeedFrom();
+  const preview = useMemo(
+    () =>
+      !announcement && isLoading && !loadError
+        ? seedFrom(
+            parentAnnouncementKeys.list(),
+            parentAnnouncementKeys.detail(announcementId),
+            (data: unknown) =>
+              parentAnnouncementKeys.preview(data, announcementId),
+          )
+        : undefined,
+    [seedFrom, announcement, isLoading, loadError, announcementId],
+  );
+  // Start with list-known type/status. Only the confirmed detail renders results.
+  const loadEvaluation = announcement
+    ? isPoll(announcement)
+    : preview?.poll &&
+      (preview.status === "published" || preview.status === "expired");
+  useSWRAuth(
+    loadEvaluation
+      ? parentAnnouncementKeys.pollEvaluation(announcementId)
+      : null,
+    async () => {
+      const [results, children] = await Promise.all([
+        fetchPollResults(announcementId),
+        fetchPollChildren(announcementId),
+      ]);
+      return { results, children };
+    },
+    {
+      revalidateOnFocus: false,
+      keepPreviousData: false,
+      onError: logPollResultsError,
+    },
   );
 
   // Der Rückweg: die Sammlung samt Reiter, aus der die Seite geöffnet wurde.
@@ -124,15 +166,16 @@ function AnnouncementDetailPageContent() {
     referrerPage: referrer,
   });
 
-  // Die Zielgruppen tragen echte Namen; die Nachschlagelisten laden erst,
-  // wenn die Mitteilung da ist.
+  // Die Nachschlagelisten für Zielgruppennamen starten parallel zum Detail.
+  // Auch bei 404/Fehler dürfen diese unabhängigen, wiederverwendbaren Listen
+  // laden: Ein Detail-Gate würde auf dem normalen Weg einen Wasserfall erzeugen.
   const { data: groups } = useSWRAuth<Group[]>(
-    announcement ? groupsKeys.key() : null,
+    groupsKeys.key(),
     groupsKeys.fetcher,
     { revalidateOnFocus: false },
   );
   const { data: activities } = useSWRAuth<Activity[]>(
-    announcement ? "parent-announcements-activities" : null,
+    "parent-announcements-activities",
     () => fetchActivities(),
     { revalidateOnFocus: false },
   );
@@ -159,6 +202,7 @@ function AnnouncementDetailPageContent() {
       <AnnouncementDetailLoadingPage
         referrer={referrer}
         backLabel={backLabel}
+        title={preview?.name}
       />
     );
   }

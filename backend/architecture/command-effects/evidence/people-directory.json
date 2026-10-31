@@ -6873,6 +6873,22 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.RetainedPersonDirectory.FilterEligibleStudentsOnDate",
+      "binding_digest": "328e7609c665e66f66aebaab41f4d476",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.FilterEligibleStudentsOnDate",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareLifecycle.ResolveListParticipation",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.RetainedPersonDirectory.FilterEligibleStudentsOnDate",
+      "binding_digest": "37bdf559d1f304682cfac8427b72c1db",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.FilterEligibleStudentsOnDate",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareParticipation.ResolveListParticipation",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.RetainedPersonDirectory.GetEligibleStudentsByGroupIDsOnDate",
       "binding_digest": "328e7609c665e66f66aebaab41f4d476",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.GetEligibleStudentsByGroupIDsOnDate",

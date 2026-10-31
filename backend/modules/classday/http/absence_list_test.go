@@ -28,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type absenceListCounts struct {
@@ -176,7 +177,7 @@ func TestAbsenceListQueryBudget(t *testing.T) {
 	addChild(5)
 	large := read("2099-02-24", 5)
 	assert.Equal(t, small, large, "the list must not grow with the number of children")
-	testpkg.AssertQueryBudget(t, "modules.classday.absence_list", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "modules.classday.absence_list", counter.Queries())
 }
 
 func TestAbsenceListRetentionWindows(t *testing.T) {

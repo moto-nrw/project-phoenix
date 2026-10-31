@@ -24,6 +24,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // Unread enrollments (#3778), pinned at the HTTP seam: the assembled router
@@ -374,5 +375,5 @@ func TestAdminRequestsList_QueryBudget(t *testing.T) {
 
 	require.Len(t, small, 1, "one read-state statement for one enrollment")
 	require.Len(t, large, 1, "one read-state statement for four enrollments")
-	testpkg.AssertQueryBudget(t, "api.enrollment.admin_requests.read_state", large)
+	querybudgets.AssertQueryBudget(t, "api.enrollment.admin_requests.read_state", large)
 }

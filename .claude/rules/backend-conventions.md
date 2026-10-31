@@ -335,11 +335,11 @@ If a test's purpose genuinely requires the system clock, inject a clock where po
 ```go
 counter := testpkg.CaptureQueries(t, db)          // bun.QueryHook, disabled at cleanup
 rr := exec(...)                                    // the request under test
-testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
+querybudgets.AssertQueryBudget(t, "api.students.list", counter.Queries())
 ```
 
 - **One counter.** `testpkg.QueryCounter` (`backend/test/query_counter.go`) is the only bun hook tests may define: `CaptureQueries(t, db)` attaches it to a DB, `NewQueryCounter()` feeds `db.WithQueryHook` for a private clone. It buckets by operation (`Operation("SELECT")`), table (`Selects("config.setting_values")`) or predicate (`Matching`). Tests that count own their database (`SetupIsolatedTestDB`) or a `WithQueryHook` clone before they run in parallel.
-- **The register is the budget.** `queryBudgets` maps a scenario name to a statement count: `max` entries are ceilings, `exact` entries pin a dedup contract (one bulk load, one settings snapshot). Shrink-only: lower a number when a fix removes statements, never raise one. A scenario that needs more statements is an N+1 until proven otherwise; batch-load by ID set (`modules/timetable/internal/application/exception_conflicts.go` is the reference shape).
+- **The register is the budget.** It and `AssertQueryBudget` live in package `test/query-budgets` (import alias `querybudgets`), not in `testpkg`, so a budget edit retests only the packages that assert budgets. `queryBudgets` maps a scenario name to a statement count: `max` entries are ceilings, `exact` entries pin a dedup contract (one bulk load, one settings snapshot). Shrink-only: lower a number when a fix removes statements, never raise one. A scenario that needs more statements is an N+1 until proven otherwise; batch-load by ID set (`modules/timetable/internal/application/exception_conflicts.go` is the reference shape).
 - **Two CI halves.** `TestQueryBudgetRatchet` (source-level, runs in the no-database ratchet step) fails on register entries no test references, scenario names no entry defines, and any `_test.go` file defining its own `BeforeQuery` hook. The budget tests themselves run with the full backend suite.
 
 ---
@@ -398,7 +398,7 @@ Two former rows are gone (#4427). The `bun` import in `*/http` and `*/inbound` i
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
 - [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 - [ ] Calendar/date/week test fixtures use fixed Berlin values, or have an exact-function live-clock exception with a reviewed reason
-- [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + register entry in `test/query-budgets/`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
+- [ ] New list endpoint → query-budget test via `testpkg.CaptureQueries` + `querybudgets.AssertQueryBudget` + register entry in `test/query-budgets/`; no hand-rolled `BeforeQuery` hooks (CI: `TestQueryBudgetRatchet`)
 - [ ] All backend source stays inside Rule 16: no new file over 800 lines, function over 60 lines or `gocognit` 15; owner-scoped facade/pass-through/legacy budgets also stay unchanged or decrease
 
 ## Detection commands (one-shot health check)
