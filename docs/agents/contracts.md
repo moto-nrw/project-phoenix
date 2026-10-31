@@ -535,9 +535,11 @@ a logout or a "Zur Schulanmeldung" from writing the old session back:
      and they abort when the attempt fails or its signout deleted the cookie.
    - **Other tabs stay closed while the owner lives.** They close on `begin`
      (`BroadcastChannel` `moto-session-end`). After 15 s they ask (`ping`);
-     the owner answers `begin` while its attempt runs, however long CSRF or
-     signout hang. Another tab opens only on `ended` or `failed`, or when no
-     answer comes within 2 s (the owner is gone). An `ended` also aborts
+     each owner answers `begin` with its attempt ID while that attempt runs,
+     however long CSRF or signout hang. Holds and pings are tracked per
+     attempt, including while this tab logs out. Another tab opens only once
+     every attempt reports `ended` or `failed`, or fails to answer its own
+     ping within 2 s (that owner is gone). An `ended` also aborts
      every request an open tab still has in flight.
    - **Opening.** The owner opens when the logout fails or, outside the
      tenant shell, once its signout answer deleted the cookie; the tenant exit

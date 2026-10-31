@@ -19,10 +19,11 @@ import { announceSessionBarrier, type SessionEnd } from "./session-end-state";
  * 3. The SessionProvider stops polling while it is closed
  *    (useSessionPollInterval, through session-end-state).
  * 4. Other tabs of this origin close too (BroadcastChannel). After
- *    OTHER_TAB_HOLD_MS they ask (`ping`); the owner answers `begin` while its
- *    attempt runs, however long CSRF or signout hang. Another tab opens only
- *    on the owner's `ended` or `failed`, or when no answer comes within
- *    OWNER_REPLY_MS (the owner is gone). An `ended` also aborts what an open
+ *    OTHER_TAB_HOLD_MS they ask (`ping`); each owner answers `begin` with its
+ *    attempt ID while that attempt runs, however long CSRF or signout hang.
+ *    Another tab opens only once every owner reports `ended` or `failed`,
+ *    or fails to answer its own ping within OWNER_REPLY_MS (it is gone).
+ *    An `ended` also aborts what an open
  *    tab still has in flight: those requests carry the deleted cookie.
  * 5. The exit's own requests pass only while this tab's attempt runs, and
  *    only for that attempt: started before the logout they are aborted like
@@ -37,7 +38,7 @@ import { announceSessionBarrier, type SessionEnd } from "./session-end-state";
  * server, against the backend.
  */
 
-/** Upper bound of a logout: revocation (5 s), CSRF and signout. */
+/** Initial hold before checking whether a remote logout still runs. */
 const OTHER_TAB_HOLD_MS = 15_000;
 /** A live owner answers a `ping` at once; silence means it is gone. */
 const OWNER_REPLY_MS = 2_000;
@@ -53,10 +54,10 @@ const awaiting = new Set<AbortController>();
 /** The same for the exit requests of this tab's running attempt. */
 const exits = new Set<AbortController>();
 /** This tab's latest attempt; live until it failed or deleted the cookie. */
-let attempt: object | null = null;
+let attempt: string | null = null;
 let attemptLive = false;
 const waiters = new Set<() => void>();
-let otherTabTimer: ReturnType<typeof setTimeout> | undefined;
+const owners = new Map<string, ReturnType<typeof setTimeout>>();
 let channel: BroadcastChannel | undefined;
 
 function abortAll(requests: Set<AbortController>) {
@@ -88,19 +89,44 @@ async function sendTracked(
   }
 }
 
-/** Holds the other tab's logout; asks after the hold before opening. */
-function holdForOwner() {
-  clearTimeout(otherTabTimer);
-  otherTabTimer = setTimeout(() => {
-    channel?.postMessage("ping");
-    otherTabTimer = setTimeout(setClosed, OWNER_REPLY_MS, null);
-  }, OTHER_TAB_HOLD_MS);
+type SessionEndMessage = {
+  type: "begin" | "ping" | "ended" | "failed";
+  attempt: string;
+};
+
+function broadcast(type: SessionEndMessage["type"], id: string) {
+  channel?.postMessage({ type, attempt: id } satisfies SessionEndMessage);
+}
+
+/** A remote completion releases only its own hold, never this tab's exit. */
+function releaseOwner(id: string) {
+  clearTimeout(owners.get(id));
+  owners.delete(id);
+  if (closedBy === "other" && owners.size === 0) setClosed(null);
+}
+
+/** Each owner must answer its own ping; another owner's reply cannot keep it. */
+function holdForOwner(id: string) {
+  clearTimeout(owners.get(id));
+  owners.set(
+    id,
+    setTimeout(() => {
+      broadcast("ping", id);
+      owners.set(
+        id,
+        setTimeout(() => releaseOwner(id), OWNER_REPLY_MS),
+      );
+    }, OTHER_TAB_HOLD_MS),
+  );
+}
+
+function releaseLocalHold() {
+  setClosed(owners.size ? "other" : null);
 }
 
 function setClosed(owner: typeof closedBy) {
   if (owner) abortInFlight();
   else {
-    clearTimeout(otherTabTimer);
     for (const resume of waiters) resume();
     waiters.clear();
   }
@@ -112,21 +138,22 @@ function setClosed(owner: typeof closedBy) {
 export function listenForSessionEnds() {
   if (channel || typeof BroadcastChannel === "undefined") return;
   channel = new BroadcastChannel("moto-session-end");
-  channel.onmessage = ({ data }: MessageEvent<string>) => {
-    if (closedBy === "self") {
-      // Still at work: the asking tab keeps holding.
-      if (data === "ping" && attemptLive) channel?.postMessage("begin");
+  channel.onmessage = ({ data }: MessageEvent<SessionEndMessage>) => {
+    if (!data || typeof data.attempt !== "string") return;
+    const { type, attempt: id } = data;
+    if (type === "ping") {
+      if (attemptLive && attempt === id) broadcast("begin", id);
       return;
     }
-    if (data === "begin") {
+    if (type === "begin") {
+      holdForOwner(id);
       if (!closedBy) setClosed("other");
-      holdForOwner();
       return;
     }
-    if (data !== "ended" && data !== "failed") return;
+    if (type !== "ended" && type !== "failed") return;
     // Requests sent while open carry the cookie the signout deleted.
-    if (data === "ended") abortInFlight();
-    if (closedBy) setClosed(null);
+    if (type === "ended") abortInFlight();
+    releaseOwner(id);
   };
 }
 
@@ -145,20 +172,20 @@ export function beginSessionEnd({
   keepClosed = false,
 }: { keepClosed?: boolean } = {}): SessionEnd {
   listenForSessionEnds();
-  clearTimeout(otherTabTimer);
+  if (attemptLive && attempt) broadcast("failed", attempt);
   endAttempt();
-  const current = (attempt = {});
+  const current = (attempt = crypto.randomUUID());
   attemptLive = true;
   reopenAfterDeletion = !keepClosed;
   setClosed("self");
-  channel?.postMessage("begin");
+  broadcast("begin", current);
   return {
     fail() {
       // Also after the signout (bfcache restore), never for a later attempt.
       if (attempt !== current || closedBy !== "self") return;
       endAttempt();
-      channel?.postMessage("failed");
-      setClosed(null);
+      broadcast("failed", current);
+      releaseLocalHold();
     },
   };
 }
@@ -203,8 +230,8 @@ export async function fetchThroughSessionBarrier(
       attempt === current
     ) {
       endAttempt();
-      channel?.postMessage("ended");
-      if (reopenAfterDeletion) setClosed(null);
+      broadcast("ended", current!);
+      if (reopenAfterDeletion) releaseLocalHold();
     }
     return response;
   }
@@ -252,7 +279,8 @@ export function resetSessionBarrierForTests() {
   attempt = null;
   attemptLive = false;
   waiters.clear();
-  clearTimeout(otherTabTimer);
+  for (const timer of owners.values()) clearTimeout(timer);
+  owners.clear();
   announceSessionBarrier(false);
   channel?.close();
   channel = undefined;
