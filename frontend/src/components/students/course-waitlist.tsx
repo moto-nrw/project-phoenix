@@ -76,14 +76,14 @@ export function CourseWaitlistHints({
     return (
       <Alert
         type="info"
-        message={`${freeSlotSentence(free[0])} Bestätigen Sie unten die Anfrage, dann rückt das Kind nach.`}
+        message={`${freeSlotSentence(free[0])} Wählen Sie unten bei der Anfrage „Freigeben“, dann rückt das Kind nach.`}
       />
     );
   }
   return (
     <SectionCard
       title="Freie Plätze in AGs"
-      description="Bestätigen Sie unten die Anfrage des nächsten Kindes, dann rückt es nach."
+      description="Wählen Sie unten bei der Anfrage des nächsten Kindes „Freigeben“."
     >
       <ul className="divide-y divide-gray-100">
         {free.map((waitlist) => (
@@ -113,7 +113,7 @@ function placeLine(place: RequestWaitlistPlace): {
   }
   if (waitlist.freeSlots === 0) {
     return {
-      badge: { tone: "orange", label: `Warteliste Platz ${entry.rank}` },
+      badge: { tone: "orange", label: `Warteliste, Platz ${entry.rank}` },
       text: "Die AG ist voll. Wird ein Platz frei, steht es hier.",
     };
   }
@@ -157,19 +157,30 @@ export function RequestWaitlistPlaces({
  */
 export function CourseWaitlistSummary({
   waitlist,
-}: Readonly<{ waitlist: CourseWaitlist }>) {
+  participantNames,
+}: Readonly<{
+  waitlist: CourseWaitlist;
+  /** Kinder, die heute in der AG sind; fehlt die Liste, bleibt sie weg. */
+  participantNames?: readonly string[];
+}>) {
   const limit = waitlist.participantLimit;
   const occupancy =
     limit === null
       ? `${waitlist.participants} Kinder angemeldet · keine Teilnehmergrenze`
-      : `${waitlist.participants} von ${limit} Plätzen belegt · ${waitlist.freeSlots ?? 0} frei`;
+      : `${waitlist.participants} von ${limit} Plätzen vergeben · ${waitlist.freeSlots ?? 0} frei`;
   return (
     <div className="flex flex-col gap-3">
       <p className="text-sm text-gray-700">{occupancy}</p>
+      {participantNames && participantNames.length > 0 && (
+        <p className="text-sm text-gray-700">
+          <span className="text-gray-500">Teilnehmende: </span>
+          {participantNames.join(", ")}
+        </p>
+      )}
       {waitlist.slotFreeForNext && (
         <Alert
           type="info"
-          message={`${freeSlotSentence(waitlist)} Bestätigen Sie die Anfrage unter „Anfragen“.`}
+          message={`${freeSlotSentence(waitlist)} Geben Sie die Anfrage unter „Anfragen“ frei.`}
         />
       )}
       {waitlist.entries.length === 0 ? (

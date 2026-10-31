@@ -15,9 +15,8 @@ export async function fetchCourseWaitlists(
   const query = activityGroupId
     ? `?activity_group_id=${encodeURIComponent(activityGroupId)}`
     : "";
-  const body = await authFetch<Envelope<CourseWaitlist[]> | CourseWaitlist[]>(
+  const body = await authFetch<Envelope<CourseWaitlist[]>>(
     `/api/students/offering-change-requests/course-waitlists${query}`,
   );
-  const data = Array.isArray(body) ? body : body.data;
-  return Array.isArray(data) ? data : [];
+  return body.data ?? [];
 }

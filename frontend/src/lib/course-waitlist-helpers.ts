@@ -87,7 +87,5 @@ export function waitlistPlacesByRequest(
 export function waitlistsWithFreeSlot(
   waitlists: readonly CourseWaitlist[],
 ): CourseWaitlist[] {
-  return waitlists.filter(
-    (waitlist) => waitlist.slotFreeForNext && waitlist.entries.length > 0,
-  );
+  return waitlists.filter((waitlist) => waitlist.slotFreeForNext);
 }

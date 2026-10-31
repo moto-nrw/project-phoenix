@@ -92,7 +92,7 @@ describe("RequestWaitlistPlaces", () => {
         <RequestWaitlistPlaces requestId="12" />
       </CourseWaitlistProvider>,
     );
-    expect(screen.getByText("Warteliste Platz 2")).toBeInTheDocument();
+    expect(screen.getByText("Warteliste, Platz 2")).toBeInTheDocument();
     expect(
       screen.getByText("Die AG ist voll. Wird ein Platz frei, steht es hier."),
     ).toBeInTheDocument();
@@ -133,7 +133,7 @@ describe("CourseWaitlistSummary", () => {
   it("lists places and the ranked queue", () => {
     render(<CourseWaitlistSummary waitlist={freeTheater} />);
     expect(
-      screen.getByText("7 von 8 Plätzen belegt · 1 frei"),
+      screen.getByText("7 von 8 Plätzen vergeben · 1 frei"),
     ).toBeInTheDocument();
     const list = screen.getByRole("list", { name: "Warteliste" });
     expect(list.textContent).toBe("1.Lina Amini2.Mia Berg");

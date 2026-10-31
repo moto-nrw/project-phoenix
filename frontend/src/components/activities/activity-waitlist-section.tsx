@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import { CourseWaitlistSummary } from "~/components/students/course-waitlist";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { hasPermission } from "~/lib/auth-utils";
+import { getEnrolledStudents } from "~/lib/activity-api";
 import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
@@ -25,7 +26,15 @@ export function ActivityWaitlistSection({
   const loadError = useSwrLoadError(swr.error, "die Warteliste der AG", () =>
     swr.mutate(),
   );
+  // Die Namen der Teilnehmenden kommen aus der Kinderliste der Aktivität.
+  const participants = useSWRAuth(
+    allowed ? `activity-participants-${activityId}` : null,
+    () => getEnrolledStudents(activityId),
+  );
   const waitlist = swr.data?.[0];
+  const participantNames = participants.data
+    ?.map((student) => student.name ?? "")
+    .filter((name) => name !== "");
   if (!allowed || (!waitlist && !loadError)) return null;
   return (
     <section
@@ -44,7 +53,12 @@ export function ActivityWaitlistSection({
       {loadError ? (
         <LoadErrorAlert error={loadError} actionLayout="responsive" />
       ) : (
-        waitlist && <CourseWaitlistSummary waitlist={waitlist} />
+        waitlist && (
+          <CourseWaitlistSummary
+            waitlist={waitlist}
+            participantNames={participantNames}
+          />
+        )
       )}
     </section>
   );

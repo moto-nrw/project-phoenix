@@ -4069,6 +4069,8 @@ export const manageActivityTopic = function manageActivityTopic(
     differences: [
       "Eine Aktivität kann am Tablet mehrfach gewählt werden. Termine mit Uhrzeit stehen im Betreuungsplan.",
       "Aktivitäten anderer Personen können Sie ansehen, aber nicht immer bearbeiten.",
+      // #4767: Plätze und Warteliste einer AG.
+      "Dürfen Sie Anfragen von Eltern entscheiden? Dann sehen Sie bei einer Aktivität `Plätze und Warteliste`. Dort steht, wer dabei ist und wer wartet.",
     ],
     related: [HELP_TOPICS.activeSupervision, HELP_TOPICS.carePlan],
   };
@@ -5229,6 +5231,16 @@ export const parentCareChangeTopic =
             "Schalten Sie je Tag `Betreuung an diesem Tag` ein oder aus.",
             "Wählen Sie bei einem Tag `Geht allein`? Dann unterschreiben Sie die Erlaubnis im Feld und tippen auf `Unterschrift bestätigen`.",
             "Tippen Sie auf `Anfrage an OGS senden`.",
+          ],
+        },
+        {
+          // #3075, #4767: Kurse mit Warteliste.
+          title: "Einen Kurs anfragen",
+          steps: [
+            "Gehen Sie im Reiter `Betreuung` zum Abschnitt `Kurse`.",
+            "Tippen Sie beim gewünschten Kurs auf `Anfragen`.",
+            "Ist der Kurs voll? Dann kommt Ihre Anfrage auf die Warteliste. Sie sehen Ihren Platz, zum Beispiel `Warteliste, Platz 2`.",
+            "Wird ein Platz frei, bestätigt die OGS die Anfrage in dieser Reihenfolge. Sie bekommen dann eine Nachricht.",
           ],
         },
         {
@@ -6603,6 +6615,9 @@ export const parentRequestsTopic = function parentRequestsTopic(
       "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
       // #5137: Klassen-Regeltermine holen das Kind wieder herein.
       "Plant ein Regeltermin alle Kinder einer Klasse, eines Jahrgangs oder einer Gruppe, steht dort `Mit Angebot verbinden`. Nur so fehlt das Kind dauerhaft.",
+      // #4767: Warteliste je AG; Nachrücken ist die normale Freigabe.
+      "Fragen Eltern einen Platz in einer vollen AG an? Dann zeigt die Anfrage zum Beispiel `Warteliste Platz 2`. Die älteste Anfrage ist zuerst dran.",
+      "Ist in einer AG ein Platz frei, nennt oben ein Hinweis das nächste Kind. Wählen Sie bei seiner Anfrage `Freigeben`, dann rückt es nach.",
       "Anmeldungsänderungen öffnen Sie über `Prüfen`. Dafür brauchen Sie ein zusätzliches Recht.",
       // Ohne feste Gruppen gibt es keine Gruppenleitung, an der die
       // Freigabe haengen koennte.
