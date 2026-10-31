@@ -517,19 +517,28 @@ a logout or a "Zur Schulanmeldung" from writing the old session back:
    ones wait (or end at once when their caller aborts); the SessionProvider's
    poll stops (`useSessionPollInterval`). An aborted GET or HEAD is sent again
    when the barrier opens, any other method fails. The fetch observer
-   (`session-tenant-mismatch-observer.ts`) applies it to every fetch; the
+   (`session-tenant-mismatch-observer.ts`) applies it to every fetch once
+   installed; the
    browser's BFF calls all use fetch, Axios runs only on the server against
-   the backend. Invariants:
+   the backend. `<SessionEndBarrier />` installs it where a session is used:
+   the tenant shell's protected layout and the other portals' providers.
+   The public tenant pages (password reset, Anmeldung, demo, invitation,
+   Träger hand-off) share the tenant layout but carry only its state module
+   (`session-end-state.ts`): the barrier code would exceed their bundle
+   budgets. The shell's logout does not run there; `TenantGuard`'s
+   „Zur Schulanmeldung“ can, for a session of another school, and then runs
+   without barrier, protected by rule 1 only (#5402). Invariants:
    - **Exits belong to one attempt.** BFF logout, CSRF, Auth.js signout,
      staff-preview end and the push cleanup (`DELETE …/push/subscriptions`)
      pass only while this tab's own attempt runs, and carry that attempt's
      signal: started before the logout they are aborted like any request,
      and they abort when the attempt fails or its signout deleted the cookie.
-   - **Other tabs stay closed while the owner lives.** The owner repeats
-     `begin` on `BroadcastChannel` `moto-session-end` every 5 s, however long
-     CSRF or signout hang. Another tab of the origin opens only on `ended` or
-     `failed`, or 15 s after the last `begin` (the owner is gone). An `ended`
-     also aborts every request an open tab still has in flight.
+   - **Other tabs stay closed while the owner lives.** They close on `begin`
+     (`BroadcastChannel` `moto-session-end`). After 15 s they ask (`ping`);
+     the owner answers `begin` while its attempt runs, however long CSRF or
+     signout hang. Another tab opens only on `ended` or `failed`, or when no
+     answer comes within 2 s (the owner is gone). An `ended` also aborts
+     every request an open tab still has in flight.
    - **Opening.** The owner opens when the logout fails or, outside the
      tenant shell, once its signout answer deleted the cookie; the tenant exit
      keeps it closed while it navigates and opens only on `pagehide` or a
