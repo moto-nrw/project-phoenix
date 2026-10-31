@@ -1037,13 +1037,17 @@ export function CareScheduleManager({
         {isEditingWeeklyView ? null : (
           <div className="relative mt-4 hidden items-center justify-between gap-2 @4xl:flex">
             <div>
-              <WeekNavButton
-                ariaLabel="Vorherige Woche"
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                aria-label="Vorherige Woche"
                 onClick={() => moveWeek(-1)}
+                className="gap-1.5"
               >
                 <ChevronLeft className="h-4 w-4" aria-hidden="true" />
                 <span className="hidden sm:inline">Vorherige Woche</span>
-              </WeekNavButton>
+              </Button>
             </div>
             {isCurrentWeek ? (
               <span className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-500 sm:inline-flex">
@@ -1061,13 +1065,17 @@ export function CareScheduleManager({
               </Button>
             )}
             <div>
-              <WeekNavButton
-                ariaLabel="Nächste Woche"
+              <Button
+                type="button"
+                variant="surface"
+                size="md"
+                aria-label="Nächste Woche"
                 onClick={() => moveWeek(1)}
+                className="gap-1.5"
               >
                 <span className="hidden sm:inline">Nächste Woche</span>
                 <ChevronRight className="h-4 w-4" aria-hidden="true" />
-              </WeekNavButton>
+              </Button>
             </div>
           </div>
         )}
@@ -1192,27 +1200,6 @@ export function CareScheduleManager({
   );
 }
 
-function WeekNavButton({
-  ariaLabel,
-  children,
-  onClick,
-}: {
-  readonly ariaLabel: string;
-  readonly children: React.ReactNode;
-  readonly onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onClick={onClick}
-      className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      {children}
-    </button>
-  );
-}
-
 function MobileCareWeek({
   days,
   weekMonth,
@@ -1241,15 +1228,29 @@ function MobileCareWeek({
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-[2.75rem_minmax(0,1fr)_2.75rem] items-center gap-2">
-        <WeekIconButton ariaLabel="Vorherige Woche" onClick={onPreviousWeek}>
+        <Button
+          type="button"
+          variant="surface"
+          size="icon"
+          aria-label="Vorherige Woche"
+          onClick={onPreviousWeek}
+          className="h-10"
+        >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-        </WeekIconButton>
+        </Button>
         <div className="min-w-0 text-center text-lg font-semibold text-gray-800">
           {weekMonth}
         </div>
-        <WeekIconButton ariaLabel="Nächste Woche" onClick={onNextWeek}>
+        <Button
+          type="button"
+          variant="surface"
+          size="icon"
+          aria-label="Nächste Woche"
+          onClick={onNextWeek}
+          className="h-10"
+        >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
-        </WeekIconButton>
+        </Button>
       </div>
 
       <div
@@ -1284,27 +1285,6 @@ function MobileCareWeek({
         />
       ) : null}
     </div>
-  );
-}
-
-function WeekIconButton({
-  ariaLabel,
-  children,
-  onClick,
-}: {
-  readonly ariaLabel: string;
-  readonly children: React.ReactNode;
-  readonly onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      aria-label={ariaLabel}
-      onClick={onClick}
-      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-    >
-      {children}
-    </button>
   );
 }
 

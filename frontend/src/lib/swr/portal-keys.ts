@@ -110,6 +110,8 @@ export const timetableKeys = {
 
 export const payrollKeys = {
   status: () => "payroll-status",
+  dispatch: () => "payroll-dispatch",
+  sftpStatus: () => "payroll-sftp-status",
 } as const;
 
 export const databaseKeys = {

@@ -54,6 +54,7 @@ vi.mock("swr", () => ({
 }));
 
 vi.mock("~/lib/session-cache", () => ({
+  confirmSessionSnapshot: vi.fn(),
   primeSessionCache: (...args: unknown[]) => {
     childEffectOrder.push("prime");
     mockPrimeSessionCache(...args);

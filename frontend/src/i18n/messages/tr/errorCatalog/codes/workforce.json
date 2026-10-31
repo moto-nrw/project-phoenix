@@ -66,5 +66,6 @@
   "vacation_quota_exceeded": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "vacation_quota_reason_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "vacation_request_in_past": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-  "work_session_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "work_session_overlap": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "payroll_download_unavailable": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

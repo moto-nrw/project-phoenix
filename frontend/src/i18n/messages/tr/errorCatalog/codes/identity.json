@@ -28,6 +28,7 @@
   "role_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "role_platform_permission": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "session_account_inactive": "Hesabınız kapalı. Lütfen okulunuzun yönetimiyle iletişime geçin.",
+  "session_account_mismatch": "Başka bir pencerede başka bir hesapla giriş yapıldı. moto bu sayfayı birazdan yeniden yükleyecek.",
   "session_tenant_mismatch": "Okul başka bir pencerede değiştirildi. moto bu sayfayı birazdan geri geçirecek. Lütfen biraz sonra tekrar deneyin.",
   "tenant_access_denied": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "use_parent_portal": "{object} için erişim izniniz yok. Okulla iletişime geçin.",

@@ -28,6 +28,7 @@
   "role_name_taken": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "role_platform_permission": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "session_account_inactive": "Llogaria juaj është e çaktivizuar. Kontaktoni drejtimin e shkollës suaj.",
+  "session_account_mismatch": "Një llogari tjetër u identifikua në një dritare tjetër. moto do ta ringarkojë këtë faqe së shpejti.",
   "session_tenant_mismatch": "Shkolla u ndryshua në një dritare tjetër. moto do ta kthejë këtë faqe së shpejti. Ju lutemi provoni përsëri pak më vonë.",
   "tenant_access_denied": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",
   "use_parent_portal": "Nuk keni qasje te: {object}. Kontaktoni shkollën.",

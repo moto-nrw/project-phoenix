@@ -6,6 +6,7 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { SessionAccountBinding } from "~/components/auth/session-account-binding";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
@@ -237,6 +238,7 @@ export function TenantProviders({
       refetchInterval={SESSION_PROVIDER_POLL_SECONDS}
       refetchOnWindowFocus={false}
     >
+      <SessionAccountBinding />
       <PersonalStorageGuard
         homeHref={() => tenantAwarePath("/", tenantSlug, routingMode)}
       />

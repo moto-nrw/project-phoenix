@@ -22,6 +22,7 @@ type payrollStatusService struct {
 
 type payrollSettings interface {
 	ResolveString(context.Context, string) (string, error)
+	ResolveBool(context.Context, string) (bool, error)
 }
 
 func NewPayrollStatusService(settings payrollSettings, countPersonnel func(context.Context) (int, int, error)) configModel.PayrollStatusGetter {
@@ -51,6 +52,10 @@ func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*configMod
 	keys := []string{
 		configModel.KeyPayrollDatevBeraternummer,
 		configModel.KeyPayrollDatevMandantennummer,
+		configModel.KeyPayrollDispatchAuto,
+		configModel.KeyPayrollDispatchChannel,
+		configModel.KeyPayrollDispatchFormat,
+		configModel.KeyPayrollDispatchEmail,
 	}
 	for _, category := range payrollCategories {
 		keys = append(keys, category.key)
@@ -79,6 +84,11 @@ func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*configMod
 		return nil, err
 	}
 
+	dispatch, err := s.resolveDispatch(ctx, snapshot)
+	if err != nil {
+		return nil, err
+	}
+
 	staffTotal, staffWithoutPersonnelNumber, err := s.countStaffPersonnelNumbers(ctx)
 	if err != nil {
 		return nil, err
@@ -93,6 +103,7 @@ func (s *payrollStatusService) GetPayrollStatus(ctx context.Context) (*configMod
 		TotalCategories:             len(payrollCategories),
 		StaffTotal:                  staffTotal,
 		StaffWithoutPersonnelNumber: staffWithoutPersonnelNumber,
+		Dispatch:                    dispatch,
 	}, nil
 }
 
@@ -147,6 +158,30 @@ func (s *payrollStatusService) resolveLodasHeader(ctx context.Context, snapshot 
 		return "", "", fmt.Errorf("resolve mandantennummer: %w", err)
 	}
 	return berater, mandant, nil
+}
+
+// resolveDispatch reads the Lohnbüro of the school (#4805).
+func (s *payrollStatusService) resolveDispatch(ctx context.Context, snapshot *configModel.SettingsSnapshot) (configModel.PayrollDispatchSettings, error) {
+	var dispatch configModel.PayrollDispatchSettings
+	var err error
+	if snapshot != nil {
+		dispatch.Auto, err = snapshot.Bool(configModel.KeyPayrollDispatchAuto)
+	} else {
+		dispatch.Auto, err = s.settings.ResolveBool(ctx, configModel.KeyPayrollDispatchAuto)
+	}
+	if err != nil {
+		return dispatch, fmt.Errorf("resolve payroll dispatch switch: %w", err)
+	}
+	for key, target := range map[string]*string{
+		configModel.KeyPayrollDispatchChannel: &dispatch.Channel,
+		configModel.KeyPayrollDispatchFormat:  &dispatch.Format,
+		configModel.KeyPayrollDispatchEmail:   &dispatch.Email,
+	} {
+		if *target, err = resolvedPayrollString(ctx, s.settings, snapshot, key); err != nil {
+			return dispatch, fmt.Errorf("resolve %s: %w", key, err)
+		}
+	}
+	return dispatch, nil
 }
 
 func resolvedPayrollString(ctx context.Context, settings payrollSettings, snapshot *configModel.SettingsSnapshot, key string) (string, error) {

@@ -1,8 +1,10 @@
 package architecture
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -984,20 +986,53 @@ func TestAuditIssuesAcceptsOneOpenIssueForMultipleEntries(t *testing.T) {
 func TestAuditIssuesDoesNotForwardGitHubTokenToCustomAPI(t *testing.T) {
 	t.Parallel()
 
-	authorization := make(chan string, 1)
-	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
-		authorization <- r.Header.Get("Authorization")
-		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
-	})
-	defer server.Close()
+	for _, tc := range []struct {
+		name, apiURL, authorization string
+	}{
+		{name: "custom HTTP API", apiURL: "http://127.0.0.1:1234"},
+		{name: "custom HTTPS API", apiURL: "https://issues.example.test"},
+		{name: "GitHub API positive control", apiURL: "https://api.github.com", authorization: "Bearer example-github-token"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 
-	output, err := runArchitectureWithEnv(t, map[string]string{"GITHUB_TOKEN": "top-secret"}, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
-	if err != nil {
-		t.Fatalf("issue audit failed: %v\n%s", err, output)
+			requests := 0
+			client := issueClientFunc(func(_ context.Context, request IssueRequest) (IssueResponse, error) {
+				requests++
+				if want := tc.apiURL + "/repos/moto-nrw/project-phoenix/issues/2583"; request.URL != want {
+					t.Fatalf("issue URL = %q, want %q", request.URL, want)
+				}
+				if got := request.Headers["Authorization"]; got != tc.authorization {
+					t.Fatalf("Authorization = %q, want %q", got, tc.authorization)
+				}
+				return IssueResponse{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"state":"open"}`))}, nil
+			})
+			err := RunCLI([]string{
+				"audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"),
+				"--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", tc.apiURL,
+			}, CLIDependencies{
+				IssueClient: client,
+				Getenv: func(key string) string {
+					if key != "GITHUB_TOKEN" {
+						t.Fatalf("unexpected environment lookup: %q", key)
+					}
+					return "example-github-token"
+				},
+			})
+			if err != nil {
+				t.Fatalf("issue audit failed: %v", err)
+			}
+			if requests != 1 {
+				t.Fatalf("issue requests = %d, want 1", requests)
+			}
+		})
 	}
-	if got := <-authorization; got != "" {
-		t.Fatalf("GitHub token leaked to custom API endpoint: %q", got)
-	}
+}
+
+type issueClientFunc func(context.Context, IssueRequest) (IssueResponse, error)
+
+func (f issueClientFunc) Do(ctx context.Context, request IssueRequest) (IssueResponse, error) {
+	return f(ctx, request)
 }
 
 func TestIssueAuditNetworkFailureDoesNotAffectDeterministicCheck(t *testing.T) {

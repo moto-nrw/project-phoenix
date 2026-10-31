@@ -16,6 +16,7 @@ vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
 }));
 vi.mock("~/lib/session-cache", () => ({
+  confirmSessionSnapshot: vi.fn(),
   primeSessionCache: vi.fn(),
   announceSessionChange: mockAnnounce,
 }));

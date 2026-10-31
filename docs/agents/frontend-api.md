@@ -104,7 +104,7 @@ success wrapper. Their **backend errors still use the shared error path**:
 ### Private download inventory (#5119)
 
 The complete route/method inventory lives in
-`frontend/src/test/private-download-routes.ts` (53 handlers). The download
+`frontend/src/test/private-download-routes.ts` (57 handlers). The download
 rule in `route-cache-policy.test.ts` requires the explicit wrapper on each
 entry; an ordinary JSON or portal wrapper does not satisfy it. It also scans
 file constructors, file factories and download paths for missing entries.
@@ -116,7 +116,7 @@ file constructors, file factories and download paths for missing entries.
 | Documents and proofs | Staff/student/folder files, announcement attachments/declarations, enrollment uploads and signed proofs, care/pickup proofs, parent inbox PDFs: personal data, including arbitrary binary and image attachments. |
 | School and operator | School parent-letter declarations and operator billing counts: portal-bound exports, without changing their auth boundary. |
 | Träger | Access log, billing exports/letters/preview/print, holiday registration export and form documents: organization-session-bound files. |
-| Token-bound downloads | Enrollment signature proof and holiday-form documents: access-link scope is still private, even without a browser session. |
+| Token-bound downloads | Enrollment signature proof, holiday-form documents and the payroll office's one-time month file (`public/payroll-download/[link]`, POST only so a mail scanner cannot spend the link): access-link scope is still private, even without a browser session. |
 | Appointment ICS downloads | Tenant and parent single-appointment files are session-bound downloads, unlike subscription feeds. |
 
 Non-download responses retain their existing policies. The reasoned resource
