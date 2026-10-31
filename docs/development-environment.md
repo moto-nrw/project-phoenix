@@ -8,7 +8,10 @@
    machine without one, run `agent-browser install` once (it installs per user
    in `~/.agent-browser`, not per checkout).
 2. Run `devbox run doctor`. It checks resolved tool paths, Go module agreement,
-   frontend dependencies, generated types and Docker. It never prints env files.
+   frontend dependencies, generated types and Docker. If `.env` or
+   `backend/dev.env` exists, it names keys missing from the matching example,
+   which otherwise stop the backend or Next at startup. It prints key names only,
+   never values.
 3. Run `devbox run check-lsp` after updating language servers or editor settings.
    It starts the real servers and checks Go/TypeScript definitions and errors,
    Next's server-component rule, a custom Oxlint rule and Tailwind formatting.
