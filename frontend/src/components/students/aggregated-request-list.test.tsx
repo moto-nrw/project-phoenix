@@ -377,18 +377,18 @@ describe("AggregatedRequestList", () => {
 
   it("lädt weitere Seiten, bis die Wartelisten-Anfrage gefunden ist", async () => {
     const firstPage = Array.from({ length: 25 }, (_, index) => ({
-      ...openItem("master_data", String(index)),
+      ...(openItem("master_data", String(index)) as object),
       data: { id: String(index) },
-    }));
+    })) as never[];
     mockListOpen.mockImplementation(async (params) =>
       params?.cursor
         ? {
             items: [
               {
-                ...openItem("offering", "warteliste"),
+                ...(openItem("offering", "warteliste") as object),
                 student_id: "30",
                 student_name: "Wartendes Kind",
-              },
+              } as never,
             ],
           }
         : { items: firstPage, next_cursor: "nächste-seite" },
