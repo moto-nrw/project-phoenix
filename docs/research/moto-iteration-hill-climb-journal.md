@@ -380,6 +380,46 @@ behält die volle Ausgabe gzip-komprimiert unter `test-changed-go.log.gz`.
 Probe mit einem Test, der 20 000 Zeilen schreibt und scheitert: vorher
 20 000 Zeilen live, nachher 14 Zeilen mit Meldung; Log 52 KB komprimiert.
 
+### Runde 17: DOM-freie Tests auf node
+
+Von 200 `*.test.ts`-Dateien in `app-dom` enthielten 79 keine DOM-Hinweise
+(`render`, `screen`, `window`, Storage, `userEvent` …). Unter `environment: node`
+mit nur `setup-common.ts` bestanden 72 unverändert. 15 davon importieren direkt
+Module, die nach `window`, `document`, Storage oder `navigator` verzweigen; sie
+bleiben in `app-dom`, weil sie unter node nur den Server-Zweig prüfen würden.
+Die übrigen 57 laufen jetzt in `logic-node`. A/B, je zweimal:
+
+| Projekt | Tests | user s | sys s | Wandzeit s |
+| --- | ---: | ---: | ---: | ---: |
+| `app-dom` | 506/506 | 18,4 / 19,2 | 6,5 / 6,4 | 6,2 / 6,3 |
+| `logic-node` | 506/506 | 8,4 / 8,1 | 1,6 / 1,4 | 3,9 / 2,4 |
+
+Etwa 15 CPU-s weniger pro Lauf über diese Dateien. An der vollen Suite
+(rund 500 CPU-s in `app-dom`) sind das etwa 3 %; der größere Posten bleibt der
+happy-dom-Aufbau der übrigen Dateien.
+
+### Runde 18: Guard-Lauf nur bei geänderten Eingaben
+
+Bei Backend- oder Markdown-Änderungen ohne Frontend-Änderung startet
+`test-changed.sh` die 46 Guard-Dateien. Sie lesen Dateien außerhalb des
+Vitest-Modulgraphs, ein engerer Schlüssel wäre also unsicher. Der Schlüssel
+deckt deshalb den ganzen Checkout ab (Scratch-Index, `git add -A`,
+`write-tree`; 0,2 s), dazu die installierten Abhängigkeiten, die Env-Dateien
+von Frontend und Vitest, Node und die Optionen. Gemessen: 14,7 s, unveränderte
+Wiederholung 0,34 s. Jede Dateiänderung, auch ungetrackt, ist ein Fehltreffer;
+ein Fehlschlag wird nie gespeichert; CI nutzt keine alten Ergebnisse.
+
+### Runde 19: E2E prüft den Besitzer des wiederverwendeten Servers
+
+Runde 1 band Playwright an `PORT`. Von 30 geprüften Checkouts stehen aber 6,
+der Hauptcheckout eingeschlossen, ohne eigenes Port-Lease auf 3000/8080. Zwei solche Worktrees testen
+lokal den Server des jeweils anderen. Die Konfiguration bricht jetzt ab, wenn
+der Listener ein Frontend aus einem anderen Checkout ist (`lsof`, Prozess-cwd).
+Probe: Listener mit cwd im Nachbar-Worktree, Abbruch mit dessen Pfad; mit
+eigenem cwd oder ohne Listener läuft die Konfiguration weiter. Die
+synthetischen Suites nutzen nie einen bestehenden Server und waren seit #5372
+nicht betroffen.
+
 ## Verworfen
 
 - Frontend-Guards bei Backend-Änderungen verkleinern: Die 45 Guard-Dateien sind
@@ -427,17 +467,17 @@ Startfehler des Testplatzes, erst danach reine Laufzeit.
    Häufigster Auslöser (Budget-Dateien) in Runde 12 entschärft; übrig bleiben
    echte Änderungen an `test/fixtures*.go` und Shared-Kernel-Paketen. Eine
    DB-Parallelitätsgrenze pro Test-Server statt pro Lauf würde `-p 4` erlauben.
-3. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s, ohne
-   Ergebnis-Cache bei unveränderter Wiederholung. Setup 31 s und Environment
-   60 s der Vitest-Zeit sind der größte Posten.
-4. Frontend-Guards bei reinen Go-Änderungen: 45 Dateien, 15,7 s bei jeder
-   Wiederholung, auch wenn Go alles aus dem Cache liefert.
-5. Pushes ohne Pre-Push-Hook (Runde 14): 7 von 9 roten Läufen hätte der Hook
+3. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s. Setup 31 s
+   und Environment 60 s der Vitest-Zeit sind der größte Posten; Runde 17 nahm
+   57 Dateien aus happy-dom heraus, der Rest rendert wirklich.
+4. Pushes ohne Pre-Push-Hook (Runde 14): 7 von 9 roten Läufen hätte der Hook
    abgefangen. Unklar ist, ob Hooks auf anderen Rechnern installiert sind oder
    übersprungen werden; erst messen, dann entscheiden.
 
 Erledigt aus dieser Liste: Bundle-Obergrenzen nahe der Basis (#5400, Neubasierung
 nach Entscheidung des Nutzers in #5396), Heavy-Gate nach Last gewichtet (Runde 10),
 Query-Budget-Paket (Runde 12), CI-Fehlerbericht und Guard-Inventar im Pre-Push
-(Runde 14), begrenzte Go-Testausgabe (Runde 16). Verworfen: Seed-Cache
-(Runde 11), `-p 4` auf macOS (Runde 13), `deadcode` im Pre-Push (Runde 15).
+(Runde 14), begrenzte Go-Testausgabe (Runde 16), DOM-freie Tests auf node
+(Runde 17), Guard-Cache (Runde 18), Server-Besitzer bei E2E (Runde 19).
+Verworfen: Seed-Cache (Runde 11), `-p 4` auf macOS (Runde 13), `deadcode` im
+Pre-Push (Runde 15).
