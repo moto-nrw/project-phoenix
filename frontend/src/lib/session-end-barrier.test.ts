@@ -274,6 +274,31 @@ describe("session-end barrier", () => {
   // Final review of #5403: an exit path passes only for the logout attempt
   // that sends it. Started before, it carried no abort signal, and its
   // renewing or ending answer could write the cookie after its deletion.
+  // An answered request keeps running: its cookies landed before the
+  // logout went on, and aborting it broke the signout's own body (the tenant
+  // relogin then never navigated) and every SSE stream.
+  it("leaves requests alone whose answer already arrived", async () => {
+    const stream = through("/api/sse/events");
+    await flush();
+    sent[0]!.answer();
+    await stream;
+
+    beginSessionEnd();
+
+    expect(sent[0]!.signal?.aborted).toBe(false);
+  });
+
+  it("keeps the signout answer readable after it deleted the cookie", async () => {
+    beginSessionEnd({ keepClosed: true });
+    const signout = through("/api/auth/signout", { method: "POST" });
+    await flush();
+
+    sent[0]!.answer(Response.json({ url: "/" }));
+    await signout;
+
+    expect(sent[0]!.signal?.aborted).toBe(false);
+  });
+
   it("aborts a push cleanup that started before the logout", async () => {
     const cleanup = through("/api/parent/me/push/subscriptions", {
       method: "DELETE",

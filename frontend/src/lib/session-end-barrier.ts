@@ -44,21 +44,48 @@ const OWNER_REPLY_MS = 2_000;
 
 let closedBy: "self" | "other" | null = null;
 let reopenAfterDeletion = true;
-let epoch = new AbortController();
-/** The current logout attempt: its exit requests carry this signal. */
-let attempt = new AbortController();
+/**
+ * Requests whose response headers have not arrived: only their Set-Cookie
+ * can still land. An answered request keeps running (an SSE stream, a body
+ * still being read); its cookies were set before the logout went on.
+ */
+const awaiting = new Set<AbortController>();
+/** The same for the exit requests of this tab's running attempt. */
+const exits = new Set<AbortController>();
+/** This tab's latest attempt; live until it failed or deleted the cookie. */
+let attempt: object | null = null;
+let attemptLive = false;
 const waiters = new Set<() => void>();
 let otherTabTimer: ReturnType<typeof setTimeout> | undefined;
 let channel: BroadcastChannel | undefined;
 
+function abortAll(requests: Set<AbortController>) {
+  for (const request of requests) request.abort();
+  requests.clear();
+}
+
 function abortInFlight() {
-  epoch.abort();
-  epoch = new AbortController();
+  abortAll(awaiting);
 }
 
 /** Ends this tab's attempt: its exit requests abort, pings go unanswered. */
 function endAttempt() {
-  attempt.abort();
+  attemptLive = false;
+  abortAll(exits);
+}
+
+/** Sends one request that the given set can abort until its headers arrive. */
+async function sendTracked(
+  requests: Set<AbortController>,
+  request: AbortController,
+  send: () => Promise<Response>,
+): Promise<Response> {
+  requests.add(request);
+  try {
+    return await send();
+  } finally {
+    requests.delete(request);
+  }
 }
 
 /** Holds the other tab's logout; asks after the hold before opening. */
@@ -88,8 +115,7 @@ export function listenForSessionEnds() {
   channel.onmessage = ({ data }: MessageEvent<string>) => {
     if (closedBy === "self") {
       // Still at work: the asking tab keeps holding.
-      if (data === "ping" && !attempt.signal.aborted)
-        channel?.postMessage("begin");
+      if (data === "ping" && attemptLive) channel?.postMessage("begin");
       return;
     }
     if (data === "begin") {
@@ -126,7 +152,8 @@ export function beginSessionEnd({
   listenForSessionEnds();
   clearTimeout(otherTabTimer);
   endAttempt();
-  const current = (attempt = new AbortController());
+  const current = (attempt = {});
+  attemptLive = true;
   reopenAfterDeletion = !keepClosed;
   setClosed("self");
   channel?.postMessage("begin");
@@ -165,14 +192,21 @@ export async function fetchThroughSessionBarrier(
     EXIT_PATH.test(pathname) ||
     (method.toUpperCase() === "DELETE" &&
       pathname.endsWith("/push/subscriptions"));
-  if (exit && closedBy === "self") {
-    const own = attempt.signal;
-    const response = await send(input, {
-      ...init,
-      signal: callerSignal ? AbortSignal.any([callerSignal, own]) : own,
-    });
+  const merged = (own: AbortController) =>
+    callerSignal ? AbortSignal.any([callerSignal, own.signal]) : own.signal;
+  if (exit && closedBy === "self" && attemptLive) {
+    const current = attempt;
+    const own = new AbortController();
+    const response = await sendTracked(exits, own, () =>
+      send(input, { ...init, signal: merged(own) }),
+    );
     // The signout answer of this attempt deleted the session cookie.
-    if (pathname.endsWith("/signout") && response.ok && !own.aborted) {
+    if (
+      pathname.endsWith("/signout") &&
+      response.ok &&
+      attemptLive &&
+      attempt === current
+    ) {
       endAttempt();
       channel?.postMessage("ended");
       if (reopenAfterDeletion) setClosed(null);
@@ -197,14 +231,17 @@ export async function fetchThroughSessionBarrier(
         callerSignal?.addEventListener("abort", cancel, { once: true });
       });
     }
-    const ending = epoch.signal;
+    const own = new AbortController();
     try {
-      return await send(repeatable && isRequest ? input.clone() : input, {
-        ...init,
-        signal: callerSignal ? AbortSignal.any([callerSignal, ending]) : ending,
-      });
+      return await sendTracked(awaiting, own, () =>
+        send(repeatable && isRequest ? input.clone() : input, {
+          ...init,
+          signal: merged(own),
+        }),
+      );
     } catch (error) {
-      if (!ending.aborted || callerSignal?.aborted || !repeatable) throw error;
+      if (!own.signal.aborted || callerSignal?.aborted || !repeatable)
+        throw error;
       // The barrier stopped this read before its answer could set a cookie.
       // Ask again once it opens, with the cookie that holds then.
     }
@@ -215,8 +252,10 @@ export async function fetchThroughSessionBarrier(
 export function resetSessionBarrierForTests() {
   closedBy = null;
   reopenAfterDeletion = true;
-  epoch = new AbortController();
-  attempt = new AbortController();
+  awaiting.clear();
+  exits.clear();
+  attempt = null;
+  attemptLive = false;
   waiters.clear();
   clearTimeout(otherTabTimer);
   announceSessionBarrier(false);
