@@ -424,7 +424,7 @@ export function TeamChatThread({
   const body = membersPanel ?? (
     <>
       {showSkeleton ? (
-        <TeamThreadSkeleton />
+        <TeamThreadSkeleton header={portal.kind !== "school" || !preview} />
       ) : (
         <div
           ref={scrollRef}

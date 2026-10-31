@@ -208,7 +208,13 @@ function PollResultsPanel({
       ]);
       return { results, children };
     },
-    { revalidateOnFocus: false, keepPreviousData: false },
+    {
+      revalidateOnFocus: false,
+      keepPreviousData: false,
+      // The page already owns revalidation. This is a complete evaluation,
+      // not a partial list seed; mounting the panel must not fetch it twice.
+      revalidateIfStale: false,
+    },
   );
   const results = data?.results ?? null;
   const children = data?.children ?? null;
