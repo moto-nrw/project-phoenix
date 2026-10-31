@@ -62,6 +62,13 @@ test('the inputs key follows untracked files and the base, not the order of runs
   const withUntracked = inputsKey(root, base, env);
   assert.notEqual(withUntracked, first);
   assert.notEqual(inputsKey(root, 'other-base', env), withUntracked);
+  // Same final tree, different history: a credential committed and removed.
+  writeFileSync(join(root, 'a.txt'), 'TOKEN=committed-then-removed\n');
+  git('commit', '-qam', 'add');
+  writeFileSync(join(root, 'a.txt'), 'a\n');
+  git('commit', '-qam', 'remove');
+  assert.notEqual(inputsKey(root, base, env), withUntracked, 'branch history is an input of the secret scan');
+  git('reset', '-q', '--hard', base);
   assert.equal(git('status', '--porcelain'), '?? untracked.go', 'the key leaves the real index alone');
   assert.notEqual(inputsKey(root, base, { ...env, GOFLAGS: '-p=1' }), withUntracked, 'Go flags change outcomes');
   assert.notEqual(inputsKey(root, base, { ...env, PHX_PREPUSH: 'skip' }), withUntracked, 'a skipped gate is another input');

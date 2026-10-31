@@ -139,7 +139,9 @@ export function inputsKey(root, mergeBase, env = process.env) {
     git(root, ['add', '-A'], scratchEnv);
     const tree = git(root, ['write-tree'], scratchEnv);
     const go = spawnSync('go', ['version'], { cwd: root, env, encoding: 'utf8' }).stdout ?? '';
-    const hash = createHash('sha256').update(JSON.stringify({ tree, mergeBase, node: process.version, go, platform: process.platform, arch: process.arch }));
+    // HEAD too: the secret scan covers branch history, which the tree alone hides.
+    const head = git(root, ['rev-parse', 'HEAD']);
+    const hash = createHash('sha256').update(JSON.stringify({ tree, head, mergeBase, node: process.version, go, platform: process.platform, arch: process.arch }));
     for (const file of ['.env', '.wt.env', 'backend/dev.env', 'frontend/.env', 'frontend/.env.local', 'frontend/.env.test', 'frontend/.env.test.local',
       'frontend/.env.development', 'frontend/.env.development.local', 'frontend/next-env.d.ts',
       'frontend/node_modules/.modules.yaml', 'frontend/node_modules/.pnpm/lock.yaml']) {
