@@ -95,7 +95,11 @@ export default function TraegerBriefkopfPage() {
   // values and says so.
   const refresh = useCallback(async () => {
     try {
-      await Promise.all([read(), refreshSchema()]);
+      await Promise.all([
+        read(),
+        // The shared schema reader owns its error and retry, not master data.
+        refreshSchema().catch(() => undefined),
+      ]);
     } catch (err) {
       logger.warn("traeger_briefkopf_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),

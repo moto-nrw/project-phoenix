@@ -89,6 +89,22 @@ describe("TraegerSettingsPage", () => {
     mockClear.mockReset().mockResolvedValue(undefined);
   });
 
+  it("shares one schema request between mounted settings consumers", async () => {
+    mockFetchSchema.mockResolvedValue(schema([NEWS_FROM_TRAEGER]));
+    render(
+      <ToastProvider>
+        <TraegerSettingsPage />
+        <TraegerSettingsPage />
+      </ToastProvider>,
+    );
+    expect(
+      await screen.findAllByText(
+        "Vom Träger festgelegt · geändert am 01.09.2026",
+      ),
+    ).toHaveLength(2);
+    expect(mockFetchSchema).toHaveBeenCalledTimes(1);
+  });
+
   it("shows each setting with where its value comes from", async () => {
     mockFetchSchema.mockResolvedValue(
       schema([NEWS_FROM_TRAEGER, STAFF_NAME_DEFAULT]),

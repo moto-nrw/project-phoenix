@@ -1,4 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import type { HolidayPeriod } from "~/lib/traeger-api";
 import type { Session } from "next-auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -40,10 +41,38 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 vi.mock("~/components/traeger/holiday-period-form", () => ({
-  HolidayPeriodForm: () => <p>Confirmed form</p>,
+  HolidayPeriodForm: ({
+    onSaved,
+    period,
+  }: {
+    onSaved: (next: HolidayPeriod) => void;
+    period: HolidayPeriod;
+  }) => (
+    <>
+      <p>Confirmed form</p>
+      <button onClick={() => onSaved({ ...period, name: "Saved period" })}>
+        Save answer
+      </button>
+    </>
+  ),
 }));
 vi.mock("~/components/traeger/holiday-period-publish-card", () => ({
-  HolidayPeriodPublishCard: () => <p>Confirmed actions</p>,
+  HolidayPeriodPublishCard: ({
+    onPublished,
+    period,
+  }: {
+    onPublished: (next: HolidayPeriod) => void;
+    period: HolidayPeriod;
+  }) => (
+    <>
+      <p>Confirmed actions</p>
+      <button
+        onClick={() => onPublished({ ...period, name: "Published period" })}
+      >
+        Publish answer
+      </button>
+    </>
+  ),
 }));
 
 function signIn(id = "A", orgId = 7) {
@@ -120,6 +149,25 @@ describe("Träger list-to-detail cache", () => {
     expect(screen.getByText("Confirmed actions")).toBeInTheDocument();
     expect(api.fetchHolidayPeriod).toHaveBeenCalledWith(HOLIDAY_PERIOD.id);
   });
+
+  it.each(["Save", "Publish"])(
+    "keeps the %s answer and invalidates the list before returning",
+    async (action) => {
+      const view = render(<Route detail={false} />, setup());
+      expect(
+        (await screen.findAllByText(HOLIDAY_PERIOD.name))[0],
+      ).toBeInTheDocument();
+      view.rerender(<Route detail />);
+      expect(await screen.findByText("Confirmed form")).toBeInTheDocument();
+      const name = action === "Save" ? "Saved period" : "Published period";
+      api.fetchHolidayPeriods.mockResolvedValue([{ ...HOLIDAY_PERIOD, name }]);
+      fireEvent.click(screen.getByRole("button", { name: `${action} answer` }));
+      expect(screen.getByRole("heading", { name })).toBeInTheDocument();
+      view.rerender(<Route detail={false} />);
+      expect((await screen.findAllByText(name))[0]).toBeInTheDocument();
+      expect(api.fetchHolidayPeriods).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it.each([
     "account",
