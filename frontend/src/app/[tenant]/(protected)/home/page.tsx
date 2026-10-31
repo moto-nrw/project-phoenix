@@ -351,10 +351,12 @@ function HomeContent() {
       );
       // In Lesereihenfolge, damit dieselbe Anordnung immer gleich gespeichert
       // wird, egal in welcher Reihenfolge die Kacheln gezogen wurden.
-      await saveHomeLayout(
+      const outcome = await saveHomeLayout(
         overrides,
         sortedPlacements([...draft, ...preserved]),
       );
+      // Discarded: nothing was saved for this view; the draft stays open.
+      if (outcome === "discarded") return;
       setDraft(null);
       setRemovedInDraft([]);
     } catch (err: unknown) {
@@ -380,7 +382,7 @@ function HomeContent() {
   const restoreDefault = useCallback(async () => {
     setSaving(true);
     try {
-      await resetHomeLayout();
+      if ((await resetHomeLayout()) === "discarded") return;
       setDraft(null);
       setRemovedInDraft([]);
     } catch (err: unknown) {

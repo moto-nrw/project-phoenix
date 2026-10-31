@@ -237,6 +237,13 @@ function usePolicies() {
     ready: hook.isReady,
   };
 }
+// Layout writes resolve to "done" | "discarded", the others to an outcome.
+function statusOf(value: unknown): unknown {
+  return typeof value === "object" && value !== null && "status" in value
+    ? (value as { status: unknown }).status
+    : value;
+}
+
 // refused: the route's refusal code (everyday-action-refusals.ts); the
 // layout has none, its read is open to every signed-in account.
 // business: a failure that only rolls back. recheck: the reader that loads
@@ -366,7 +373,7 @@ it("keeps confirmed policies separate from optimistic updates and rollback", asy
   await waitFor(() => expect(result.current.isReady).toBe(true));
   const confirmed = result.current.confirmedPolicies;
   expect(confirmed).toBe(layout.policies);
-  let task!: Promise<void>;
+  let task!: Promise<unknown>;
   act(() => {
     task = result.current
       .savePolicies({ news: "required" })
@@ -632,6 +639,9 @@ for (const scenario of cases) {
         });
         expect(result.current.data).toBe(next);
         expect(result.current.data).toBe(false);
+        // The caller learns that nothing happened, so it reports no success
+        // and keeps its draft (Schluss-Review auf c99735a).
+        expect(statusOf(await task)).toBe("discarded");
       },
     );
     it("startet aus einem zurückbehaltenen Render nach Scope-Wechsel nichts", async () => {

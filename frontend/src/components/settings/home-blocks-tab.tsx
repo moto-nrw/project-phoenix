@@ -195,7 +195,9 @@ export function HomeBlocksTab() {
         notifySettingsChanged();
         await revalidateSchema();
       }
-      if (policiesDirty) await savePolicies(draft);
+      // Discarded: the account or school changed meanwhile, nothing was
+      // confirmed for this view. No success and no error (#5012).
+      if (policiesDirty && (await savePolicies(draft)) === "discarded") return;
       toast.success("Die Startseite für alle ist gespeichert.");
     } catch (err) {
       logger.error("home_block_policies_save_failed", {

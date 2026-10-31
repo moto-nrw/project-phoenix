@@ -50,6 +50,14 @@ function homeLayoutAccountChanged(accountID: string): string {
  * neu geladen: die Startseite soll sich unter dem Dialog schon geändert haben,
  * wenn er zugeht.
  */
+/**
+ * How a layout write ended when it did not fail (a failure throws).
+ * `discarded`: nothing happened, because another write was still running or
+ * the scope (school, account) or data generation moved while it ran. The
+ * caller reports no success and keeps its draft open.
+ */
+export type HomeLayoutWrite = "done" | "discarded";
+
 export function useHomeLayout(): {
   state: HomeLayoutState;
   /** Edit forms must not seed their drafts from optimistic overlays. */
@@ -59,9 +67,9 @@ export function useHomeLayout(): {
   save: (
     overrides: HomeLayoutOverrides,
     blocks: readonly HomeBlockPlacement[],
-  ) => Promise<void>;
-  reset: () => Promise<void>;
-  savePolicies: (policies: HomeBlockPolicies) => Promise<void>;
+  ) => Promise<HomeLayoutWrite>;
+  reset: () => Promise<HomeLayoutWrite>;
+  savePolicies: (policies: HomeBlockPolicies) => Promise<HomeLayoutWrite>;
 } {
   const { data: session, status } = useSession();
   const tenantSlug = useTenantSlugSafe();
@@ -106,8 +114,8 @@ export function useHomeLayout(): {
   const change = async (
     update: (current: HomeLayoutState) => HomeLayoutState,
     request: () => Promise<void>,
-  ) => {
-    if (inFlight.current) return;
+  ): Promise<HomeLayoutWrite> => {
+    if (inFlight.current) return "discarded";
     if (!data)
       throw new ApiError("Home layout is not loaded", 503, {
         code: "general.unavailable",
@@ -128,6 +136,7 @@ export function useHomeLayout(): {
         },
       });
       if (outcome.status === "failed") throw outcome.error;
+      return outcome.status;
     } finally {
       inFlight.current = false;
     }
