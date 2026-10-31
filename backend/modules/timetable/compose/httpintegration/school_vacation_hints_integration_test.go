@@ -2,6 +2,7 @@ package httpintegration_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -40,14 +41,14 @@ func (d nrwDays) TenantHolidayDates(ctx context.Context, from, to string) (map[s
 }
 
 // autumnVacation is the School Calendar's vacation list of an NRW school.
-type autumnVacation struct{ acknowledged bool }
+type autumnVacation struct {
+	vacations []schoolcalendar.SchoolVacation
+}
 
 func (v *autumnVacation) TenantSchoolVacations(context.Context, string, string) (schoolcalendar.SchoolVacationList, error) {
 	return schoolcalendar.SchoolVacationList{
-		Region: schoolcalendar.HolidayRegion{Code: "DE-NW", Name: "Nordrhein-Westfalen"},
-		Vacations: []schoolcalendar.SchoolVacation{{
-			Name: "Herbstferien", StartDate: autumnStart.String(), EndDate: autumnEnd.String(), Acknowledged: v.acknowledged,
-		}},
+		Region:    schoolcalendar.HolidayRegion{Code: "DE-NW", Name: "Nordrhein-Westfalen"},
+		Vacations: v.vacations,
 	}, nil
 }
 
@@ -55,6 +56,7 @@ type vacationHintScenario struct {
 	*scenarioSetup
 	vacation *autumnVacation
 	hints    func(today calendar.Date) []timetable.SchoolVacationHint
+	query    func(ctx context.Context, today calendar.Date) []timetable.SchoolVacationHint
 }
 
 func makeVacationHintScenario(t *testing.T) *vacationHintScenario {
@@ -66,18 +68,25 @@ func makeVacationHintScenario(t *testing.T) *vacationHintScenario {
 
 	rows := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable
 	days := nrwDays{Calendar: api.MustNewSchoolCalendar(testpkg.MustDatabase(s.db))}
-	vacation := &autumnVacation{}
-	return &vacationHintScenario{scenarioSetup: s, vacation: vacation, hints: func(today calendar.Date) []timetable.SchoolVacationHint {
+	vacation := &autumnVacation{vacations: []schoolcalendar.SchoolVacation{{
+		Name: "Herbstferien", StartDate: autumnStart.String(), EndDate: autumnEnd.String(),
+	}}}
+	scenario := &vacationHintScenario{scenarioSetup: s, vacation: vacation}
+	scenario.query = func(ctx context.Context, today calendar.Date) []timetable.SchoolVacationHint {
 		t.Helper()
 		query, err := compose.NewSchoolVacationHints(rows, days, vacation, func() string { return today.String() })
 		require.NoError(t, err)
 		var hints []timetable.SchoolVacationHint
-		require.NoError(t, tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		require.NoError(t, tenant.WithTenantTx(ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			hints, err = query.SchoolVacationHints(txCtx)
 			return err
 		}))
 		return hints
-	}}
+	}
+	scenario.hints = func(today calendar.Date) []timetable.SchoolVacationHint {
+		return scenario.query(s.ctx, today)
+	}
+	return scenario
 }
 
 func hintCount(hints []timetable.SchoolVacationHint) int {
@@ -133,7 +142,7 @@ func TestSchoolVacationHints_AcknowledgedVacationAndCancelledTermine(t *testing.
 	setInstanceStatus(t, s.scenarioSetup, last[0].ID, timetable.InstanceStatusCancelled)
 	assert.Equal(t, 1, hintCount(s.hints(today)), "a cancelled Termin is no longer planned")
 
-	s.vacation.acknowledged = true
+	s.vacation.vacations[0].Acknowledged = true
 	assert.Empty(t, s.hints(today), "the school confirmed care in this vacation")
 }
 
@@ -171,4 +180,43 @@ func TestSchoolVacationHints_RepeatedMaterializationKeepsTheTermine(t *testing.T
 	assert.Equal(t, before[0].ID, after[0].ID, "the existing Termin stays the same row")
 	assert.Equal(t, 2, hintCount(s.hints(today)))
 	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, autumnLast), 1)
+}
+
+// TestSchoolVacationHintsQueryBudgetStaysFlat proves the hint's fixed read
+// scope remains fixed when it returns more vacation windows. The instances,
+// series, periods and non-working days are all loaded in batches.
+func TestSchoolVacationHintsQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	s := makeVacationHintScenario(t)
+	today := calendar.NewDate(2026, time.October, 1)
+	result, err := s.materialization.MaterializeForTenant(s.ctx, calendar.NewDate(2026, time.October, 5), calendar.NewDate(2026, time.November, 23), timetable.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Equal(t, 4, result.InstancesCreated)
+
+	windows := func(count int) []schoolcalendar.SchoolVacation {
+		result := make([]schoolcalendar.SchoolVacation, 0, count)
+		for i := range count {
+			date := calendar.NewDate(2026, time.October, 5+i*7)
+			result = append(result, schoolcalendar.SchoolVacation{
+				Name: fmt.Sprintf("Budget-%d", i), StartDate: date.String(), EndDate: date.String(),
+			})
+		}
+		return result
+	}
+	counter := testpkg.CaptureQueries(t, s.db)
+	run := func(expected int) []string {
+		counter.Reset()
+		hints := s.query(counter.Context(s.ctx), today)
+		require.Len(t, hints, expected)
+		return counter.Queries()
+	}
+
+	s.vacation.vacations = windows(3)
+	small := run(3)
+	s.vacation.vacations = windows(8)
+	large := run(8)
+
+	require.Len(t, large, len(small), "statement count must not grow with the vacation hints")
+	t.Logf("query budget: 3 school vacation hints → %d queries, 8 school vacation hints → %d queries", len(small), len(large))
+	testpkg.AssertQueryBudget(t, "modules.timetable.school_vacation_hints.list", large)
 }

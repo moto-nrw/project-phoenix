@@ -7,6 +7,7 @@ import type { SchoolVacations } from "~/lib/school-vacations-api";
 const state = vi.hoisted(() => ({
   data: undefined as unknown,
   keys: [] as Array<string | null>,
+  today: "2026-09-09",
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -22,6 +23,10 @@ vi.mock("~/lib/school-vacations-api", () => ({ getSchoolVacations: vi.fn() }));
 
 vi.mock("~/lib/hooks/use-swr-load-error", () => ({
   useSwrLoadError: () => null,
+}));
+
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => state.today,
 }));
 
 import { SchoolVacationsList } from "./school-vacations-list";
@@ -62,6 +67,7 @@ describe("SchoolVacationsList (#5345)", () => {
   beforeEach(() => {
     state.data = undefined;
     state.keys = [];
+    state.today = "2026-09-09";
   });
 
   it("lists the vacations of the school year, read-only, with source and who changes the state", () => {
@@ -118,5 +124,21 @@ describe("SchoolVacationsList (#5345)", () => {
       screen.getByRole("heading", { name: "Schulferien" }),
     ).toBeInTheDocument();
     expect(state.keys).toEqual([null]);
+  });
+
+  it("recomputes the window when Berlin reaches a new school year", () => {
+    state.today = "2026-07-31";
+    const { rerender } = render(
+      <SchoolVacationsList periods={[schoolYear]} periodsLoading={false} />,
+    );
+
+    expect(state.keys).toContain("school-vacations-2026-07-31-2027-07-30");
+
+    state.today = "2026-08-01";
+    rerender(
+      <SchoolVacationsList periods={[schoolYear]} periodsLoading={false} />,
+    );
+
+    expect(state.keys).toContain("school-vacations-2026-08-01-2027-07-31");
   });
 });

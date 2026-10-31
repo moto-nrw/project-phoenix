@@ -2,12 +2,15 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -217,4 +220,47 @@ func TestSchoolVacationSeed_StoresTheWindowsForEveryStateWithoutTheSource(t *tes
 	assert.Zero(t, source.calls.Load(), "the seed never asks the external source")
 	_, err = vacations.SeedSchoolVacations(runtime, []schoolcalendar.SchoolVacation{{Name: "X", StartDate: "2027-01-06", EndDate: "2026-12-23"}})
 	assert.ErrorIs(t, err, schoolcalendar.ErrInvalidSchoolVacationWindow)
+}
+
+// TestSchoolVacationListQueryBudgetStaysFlat guards the stored vacation list
+// against per-window acknowledgement lookups. The single EXISTS projection and
+// sync timestamp read must stay fixed as the returned list grows.
+func TestSchoolVacationListQueryBudgetStaysFlat(t *testing.T) {
+	t.Parallel()
+	vacations, _, runtime, schools, db := vacationFixture(t, firstSyncBody, "DE-NW")
+
+	seed := func(count int) {
+		t.Helper()
+		windows := make([]schoolcalendar.SchoolVacation, 0, count)
+		for i := range count {
+			start := calendar.NewDate(2026, time.August, 1+i*2)
+			windows = append(windows, schoolcalendar.SchoolVacation{
+				Name: fmt.Sprintf("Budget-%d", i), StartDate: start.String(), EndDate: start.String(),
+			})
+		}
+		_, err := vacations.SeedSchoolVacations(runtime, windows)
+		require.NoError(t, err)
+	}
+	read := func(expected int, counter *testpkg.QueryCounter) []string {
+		t.Helper()
+		counter.Reset()
+		var listed schoolcalendar.SchoolVacationList
+		require.NoError(t, tenant.WithinCurrentTenant(counter.Context(schools[0].ctx), func(ctx context.Context) error {
+			var err error
+			listed, err = vacations.TenantSchoolVacations(ctx, "2026-08-01", "2027-07-31")
+			return err
+		}))
+		require.Len(t, listed.Vacations, expected)
+		return counter.Queries()
+	}
+
+	counter := testpkg.CaptureQueries(t, db)
+	seed(3)
+	small := read(3, counter)
+	seed(8)
+	large := read(8, counter)
+
+	require.Len(t, large, len(small), "statement count must not grow with the vacation windows")
+	t.Logf("query budget: 3 school vacations → %d queries, 8 school vacations → %d queries", len(small), len(large))
+	testpkg.AssertQueryBudget(t, "modules.schoolcalendar.school_vacations.list", large)
 }

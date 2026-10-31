@@ -18,7 +18,8 @@ import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
-import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import { formatDate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   getSchoolVacations,
@@ -99,9 +100,10 @@ export function SchoolVacationsList({
   /** Solange die Zeiträume laden, steht das Fenster noch nicht fest. */
   readonly periodsLoading: boolean;
 }) {
+  const today = useBerlinToday();
   const window = useMemo(
-    () => holidayWindow(periods, berlinTodayISO()),
-    [periods],
+    () => holidayWindow(periods, today),
+    [periods, today],
   );
   const { data, error, isLoading, mutate } = useSWRAuth<SchoolVacations>(
     periodsLoading
