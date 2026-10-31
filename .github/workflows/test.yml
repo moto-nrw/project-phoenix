@@ -611,7 +611,9 @@ jobs:
 
       # setup-go's go.sum-only key is immutable. All scenarios build the same
       # binaries, so they share one source-keyed layer with the last source
-      # build as a warm fallback. nightly.yml saves it on development.
+      # build as a warm fallback. Only nightly.yml saves it, on development:
+      # a ~330 MB save per pull request push filled the 10 GB repository
+      # cache and evicted the development entry that pull requests restore.
       - name: Compute seed smoke build cache key
         id: build-cache-key
         env:
@@ -621,7 +623,8 @@ jobs:
           echo "prefix=$SEED_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$SEED_CACHE_PREFIX$SEED_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore seed smoke build cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}
@@ -888,6 +891,15 @@ jobs:
             exit 1
           fi
           "${RUNNER_TEMP}/seed-coverage.test" -test.run TestSeedCoverageRatchet -test.v
+
+      # profiles also compiled the coverage ratchet, so its build cache is the
+      # fullest of the three scenarios.
+      - name: Save seed smoke build cache
+        if: ${{ github.event_name != 'pull_request' && matrix.scenario == 'profiles' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
 
       - name: Postgres activity and socket queues
         if: failure()

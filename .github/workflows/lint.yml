@@ -70,6 +70,8 @@ jobs:
       # setup-go's go.sum-only key is immutable, so the production build and
       # deadcode started from an old build cache. Keep a source-keyed layer
       # with the last source build as a warm fallback, as test.yml does.
+      # Only nightly.yml saves it, on development: a ~290 MB save per pull
+      # request push evicted that entry from the 10 GB repository cache.
       - name: Compute backend quality build cache key
         id: build-cache-key
         env:
@@ -79,7 +81,8 @@ jobs:
           echo "prefix=$QUALITY_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$QUALITY_CACHE_PREFIX$QUALITY_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore backend quality build cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}
@@ -92,6 +95,13 @@ jobs:
         env:
           SKIP_SOURCE_RATCHETS: 'true'
         run: bash scripts/check-quality.sh backend
+
+      - name: Save backend quality build cache
+        if: ${{ github.event_name != 'pull_request' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
 
   backend-lint:
     if: ${{ inputs.run-backend }}
