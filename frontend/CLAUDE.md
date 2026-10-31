@@ -8,8 +8,9 @@ frontend-specific knowledge only.
 
 Read versions and scripts from `frontend/package.json`.
 Run `cd frontend && pnpm run check` with zero warnings and relevant behavior
-tests after code changes. Before push, run `scripts/test-changed.sh origin/development`
-without `--fast`. Service and screenshot workflows: `docs/agents/operations.md`.
+tests after code changes. Before push, run
+`scripts/run-go-toolchain.sh scripts/check-changed.mjs`. Service and screenshot
+workflows: `docs/agents/operations.md`.
 
 ## Test clock (MANDATORY)
 

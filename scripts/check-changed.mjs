@@ -10,8 +10,9 @@
 //
 //   scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]   (default origin/development)
 //
-// The steps run side by side when the machine has room (8 CPUs and 16 GB),
-// otherwise one after the other. Each prints its output when it finishes; a
+// The steps run side by side when the machine has room (8 CPUs, 16 GB and a
+// load average below half the CPUs), otherwise one after the other, static
+// checks first because they fail faster. Each prints its output when it finishes; a
 // step running past PHX_CHECK_TIMEOUT_MINUTES (default 30) is stopped with its
 // process group and reported as TIMEOUT. A rerun with byte-identical inputs
 // (every non-ignored file, the base, env files, installed dependencies, Node
@@ -20,12 +21,15 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { availableParallelism, totalmem, tmpdir } from 'node:os';
+import { availableParallelism, loadavg, totalmem, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-export function concurrencyFor(cpus = availableParallelism(), memoryBytes = totalmem()) {
-  return cpus >= 8 && memoryBytes >= 16 * 1024 ** 3 ? 2 : 1;
+// Side by side only while the machine has room. Under load from other agents
+// (load 18 to 30 on 16 CPUs), parallel steps starved the oxlint guard tests
+// into their 5 s timeouts, so the current load average counts as well.
+export function concurrencyFor(cpus = availableParallelism(), memoryBytes = totalmem(), load = loadavg()[0]) {
+  return cpus >= 8 && memoryBytes >= 16 * 1024 ** 3 && load < cpus / 2 ? 2 : 1;
 }
 
 export function verifyRate(env = process.env) {

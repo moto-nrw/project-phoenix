@@ -9,9 +9,10 @@ import { concurrencyFor, inputsKey, runSteps, summarize, verifyRate } from './ch
 import { gitTestEnvironment, initGitFixture } from './test-helpers/git-fixture.mjs';
 
 test('steps run side by side only on a machine with room', () => {
-  assert.equal(concurrencyFor(16, 64 * 1024 ** 3), 2);
-  assert.equal(concurrencyFor(4, 64 * 1024 ** 3), 1);
-  assert.equal(concurrencyFor(16, 8 * 1024 ** 3), 1);
+  assert.equal(concurrencyFor(16, 64 * 1024 ** 3, 3), 2);
+  assert.equal(concurrencyFor(4, 64 * 1024 ** 3, 0), 1);
+  assert.equal(concurrencyFor(16, 8 * 1024 ** 3, 0), 1);
+  assert.equal(concurrencyFor(16, 64 * 1024 ** 3, 12), 1, 'other agents already load the machine');
 });
 
 test('the cache verification rate defaults to 5 % and rejects nonsense', () => {

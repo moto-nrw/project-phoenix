@@ -35,6 +35,7 @@ through `devbox run` when the current process has not loaded the project environ
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
 | Changed-code tests | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` |
 | Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure). Live output lists package results; a failure adds a summary and keeps the full output in the printed `test-changed-go.log.gz` |
+| Before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]`: the pre-push static checks (`scripts/pre-push.sh --worktree`) and `test-changed.sh --fast` for committed, uncommitted and untracked changes. Steps run side by side only while the load average is below half the CPUs, each with a timeout (`PHX_CHECK_TIMEOUT_MINUTES`, default 30); a rerun with byte-identical inputs prints the last passing summary |
 | Red PR check | `node scripts/ci-failures.mjs [branch or PR]`: failed jobs and steps, their error lines, the local reproduction, and a warning when the previous push failed in the same job |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
@@ -409,6 +410,14 @@ These mistakes damage another session's work, not your own:
    worktree still has the main checkout's defaults. It also moves `localhost`
    URLs in `.env`, `backend/dev.env` and `frontend/.env.local` that still name a
    default port. The main checkout keeps 3000/8080.
+
+## Cached check results
+
+`scripts/pre-push.sh`, the frontend guard run in `scripts/test-frontend-changed.mjs`
+and `scripts/check-changed.mjs` reuse a pass for byte-identical inputs. A
+share of those hits runs anyway (`PHX_CACHE_VERIFY_RATE`, default `0.05`;
+`0` never, `1` always). A failing verification removes the cached pass and
+names the stage: its cache key misses an input, so report it.
 
 ## Cleanup CLI
 
