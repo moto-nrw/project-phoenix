@@ -258,7 +258,7 @@ test("a guards-only pass is reused only for identical inputs and never after a f
   f.write("backend/auth/authorize/permissions/catalog.json", "[]");
   // The stub's own output file must not count as a changed input.
   f.write(".gitignore", "frontend/node_modules\nargs\n");
-  const local = { ...f.env, GITHUB_ACTIONS: "", PHX_GUARDS_CACHE: "" };
+  const local = { ...f.env, GITHUB_ACTIONS: "", PHX_GUARDS_CACHE: "", PHX_CACHE_VERIFY_RATE: "0" };
   const run = (extra = {}) => {
     rmSync(join(f.root, "args"), { force: true });
     const result = spawnSync(process.execPath, [join(f.root, "scripts/test-frontend-changed.mjs"), "HEAD"],
@@ -281,6 +281,11 @@ printf '%s\\n' "$@" > '${f.root}/args'
   assert.equal(run({ PHX_GUARDS_CACHE: "off" }).ran, true);
   assert.equal(run({ GITHUB_ACTIONS: "true" }).ran, true);
   assert.equal(run().ran, false);
+  // A sampled hit runs anyway; when it fails, the wrong pass is forgotten.
+  const verified = run({ PHX_CACHE_VERIFY_RATE: "1", FAIL: "1" });
+  assert.equal(verified.ran, true);
+  assert.match(verified.stdout, /running anyway to verify the cache/);
+  assert.equal(run({ FAIL: "1" }).ran, true, "the failed verification removed the cached pass");
 });
 
 test("tests and declarations in every allowed source directory stay incremental", t => {
