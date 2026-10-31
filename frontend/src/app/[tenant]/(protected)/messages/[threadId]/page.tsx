@@ -36,6 +36,7 @@ import { RequestStatusBadge } from "~/components/messaging/request-status-badge"
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -114,9 +115,12 @@ function MessageThreadContent() {
   // "Neue Nachricht" entry on the same flag; mirror it here so an existing
   // thread renders read-only instead of dead-ending staff on send. History
   // stays visible.
-  const [disabledThreadId, setDisabledThreadId] = useState<string>();
-  const messagingEnabled =
-    tenant?.messagingEnabled === true && disabledThreadId !== threadId;
+  const flagSaysEnabled = tenant?.messagingEnabled === true;
+  const { switchedOff, markSwitchedOff } = useSwitchedOffWhileOpen(
+    flagSaysEnabled,
+    threadId,
+  );
+  const messagingEnabled = flagSaysEnabled && !switchedOff;
 
   const seedFrom = useSWRSeedFrom();
   const leavingAsUnreadRef = useRef(false);
@@ -413,7 +417,7 @@ function MessageThreadContent() {
       return;
     }
     if (isParentMessagingDisabled(err)) {
-      setDisabledThreadId(threadId);
+      markSwitchedOff();
       return;
     }
     void sendError.show(err, {

@@ -21,6 +21,7 @@ import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import {
@@ -50,9 +51,12 @@ function GroupMessageContent() {
   const params = useParams();
   const threadId = params.groupThreadId as string;
   const { tenant } = useTenant();
-  const [disabledThreadId, setDisabledThreadId] = useState<string>();
-  const messagingEnabled =
-    tenant?.messagingEnabled === true && disabledThreadId !== threadId;
+  const flagSaysEnabled = tenant?.messagingEnabled === true;
+  const { switchedOff, markSwitchedOff } = useSwitchedOffWhileOpen(
+    flagSaysEnabled,
+    threadId,
+  );
+  const messagingEnabled = flagSaysEnabled && !switchedOff;
 
   const {
     data: confirmed,
@@ -138,7 +142,7 @@ function GroupMessageContent() {
       return;
     }
     if (isParentMessagingDisabled(err)) {
-      setDisabledThreadId(threadId);
+      markSwitchedOff();
       return;
     }
     void sendError.show(err, { object: "die Nachricht" });
@@ -157,7 +161,7 @@ function GroupMessageContent() {
       });
       setConfirmClose(false);
       if (isParentMessagingDisabled(err)) {
-        setDisabledThreadId(threadId);
+        markSwitchedOff();
         return;
       }
       void showActionError(err, {

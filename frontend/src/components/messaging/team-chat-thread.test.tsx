@@ -365,6 +365,45 @@ describe("TeamChatThread optimistic send (#5011)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Hallo")).toBeInTheDocument();
   });
+
+  it("shows the composer again once the school switches the chat back on", async () => {
+    api.fetchThread.mockResolvedValue(thread);
+    api.postMessage.mockRejectedValue(
+      new ApiError("Aus", 403, {
+        code: "communication.staff_messaging_disabled",
+      }),
+    );
+    const disabledNotice =
+      "Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben.";
+    const view = (flagSaysEnabled: boolean) => (
+      <TeamChatThread
+        portal={{ ...portalFor(api), flagSaysEnabled }}
+        threadID="t1"
+        myAccountId="1"
+        back={{ href: "/team-chat", label: "Zurück zum Team-Chat" }}
+      />
+    );
+    const { rerender } = render(view(true), { wrapper: Fresh });
+    await screen.findByText("Hallo");
+    fireEvent.change(screen.getByLabelText("Nachricht"), {
+      target: { value: "Bin unterwegs" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+    expect(await screen.findByText(disabledNotice)).toBeInTheDocument();
+
+    // The flag still says "on": the mark stays.
+    rerender(view(true));
+    // Anker: der Hinweis auf den ausgeschalteten Chat steht noch.
+    expect(screen.getByText(disabledNotice)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+
+    // The school switches the chat off and on again.
+    rerender(view(false));
+    rerender(view(true));
+
+    expect(await screen.findByLabelText("Nachricht")).toBeInTheDocument();
+    expect(screen.getByText("Hallo")).toBeInTheDocument();
+  });
 });
 
 describe("TeamChatInbox (#2517)", () => {
