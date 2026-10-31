@@ -5784,6 +5784,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (e offeringChangeEnrollment) CapacityPeaks(ctx context.Context, offeringIDs []int64, from, until calendar.Date) (map[int64]int, error) {\n\treturn e.owner.OfferingCapacityPeaks(ctx, offeringIDs, enrollmentOwner.Date(from), enrollmentOwner.Date(until))\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/offeringChangeEnrollment.CapacityPeaks",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (e offeringChangeEnrollment) CatalogState(ctx context.Context, phaseID, childID int64, on, until calendar.Date) (carePlanCompose.OfferingCatalogState, error) {\n\tstate, err := e.owner.OfferingCatalogState(ctx, phaseID, childID, enrollmentOwner.Date(on), enrollmentOwner.Date(until))\n\tif err != nil || state == nil {\n\t\treturn carePlanCompose.OfferingCatalogState{}, err\n\t}\n\treturn carePlanCompose.OfferingCatalogState{Current: BookedOfferings(state.Current), CapacityPeaks: state.CapacityPeaks}, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/offeringChangeEnrollment.CatalogState",

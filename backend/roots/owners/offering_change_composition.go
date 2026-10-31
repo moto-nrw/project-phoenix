@@ -387,6 +387,10 @@ func (e offeringChangeEnrollment) CapacityPeak(ctx context.Context, offeringID i
 	return e.owner.OfferingCapacityPeak(ctx, offeringID, excludeChildIDs, enrollmentOwner.Date(from), enrollmentOwner.Date(until))
 }
 
+func (e offeringChangeEnrollment) CapacityPeaks(ctx context.Context, offeringIDs []int64, from, until calendar.Date) (map[int64]int, error) {
+	return e.owner.OfferingCapacityPeaks(ctx, offeringIDs, enrollmentOwner.Date(from), enrollmentOwner.Date(until))
+}
+
 // offeringChangeStudents reads the People Directory students a decision
 // authorizes against and their open complete-withdrawal follow-up.
 type offeringChangeStudents struct {

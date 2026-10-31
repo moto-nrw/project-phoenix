@@ -173,6 +173,13 @@ func effectiveCourseCapacity(groupLimit *int, groupTaken int, offeringCapacity, 
 		remaining := max(limit-groupTaken, 0)
 		free = &remaining
 	}
+	return narrowCourseCapacity(capacity, free, offeringCapacity, offeringFree)
+}
+
+// narrowCourseCapacity applies one offering's limit to an already calculated
+// course capacity. The team waitlist uses the same rule after it has measured
+// the AG and every offering that can satisfy its next request.
+func narrowCourseCapacity(capacity, free, offeringCapacity, offeringFree *int) (*int, *int) {
 	if offeringCapacity == nil {
 		return capacity, free
 	}

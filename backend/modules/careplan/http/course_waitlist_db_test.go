@@ -38,6 +38,7 @@ type courseWaitlistWire struct {
 // and the open request adding that course to today's booking.
 type courseWaitlistRequest struct {
 	studentID int64
+	courseID  int64
 	request   *careplan.OfferingChangeRequest
 }
 
@@ -63,7 +64,7 @@ func createCourseWaitlistRequest(t *testing.T, tc *testContext, groupID int64, f
 		testpkg.Tenant(t), student.ID, fixture.child.ID, guardian.ID, string(payload),
 		string(studentsTestToday.AddDays(30)), careplan.OfferingChangePending).Scan(t.Context(), row)
 	require.NoError(t, err)
-	return courseWaitlistRequest{studentID: student.ID, request: row}
+	return courseWaitlistRequest{studentID: student.ID, courseID: course.ID, request: row}
 }
 
 func fetchCourseWaitlists(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, query string) []courseWaitlistWire {
@@ -244,6 +245,29 @@ func TestCourseWaitlistsUseNextRequestEffectiveDateForCapacity(t *testing.T) {
 	assert.True(t, waitlist.SlotFreeForNext)
 }
 
+func TestCourseWaitlistsUseCourseOfferingCapacity(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Angebot", "Voll")
+	claims := testutil.AdminTestClaims(int(reviewer.ID))
+	group := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Fußball-AG", 2)
+	waiting := createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Wartet")
+	_, err := tc.db.NewRaw(`UPDATE enrollment.care_offerings SET capacity = 0 WHERE id = ? AND tenant_id = ?`,
+		waiting.courseID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+
+	waitlist := waitlistFor(fetchCourseWaitlists(t, tc, claims, fmt.Sprintf("?activity_group_id=%d", group.ID)), group.ID)
+	require.NotNil(t, waitlist)
+	require.NotNil(t, waitlist.ParticipantLimit)
+	assert.Equal(t, 0, *waitlist.ParticipantLimit)
+	require.NotNil(t, waitlist.FreeSlots)
+	assert.Equal(t, 0, *waitlist.FreeSlots)
+	assert.False(t, waitlist.SlotFreeForNext, "a full course offering cannot be freed")
+
+	rr := decideCourseRequest(t, tc, claims, waiting.request.ID)
+	assert.Equal(t, http.StatusConflict, rr.Code, rr.Body.String())
+}
+
 func TestCourseWaitlistsRejectsInvalidFilter(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t, fixedCalendarClock)
@@ -281,13 +305,19 @@ func TestCourseWaitlistsQueryBudget(t *testing.T) {
 		fetchCourseWaitlists(t, tc, claims, "")
 		return counter.Queries()
 	}
+	setCourseCapacity := func(request courseWaitlistRequest) {
+		t.Helper()
+		_, err := tc.db.NewRaw(`UPDATE enrollment.care_offerings SET capacity = 8 WHERE id = ? AND tenant_id = ?`,
+			request.courseID, testpkg.Tenant(t)).Exec(t.Context())
+		require.NoError(t, err)
+	}
 
-	createCourseWaitlistRequest(t, tc, football.ID, "Kind", "Eins")
+	setCourseCapacity(createCourseWaitlistRequest(t, tc, football.ID, "Kind", "Eins"))
 	small := run()
 
-	createCourseWaitlistRequest(t, tc, football.ID, "Kind", "Zwei")
-	createCourseWaitlistRequest(t, tc, theater.ID, "Kind", "Drei")
-	createCourseWaitlistRequest(t, tc, theater.ID, "Kind", "Vier")
+	setCourseCapacity(createCourseWaitlistRequest(t, tc, football.ID, "Kind", "Zwei"))
+	setCourseCapacity(createCourseWaitlistRequest(t, tc, theater.ID, "Kind", "Drei"))
+	setCourseCapacity(createCourseWaitlistRequest(t, tc, theater.ID, "Kind", "Vier"))
 	large := run()
 
 	t.Logf("1 request → %d statements, 4 requests over 2 AGs → %d statements", len(small), len(large))

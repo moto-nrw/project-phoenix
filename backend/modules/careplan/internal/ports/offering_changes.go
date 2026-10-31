@@ -78,6 +78,10 @@ type OfferingChangeEnrollment interface {
 	// CapacityPeak counts the peak occupancy of an offering in [from, until)
 	// without the excluded children.
 	CapacityPeak(ctx context.Context, offeringID int64, excludeChildIDs []int64, from, until calendar.Date) (int, error)
+	// CapacityPeaks counts the peak occupancy of every offering in [from,
+	// until). The team waitlist uses it to show whether its next request can
+	// pass the offering capacity check as well as the AG capacity check.
+	CapacityPeaks(ctx context.Context, offeringIDs []int64, from, until calendar.Date) (map[int64]int, error)
 }
 
 // OfferingChangeStudents reads the People Directory students an offering

@@ -8881,6 +8881,14 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.CapacityPeaks",
+      "binding_digest": "53e66e3a941116e70a9ebb7aded5a49e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.CapacityPeaks",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.OfferingCapacityPeaks",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.CatalogState",
       "binding_digest": "7e7c1a1cc083ec0b989a8d5622c7e83d",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.CatalogState",
