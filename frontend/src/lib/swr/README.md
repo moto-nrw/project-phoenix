@@ -34,7 +34,18 @@ void invalidateFamily(rooms.family);
    `revalidateIfStale: false` would suppress the request in SWR 2.5.1.
 3. The callback returned by `useTenantMutate()` supports optimistic
    data, rollback and `populateCache` under the generation lock. Prefer the
-   reader's bound `mutate` when it already owns that key.
+   reader's bound `mutate` when it already owns that key. For an action the
+   user should see at once (send, check in, toggle), use
+   `useOptimisticAction(key, confirmed)` from `~/lib/swr/optimistic`: the
+   expected result is an overlay on the confirmed data per scoped key and
+   data generation, never a cache write. A failure drops exactly its own
+   overlay, concurrent actions keep theirs, and after a scope or data bump
+   neither overlay, answer nor rollback appears. `commit` writes the answer
+   through the reader's bound `mutate` (or local state); `refusal` drops the
+   resource on a 401/403 with its code (default `general.permission`), a
+   business 403 only rolls back. SWR's own `optimisticData` restores the
+   value before the first optimistic write and lets a newer mutation swallow
+   an older one's rollback, so concurrent actions would overwrite each other.
 4. Family prefixes end in `-`. `useInvalidateFamily` matches that prefix
    within the current scope, including `$inf$` keys and preloads. The existing
    `useTenantMutateMatching([factory.family])` remains available for combined
