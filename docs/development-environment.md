@@ -300,6 +300,25 @@ comparisons. `--simulate-ram-gb 16` makes the test scripts pick a 16 GB
 machine's parallelism on a larger machine. Run `devloop-docker` only from the
 main checkout; it does not work inside `wt` worktrees (see the script header).
 
+Run it through `devbox run -- scripts/dev-bench.sh ...` so the project's
+Go, Node and pnpm versions are measured; the metadata file records them with
+revision, dirty diff and load. A run exits 1 when any measured command failed
+or a requested stage could not run, so only a green exit is a valid row set.
+`--heavy` sends each measured command through the machine's shared heavy-job
+gate (`~/bin/agent-heavy`, if installed) and reports slot waiting time as
+`queue_s`, apart from the run's own wall time. `--repeat 3` gives three
+samples for a median. `-- NAME COMMAND...` measures any single command.
+
+The task-bank stages model agent work: `fresh-worktree` (detached worktree,
+bootstrap, doctor, removed afterwards), `go-leaf` and `go-central` (an
+untracked probe file in a package with few or many importers, then
+`test-changed.sh --fast HEAD`), `fe-change` (a comment appended to an
+unmodified frontend file, then changed tests and `pnpm run check`) and
+`browser-flow` (one Playwright spec against the already running, seeded
+native stack). Each change stage runs once after the edit and once unchanged,
+which separates a source change from a warm repeat. Probes are removed and the
+edited file restored, also on Ctrl-C.
+
 Reference numbers from `scripts/dev-bench.sh`, same 64 GB Mac with other work
 running (before: commit `384bb24562`, after: `1f5e74e781`):
 
