@@ -468,11 +468,13 @@ function MessageThreadContent() {
   // Statuszeile unter dem Titel: Beziehung, Kind und die Zahl der geladenen
   // Nachrichten.
   // Eine Leitungs-Unterhaltung trägt das vorne in der Statuszeile (#5200).
+  // Gezählt wird, was angekommen ist, nicht die Blase auf dem Weg (#5011).
+  const sentCount = confirmedThread?.messages.length ?? 0;
   const statusLine = thread
     ? `${thread.audience === "leadership" ? `${LEADERSHIP_AUDIENCE_LABEL} · ` : ""}${relationshipLabel(thread.relationship_type)} von ${thread.student_name} · ${
         messagesLoading
           ? "Nachrichten werden geladen"
-          : `${messages.length} ${messages.length === 1 ? "Nachricht" : "Nachrichten"}`
+          : `${sentCount} ${sentCount === 1 ? "Nachricht" : "Nachrichten"}`
       }`
     : null;
 

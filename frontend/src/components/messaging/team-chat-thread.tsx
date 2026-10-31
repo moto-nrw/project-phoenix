@@ -357,8 +357,10 @@ export function TeamChatThread({
 
   // Statuszeile unter dem Titel: die Zahl der geladenen Nachrichten dieser
   // Unterhaltung und wer sie sehen kann.
-  const messageCount = `${messages.length} ${
-    messages.length === 1 ? "Nachricht" : "Nachrichten"
+  // Gezählt wird, was angekommen ist, nicht die Blase auf dem Weg (#5011).
+  const sentCount = confirmedThread?.messages.length ?? 0;
+  const messageCount = `${sentCount} ${
+    sentCount === 1 ? "Nachricht" : "Nachrichten"
   }`;
   const stats = group
     ? `${messageCount} · ${members.length} ${members.length === 1 ? "Mitglied" : "Mitglieder"}`
