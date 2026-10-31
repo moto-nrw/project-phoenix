@@ -64,27 +64,34 @@ func (s seedSchoolTeacherStep) Run(_ context.Context, rt *Runtime) error {
 		Key: "lehrkraft", AccountID: account.Data.ID, StaffID: staffID,
 		Email: email, Password: password, Name: "Lena Weber",
 	}
-	raw, err = rt.Client.PostPublic("/school/auth/login", map[string]any{
-		"email": email, "password": password, "tenant_slug": rt.Bootstrap.TenantSlug,
-	})
+	auth, err := loginSchoolTeacher(rt, email, password)
 	if err != nil {
-		return fmt.Errorf("school teacher login: %w", err)
+		return err
 	}
-	var session struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.Unmarshal(raw, &session); err != nil {
-		return fmt.Errorf("decode school teacher session: %w", err)
-	}
-	if session.AccessToken == "" {
-		return fmt.Errorf("school teacher login returned no school session")
-	}
-	auth := AuthRef{Kind: AuthBearer, Token: session.AccessToken}
 	if err := seedTeacherClassDay(rt, auth, class, studentID); err != nil {
 		return err
 	}
 	fmt.Println("  School teacher assigned; today's arrival exception, class/child hints and morning attendance created")
 	return nil
+}
+
+func loginSchoolTeacher(rt *Runtime, email, password string) (AuthRef, error) {
+	raw, err := rt.Client.PostPublic("/school/auth/login", map[string]any{
+		"email": email, "password": password, "tenant_slug": rt.Bootstrap.TenantSlug,
+	})
+	if err != nil {
+		return AuthRef{}, fmt.Errorf("school teacher login: %w", err)
+	}
+	var session struct {
+		AccessToken string `json:"access_token"`
+	}
+	if err := json.Unmarshal(raw, &session); err != nil {
+		return AuthRef{}, fmt.Errorf("decode school teacher session: %w", err)
+	}
+	if session.AccessToken == "" {
+		return AuthRef{}, fmt.Errorf("school teacher login returned no school session")
+	}
+	return AuthRef{Kind: AuthBearer, Token: session.AccessToken}, nil
 }
 
 func seedTeacherClassDay(rt *Runtime, auth AuthRef, class string, studentID int64) error {
