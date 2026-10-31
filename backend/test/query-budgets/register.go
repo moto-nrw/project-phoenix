@@ -1,4 +1,9 @@
-package test
+// Package querybudgets holds the query-budget register (#2940) and its assertion.
+//
+// It lives next to the JSON fragments it embeds, outside package test, so that
+// editing a budget only rebuilds and reselects the packages that assert budgets
+// instead of every package importing the shared test fixtures.
+package querybudgets
 
 import (
 	"embed"
@@ -36,13 +41,13 @@ type queryBudget struct {
 // The counts are what the fixture-sized scenario in the referenced test
 // issues; small fixtures are enough because N+1 shows up at N=3 already.
 //
-//go:embed query-budgets
+//go:embed *
 var queryBudgetSources embed.FS
 
 var queryBudgets = loadQueryBudgets()
 
 func loadQueryBudgets() map[string]queryBudget {
-	entries, err := querybudget.ReadQueryBudgets(queryBudgetSources, "query-budgets")
+	entries, err := querybudget.ReadQueryBudgets(queryBudgetSources, ".")
 	if err != nil {
 		panic(fmt.Sprintf("load query budgets: %v", err))
 	}

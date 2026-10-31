@@ -275,11 +275,59 @@ Autor, am 31.10. gemergt) angegangen. Der Restore-Shard (167 s) läuft nur bei
 Änderungen an Backup-, Release- oder Workflow-Dateien. Der Seed-Smoke ist ein
 bewusster Integrationstest. Kein Eingriff.
 
+### Runde 12: Query-Budget-Register als eigenes Paket
+
+Frequenz statt Einzelbefehl: 83 von 383 gemergten Backend-PRs der letzten 14
+Tage änderten Produktionsdateien von `backend/test`, 157 Mal eine Datei unter
+`test/query-budgets/`. Das Register war per `//go:embed` Teil des Pakets `test`.
+Jede Budget-Änderung baute deshalb alle 174 Importeure neu und wählte sie aus,
+obwohl nur 40 Pakete `AssertQueryBudget` aufrufen.
+
+- Hypothese: Ein eigenes Paket neben den JSON-Dateien beschränkt Auswahl und
+  Test-Cache-Invalidierung auf die Budget-Aufrufer.
+- Zielmetrik: Laufzeit und CPU von `test-changed.sh --fast` nach einer
+  Budget-Änderung.
+- Vertrag: dieselben Budgets, Pfade, Prüfregeln und Ratchets; jeder Aufruf
+  bleibt für `TestQueryBudgetRatchet` sichtbar.
+- Abbruch: Architektur-Check rot oder ein Aufrufer fällt aus der Auswahl.
+
+Ergebnis (#5430), je ein Lauf unter Last 5 bis 21:
+
+| | vorher | nachher |
+| --- | ---: | ---: |
+| Pakete | 174 | 42 |
+| Wandzeit s | 571 | 358 |
+| CPU-s | 1752 | 1261 |
+
+Beide Läufe waren grün. Den Rest bestimmen `internal/architecture` (101 s; liest
+die Budgets bewusst), `api` (90 s) und `organizationtenancy/compose` (82 s).
+Behalten.
+
+### Runde 13: Paket-Worker auf macOS, `-p 4` verworfen
+
+`go-package-workers.sh` begrenzt macOS auf 2 Paket-Binaries, weil gleichzeitige
+Clones auf Docker Desktops virtueller Platte normale Fixture-Queries aushungern.
+A/B mit Sonde in `sharedkernel/calendar`, abwechselnd (Zeit im Gate):
+
+| `-p` | Wandzeit s | CPU-s |
+| --- | ---: | ---: |
+| 2 | 415 / 387 | 988 / 765 |
+| 4 | 239 / 249 | 790 / 780 |
+
+Ein einzelner Lauf ist mit `-p 4` 38 % schneller. Gegenprobe mit zwei
+gleichzeitigen `-p 4`-Läufen auf demselben Test-DB-Server, so viel wie das
+gewichtete Gate zulässt: Ein Lauf scheiterte, weil `CreateTestAccount` nach 45 s
+mit `read tcp …:5453: i/o timeout` abbrach. Das ist genau der dokumentierte
+Fehlermodus. Abbruchkriterium erreicht, Grenze bleibt 2. Eine Lockerung
+bräuchte eine Grenze pro Test-DB-Server statt pro Lauf.
+
 ## Verworfen
 
 - Frontend-Guards bei Backend-Änderungen verkleinern: Die 45 Guard-Dateien sind
   ein bewusst fail-closed Inventar von IO-Grenzen. Kürzen würde den Testvertrag
   ändern, nicht nur Kosten senken.
+- `-p 4` auf macOS (Runde 13): einzeln 38 % schneller, unter paralleler Last
+  DB-Timeouts.
 
 ## Unknown Unknowns
 
@@ -316,6 +364,9 @@ Startfehler des Testplatzes, erst danach reine Laufzeit.
 1. Wirkung des gewichteten Gates nachmessen (Runde 10): Wartezeit am Gate und
    Durchsatz mit gemischten leichten und schweren Jobs.
 2. Zentrale Go-Änderung: 418 s und 923 CPU-s für 129 Pakete im Schnellmodus.
+   Häufigster Auslöser (Budget-Dateien) in Runde 12 entschärft; übrig bleiben
+   echte Änderungen an `test/fixtures*.go` und Shared-Kernel-Paketen. Eine
+   DB-Parallelitätsgrenze pro Test-Server statt pro Lauf würde `-p 4` erlauben.
 3. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s, ohne
    Ergebnis-Cache bei unveränderter Wiederholung. Setup 31 s und Environment
    60 s der Vitest-Zeit sind der größte Posten.
@@ -323,5 +374,6 @@ Startfehler des Testplatzes, erst danach reine Laufzeit.
    Wiederholung, auch wenn Go alles aus dem Cache liefert.
 
 Erledigt aus dieser Liste: Bundle-Obergrenzen nahe der Basis (#5400, Neubasierung
-nach Entscheidung des Nutzers in #5396), Heavy-Gate nach Last gewichtet (Runde 10).
-Verworfen: Seed-Cache (Runde 11).
+nach Entscheidung des Nutzers in #5396), Heavy-Gate nach Last gewichtet (Runde 10),
+Query-Budget-Paket (Runde 12). Verworfen: Seed-Cache (Runde 11), `-p 4` auf
+macOS (Runde 13).

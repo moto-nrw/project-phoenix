@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -292,7 +293,7 @@ func TestVerifyAccessSessionQueryBudget(t *testing.T) {
 	}
 	rotated := run()
 	assert.Len(t, rotated, len(fresh), "the check must not grow with the generations of the family")
-	testpkg.AssertQueryBudget(t, "identity.access_session.verify", rotated)
+	querybudgets.AssertQueryBudget(t, "identity.access_session.verify", rotated)
 }
 
 // TestPortalLogoutEndsOnlyThatPortalsAccessTokens pins #5194 for the parent

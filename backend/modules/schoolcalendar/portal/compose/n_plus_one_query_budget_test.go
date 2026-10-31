@@ -10,6 +10,7 @@ import (
 	calModels "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +47,7 @@ func TestCalendarTargetResolutionQueryBudget(t *testing.T) {
 	large := run(8)
 	t.Logf("query budget: 3 targets → %d reads, 8 targets → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.calendar.resolve_targets.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.calendar.resolve_targets.reads", large)
 }
 
 func TestCalendarReminderScanQueryBudget(t *testing.T) {
@@ -92,5 +93,5 @@ func TestCalendarReminderScanQueryBudget(t *testing.T) {
 	large := run(5)
 	t.Logf("query budget: 3 reminders → %d reads, 8 reminders → %d reads", len(small), len(large))
 	assert.Equal(t, len(small), len(large))
-	testpkg.AssertQueryBudget(t, "services.calendar.reminder_scan.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.calendar.reminder_scan.reads", large)
 }

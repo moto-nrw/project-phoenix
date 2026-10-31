@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +48,7 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 		add(2, 7)
 		large := run()
 		assert.Equal(t, len(small), len(large))
-		testpkg.AssertQueryBudget(t, "services.active.work_session_history.reads", large)
+		querybudgets.AssertQueryBudget(t, "services.active.work_session_history.reads", large)
 		return nil
 	}))
 }

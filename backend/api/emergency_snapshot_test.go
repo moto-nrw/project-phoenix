@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type emergencyFakePresence struct {
@@ -437,7 +438,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 		require.NoError(t, testpkg.WithTenantTx(t, counter.Context(fixture.ctx), db, fixture.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			snapshot, err := query.Snapshot(txCtx, time.Now())
 			require.NoError(t, err)
-			testpkg.AssertQueryBudget(t, "modules.emergencysnapshot.snapshot", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.emergencysnapshot.snapshot", counter.Queries())
 			require.Len(t, snapshot.Rows, 1, "each school lists exactly its own child")
 			row := snapshot.Rows[0]
 			assert.Equal(t, fixture.studentID, row.StudentID)

@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 func overridesPath(staffID int64) string { return fmt.Sprintf("/staff/%d/target-overrides", staffID) }
@@ -260,7 +261,7 @@ func TestTargetOverridesAPI_ListQueryBudget(t *testing.T) {
 	large := measure()
 
 	assert.Equal(t, len(small), len(large), "the list must not issue a statement per range")
-	testpkg.AssertQueryBudget(t, "workforce.staff_target_overrides.list", large)
+	querybudgets.AssertQueryBudget(t, "workforce.staff_target_overrides.list", large)
 }
 
 // The cross-staff overview runs the same Soll math over prefetched data; with
