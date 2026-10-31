@@ -811,7 +811,9 @@ describe("useSSE Hook", () => {
     it("should handle parse errors gracefully", async () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const onMessage = vi.fn();
-      renderHook(() => useSSE("/api/sse/events", { onMessage }));
+      const { result } = renderHook(() =>
+        useSSE("/api/sse/events", { onMessage }),
+      );
 
       await waitForEventSource();
       mockEventSource?.triggerOpen();
@@ -830,6 +832,9 @@ describe("useSSE Hook", () => {
 
       // Should not crash, onMessage should not be called
       expect(onMessage).not.toHaveBeenCalled();
+      expect(result.current.error).toBe(
+        "Ungültige Server-Event-Daten empfangen",
+      );
     });
   });
 

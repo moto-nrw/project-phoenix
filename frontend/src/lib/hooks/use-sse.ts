@@ -118,7 +118,11 @@ export function useSSE(
           event_type: eventType,
           error: err instanceof Error ? err.message : String(err),
         });
-        setError(`Ungültige Server-Event-Daten (${eventType})`);
+        setError(
+          eventType === "message"
+            ? "Ungültige Server-Event-Daten empfangen"
+            : `Ungültige Server-Event-Daten (${eventType})`,
+        );
       }
     };
 
@@ -147,23 +151,8 @@ export function useSSE(
           setReconnectAttempts(0); // Reset state
         };
 
-        // Handle default message events
-        eventSource.onmessage = (event) => {
-          if (!mountedRef.current || eventSourceRef.current !== eventSource) {
-            return;
-          }
-          try {
-            const parsed = JSON.parse(String(event.data)) as SSEEvent;
-            stableOnMessage(parsed);
-          } catch (err) {
-            logger.error("failed to parse sse message", {
-              endpoint,
-              error: err instanceof Error ? err.message : String(err),
-              data_preview: String(event.data).substring(0, 100),
-            });
-            setError("Ungültige Server-Event-Daten empfangen");
-          }
-        };
+        eventSource.onmessage = (event) =>
+          handleSSEMessage(eventSource, "message", event);
 
         // Handle specific event types
         const eventTypes = [
