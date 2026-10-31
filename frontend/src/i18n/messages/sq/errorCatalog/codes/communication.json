@@ -25,5 +25,5 @@
   "staff_group_name_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "staff_group_members_required": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "staff_group_too_large": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
-  "parent_messaging_disabled": "Shkolla i ka çaktivizuar mesazhet për prindërit. Mund ta lexoni ende bisedën, por nuk mund të dërgoni mesazhe."
+  "parent_messaging_disabled": "Shkolla i ka çaktivizuar mesazhet për prindërit. Kjo nuk është e mundur tani."
 }
