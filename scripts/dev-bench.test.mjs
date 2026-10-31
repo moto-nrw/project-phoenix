@@ -26,6 +26,8 @@ function fixture(t) {
   write('scripts/run-go-toolchain.sh', '#!/bin/sh\nexec "$@"\n', 0o755);
   write('scripts/test-changed.sh', `#!/bin/bash
 probe=$(ls backend/leaf/zz_dev_bench_probe.go 2>/dev/null || echo none)
+# The value must reach the test binary: Go caches test results by its content.
+[ "$probe" = none ] || grep -q '^func init() { devBenchProbe = [0-9]* }$' "$probe" || probe=probe-not-linked
 printf 'test-changed|%s|%s\\n' "$*" "$probe" >> "$FIXTURE_CALLS"
 echo '==> go test (1 affected packages; -p 2, -parallel 8)'
 echo 'ok  	example/leaf	0.1s'
