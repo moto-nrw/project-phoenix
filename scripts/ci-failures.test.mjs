@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 
 import { cleanLog, digest, failedStep, jobKey, localCommand, repeatedFailures } from './ci-failures.mjs';
@@ -77,4 +78,15 @@ test('repeated failures compare jobs, not matrix shards', () => {
     ['test-frontend'],
   );
   assert.deepEqual(repeatedFailures(['lint / frontend-build'], []), []);
+});
+
+test('every reproduction is one shell command that stops at the first failure', () => {
+  for (const job of ['backend-quality', 'backend-lint', 'frontend-quality', 'frontend-react-doctor', 'frontend-build',
+    'test-frontend', 'test-backend', 'seed-smoke', 'env-sync-check']) {
+    const command = localCommand(`lint / ${job}`);
+    assert.ok(command, job);
+    assert.equal(spawnSync('bash', ['-n', '-c', command]).status, 0, `${job}: ${command}`);
+    assert.doesNotMatch(command.replace(/#.*$/, ''), /;/, `${job} must not ignore an earlier failure`);
+  }
+  assert.match(localCommand('lint / frontend-build'), /--prepare-ci .*--build-base .*perf:bundle-ratchet/);
 });

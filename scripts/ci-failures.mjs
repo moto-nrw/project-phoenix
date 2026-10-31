@@ -14,12 +14,13 @@ import { pathToFileURL } from 'node:url';
 // Reproduction for the jobs that failed most often. Jobs not listed fall back
 // to the failed step's own CI command, printed with every failure.
 const localCommands = {
-  'backend-quality': 'scripts/run-go-toolchain.sh bash scripts/check-quality.sh backend  (deadcode alone: scripts/run-go-toolchain.sh bash scripts/check-deadcode.sh)',
+  'backend-quality': 'scripts/run-go-toolchain.sh bash scripts/check-quality.sh backend  # deadcode alone: scripts/run-go-toolchain.sh bash scripts/check-deadcode.sh',
   'backend-lint': 'scripts/run-go-toolchain.sh scripts/check-backend-quality.sh lint origin/development',
   'frontend-quality': 'bash scripts/check-quality.sh frontend',
   'frontend-react-doctor': 'cd frontend && bash ../scripts/check-quality.sh react-doctor origin/development',
-  'frontend-build': 'cd frontend && pnpm run build && pnpm run perf:bundle-ratchet',
-  'test-frontend': 'node scripts/test-frontend-changed.mjs --check-guards; node scripts/test-frontend-changed.mjs origin/development',
+  // Same cold two-tree comparison as CI (docs/agents/frontend-performance.md); commit first.
+  'frontend-build': 'cd frontend && node scripts/perf/bundle-measurement.mjs --prepare-ci "$(git merge-base HEAD origin/development)" && node scripts/perf/bundle-measurement.mjs --build-base && pnpm run perf:bundle-ratchet',
+  'test-frontend': 'node scripts/test-frontend-changed.mjs --check-guards && node scripts/test-frontend-changed.mjs origin/development',
   'test-backend': 'scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development',
   'seed-smoke': 'cd backend && ../scripts/run-go-toolchain.sh go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet',
   'env-sync-check': 'bash scripts/env-check.sh',

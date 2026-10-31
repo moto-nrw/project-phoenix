@@ -55,8 +55,11 @@ if [ "${#affected[@]}" -gt 0 ]; then
     status=$?
     if [ "$status" -ne 0 ] && [ "$backend_go_phase" -eq 1 ] && [ -f "$backend_go_log" ]; then
       summarize_backend_go_failure
-      gzip -f "$backend_go_log" &&
-        echo "==> full go test output: $backend_go_log.gz ($(du -h "$backend_go_log.gz" | cut -f1))" >&2
+      # Publish atomically: an overlapping run (throwaway run ID) may fail too.
+      if gzip -c "$backend_go_log" >"$backend_go_published.$$" &&
+        mv -f "$backend_go_published.$$" "$backend_go_published"; then
+        echo "==> full go test output: $backend_go_published ($(du -h "$backend_go_published" | cut -f1))" >&2
+      fi
     fi
     if ! (cd "$repo_root/backend" && go run ./internal/testdb/cmd/sweep) &&
       [ "$status" -eq 0 ]; then
@@ -81,11 +84,10 @@ if [ "${#affected[@]}" -gt 0 ]; then
   PHX_TEST_TEMPLATE=$(cd backend && go run ./internal/testdb/cmd/bootstrap)
   export PHX_TEST_TEMPLATE
   # A failed package prints everything its binary wrote, once 494 MB from one
-  # api run. Keep that in one log per worktree (the run lock prevents overlap)
-  # and show only package results and build errors live; a failure adds the
-  # summary above and keeps the compressed log.
-  backend_go_log=$(git rev-parse --path-format=absolute --git-path test-changed-go.log)
-  rm -f "$backend_go_log" "$backend_go_log.gz"
+  # api run. Show only package results and build errors live; a failure adds
+  # the summary above and keeps the last failed run's log, compressed, per worktree.
+  backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
+  backend_go_published=$(git rev-parse --path-format=absolute --git-path test-changed-go.log.gz)
   backend_go_phase=1
   (cd backend && go test \
     -p "$package_workers" -parallel 8 -tags=testhooks "${affected[@]}") 2>&1 | tee "$backend_go_log" |
