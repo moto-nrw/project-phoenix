@@ -89,3 +89,16 @@ export function waitlistsWithFreeSlot(
 ): CourseWaitlist[] {
   return waitlists.filter((waitlist) => waitlist.slotFreeForNext);
 }
+
+/**
+ * Die AGs mit Teilnehmergrenze, auf die gerade ein Kind wartet. Eine AG ohne
+ * Grenze hat keine Warteliste, nur offene Anfragen.
+ */
+export function waitlistsWithQueue(
+  waitlists: readonly CourseWaitlist[],
+): CourseWaitlist[] {
+  return waitlists.filter(
+    (waitlist) =>
+      waitlist.participantLimit !== null && waitlist.entries.length > 0,
+  );
+}

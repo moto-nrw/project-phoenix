@@ -10,11 +10,15 @@
 import { createContext, useContext, useMemo } from "react";
 
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
+import { formatDate } from "~/lib/date-helpers";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
   waitlistPlacesByRequest,
   waitlistsWithFreeSlot,
+  waitlistsWithQueue,
   type CourseWaitlist,
   type RequestWaitlistPlace,
 } from "~/lib/course-waitlist-helpers";
@@ -63,40 +67,114 @@ function freeSlotSentence(waitlist: CourseWaitlist): string {
 }
 
 /**
- * Oben in /anfragen: für jede AG mit freiem Platz und wartendem Kind ein
- * Hinweis auf das nächste Kind. Ein Hinweis bleibt ein Alert, mehrere stehen
- * in einer Karte.
+ * Oben in /anfragen: die Wartelisten aller AGs mit Teilnehmergrenze, auf die
+ * gerade ein Kind wartet. Je AG die Belegung und die Kinder in der
+ * Reihenfolge ihrer Anfrage; „Zur Anfrage“ öffnet die Anfrage des Kindes in
+ * der Liste darunter. Ist ein Platz frei, steht das an der AG und am ersten
+ * Kind.
  */
-export function CourseWaitlistHints({
+export function CourseWaitlistOverview({
   waitlists,
-}: Readonly<{ waitlists: readonly CourseWaitlist[] }>) {
-  const free = waitlistsWithFreeSlot(waitlists);
-  if (free.length === 0) return null;
-  if (free.length === 1 && free[0]) {
-    return (
-      <Alert
-        type="info"
-        message={`${freeSlotSentence(free[0])} Wählen Sie unten bei der Anfrage „Freigeben“, dann rückt das Kind nach.`}
-      />
-    );
-  }
+  onOpenRequest,
+}: Readonly<{
+  waitlists: readonly CourseWaitlist[];
+  onOpenRequest: (studentId: string) => void;
+}>) {
+  const queues = waitlistsWithQueue(waitlists);
+  if (queues.length === 0) return null;
+  const freeCount = waitlistsWithFreeSlot(queues).length;
   return (
     <SectionCard
-      title="Freie Plätze in AGs"
-      description="Wählen Sie unten bei der Anfrage des nächsten Kindes „Freigeben“."
+      title="Wartelisten"
+      titleBadge={
+        freeCount > 0 ? (
+          <StatusBadge
+            tone="green"
+            label={
+              freeCount === 1
+                ? "1 AG mit freiem Platz"
+                : `${freeCount} AGs mit freiem Platz`
+            }
+          />
+        ) : undefined
+      }
+      description="Kinder, die auf einen Platz in einer AG warten. Die älteste Anfrage ist zuerst dran. Wird ein Platz frei, geben Sie die Anfrage des ersten Kindes frei."
+      collapsible
     >
-      <ul className="divide-y divide-gray-100">
-        {free.map((waitlist) => (
-          <li key={waitlist.activityGroupId} className="py-2 text-sm">
-            <span className="font-medium text-gray-900">{waitlist.name}</span>
-            <span className="text-gray-600">
-              {" "}
-              · Als Nächstes: {waitlist.entries[0]?.studentName ?? "–"}
-            </span>
+      <div className="divide-y divide-gray-100">
+        {queues.map((waitlist) => (
+          <CourseWaitlistBlock
+            key={waitlist.activityGroupId}
+            waitlist={waitlist}
+            onOpenRequest={onOpenRequest}
+          />
+        ))}
+      </div>
+    </SectionCard>
+  );
+}
+
+function occupancyLine(waitlist: CourseWaitlist): string {
+  const limit = waitlist.participantLimit ?? 0;
+  const free = waitlist.freeSlots ?? 0;
+  const state = free > 0 ? `${free} frei` : "voll";
+  return `${waitlist.participants} von ${limit} Plätzen vergeben · ${state}`;
+}
+
+function CourseWaitlistBlock({
+  waitlist,
+  onOpenRequest,
+}: Readonly<{
+  waitlist: CourseWaitlist;
+  onOpenRequest: (studentId: string) => void;
+}>) {
+  const headingId = `waitlist-${waitlist.activityGroupId}`;
+  return (
+    <section aria-labelledby={headingId} className="py-4 first:pt-0 last:pb-0">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        <h3 id={headingId} className="text-sm font-semibold text-gray-900">
+          {waitlist.name}
+        </h3>
+        {waitlist.slotFreeForNext && (
+          <StatusBadge tone="green" label="Platz frei" />
+        )}
+      </div>
+      <p className="mb-2 text-sm text-gray-600">{occupancyLine(waitlist)}</p>
+      <ResponsiveActionList>
+        {waitlist.entries.map((entry) => (
+          <li
+            key={entry.requestId}
+            className="flex flex-col gap-2 py-2 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+          >
+            <div className="min-w-0">
+              <p className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
+                <span className="w-5 shrink-0 text-right font-medium text-gray-500 tabular-nums">
+                  {entry.rank}.
+                </span>
+                <span className="font-medium">{entry.studentName}</span>
+                {waitlist.slotFreeForNext && entry.rank === 1 && (
+                  <StatusBadge tone="green" label="Als Nächstes dran" />
+                )}
+              </p>
+              <p className="mt-0.5 pl-7 text-xs text-gray-500">
+                Angefragt am {formatDate(entry.submittedAt)}
+              </p>
+            </div>
+            <div className="flex w-full min-[480px]:w-auto sm:justify-end">
+              <Button
+                type="button"
+                variant="surface"
+                size="compact"
+                aria-label={`Anfrage von ${entry.studentName} öffnen`}
+                onClick={() => onOpenRequest(entry.studentId)}
+              >
+                Zur Anfrage
+              </Button>
+            </div>
           </li>
         ))}
-      </ul>
-    </SectionCard>
+      </ResponsiveActionList>
+    </section>
   );
 }
 

@@ -8,7 +8,7 @@ import type { DateRange } from "react-day-picker";
 
 import { AggregatedRequestList } from "~/components/students/aggregated-request-list";
 import {
-  CourseWaitlistHints,
+  CourseWaitlistOverview,
   CourseWaitlistProvider,
 } from "~/components/students/course-waitlist";
 import type { AggregatedRequestFilters } from "~/components/students/aggregated-request-list";
@@ -557,12 +557,28 @@ function ElternTab({
     void waitlistsSWR.mutate();
   }, [waitlistsSWR]);
   const waitlists = waitlistsSWR.data ?? NO_WAITLISTS;
+  // „Zur Anfrage“ in der Warteliste öffnet das Kind in der Liste darunter.
+  const [focusRequest, setFocusRequest] = useState<{
+    studentId: string;
+    nonce: number;
+  } | null>(null);
+  const openRequest = useCallback((studentId: string) => {
+    setFocusRequest((current) => ({
+      studentId,
+      nonce: (current?.nonce ?? 0) + 1,
+    }));
+  }, []);
   return (
     <div className="flex w-full flex-col gap-4">
       {showWaitlists && waitlistLoadError && (
         <LoadErrorAlert error={waitlistLoadError} actionLayout="responsive" />
       )}
-      {showWaitlists && <CourseWaitlistHints waitlists={waitlists} />}
+      {showWaitlists && (
+        <CourseWaitlistOverview
+          waitlists={waitlists}
+          onOpenRequest={openRequest}
+        />
+      )}
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
       <CourseWaitlistProvider waitlists={waitlists} refresh={refreshWaitlists}>
@@ -572,6 +588,7 @@ function ElternTab({
             view={view}
             filters={filters}
             onCountChange={onCountChange}
+            focusRequest={focusRequest}
           />
         </PickupExtensionAccessProvider>
       </CourseWaitlistProvider>

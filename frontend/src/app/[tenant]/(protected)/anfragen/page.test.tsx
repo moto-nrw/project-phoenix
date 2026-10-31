@@ -72,14 +72,17 @@ vi.mock("~/components/students/aggregated-request-list", () => ({
   AggregatedRequestList: ({
     view,
     filters,
+    focusRequest,
   }: {
     view: string;
     filters: AggregatedRequestFilters;
+    focusRequest?: { studentId: string } | null;
   }) => (
     <div
       data-testid="aggregated-list"
       data-view={view}
       data-filters={JSON.stringify(filters)}
+      data-focus={focusRequest?.studentId ?? ""}
     />
   ),
 }));
@@ -130,6 +133,7 @@ function listProbe() {
   const probe = screen.getByTestId("aggregated-list");
   return {
     view: probe.getAttribute("data-view"),
+    focus: probe.getAttribute("data-focus"),
     filters: JSON.parse(
       probe.getAttribute("data-filters") ?? "{}",
     ) as AggregatedRequestFilters,
@@ -262,7 +266,7 @@ describe("AnfragenPage", () => {
     expect(probe.filters.types).toEqual([]);
   });
 
-  it("nennt das nächste Kind, wenn in einer AG ein Platz frei ist", () => {
+  it("zeigt die Warteliste und das nächste Kind, wenn ein Platz frei ist", () => {
     waitlistState.waitlists = [
       {
         activityGroupId: "70",
@@ -284,11 +288,38 @@ describe("AnfragenPage", () => {
     ];
     render(<AnfragenPage />);
 
-    expect(
-      screen.getByText(
-        /In „Theater-AG“ ist ein Platz frei\. Als Nächstes ist Lina Amini dran\./,
-      ),
-    ).toBeInTheDocument();
+    const theater = screen.getByRole("region", { name: "Theater-AG" });
+    expect(theater).toHaveTextContent("Lina Amini");
+    expect(theater).toHaveTextContent("Als Nächstes dran");
+  });
+
+  it("öffnet aus der Warteliste die Anfrage des Kindes in der Liste", () => {
+    waitlistState.waitlists = [
+      {
+        activityGroupId: "70",
+        name: "Theater-AG",
+        participantLimit: 8,
+        participants: 8,
+        freeSlots: 0,
+        slotFreeForNext: false,
+        entries: [
+          {
+            requestId: "11",
+            studentId: "101",
+            studentName: "Lina Amini",
+            rank: 1,
+            submittedAt: "2026-09-01T10:00:00Z",
+          },
+        ],
+      },
+    ];
+    render(<AnfragenPage />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage von Lina Amini öffnen" }),
+    );
+
+    expect(listProbe().focus).toBe("101");
   });
 
   it("wechselt per Historie-Schalter auf die Historien-Ansicht", () => {

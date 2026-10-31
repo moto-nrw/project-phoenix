@@ -331,6 +331,50 @@ describe("AggregatedRequestList", () => {
     expect(screen.getByText("Später Kind")).toBeVisible();
   });
 
+  it("öffnet aus der Warteliste die Anfrage des gewählten Kindes", async () => {
+    mockListOpen.mockResolvedValue({
+      items: [
+        {
+          request_type: "master_data",
+          occurred_at: "2026-08-29T10:00:00Z",
+          student_id: "20",
+          student_name: "Erstes Kind",
+          expected_version: "v1",
+          urgent_today: true,
+          bulk_eligible: true,
+          data: { id: "1" },
+        },
+        {
+          request_type: "offering",
+          occurred_at: "2026-08-29T09:00:00Z",
+          student_id: "30",
+          student_name: "Wartendes Kind",
+          expected_version: "v2",
+          urgent_today: false,
+          bulk_eligible: false,
+          data: { id: "7" },
+        },
+      ] as never,
+    });
+
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    await screen.findByText("master-item-1");
+    expect(screen.queryByText("offering-item-7")).not.toBeInTheDocument();
+
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={NO_FILTERS}
+        focusRequest={{ studentId: "30", nonce: 1 }}
+      />,
+    );
+
+    expect(await screen.findByText("offering-item-7")).toBeInTheDocument();
+    expect(screen.queryByText("master-item-1")).not.toBeInTheDocument();
+  });
+
   it("kennzeichnet widersprüchliche Wünsche im Fall", async () => {
     mockListOpen.mockResolvedValue({
       items: ["alleine", "bus"].map((mode, index) => ({

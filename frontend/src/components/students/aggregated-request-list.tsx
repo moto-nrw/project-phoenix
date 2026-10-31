@@ -85,11 +85,17 @@ export function AggregatedRequestList({
   view,
   filters,
   onCountChange,
+  focusRequest = null,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
   /** Meldet die geladene Zeilenzahl an den Seitenkopf (Statuszeile). */
   onCountChange?: (count: number | null, hasMore: boolean) => void;
+  /**
+   * Öffnet die Anfragen dieses Kindes, etwa aus der Warteliste einer AG
+   * (#4767). `nonce` lässt denselben Sprung wiederholen.
+   */
+  focusRequest?: { readonly studentId: string; readonly nonce: number } | null;
 }>) {
   // useTenantSafe statt useTenant: die Liste wird auch außerhalb des
   // Tenant-Providers gerendert (Tests, Einbettungen). Ohne Provider gilt die
@@ -207,6 +213,21 @@ export function AggregatedRequestList({
     },
     [returnFocus],
   );
+
+  // Ein Sprung aus der Warteliste wählt das Kind und holt die Liste in den
+  // Blick. Er läuft je Wunsch einmal, auch wenn die Liste später neu lädt.
+  const listAreaRef = useRef<HTMLDivElement>(null);
+  const handledFocus = useRef(0);
+  useEffect(() => {
+    if (!focusRequest || handledFocus.current === focusRequest.nonce) return;
+    const target = openCases.find(
+      (childCase) => childCase.studentID === focusRequest.studentId,
+    );
+    if (!target) return;
+    handledFocus.current = focusRequest.nonce;
+    setSelectedCaseKey(target.key);
+    listAreaRef.current?.scrollIntoView?.({ block: "start" });
+  }, [focusRequest, openCases]);
 
   const backToList = useCallback(() => {
     setSelectedCaseKey(null);
@@ -364,7 +385,10 @@ export function AggregatedRequestList({
             reasonRequired={reasonRequired}
             open={() => setBulkConfirmOpen(true)}
           />
-          <div className="grid gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]">
+          <div
+            ref={listAreaRef}
+            className="grid scroll-mt-4 gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
+          >
             {showList && (
               <RequestCaseList
                 buckets={buckets}

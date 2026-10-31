@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import {
-  CourseWaitlistHints,
+  CourseWaitlistOverview,
   CourseWaitlistProvider,
   CourseWaitlistSummary,
   RequestWaitlistPlaces,
@@ -43,41 +43,81 @@ const freeTheater = waitlist({
   slotFreeForNext: true,
 });
 
-describe("CourseWaitlistHints", () => {
-  it("names the next child when a place is free", () => {
-    render(<CourseWaitlistHints waitlists={[freeTheater]} />);
-    expect(
-      screen.getByText(
-        /In „Theater-AG“ ist ein Platz frei\. Als Nächstes ist Lina Amini dran\./,
-      ),
-    ).toBeInTheDocument();
-  });
-
-  it("collects several free places in one card", () => {
+describe("CourseWaitlistOverview", () => {
+  it("listet die wartenden Kinder je AG in der Reihenfolge der Anfragen", () => {
     render(
-      <CourseWaitlistHints
-        waitlists={[
-          freeTheater,
-          waitlist({
-            activityGroupId: "71",
-            name: "Fußball-AG",
-            freeSlots: 2,
-            slotFreeForNext: true,
-          }),
-        ]}
+      <CourseWaitlistOverview
+        waitlists={[waitlist({})]}
+        onOpenRequest={vi.fn()}
       />,
     );
-    expect(screen.getByText("Freie Plätze in AGs")).toBeInTheDocument();
-    expect(screen.getAllByRole("listitem")).toHaveLength(2);
+
+    expect(
+      screen.getByRole("heading", { name: "Wartelisten" }),
+    ).toBeInTheDocument();
+    const theater = screen.getByRole("region", { name: "Theater-AG" });
+    expect(
+      within(theater).getByText("8 von 8 Plätzen vergeben · voll"),
+    ).toBeInTheDocument();
+    const rows = within(theater).getAllByRole("listitem");
+    expect(rows.map((row) => row.textContent)).toEqual([
+      expect.stringContaining("1.Lina Amini"),
+      expect.stringContaining("2.Mia Berg"),
+    ]);
+    expect(within(theater).queryByText("Platz frei")).toBeNull();
+    expect(within(theater).getByText("Lina Amini")).toBeInTheDocument();
   });
 
-  it("stays out of the way while every AG is full", () => {
+  it("markiert die AG und das erste Kind, wenn ein Platz frei ist", () => {
+    render(
+      <CourseWaitlistOverview
+        waitlists={[freeTheater]}
+        onOpenRequest={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("1 AG mit freiem Platz")).toBeInTheDocument();
+    expect(
+      screen.getByText("7 von 8 Plätzen vergeben · 1 frei"),
+    ).toBeInTheDocument();
+    const [first, second] = screen.getAllByRole("listitem");
+    expect(first).toHaveTextContent("Als Nächstes dran");
+    expect(second).not.toHaveTextContent("Als Nächstes dran");
+  });
+
+  it("öffnet die Anfrage des gewählten Kindes", () => {
+    const onOpenRequest = vi.fn();
+    render(
+      <CourseWaitlistOverview
+        waitlists={[waitlist({})]}
+        onOpenRequest={onOpenRequest}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage von Mia Berg öffnen" }),
+    );
+
+    expect(onOpenRequest).toHaveBeenCalledWith("102");
+  });
+
+  it("zeigt keine Karte ohne wartendes Kind oder ohne Teilnehmergrenze", () => {
     const { container } = render(
-      <div data-testid="hints">
-        <CourseWaitlistHints waitlists={[waitlist({})]} />
+      <div data-testid="overview">
+        <CourseWaitlistOverview
+          waitlists={[
+            waitlist({ entries: [] }),
+            waitlist({
+              activityGroupId: "71",
+              participantLimit: null,
+              freeSlots: null,
+            }),
+          ]}
+          onOpenRequest={vi.fn()}
+        />
       </div>,
     );
-    expect(screen.getByTestId("hints")).toBeInTheDocument();
+    expect(screen.getByTestId("overview")).toBeInTheDocument();
     expect(container.textContent).toBe("");
   });
 });
