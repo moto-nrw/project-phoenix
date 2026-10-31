@@ -4,6 +4,10 @@ import { headers } from "next/headers";
 import { env } from "~/env";
 import { ACCESS_TOKEN_REFRESH_BUFFER_MS } from "~/server/auth/shared";
 import { tenantAuthConfig } from "~/server/auth/tenant-config";
+import {
+  portalOfScope,
+  sessionFamilyState,
+} from "~/server/auth/token-validation";
 
 /**
  * The tenant layout's read of the session cookie. `session` is serialized
@@ -40,6 +44,15 @@ export async function readTenantSessionSnapshot(): Promise<TenantSessionSnapshot
     (typeof token.refreshTokenExpiry === "number" &&
       token.refreshTokenExpiry <= Date.now()) ||
     token.error
+  ) {
+    return null;
+  }
+  // A cookie a late answer wrote back after its logout must not hydrate a
+  // signed-in page (#5399): only a family Identity & Access confirms live
+  // makes a snapshot; otherwise the provider asks the session route.
+  if (
+    (await sessionFamilyState(token.token, portalOfScope(token.scope))) !==
+    "live"
   ) {
     return null;
   }

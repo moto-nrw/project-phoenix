@@ -8,11 +8,15 @@ import {
 import { randomBytes } from "node:crypto";
 import { networkPorts } from "./ports.mjs";
 
-// #5194: after a logout or a "Zur Schulanmeldung" in one tab, a response of
-// another tab that arrives late with the old session cookie must not restore
-// access. The synthetic backend models the session family: logout revokes
-// it, and its session routes refuse a token of a revoked family although the
-// token has not expired. No real backend, keys or personal data.
+// #5194, #5399: after a logout or a "Zur Schulanmeldung" in one tab, a
+// response of another tab that arrives late must neither write the old
+// session cookie back nor restore access. The server is the source of truth
+// (#5399): a response writes a session cookie only for a changed session of
+// a live refresh-token family, and the session route reads a revoked family
+// as ended. The synthetic backend models the session family: logout revokes
+// it, and its session routes and session validation refuse a token of a
+// revoked family although the token has not expired. No real backend, keys or
+// personal data.
 const ports = networkPorts("tenantSwitch");
 const source = `http://school-a.mfa.localhost:${ports.frontend}`;
 const target = `http://school-b.mfa.localhost:${ports.frontend}`;
@@ -91,6 +95,7 @@ async function holdResponse(
   page: Page,
   pattern: string,
   start: (page: Page) => Promise<unknown>,
+  method?: string,
 ) {
   let release!: () => void;
   const released = new Promise<void>((resolve) => (release = resolve));
@@ -99,10 +104,17 @@ async function holdResponse(
   const held = new Promise<{ setCookie: boolean }>(
     (resolve) => (heldResponse = resolve),
   );
+  let holding = false;
   await page.route(pattern, async (route: Route) => {
     // The fixture host names resolve only in Chromium (CI disables them for
     // Node), so the held request goes to loopback under its own Host.
     const request = route.request();
+    // An app tab sends more than the held request; hold only the first match.
+    if (holding || (method && request.method() !== method)) {
+      await route.fallback();
+      return;
+    }
+    holding = true;
     const target = new URL(request.url());
     const host = target.host;
     target.hostname = "127.0.0.1";
@@ -214,10 +226,11 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
       await tab2.goto(`${source}/api/health`);
       const before = await (await request.get(fixtureState)).json();
 
-      // Tab 2's request still runs on the live session; its answer, with the
-      // session cookie, is held back.
+      // Tab 2's request still runs on the live session; its answer is held
+      // back. A mere re-read of the session carries no cookie (#5399): before,
+      // Auth.js wrote the session again with every answer.
       const pending = await holdResponse(tab2, late.pattern, late.start);
-      expect((await pending.held).setCookie).toBe(true);
+      expect((await pending.held).setCookie).toBe(false);
 
       const [deleted] = await Promise.all([
         waitForSessionCookieDeletion(tab1),
@@ -232,39 +245,285 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
       // to exist, but must grant no access (#5194).
       await tab1.close();
 
-      // The held answer arrives late and writes the old cookie back.
+      // The held answer arrives late and leaves the deleted cookie deleted.
       await pending.release();
-      expect(await sessionCookie(context)).toBeDefined();
-      expect(await pending.restored(context)).toBe(true);
-
-      // Protected data stays locked although the access token is unexpired.
-      const tab3 = await context.newPage();
-      await tab3.goto(`${source}/api/health`);
-      const status = await tab3.evaluate(() =>
-        fetch("/api/me/profile").then((r) => r.status),
-      );
-      expect(status).toBe(401);
-      // The session the browser sees ends too. Other tabs may still poll the
-      // session with the written-back cookie, so its state converges.
-      await expect
-        .poll(() =>
-          tab3.evaluate(async () => {
-            const body = (await (await fetch("/api/auth/session")).json()) as {
-              error?: string;
-            } | null;
-            return body?.error ?? null;
-          }),
-        )
-        .toBe("RefreshTokenError");
-
-      // A fresh page load of the school asks for the login again.
-      await tab3.goto(`${source}/home`);
-      await tab3.waitForURL((url) => url.pathname === "/");
-      await expect(tab3.locator('input[type="email"]')).toBeVisible();
-      await context.close();
+      await expectSessionStaysEnded(context);
     });
   }
 }
+
+/** The deleted session stays deleted, grants nothing and is not shown. */
+async function expectSessionStaysEnded(context: BrowserContext) {
+  expect(await sessionCookie(context)).toBeUndefined();
+
+  const tab3 = await context.newPage();
+  await tab3.goto(`${source}/api/health`);
+  const status = await tab3.evaluate(() =>
+    fetch("/api/me/profile").then((r) => r.status),
+  );
+  expect(status).toBe(401);
+  const session = await tab3.evaluate(async () =>
+    (await fetch("/api/auth/session")).json(),
+  );
+  expect(session).toBeNull();
+
+  // A fresh page load of the school asks for the login again.
+  await tab3.goto(`${source}/home`);
+  await tab3.waitForURL((url) => url.pathname === "/");
+  await expect(tab3.locator('input[type="email"]')).toBeVisible();
+  expect(await sessionCookie(context)).toBeUndefined();
+  await context.close();
+}
+
+/** A renewing update(): it moves the access token into the refresh window. */
+const renewingUpdate = (page: Page) =>
+  page.evaluate(async () => {
+    const csrf = (await (await fetch("/api/auth/csrf")).json()) as {
+      csrfToken: string;
+    };
+    const response = await fetch("/api/auth/session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        csrfToken: csrf.csrfToken,
+        data: { emailChanged: true },
+      }),
+    });
+    return response.status;
+  });
+
+/**
+ * Holds a request on its way to the server until release(): it carries the
+ * old cookie, and the server builds its answer only after the logout. This is
+ * any late answer whose request outlived its logout, from another tab, a
+ * frozen one or one on another school's subdomain.
+ */
+async function holdRequest(
+  page: Page,
+  pattern: string,
+  start: (page: Page) => Promise<unknown>,
+  method: string,
+) {
+  let release!: () => void;
+  const released = new Promise<void>((resolve) => (release = resolve));
+  let sent!: () => void;
+  const intercepted = new Promise<void>((resolve) => (sent = resolve));
+  let answered!: (setCookie: boolean) => void;
+  const answer = new Promise<boolean>((resolve) => (answered = resolve));
+  let holding = false;
+  await page.route(pattern, async (route: Route) => {
+    const request = route.request();
+    if (holding || request.method() !== method) {
+      await route.fallback();
+      return;
+    }
+    holding = true;
+    sent();
+    await released;
+    const target = new URL(request.url());
+    const host = target.host;
+    target.hostname = "127.0.0.1";
+    const response = await route.fetch({
+      url: target.toString(),
+      headers: { ...(await request.allHeaders()), host },
+    });
+    answered(
+      response
+        .headersArray()
+        .some(
+          (header) =>
+            header.name.toLowerCase() === "set-cookie" &&
+            header.value.startsWith(`${cookieName}=`),
+        ),
+    );
+    await route.fulfill({ response });
+  });
+  const finished = start(page).catch(() => undefined);
+  return {
+    intercepted,
+    release: async () => {
+      release();
+      const setCookie = await answer;
+      await finished;
+      return setCookie;
+    },
+  };
+}
+
+for (const [actionName, endSession] of Object.entries(endActions)) {
+  // Gap A of the final review: the answer is built after the revocation.
+  test(`${actionName}: a renewal that reaches the server after the logout writes no cookie`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext();
+    await isolate(context);
+    const tab1 = await context.newPage();
+    await login(tab1);
+    const tab2 = await context.newPage();
+    await tab2.goto(`${source}/api/health`);
+    const pending = await holdRequest(
+      tab2,
+      "**/api/auth/session",
+      renewingUpdate,
+      "POST",
+    );
+    await pending.intercepted;
+
+    const [deleted] = await Promise.all([
+      waitForSessionCookieDeletion(tab1),
+      endSession(tab1),
+    ]);
+    expect(deleted).toBe(true);
+    await tab1.close();
+
+    // The renewal fails on the revoked family; its answer sets no cookie.
+    expect(await pending.release()).toBe(false);
+    await expectSessionStaysEnded(context);
+  });
+
+  // Gap B of the final review: a tab started while the logout runs. It also
+  // runs on the other school's subdomain, which shares the cookie (#5402).
+  test(`${actionName}: a tab opened during the logout reads the session as ended`, async ({
+    browser,
+  }) => {
+    const context = await browser.newContext();
+    await isolate(context);
+    const tab1 = await context.newPage();
+    await login(tab1);
+    let releaseCsrf!: () => void;
+    const csrfHeld = new Promise<void>((resolve) => (releaseCsrf = resolve));
+    await tab1.route("**/api/auth/csrf", async (route) => {
+      await csrfHeld;
+      await route.continue();
+    });
+    const revoked = tab1.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === "/api/auth/logout" &&
+        response.status() === 204,
+    );
+    const ending = Promise.all([
+      waitForSessionCookieDeletion(tab1),
+      endSession(tab1),
+    ]);
+    await revoked;
+    // The revocation committed; the cookie is still there (CSRF stalls).
+    expect(await sessionCookie(context)).toBeDefined();
+
+    const tab3 = await context.newPage();
+    const otherSchool = actionName === "logout" ? target : source;
+    await tab3.goto(`${otherSchool}/api/health`);
+    const [read, body] = await Promise.all([
+      tab3.waitForResponse(
+        (response) => new URL(response.url()).pathname === "/api/auth/session",
+      ),
+      tab3.evaluate(async () => (await fetch("/api/auth/session")).json()),
+    ]);
+    expect((body as { error?: string }).error).toBe("RefreshTokenError");
+    expect(
+      (await read.headersArray()).filter(
+        ({ name, value }) =>
+          name.toLowerCase() === "set-cookie" &&
+          value.startsWith(`${cookieName}=`),
+      ),
+    ).toEqual([]);
+
+    releaseCsrf();
+    const [deleted] = await ending;
+    expect(deleted).toBe(true);
+    await tab1.close();
+    await tab3.close();
+    await expectSessionStaysEnded(context);
+  });
+}
+
+// #5402: the tenant cookie spans every school's subdomain. A renewal from a
+// tab of school A, answered only after "Zur Schulanmeldung" at school B and a
+// new login, writes no cookie and leaves the new session alone. (The fixture
+// issues sessions of school A only, so the new login happens there.)
+test("Zur Schulanmeldung: a late renewal from the other school keeps the new session", async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  await isolate(context);
+  const tab1 = await context.newPage();
+  await login(tab1);
+  const tab2 = await context.newPage();
+  await tab2.goto(`${source}/api/health`);
+  const pending = await holdRequest(
+    tab2,
+    "**/api/auth/session",
+    renewingUpdate,
+    "POST",
+  );
+  await pending.intercepted;
+
+  const [deleted] = await Promise.all([
+    waitForSessionCookieDeletion(tab1),
+    endActions["Zur Schulanmeldung"](tab1),
+  ]);
+  expect(deleted).toBe(true);
+  await login(tab1);
+  const fresh = (await context.cookies(source)).find(
+    (cookie) => cookie.name === cookieName,
+  )?.value;
+  expect(fresh).toBeDefined();
+
+  expect(await pending.release()).toBe(false);
+  expect(
+    (await context.cookies(source)).find((cookie) => cookie.name === cookieName)
+      ?.value,
+  ).toBe(fresh);
+  expect(
+    await tab1.evaluate(() => fetch("/api/me/profile").then((r) => r.status)),
+  ).toBe(200);
+  await context.close();
+});
+
+// The window the server cannot close: an answer built while the family was
+// still live, delivered after the cookie's deletion. Its cookie lands, but it
+// names a revoked family: it opens nothing, reads as ended and a fresh page
+// asks for the login (#5194, #5399).
+test("logout: a renewal answered before the revocation and delivered after it opens nothing", async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  await isolate(context);
+  const tab1 = await context.newPage();
+  await login(tab1);
+  const tab2 = await context.newPage();
+  await tab2.goto(`${source}/api/health`);
+  const pending = await holdResponse(
+    tab2,
+    "**/api/auth/session",
+    renewingUpdate,
+    "POST",
+  );
+  expect((await pending.held).setCookie).toBe(true);
+
+  const [deleted] = await Promise.all([
+    waitForSessionCookieDeletion(tab1),
+    endActions.logout(tab1),
+  ]);
+  expect(deleted).toBe(true);
+  await tab1.close();
+
+  await pending.release();
+  expect(await pending.restored(context)).toBe(true);
+
+  const tab3 = await context.newPage();
+  await tab3.goto(`${source}/api/health`);
+  expect(
+    await tab3.evaluate(() => fetch("/api/me/profile").then((r) => r.status)),
+  ).toBe(401);
+  const session = (await tab3.evaluate(async () =>
+    (await fetch("/api/auth/session")).json(),
+  )) as { error?: string };
+  expect(session.error).toBe("RefreshTokenError");
+  await tab3.goto(`${source}/home`);
+  await tab3.waitForURL((url) => url.pathname === "/");
+  await expect(tab3.locator('input[type="email"]')).toBeVisible();
+  await context.close();
+});
 
 test("another device keeps its session when one device logs out", async ({
   browser,

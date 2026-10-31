@@ -36,7 +36,7 @@ func TestHermeticTestPatterns(t *testing.T) {
 	// Find the backend root directory
 	backendRoot, err := findBackendRoot()
 	if err != nil {
-		t.Skipf("Could not find backend root: %v", err)
+		t.Fatalf("Could not find backend root: %v", err)
 		return
 	}
 

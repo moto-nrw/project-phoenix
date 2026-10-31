@@ -420,6 +420,68 @@ eigenem cwd oder ohne Listener läuft die Konfiguration weiter. Die
 synthetischen Suites nutzen nie einen bestehenden Server und waren seit #5372
 nicht betroffen.
 
+### Runde 20: Muster aus t3code
+
+Abgleich mit dem öffentlichen Repo von T3 Code (`pingdotgg/t3code`, Stand
+31.10.): `check:changed` als ein Befehl für CIs schnelle Checks, Ports aus dem
+Worktree-Pfad, ein Block „The three ways to hurt yourself“, Lint-Regeln gegen
+Wartezeiten und unbegründete Skips in Tests, und `test:cached --verify-hits`.
+Übernommen in den Runden 21 bis 24. Nicht übernommen: geteilter Remote-Testcache
+(Infrastruktur und Kosten), Evals mit bezahlten Modellen, Seeding aus einer
+Kopie der echten lokalen Datenbank (Datenschutz).
+
+### Runde 21: Eigene Ports für jeden Worktree
+
+6 von 30 geprüften Checkouts standen ohne Port-Lease auf 3000/8080; auch
+`wt`-Worktrees ließen `CATERER_URL` und `TRAEGER_URL` auf 3000.
+`scripts/worktree-ports.sh` (aus `dev-native.sh` und Bootstrap) vergibt einem
+verlinkten Worktree auf Default-Ports einen festen Slot aus dem Pfad-Hash auf
+dem Raster von `wt`, überspringt belegte Slots und zieht alte `localhost`-URLs
+nach. Probe mit frischem Worktree: Slot 93, 21 Zeilen umgeschrieben, zweiter
+Lauf ohne Änderung. #5441. Dazu die Regeln für die geteilte Maschine in
+`CLAUDE.md`: kein Beenden nach Muster, kein nacktes `git stash`, kein Prune
+fremder Ressourcen. Anlass war eigenes Verhalten während der Messungen
+(`pkill` auf eine Messschleife, ein verwaister Gate-Wartender blieb zurück).
+
+### Runde 22: Skips nur mit Grund
+
+15 Quell-Ratchets übersprangen sich still, wenn sie das Backend-Verzeichnis
+nicht fanden. Zwei Scheduler-Tests übersprangen ihren Fall in der
+Tagesend-Minute, vier Fixtures hatten Skips, die mit ihrem festen Datum nie
+greifen konnten. Ratchets scheitern jetzt, die Scheduler-Tests laufen in
+`synctest`, die Fixtures scheitern bei Bruch. `TestTestSkipRatchet` verlangt für
+jeden Skip `environment: …` oder `quarantine #Issue: …`. #5440. Der erste
+CI-Lauf scheiterte an der Hermetik-Regel für den Fixture-Quelltext;
+`ci-failures.mjs` zeigte genau die entscheidenden Zeilen.
+
+### Runde 23: Ein Befehl vor dem Push
+
+`scripts/check-changed.mjs` führt den Pre-Push-Gate im neuen `--worktree`-Modus
+(auch ungetrackte Dateien, Secret-Scan über Branch-Historie und Arbeitsbaum)
+und `test-changed.sh --fast` aus. Alle Anleitungen zeigen darauf.
+Erster Versuch mit parallelen Schritten unter Last 25 bis 30: 5 Guard-Tests
+liefen in ihr 5-s-Timeout. Parallel nur noch bei Last unter der halben
+CPU-Zahl. Probe mit Kommentaränderung in einem Blatt-Paket:
+
+| Lauf | Dauer | Ergebnis |
+| --- | ---: | --- |
+| frisch | 32 s | static 9,8 s, tests 20,7 s, grün |
+| unverändert | 0 s | letzte Zusammenfassung |
+| Stichprobe erzwungen | 23 s | grün |
+
+Eine ungetrackte Datei mit einem Token-Muster lässt den Worktree-Secret-Scan mit
+dem echten gitleaks scheitern. Vier Sol-Runden fanden unter anderem fehlende
+Env-Variablen und generierte Typen im Cache-Schlüssel, versteckte Pfade bei
+Umbenennungen (auch im Hook-Modus) und einen Schlüssel ohne HEAD, der eine
+committete und wieder entfernte Credential verdeckt hätte.
+
+### Runde 24: Stichproben gegen falsche Cache-Treffer
+
+Pre-Push-Cache, Guard-Cache und `check-changed` führen einen Anteil ihrer
+Treffer trotzdem aus (`PHX_CACHE_VERIFY_RATE`, Standard 5 %). Scheitert die
+Prüfung, verschwindet der gespeicherte Pass und die Meldung nennt den Schlüssel
+als Ursache. Tests mit Rate 1 belegen das für alle drei Caches.
+
 ## Verworfen
 
 - Frontend-Guards bei Backend-Änderungen verkleinern: Die 45 Guard-Dateien sind
@@ -478,6 +540,7 @@ Erledigt aus dieser Liste: Bundle-Obergrenzen nahe der Basis (#5400, Neubasierun
 nach Entscheidung des Nutzers in #5396), Heavy-Gate nach Last gewichtet (Runde 10),
 Query-Budget-Paket (Runde 12), CI-Fehlerbericht und Guard-Inventar im Pre-Push
 (Runde 14), begrenzte Go-Testausgabe (Runde 16), DOM-freie Tests auf node
-(Runde 17), Guard-Cache (Runde 18), Server-Besitzer bei E2E (Runde 19).
-Verworfen: Seed-Cache (Runde 11), `-p 4` auf macOS (Runde 13), `deadcode` im
+(Runde 17), Guard-Cache (Runde 18), Server-Besitzer bei E2E (Runde 19),
+Ports pro Worktree (Runde 21), Skip-Ratchet (Runde 22), `check-changed`
+(Runde 23), Cache-Stichproben (Runde 24). Verworfen: Seed-Cache (Runde 11), `-p 4` auf macOS (Runde 13), `deadcode` im
 Pre-Push (Runde 15).

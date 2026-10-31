@@ -4,7 +4,7 @@ import { formatDate } from "../src/lib/date-helpers";
 
 /**
  * Wählt ein Datum im Kit-Datumsfeld (ISODatePicker, seit c21828f2f8 statt
- * `<input type="date">`): Feld öffnen, bei Bedarf zum Zielmonat blättern,
+ * `<input type="date">`): Feld öffnen, bei Bedarf einen Monat vor- oder zurückblättern,
  * den Tag anklicken. Der Kalender rendert per Portal, daher page-weit greifen.
  * Das Tagesraster lädt nach (lazy react-day-picker), und ein Klick während der
  * Hydration öffnet das Feld nicht, und ein Feld rendert nach der Auswahl im
@@ -21,17 +21,17 @@ export async function pickDate(page: Page, trigger: Locator, iso: string) {
     }
     await expect(grid).toBeVisible({ timeout: 2000 });
     if ((await day.count()) === 0) {
-      const visibleDay = await page
+      // The field opens on today's month; a day of the week before can lie
+      // in the previous month (a weekend at a month's start).
+      const shown = await page
         .locator("td[data-day]:not([data-outside])")
         .first()
-        .getAttribute("data-day");
-      if (!visibleDay) throw new Error("Calendar has no current-month day");
-      const direction =
-        iso.slice(0, 7) < visibleDay.slice(0, 7)
-          ? "Vorheriger Monat"
-          : "Nächster Monat";
+        .getAttribute("data-day", { timeout: 2000 });
+      const earlier = (shown ?? "").slice(0, 7) > iso.slice(0, 7);
       await page
-        .getByRole("button", { name: direction })
+        .getByRole("button", {
+          name: earlier ? "Vorheriger Monat" : "Nächster Monat",
+        })
         .click({ timeout: 2000 });
     }
     await day.click({ timeout: 2000 });

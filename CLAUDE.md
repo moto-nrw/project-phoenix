@@ -34,6 +34,14 @@ All paths below are relative to the repository root.
   [.claude/rules/no-production-requests.md](.claude/rules/no-production-requests.md)
   before constructing requests; never target staging or production domains.
   The seeder is dev-only; production infrastructure uses migrations or admin UI.
+- **Shared machine:** several agents and worktrees run here at once. Never
+  stop a process found by name, path or port pattern (`pkill -f`,
+  `pgrep | xargs kill`, `killall`); your own agent's command line contains the
+  same paths. Stop only PIDs you started, or a listener whose `lsof` cwd is your
+  worktree. Never use bare `git stash` (one stack for all worktrees), and never
+  prune, `down -v` or drop Docker volumes, networks or databases of another
+  checkout or of the shared test database. Details:
+  [shared resources](docs/agents/operations.md#shared-machine-resources).
 - **Secrets:** keep credentials out of source and output. Edit deployed envs
   only through SOPS, not ciphertext or SSH `.env` edits. Read
   [.claude/rules/security/hardcoded-credentials.md](.claude/rules/security/hardcoded-credentials.md).
@@ -89,7 +97,7 @@ Tools belong in Devbox; do not depend on unrecorded global installations.
 |---|---|
 | Frontend | `cd frontend && pnpm run check` — zero warnings; relevant behavior tests |
 | Backend | Relevant tests via `scripts/run-go-toolchain.sh`; architecture migration checks in backend/CLAUDE.md |
-| Code before push | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development`; CI runs the full affected closure |
+| Code before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs`: CI's fast static checks and the affected tests, uncommitted files included; CI runs the full affected closure |
 | Fix for a red PR check | `node scripts/ci-failures.mjs` names the failed step and its local command; see it fail and pass locally before pushing again |
 | User-visible | Verständlichkeit checklist recorded in PR; UI screenshot and help-guide requirements from the matching rules |
 | Docs/hooks only | `node scripts/check-agent-context.mjs` and `node --test scripts/check-agent-context.test.mjs`; verify changed hook behavior |

@@ -4,7 +4,11 @@ import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
 import { TraegerAnalyticsSession } from "~/components/analytics/traeger-analytics-session";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
-import { SessionAccountBinding } from "~/components/auth/session-account-binding";
+import {
+  SessionAccountBinding,
+  useSessionPollInterval,
+} from "~/components/auth/session-account-binding";
+import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { traegerPath } from "~/lib/traeger-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
@@ -27,14 +31,16 @@ export function TraegerProviders({
   children,
   session,
 }: Readonly<{ children: React.ReactNode; session?: Session | null }>) {
+  const pollSeconds = useSessionPollInterval(4 * 60);
   return (
     <SessionProvider
       basePath="/api/traeger/auth"
       session={session ?? undefined}
-      refetchInterval={4 * 60}
+      refetchInterval={pollSeconds}
       refetchOnWindowFocus={false}
     >
       <SessionAccountBinding />
+      <SessionEndBarrier />
       <PersonalStorageGuard homeHref={traegerHome} />
       <SWRScopeBoundary />
       <TraegerAnalyticsSession />
