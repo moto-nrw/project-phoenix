@@ -75,12 +75,35 @@ describe("ActivityWaitlistSection", () => {
       screen.getByRole("heading", { name: "Plätze und Warteliste" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("8 von 8 Plätzen vergeben · 0 frei"),
+      screen.getByText(
+        "Für die nächste Anfrage: 8 von 8 Plätzen vergeben · 0 frei",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("Emma Klein, Zeynep Çelik")).toBeInTheDocument();
     expect(screen.getByRole("list", { name: "Warteliste" }).textContent).toBe(
       "1.Lina Amini",
     );
+  });
+
+  it("trennt heutige Teilnehmende von Plätzen für die nächste Anfrage", () => {
+    state.waitlists = [
+      {
+        ...theater,
+        participants: 0,
+        freeSlots: 8,
+        slotFreeForNext: true,
+      },
+    ];
+
+    render(<ActivityWaitlistSection activityId="70" />);
+
+    expect(
+      screen.getByText(
+        "Für die nächste Anfrage: 0 von 8 Plätzen vergeben · 8 frei",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Heute dabei:")).toBeInTheDocument();
+    expect(screen.getByText("Emma Klein, Zeynep Çelik")).toBeInTheDocument();
   });
 
   it("lädt ohne Recht zum Entscheiden nichts und zeigt nichts", () => {
@@ -109,7 +132,9 @@ describe("ActivityWaitlistSection", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByText("8 von 8 Plätzen vergeben · 0 frei"),
+      screen.queryByText(
+        "Für die nächste Anfrage: 8 von 8 Plätzen vergeben · 0 frei",
+      ),
     ).not.toBeInTheDocument();
   });
 });

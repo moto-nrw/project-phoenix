@@ -52,7 +52,7 @@ export function ActivityWaitlistSection({
         Plätze und Warteliste
       </h3>
       <p className="mt-0.5 mb-3 text-xs text-gray-500">
-        Wer dabei ist und wer auf einen Platz wartet.
+        Heute dabei und freie Plätze für die nächste Anfrage.
       </p>
       {loadError ? (
         <LoadErrorAlert error={loadError} actionLayout="responsive" />

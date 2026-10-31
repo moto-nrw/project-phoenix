@@ -77,7 +77,7 @@ export function useOpenedFromWaitlist(requestId: string): boolean {
 
 function freeSlotSentence(waitlist: CourseWaitlist): string {
   const next = waitlist.entries[0];
-  return `In „${waitlist.name}“ ist ein Platz frei. Als Nächstes ist ${next?.studentName ?? "ein Kind"} dran.`;
+  return `Für die nächste Anfrage in „${waitlist.name}“ ist ein Platz frei. Als Nächstes ist ${next?.studentName ?? "ein Kind"} dran.`;
 }
 
 /**
@@ -262,10 +262,12 @@ export function CourseWaitlistSummary({
       : `${waitlist.participants} von ${limit} Plätzen vergeben · ${waitlist.freeSlots ?? 0} frei`;
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-gray-700">{occupancy}</p>
+      <p className="text-sm text-gray-700">
+        Für die nächste Anfrage: {occupancy}
+      </p>
       {participantNames && participantNames.length > 0 && (
         <p className="text-sm text-gray-700">
-          <span className="text-gray-500">Teilnehmende: </span>
+          <span className="text-gray-500">Heute dabei: </span>
           {participantNames.join(", ")}
         </p>
       )}
