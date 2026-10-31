@@ -49,7 +49,6 @@ import {
   parentConferenceFieldErrors,
   parentConferenceRequest,
   parentConferenceWindowLabel,
-  SCHOOL_PARENT_CONFERENCES_KEY,
   updateSchoolParentConference,
   type ParentConference,
   type ParentConferenceDraft,
@@ -58,6 +57,7 @@ import {
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 
 const logger = createLogger({ component: "SchoolParentConferencePage" });
 
@@ -136,7 +136,7 @@ function SchoolParentConferences() {
   const toast = useToast();
 
   const { data, error, isLoading, mutate } = useSWRAuth(
-    session ? SCHOOL_PARENT_CONFERENCES_KEY : null,
+    session ? schoolPortalKeys.parentConferences() : null,
     fetchSchoolParentConferences,
   );
   const loadError = useSwrLoadError(error, "Ihre Elternsprechtage", () =>

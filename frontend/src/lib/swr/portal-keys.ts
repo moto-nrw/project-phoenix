@@ -99,6 +99,7 @@ export const schoolPortalKeys = {
     `school-absence-list-${schoolClass}-${from}-${to}`,
 } as const;
 
+  parentConferences: () => "school-parent-conferences",
 export const weekProtocolKeys = {
   list: (groupId?: string | null) =>
     `week-protocols-${encodeURIComponent(groupId ?? "all")}`,
