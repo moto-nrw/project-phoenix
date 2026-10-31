@@ -384,7 +384,10 @@ jobs:
         # Changed-only PRs keep one DOM job. Full suites split its files with
         # Vitest's built-in sharding, retaining four workers per DOM runner.
         project: ${{ fromJSON(inputs.frontend-guards-only && '["guards"]' || (!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
-    runs-on: ${{ (matrix.project == 'node' || matrix.project == 'guards') && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
+    # Four vCPUs give Vitest two workers, so a DOM shard takes about twice as
+    # long at half the per-minute price: same cost. It still finishes before
+    # frontend-build, which sets the wall-clock time of frontend pull requests.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
 

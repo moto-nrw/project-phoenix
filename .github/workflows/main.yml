@@ -495,9 +495,9 @@ jobs:
       || needs.detect-changes.outputs.run-backend-architecture == 'true'
     needs: detect-changes
     # Type-checking base and head is CPU-bound: 4-5 minutes on a standard
-    # runner made this job the last to finish. Blacksmith keeps it below the
-    # test suites, which set the pull request's wall-clock time.
-    runs-on: blacksmith-8vcpu-ubuntu-2404
+    # runner made this job the last to finish. Four Blacksmith vCPUs keep it
+    # below the test suites, which set the pull request's wall-clock time.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       issues: read
