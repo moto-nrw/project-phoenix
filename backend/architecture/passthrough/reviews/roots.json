@@ -1127,8 +1127,23 @@
     },
     {
       "decision": "0090",
+      "id": "api/weekProtocolAttendance.GroupDayAttendance",
+      "reason": "Binds the weekly protocol's attendance port to the presence projection's group day logs and translates each log into Timetable's group day, naming every missing child by first and last name."
+    },
+    {
+      "decision": "0090",
+      "id": "api/weekProtocolAttendance.SchoolDayAttendance",
+      "reason": "Binds the weekly protocol's whole-school day (#5401) to the presence projection's school day log and translates it into Timetable's day with the same mapping as a group, so an open-care school counts every child of the day once."
+    },
+    {
+      "decision": "0090",
       "id": "api/weekProtocolSeedAttendance.GroupDayAttendance",
       "reason": "The development-only seed adapter reads the current day from the live attendance projection while recording its sample data on Sunday, so the local seed can demonstrate draft and PDF states without weakening the production projection."
+    },
+    {
+      "decision": "0090",
+      "id": "api/weekProtocolSeedAttendance.SchoolDayAttendance",
+      "reason": "The development-only seed adapter reads the current day's whole-school log from the live attendance projection while recording its sample data on Sunday (#5401), like its group read, without weakening the production projection."
     },
     {
       "decision": "0090",

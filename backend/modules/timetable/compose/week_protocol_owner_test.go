@@ -28,7 +28,9 @@ func weekProtocolEvening(day calendar.Date) time.Time {
 }
 
 // weekProtocolSources fakes what the evening run reads outside the owner:
-// the groups, the day log by day and the calendar.
+// the groups, the day log by day and the calendar. An entry without a group
+// (GroupID 0) stands for children without a group: only the whole school's
+// day log sees them.
 type weekProtocolSources struct {
 	groups    []timetable.WeekProtocolGroup
 	openCare  bool
@@ -54,6 +56,23 @@ func (s *weekProtocolSources) GroupDayAttendance(_ context.Context, day calendar
 	return result, nil
 }
 
+// SchoolDayAttendance is the whole school's day: every child of the day
+// once, in a group or not.
+func (s *weekProtocolSources) SchoolDayAttendance(_ context.Context, day calendar.Date) (timetable.WeekProtocolGroupDay, error) {
+	s.attendCnt++
+	school := timetable.WeekProtocolGroupDay{Missing: []timetable.WeekProtocolMissingChild{}}
+	for _, groupDay := range s.days[day] {
+		school.StudentIDs = append(school.StudentIDs, groupDay.StudentIDs...)
+		school.Present += groupDay.Present
+		school.Sick += groupDay.Sick
+		school.Excused += groupDay.Excused
+		school.ClassTrip += groupDay.ClassTrip
+		school.Absent += groupDay.Absent
+		school.Missing = append(school.Missing, groupDay.Missing...)
+	}
+	return school, nil
+}
+
 func (s *weekProtocolSources) TenantHolidayDates(context.Context, string, string) (map[string]bool, error) {
 	return s.holidays, nil
 }
@@ -68,6 +87,7 @@ func (s *weekProtocolSources) ClosingDayDates(context.Context, string, string) (
 type weekProtocolPDFs struct {
 	rendered int
 	fail     bool
+	last     timetable.WeekProtocolReportDocument
 }
 
 func (r *weekProtocolPDFs) RenderReport(doc timetable.WeekProtocolReportDocument, filenameBase string) (timetable.WeekProtocolReportFile, error) {
@@ -75,6 +95,7 @@ func (r *weekProtocolPDFs) RenderReport(doc timetable.WeekProtocolReportDocument
 		return timetable.WeekProtocolReportFile{}, errors.New("renderer down")
 	}
 	r.rendered++
+	r.last = doc
 	return timetable.WeekProtocolReportFile{
 		Data:        []byte(fmt.Sprintf("%%PDF %s #%d", doc.Subtitle, r.rendered)),
 		ContentType: "application/pdf", Filename: filenameBase + ".pdf",
@@ -319,6 +340,64 @@ func TestWeekProtocolOfASchoolWithoutGroups(t *testing.T) {
 	assert.Equal(t, 7, monday.Present, "the groups add up")
 	require.Len(t, monday.Blocks, 1)
 	assert.Equal(t, timetable.WeekProtocolBlock{Title: "Fußball", StartTime: "14:00", EndTime: "15:00", Status: timetable.InstanceStatusCancelled, CancelReason: "Regen"}, monday.Blocks[0])
+}
+
+// A school in open care without any OGS group (#5401): the school's
+// protocol counts every child of the day, though none has a group, and the
+// PDF stored on closing carries the same numbers.
+func TestWeekProtocolOfAnOpenCareSchoolCountsChildrenWithoutGroup(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, ctx := buildModule(t, db), testpkg.Ctx(t)
+	sources := &weekProtocolSources{openCare: true}
+	sources.days = map[calendar.Date][]timetable.WeekProtocolGroupDay{weekProtocolFriday: {{
+		StudentIDs: []int64{1, 2, 3, 4}, Present: 2, Sick: 1, Absent: 1,
+		Missing: []timetable.WeekProtocolMissingChild{
+			missingChild(4, "Ole Lang", timetable.WeekProtocolAbsenceAbsent, "Fehlt ohne Abmeldung"),
+			missingChild(3, "Mia Kurz", timetable.WeekProtocolAbsenceSick, "Krank"),
+		},
+	}}}
+
+	result := runWeekProtocolEvening(t, module, ctx, weekProtocolEvening(weekProtocolFriday), sources.of(db))
+	assert.Equal(t, 1, result.DaysCaptured)
+	assert.Empty(t, result.SkippedReason)
+	listed, err := module.ListWeekProtocols(ctx, weekProtocolLeadership, timetable.WeekProtocolFilter{})
+	require.NoError(t, err)
+	require.Len(t, listed, 1)
+	assert.Equal(t, timetable.WeekProtocolScopeSchool, listed[0].Scope)
+	protocol, err := module.OpenWeekProtocol(ctx, weekProtocolLeadership, listed[0].ID)
+	require.NoError(t, err)
+	friday := weekProtocolDay(protocol, weekProtocolFriday).Facts
+	require.NotNil(t, friday)
+	assert.Equal(t, 2, friday.Present, "the children without a group who came count")
+	assert.Equal(t, 1, friday.Sick)
+	assert.Equal(t, 1, friday.Absent)
+	assert.Equal(t, []timetable.WeekProtocolMissingChild{
+		missingChild(3, "Mia Kurz", timetable.WeekProtocolAbsenceSick, "Krank"),
+		missingChild(4, "Ole Lang", timetable.WeekProtocolAbsenceAbsent, "Fehlt ohne Abmeldung"),
+	}, friday.Missing)
+
+	pdfs := &weekProtocolPDFs{}
+	_, err = module.CloseWeekProtocol(ctx, weekProtocolLeadership, protocol.ID, timetable.WeekProtocolActor{AccountID: 1, Name: "Lea Leitung"}, pdfs)
+	require.NoError(t, err)
+	require.Equal(t, 1, pdfs.rendered)
+	var fridaySection *timetable.WeekProtocolReportSection
+	for index := range pdfs.last.Sections {
+		if pdfs.last.Sections[index].Title == "Freitag, 10.09.2027" {
+			fridaySection = &pdfs.last.Sections[index]
+		}
+	}
+	require.NotNil(t, fridaySection, "the stored PDF shows Friday")
+	attendance := fridaySection.Cards[0]
+	assert.Equal(t, "Anwesenheit", attendance.Title)
+	assert.Equal(t, []timetable.WeekProtocolReportField{
+		{Label: "Anwesend", Value: "2"}, {Label: "Krank", Value: "1"}, {Label: "Entschuldigt", Value: "0"},
+		{Label: "Klassenfahrt", Value: "0"}, {Label: "Unentschuldigt", Value: "1"},
+	}, attendance.Fields)
+	require.Len(t, attendance.Blocks, 1)
+	assert.Equal(t, []timetable.WeekProtocolReportField{
+		{Label: "Mia Kurz", Value: "Krank"}, {Label: "Ole Lang", Value: "Unentschuldigt"},
+	}, attendance.Blocks[0].Fields, "the PDF names the missing children")
 }
 
 // Notes and closing: only a draft takes notes and is closed, the reach

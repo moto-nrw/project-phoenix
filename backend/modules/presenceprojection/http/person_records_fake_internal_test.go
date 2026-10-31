@@ -41,6 +41,10 @@ func (f personRecordsFake) ListStudentsForDay(ctx context.Context, groupIDs []in
 	return f.listStudentsForDay(ctx, groupIDs, date, today)
 }
 
+func (personRecordsFake) ListSchoolStudentsForDay(context.Context, calendar.Date, calendar.Date) ([]peopleModule.StudentRecord, error) {
+	return nil, errPersonRecordsFakeUnset
+}
+
 func (personRecordsFake) StaffIDForPerson(context.Context, int64) (int64, bool, error) {
 	return 0, false, errPersonRecordsFakeUnset
 }
