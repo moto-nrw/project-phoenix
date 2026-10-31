@@ -229,7 +229,8 @@ function guardsKey() {
       env: Object.entries(process.env).filter(([name]) =>
         /^(NEXT_|NEXTAUTH_|AUTH_|API_URL$|TENANT_DOMAIN$|NODE_OPTIONS$|NODE_ENV$|TZ$|CI$|VITEST)/.test(name)).sort(),
     }));
-    for (const file of [".env", ".env.local", ".env.development", ".env.development.local",
+    // Vitest loads the test-mode env files; next dev ones are hashed as well.
+    for (const file of [".env", ".env.local", ".env.test", ".env.test.local", ".env.development", ".env.development.local",
       "node_modules/.modules.yaml", "node_modules/.pnpm/lock.yaml"]) {
       hash.update(file).update(existsSync(join(cwd, file)) ? readFileSync(join(cwd, file)) : "<absent>");
     }
