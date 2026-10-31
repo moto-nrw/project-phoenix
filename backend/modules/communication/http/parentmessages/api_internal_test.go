@@ -55,6 +55,31 @@ func TestParentMessageHTTPErrorContract(t *testing.T) {
 	}
 }
 
+// Switching messaging off preserves read access, unlike an access refusal.
+func TestParentMessagingDisabledCode(t *testing.T) {
+	t.Parallel()
+	for _, renderError := range []func(http.ResponseWriter, *http.Request, error){renderMessagingError, renderGroupThreadError} {
+		for _, test := range []struct {
+			err  error
+			code string
+		}{
+			{communication.ErrParentMessagingDisabled, "communication.parent_messaging_disabled"},
+			{communication.ErrParentMessagingForbidden, "general.permission"},
+		} {
+			recorder := httptest.NewRecorder()
+			renderError(recorder, httptest.NewRequest(http.MethodPost, "/", nil), test.err)
+			require.Equal(t, http.StatusForbidden, recorder.Code)
+			var problem struct {
+				Code   string `json:"code"`
+				Status int    `json:"status"`
+			}
+			require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &problem))
+			assert.Equal(t, test.code, problem.Code)
+			assert.Equal(t, http.StatusForbidden, problem.Status)
+		}
+	}
+}
+
 // countScopeService records the scope the handler passes on and answers with
 // a fixed one.
 type countScopeService struct {

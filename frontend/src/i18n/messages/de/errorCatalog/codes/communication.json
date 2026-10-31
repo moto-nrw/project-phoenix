@@ -24,5 +24,6 @@
   "staff_group_manage_forbidden": "Nur wer den Gruppenchat angelegt hat und die OGS-Leitung können ihn ändern.",
   "staff_group_name_invalid": "Bitte geben Sie dem Gruppenchat einen Namen mit höchstens {max_characters} Zeichen.",
   "staff_group_members_required": "Bitte wählen Sie mindestens eine Person aus, die noch nicht in der Gruppe ist.",
-  "staff_group_too_large": "Ein Gruppenchat hat höchstens {max_members} Mitglieder."
+  "staff_group_too_large": "Ein Gruppenchat hat höchstens {max_members} Mitglieder.",
+  "parent_messaging_disabled": "Die Schule hat Eltern-Nachrichten ausgeschaltet. Sie können den Verlauf weiterhin lesen, aber keine Nachrichten senden."
 }

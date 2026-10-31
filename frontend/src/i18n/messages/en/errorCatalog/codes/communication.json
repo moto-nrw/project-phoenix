@@ -24,5 +24,6 @@
   "staff_group_manage_forbidden": "Only the person who started the group chat and the leadership can change it.",
   "staff_group_name_invalid": "Please give the group chat a name of at most {max_characters} characters.",
   "staff_group_members_required": "Please choose at least one person who is not in the group yet.",
-  "staff_group_too_large": "A group chat has at most {max_members} members."
+  "staff_group_too_large": "A group chat has at most {max_members} members.",
+  "parent_messaging_disabled": "The school has turned off parent messaging. You can still read the conversation, but cannot send messages."
 }

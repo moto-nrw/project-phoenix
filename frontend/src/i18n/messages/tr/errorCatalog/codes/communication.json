@@ -24,5 +24,6 @@
   "staff_group_manage_forbidden": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "staff_group_name_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "staff_group_members_required": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-  "staff_group_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+  "staff_group_too_large": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "parent_messaging_disabled": "Okul veli mesajlaşmasını kapattı. Konuşmayı okumaya devam edebilirsiniz, ancak mesaj gönderemezsiniz."
 }

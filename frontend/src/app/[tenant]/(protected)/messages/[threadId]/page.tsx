@@ -45,6 +45,7 @@ import {
   type Message,
   type ThreadDetail,
   fetchThread,
+  isParentMessagingDisabled,
   markThreadUnread,
   postMessage,
   readersLabel,
@@ -113,7 +114,9 @@ function MessageThreadContent() {
   // "Neue Nachricht" entry on the same flag; mirror it here so an existing
   // thread renders read-only instead of dead-ending staff on send. History
   // stays visible.
-  const messagingEnabled = tenant?.messagingEnabled === true;
+  const [disabledThreadId, setDisabledThreadId] = useState<string>();
+  const messagingEnabled =
+    tenant?.messagingEnabled === true && disabledThreadId !== threadId;
 
   const seedFrom = useSWRSeedFrom();
   const leavingAsUnreadRef = useRef(false);
@@ -351,7 +354,7 @@ function MessageThreadContent() {
 
   const handleSend = async () => {
     const body = draft.trim();
-    if (!body || isSending) return;
+    if (!body || isSending || !messagingEnabled) return;
     if (snapshotUnavailable) {
       sendError.invalid(
         "Bitte warten Sie, bis der Nachrichtenverlauf geladen ist.",
@@ -407,6 +410,10 @@ function MessageThreadContent() {
     });
     if (outcome.refused) {
       setRefusal({ id: threadId, error: err });
+      return;
+    }
+    if (isParentMessagingDisabled(err)) {
+      setDisabledThreadId(threadId);
       return;
     }
     void sendError.show(err, {
