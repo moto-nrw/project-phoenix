@@ -1,6 +1,6 @@
 {
   "scenario": "api.students.course_waitlists.list",
-  "max": 14,
+  "max": 15,
   "exact": false,
-  "description": "api/students — GET /offering-change-requests/course-waitlists (#4767)\nover four open course requests for two AGs. Every fact the rank rule\nreads (requests, children, care periods, bookings, offerings, course groups,\noccupancy, names) is one batched read, so the count does not move with the queue."
+  "description": "api/students — GET /offering-change-requests/course-waitlists (#4767)\nover four open course requests for two AGs. Every fact the rank rule\nreads (requests, review scope, students, children, care periods, bookings,\nofferings, course groups, occupancy, names) is one batched read, so the count\ndoes not move with the queue."
 }

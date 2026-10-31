@@ -5938,6 +5938,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (s offeringChangeStudents) FindStudents(ctx context.Context, ids []int64) (map[int64]carePlanCompose.ReviewStudent, error) {\n\trows, err := s.students.FindByIDs(ctx, ids)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tstudents := make(map[int64]carePlanCompose.ReviewStudent, len(rows))\n\tfor id, row := range rows {\n\t\tif student := offeringReviewStudent(row); student != nil {\n\t\t\tstudents[id] = *student\n\t\t}\n\t}\n\treturn students, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/offeringChangeStudents.FindStudents",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s offeringChangeStudents) HasPendingWithdrawalCompletion(ctx context.Context, studentID int64) (bool, error) {\n\tif s.withdrawals == nil {\n\t\treturn false, nil\n\t}\n\t_, total, err := s.withdrawals.ListPending(ctx, careplan.WithdrawalListFilter{StudentID: studentID, Page: 1, PageSize: 1})\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn total \u003e 0, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/offeringChangeStudents.HasPendingWithdrawalCompletion",

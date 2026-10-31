@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -170,6 +171,9 @@ func TestCourseWaitlistsRespectReviewerGroupScope(t *testing.T) {
 	visible := createCourseWaitlistRequest(t, tc, courseGroup.ID, "Sichtbar", "Kind")
 	testpkg.AssignStudentToGroup(t, tc.db, hidden.studentID, hiddenGroup.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, visible.studentID, visibleGroup.ID)
+	require.NoError(t, tc.settings().SetValue(
+		testpkg.Ctx(t), settings.KeyParentRequestReviewScope, settings.ParentRequestReviewScopeGroupLeaders, nil, nil,
+	))
 
 	waitlist := waitlistFor(fetchCourseWaitlists(t, tc, testutil.TeacherTestClaims(int(account.ID)), ""), courseGroup.ID)
 	require.NotNil(t, waitlist)
