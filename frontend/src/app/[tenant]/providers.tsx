@@ -6,7 +6,10 @@ import { SessionProvider, useSession } from "next-auth/react";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
-import { SessionAccountBinding } from "~/components/auth/session-account-binding";
+import {
+  SessionAccountBinding,
+  useSessionPollInterval,
+} from "~/components/auth/session-account-binding";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
@@ -213,6 +216,8 @@ export function TenantProviders({
   }, [shell, tenantSlug]);
   // The seed belongs to the session the server rendered with.
   const seedGeneration = authGeneration(session);
+  // A logout stops the poll at once (#5399).
+  const pollSeconds = useSessionPollInterval(SESSION_PROVIDER_POLL_SECONDS);
 
   const providers = (
     <ShellSeedProvider value={shell}>
@@ -235,7 +240,7 @@ export function TenantProviders({
   return (
     <SessionProvider
       session={session ?? undefined}
-      refetchInterval={SESSION_PROVIDER_POLL_SECONDS}
+      refetchInterval={pollSeconds}
       refetchOnWindowFocus={false}
     >
       <SessionAccountBinding />

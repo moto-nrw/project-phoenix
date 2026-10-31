@@ -7,6 +7,7 @@ import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { problemResponse } from "~/lib/api-response-error.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
+import { withoutSessionCookies } from "~/server/auth/session-cookie-writes";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "LoginRoute" });
@@ -178,8 +179,11 @@ export function createLoginRoute(path: string, options: LoginOptions) {
           response = json({ status: "authenticated" });
         }
       }
-      // Includes trusted-device creation/expiry, independent of the Auth.js cookie.
-      for (const cookie of backend.headers.getSetCookie())
+      // Includes trusted-device creation/expiry, independent of the Auth.js
+      // cookie; a session cookie leaves only via its gate (#5399).
+      for (const cookie of withoutSessionCookies(
+        backend.headers.getSetCookie(),
+      ))
         response.headers.append("Set-Cookie", cookie);
       return response;
     } catch (error) {
