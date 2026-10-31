@@ -36,7 +36,7 @@ const OTHER_TAB_HOLD_MS = 15_000;
 let closedBy: "self" | "other" | null = null;
 let reopenAfterDeletion = true;
 let epoch = new AbortController();
-let waiters: (() => void)[] = [];
+const waiters = new Set<() => void>();
 let otherTabTimer: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<() => void>();
 let channel: BroadcastChannel | undefined;
@@ -47,7 +47,8 @@ function setClosed(owner: typeof closedBy) {
     epoch = new AbortController();
   } else {
     clearTimeout(otherTabTimer);
-    for (const resume of waiters.splice(0)) resume();
+    for (const resume of waiters) resume();
+    waiters.clear();
   }
   closedBy = owner;
   for (const listener of listeners) listener();
@@ -93,6 +94,7 @@ export function beginSessionEnd({
   keepClosed = false,
 }: { keepClosed?: boolean } = {}): SessionEnd {
   listenForSessionEnds();
+  clearTimeout(otherTabTimer);
   reopenAfterDeletion = !keepClosed;
   setClosed("self");
   channel?.postMessage("begin");
@@ -107,9 +109,9 @@ export function beginSessionEnd({
   };
 }
 
-/** The exit's own requests: revocation, CSRF, signout, preview end, push. */
+/** The exit's auth requests: revocation, CSRF, signout and preview end. */
 const EXIT_PATH =
-  /^\/api\/(?:[a-z]+\/)?(?:auth\/(?:logout|csrf|signout|staff-preview\/end)$|.*\/push\/subscriptions$)/;
+  /^\/api\/(?:[a-z]+\/)?auth\/(?:logout|csrf|signout|staff-preview\/end)$/;
 
 /**
  * Sends one fetch through the barrier. Requests to other origins and paths
@@ -125,7 +127,11 @@ export async function fetchThroughSessionBarrier(
   const raw = isRequest ? input.url : input.toString();
   if (!isOwnApiUrl(raw)) return send(input, init);
   const { pathname } = new URL(raw, location.origin);
-  if (EXIT_PATH.test(pathname)) {
+  const method = init?.method ?? (isRequest ? input.method : "GET");
+  const pushCleanup =
+    method.toUpperCase() === "DELETE" &&
+    pathname.endsWith("/push/subscriptions");
+  if (EXIT_PATH.test(pathname) || pushCleanup) {
     const response = await send(input, init);
     // The signout answer deleted the session cookie.
     if (pathname.endsWith("/signout") && response.ok && closedBy === "self") {
@@ -136,11 +142,23 @@ export async function fetchThroughSessionBarrier(
   }
 
   const callerSignal = init?.signal ?? (isRequest ? input.signal : undefined);
-  const method = init?.method ?? (isRequest ? input.method : "GET");
   const repeatable = /^(GET|HEAD)$/i.test(method);
   for (;;) {
-    // A caller that gave up meanwhile fails as soon as its fetch starts.
-    if (closedBy) await new Promise<void>((resume) => waiters.push(resume));
+    callerSignal?.throwIfAborted();
+    if (closedBy) {
+      await new Promise<void>((resolve, reject) => {
+        const resume = () => {
+          callerSignal?.removeEventListener("abort", cancel);
+          resolve();
+        };
+        const cancel = () => {
+          waiters.delete(resume);
+          reject(callerSignal?.reason);
+        };
+        waiters.add(resume);
+        callerSignal?.addEventListener("abort", cancel, { once: true });
+      });
+    }
     const ending = epoch.signal;
     try {
       return await send(repeatable && isRequest ? input.clone() : input, {
@@ -160,7 +178,7 @@ export function resetSessionBarrierForTests() {
   closedBy = null;
   reopenAfterDeletion = true;
   epoch = new AbortController();
-  waiters = [];
+  waiters.clear();
   clearTimeout(otherTabTimer);
   listeners.clear();
   channel?.close();

@@ -134,6 +134,40 @@ describe("session-end barrier", () => {
     void held;
   });
 
+  it.each([
+    "/api/notifications/push/subscriptions",
+    "/api/parent/me/push/subscriptions",
+    "/api/school/notifications/push/subscriptions",
+  ])(
+    "aborts running push registration and holds new registration at %s",
+    async (path) => {
+      const running = through(path, { method: "POST", body: "{}" });
+      expect(sent).toHaveLength(1);
+      const rejected = expect(running).rejects.toMatchObject({
+        name: "AbortError",
+      });
+
+      const end = beginSessionEnd();
+      await rejected;
+      expect(sent[0]!.signal?.aborted).toBe(true);
+      const held = fetchThroughSessionBarrier(
+        send,
+        new Request(new URL(path, location.origin), {
+          method: "POST",
+          body: "{}",
+        }),
+      );
+      await flush();
+      expect(sent).toHaveLength(1);
+
+      end.fail();
+      await flush();
+      expect(sent).toHaveLength(2);
+      sent[1]!.answer();
+      await held;
+    },
+  );
+
   it("leaves other origins and non-API paths alone", async () => {
     beginSessionEnd();
 
@@ -186,6 +220,48 @@ describe("session-end barrier", () => {
     await expect(held).rejects.toMatchObject({ name: "AbortError" });
   });
 
+  it.each([false, true])(
+    "cancels a queued request before reopening (Request signal: %s)",
+    async (asRequest) => {
+      const end = beginSessionEnd({ keepClosed: true });
+      const caller = new AbortController();
+      const input = asRequest
+        ? new Request(new URL("/api/me/profile", location.origin), {
+            signal: caller.signal,
+          })
+        : "/api/me/profile";
+      const held = fetchThroughSessionBarrier(
+        send,
+        input,
+        asRequest ? undefined : { signal: caller.signal },
+      );
+      const reason = new DOMException("Caller cancelled", "AbortError");
+      const rejected = expect(held).rejects.toBe(reason);
+
+      caller.abort(reason);
+
+      await rejected;
+      expect(isSessionBarrierClosed()).toBe(true);
+      end.fail();
+      const active = through("/api/auth/session");
+      await flush();
+      expect(sent.map(({ url }) => url)).toEqual(["/api/auth/session"]);
+      sent[0]!.answer();
+      await active;
+    },
+  );
+
+  it("rejects an already cancelled request while the barrier stays closed", async () => {
+    beginSessionEnd({ keepClosed: true });
+    const caller = new AbortController();
+    caller.abort();
+
+    await expect(
+      through("/api/me/profile", { signal: caller.signal }),
+    ).rejects.toBe(caller.signal.reason);
+    expect(isSessionBarrierClosed()).toBe(true);
+  });
+
   describe("another tab of this origin", () => {
     it("closes with the other tab's logout and opens when it reports the end", async () => {
       listenForSessionEnds();
@@ -216,6 +292,25 @@ describe("session-end barrier", () => {
 
       await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(false));
       tab.close();
+    });
+
+    it("keeps local ownership past the other tab's timeout", async () => {
+      vi.useFakeTimers();
+      listenForSessionEnds();
+      const tab = otherTab();
+      try {
+        tab.post("begin");
+        await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
+        const end = beginSessionEnd({ keepClosed: true });
+
+        await vi.advanceTimersByTimeAsync(15_000);
+
+        expect(isSessionBarrierClosed()).toBe(true);
+        end.fail();
+        expect(isSessionBarrierClosed()).toBe(false);
+      } finally {
+        tab.close();
+      }
     });
 
     it("tells the other tabs when this tab starts and fails a logout", async () => {
