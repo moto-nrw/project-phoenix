@@ -81,6 +81,10 @@ export function swrScopePrefix(
 ): string | null {
   if (!hasSessionAccess(session) || !session.user.id) return null;
   const { id, scope, tenantId, orgId } = session.user;
+  // The Träger is the isolation boundary here, not one of its schools.
+  if (scope === "org") {
+    return orgId == null ? null : `traeger:${orgId}:${id}`;
+  }
   if (tenantSlug) return tenantSWRScope(tenantSlug, id);
   if (scope === "school") {
     return tenantId == null ? null : `school:${tenantId}:${id}`;
