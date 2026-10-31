@@ -48,7 +48,7 @@ export function ActivityWaitlistSection({
         Plätze und Warteliste
       </h3>
       <p className="mt-0.5 mb-3 text-xs text-gray-500">
-        Kinder mit offener Anfrage, in der Reihenfolge der Anfragen.
+        Wer dabei ist und wer auf einen Platz wartet.
       </p>
       {loadError ? (
         <LoadErrorAlert error={loadError} actionLayout="responsive" />
