@@ -75,10 +75,8 @@ vi.mock("~/lib/swr", () => ({
   mutate: mockMutate,
 }));
 
-const mockCheckSessionAfterLogoutElsewhere = vi.hoisted(() => vi.fn());
 vi.mock("~/lib/session-cache", () => ({
   clearSessionCache: mockClearSessionCache,
-  checkSessionAfterLogoutElsewhere: mockCheckSessionAfterLogoutElsewhere,
 }));
 
 import { TenantGuard } from "./tenant-guard";
@@ -165,37 +163,6 @@ describe("TenantGuard", () => {
       </TenantGuard>,
     );
 
-    expect(screen.getByText("Protected Content")).toBeInTheDocument();
-  });
-
-  it("checks the session once another tab logged this account out", () => {
-    mockUseSession.mockReturnValue({
-      data: { user: { tenantId: 1, token: "access-token" } },
-      status: "authenticated",
-      update: vi.fn(),
-    });
-    mockUseTenant.mockReturnValue({ tenantSlug: "school-a", tenant: tenantA });
-    mockCheckSessionAfterLogoutElsewhere.mockReset();
-    render(
-      <TenantGuard>
-        <div>Protected Content</div>
-      </TenantGuard>,
-    );
-    const ownerChange = (newValue: string | null) =>
-      window.dispatchEvent(
-        new StorageEvent("storage", {
-          key: "moto:personal-storage-owner",
-          newValue,
-          storageArea: localStorage,
-        }),
-      );
-
-    // A new owner (another account, or this account bound to another
-    // school) is no logout of this account; only a removed owner is.
-    ownerChange("1:7");
-    expect(mockCheckSessionAfterLogoutElsewhere).not.toHaveBeenCalled();
-    ownerChange(null);
-    expect(mockCheckSessionAfterLogoutElsewhere).toHaveBeenCalledTimes(1);
     expect(screen.getByText("Protected Content")).toBeInTheDocument();
   });
 

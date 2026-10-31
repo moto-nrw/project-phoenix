@@ -5,10 +5,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { mutate } from "~/lib/swr";
 import { hasSessionAccess } from "~/lib/session-access";
-import {
-  checkSessionAfterLogoutElsewhere,
-  clearSessionCache,
-} from "~/lib/session-cache";
+import { clearSessionCache } from "~/lib/session-cache";
 import { performTenantSwitch } from "~/lib/tenant-api";
 import { ApiError, onSessionTenantMismatch } from "~/lib/api-error";
 import { installSessionTenantMismatchObserver } from "~/lib/session-tenant-mismatch-observer";
@@ -24,10 +21,6 @@ import { credentialError } from "~/components/auth/credential-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { isTenantSessionEnding } from "~/lib/tenant-session-end";
-import {
-  onOtherTabOwnerChange,
-  personalStorageAccount,
-} from "~/lib/personal-storage";
 
 const logger = createLogger({ component: "TenantGuard" });
 
@@ -176,18 +169,6 @@ function GuardedTenant({
       // A check still running must not touch an unmounted guard.
       refusalRun.current += 1;
     },
-    [],
-  );
-
-  // A logout in another tab removes the owner; this tab's readers then wait
-  // for the cookie to change and send nothing that could notice the revoked
-  // session family (#5007).
-  useEffect(
-    () =>
-      onOtherTabOwnerChange((owner) => {
-        if (personalStorageAccount(owner) === null)
-          void checkSessionAfterLogoutElsewhere();
-      }),
     [],
   );
 

@@ -298,20 +298,3 @@ export async function sessionFetch(
 
   return response;
 }
-
-/**
- * Another tab removed the personal-storage owner: it ended this account's
- * session on the device. The session lookup still reads the cookie's JWT,
- * and this tab's readers wait for a lookup without that account, so no
- * request here would learn that the server revoked the session family
- * (#5007). One authenticated read asks the BFF: its 401 takes the usual
- * refresh-or-sign-out path of sessionFetch. A live session, another school's
- * session (409) or this tab's own logout leave the tab alone.
- */
-export async function checkSessionAfterLogoutElsewhere(): Promise<void> {
-  try {
-    await sessionFetch("/api/me/profile", { method: "GET" });
-  } catch {
-    // No session, no answer or the 401 path above: nothing more to do here.
-  }
-}
