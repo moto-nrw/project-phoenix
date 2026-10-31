@@ -194,6 +194,24 @@ func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
 	assert.Zero(t, got.MissingCount)
 	assert.Equal(t, got.Offerings, got.Candidates, "no other offering passes the rule")
 
+	// „Mit Angebot verbinden“ from a booking change names one series: it is
+	// reviewed although it is kept by hand, so the link reaches the dialog.
+	// The rest of the period stays in the answer for the cards.
+	named := func(templateID int64) []int64 {
+		w := doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d&template_id=%d", period.ID, templateID), nil)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		ids := []int64{}
+		for _, deviation := range decodeTemplateData[rosterDeviationsResponse](t, w).Deviations {
+			ids = append(ids, deviation.TemplateID)
+		}
+		slices.Sort(ids)
+		return ids
+	}
+	assert.Equal(t, []int64{deviating, confirmed}, named(confirmed), "the named hand-kept series is reviewed")
+	assert.Equal(t, []int64{deviating}, named(automatic), "naming an automatic series reviews nothing more")
+	w = doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/templates/roster-deviations?period_id=%d&template_id=x", period.ID), nil)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+
 	// The list carries the decision; undoing it brings the hint back.
 	list := decodeTemplateData[listTemplatesResponse](t,
 		doTemplateJSON(t, s.router, http.MethodGet, fmt.Sprintf("/templates?period_id=%d", period.ID), nil)).Templates
