@@ -425,8 +425,9 @@ pass alone is not confirmation. Every portal shell revokes through its BFF logou
 (`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
 Auth.js clears the cookie; a failed revocation keeps the session and shows
 the error with a retry, as does the tenant relogin action. Portal cookies
-are host-only, but a late response of the same portal can still write one
-back; the revoked family makes it worthless. Migration 1.15.707 gives every
+are host-only; a late response of the same portal may write one back only
+in the narrow cases [below](#late-responses-after-logout-5399), and the
+revoked family makes it worthless. Migration 1.15.707 gives every
 live chain from before families (head plus rotated predecessors linked by
 `replacement_token`, same account, generation + 1) one family, so it keeps
 signing in through one forced renewal. It works one account per
@@ -493,6 +494,41 @@ calling the backend; failed installation revokes the freshly minted family.
 The regular parent Credentials login and Träger handoff continue to redeem
 credentials/proofs server-side. The internal Next.js cookie adapter remains
 pinned and protected by the cookie-order/chunk-deletion integration tests.
+
+### Late responses after logout (#5399)
+
+A response sets its cookies when its headers arrive, whatever the JavaScript
+that sent it does with the result. Two rules keep a response started before
+a logout or a "Zur Schulanmeldung" from writing the old session back:
+
+1. **Only a changed session is written.** Auth.js re-encodes the session
+   cookie on every session read. Every portal's session route (GET and the
+   `update()` POST, `withBrowserSession`) and every BFF route
+   (`finishResponse` in `frontend/src/server/auth/route-handler.ts`) drop the
+   session Set-Cookie when it decodes to the session the request presented
+   (`frontend/src/server/auth/session-cookie-writes.ts`, claims `iat`, `exp`,
+   `jti` ignored). Sign-in, rotation, `update()` with a change, forced renewal
+   and the end of a session still write it. The cookie's lifetime equals the
+   refresh lifetime and moves with each rotation.
+2. **The session-end barrier** (`frontend/src/lib/session-end-barrier.ts`)
+   covers the writes that remain. Every portal's logout and the tenant relogin
+   close it before revocation: requests to the tab's own `/api/` whose answer
+   has not arrived are aborted, so the browser drops their Set-Cookie; new
+   ones wait; the SessionProvider's poll stops (`useSessionPollInterval`).
+   Only the exit's own requests pass (BFF logout, CSRF, Auth.js signout,
+   staff-preview end, push cleanup `DELETE`). The other tabs of the origin
+   close too (`BroadcastChannel` `moto-session-end`) and open on the owner's
+   `ended` or `failed`, at the latest after 15 s. The barrier opens when the
+   logout fails or, outside the tenant shell, once the signout answer deleted
+   the cookie; the tenant exit keeps it closed while it navigates. An aborted
+   GET or HEAD is sent again when the barrier opens, any other method fails.
+   The fetch observer (`session-tenant-mismatch-observer.ts`) and the Axios
+   interceptor apply it.
+
+`BroadcastChannel` does not cross origins. A tab on another school's
+subdomain sharing the domain-scoped tenant cookie does not hear the
+barrier; only rule 1 protects it, so a renewal it has in flight can still
+write a cookie of the revoked family back (no access, see above).
 
 ### Login, refresh, and MFA
 

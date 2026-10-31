@@ -187,8 +187,15 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
     await released;
     await route.continue();
   });
+  // From the exit's start the document asks nothing of the ending session
+  // (#5399): its answer could write the session cookie back.
+  let exitStarted = false;
+  let sessionLookupsDuringExit = 0;
   page.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/api/auth/signout") signouts += 1;
+    const { pathname } = new URL(request.url());
+    if (pathname === "/api/auth/signout") signouts += 1;
+    if (exitStarted && pathname === "/api/auth/session")
+      sessionLookupsDuringExit += 1;
   });
   try {
     await page.getByRole("button", { name: "Einrichtung wechseln" }).click();
@@ -196,12 +203,18 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
     const csrf = page.waitForRequest(
       (request) => new URL(request.url()).pathname === "/api/auth/csrf",
     );
-    const echo = page.waitForResponse(async (response) => {
-      if (new URL(response.url()).pathname !== "/api/auth/session")
-        return false;
-      const session = await response.json();
-      return !session.user || session.error !== undefined;
-    });
+    // Positive anchor: the document hears the other tab's signout echo.
+    const echoHeard = page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          const channel = new BroadcastChannel("next-auth");
+          channel.onmessage = () => {
+            channel.close();
+            resolve();
+          };
+        }),
+    );
+    exitStarted = true;
     await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
     await csrf;
     // Expose the revoked family through a protected read, instead of relying
@@ -215,33 +228,31 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
         return response.status;
       }),
     ).toBe(401);
-    await echo;
-    // The real provider and guard have now consumed the ended session.
-    await expect(page.getByText("Sitzung wird erneuert...")).toBeVisible();
+    await echoHeard;
     await page.evaluate(
       () =>
         new Promise<void>((resolve) =>
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
+    // The woken provider waits at the session-end barrier instead of asking
+    // the revoked session; no consumer redirects or starts a second logout.
+    expect(sessionLookupsDuringExit).toBe(0);
     expect(csrfRequests).toBe(1);
     expect(signouts).toBe(0);
     expect(page.url()).toBe(`${source}/profile`);
     release();
     await navigation;
-    const lateEcho = page.waitForResponse(
-      (response) => new URL(response.url()).pathname === "/api/auth/session",
-    );
     await broadcaster.evaluate(() => {
       const channel = new BroadcastChannel("next-auth");
       channel.postMessage({ event: "session", data: { trigger: "signout" } });
       channel.close();
     });
-    await (await lateEcho).finished();
     // The old execution context may already be suspended by navigation;
     // observe network/URL state without evaluating inside that context.
     expect(signouts).toBe(1);
     expect(page.url()).toBe(`${source}/profile`);
+    expect(sessionLookupsDuringExit).toBe(0);
     releaseNavigation();
     await page.waitForURL(`${target}/`);
     await expect(page.locator('input[type="email"]')).toBeVisible();

@@ -1,6 +1,10 @@
 import { isSessionRefusalCode, reportSessionTenantMismatch } from "./api-error";
 import type { ErrorCode } from "./error-codes.generated";
 import {
+  fetchThroughSessionBarrier,
+  listenForSessionEnds,
+} from "./session-end-barrier";
+import {
   boundSessionAccount,
   isOwnApiUrl,
   SESSION_ACCOUNT_HEADER,
@@ -53,6 +57,9 @@ let restoreFetch: (() => void) | null = null;
  * the report in apiErrorFromBody misses them. Axios runs on XHR; its
  * interceptor adds the header and its errors reach apiErrorFromBody.
  * SSE also uses fetch, so this observes the actual stream refusal (#5374).
+ * Every request to the own BFF also passes the session-end barrier (#5399):
+ * a logout here or in another tab of this origin aborts requests whose
+ * answer could still write the ending session back, and holds new ones.
  * Installing twice keeps one observer; returns the function that removes it.
  */
 export function installSessionTenantMismatchObserver(): () => void {
@@ -60,10 +67,12 @@ export function installSessionTenantMismatchObserver(): () => void {
   if (restoreFetch) return restoreFetch;
 
   const originalFetch = window.fetch.bind(window);
+  listenForSessionEnds();
   const observedFetch: typeof window.fetch = async (input, init) => {
     const ownApi = isOwnApiUrl(requestUrl(input));
     const accountId = ownApi ? boundSessionAccount() : null;
-    const response = await originalFetch(
+    const response = await fetchThroughSessionBarrier(
+      originalFetch,
       input,
       accountId === null ? init : withSessionAccount(input, init, accountId),
     );

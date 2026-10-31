@@ -18,6 +18,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { getSmartRedirectPath } from "~/lib/redirect-utils";
 import { recordStaffPreviewEnd } from "~/lib/staff-preview-api";
 import { runTenantSessionEnd } from "~/lib/tenant-session-end";
+import { beginSessionEnd } from "~/lib/session-end-barrier";
 import { signOutTenant } from "~/lib/tenant-session-cookie";
 
 const logger = createLogger({ component: "ShellAuthContext" });
@@ -53,6 +54,25 @@ function reportingLogout(
     }
   };
   return logout;
+}
+
+/**
+ * One portal logout outside the tenant shell (whose runTenantSessionEnd
+ * owns the barrier). From its start no answer of the ending session may set
+ * its cookie (#5399); a failure lets the held requests go on.
+ */
+function behindSessionBarrier(
+  endSession: () => Promise<void>,
+): () => Promise<void> {
+  return async () => {
+    const barrier = beginSessionEnd();
+    try {
+      await endSession();
+    } catch (error) {
+      barrier.fail();
+      throw error;
+    }
+  };
 }
 
 /**
@@ -304,16 +324,21 @@ export function OperatorShellProvider({
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: reportingLogout(async () => {
-        // The operator family is checked on every operator request; revoking
-        // it ends this session's tokens at once (#5194).
-        await revokeSessionFamily("/api/operator/auth/logout");
-        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
-        // Gerät (#5000).
-        clearPersonalStorage();
-        clearSessionCache();
-        await signOut({ callbackUrl: operatorAbsoluteUrl("/operator/login") });
-      }, showLogoutError),
+      logout: reportingLogout(
+        behindSessionBarrier(async () => {
+          // The operator family is checked on every operator request; revoking
+          // it ends this session's tokens at once (#5194).
+          await revokeSessionFamily("/api/operator/auth/logout");
+          // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+          // Gerät (#5000).
+          clearPersonalStorage();
+          clearSessionCache();
+          await signOut({
+            callbackUrl: operatorAbsoluteUrl("/operator/login"),
+          });
+        }),
+        showLogoutError,
+      ),
       mode: "operator" as const,
       homeUrl: operatorPath("/operator/organizations"),
       profileUrl: operatorPath("/operator/settings"),
@@ -369,28 +394,31 @@ export function SchoolShellProvider({
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: reportingLogout(async () => {
-        // Suppress the "session expired" banner the login page would
-        // otherwise show after the NextAuth redirect race.
-        try {
-          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
-        } catch {
-          // sessionStorage unavailable (e.g. private browsing quota)
-        }
-        // School sessions revoke through the shared scope-preserving
-        // /auth/logout (tenant-style), proxied with the school session's
-        // refresh token (#5194).
-        await revokeSessionFamily("/api/school/auth/logout");
-        // Dieses Gerät abmelden, bevor die Session weg ist (#2208): sonst
-        // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
-        // Gerät fände ein Abo ohne Zuordnung vor.
-        await unsubscribePushSilently("school");
-        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
-        // Gerät (#5000).
-        clearPersonalStorage();
-        clearSessionCache();
-        await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
-      }, showLogoutError),
+      logout: reportingLogout(
+        behindSessionBarrier(async () => {
+          // Suppress the "session expired" banner the login page would
+          // otherwise show after the NextAuth redirect race.
+          try {
+            sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+          } catch {
+            // sessionStorage unavailable (e.g. private browsing quota)
+          }
+          // School sessions revoke through the shared scope-preserving
+          // /auth/logout (tenant-style), proxied with the school session's
+          // refresh token (#5194).
+          await revokeSessionFamily("/api/school/auth/logout");
+          // Dieses Gerät abmelden, bevor die Session weg ist (#2208): sonst
+          // bliebe das Browser-Abo bestehen und der nächste Login auf diesem
+          // Gerät fände ein Abo ohne Zuordnung vor.
+          await unsubscribePushSilently("school");
+          // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+          // Gerät (#5000).
+          clearPersonalStorage();
+          clearSessionCache();
+          await signOut({ callbackUrl: schoolAbsoluteUrl("/school/login") });
+        }),
+        showLogoutError,
+      ),
       mode: "school" as const,
       homeUrl: schoolPath("/school"),
       // Einstellungen (#2208): Benachrichtigungen und Geräte, wie im
@@ -439,19 +467,22 @@ export function CatererShellProvider({
       profile: null,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: reportingLogout(async () => {
-        try {
-          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
-        } catch {
-          // sessionStorage unavailable: the login page shows its notice.
-        }
-        await revokeSessionFamily("/api/caterer/auth/logout");
-        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
-        // Gerät (#5000).
-        clearPersonalStorage();
-        clearSessionCache();
-        await signOut({ callbackUrl: catererAbsoluteUrl("/caterer/login") });
-      }, showLogoutError),
+      logout: reportingLogout(
+        behindSessionBarrier(async () => {
+          try {
+            sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+          } catch {
+            // sessionStorage unavailable: the login page shows its notice.
+          }
+          await revokeSessionFamily("/api/caterer/auth/logout");
+          // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+          // Gerät (#5000).
+          clearPersonalStorage();
+          clearSessionCache();
+          await signOut({ callbackUrl: catererAbsoluteUrl("/caterer/login") });
+        }),
+        showLogoutError,
+      ),
       mode: "caterer" as const,
       homeUrl: catererPath("/caterer"),
       // Die Konto-Seite mit „Passwort ändern“ (#4496).
@@ -506,25 +537,28 @@ export function TraegerShellProvider({
       profile: null,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: reportingLogout(async () => {
-        try {
-          sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
-        } catch {
-          // sessionStorage unavailable: the login page then shows its
-          // "session expired" note, which is harmless.
-        }
-        // Revoke the backend refresh session first (#5194).
-        await revokeSessionFamily("/api/traeger/auth/logout");
-        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
-        // Gerät (#5000).
-        clearPersonalStorage();
-        clearSessionCache();
-        // NextAuth resolves a callbackUrl against NEXTAUTH_URL, the tenant
-        // origin, and would send the person to the school chooser there. End
-        // the session without its redirect and stay on the Träger host.
-        await signOut({ redirect: false });
-        window.location.assign(traegerPath("/traeger/login"));
-      }, showLogoutError),
+      logout: reportingLogout(
+        behindSessionBarrier(async () => {
+          try {
+            sessionStorage.setItem(DELIBERATE_LOGOUT_KEY, "1");
+          } catch {
+            // sessionStorage unavailable: the login page then shows its
+            // "session expired" note, which is harmless.
+          }
+          // Revoke the backend refresh session first (#5194).
+          await revokeSessionFamily("/api/traeger/auth/logout");
+          // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+          // Gerät (#5000).
+          clearPersonalStorage();
+          clearSessionCache();
+          // NextAuth resolves a callbackUrl against NEXTAUTH_URL, the tenant
+          // origin, and would send the person to the school chooser there. End
+          // the session without its redirect and stay on the Träger host.
+          await signOut({ redirect: false });
+          window.location.assign(traegerPath("/traeger/login"));
+        }),
+        showLogoutError,
+      ),
       mode: "traeger" as const,
       homeUrl: traegerPath("/traeger"),
       // Kein eigenes Profil: Passwort und Code gehören zum moto-Konto.
@@ -611,18 +645,21 @@ export function ParentShellProvider({
       profile: shellProfile,
       status,
       isSessionExpired: session?.error === "RefreshTokenExpired",
-      logout: reportingLogout(async () => {
-        // Revoke the parent family first (#5194): the revocation never waits
-        // for push. The backend drops the family's push subscriptions with
-        // it; the device-side cleanup below stays best-effort (#5260).
-        await revokeSessionFamily("/api/parent/auth/logout");
-        await unsubscribePushSilently("parent");
-        // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
-        // Gerät (#5000).
-        clearPersonalStorage();
-        clearSessionCache();
-        await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
-      }, showLogoutError),
+      logout: reportingLogout(
+        behindSessionBarrier(async () => {
+          // Revoke the parent family first (#5194): the revocation never waits
+          // for push. The backend drops the family's push subscriptions with
+          // it; the device-side cleanup below stays best-effort (#5260).
+          await revokeSessionFamily("/api/parent/auth/logout");
+          await unsubscribePushSilently("parent");
+          // Namen, Vorauswahl und Zähler dieses Kontos bleiben nicht auf dem
+          // Gerät (#5000).
+          clearPersonalStorage();
+          clearSessionCache();
+          await signOut({ callbackUrl: parentAbsoluteUrl("/parents/login") });
+        }),
+        showLogoutError,
+      ),
       mode: "parent" as const,
       homeUrl: parentPath("/parents"),
       // Was null until #1671: the parents portal had no page of its own for

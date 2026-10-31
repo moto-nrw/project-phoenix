@@ -1,5 +1,6 @@
 import "server-only";
 import type { Session } from "next-auth";
+import { dropUnchangedSessionCookie } from "./session-cookie-writes";
 import type { ServerSession } from "./shared";
 
 /**
@@ -56,15 +57,22 @@ function isServerSession(value: unknown): value is ServerSession {
 /**
  * Wraps a portal's Auth.js route handler so the session action (GET and the
  * POST of update()) answers with the browser session. Status and headers,
- * including the rotated session cookie, pass through unchanged; every other
- * action is left alone.
+ * including the rotated session cookie, pass through; a cookie that only
+ * re-encodes the presented session is dropped, so a late poll or update()
+ * cannot write a session back after logout (#5399). Every other action is
+ * left alone.
  */
 export function withBrowserSession<A extends [Request, ...unknown[]]>(
   handler: (...args: A) => Promise<Response>,
 ): (...args: A) => Promise<Response> {
   return async (...args) => {
-    const response = await handler(...args);
-    if (!new URL(args[0].url).pathname.endsWith("/session")) return response;
+    const [request] = args;
+    if (!new URL(request.url).pathname.endsWith("/session"))
+      return handler(...args);
+    const response = await dropUnchangedSessionCookie(
+      request,
+      await handler(...args),
+    );
 
     const body: unknown = await response
       .clone()

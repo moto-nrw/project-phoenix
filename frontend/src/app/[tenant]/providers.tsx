@@ -18,6 +18,7 @@ import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { primeSessionCache } from "~/lib/session-cache";
 import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
+import { useSessionPollInterval } from "~/lib/use-session-poll-interval";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
 import { mutate, scopedSWRKey, tenantSWRScope } from "~/lib/swr";
 import { dataGenerationOf, stampSWRValue } from "~/lib/swr/generation";
@@ -214,6 +215,8 @@ export function TenantProviders({
   }, [shell, tenantSlug]);
   // The seed belongs to the session the server rendered with.
   const seedGeneration = authGeneration(session);
+  // A logout stops the poll at once (#5399).
+  const pollSeconds = useSessionPollInterval(SESSION_PROVIDER_POLL_SECONDS);
 
   const providers = (
     <ShellSeedProvider value={shell}>
@@ -236,7 +239,7 @@ export function TenantProviders({
   return (
     <SessionProvider
       session={session ?? undefined}
-      refetchInterval={SESSION_PROVIDER_POLL_SECONDS}
+      refetchInterval={pollSeconds}
       refetchOnWindowFocus={false}
     >
       <SessionAccountBinding />

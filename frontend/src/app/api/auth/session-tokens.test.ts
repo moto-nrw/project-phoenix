@@ -213,5 +213,62 @@ describe.each(PORTALS)(
           .some((value) => value.startsWith(`${name}=`)),
       ).toBe(true);
     });
+
+    // #5399: a poll or update() that only re-reads the session answers
+    // without its cookie. Arriving after a logout or a school switch, it
+    // would otherwise write the old session back into the browser.
+    it("writes no session cookie when GET only re-reads the session", async () => {
+      const { GET } = await route();
+      const name = await cookieName();
+
+      const response = await GET(
+        new NextRequest(`http://localhost:3000${basePath}/session`, {
+          headers: { cookie: await sessionCookie(name, scope) },
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(JSON.parse(await response.text())).toMatchObject({
+        user: { id: "7", scope },
+      });
+      expect(
+        response.headers
+          .getSetCookie()
+          .filter((value) => value.startsWith(name)),
+      ).toEqual([]);
+    });
+
+    it("writes no session cookie for an update() that changes nothing", async () => {
+      const { GET, POST } = await route();
+      const csrfResponse = await GET(
+        new NextRequest(`http://localhost:3000${basePath}/csrf`),
+      );
+      const { csrfToken } = (await csrfResponse.json()) as {
+        csrfToken: string;
+      };
+      const csrfCookie = csrfResponse.headers
+        .getSetCookie()
+        .map((value) => value.split(";")[0])
+        .join("; ");
+      const name = await cookieName();
+
+      const response = await POST(
+        new NextRequest(`http://localhost:3000${basePath}/session`, {
+          method: "POST",
+          headers: {
+            cookie: `${await sessionCookie(name, scope)}; ${csrfCookie}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ csrfToken, data: {} }),
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(
+        response.headers
+          .getSetCookie()
+          .filter((value) => value.startsWith(name)),
+      ).toEqual([]);
+    });
   },
 );

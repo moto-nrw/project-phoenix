@@ -2,6 +2,7 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
+import { useSessionPollInterval } from "~/lib/use-session-poll-interval";
 import { TraegerAnalyticsSession } from "~/components/analytics/traeger-analytics-session";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
 import { SessionAccountBinding } from "~/components/auth/session-account-binding";
@@ -27,11 +28,12 @@ export function TraegerProviders({
   children,
   session,
 }: Readonly<{ children: React.ReactNode; session?: Session | null }>) {
+  const pollSeconds = useSessionPollInterval(4 * 60);
   return (
     <SessionProvider
       basePath="/api/traeger/auth"
       session={session ?? undefined}
-      refetchInterval={4 * 60}
+      refetchInterval={pollSeconds}
       refetchOnWindowFocus={false}
     >
       <SessionAccountBinding />

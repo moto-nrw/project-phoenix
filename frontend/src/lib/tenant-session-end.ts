@@ -1,4 +1,5 @@
 import { onOtherTabOwnerChange } from "./personal-storage";
+import { beginSessionEnd, type SessionEnd } from "./session-end-barrier";
 import {
   allowConfirmedUnload,
   attemptNavigation,
@@ -29,8 +30,11 @@ export function runTenantSessionEnd(
   const controller = new AbortController();
   const { signal } = controller;
   let restoreUnloadGuard: (() => void) | undefined;
+  let barrier: SessionEnd | undefined;
   const cancel = () => {
     controller.abort();
+    // A failed, cancelled or left exit lets the held requests go on.
+    barrier?.fail();
     if (pending?.controller === controller) pending = null;
     restoreUnloadGuard?.();
     dispose();
@@ -64,6 +68,10 @@ export function runTenantSessionEnd(
             return;
           }
           pending.phase = "working";
+          // From here no answer of the ending session may set its cookie
+          // (#5399). The document navigates itself after the signout, so the
+          // barrier stays closed until it leaves.
+          barrier = beginSessionEnd({ keepClosed: true });
           if (confirmed) restoreUnloadGuard = allowConfirmedUnload();
           try {
             resolve(endSession(signal));

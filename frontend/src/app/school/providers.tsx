@@ -2,6 +2,7 @@
 
 import type { Session } from "next-auth";
 import { SessionProvider } from "next-auth/react";
+import { useSessionPollInterval } from "~/lib/use-session-poll-interval";
 import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-session";
 import { SCHOOL_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
@@ -33,11 +34,12 @@ export function SchoolProviders({
   children,
   session,
 }: Readonly<{ children: React.ReactNode; session?: Session | null }>) {
+  const pollSeconds = useSessionPollInterval(4 * 60);
   return (
     <SessionProvider
       basePath="/api/school/auth"
       session={session ?? undefined}
-      refetchInterval={4 * 60}
+      refetchInterval={pollSeconds}
       refetchOnWindowFocus={false}
     >
       <SessionAccountBinding />

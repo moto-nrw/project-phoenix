@@ -14,6 +14,7 @@ import {
   SESSION_ACCOUNT_HEADER,
 } from "~/lib/session-account";
 import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
+import { sessionBarrierSignal } from "~/lib/session-end-barrier";
 
 /**
  * Extended request config with retry tracking properties
@@ -21,6 +22,8 @@ import { clearSessionCache, getCachedSession } from "~/lib/session-cache";
 interface RetryableRequestConfig extends AxiosRequestConfig {
   _retry?: boolean;
   _retryCount?: number;
+  /** The caller's own signal, kept apart from the session-end barrier's. */
+  _callerSignal?: AbortSignal | null;
 }
 
 // Logger instance for API client
@@ -43,11 +46,22 @@ const api = createAxios({
 // (#5005); BFF routes authenticate through the session cookie. Other
 // origins never get the header: it would need a CORS preflight.
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
     const rateLimitError = rateLimitBlockedError(config.method);
-    if (rateLimitError) return Promise.reject(rateLimitError);
+    if (rateLimitError) throw rateLimitError;
+    if (!isOwnApiUrl(api.getUri(config))) return config;
+    // A logout holds and aborts requests to the own BFF until the session
+    // cookie is gone (#5399); XHR sets cookies like fetch does.
+    const retryable = config as typeof config & RetryableRequestConfig;
+    if (retryable._callerSignal === undefined) {
+      retryable._callerSignal =
+        (config.signal as AbortSignal | undefined) ?? null;
+    }
+    config.signal = await sessionBarrierSignal(
+      retryable._callerSignal ?? undefined,
+    );
     const accountId = boundSessionAccount();
-    if (accountId !== null && isOwnApiUrl(api.getUri(config))) {
+    if (accountId !== null) {
       config.headers.set(SESSION_ACCOUNT_HEADER, accountId);
     }
     return config;
@@ -140,6 +154,18 @@ api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error: AxiosError) => {
     const originalRequest = error.config as RetryableRequestConfig | undefined;
+
+    // The session-end barrier stopped a read before its answer could set a
+    // cookie (#5399). Ask again once it opens; the request interceptor waits.
+    if (
+      error.code === "ERR_CANCELED" &&
+      originalRequest &&
+      originalRequest._callerSignal !== undefined &&
+      !originalRequest._callerSignal?.aborted &&
+      (originalRequest.method ?? "get").toLowerCase() === "get"
+    ) {
+      return api(originalRequest);
+    }
 
     if (error.response?.status === 429) {
       const retryAfter = error.response.headers?.["retry-after"];
