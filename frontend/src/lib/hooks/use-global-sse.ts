@@ -26,7 +26,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
-import { useTenantSafe } from "~/lib/tenant-context";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -281,7 +280,6 @@ function currentStudentDetailId(): string | null {
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
-  const tenant = useTenantSafe()?.tenant;
   const [groupAccessRevision, setGroupAccessRevision] = useState(0);
   const now = useMinuteClock();
   const groupAccessDay = berlinTodayISO(now);
@@ -300,9 +298,6 @@ export function useGlobalSSE(): SSEHookState {
   const isAuthenticated =
     sessionStatus === "authenticated" &&
     hasSessionAccess(session) &&
-    // A refused stream would re-read the same wrong-school session forever,
-    // and a late lookup could restore its cookie after explicit signout.
-    (!tenant || session.user.tenantId === tenant.tenantId) &&
     (isStaff || isAdmin);
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
