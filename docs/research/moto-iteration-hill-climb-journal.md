@@ -35,14 +35,17 @@ schmutzigen Baum, weil uncommittete Dateien die Testauswahl verändern.
 Baseline 1 (`20261031-083049`) war durch eine uncommittete Workflow-Datei
 verfälscht: Sie erzwang den vollen Vitest-Lauf. Sie dient nur als Beleg für
 Gate-Wartezeiten. Baseline 2 (`20261031-092243`, Revision `f825e86a0f`, sauber,
-`--heavy`):
+`--heavy`) für die Frontend-Stufen. Die Go-Zeilen stammen aus Baseline 3
+(Revision `dd5b02a0c7`, Last 9 bis 24): Baseline 2 maß `go-central-change` mit
+236 s und 126 von 129 gecachten Paketen, weil die Sonde den Test-Cache nicht
+invalidierte (Runde 7).
 
 | Stufe | Wand s | Warten s | CPU s | Peak MB | Auswahl |
 | --- | ---: | ---: | ---: | ---: | --- |
-| go-leaf-change | 118,3 | 0,0 | 211,7 | 1836 | 2 Go-Pakete, Frontend-Guards |
-| go-leaf-repeat | 24,8 | 77,2 | 57,6 | 1279 | 2/2 gecacht, Guards erneut |
-| go-central-change | 236,3 | 0,1 | 650,8 | 6429 | 170 Pakete, 129 mit Tests, 126 gecacht |
-| go-central-repeat | 84,8 | 20,9 | 135,1 | 2439 | 128 gecacht |
+| go-leaf-change | 129,1 | 34,8 | 246,6 | 2456 | 2 Go-Pakete, 0 gecacht, Frontend-Guards |
+| go-leaf-repeat | 23,8 | 0,1 | 58,3 | 1321 | 2/2 gecacht, Guards erneut |
+| go-central-change | 417,6 | 0,1 | 923,2 | 9216 | 170 Pakete, 129 mit Tests, 0 gecacht |
+| go-central-repeat | 70,0 | 0,1 | 64,0 | 1308 | 128 gecacht |
 | fe-change-tests-change | 98,8 | 0,7 | 409,3 | 2487 | Vitest inkrementell, 495 Dateien, 11 189 Tests |
 | fe-change-check-change | 9,0 | 0,1 | 10,5 | 2772 | Lint, Typen, Format |
 | fe-change-tests-repeat | 98,2 | 0,0 | 407,1 | 2466 | identisch, kein Ergebnis-Cache |
@@ -183,14 +186,61 @@ Spitzenspeicher pro Backend-Push nicht, solange mehrere Agents den Rechner
 teilen. Auffällig ist eher, dass derselbe Fehler auf einem Branch fünfmal in
 Folge gepusht wurde.
 
+### Runde 7: Sonde, die den Test-Cache wirklich invalidiert
+
+Befund aus dem ersten Parallellauf: Im zweiten Lauf eines Worktrees meldete die
+Go-„Änderung“ beide Pakete als gecacht. Go cached Testergebnisse nach dem Inhalt
+des Test-Binaries; der Linker entfernte die ungenutzte Sondenfunktion, das
+Binary blieb gleich. Probe an `sharedkernel/calendar`: alte Sonde mit neuem Wert
+`(cached)`, neue Sonde (`init()` schreibt den Wert in eine Paketvariable) läuft
+neu. Fix mit Regressionstest (`dd5b02a0c7`). Folge: Baseline 2 unterschätzte
+`go-central-change` (236 statt 418 s, 651 statt 923 CPU-s, 6,4 statt 9,2 GB);
+die Tabelle oben ist korrigiert. Der erste Parallellauf ist verworfen.
+
+### Runde 8: Kontrollierter Parallellauf 1/2/4
+
+Aufbau: vier frische Worktrees auf derselben Revision (`dd5b02a0c7`), jeder
+startet `dev-bench.sh go-leaf` (Änderung und Wiederholung) gleichzeitig, ohne
+Heavy-Gate (vom Nutzer freigegeben), gemeinsamer Test-DB-Server. Skript:
+`tmp/hill-climb/par.sh`, Ergebnisse `tmp/par/results.tsv`. Last vor dem Start 9
+bis 16 durch fremde Sessions.
+
+| Agents | Batch-Wand s | Ergebnisse/min | Änderung je Agent s | CPU-s je Änderung | Peak MB je Agent |
+| ---: | ---: | ---: | --- | --- | --- |
+| 1 | 135,8 | 0,44 | 112 | 208 | 2170 |
+| 2 | 141,8 | 0,85 | 105 bis 116 | 201 bis 215 | 1713 bis 2328 |
+| 4 | 178,5 | 1,34 | 86 bis 106 | 148 bis 198 | 1891 bis 2247 |
+
+Für eine leichte Go-Aufgabe skaliert der Durchsatz bis vier Agents fast linear;
+CPU und RAM je Ergebnis bleiben gleich. Mit zwei Gate-Slots hätten vier Agents
+etwa 2 × 136 s gebraucht statt 178 s. Bei `go-central-change` (923 CPU-s,
+9,2 GB) wären vier gleichzeitige Läufe etwa 37 GB; dort schützt das Gate.
+Folgerung: Die Gate-Grenze sollte nach erwarteter Last gewichten, nicht nur
+Jobs zählen. `agent-heavy` ist ein nutzerlokales Werkzeug und wurde nicht geändert.
+
+Falsches Rot bei vier Agents: Ein Agent scheiterte an
+`listen tcp 127.0.0.1:10026: bind: address already in use` in
+`TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail`. Parallele Worktrees
+teilen diesen festen Port; das ist die zweite Ursache von #5395 und betrifft
+jede parallele Agent-Arbeit, die `api` testet. Siehe Runde 9.
+
+### Runde 9: Gemeinsamer Demo-Code-Port
+
+Hypothese: `TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail` scheitert,
+sobald ein anderer Prozess auf dem Rechner `127.0.0.1:10026` hält. Rot
+reproduziert mit einem Hilfsprozess, der den Port mit `SO_REUSEADDR` hält (wie
+Go). Python ohne diese Option scheitert an TIME_WAIT-Resten, Go nicht; das
+verdeckte den Effekt zunächst. Während der Messung war der Port zweimal kurz
+von fremden Testprozessen belegt. Fix: Der Bind ist der prozessübergreifende
+Lock, der Test wartet bis zu einer Minute darauf; Assertions unverändert.
+Nachher grün nach 7,1 s Wartezeit. PR #5404. Offen in #5395: der
+lastabhängige `mfa status unavailable` und die feste E-Mail bei `-count>1`.
+
 ## Verworfen
 
 - Frontend-Guards bei Backend-Änderungen verkleinern: Die 45 Guard-Dateien sind
   ein bewusst fail-closed Inventar von IO-Grenzen. Kürzen würde den Testvertrag
   ändern, nicht nur Kosten senken.
-- Kontrollierter 1/2/4-Parallel-Lauf: nicht ausgeführt, weil er die Rechner
-  fremder Sessions belastet hätte, solange beide Gate-Slots dauerhaft belegt
-  waren. Ohne ihn ist die optimale Parallelität nicht belegt.
 
 ## Unknown Unknowns
 
@@ -206,7 +256,12 @@ Folge gepusht wurde.
   scheiterte 2/2 bei Last 18 bis 25 und bestand bei Last 12 (#5395); ein
   fehlgeschlagenes `api`-Paket schrieb 494 MB Log. Ein tsgo-Panic
   (`ScriptKind must be specified`) trat in 1 von 6 Frontend-Läufen auf,
-  vermutlich parallel zu einer pnpm-Installation; nicht gemeldet, nur einmal gesehen.
+  vermutlich parallel zu einer pnpm-Installation. Später ein V8-GC-Absturz in
+  Node 24.21.0 (`Check failed: !IsFreelistEntry()`) in den Vitest-Guards, bei
+  Wiederholung grün. Zwei native Abstürze an einem Tag unter hoher Last; nicht
+  gemeldet, weil keiner reproduzierbar war.
+- Parallele Agents teilen feste Loopback-Ports. Ein Port-Konflikt sieht aus wie
+  ein Testfehler, nicht wie ein Infrastrukturfehler.
 
 ## Extrapolation
 
@@ -219,13 +274,18 @@ Startfehler des Testplatzes, erst danach reine Laufzeit.
 
 ## Nächster belegter Engpass
 
-1. Bundle-Obergrenzen in `frontend-build`: seit dem aktuellen Gate 5 von 13
-   fehlgeschlagenen PR-Läufen, alle absolute Grenzen knapp über dem Ist (#5396).
-   Wartet auf eine Policy-Entscheidung.
-2. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s, ohne
+1. Heavy-Gate nach Last gewichten: Leichte Go-Aufgaben skalieren bis vier
+   Agents fast linear (Runde 8), das Gate lässt nur zwei zu; schwere
+   (`go-central-change`, 9,2 GB) brauchen den Schutz. `agent-heavy` ist
+   nutzerlokal, eine Änderung braucht die Zustimmung des Nutzers.
+2. Zentrale Go-Änderung: 418 s und 923 CPU-s für 129 Pakete im Schnellmodus.
+3. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s, ohne
    Ergebnis-Cache bei unveränderter Wiederholung. Setup 31 s und Environment
    60 s der Vitest-Zeit sind der größte Posten.
-3. Seed beim ersten Browser-Lauf: 120 s von etwa 3 min bis zum ersten
+4. Seed beim ersten Browser-Lauf: 120 s von etwa 3 min bis zum ersten
    Browser-Ergebnis in einem frischen Worktree.
-4. Frontend-Guards bei reinen Go-Änderungen: 45 Dateien, 15,7 s bei jeder
+5. Frontend-Guards bei reinen Go-Änderungen: 45 Dateien, 15,7 s bei jeder
    Wiederholung, auch wenn Go alles aus dem Cache liefert.
+
+Erledigt aus dieser Liste: Bundle-Obergrenzen nahe der Basis (#5400, Neubasierung
+nach Entscheidung des Nutzers in #5396).
