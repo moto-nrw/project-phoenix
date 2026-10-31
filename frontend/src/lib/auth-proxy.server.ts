@@ -5,6 +5,7 @@ import { getClientForwardHeaders } from "~/lib/client-headers.server";
 import { createLogger } from "~/lib/logger";
 import { forwardBackendResponse } from "~/lib/backend-proxy-response.server";
 import { captureBffException } from "~/lib/sentry-bff.server";
+import { withoutSessionCookies } from "~/server/auth/session-cookie-writes";
 
 const logger = createLogger({ component: "AuthProxy" });
 
@@ -39,8 +40,9 @@ function buildForwardHeaders(
   return headers;
 }
 
+/** The backend's own cookies; a BFF session cookie leaves only via its gate. */
 function mirrorSetCookies(from: Response, to: NextResponse): void {
-  for (const cookie of from.headers.getSetCookie()) {
+  for (const cookie of withoutSessionCookies(from.headers.getSetCookie())) {
     to.headers.append("set-cookie", cookie);
   }
 }

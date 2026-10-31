@@ -502,11 +502,22 @@ that sent it does with the result. The server is the source of truth that a
 response started before a logout or a "Zur Schulanmeldung" cannot bring the
 old session back; the browser only saves requests.
 
-1. **Write gate.** Every portal's session route (GET and the `update()` POST,
-   `withBrowserSession`) and every BFF route (`finishResponse` in
-   `frontend/src/server/auth/route-handler.ts`) pass their session Set-Cookie
-   through `gateSessionCookieWrites`
-   (`frontend/src/server/auth/session-cookie-writes.ts`). A cookie leaves
+1. **Write gate, the one exit.** Every session cookie of every portal
+   leaves through `gateSessionCookieWrites`
+   (`frontend/src/server/auth/session-cookie-writes.ts`). It has two callers:
+   `withBrowserSession`, which wraps every action of the six Auth.js routes
+   (signin, callbacks, session, `update()`, signout, …), and `finishResponse`
+   in `frontend/src/server/auth/route-handler.ts`, where every BFF route ends
+   (refresh, forced renewal, `mutateSession` for login, MFA, school switch
+   and preview). Auth.js' server helpers (`signIn`, `unstable_update`) write
+   Next's mutable cookie jar, which Next appends after the route returned;
+   the gate takes the session cookies out of the jar and decides on them
+   with the response's own. Mirrored backend cookies drop session cookie
+   names (`withoutSessionCookies`). Proxy, server components and server
+   actions write no session cookie.
+   `frontend/src/app/api/auth/session-cookie-inventory.test.ts` lists every
+   Auth.js action, route and instance and every cookie writer and fails on a
+   new one that bypasses the exit. A cookie leaves
    only for a changed session (sign-in, rotation, `update()` with a change,
    school switch, preview) whose refresh-token family Identity & Access
    confirms live while the response is built. An unchanged re-encoding

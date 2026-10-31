@@ -59,30 +59,31 @@ function isServerSession(value: unknown): value is ServerSession {
 }
 
 /**
- * Wraps a portal's Auth.js route handler so the session action (GET and the
- * POST of update()) answers with the browser session. Every other action is
- * left alone.
+ * Wraps a portal's Auth.js route handler. Every action (signin, the
+ * callbacks, session, update(), signout, csrf, …) leaves through
+ * gateSessionCookieWrites, the one exit of session cookies (#5399): a sign-in
+ * or renewal writes its cookie only while Identity & Access does not answer
+ * its family as revoked.
  *
- * The session it shows is confirmed with Identity & Access on each call
- * (#5399): a session whose refresh-token family is revoked reads as ended
- * (`RefreshTokenError`), even when a late answer wrote its cookie back after
- * the logout deleted it. Its cookie writes pass gateSessionCookieWrites: only
- * a changed session of a live family is written. A family that cannot be read
- * leaves the session as it is and writes nothing.
+ * The session action (GET and the POST of update()) also answers with the
+ * browser session, confirmed with Identity & Access on each call: a session
+ * whose refresh-token family is revoked reads as ended (`RefreshTokenError`),
+ * even when a late answer wrote its cookie back after the logout deleted it.
+ * A family that cannot be read leaves the session as it is.
  */
 export function withBrowserSession<A extends [Request, ...unknown[]]>(
   handler: (...args: A) => Promise<Response>,
 ): (...args: A) => Promise<Response> {
   return async (...args) => {
     const [request] = args;
-    if (!new URL(request.url).pathname.endsWith("/session"))
-      return handler(...args);
     const answer = await handler(...args);
+    const states: FamilyStates = new Map();
+    if (!new URL(request.url).pathname.endsWith("/session"))
+      return gateSessionCookieWrites(request, answer, states);
     const body: unknown = await answer
       .clone()
       .json()
       .catch(() => null);
-    const states: FamilyStates = new Map();
     const response = await gateSessionCookieWrites(request, answer, states);
     if (!isServerSession(body)) return response;
 

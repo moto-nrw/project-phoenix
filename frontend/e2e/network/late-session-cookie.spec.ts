@@ -436,6 +436,49 @@ for (const [actionName, endSession] of Object.entries(endActions)) {
   });
 }
 
+// #5402: the tenant cookie spans every school's subdomain. A renewal from a
+// tab of school A, answered only after "Zur Schulanmeldung" at school B and a
+// new login, writes no cookie and leaves the new session alone. (The fixture
+// issues sessions of school A only, so the new login happens there.)
+test("Zur Schulanmeldung: a late renewal from the other school keeps the new session", async ({
+  browser,
+}) => {
+  const context = await browser.newContext();
+  await isolate(context);
+  const tab1 = await context.newPage();
+  await login(tab1);
+  const tab2 = await context.newPage();
+  await tab2.goto(`${source}/api/health`);
+  const pending = await holdRequest(
+    tab2,
+    "**/api/auth/session",
+    renewingUpdate,
+    "POST",
+  );
+  await pending.intercepted;
+
+  const [deleted] = await Promise.all([
+    waitForSessionCookieDeletion(tab1),
+    endActions["Zur Schulanmeldung"](tab1),
+  ]);
+  expect(deleted).toBe(true);
+  await login(tab1);
+  const fresh = (await context.cookies(source)).find(
+    (cookie) => cookie.name === cookieName,
+  )?.value;
+  expect(fresh).toBeDefined();
+
+  expect(await pending.release()).toBe(false);
+  expect(
+    (await context.cookies(source)).find((cookie) => cookie.name === cookieName)
+      ?.value,
+  ).toBe(fresh);
+  expect(
+    await tab1.evaluate(() => fetch("/api/me/profile").then((r) => r.status)),
+  ).toBe(200);
+  await context.close();
+});
+
 // The window the server cannot close: an answer built while the family was
 // still live, delivered after the cookie's deletion. Its cookie lands, but it
 // names a revoked family: it opens nothing, reads as ended and a fresh page
