@@ -140,7 +140,8 @@ const PUBLIC_MODULES = new Set(
 const SOURCE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs"];
 
 function isTestFile(file) {
-  return /\.test\.[jt]sx?$/.test(file) || file.startsWith("src/test/");
+  // Spec files count as tests, as for dependency-cruiser, Vitest and knip.
+  return /\.(test|spec)\.[jt]sx?$/.test(file) || file.startsWith("src/test/");
 }
 
 /** Root of the checked tree (the directory that holds `src/`) and the file. */

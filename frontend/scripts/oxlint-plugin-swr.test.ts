@@ -375,6 +375,34 @@ describe.concurrent("swr/no-test-support-import", () => {
     expect(result.output).toContain("swr(no-test-support-import)");
   });
 
+  it.each(["src/components/probe.spec.tsx", "src/components/probe.test.tsx"])(
+    "lets a test or spec file import another test module: %s",
+    async (file) => {
+      const result = await lintSource(
+        'import { helper } from "./helper.test"; void helper;',
+        file,
+      );
+      expect(result.output).not.toContain("swr(no-test-support-import)");
+    },
+  );
+
+  it("refuses the same test module in production code", async () => {
+    const result = await lintSource(
+      'import { helper } from "./helper.test"; void helper;',
+      "src/components/probe.tsx",
+    );
+    expect(result.status, result.output).toBe(1);
+    expect(result.output).toContain("swr(no-test-support-import)");
+  });
+
+  it("leaves the SWR internals to spec files like to tests", async () => {
+    const result = await lintSource(
+      'import { stampSWRValue } from "~/lib/swr/generation"; void stampSWRValue;',
+      "src/components/probe.spec.tsx",
+    );
+    expect(result.output).not.toContain("swr(no-cache-access)");
+  });
+
   it.each(["src/components/probe.test.tsx", "src/test/helper.ts"])(
     "leaves test support to tests: %s",
     async (file) => {
