@@ -27,15 +27,21 @@ const LOADING_TABS = [
 export function StudentDetailLoadingPage({
   referrer,
   backLabel = "Zurück zur Kinderübersicht",
-}: Readonly<{ referrer?: string; backLabel?: string }>) {
+  preview,
+}: Readonly<{
+  referrer?: string;
+  backLabel?: string;
+  preview?: { name: string; context?: string };
+}>) {
   return (
     <TenantPage
-      title="Kindakte"
+      title={preview?.name ?? "Kindakte"}
       back
       backHref={referrer}
       backLabel={backLabel}
       leading={<Skeleton className="h-12 w-12 shrink-0 rounded-xl" />}
-      statsLoading
+      stats={preview?.context}
+      statsLoading={!preview}
       tabs={{
         value: "stammdaten",
         onChange: () => {},

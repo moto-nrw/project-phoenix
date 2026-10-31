@@ -8,15 +8,30 @@ import {
 import type { ReactElement } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import StatisticsPage from "./page";
+import { SWRConfig } from "~/lib/swr/testing";
+import { SessionProvider } from "next-auth/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { StatisticsReport } from "~/lib/statistics-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { TEST_CLOCK_TODAY } from "~/test/clock";
 
+vi.unmock("swr");
+
 // Exportfehler kommen als Toast (#2517).
 function render(ui: ReactElement) {
-  return rtlRender(ui, { wrapper: ToastProvider });
+  return rtlRender(
+    <SessionProvider
+      session={{
+        user: { id: "staff-7", scope: "tenant", tenantId: 42 },
+        expires: "2099-01-01",
+      }}
+    >
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <ToastProvider>{ui}</ToastProvider>
+      </SWRConfig>
+    </SessionProvider>,
+  );
 }
 
 vi.mock("next/navigation", () => ({

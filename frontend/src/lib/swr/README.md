@@ -75,3 +75,19 @@ hook keys fail oxlint; both legacy baselines are shrink-only. A free key is
 anything at a `useSWRAuth`, `useImmutableSWR` or `useSWRWithId` call that is
 not built by an export of `~/lib/swr` (directly, through a local constant or
 in a branch with `null`).
+
+## List-to-detail previews
+
+`studentKeys`, `roomKeys` and `staffKeys` own `previewSources` and `preview`.
+The projection returns only `{ id, name, context }`, never a full record or
+access flags. A detail page calls `useSWRSeedFrom(factory.previewSources,
+factory.detailKey(id), data => factory.preview(data, id))` (children use
+`detail`, staff use `recordKey`). The matcher runs only over the current
+school/account scope and skips old generations, including lists older than a
+discarded detail key. No preview is written over a complete detail response.
+
+Show the preview only in the existing loading header. The body, actions,
+permission flags and detail-only fields wait for the detail request; that
+request always runs. Detail readers use `keepPreviousData: false`, so changing
+the entity cannot reuse the previous entity's complete record. Without a
+matching list the existing loading state remains unchanged.

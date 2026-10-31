@@ -59,7 +59,11 @@ import { NO_PLAN_FILTER } from "~/lib/plan-filter";
 import { roomPlanCareDay } from "~/lib/room-plan";
 import { MOTO_CONCEPTS } from "~/lib/moto-concepts";
 import { formatFloor, isSystemRoom, type Room } from "~/lib/room-helpers";
-import { useTenantMutate, useTenantMutateMatching } from "~/lib/swr";
+import {
+  useTenantMutate,
+  useTenantMutateMatching,
+  useSWRSeedFrom,
+} from "~/lib/swr";
 import { ROOM_DERIVED_CACHE_KEY_FRAGMENTS } from "~/lib/swr/room-derived-caches";
 import { usePresenceMode, useWeekendFollowsFriday } from "~/lib/tenant-context";
 import { resolveDetailReferrer, useTenantAwarePath } from "~/lib/tenant-path";
@@ -136,6 +140,13 @@ function RoomDetailPageContent() {
 
   const { room, history, loading, error, historyDisabled, historyError } =
     useRoomDetail(roomId);
+
+  const seedFrom = useSWRSeedFrom();
+  const preview = seedFrom(
+    roomKeys.previewSources,
+    roomKeys.detailKey(roomId),
+    (data: unknown) => roomKeys.preview(data, roomId),
+  );
 
   // Spiegel der Backend-Gates auf PUT/DELETE /api/rooms/{id}.
   const canUpdate = hasPermission(session, "rooms:update");
@@ -342,7 +353,13 @@ function RoomDetailPageContent() {
   });
 
   if (loading && !room) {
-    return <RoomDetailLoadingPage referrer={referrer} backLabel={backLabel} />;
+    return (
+      <RoomDetailLoadingPage
+        referrer={referrer}
+        backLabel={backLabel}
+        preview={preview}
+      />
+    );
   }
 
   if (error || !room) {

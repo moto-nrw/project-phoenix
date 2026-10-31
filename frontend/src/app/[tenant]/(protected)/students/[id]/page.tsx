@@ -41,7 +41,7 @@ import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollm
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate, useSWRSeedFrom } from "~/lib/swr";
 import { studentKeys } from "~/lib/swr/portal-keys";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
@@ -493,6 +493,12 @@ function StudentDetailPageContent() {
     mySupervisedRooms,
     refreshData,
   } = useStudentData(studentId);
+  const seedFrom = useSWRSeedFrom();
+  const preview = seedFrom(
+    studentKeys.previewSources,
+    studentKeys.detail(studentId),
+    (data: unknown) => studentKeys.preview(data, studentId),
+  );
   // Die Antwort sagt, was dieses Kind dem Konto erlaubt; die Routen dahinter
   // verlangen zusätzlich ein Recht der Sitzung. Der Gast liest das Kind nur
   // mit students:read (ADR 0091): Betreuungszeiten, Abholung, Ankunft und
@@ -967,7 +973,11 @@ function StudentDetailPageContent() {
   // isn't known until this fetch resolves.
   if (loading) {
     return (
-      <StudentDetailLoadingPage referrer={referrer} backLabel={backLabel} />
+      <StudentDetailLoadingPage
+        referrer={referrer}
+        backLabel={backLabel}
+        preview={preview}
+      />
     );
   }
 

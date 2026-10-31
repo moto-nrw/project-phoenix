@@ -45,6 +45,7 @@ import {
 } from "~/lib/staff-helpers";
 import {
   useSWRAuth,
+  useSWRSeedFrom,
   useTenantMutate,
   useTenantMutateMatching,
 } from "~/lib/swr";
@@ -89,14 +90,6 @@ import { DetailSkeleton } from "~/components/ui/page-skeletons";
 import { StaffDetailSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StaffDetailPage" });
-
-/**
- * SWR-Schlüssel des Personal-Datensatzes: die Rohdaten von GET /api/staff/{id}.
- * Kopf der Personalakte und Konto-Reiter leiten ihre Abbildungen daraus ab.
- */
-function staffRecordKey(staffId: string): string {
-  return `staff-record-${staffId}`;
-}
 
 /** SWR-Schlüssel der Systemrolle des Kontos (Konto-Bearbeiten, #3116). */
 function roleAssignmentKey(accountId: string): string {
@@ -223,6 +216,7 @@ export default function StaffDetailContent() {
       limitedProfile === "financial"
         ? staffService.getFinancialProfile(staffId)
         : staffService.getDocumentProfile(staffId),
+    { keepPreviousData: false },
   );
   const profile = profileRequest.data;
 
@@ -233,9 +227,16 @@ export default function StaffDetailContent() {
   // schmalen Profil lädt er nur für den Reiter „Konto".
   const recordRequest = useSWRAuth<BackendStaffResponse>(
     limitedProfile === null || (canViewRecord && profile && !profile.endedOn)
-      ? staffRecordKey(staffId)
+      ? staffKeys.recordKey(staffId)
       : null,
     () => staffService.getStaffRecord(staffId),
+    { keepPreviousData: false },
+  );
+  const seedFrom = useSWRSeedFrom();
+  const preview = seedFrom(
+    staffKeys.previewSources,
+    staffKeys.recordKey(staffId),
+    (data: unknown) => staffKeys.preview(data, staffId),
   );
   const recordData = recordRequest.data;
   const fullStaff = useMemo(
@@ -307,7 +308,7 @@ export default function StaffDetailContent() {
 
   const refreshRecord = useCallback(async () => {
     await Promise.all([
-      tenantMutate(staffRecordKey(staffId)),
+      tenantMutate(staffKeys.recordKey(staffId)),
       tenantMutate(`staff-detail-${staffId}`),
       refreshStaffFamily(),
     ]);
@@ -679,9 +680,13 @@ export default function StaffDetailContent() {
     <TenantPage
       // Der Entitätskopf IST die Kopfkarte: Avatar links, Name als Titel,
       // Statuszeile darunter, Status und Kebab als Aktionen.
-      title={staff ? `${staff.firstName} ${staff.lastName}` : "Mitarbeiter"}
-      stats={statusLine}
-      statsLoading={!staff}
+      title={
+        staff
+          ? `${staff.firstName} ${staff.lastName}`
+          : (preview?.name ?? "Mitarbeiter")
+      }
+      stats={staff ? statusLine : preview?.context}
+      statsLoading={!staff && !preview}
       back
       backHref={referrer}
       backLabel={backLabel}

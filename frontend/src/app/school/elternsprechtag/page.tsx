@@ -7,6 +7,8 @@
 // `?sprechtag=…` in der Adresse, damit der Hinweis zu einer Buchung direkt
 // dorthin führt.
 
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -49,7 +51,6 @@ import {
   parentConferenceFieldErrors,
   parentConferenceRequest,
   parentConferenceWindowLabel,
-  SCHOOL_PARENT_CONFERENCES_KEY,
   updateSchoolParentConference,
   type ParentConference,
   type ParentConferenceDraft,
@@ -136,7 +137,7 @@ function SchoolParentConferences() {
   const toast = useToast();
 
   const { data, error, isLoading, mutate } = useSWRAuth(
-    session ? SCHOOL_PARENT_CONFERENCES_KEY : null,
+    session ? schoolPortalKeys.parentConferences() : null,
     fetchSchoolParentConferences,
   );
   const loadError = useSwrLoadError(error, "Ihre Elternsprechtage", () =>

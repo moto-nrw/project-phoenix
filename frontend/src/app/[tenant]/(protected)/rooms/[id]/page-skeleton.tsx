@@ -12,15 +12,21 @@ import { TenantPage } from "~/components/ui/tenant-page";
 export function RoomDetailLoadingPage({
   referrer = "/rooms",
   backLabel = "Zurück zu den Räumen",
-}: Readonly<{ referrer?: string; backLabel?: string }>) {
+  preview,
+}: Readonly<{
+  referrer?: string;
+  backLabel?: string;
+  preview?: { name: string; context?: string };
+}>) {
   return (
     <TenantPage
-      title="Raum"
+      title={preview?.name ?? "Raum"}
       back
       backHref={referrer}
       backLabel={backLabel}
       leading={<Skeleton className="h-10 w-10 shrink-0 rounded-xl" />}
-      statsLoading
+      stats={preview?.context}
+      statsLoading={!preview}
       tabs={{
         value: "uebersicht",
         onChange: () => {},
