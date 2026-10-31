@@ -666,11 +666,11 @@ describe("getParentHelpTopicForPath", () => {
     ).filter((topic) => helpTopicMatchesRole(topic, "teacher"));
     const visible = new Set(teacherTopics.map((topic) => topic.id));
 
-    // 27 seit #4801: der Elternsprechtag der eigenen Klasse (26 seit #4797:
-    // die Beobachtungen der OGS, 25 seit #4791: die nachgetragene Meldung
-    // der Schulverwaltung, 24 seit #4800: der
+    // 28 seit #4801: der Elternsprechtag der eigenen Klasse (27 seit #4793:
+    // die Fehlzeiten einer Klasse, 26 seit #4797: die Beobachtungen der OGS,
+    // 25 seit #4791: die nachgetragene Meldung der Schulverwaltung, 24 seit #4800: der
     // Elternbrief an die eigene Klasse, 23 seit #4795, 22 seit #4901).
-    expect(teacherTopics).toHaveLength(27);
+    expect(teacherTopics).toHaveLength(28);
     expect([...visible]).toEqual(
       expect.arrayContaining([
         HELP_TOPICS.teacherHomework,
@@ -682,6 +682,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(visible.has(HELP_TOPICS.teacherParentLetters)).toBe(true);
     expect(visible.has(HELP_TOPICS.teacherAbsenceReport)).toBe(true);
     expect(visible.has(HELP_TOPICS.teacherParentConference)).toBe(true);
+    expect(visible.has(HELP_TOPICS.teacherAbsenceList)).toBe(true);
     expect(
       teacherTopics.every(
         (topic) =>
@@ -924,6 +925,8 @@ describe("getSchoolHelpTopicForPath", () => {
     ["/school/tagesinformationen", HELP_TOPICS.teacherNotices],
     ["/kalender", HELP_TOPICS.teacherCalendar],
     ["/school/kalender", HELP_TOPICS.teacherCalendar],
+    ["/fehlzeiten", HELP_TOPICS.teacherAbsenceList],
+    ["/school/fehlzeiten", HELP_TOPICS.teacherAbsenceList],
     ["/elternbriefe", HELP_TOPICS.teacherParentLetters],
     ["/school/elternbriefe/7", HELP_TOPICS.teacherParentLetters],
     ["/einstellungen", HELP_TOPICS.teacherSettings],

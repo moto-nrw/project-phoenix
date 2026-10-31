@@ -5609,6 +5609,22 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceBetween",
+      "binding_digest": "324ffd4454a1ce0447df8e307e1d2876",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceBetween",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "binding_digest": "6221eabae34b8dd4461e65b3dc6bb6f3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
       "binding_digest": "c537206b2cc1e20820eeb33ef3a332c8",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",

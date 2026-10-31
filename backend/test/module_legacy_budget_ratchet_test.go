@@ -184,7 +184,7 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/studentpresence/compose adds exactly 7 LOC.
 // ADR 0123: the mail constructor and the mail renderer of
 // modules/parentbilling/compose add exactly 9 LOC.
-// ADR 0130: the Elternsprechtag constructor of modules/schoolcalendar/compose
+// ADR 0142: the Elternsprechtag constructor of modules/schoolcalendar/compose
 // adds exactly 7 LOC.
 // ADR 0126: the document inbox constructor of modules/parentbilling/compose
 // (+6) and the inbox ports and document notices of
@@ -255,7 +255,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/presenceprojection/compose": 7,
 	"modules/requestreview/compose":      12,
 	"modules/schedulerruntime/compose":   45,
-	// Raised by ADR 0130: the Elternsprechtag constructor (+7).
+	// Raised by ADR 0142: the Elternsprechtag constructor (+7).
 	"modules/schoolcalendar/compose":        155,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.

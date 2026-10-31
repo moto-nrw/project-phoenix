@@ -266,6 +266,7 @@ const TEACHER_DRAFT_TOPICS: readonly HelpTopic[] = [
   articles.teacherSharedNotesTopic(),
   articles.teacherClassTripTopic(),
   articles.teacherAbsenceReportTopic(),
+  articles.teacherAbsenceListTopic(),
 
   // --- Aufsicht ---
   articles.teacherSupervisionTopic(),

@@ -509,6 +509,8 @@ const SCHOOL_PROTECTED_PATHS = [
   "/elternbriefe",
   // Elternsprechtag der Lehrkraft für eine ihrer Klassen (#4801).
   "/elternsprechtag",
+  // Fehlzeiten einer Klasse für Klassenbuch und Zeugnis (#4793).
+  "/fehlzeiten",
   "/einstellungen",
 ];
 const SCHOOL_INVITATION_API_PATHS = [

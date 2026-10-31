@@ -7,6 +7,9 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -21,8 +24,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
@@ -116,7 +120,7 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 		Caller: activeCaller, PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
 		Companions: owners.NewStudentCompanionRepository(rCare.CarePlan), ClassArrivalExceptions: active.ArrivalSchedule,
 		BlockStarts:                   activeTimetable.TimetableOperations,
-		MorningAttendanceDependencies: classDayTestMorning(db, hub, people, rCare, command, presence, unreported, clocks),
+		MorningAttendanceDependencies: classDayTestMorning(db, hub, people, rCare, command, presence, unreported, activeSettings, care.CareLifecycle, reports, clocks),
 		TripStatusDays:                classDayTestTrips(db, hub, people, rCare, clocks),
 		StudentNoteDependencies: classdayCompose.StudentNoteDependencies{
 			DayHints: people, Today: calendar.CalendarDateClock(clocks...), SharedNotes: people, ClassTeachers: staffGroups,
@@ -133,12 +137,17 @@ func NewClassDayTestModuleWithRealtime(db transactionruntime.Database, unit tena
 // classDayTestMorning is the morning attendance seam with the absence
 // reports (#4791) over the test graph, composed like buildClassDayViews.
 func classDayTestMorning(db transactionruntime.Database, hub *realtime.Hub, people *peopleCompose.Directory, rCare owners.TimetableCarePlanRows,
-	command *auditCompose.Command, presence studentpresence.Owner, unreported *RecordingUnreportedNotifier, clocks []func() time.Time,
+	command *auditCompose.Command, presence studentpresence.Owner, unreported *RecordingUnreportedNotifier, settings ActiveSettings, participation careplan.HistoricalCareParticipation, reports enrollmentOwner.Reports, clocks []func() time.Time,
 ) classdayCompose.MorningAttendanceDependencies {
-	return withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
+	audits := owners.NewTestAuditPersistence(db, command)
+	morning := withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence, Now: classDayTestClock(clocks)},
 		presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
 			Broadcaster: hub, Logger: slog.Default(), PeopleDirectory: people, StudentStatusDayService: classDayTestStatusDays(db, rCare, clocks),
-		}, presence), owners.NewTestAuditPersistence(db, command).StudentFieldEdit, unreported)
+		}, presence), audits.StudentFieldEdit, unreported)
+	// The absence list (#4793), bound like buildClassDayViews binds it.
+	schoolDays, err := owners.BuildSchoolCalendarRecords(db, func(schoolCalendarCompose.Observation) {}, settings.Settings)
+	mustActiveTestModule(err)
+	return withClassDayAbsenceList(morning, presence, rCare.StudentStatusDay, schoolDays, audits.DataAccessLog, lists.NewRenderer(), settings.Settings, participation, reports)
 }
 
 // classDayTestReports is Enrollment's day roster over the test graph, composed

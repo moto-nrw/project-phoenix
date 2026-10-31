@@ -39,6 +39,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["parent/me/news/[announcementId]/declaration/proof/pdf", "GET"],
   ["public/payroll-download/[link]", "POST"],
   ["rooms/export", "POST"],
+  ["school/class-day/absence-list/export", "GET"],
   ["school/parent-letters/[announcementId]/declaration-export", "GET"],
   ["staff-shifts/export", "POST"],
   ["staff/[id]/documents/[documentId]/download", "GET"],

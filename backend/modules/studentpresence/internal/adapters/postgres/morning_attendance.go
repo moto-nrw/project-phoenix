@@ -27,7 +27,7 @@ type morningAttendanceRow struct {
 	UpdatedAt         time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
-func (s *Store) ListMorningAttendance(ctx context.Context, date ports.Date, studentIDs, classListEntryIDs []int64) ([]studentpresence.MorningAttendanceEntry, ports.Stats, error) {
+func (s *Store) ListMorningAttendance(ctx context.Context, from, to ports.Date, studentIDs, classListEntryIDs []int64) ([]studentpresence.MorningAttendanceEntry, ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, ports.Stats{}, err
@@ -36,7 +36,7 @@ func (s *Store) ListMorningAttendance(ctx context.Context, date ports.Date, stud
 	started := time.Now()
 	err = db.NewSelect().Model(&rows).
 		Where("morning_attendance.tenant_id = ?", tenantID).
-		Where("morning_attendance.date = ?", date).
+		Where("morning_attendance.date BETWEEN ? AND ?", from, to).
 		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 			if len(studentIDs) > 0 {
 				q = q.WhereOr("morning_attendance.student_id IN (?)", bun.List(studentIDs))
@@ -46,7 +46,7 @@ func (s *Store) ListMorningAttendance(ctx context.Context, date ports.Date, stud
 			}
 			return q
 		}).
-		OrderExpr("morning_attendance.id ASC").
+		OrderExpr("morning_attendance.date ASC, morning_attendance.id ASC").
 		Scan(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
@@ -55,8 +55,8 @@ func (s *Store) ListMorningAttendance(ctx context.Context, date ports.Date, stud
 	entries := make([]studentpresence.MorningAttendanceEntry, 0, len(rows))
 	for _, row := range rows {
 		entries = append(entries, studentpresence.MorningAttendanceEntry{
-			Child:  studentpresence.MorningAttendanceChild{StudentID: row.StudentID, ClassListEntryID: row.ClassListEntryID},
-			Status: row.Status, RecordedAt: row.UpdatedAt,
+			Child: studentpresence.MorningAttendanceChild{StudentID: row.StudentID, ClassListEntryID: row.ClassListEntryID},
+			Date:  row.Date, Status: row.Status, RecordedAt: row.UpdatedAt,
 		})
 	}
 	return entries, stats, nil
