@@ -499,7 +499,8 @@ func TestTeamCourseQueueRanksLikeTheParentsPortal(t *testing.T) {
 		104: {TargetGradeLevel: &gradeFour}, 105: {TargetGradeLevel: &gradeThree},
 	}
 	booked := map[int64]map[int64]bool{105: {7: true}}
-	course := ports.CourseGroup{ID: 70, Active: true, SourceGradeLevels: []int{3}}
+	participantLimit := 1
+	course := ports.CourseGroup{ID: 70, Active: true, ParticipantLimit: &participantLimit, SourceGradeLevels: []int{3}}
 	groupsByOffering := map[int64][]ports.CourseGroup{7: {course}, 8: {course}, 9: {{ID: 90, Active: false}}}
 	queue := &teamCourseQueue{rows: rows, childrenByID: children, bookedByChild: booked, groupsByOffering: groupsByOffering}
 

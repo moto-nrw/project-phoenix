@@ -173,6 +173,48 @@ func TestCourseWaitlistsReadsOneAGWithoutQueue(t *testing.T) {
 	assert.False(t, waitlists[0].SlotFreeForNext, "nobody waits, so there is nothing to confirm")
 }
 
+func TestCourseWaitlistsExcludeUnlimitedGroupsFromQueue(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Ohne", "Grenze")
+	claims := testutil.AdminTestClaims(int(reviewer.ID))
+	group := testpkg.CreateTestActivityGroup(t, tc.db, "Offene AG")
+	_, err := tc.db.NewRaw(`UPDATE activities.groups SET max_participants = NULL WHERE id = ? AND tenant_id = ?`,
+		group.ID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+	createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Offen")
+
+	assert.Nil(t, waitlistFor(fetchCourseWaitlists(t, tc, claims, ""), group.ID),
+		"an unlimited AG does not have a capacity waitlist")
+
+	waitlists := fetchCourseWaitlists(t, tc, claims, fmt.Sprintf("?activity_group_id=%d", group.ID))
+	require.Len(t, waitlists, 1)
+	assert.Empty(t, waitlists[0].Entries, "the explicit AG view keeps its data but no waitlist entries")
+}
+
+func TestCourseWaitlistsUseNextRequestEffectiveDateForCapacity(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Später", "Frei")
+	claims := testutil.AdminTestClaims(int(reviewer.ID))
+	group := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Fußball-AG", 1)
+	createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Zukunft")
+
+	occupied := testpkg.CreateTestStudent(t, tc.db, "Belegt", "BisDahin", "3a")
+	_, err := tc.db.NewRaw(`INSERT INTO activities.student_enrollments
+		(tenant_id, student_id, activity_group_id, valid_from, valid_until)
+		VALUES (?, ?, ?, ?, ?)`,
+		testpkg.Tenant(t), occupied.ID, group.ID, studentsTestToday, studentsTestToday.AddDays(30)).Exec(t.Context())
+	require.NoError(t, err)
+
+	waitlist := waitlistFor(fetchCourseWaitlists(t, tc, claims, fmt.Sprintf("?activity_group_id=%d", group.ID)), group.ID)
+	require.NotNil(t, waitlist)
+	assert.Equal(t, 0, waitlist.Participants, "the existing enrollment ends before the request becomes effective")
+	require.NotNil(t, waitlist.FreeSlots)
+	assert.Equal(t, 1, *waitlist.FreeSlots)
+	assert.True(t, waitlist.SlotFreeForNext)
+}
+
 func TestCourseWaitlistsRejectsInvalidFilter(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t, fixedCalendarClock)

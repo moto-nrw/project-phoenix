@@ -20,7 +20,7 @@ type teamCourseQueue struct {
 	childrenByID     map[int64]*ports.OfferingChangeChild
 	bookedByChild    map[int64]map[int64]bool
 	groupsByOffering map[int64][]ports.CourseGroup
-	capacityUntil    calendar.Date
+	periods          []ports.OfferingCarePeriod
 }
 
 // CourseWaitlists is the team's view of the AG queues (#4767). The queue is
@@ -55,7 +55,7 @@ func (s *OfferingChanges) CourseWaitlists(ctx context.Context, activityGroupID i
 		groupIDs = append(groupIDs, activityGroupID)
 	}
 	slices.Sort(groupIDs)
-	return s.courseWaitlistsFor(ctx, groupIDs, entries, today, queue.capacityUntil)
+	return s.courseWaitlistsFor(ctx, groupIDs, entries, today, queue)
 }
 
 func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []careplan.OfferingChangeRequest, today calendar.Date) (*teamCourseQueue, error) {
@@ -127,13 +127,13 @@ func (s *OfferingChanges) loadTeamQueueChildren(
 	if err != nil {
 		return fmt.Errorf("course waitlist: load care periods: %w", err)
 	}
-	queue.capacityUntil = courseWaitlistCapacityUntil(queue.rows, periods, today)
+	queue.periods = periods
 	return nil
 }
 
-// courseWaitlistCapacityUntil covers every queued child's current phase. A
-// shared read uses the latest end, so the team never sees a free place that
-// the approval's complete phase check would reject later.
+// courseWaitlistCapacityUntil covers the current phase of the queued child.
+// The caller passes the next request for an AG, so its window matches the
+// complete phase check that approval performs for that child.
 func courseWaitlistCapacityUntil(
 	rows []careplan.OfferingChangeRequest,
 	periods []ports.OfferingCarePeriod,
@@ -184,7 +184,7 @@ func (q *teamCourseQueue) entriesByGroup(activityGroupID int64) map[int64][]care
 	targets := make(map[int64]ports.CourseGroup)
 	for _, groups := range q.groupsByOffering {
 		for _, group := range groups {
-			if group.Active && (activityGroupID <= 0 || group.ID == activityGroupID) {
+			if group.Active && group.ParticipantLimit != nil && (activityGroupID <= 0 || group.ID == activityGroupID) {
 				targets[group.ID] = group
 			}
 		}
@@ -204,6 +204,23 @@ func (q *teamCourseQueue) entriesByGroup(activityGroupID int64) map[int64][]care
 	return entries
 }
 
+// capacityWindow is the interval the next child in one AG would reserve on
+// approval. The waiting list's free-place hint must therefore ignore a seat
+// that ends before that child's request becomes effective.
+func (q *teamCourseQueue) capacityWindow(entries []careplan.CourseWaitlistEntry, today calendar.Date) (calendar.Date, calendar.Date) {
+	if len(entries) == 0 {
+		return today, today.AddDays(1)
+	}
+	for _, row := range q.rows {
+		if row.ID != entries[0].RequestID {
+			continue
+		}
+		from := offeringChangeEffectiveFrom(row)
+		return from, courseWaitlistCapacityUntil([]careplan.OfferingChangeRequest{row}, q.periods, from)
+	}
+	return today, today.AddDays(1)
+}
+
 // courseWaitlistsFor reads the AGs' names, limits and occupancy and joins
 // them with their queues, sorted by name. An id that names no active AG of
 // the school is left out.
@@ -211,7 +228,8 @@ func (s *OfferingChanges) courseWaitlistsFor(
 	ctx context.Context,
 	groupIDs []int64,
 	entries map[int64][]careplan.CourseWaitlistEntry,
-	today, capacityUntil calendar.Date,
+	today calendar.Date,
+	queue *teamCourseQueue,
 ) ([]careplan.CourseWaitlist, error) {
 	result := []careplan.CourseWaitlist{}
 	if len(groupIDs) == 0 {
@@ -221,15 +239,30 @@ func (s *OfferingChanges) courseWaitlistsFor(
 	if err != nil {
 		return nil, fmt.Errorf("course waitlist: read course groups: %w", err)
 	}
-	activeIDs := make([]int64, 0, len(groups))
+	type occupancyWindow struct {
+		from, until calendar.Date
+		groupIDs    []int64
+	}
+	windows := map[string]*occupancyWindow{}
 	for _, group := range groups {
 		if group.Active {
-			activeIDs = append(activeIDs, group.ID)
+			from, until := queue.capacityWindow(entries[group.ID], today)
+			key := from.String() + "|" + until.String()
+			if windows[key] == nil {
+				windows[key] = &occupancyWindow{from: from, until: until}
+			}
+			windows[key].groupIDs = append(windows[key].groupIDs, group.ID)
 		}
 	}
-	taken, err := s.courseOccupancy(ctx, activeIDs, today, capacityUntil, 0)
-	if err != nil {
-		return nil, err
+	taken := make(map[int64]int, len(groups))
+	for _, window := range windows {
+		counts, err := s.courseOccupancy(ctx, window.groupIDs, window.from, window.until, 0)
+		if err != nil {
+			return nil, err
+		}
+		for groupID, count := range counts {
+			taken[groupID] = count
+		}
 	}
 	seen := make(map[int64]bool, len(groups))
 	for _, group := range groups {
