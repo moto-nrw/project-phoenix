@@ -1,6 +1,7 @@
 package timetable
 
 import (
+	"maps"
 	"slices"
 	"sort"
 	"strings"
@@ -67,27 +68,36 @@ func (kind RosterOfferingKind) AdmitsOffering(countsAsCare, includesLunch bool) 
 }
 
 // RosterDeviation is a detected deviation of a Regeltermin from the bookings
-// of an offering that obviously stands behind its roster.
+// of the offerings that obviously stand behind its roster.
 type RosterDeviation struct {
-	Offering OfferingRef
+	// Offerings is the suggested source, best first: the combination that
+	// explains the most planned child-weekdays, then adds the fewest
+	// unplanned ones, then needs the fewest offerings (#5139). A Randstunde
+	// for a whole Klasse is explained by Randstunde and Ganztag together;
+	// one of them alone would drop the other's children. When Ambiguous it
+	// is only the first of the equal Combinations.
+	Offerings []OfferingRef
 	// GradeLevels / SchoolClasses are the suggested source filter, taken
 	// from the Regeltermin's Jahrgang or Klasse targets.
 	GradeLevels   []int
 	SchoolClasses []string
 	// UnbookedCount counts children planned on a weekday without a booking
-	// of the offering for that weekday.
+	// of any suggested offering for that weekday.
 	UnbookedCount int
-	// MissingCount counts children booked on a weekday without being
-	// planned that weekday.
+	// MissingCount counts children a suggested offering books on a weekday
+	// without being planned that weekday.
 	MissingCount int
-	// Candidates are every offering passing the rule, best first; when
-	// Ambiguous, only the ones that cover the roster fully.
+	// Candidates are the suggested offerings, then every other offering
+	// passing the rule; when Ambiguous, only their equal alternatives follow.
 	Candidates []OfferingRef
-	// Ambiguous is set when several candidates cover the roster fully
-	// (#5138). A Klasse or Jahrgang target plans every child of the cohort,
-	// so every offering of it covers the roster and coverage decides
-	// nothing. Offering then only heads the candidates: the school picks,
-	// nothing is preselected, and the counts belong to no named offering.
+	// Combinations lists every combination with the best score when several
+	// share it or the search is bounded, Offerings first; otherwise it is empty.
+	Combinations [][]OfferingRef
+	// Ambiguous is set when several combinations share the best score, in
+	// one phase or across phases, or when the search bound kept the choice
+	// from being proven unique (#5138): the rule cannot tell them apart, so
+	// the school picks, nothing is preselected, and the counts belong to no
+	// named choice. The offering id never decides.
 	Ambiguous bool
 }
 
@@ -98,13 +108,17 @@ type rosterSlot struct {
 
 type deviationCandidate struct {
 	offering OfferingRef
+	phaseID  int64
 	booked   map[rosterSlot]bool
 	coverage float64
 	jaccard  float64
+	// passes is the rule of #5103; a combination must retain at least one
+	// passing offering; complementary offerings need not pass alone.
+	passes bool
 }
 
 // DetectRosterDeviation applies the rule to one roster. It returns nil when
-// no offering passes or the best one matches the roster exactly.
+// no offering passes or the suggested ones match the roster exactly.
 func DetectRosterDeviation(roster TemplateFutureRoster, bookings []OfferingWeekdayBooking) *RosterDeviation {
 	deviation := SuggestOfferingSource(roster, bookings)
 	if deviation == nil || (deviation.UnbookedCount == 0 && deviation.MissingCount == 0) {
@@ -115,36 +129,75 @@ func DetectRosterDeviation(roster TemplateFutureRoster, bookings []OfferingWeekd
 
 // SuggestOfferingSource applies the rule to the children of a Regeltermin
 // that is still being planned (#5104). Unlike DetectRosterDeviation it also
-// answers when the best offering matches the roster exactly: nothing
+// answers when the suggested offerings match the roster exactly: nothing
 // deviates yet, but connecting keeps the roster in step with later
 // bookings. It returns nil when no offering passes.
 func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekdayBooking) *RosterDeviation {
 	planned := plannedRosterSlots(roster)
 	candidates := rosterDeviationCandidates(roster, planned, bookings)
-	if len(candidates) == 0 {
+	if len(candidates) == 0 || !candidates[0].passes {
 		return nil
 	}
-	best := candidates[0]
-	unbooked, missing := distinctSlotStudents(planned, best.booked), distinctSlotStudents(best.booked, planned)
-	ambiguous := len(candidates) > 1 && candidates[1].coverage == 1
-	refs := make([]OfferingRef, 0, len(candidates))
-	for _, candidate := range candidates {
-		// An ambiguous choice offers only the offerings that fit fully; a
-		// weaker one would look like an equal alternative.
-		if ambiguous && candidate.coverage < 1 {
-			break
+	best, bounded := bestSourceCombinations(candidates, planned)
+	if len(best) == 0 {
+		return nil
+	}
+	chosen := best[0].members
+	booked := unionBookedSlots(candidates, chosen)
+	combinations := [][]OfferingRef{}
+	if len(best) > 1 || bounded {
+		for _, combination := range best {
+			combinations = append(combinations, candidateOfferingRefs(candidates, combination.members))
 		}
-		refs = append(refs, candidate.offering)
 	}
 	return &RosterDeviation{
-		Offering:      best.offering,
+		Offerings:     candidateOfferingRefs(candidates, chosen),
 		GradeLevels:   slices.Clone(roster.TargetGradeLevels),
 		SchoolClasses: slices.Clone(roster.TargetSchoolClasses),
-		UnbookedCount: unbooked,
-		MissingCount:  missing,
-		Candidates:    refs,
-		Ambiguous:     ambiguous,
+		UnbookedCount: distinctSlotStudents(planned, booked),
+		MissingCount:  distinctSlotStudents(booked, planned),
+		Candidates:    deviationChoices(candidates, best),
+		Combinations:  combinations,
+		Ambiguous:     len(best) > 1 || bounded,
 	}
+}
+
+func candidateOfferingRefs(candidates []deviationCandidate, indexes []int) []OfferingRef {
+	refs := make([]OfferingRef, 0, len(indexes))
+	for _, index := range indexes {
+		refs = append(refs, candidates[index].offering)
+	}
+	return refs
+}
+
+// deviationChoices names the suggested offerings first, then the offerings
+// of the other equal combinations; without a tie, every other offering
+// passing the rule follows. A weaker one would look like an equal choice.
+func deviationChoices(candidates []deviationCandidate, best []sourceCombination) []OfferingRef {
+	listed := make([]int, 0, len(candidates))
+	for _, combination := range best {
+		for _, index := range combination.members {
+			if !slices.Contains(listed, index) {
+				listed = append(listed, index)
+			}
+		}
+	}
+	if len(best) == 1 {
+		for index, candidate := range candidates {
+			if candidate.passes && !slices.Contains(listed, index) {
+				listed = append(listed, index)
+			}
+		}
+	}
+	return candidateOfferingRefs(candidates, listed)
+}
+
+func unionBookedSlots(candidates []deviationCandidate, indexes []int) map[rosterSlot]bool {
+	union := make(map[rosterSlot]bool)
+	for _, index := range indexes {
+		maps.Copy(union, candidates[index].booked)
+	}
+	return union
 }
 
 func plannedRosterSlots(roster TemplateFutureRoster) map[rosterSlot]bool {
@@ -157,17 +210,21 @@ func plannedRosterSlots(roster TemplateFutureRoster) map[rosterSlot]bool {
 	return planned
 }
 
-// rosterDeviationCandidates keeps the offerings passing the rule and orders
-// them: highest coverage, then the closest match to the roster (Jaccard),
-// then the lowest offering id.
+// rosterDeviationCandidates scores every offering booking a planned weekday
+// and orders them: those passing the rule first, then highest coverage, then
+// the closest match to the roster (Jaccard), then the lowest offering id.
 func rosterDeviationCandidates(roster TemplateFutureRoster, planned map[rosterSlot]bool, bookings []OfferingWeekdayBooking) []deviationCandidate {
 	candidates := make([]deviationCandidate, 0)
 	for _, candidate := range bookedSlotsByOffering(roster, bookings) {
-		if scoreDeviationCandidate(candidate, planned) {
+		if len(candidate.booked) > 0 {
+			candidate.passes = scoreDeviationCandidate(candidate, planned)
 			candidates = append(candidates, *candidate)
 		}
 	}
 	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].passes != candidates[j].passes {
+			return candidates[i].passes
+		}
 		if candidates[i].coverage != candidates[j].coverage {
 			return candidates[i].coverage > candidates[j].coverage
 		}
@@ -180,17 +237,20 @@ func rosterDeviationCandidates(roster TemplateFutureRoster, planned map[rosterSl
 }
 
 // bookedSlotsByOffering groups the bookings of the Regeltermin's cohort per
-// offering into the child-weekdays it runs.
+// offering into the child-weekdays it runs. Offerings of a holiday phase
+// (Ferienbetreuung) never stand behind a roster (#5139): they run when no
+// Regeltermin does, so they are neither suggested nor combined.
 func bookedSlotsByOffering(roster TemplateFutureRoster, bookings []OfferingWeekdayBooking) map[int64]*deviationCandidate {
 	byOffering := make(map[int64]*deviationCandidate)
 	for _, booking := range bookings {
-		if !roster.OfferingKind.admits(booking) || !bookingInTargetCohort(roster, booking) {
+		if booking.HolidayPhase || !roster.OfferingKind.admits(booking) || !bookingInTargetCohort(roster, booking) {
 			continue
 		}
 		candidate := byOffering[booking.OfferingID]
 		if candidate == nil {
 			candidate = &deviationCandidate{
 				offering: OfferingRef{ID: booking.OfferingID, Name: booking.OfferingName},
+				phaseID:  booking.PhaseID,
 				booked:   make(map[rosterSlot]bool),
 			}
 			byOffering[booking.OfferingID] = candidate
@@ -208,12 +268,9 @@ func addScheduledSlots(slots map[rosterSlot]bool, roster TemplateFutureRoster, b
 	}
 }
 
-// scoreDeviationCandidate fills coverage and Jaccard and reports whether the
-// offering passes the rule.
+// scoreDeviationCandidate fills coverage and Jaccard of an offering with
+// booked slots and reports whether it passes the rule.
 func scoreDeviationCandidate(candidate *deviationCandidate, planned map[rosterSlot]bool) bool {
-	if len(candidate.booked) == 0 {
-		return false
-	}
 	matched := 0
 	matchedStudents := make(map[int64]bool)
 	for slot := range candidate.booked {
