@@ -166,8 +166,9 @@ func TestCourseWaitlistsRespectReviewerGroupScope(t *testing.T) {
 	hiddenGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Verborgene Warteliste")
 	testpkg.CreateTestGroupTeacher(t, tc.db, visibleGroup.ID, teacher.ID)
 	courseGroup := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Theater-AG", 2)
+	hiddenCourseGroup := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Verborgene Theater-AG", 2)
 
-	hidden := createCourseWaitlistRequest(t, tc, courseGroup.ID, "Verborgen", "Kind")
+	hidden := createCourseWaitlistRequest(t, tc, hiddenCourseGroup.ID, "Verborgen", "Kind")
 	visible := createCourseWaitlistRequest(t, tc, courseGroup.ID, "Sichtbar", "Kind")
 	testpkg.AssignStudentToGroup(t, tc.db, hidden.studentID, hiddenGroup.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, visible.studentID, visibleGroup.ID)
@@ -181,6 +182,8 @@ func TestCourseWaitlistsRespectReviewerGroupScope(t *testing.T) {
 	assert.Equal(t, strconv.FormatInt(visible.request.ID, 10), waitlist.Entries[0].RequestID)
 	assert.Equal(t, "Sichtbar Kind", waitlist.Entries[0].StudentName)
 	assert.Equal(t, 1, waitlist.Entries[0].Rank, "out-of-scope requests must not affect the visible queue position")
+	assert.Empty(t, fetchCourseWaitlists(t, tc, testutil.TeacherTestClaims(int(account.ID)), fmt.Sprintf("?activity_group_id=%d", hiddenCourseGroup.ID)),
+		"an explicit AG filter must not expose an AG without a visible request")
 }
 
 func TestCourseWaitlistsReadsOneAGWithoutQueue(t *testing.T) {

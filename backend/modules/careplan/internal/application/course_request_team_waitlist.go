@@ -64,7 +64,7 @@ func (s *OfferingChanges) CourseWaitlists(ctx context.Context, activityGroupID i
 	for groupID := range entries {
 		groupIDs = append(groupIDs, groupID)
 	}
-	if activityGroupID > 0 && entries[activityGroupID] == nil {
+	if activityGroupID > 0 && entries[activityGroupID] == nil && (scope.SchoolWide || queue.hasVisibleCourseGroup(activityGroupID)) {
 		groupIDs = append(groupIDs, activityGroupID)
 	}
 	slices.Sort(groupIDs)
@@ -108,6 +108,20 @@ func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []carepl
 		return nil, err
 	}
 	return queue, nil
+}
+
+// hasVisibleCourseGroup reports whether an in-scope request references the
+// limited, active AG. A group-scoped reviewer may only query those AGs by id;
+// a school-wide reviewer may also inspect an empty AG.
+func (q *teamCourseQueue) hasVisibleCourseGroup(activityGroupID int64) bool {
+	for _, groups := range q.groupsByOffering {
+		for _, group := range groups {
+			if group.ID == activityGroupID && group.Active && group.ParticipantLimit != nil {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func (s *OfferingChanges) loadTeamQueueChildren(
