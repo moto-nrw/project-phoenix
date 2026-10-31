@@ -93,6 +93,19 @@ function written(answer: Response, name = NAME) {
     .filter((cookie) => cookie.split("=")[0]?.replace(/\.\d+$/, "") === name);
 }
 
+// Apply the session-cookie headers to the browser's existing cookie jar.
+function sessionCookiesAfter(answer: Response, original: Map<string, string>) {
+  const cookies = new Map(original);
+  for (const header of written(answer)) {
+    const separator = header.indexOf("=");
+    const name = header.slice(0, separator);
+    const value = header.slice(separator + 1).split(";")[0] ?? "";
+    if (value) cookies.set(name, value);
+    else cookies.delete(name);
+  }
+  return cookies;
+}
+
 describe("gateSessionCookieWrites", () => {
   it("drops a re-encoded copy of the presented session, other cookies stay", async () => {
     const before = await sealed(SESSION);
@@ -160,6 +173,25 @@ describe("gateSessionCookieWrites", () => {
     expect(familyChecks()).toEqual([]);
   });
 
+  it("keeps standalone chunk deletions even when another portal's replacement is refused", async () => {
+    familyStatus = 503;
+    const deletions = [
+      "tenant.session-token.0=; Path=/; Max-Age=0",
+      "tenant.session-token.1=; Path=/; Max-Age=0",
+    ];
+    const answer = await gateSessionCookieWrites(
+      request(`${NAME}=${await sealed(SESSION)}`),
+      response(
+        `${NAME}=; Path=/; Max-Age=0`,
+        `${NAME}=${await sealed({ ...SESSION, token: "access-2" })}; Path=/`,
+        ...deletions,
+      ),
+    );
+
+    expect(familyChecks()).toHaveLength(1);
+    expect(answer.headers.getSetCookie()).toEqual(deletions);
+  });
+
   it("keeps a sign-in of a live family the request did not present", async () => {
     const answer = await gateSessionCookieWrites(
       request("other=1"),
@@ -218,28 +250,39 @@ describe("gateSessionCookieWrites", () => {
                   `${NAME}.0=${after.slice(0, 40)}; Path=/`,
                   `${NAME}.1=${after.slice(40)}; Path=/`,
                 ];
+        const original = new Map<string, string>(
+          shape === "chunk"
+            ? [[NAME, before]]
+            : [
+                [`${NAME}.0`, before.slice(0, 40)],
+                [`${NAME}.1`, before.slice(40)],
+              ],
+        );
         const answer = await gateSessionCookieWrites(
           request(
-            shape === "chunk"
-              ? `${NAME}=${before}`
-              : `${NAME}.0=${before.slice(0, 40)}; ${NAME}.1=${before.slice(40)}`,
+            [...original].map(([name, value]) => `${name}=${value}`).join("; "),
           ),
           response(...deletions, ...replacements, "other=1; Path=/"),
         );
 
         expect(familyChecks()).toHaveLength(1);
+        if (status !== 200)
+          expect(sessionCookiesAfter(answer, original)).toEqual(original);
         expect(answer.headers.getSetCookie()).toEqual([
-          ...deletions,
-          ...(status === 200 ? replacements : []),
+          ...(status === 200 ? [...deletions, ...replacements] : []),
           "other=1; Path=/",
         ]);
       }
     },
   );
 
-  it("drops an unchanged replacement but keeps obsolete chunk deletions", async () => {
+  it("keeps the original chunks when dropping an unchanged replacement", async () => {
     const before = await sealed(SESSION);
     const deletion = `${NAME}.1=; Path=/; Max-Age=0`;
+    const original = new Map([
+      [`${NAME}.0`, before.slice(0, 40)],
+      [`${NAME}.1`, before.slice(40)],
+    ]);
     const answer = await gateSessionCookieWrites(
       request(
         `${NAME}.0=${before.slice(0, 40)}; ${NAME}.1=${before.slice(40)}`,
@@ -247,7 +290,8 @@ describe("gateSessionCookieWrites", () => {
       response(deletion, `${NAME}.0=${await sealed(SESSION)}; Path=/`),
     );
 
-    expect(answer.headers.getSetCookie()).toEqual([deletion]);
+    expect(sessionCookiesAfter(answer, original)).toEqual(original);
+    expect(answer.headers.getSetCookie()).toEqual([]);
     expect(familyChecks()).toEqual([]);
   });
 

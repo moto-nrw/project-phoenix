@@ -150,7 +150,9 @@ async function mayWrite(
  * refresh-token family Identity & Access confirms live while the response is
  * built. A re-encoded unchanged session, an ended one and one of a revoked or
  * unreadable family set nothing, whenever the request started and however
- * late its answer arrives. Deletions and every other cookie pass unchanged.
+ * late its answer arrives. Cleanup deletions are dropped with a refused
+ * replacement so the browser keeps its existing session intact. Standalone
+ * deletions and every other cookie pass unchanged.
  */
 export async function gateSessionCookieWrites(
   request: Request,
@@ -195,7 +197,7 @@ export async function gateSessionCookieWrites(
   response.headers.delete("Set-Cookie");
   setCookies.forEach((cookie, index) => {
     const write = writes[index];
-    if (!write || write.deletes || !refused.has(baseName(write.name)))
+    if (!write || !refused.has(baseName(write.name)))
       response.headers.append("Set-Cookie", cookie);
   });
   return response;
