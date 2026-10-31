@@ -3,7 +3,9 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
+	"syscall"
 	"testing"
 	"time"
 
@@ -17,8 +19,7 @@ import (
 func TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	listener, err := net.Listen("tcp", "127.0.0.1:10026")
-	require.NoError(t, err)
+	listener := listenDemoCodeInbox(t)
 	codes := make(chan string, 2)
 	// Delivery-only test peer, matching the sidecar wire protocol. No code-read API.
 	done := make(chan struct{})
@@ -74,4 +75,24 @@ func TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = module.Auth.RefreshTokenWithAudit(ctx, refresh, "", "", "")
 	require.NoError(t, err)
+}
+
+// listenDemoCodeInbox binds the fixed loopback address the demo sender dials.
+// Test processes of parallel worktrees and the seed's demo inbox share it on
+// one machine (#5395). The bind is the cross-process lock: while another
+// process holds the address it cannot receive this test's codes, so waiting
+// for it keeps the real delivery path instead of failing at once.
+func listenDemoCodeInbox(t *testing.T) net.Listener {
+	t.Helper()
+	deadline := time.Now().Add(time.Minute)
+	for {
+		listener, err := net.Listen("tcp", "127.0.0.1:10026")
+		if err == nil {
+			return listener
+		}
+		if !errors.Is(err, syscall.EADDRINUSE) || time.Now().After(deadline) {
+			require.NoError(t, err)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
