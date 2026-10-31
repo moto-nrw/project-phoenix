@@ -8,7 +8,6 @@ import {
   useSearchParams,
 } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useSWRConfig } from "swr";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { hasPermission } from "~/lib/auth-utils";
@@ -42,7 +41,8 @@ import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollm
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSidebarMemory } from "~/lib/sidebar-memory";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
   allowedDepartureModesFromDeparture,
@@ -429,7 +429,7 @@ export default function StudentDetailPage() {
 }
 
 function StudentDetailPageContent() {
-  const { mutate } = useSWRConfig();
+  const tenantMutate = useTenantMutate();
   const params = useParams();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -545,17 +545,17 @@ function StudentDetailPageContent() {
       .map((group) => ({ value: String(group.id), label: group.name }))
       .sort((a, b) => a.label.localeCompare(b.label, "de"));
   });
-  const refreshDataAndHistory = useCallback(() => {
+  const refreshDataAndHistory = useCallback(async () => {
     refreshData();
     // Best effort: the change history reloads with its own load error path
     // when it is opened; a failed background refresh only leaves it stale.
-    return mutate(`/api/students/${studentId}/change-history`).catch((err) => {
+    await tenantMutate(studentKeys.changeHistory(studentId)).catch((err) => {
       logger.debug("change_history_revalidation_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
     });
-  }, [mutate, refreshData, studentId]);
+  }, [tenantMutate, refreshData, studentId]);
   const canViewEnrollments =
     sessionStatus === "authenticated" &&
     hasPermission(session, "config:manage");
@@ -704,13 +704,13 @@ function StudentDetailPageContent() {
   // fetch-on-mount effect could not be woken that way and left the header
   // showing the previous pickup time until a manual reload.
   const { data: pickupData } = useSWRAuth(
-    hasFullAccess && studentId ? `pickup-data-${studentId}` : null,
+    hasFullAccess && studentId ? studentKeys.pickupData(studentId) : null,
     async () => fetchStudentPickupData(studentId),
     { revalidateOnFocus: false },
   );
 
   const { data: arrivalData } = useSWRAuth(
-    hasFullAccess && studentId ? `arrival-data-${studentId}` : null,
+    hasFullAccess && studentId ? studentKeys.arrivalData(studentId) : null,
     async () => fetchArrivalData(studentId),
     { revalidateOnFocus: false },
   );
@@ -1341,7 +1341,7 @@ function StudentDetailPageContent() {
       setStatusDayRange((current) => extendStatusDayRange(current, [date]));
       await Promise.all([
         mutatePartialAbsences(),
-        mutate(`pickup-data-${studentId}`),
+        tenantMutate(studentKeys.pickupData(studentId)),
       ]);
       refreshData();
       toast.success(
@@ -1369,7 +1369,7 @@ function StudentDetailPageContent() {
       await deleteStudentPartialAbsence(studentId, partialAbsenceId);
       await Promise.all([
         mutatePartialAbsences(),
-        mutate(`pickup-data-${studentId}`),
+        tenantMutate(studentKeys.pickupData(studentId)),
       ]);
       refreshData();
       toast.success("Die Teilentschuldigung ist entfernt.");

@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import {
@@ -155,8 +157,8 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: organizationsError,
     isLoading,
     mutate: mutateOrganizations,
-  } = useSWR(
-    isAuthenticated ? "operator-organization-summaries" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
     {
       keepPreviousData: true,
@@ -186,9 +188,9 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchoolSummaries,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && organizationId
-      ? ["operator-organization-school-summaries", organizationId]
+      ? operatorProvisioningKeys.organizationSchoolSummaries(organizationId)
       : null,
     () =>
       operatorProvisioningService.listOrganizationSchools(organizationId ?? ""),
@@ -226,13 +228,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: accountsError,
     isLoading: accountsLoading,
     mutate: mutateOrgAccounts,
-  } = useSWR(
-    accountsActive ? ["operator-org-accounts", organization?.id] : null,
+  } = useSWRAuth(
+    accountsActive
+      ? operatorProvisioningKeys.orgAccounts(organization?.id)
+      : null,
     () =>
       operatorProvisioningService.listOrganizationAccounts(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const devicesActive =
@@ -242,13 +250,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: devicesError,
     isLoading: devicesLoading,
     mutate: mutateOrgDevices,
-  } = useSWR(
-    devicesActive ? ["operator-org-devices", organization?.id] : null,
+  } = useSWRAuth(
+    devicesActive
+      ? operatorProvisioningKeys.orgDevices(organization?.id)
+      : null,
     () =>
       operatorProvisioningService.listOrganizationDevices(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const personsActive =
@@ -258,13 +272,19 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: personsError,
     isLoading: personsLoading,
     mutate: mutateOrgPersons,
-  } = useSWR(
-    personsActive ? ["operator-org-persons", organization?.id] : null,
+  } = useSWRAuth(
+    personsActive
+      ? operatorProvisioningKeys.orgPersons(organization?.id)
+      : null,
     () =>
       operatorProvisioningService.listOrganizationPersons(
         organization?.id ?? "",
       ),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const traegerMembersActive =
@@ -274,13 +294,17 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     error: traegerMembersError,
     isLoading: traegerMembersLoading,
     mutate: mutateTraegerMembers,
-  } = useSWR(
+  } = useSWRAuth(
     traegerMembersActive
-      ? ["operator-org-traeger-members", organization?.id]
+      ? operatorProvisioningKeys.orgTraegerMembers(organization?.id)
       : null,
     () =>
       operatorProvisioningService.listTraegerMembers(organization?.id ?? ""),
-    { revalidateOnFocus: false, dedupingInterval: 5000 },
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
   );
 
   const organizationsLoadError = useSwrLoadError(

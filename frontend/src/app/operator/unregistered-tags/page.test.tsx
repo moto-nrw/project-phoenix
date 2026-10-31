@@ -6,7 +6,7 @@ import { ToastProvider } from "~/contexts/ToastContext";
 
 const { mockUseSWR } = vi.hoisted(() => ({ mockUseSWR: vi.fn() }));
 
-vi.mock("swr", () => ({ default: mockUseSWR }));
+vi.mock("~/lib/swr", () => ({ useSWRAuth: mockUseSWR }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),

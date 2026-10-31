@@ -1,3 +1,4 @@
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 /**
  * Tests for Operator School Detail (Drill-in) Page.
  *
@@ -100,9 +101,10 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: mockUseSWR,
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: mockUseSWR,
   useSWRConfig: () => ({ mutate: vi.fn() }),
+  useTenantMutateMatching: () => vi.fn(async () => []),
 }));
 
 vi.mock("~/lib/operator/provisioning-api", async () => {
@@ -251,27 +253,27 @@ function setupSWR(opts: SetupOpts = {}) {
     switch (k) {
       case "operator-organization-summaries":
         return { data: orgs, isLoading: false, mutate: mockMutateOrgs };
-      case "operator-organization-schools":
+      case operatorProvisioningKeys.organizationSchoolSummaries(mockOrg.id):
         return {
           data: schools,
           isLoading: false,
           mutate: mockMutateSchools,
         };
-      case "operator-school-accounts":
+      case operatorProvisioningKeys.schoolAccounts(mockSchool.id):
         return {
           data: accounts,
           error: accountsError,
           isLoading: false,
           mutate: mockMutateAccounts,
         };
-      case "operator-school-devices":
+      case operatorProvisioningKeys.schoolDevices(mockSchool.id):
         return {
           data: devices,
           error: devicesError,
           isLoading: false,
           mutate: mockMutateDevices,
         };
-      case "operator-school-persons":
+      case operatorProvisioningKeys.schoolPersons(mockSchool.id):
         return {
           data: persons,
           error: personsError,

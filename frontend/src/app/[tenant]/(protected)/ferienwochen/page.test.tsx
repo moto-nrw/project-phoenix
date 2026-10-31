@@ -6,7 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { SWRConfig, type Cache } from "~/lib/swr";
+import { SWRConfig, type Cache } from "~/lib/swr/testing";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import FerienwochenPage from "./page";

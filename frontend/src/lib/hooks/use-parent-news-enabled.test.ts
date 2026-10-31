@@ -9,7 +9,7 @@ import {
   type Mock,
 } from "vitest";
 
-vi.mock("swr");
+vi.mock("~/lib/swr");
 
 vi.mock("~/lib/parent-api", () => ({
   listMyChildren: vi.fn(),
@@ -17,7 +17,7 @@ vi.mock("~/lib/parent-api", () => ({
   listAnnouncements: vi.fn(),
 }));
 
-import useSWR, { type SWRResponse } from "swr";
+import { useSWRAuth as useSWR, type SWRResponse } from "~/lib/swr";
 import { useParentNewsEnabled } from "./use-parent-news-enabled";
 import {
   getChildFeatures,

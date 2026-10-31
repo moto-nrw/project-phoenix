@@ -1,5 +1,8 @@
 "use client";
 
+import { createCrudService } from "~/lib/database/service-factory";
+import { teachersConfig } from "~/components/database/configs/teachers.config";
+import { staff as staffKeys } from "~/lib/swr/staff";
 import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "~/components/ui/navigation-link";
@@ -36,12 +39,10 @@ import {
   getRoleDisplayName,
 } from "@/lib/auth-helpers";
 import { staffDisplayName } from "~/lib/staff-helpers";
-import { createCrudService } from "@/lib/database/service-factory";
-import { teachersConfig } from "@/components/database/configs/teachers.config";
 import type { Teacher } from "@/lib/teacher-api";
 import { Modal } from "~/components/ui/modal";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { staffConcept } from "~/lib/concepts/staff";
 
@@ -142,11 +143,11 @@ function TeachersPageContent() {
     data: teachersData,
     isLoading: loading,
     error: teachersError,
-    mutate: refreshTeachers,
-  } = useSWRAuth("database-teachers-list", async () => {
-    const data = await service.getList({ page: 1, pageSize: 1000 });
-    return Array.isArray(data.data) ? data.data : [];
-  });
+  } = useSWRAuth(staffKeys.teachersKey(), () =>
+    staffKeys.teachersFetcher(service),
+  );
+
+  const refreshTeachers = useTenantMutateMatching([staffKeys.family]);
 
   const error = teachersError
     ? "Fehler beim Laden des Personals. Bitte versuchen Sie es später erneut."

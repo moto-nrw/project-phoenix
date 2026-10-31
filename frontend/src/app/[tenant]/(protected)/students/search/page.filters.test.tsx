@@ -351,7 +351,7 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
           // Fire-and-forget — we only assert on mockGetStudents call shape.
           void fetcher().catch(() => undefined);
         }
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -526,7 +526,7 @@ describe("StudentSearchPage — Kinder nur über Alle Kinder (#1321)", () => {
           // Fire-and-forget — we only assert on mockGetStudents call shape.
           void fetcher().catch(() => undefined);
         }
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return {
             data: [],
             isLoading: false,
@@ -759,7 +759,7 @@ describe("StudentSearchPage — Laufgemeinschaft grouping (#1694)", () => {
           // Fire-and-forget — the grouping only reads the returned data.
           void fetcher().catch(() => undefined);
         }
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return { data: [], isLoading: false, error: null };
         }
         return { data: { students }, isLoading: false, error: null };
@@ -1112,7 +1112,7 @@ describe("StudentSearchPage — planning date (#1939)", () => {
         if (fetcher) {
           void fetcher().catch(() => undefined);
         }
-        if (key === "search-rooms-list") {
+        if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
           return { data: [], isLoading: false, error: null };
         }
         return {
@@ -1483,7 +1483,7 @@ describe("StudentSearchPage — Unterwegs-Karte (#5026)", () => {
       error: null,
     });
     mockUseSWRAuth.mockImplementation((key: string | null) =>
-      key === "search-rooms-list"
+      key === 'rooms-list-{"page":1,"pageSize":1000}'
         ? { data: [], isLoading: false, error: null }
         : { data: { students: [mockStudent] }, isLoading: false, error: null },
     );
@@ -1540,7 +1540,7 @@ describe("StudentSearchPage — Unterwegs-Karte (#5026)", () => {
       tracking: "missing:0",
     });
     mockUseSWRAuth.mockImplementation((key: string | null) => {
-      if (key === "search-rooms-list") {
+      if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
         return { data: [], isLoading: false, error: null };
       }
       if (key?.startsWith("tracking-indicators-")) {

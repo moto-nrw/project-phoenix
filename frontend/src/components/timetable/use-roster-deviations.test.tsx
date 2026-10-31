@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { SWRConfig } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import { describe, expect, it, vi } from "vitest";
 
 import type { RosterDeviation } from "~/lib/roster-deviation";

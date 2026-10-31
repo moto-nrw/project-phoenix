@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorInvitationKeys } from "~/lib/swr/portal-keys";
+
 import { useState, useCallback, useRef } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -51,10 +53,10 @@ export default function OperatorOperatorsPage() {
     error: fetchError,
     isLoading,
     mutate,
-  } = useSWR<OperatorInvitationsData>(
-    "operator-invitations",
+  } = useSWRAuth<OperatorInvitationsData>(
+    operatorInvitationKeys.list(),
     () => listOperatorInvitations(),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(
     fetchError,

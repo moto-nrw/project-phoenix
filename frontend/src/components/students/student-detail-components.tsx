@@ -1,10 +1,11 @@
 "use client";
 
+import { studentKeys } from "~/lib/swr/portal-keys";
 import type React from "react";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { AlertTriangle, Check, Clock, Info } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -183,10 +184,14 @@ function FieldHistoryInfo({
   studentId,
   fields,
 }: Readonly<{ studentId: string; fields: readonly string[] }>) {
-  const { data } = useSWR<FieldChangeEntry[]>(
-    `/api/students/${studentId}/change-history`,
-    changeHistoryFetcher,
-    { shouldRetryOnError: false, revalidateOnFocus: false },
+  const { data } = useSWRAuth<FieldChangeEntry[]>(
+    studentKeys.changeHistory(studentId),
+    () => changeHistoryFetcher(`/api/students/${studentId}/change-history`),
+    {
+      keepPreviousData: false,
+      shouldRetryOnError: false,
+      revalidateOnFocus: false,
+    },
   );
 
   const [open, setOpen] = useState(false);

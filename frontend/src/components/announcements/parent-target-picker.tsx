@@ -1,5 +1,6 @@
 "use client";
 
+import { groups as groupsKeys } from "~/lib/swr/groups";
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 
@@ -10,7 +11,7 @@ import { Input } from "~/components/ui/input";
 import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
-import { groupService, studentService } from "~/lib/api";
+import { studentService } from "~/lib/api";
 import { fetchActivities } from "~/lib/activity-api";
 import type { Group, Student } from "~/lib/api";
 import type { Activity } from "~/lib/activity-helpers";
@@ -359,8 +360,8 @@ export function useParentTargetLookups(enabled: boolean): {
     error: groupsError,
     mutate: reloadGroups,
   } = useSWRAuth<Group[]>(
-    enabled ? "parent-announcements-groups" : null,
-    () => groupService.getGroups(),
+    enabled ? groupsKeys.key() : null,
+    groupsKeys.fetcher,
     { revalidateOnFocus: false },
   );
   const {

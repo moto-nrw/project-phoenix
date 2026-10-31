@@ -31,9 +31,8 @@ const schedule: StaffSchedule = {
   validFrom: "2026-08-10",
 };
 
-vi.mock("swr", () => ({ useSWRConfig: () => ({ mutate: vi.fn() }) }));
-
 vi.mock("~/lib/swr", () => ({
+  useInvalidateMatching: () => vi.fn(),
   useSWRAuth: (key: string | null) => {
     if (key === "staff-schedule-42") {
       return { data: schedule, isLoading: false, mutate: vi.fn() };

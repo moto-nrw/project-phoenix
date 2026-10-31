@@ -1,5 +1,6 @@
 "use client";
 
+import { groups as groupsKeys } from "~/lib/swr/groups";
 import {
   Suspense,
   useCallback,
@@ -31,7 +32,7 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useDeleteConfirmation } from "~/hooks/useDeleteConfirmation";
 import { useUpdateUrlParams } from "~/hooks/useUpdateUrlParams";
 import { createLogger } from "~/lib/logger";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { groupsConcept } from "~/lib/concepts/groups";
 
 const logger = createLogger({ component: "DatabaseGroupsPage" });
@@ -80,17 +81,16 @@ function GroupsPageContent() {
   });
 
   const service = useMemo(() => createCrudService(groupsConfig), []);
-  const tenantMutate = useTenantMutate();
+  const refreshGroups = useTenantMutateMatching([groupsKeys.family]);
 
   const {
     data: groupsData,
     isLoading: swrLoading,
     error: groupsError,
     mutate: mutateGroups,
-  } = useSWRAuth("database-groups-list", async () => {
-    const data = await service.getList({ page: 1, pageSize: 500 });
-    return Array.isArray(data.data) ? data.data : [];
-  });
+  } = useSWRAuth(groupsKeys.key({ page: 1, pageSize: 500 }), () =>
+    groupsKeys.fetcher({ page: 1, pageSize: 500 }),
+  );
 
   const error = useSwrLoadError(groupsError, "die Liste der Gruppen", () =>
     mutateGroups(),
@@ -191,9 +191,9 @@ function GroupsPageContent() {
       const created = await service.create(payload);
       toastSuccess(`Die Gruppe „${created.name}“ ist angelegt.`);
       setShowCreateModal(false);
-      await tenantMutate("database-groups-list");
+      await refreshGroups();
     },
-    [service, tenantMutate, toastSuccess],
+    [service, refreshGroups, toastSuccess],
   );
 
   const handleUpdateGroup = useCallback(
@@ -207,9 +207,9 @@ function GroupsPageContent() {
       toastSuccess(
         `Die Gruppe „${data.name ?? selectedGroup.name}“ ist gespeichert.`,
       );
-      await tenantMutate("database-groups-list");
+      await refreshGroups();
     },
-    [selectedGroup, service, tenantMutate, toastSuccess],
+    [selectedGroup, service, refreshGroups, toastSuccess],
   );
 
   const handleDeleteGroup = useCallback(async () => {
@@ -222,7 +222,7 @@ function GroupsPageContent() {
       toastSuccess(`Die Gruppe „${selectedGroup.name}“ ist gelöscht.`);
       handleDeleteCancel();
       handleSelectGroup(null);
-      await tenantMutate("database-groups-list");
+      await refreshGroups();
     } catch (err) {
       logger.warn("group_delete_failed", {
         group_id: selectedGroup.id,
@@ -242,7 +242,7 @@ function GroupsPageContent() {
     toastSuccess,
     handleDeleteCancel,
     handleSelectGroup,
-    tenantMutate,
+    refreshGroups,
     deleteErrors,
   ]);
 

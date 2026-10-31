@@ -1,5 +1,7 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import {
   useCallback,
   useEffect,
@@ -10,7 +12,7 @@ import {
 } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import useSWR, { unstable_serialize, useSWRConfig } from "swr";
+import { useSWRSeedFrom } from "~/lib/swr";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
@@ -33,7 +35,7 @@ import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
@@ -105,7 +107,6 @@ function MessageThreadContent() {
   // the new tenant until revalidation 403/404s. Mirrors the inbox key, which is
   // also tenant-prefixed (frontend convention: useTenantSlugSafe for cache-key
   // prefixing).
-  const tenantSlug = useTenantSlugSafe();
   // When the school has parent-OGS messaging turned off, replying hits a
   // backend 403 (PostMessage → requireEnabled). The inbox already hides the
   // "Neue Nachricht" entry on the same flag; mirror it here so an existing
@@ -113,7 +114,7 @@ function MessageThreadContent() {
   // stays visible.
   const messagingEnabled = tenant?.messagingEnabled === true;
 
-  const { cache } = useSWRConfig();
+  const seedFrom = useSWRSeedFrom();
   const leavingAsUnreadRef = useRef(false);
   const pendingThreadLoadsRef = useRef(new Set<Promise<ThreadDetail>>());
 
@@ -124,24 +125,28 @@ function MessageThreadContent() {
     // The inbox is keyed ["messages-inbox", onlyUnread], so the seed must search
     // every filter combination that may be cached.
     for (const unread of [false, true]) {
-      const entry = cache.get(
-        unstable_serialize([`${tenantSlug ?? ""}:messages-inbox`, unread]),
-      ) as { data?: InboxThread[] } | undefined;
-      const row = entry?.data?.find((t) => t.thread_id === threadId);
-      if (row) {
-        return {
-          thread_id: row.thread_id,
-          student_id: row.student_id,
-          student_name: row.student_name,
-          guardian_name: row.guardian_name,
-          relationship_type: row.relationship_type,
-          audience: row.audience,
-          messages: [],
-        };
-      }
+      const seeded = seedFrom(
+        messageKeys.messagesInbox(unread),
+        messageKeys.messageThread(threadId),
+        (inbox: InboxThread[]): ThreadDetail | undefined => {
+          const row = inbox.find((t) => t.thread_id === threadId);
+          return row
+            ? {
+                thread_id: row.thread_id,
+                student_id: row.student_id,
+                student_name: row.student_name,
+                guardian_name: row.guardian_name,
+                relationship_type: row.relationship_type,
+                audience: row.audience,
+                messages: [],
+              }
+            : undefined;
+        },
+      );
+      if (seeded) return seeded;
     }
     return undefined;
-  }, [cache, threadId, tenantSlug]);
+  }, [seedFrom, threadId]);
 
   const {
     data: thread,
@@ -149,8 +154,8 @@ function MessageThreadContent() {
     isLoading,
     isValidating,
     mutate,
-  } = useSWR(
-    [`${tenantSlug ?? ""}:message-thread`, threadId],
+  } = useSWRAuth(
+    messageKeys.messageThread(threadId),
     async () => {
       const load = fetchThread(threadId);
       pendingThreadLoadsRef.current.add(load);
@@ -161,6 +166,7 @@ function MessageThreadContent() {
       }
     },
     {
+      keepPreviousData: false,
       revalidateOnFocus: false,
       isPaused: () => leavingAsUnreadRef.current,
       fallbackData: seed,

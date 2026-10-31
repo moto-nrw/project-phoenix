@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -56,8 +58,8 @@ export default function OperatorOrganizationsPage() {
     error: orgsError,
     isLoading: orgsLoading,
     mutate: mutateOrgs,
-  } = useSWR(
-    isAuthenticated ? "operator-organization-summaries" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
     {
       keepPreviousData: true,
@@ -70,8 +72,8 @@ export default function OperatorOrganizationsPage() {
     data: stats,
     error: statsError,
     mutate: mutateStats,
-  } = useSWR(
-    isAuthenticated ? "operator-provisioning-stats" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.provisioningStats() : null,
     () => operatorProvisioningService.getStats(),
     {
       keepPreviousData: true,

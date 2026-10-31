@@ -1,9 +1,11 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -40,8 +42,8 @@ export default function OperatorSchoolsPage() {
     data: organizations,
     error: organizationsError,
     mutate: mutateOrganizations,
-  } = useSWR(
-    isAuthenticated ? "operator-organizations" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.organizations() : null,
     () => operatorProvisioningService.listOrganizations(),
     {
       keepPreviousData: true,
@@ -55,8 +57,8 @@ export default function OperatorSchoolsPage() {
     error: summariesError,
     isLoading: summariesLoading,
     mutate: mutateSummaries,
-  } = useSWR(
-    isAuthenticated ? "operator-school-summaries" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
     () => operatorProvisioningService.listSchoolSummaries(),
     {
       keepPreviousData: true,
