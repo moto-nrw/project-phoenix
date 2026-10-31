@@ -8994,7 +8994,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CountActiveCourseEnrollments",
-      "binding_digest": "5e0f75e53ee75c3989676c5e1d29c40e",
+      "binding_digest": "d4d88b080c1b9752dfc55edfd562f646",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose.New",
@@ -9002,7 +9002,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CountActiveCourseEnrollments",
-      "binding_digest": "407dedc8a2955c1a80ce56edaa4d9e88",
+      "binding_digest": "177608f077745f1b5325d4d093ddb6b8",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetableprojection/internal/adapters/postgres.Reader.CountActiveCourseEnrollments",
@@ -9010,7 +9010,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.ManualPlanningReader.CountActiveCourseEnrollments",
-      "binding_digest": "f85165089733c367831dfd79f2e222cd",
+      "binding_digest": "5c25e9ea81ac28787035289bb7954855",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangePlanning.CountActiveCourseEnrollments",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose.Database.Pool",
