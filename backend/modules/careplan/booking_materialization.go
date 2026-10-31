@@ -269,6 +269,11 @@ type BookingDayChange struct {
 	NetLossWeekdays []int
 	// Remaining are the offerings the child books after the change.
 	Remaining []RemainingDayBooking
+	// OtherEnrollments are the offerings the student books on the date
+	// through other approved enrollments, which the change leaves as they
+	// are (#5366). They carry a Regeltermin only by a known pickup time and
+	// never decide whether a day keeps the net-loss rule.
+	OtherEnrollments []RemainingDayBooking
 }
 
 // RemainingDayBooking is one offering the child still books on one ISO

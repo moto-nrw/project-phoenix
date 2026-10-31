@@ -115,3 +115,30 @@ periods, not a callable; the root binding that maps Care Plan's day change
 onto the query is reviewed again as a query. Materialization's per-date rule
 `candidateSlot` now calls `scheduleValidOn` for its validity part, without a
 change in behaviour.
+
+## Addendum 2026-10-31: the student's other enrollments carry as well (#5366)
+
+A student may hold approved enrollments of several phases at once, for
+example a custom phase for existing students beside the school year. The
+first addendum read only the bookings of the changed enrollment, so an
+unchanged booking of another enrollment that carries the Regeltermin did not
+prevent the notice.
+
+Care Plan now also names the bookings of the student's other approved
+request children, read through Enrollment's existing approved-selection
+projection (`ApprovedSelectionsForStudents`) behind its consumer port
+`BookingEnrollment.StudentSelectionsAt`. A selection counts when it is in
+force on the first rewritten day, its phase's service window holds that day
+and its offering is active. Timetable receives them as `OtherBookings` of
+the query.
+
+Where the times decide, such a booking carries a Regeltermin by the same
+rule: a fitting kind and a known pickup time no earlier than the end. It
+never decides the earlier rule: whether a day falls back to the net loss
+depends only on the Regeltermin's end and the changed enrollment's pickup
+times, and the net loss counts only the change. An unchanged booking without
+a pickup time carries nothing. A day therefore loses a notice only when a
+booking of another enrollment provably carries the Regeltermin; with a single
+enrollment and in schools without pickup times every notice stays as it was.
+
+The read adds no owner edge, no write and no binding-flow diagnostic.

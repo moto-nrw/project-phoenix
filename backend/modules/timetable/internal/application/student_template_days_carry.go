@@ -26,6 +26,12 @@ import (
 // drops more offerings on the day than it newly books. Schools without pickup
 // times therefore see the earlier notices.
 //
+// A student may hold further approved enrollments the change leaves as they
+// are (#5366). Where the times decide, their bookings carry a Regeltermin
+// like the changed enrollment's, but only with a known pickup time: an
+// unchanged booking is no part of the change's balance, so it never moves a
+// day to the earlier rule and never carries without its time.
+//
 // Only schedules that are valid on a date of their weekday from the date on
 // name weekdays and ends, by materialization's own validity rule
 // (scheduleValidOn).
@@ -159,13 +165,13 @@ func (s *StudentTemplateDays) scheduleEnds(ctx context.Context, schedules []time
 // bookingCarry decides, with the bookings after the change, which weekdays
 // of a hand-maintained Regeltermin keep a booking.
 type bookingCarry struct {
-	bookings []timetable.StudentDayBooking
-	netLoss  map[int]bool
+	bookings, others []timetable.StudentDayBooking
+	netLoss          map[int]bool
 }
 
 func newBookingCarry(query timetable.ManualStudentPlanQuery) (bookingCarry, error) {
-	carry := bookingCarry{bookings: query.Bookings, netLoss: make(map[int]bool, len(query.NetLossWeekdays))}
-	for _, booking := range query.Bookings {
+	carry := bookingCarry{bookings: query.Bookings, others: query.OtherBookings, netLoss: make(map[int]bool, len(query.NetLossWeekdays))}
+	for _, booking := range slices.Concat(query.Bookings, query.OtherBookings) {
 		if !isISOWeekday(booking.Weekday) {
 			return carry, fmt.Errorf("%w: booking weekday %d is not an ISO weekday", timetable.ErrStudentTemplateDaysInvalid, booking.Weekday)
 		}
@@ -205,25 +211,26 @@ func (c bookingCarry) dropCarriedDays(groups []timetable.Group, days templateDay
 }
 
 // keeps reports whether the Regeltermin keeps a booking on the weekday. With
-// an end and every pickup time of the day known, a fitting booking must reach
-// the end; otherwise the day keeps it unless it is a net loss.
+// an end and every pickup time of the changed enrollment's day known, a
+// fitting booking of any enrollment must reach the end; otherwise the day
+// keeps it unless it is a net loss.
 func (c bookingCarry) keeps(weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool) bool {
 	if !endKnown || !c.pickupsKnown(weekday) {
 		return !c.netLoss[weekday]
 	}
-	for _, booking := range c.bookings {
+	for _, booking := range slices.Concat(c.bookings, c.others) {
 		if booking.Weekday != weekday || !kind.AdmitsOffering(booking.CountsAsCare, booking.IncludesLunch) {
 			continue
 		}
-		if pickup, _ := clockMinutes(booking.PickupTime); end <= pickup {
+		if pickup, known := clockMinutes(booking.PickupTime); known && end <= pickup {
 			return true
 		}
 	}
 	return false
 }
 
-// pickupsKnown reports whether every booking of the weekday has a pickup
-// time.
+// pickupsKnown reports whether every booking of the changed enrollment on
+// the weekday has a pickup time.
 func (c bookingCarry) pickupsKnown(weekday int) bool {
 	for _, booking := range c.bookings {
 		if _, known := clockMinutes(booking.PickupTime); booking.Weekday == weekday && !known {

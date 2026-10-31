@@ -3803,6 +3803,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (e bookingEnrollment) StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error) {\n\tselections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(on), enrollmentOwner.Date(on))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))\n\tfor _, selection := range selections {\n\t\tif selection != nil \u0026\u0026 selection.StudentID == studentID {\n\t\t\tvalues = append(values, selection.Selection)\n\t\t}\n\t}\n\treturn BookedOfferings(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/bookingEnrollment.StudentSelectionsAt",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p bookingPeriods) Periods(ctx context.Context) ([]careplan.LinkedPeriod, error) {\n\tperiods, err := p.calendar.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]careplan.LinkedPeriod, 0, len(periods))\n\tfor _, period := range periods {\n\t\tresult = append(result, careplan.LinkedPeriod{ID: period.ID, StartDate: calendar.Date(period.StartDate), EndDate: calendar.Date(period.EndDate), IsActive: period.IsActive, WeekCycleLength: period.WeekCycleLength, WeekCycleAnchor: period.WeekCycleAnchor})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingPeriods.Periods",

@@ -2717,6 +2717,11 @@
     },
     {
       "decision": "0090",
+      "id": "roots/owners/bookingEnrollment.StudentSelectionsAt",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0090",
       "id": "roots/owners/bookingPeriods.Periods",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

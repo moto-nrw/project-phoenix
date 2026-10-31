@@ -135,10 +135,59 @@ func TestBookingCarry_RegelterminWithoutEndKeepsTheNetLossRule(t *testing.T) {
 	assert.True(t, noNetLoss(careDay(friday, "12:45")).keeps(friday, careKind, unknownEnd, false))
 }
 
+// withOthers adds the bookings of the student's other enrollments (#5366).
+func withOthers(carry bookingCarry, others ...timetable.StudentDayBooking) bookingCarry {
+	carry.others = others
+	return carry
+}
+
+// #5366: the changed enrollment drops Friday, another enrollment of the
+// student keeps Ganztag until 16:00 on Friday. It carries the hand list until
+// 12:45 like a booking of the changed enrollment. One picked up before the
+// end, on another weekday or of another kind does not.
+func TestBookingCarry_OtherEnrollmentCarriesByItsPickupTime(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, withOthers(netLossOn(friday), careDay(friday, "16:00")).keeps(friday, careKind, endAt1245, true))
+	assert.False(t, withOthers(netLossOn(friday), careDay(friday, "12:45")).keeps(friday, careKind, endAt1600, true))
+	assert.False(t, withOthers(netLossOn(friday), careDay(monday, "16:00")).keeps(friday, careKind, endAt1245, true))
+	course := timetable.StudentDayBooking{Weekday: friday, PickupTime: "16:00"}
+	assert.False(t, withOthers(netLossOn(friday), course).keeps(friday, careKind, endAt1245, true))
+	assert.True(t, withOthers(netLossOn(friday), course).keeps(friday, courseKind, endAt1245, true))
+}
+
+// An unchanged booking of another enrollment without a pickup time carries
+// nothing and leaves the decision as it was: a known pickup time of the
+// changed enrollment still decides, and so does an empty day.
+func TestBookingCarry_OtherEnrollmentWithoutPickupTimeDecidesNothing(t *testing.T) {
+	t.Parallel()
+
+	unknown := careDay(friday, "")
+	assert.False(t, withOthers(netLossOn(friday), unknown).keeps(friday, careKind, endAt1245, true))
+	assert.True(t, withOthers(netLossOn(friday, careDay(friday, "12:45")), unknown).keeps(friday, careKind, endAt1245, true))
+	assert.False(t, withOthers(noNetLoss(careDay(friday, "14:30")), unknown).keeps(friday, careKind, endAt1600, true))
+	assert.False(t, withOthers(netLossOn(friday), unknown).keeps(friday, careKind, 0, true),
+		"a missing pickup time is no pickup at midnight")
+}
+
+// The net-loss rule stays exact where the changed enrollment lacks a
+// pickup time or the Regeltermin an end: another enrollment's booking does
+// not override it.
+func TestBookingCarry_OtherEnrollmentKeepsTheNetLossRule(t *testing.T) {
+	t.Parallel()
+
+	ganztag := careDay(friday, "16:00")
+	assert.False(t, withOthers(netLossOn(friday, careDay(friday, "")), ganztag).keeps(friday, careKind, endAt1245, true))
+	assert.True(t, withOthers(noNetLoss(careDay(friday, "")), ganztag).keeps(friday, careKind, endAt1600, true))
+	assert.False(t, withOthers(netLossOn(friday), ganztag).keeps(friday, careKind, unknownEnd, false))
+}
+
 func TestNewBookingCarry_RejectsWeekdaysOutsideTheWeek(t *testing.T) {
 	t.Parallel()
 
 	_, err := newBookingCarry(timetable.ManualStudentPlanQuery{Bookings: []timetable.StudentDayBooking{careDay(8, "12:45")}})
+	assert.ErrorIs(t, err, timetable.ErrStudentTemplateDaysInvalid)
+	_, err = newBookingCarry(timetable.ManualStudentPlanQuery{OtherBookings: []timetable.StudentDayBooking{careDay(0, "12:45")}})
 	assert.ErrorIs(t, err, timetable.ErrStudentTemplateDaysInvalid)
 	_, err = newBookingCarry(timetable.ManualStudentPlanQuery{NetLossWeekdays: []int{0}})
 	assert.ErrorIs(t, err, timetable.ErrStudentTemplateDaysInvalid)

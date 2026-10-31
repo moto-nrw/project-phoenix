@@ -33,6 +33,11 @@ type ManualStudentPlanQuery struct {
 	// Bookings are what the student books after the change, one entry per
 	// offering and weekday. None means the student books nothing.
 	Bookings []StudentDayBooking
+	// OtherBookings are what the student books through other enrollments
+	// the change leaves as they are (#5366). Such a booking carries a
+	// Regeltermin only with a known pickup time; it never moves a day to the
+	// net-loss rule.
+	OtherBookings []StudentDayBooking
 }
 
 // StudentDayBooking is one offering the student books on one ISO weekday.
