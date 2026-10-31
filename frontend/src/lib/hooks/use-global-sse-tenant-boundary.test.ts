@@ -18,6 +18,8 @@ vi.mock("next-auth/react", () => ({
 }));
 vi.mock("~/lib/tenant-context", () => ({
   useTenantSafe: () => ({ tenant: { tenantId: 1 } }),
+  // The family invalidation scopes its keys to the school of the URL.
+  useTenantSlugSafe: () => "school-a",
 }));
 vi.mock("~/lib/hooks/use-sse", () => ({ useSSE }));
 
