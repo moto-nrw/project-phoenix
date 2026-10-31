@@ -1325,3 +1325,55 @@ describe("getChildToday", () => {
     await expect(getChildToday("42")).rejects.toThrow();
   });
 });
+
+describe("relationship refusal signals", () => {
+  it("signals a child refusal for the account that started the request", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    try {
+      mockFetch(async () =>
+        jsonResponse({ code: "care.child_not_linked" }, { status: 403 }),
+      );
+      await expect(getChildFeatures("42")).rejects.toMatchObject({
+        code: "care.child_not_linked",
+      });
+      expect(listener).toHaveBeenCalledOnce();
+      expect(
+        (listener.mock.calls[0]?.[0] as CustomEvent | undefined)?.detail,
+      ).toMatchObject({
+        account: "parent-a",
+        error: { code: "care.child_not_linked", status: 403 },
+      });
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+  it("does not let a late refusal of another account evict the new account", async () => {
+    const { bindSessionAccount } = await import("~/lib/session-account");
+    const listener = vi.fn();
+    window.addEventListener("parent-access-refused", listener);
+    bindSessionAccount("parent-a");
+    let respond!: (response: Response) => void;
+    mockFetch(
+      () =>
+        new Promise((resolve) => {
+          respond = resolve;
+        }),
+    );
+    try {
+      const request = getChildFeatures("42");
+      bindSessionAccount("parent-b");
+      respond(jsonResponse({ code: "care.child_not_linked" }, { status: 403 }));
+      await expect(request).rejects.toMatchObject({
+        code: "care.child_not_linked",
+      });
+      expect(listener).not.toHaveBeenCalled();
+    } finally {
+      bindSessionAccount(null);
+      window.removeEventListener("parent-access-refused", listener);
+    }
+  });
+});

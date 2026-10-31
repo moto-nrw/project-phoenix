@@ -1,7 +1,7 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
 import {
   ApiError,
-  transportFetch,
+  transportFetch as fetchTransport,
   unavailableApiError,
   apiErrorFromBody,
 } from "./api-error";
@@ -38,6 +38,24 @@ import type {
   SubmitEnrollmentPayload,
   SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
+
+import { boundSessionAccount } from "~/lib/session-account";
+import {
+  isParentAccessRefusal,
+  PARENT_ACCESS_REFUSED_EVENT,
+} from "~/lib/parent-access-refusal";
+
+// Capture the originating account before awaiting the cookie-bound request.
+const responseAccounts = new WeakMap<Response, string | null>();
+async function transportFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const account = boundSessionAccount();
+  const response = await fetchTransport(input, init);
+  responseAccounts.set(response, account);
+  return response;
+}
 
 const logger = createLogger({ component: "ParentAPI" });
 
@@ -501,6 +519,19 @@ async function throwResponseError(
     response.status,
     body,
   );
+  const account = responseAccounts.get(response);
+  if (
+    typeof window !== "undefined" &&
+    account &&
+    account === boundSessionAccount() &&
+    isParentAccessRefusal(error)
+  ) {
+    window.dispatchEvent(
+      new CustomEvent(PARENT_ACCESS_REFUSED_EVENT, {
+        detail: { account, error },
+      }),
+    );
+  }
   const context = {
     url,
     status: response.status,

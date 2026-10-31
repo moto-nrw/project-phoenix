@@ -1,5 +1,6 @@
 "use client";
 
+import { useParentResourceEvents } from "~/lib/hooks/use-parent-resources";
 import { useCallback } from "react";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { dispatchPhoenixNotification } from "~/lib/notification-events";
@@ -30,6 +31,7 @@ import type { SSEEvent } from "~/lib/sse-types";
  * nothing.
  */
 export function ParentRealtimeBridge() {
+  useParentResourceEvents();
   const handleSSE = useCallback((event: SSEEvent) => {
     if (typeof window === "undefined") return;
     if (event.type === "notification") {

@@ -50,7 +50,10 @@ import {
 } from "~/components/parent/shell/parent-section";
 import { OgsVisibleBadge } from "~/components/parent/ogs-visible-badge";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
-import { useChildRequests } from "~/components/parent/child-requests-context";
+import {
+  useChildRequests,
+  useSharedParentFeatures,
+} from "~/components/parent/child-requests-context";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ChildMasterDataRequestModal } from "~/components/parent/child-master-data-request-modal";
 import {
@@ -185,6 +188,8 @@ export function useChildMasterData(
 ): ChildMasterDataState {
   const [data, setData] = useState<ChildMasterData | null>(null);
   const [features, setFeatures] = useState<ChildFeatures | null>(null);
+  const sharedFeatures = useSharedParentFeatures();
+  const hasSharedFeatures = sharedFeatures !== null;
   const [loading, setLoading] = useState(true);
   const t = useTranslations("parentMasterData");
   const { error, show, clear } = useApiLoadError();
@@ -196,7 +201,9 @@ export function useChildMasterData(
     try {
       const [md, feats] = await Promise.all([
         getChildMasterData(studentId),
-        childRequests.features(studentId),
+        hasSharedFeatures
+          ? Promise.resolve(null)
+          : childRequests.features(studentId),
       ]);
       setData(md);
       setFeatures(feats);
@@ -212,7 +219,7 @@ export function useChildMasterData(
     } finally {
       setLoading(false);
     }
-  }, [clear, childRequests, show, studentId, t]);
+  }, [clear, childRequests, hasSharedFeatures, show, studentId, t]);
   // The retry runs the latest load, not the one of the failed attempt.
   const loadRef = useRef(load);
   useLayoutEffect(() => {
@@ -224,7 +231,41 @@ export function useChildMasterData(
     void load();
   }, [enabled, load]);
 
-  return { data, features, loading, error, setData };
+  const {
+    error: featureError,
+    show: showFeatureError,
+    clear: clearFeatureError,
+  } = useApiLoadError();
+  const sharedFailure = sharedFeatures?.error;
+  const reloadFeatures = sharedFeatures?.mutate;
+  useEffect(() => {
+    if (!enabled || !sharedFailure) {
+      clearFeatureError();
+      return;
+    }
+    void showFeatureError(sharedFailure, {
+      object: t("errorObject"),
+      retry: () => void reloadFeatures?.(),
+    });
+  }, [
+    enabled,
+    sharedFailure,
+    reloadFeatures,
+    showFeatureError,
+    clearFeatureError,
+    t,
+  ]);
+  return {
+    data,
+    features: sharedFeatures
+      ? (sharedFeatures.data?.[studentId] ?? null)
+      : features,
+    loading:
+      loading ||
+      (!!sharedFeatures && !sharedFeatures.data && !sharedFeatures.error),
+    error: error ?? featureError,
+    setData,
+  };
 }
 
 function ChildMasterDataContent({

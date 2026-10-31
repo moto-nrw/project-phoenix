@@ -1,18 +1,32 @@
+import type { Child } from "~/lib/parent-api";
+
+function relationships(children: readonly Child[]): string {
+  return children
+    .map(
+      (child) =>
+        `${encodeURIComponent(child.tenant_id)}:${encodeURIComponent(child.student_id)}`,
+    )
+    .sort()
+    .join(",");
+}
+
 /**
  * Keys of the parents portal shell (#5007). Kept apart from portal-keys.ts,
  * which bundles as a whole, so the parents' and the public enrollment
  * routes do not carry every portal's factories.
  */
 export const parentKeys = {
-  newsEnabled: (id?: string) =>
-    id === undefined
-      ? "parent-news-enabled"
-      : `parent-news-enabled-${encodeURIComponent(id)}`,
-  mealPlanEnabled: (id?: string) =>
-    id === undefined
-      ? "parent-meal-plan-enabled"
-      : `parent-meal-plan-enabled-${encodeURIComponent(id)}`,
   shellChildren: () => "parent-shell-children",
+  isResource: (key: string) =>
+    key.startsWith("parent-") && !key.startsWith("parent-profile"),
+  features: (children: readonly Child[]) =>
+    `parent-features-${relationships(children)}`,
+  today: (children: readonly Child[]) =>
+    `parent-today-${relationships(children)}`,
+  calendar: (day: string) => `parent-calendar-${day}-90`,
+  messages: () => "parent-messages",
+  groupThreads: () => "parent-group-threads",
+  announcements: () => "parent-announcements",
   profile: () => "parent-profile",
   /** The conversation of one child with one audience (#5011, #5200). */
   conversation: (studentId: string, audience: string) =>

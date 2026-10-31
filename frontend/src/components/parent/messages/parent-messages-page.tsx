@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useMemo, useEffect } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { CaretRightIcon, ChecksIcon } from "@phosphor-icons/react/ssr";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -14,23 +8,26 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import NavigationLink from "~/components/ui/navigation-link";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
+import { SharedParentFeaturesProvider } from "~/components/parent/child-requests-context";
 import { OgsConversation } from "~/components/parent/ogs-conversation";
 import { GroupThreadsSection } from "~/components/parent/messages/group-threads-section";
-import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import {
   type Child,
-  type GroupThreadSummary,
   type ThreadSummary,
   listGroupThreads,
   listMessageThreads,
-  listMyChildren,
 } from "~/lib/parent-api";
 import {
   type MessageAudience,
   childConversationPath,
   parentThreadPreviewI18nDescriptor,
 } from "~/lib/messaging-status";
-import { createLogger } from "~/lib/logger";
+import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
+import { parentKeys } from "~/lib/swr/parent-keys";
+import {
+  useParentChildren,
+  PARENT_RESOURCE_OPTIONS,
+} from "~/lib/hooks/use-parent-resources";
 import { formatChatClockTime, formatChatDateTime } from "~/lib/date-helpers";
 import { parentPath } from "~/lib/parent-url";
 import {
@@ -39,8 +36,6 @@ import {
   ParentSectionSkeleton,
 } from "~/components/parent/parent-page";
 
-const logger = createLogger({ component: "ParentMessagesPage" });
-
 /**
  * Nachrichten mit der OGS.
  *
@@ -48,6 +43,8 @@ const logger = createLogger({ component: "ParentMessagesPage" });
  * mehreren steht hier eine Zeile je Kind mit letzter Nachricht, Zeitpunkt und
  * Ungelesen-Zaehler.
  */
+
+const EMPTY_CHILDREN: Child[] = [];
 
 interface ChildConversation {
   readonly studentId: string;
@@ -129,11 +126,26 @@ function buildRows(
 export function ParentMessagesPage() {
   const t = useTranslations("parentMessages");
   const tGroupThreads = useTranslations("parentGroupThreads");
-  const [children, setChildren] = useState<Child[]>([]);
-  const [rows, setRows] = useState<ChildConversation[]>([]);
-  const [groupThreads, setGroupThreads] = useState<GroupThreadSummary[]>([]);
-  const [loading, setLoading] = useState(true);
-  // A failed load replaces the list with retry (#2518), never an empty page.
+  const childResource = useParentChildren();
+  const children = childResource.data ?? EMPTY_CHILDREN;
+  const threads = useSWRAuth(
+    children.length > 1 ? parentKeys.messages() : null,
+    listMessageThreads,
+    PARENT_RESOURCE_OPTIONS,
+  );
+  const groups = useSWRAuth(
+    parentKeys.groupThreads(),
+    listGroupThreads,
+    PARENT_RESOURCE_OPTIONS,
+  );
+  const groupThreads = groups.data ?? [];
+  const rows = useMemo(
+    () => buildRows(children, threads.data ?? []),
+    [children, threads.data],
+  );
+  const loading =
+    (!childResource.data && !childResource.error) ||
+    (children.length > 1 && !threads.data && !threads.error);
   const {
     error,
     show: showLoadError,
@@ -144,108 +156,37 @@ export function ParentMessagesPage() {
     show: showGroupThreadsLoadError,
     clear: clearGroupThreadsLoadError,
   } = useApiLoadError();
-
-  // Latest-wins: Fokus und SSE loesen beide einen stillen Nachladelauf aus,
-  // ein aelterer darf einen neueren nie ueberschreiben.
-  const loadSeqRef = useRef(0);
-  const groupLoadSeqRef = useRef(0);
-  const mountedRef = useRef(true);
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => {
-      mountedRef.current = false;
-    };
-  }, []);
-
-  const loadGroupThreads = useCallback(async () => {
-    const seq = ++groupLoadSeqRef.current;
-    try {
-      const nextGroupThreads = await listGroupThreads();
-      if (!mountedRef.current || seq !== groupLoadSeqRef.current) return;
-      setGroupThreads(nextGroupThreads);
-      clearGroupThreadsLoadError();
-    } catch (err) {
-      logger.warn("parent_group_threads_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      if (!mountedRef.current || seq !== groupLoadSeqRef.current) return;
-      void showGroupThreadsLoadError(err, {
-        object: tGroupThreads("errorObjectList"),
-        retry: () => void loadGroupThreadsRef.current(),
-      });
-    }
-  }, [clearGroupThreadsLoadError, showGroupThreadsLoadError, tGroupThreads]);
-  const loadGroupThreadsRef = useRef(loadGroupThreads);
-  useLayoutEffect(() => {
-    loadGroupThreadsRef.current = loadGroupThreads;
-  });
-
-  const load = useCallback(
-    async (opts?: { silent?: boolean }) => {
-      const silent = opts?.silent ?? false;
-      const seq = ++loadSeqRef.current;
-      if (!silent) setLoading(true);
-      try {
-        const childList = await listMyChildren();
-        // Nur die Mehr-Kinder-Liste braucht die Uebersicht der Unterhaltungen.
-        const nextRows =
-          childList.length > 1
-            ? buildRows(childList, await listMessageThreads())
-            : [];
-        if (!mountedRef.current || seq !== loadSeqRef.current) return;
-        setChildren(childList);
-        setRows(nextRows);
-        clearLoadError();
-      } catch (err) {
-        logger.warn("parent_messages_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        // A silent refresh (focus, SSE) was not started by the person and keeps
-        // the list on screen, so its failure stays in the log only.
-        if (!silent && mountedRef.current && seq === loadSeqRef.current) {
-          void showLoadError(err, {
-            object: t("errorObjectList"),
-            retry: () => void loadRef.current(),
-          });
-        }
-      } finally {
-        if (mountedRef.current && seq === loadSeqRef.current) setLoading(false);
-      }
-    },
-    [clearLoadError, showLoadError, t],
-  );
-  // The retry runs the latest load, not the one of the failed attempt.
-  const loadRef = useRef(load);
-  useLayoutEffect(() => {
-    loadRef.current = load;
-  });
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-  useEffect(() => {
-    void loadGroupThreads();
-  }, [loadGroupThreads]);
-
+  const invalidate = useInvalidateMatching();
   const refreshThreads = useCallback(() => {
-    void load({ silent: true });
-    void loadGroupThreads();
-  }, [load, loadGroupThreads]);
-  useMessagesActivity({
-    eventName: "parent-threads-refresh",
-    onMatch: refreshThreads,
-    marksRead: false,
-  });
+    void invalidate(parentKeys.isResource);
+  }, [invalidate]);
+  const failure = childResource.error ?? threads.error;
   useEffect(() => {
-    const refresh = () => {
-      void load({ silent: true });
-      void loadGroupThreads();
-    };
-    window.addEventListener("focus", refresh);
-    return () => {
-      window.removeEventListener("focus", refresh);
-    };
-  }, [load, loadGroupThreads]);
+    if (!failure) {
+      clearLoadError();
+      return;
+    }
+    void showLoadError(failure, {
+      object: t("errorObjectList"),
+      retry: refreshThreads,
+    });
+  }, [failure, clearLoadError, showLoadError, refreshThreads, t]);
+  useEffect(() => {
+    if (!groups.error) {
+      clearGroupThreadsLoadError();
+      return;
+    }
+    void showGroupThreadsLoadError(groups.error, {
+      object: tGroupThreads("errorObjectList"),
+      retry: refreshThreads,
+    });
+  }, [
+    groups.error,
+    clearGroupThreadsLoadError,
+    showGroupThreadsLoadError,
+    refreshThreads,
+    tGroupThreads,
+  ]);
 
   if (loading) {
     return (
@@ -304,7 +245,9 @@ export function ParentMessagesPage() {
             />
           </div>
         )}
-        <OgsConversation studentId={children[0]!.student_id} showChild />
+        <SharedParentFeaturesProvider linkedChildren={children}>
+          <OgsConversation studentId={children[0]!.student_id} showChild />
+        </SharedParentFeaturesProvider>
       </ParentPage>
     );
   }

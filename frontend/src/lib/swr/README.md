@@ -124,3 +124,32 @@ For a list-known published/expired poll, type and status enable only the
 scoped evaluation request in parallel with the detail. The confirmed detail
 alone renders the evaluation and its actions; the same evaluation key is
 shared with the panel, so mounting it does not repeat the request.
+
+## Parents portal
+
+`useParentChildren`, `useParentFeatures` and `useParentToday` share the parent
+resources between the shell, start page and child page. Features and today's
+status use the sorted `(tenant_id, student_id)` relationship set in their
+factory key. Each relationship is fetched, including siblings at the same
+school; a school's flags never stand in for another child's permissions.
+The authenticated wrapper adds `parent:-:<account>`: the parents JWT has no
+school, and account-wide lists can span schools. They must not use a tenant,
+school or operator session. News, message lists and the start-page calendar
+also have one factory key per response.
+
+Warm mounts use confirmed data immediately. Focus recovery is throttled to
+60 seconds; SSE events revalidate the shared resources. Profile, children and
+the start-page feeds start independently, then features and day status start
+in parallel as soon as children are known. The child header still reads the
+complete authorized children list, not a new detail preview or permission seed.
+
+The parent API reports `care.child_not_linked` and
+`care.guardian_permission_denied` (401/403/404) to the authenticated bridge.
+It discards the parent resource family through `useDiscardRefusedEntity`,
+revalidates the children list, and broadcasts only account and refusal code
+to the other tabs. The API captures the originating account before the request;
+a late refusal cannot evict another account. Business refusals do not evict.
+A changed relationship set also drops derived resources, so removing and later
+re-adding a relationship cannot resurrect its former flags. The shell remounts
+remaining local-state sections at account/scope and relationship boundaries.
+No cache internals, persistent storage or new lint exceptions are involved.
