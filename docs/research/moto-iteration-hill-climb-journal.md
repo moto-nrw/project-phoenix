@@ -236,6 +236,45 @@ Lock, der Test wartet bis zu einer Minute darauf; Assertions unverändert.
 Nachher grün nach 7,1 s Wartezeit. PR #5404. Offen in #5395: der
 lastabhängige `mfa status unavailable` und die feste E-Mail bei `-count>1`.
 
+### Runde 10: Gewichtetes Heavy-Gate und Rest von #5395
+
+Nach Freigabe des Nutzers hat `~/bin/agent-heavy` jetzt 4 Einheiten: Standard-Jobs
+belegen 2, `--light` 1. Wartet ein schwerer Job länger als 20 s, sperrt er neue
+leichte Zulassungen. 7 Verhaltenstests (isoliertes State-Verzeichnis), dreimal
+grün; die alte Version scheitert an 5. Die globalen Agent-Anweisungen nennen
+`--light` für mittlere Jobs. Nicht nachgemessen: Wartezeiten mit dem neuen Gate.
+
+#5395: Die feste E-Mail-Adresse brach `-count>1` (duplicate key), behoben in
+#5410. `mfa status unavailable` ließ sich nicht reproduzieren: zwei gleichzeitige
+Läufe des ganzen `api`-Pakets aus zwei Worktrees, bei Last 6 und bei Last 38
+(14 CPU-Burner), jeweils grün.
+
+### Runde 11: Seed und CI-Pfad, kein billiger Hebel
+
+Seed auf dem nativen Stack, je mit vorherigem `migrate reset` (6 bis 9 s):
+
+| Lauf | Seed s | Last |
+| --- | ---: | --- |
+| alle vier Profile | 106,0 / 89,4 | 10 / 5 |
+| nur `vollbetrieb` | 88,5 / 81,0 | 9 / 5 |
+
+Der Seeder arbeitet sequenziell über die HTTP-API: rund 4 600 Requests pro Lauf;
+die Summe der Server-Latenzen entspricht der Wandzeit. Größter Posten
+`manual-approved-enrollments` mit 291 ms pro Aufruf, etwa 17 s pro Lauf.
+Hypothese Seed-Cache geprüft: `pg_dump` der geseedeten DB 0,4 s (3,4 MB),
+`pg_restore` 4,3 s. Verworfen trotz 20-facher Beschleunigung: 36 von 361
+Worktrees wurden in 7 Tagen geseedet, etwa 5 Seeds pro Tag; ein Cache gilt nur
+für denselben Berliner Tag, dieselbe Backend-Revision und dieselben Env-Schlüssel
+und braucht Rollen vor dem Restore. Ersparnis wenige Minuten pro Tag.
+
+CI-Pfad (15 grüne PR-Läufe von `main.yml`): Zuletzt fertig wurden `backend-lint`
+(bis 524 s, Schritt `golang ci lint` 193 s im Mittel, 476 s maximal),
+`Seed & simulate smoke` (bis 337 s), `CI and release script suites` (bis 259 s)
+und `frontend-build` (bis 211 s). Der Lint-Cache wird bereits in #5409 (anderer
+Autor, am 31.10. gemergt) angegangen. Der Restore-Shard (167 s) läuft nur bei
+Änderungen an Backup-, Release- oder Workflow-Dateien. Der Seed-Smoke ist ein
+bewusster Integrationstest. Kein Eingriff.
+
 ## Verworfen
 
 - Frontend-Guards bei Backend-Änderungen verkleinern: Die 45 Guard-Dateien sind
@@ -274,18 +313,15 @@ Startfehler des Testplatzes, erst danach reine Laufzeit.
 
 ## Nächster belegter Engpass
 
-1. Heavy-Gate nach Last gewichten: Leichte Go-Aufgaben skalieren bis vier
-   Agents fast linear (Runde 8), das Gate lässt nur zwei zu; schwere
-   (`go-central-change`, 9,2 GB) brauchen den Schutz. `agent-heavy` ist
-   nutzerlokal, eine Änderung braucht die Zustimmung des Nutzers.
+1. Wirkung des gewichteten Gates nachmessen (Runde 10): Wartezeit am Gate und
+   Durchsatz mit gemischten leichten und schweren Jobs.
 2. Zentrale Go-Änderung: 418 s und 923 CPU-s für 129 Pakete im Schnellmodus.
 3. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s, ohne
    Ergebnis-Cache bei unveränderter Wiederholung. Setup 31 s und Environment
    60 s der Vitest-Zeit sind der größte Posten.
-4. Seed beim ersten Browser-Lauf: 120 s von etwa 3 min bis zum ersten
-   Browser-Ergebnis in einem frischen Worktree.
-5. Frontend-Guards bei reinen Go-Änderungen: 45 Dateien, 15,7 s bei jeder
+4. Frontend-Guards bei reinen Go-Änderungen: 45 Dateien, 15,7 s bei jeder
    Wiederholung, auch wenn Go alles aus dem Cache liefert.
 
 Erledigt aus dieser Liste: Bundle-Obergrenzen nahe der Basis (#5400, Neubasierung
-nach Entscheidung des Nutzers in #5396).
+nach Entscheidung des Nutzers in #5396), Heavy-Gate nach Last gewichtet (Runde 10).
+Verworfen: Seed-Cache (Runde 11).
