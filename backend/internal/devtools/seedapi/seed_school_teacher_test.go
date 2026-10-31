@@ -86,3 +86,60 @@ func TestFullOperationProfileOpensAllSchoolWrites(t *testing.T) {
 	assert.JSONEq(t, `["class_arrival_exceptions","class_handover","class_trips","day_hints"]`, string(settings[profileSettingSchoolWriteScope].Value))
 	assert.JSONEq(t, `true`, string(settings[profileSettingSchoolMorning].Value))
 }
+
+func TestSeedSchoolTeacherScreenshotWeekendsPreserveAccountWithoutDayWrites(t *testing.T) {
+	t.Parallel()
+
+	for _, date := range []string{"2026-10-30", "2026-10-31", "2026-11-01"} {
+		for _, screenshots := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/screenshots=%t", date, screenshots), func(t *testing.T) {
+				t.Parallel()
+				today, err := parseSeedDate(date)
+				require.NoError(t, err)
+				wantDayWrites := !screenshots || date == "2026-10-30"
+				var paths []string
+				srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+					paths = append(paths, r.URL.Path)
+					w.Header().Set("Content-Type", "application/json")
+					switch r.URL.Path {
+					case "/auth/register":
+						_, _ = fmt.Fprint(w, `{"data":{"id":81,"school_identity":{"staff_id":"91"}}}`)
+					case "/api/staff/91/school-classes":
+						_, _ = fmt.Fprint(w, `{"status":"success"}`)
+					case "/school/auth/login":
+						_, _ = fmt.Fprint(w, `{"access_token":"school-session"}`)
+					default:
+						assert.True(t, wantDayWrites, "no class-day writes on screenshot weekends")
+						_, _ = fmt.Fprint(w, `{"status":"success"}`)
+					}
+				})
+				defer srv.Close()
+
+				client := newTestClient(srv.URL, false)
+				fs := NewFixedSeeder(client, false, "")
+				fs.roleIDs["lehrkraft"] = 71
+				fs.studentIDByIndex[0] = 101
+				fs.staffCredentials = []StaffCredentials{{Password: t.Name()}}
+				s := &Seeder{options: SeedOptions{ProductScreenshots: screenshots}}
+				rt := &Runtime{Client: client, FixedSeeder: fs, Bootstrap: &bootstrapSeedState{TenantSlug: "vollbetrieb"}, TenantAuth: AuthRef{Kind: AuthBearer, Token: "admin"}}
+				require.NoError(t, (seedSchoolTeacherStep{seeder: s}).runOn(rt, today))
+
+				wantPaths := []string{"/auth/register", "/api/staff/91/school-classes", "/school/auth/login"}
+				if wantDayWrites {
+					day := DemoStudents[0].Class + "/" + date
+					wantPaths = append(wantPaths,
+						"/school/class-day/arrival-exceptions/"+day,
+						"/school/class-day/day-hints/"+day,
+						"/school/class-day/day-hints/"+day+"/students/101",
+						"/school/class-day/morning-attendance/"+day)
+				}
+				assert.Equal(t, wantPaths, paths)
+				state := &SeedState{}
+				s.populateSeedAccounts(state, fs)
+				require.Len(t, state.Accounts.Lehrkraft, 1)
+				assert.EqualValues(t, 81, state.Accounts.Lehrkraft[0].AccountID)
+				assert.EqualValues(t, 91, state.Accounts.Lehrkraft[0].StaffID)
+			})
+		}
+	}
+}

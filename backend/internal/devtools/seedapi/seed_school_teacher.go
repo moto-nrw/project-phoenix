@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"time"
 )
 
 // seedSchoolTeacherStep drives moto schule with its own school-scoped session.
@@ -15,6 +16,10 @@ type seedSchoolTeacherStep struct{ seeder *Seeder }
 func (seedSchoolTeacherStep) Name() string { return "Seeding school teacher and today's class entries" }
 
 func (s seedSchoolTeacherStep) Run(_ context.Context, rt *Runtime) error {
+	return s.runOn(rt, todaySeedDate())
+}
+
+func (s seedSchoolTeacherStep) runOn(rt *Runtime, today seedDate) error {
 	fs := rt.FixedSeeder
 	if fs == nil || rt.Bootstrap == nil || len(fs.staffCredentials) == 0 || len(DemoStudents) == 0 {
 		return fmt.Errorf("school teacher requires bootstrap, staff credentials and students")
@@ -68,11 +73,7 @@ func (s seedSchoolTeacherStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	if err := seedTeacherClassDay(rt, auth, class, studentID); err != nil {
-		return err
-	}
-	fmt.Println("  School teacher assigned; today's arrival exception, class/child hints and morning attendance created")
-	return nil
+	return s.seedClassDay(rt, auth, class, studentID, today)
 }
 
 func loginSchoolTeacher(rt *Runtime, email, password string) (AuthRef, error) {
@@ -94,9 +95,13 @@ func loginSchoolTeacher(rt *Runtime, email, password string) (AuthRef, error) {
 	return AuthRef{Kind: AuthBearer, Token: session.AccessToken}, nil
 }
 
-func seedTeacherClassDay(rt *Runtime, auth AuthRef, class string, studentID int64) error {
-	// todaySeedDate derives the calendar day in Europe/Berlin, not UTC.
-	dayPath := url.PathEscape(class) + "/" + todaySeedDate().String()
+func (s seedSchoolTeacherStep) seedClassDay(rt *Runtime, auth AuthRef, class string, studentID int64, today seedDate) error {
+	// Screenshot schools disable the Friday-based weekend plan.
+	if s.seeder.options.ProductScreenshots && (today.Weekday() == time.Saturday || today.Weekday() == time.Sunday) {
+		fmt.Println("  School teacher assigned; today's class entries skipped on a screenshot weekend")
+		return nil
+	}
+	dayPath := url.PathEscape(class) + "/" + today.String()
 	for _, entry := range []struct {
 		path string
 		body any
@@ -110,5 +115,6 @@ func seedTeacherClassDay(rt *Runtime, auth AuthRef, class string, studentID int6
 			return fmt.Errorf("seed school class day %s: %w", entry.path, err)
 		}
 	}
+	fmt.Println("  School teacher assigned; today's arrival exception, class/child hints and morning attendance created")
 	return nil
 }
