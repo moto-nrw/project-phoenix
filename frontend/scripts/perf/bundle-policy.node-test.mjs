@@ -22,20 +22,7 @@ const approved = new Map([
   ],
 ]);
 
-/**
- * Explicit, reviewed increases over the migrated 2 %/10 KiB ceilings:
- * #5260 room detail (logout safeguards) and #5399 (session-end barrier on
- * every tenant page; these three public pages had less headroom than its
- * ~1 KiB of compressed client code).
- */
-const increases = new Map([
-  ["/[tenant]/rooms/[id]", 2_048],
-  ["/[tenant]/reset-password", 1_024],
-  ["/[tenant]/anmeldung/submitted", 1_024],
-  ["/[tenant]/anmeldung/status/[token]", 1_024],
-]);
-
-test("bundle policy retains migration ceilings except the explicit increases", () => {
+test("bundle policy retains migration ceilings except the explicit #5260 room-detail increase", () => {
   const budgets = readBudgets(join(source, "bundle-budgets"));
   assert.ok(budgets.size > 0);
   assert.deepEqual(budgets.get("/[tenant]/rooms/[id]"), {
@@ -43,29 +30,27 @@ test("bundle policy retains migration ceilings except the explicit increases", (
     maxBytes: 1_046_549,
   });
   for (const [route, budget] of budgets) {
+    const increase = route === "/[tenant]/rooms/[id]" ? 2_048 : 0;
     assert.equal(
       budget.maxBytes,
-      legacyCeiling(budget.referenceBytes) + (increases.get(route) ?? 0),
+      legacyCeiling(budget.referenceBytes) + increase,
       route,
     );
   }
 });
 
-test("each increased policy still rejects one byte over its ceiling", () => {
+test("the #5260 room-detail policy still rejects one byte over its ceiling", () => {
+  const route = "/[tenant]/rooms/[id]";
   const budgets = readBudgets(join(source, "bundle-budgets"));
-  for (const route of increases.keys()) {
-    const { maxBytes } = budgets.get(route);
-    assert.deepEqual(
-      compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
-      [],
-      route,
-    );
-    assert.equal(
-      compareBudgets(budgets, new Map([[route, maxBytes + 1]])).failures.length,
-      1,
-      route,
-    );
-  }
+  const { maxBytes } = budgets.get(route);
+  assert.deepEqual(
+    compareBudgets(budgets, new Map([[route, maxBytes]])).failures,
+    [],
+  );
+  assert.equal(
+    compareBudgets(budgets, new Map([[route, maxBytes + 1]])).failures.length,
+    1,
+  );
 });
 
 test("a significant improvement passes without lowering an observation baseline", () => {
