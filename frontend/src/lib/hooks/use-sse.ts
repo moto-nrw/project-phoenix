@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useSession } from "next-auth/react";
+import { FetchEventSource } from "~/lib/fetch-event-source";
 import type {
   SSEEvent,
   SSEHookOptions,
@@ -36,15 +38,20 @@ export function useSSE(
     reconnectKey,
   } = options;
 
+  const { data: session } = useSession();
+  const accountId = session?.user?.id;
+
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
 
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const eventSourceRef = useRef<FetchEventSource | null>(null);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
   const reconnectAttemptsRef = useRef(0); // Track live count to avoid stale closure
   const reconnectKeyRef = useRef(reconnectKey);
+  const accountIdRef = useRef(accountId);
+  const confirmedSessionRef = useRef(session);
 
   // Stable onMessage callback
   const stableOnMessage = useCallback(
@@ -70,10 +77,16 @@ export function useSSE(
   // closes that ref and clears the reconnect timer. The scanner cannot follow
   // the nested connection factory to its cleanup.
   useEffect(() => {
-    const reconnectKeyChanged = reconnectKeyRef.current !== reconnectKey;
+    const reconnectKeyChanged =
+      reconnectKeyRef.current !== reconnectKey ||
+      accountIdRef.current !== accountId ||
+      confirmedSessionRef.current !== session;
+    confirmedSessionRef.current = session;
+    accountIdRef.current = accountId;
     reconnectKeyRef.current = reconnectKey;
 
     if (!enabled) {
+      reconnectAttemptsRef.current = 0;
       setIsConnected(false);
       setError(null);
       setReconnectAttempts(0);
@@ -92,9 +105,9 @@ export function useSSE(
       setReconnectAttempts(0);
     }
 
-    // Check if EventSource is supported
-    if (typeof EventSource === "undefined") {
-      logger.warn("eventsource not supported", {
+    // Fetch streaming is available in supported browsers.
+    if (typeof fetch === "undefined") {
+      logger.warn("fetch streaming not supported", {
         endpoint,
         browser: navigator.userAgent.substring(0, 100),
       });
@@ -104,7 +117,7 @@ export function useSSE(
 
     // Event handler for SSE messages - handles parsing and error reporting
     const handleSSEMessage = (
-      eventSource: EventSource,
+      eventSource: FetchEventSource,
       eventType: string,
       event: Event,
     ) => {
@@ -123,6 +136,7 @@ export function useSSE(
       }
     };
 
+    let sessionRefused = false;
     const connect = () => {
       if (!mountedRef.current) return;
 
@@ -134,7 +148,7 @@ export function useSSE(
       };
 
       try {
-        const eventSource = new EventSource(endpoint);
+        const eventSource = new FetchEventSource(endpoint);
         eventSourceRef.current = eventSource;
 
         eventSource.onopen = () => {
@@ -263,9 +277,15 @@ export function useSSE(
           }
           stableOnError(err);
 
+          sessionRefused = eventSource.sessionRefused;
+
           // Close the failed connection
           eventSource?.close();
           eventSourceRef.current = null;
+
+          // A session refusal waits for the provider/cache reconciliation,
+          // not a timer or a wake event that would repeat the same refusal.
+          if (sessionRefused) return;
 
           // Attempt reconnection with exponential backoff
           // Read from ref to get live count (not stale closure value)
@@ -311,7 +331,7 @@ export function useSSE(
 
     // Reconnect when device wakes from sleep or network restores
     const handleWakeReconnect = () => {
-      if (!mountedRef.current) return;
+      if (!mountedRef.current || sessionRefused) return;
       // Skip if already connected
       if (eventSourceRef.current?.readyState === 1) {
         return;
@@ -375,6 +395,8 @@ export function useSSE(
     maxReconnectAttempts,
     enabled,
     reconnectKey,
+    accountId,
+    session,
   ]);
 
   // Compute connection status based on state

@@ -19,7 +19,7 @@ const logger = createLogger({ component: "SessionAccountCheck" });
  *
  * Returns null when the request may pass: no session (the route answers
  * 401 itself), an exempt route, the same account, or no header. Requests
- * without the header (navigation, server actions, the event stream, image
+ * without the header (navigation, server actions, image
  * and download links) cannot carry one and pass as before.
  */
 export function sessionAccountMismatchResponse(

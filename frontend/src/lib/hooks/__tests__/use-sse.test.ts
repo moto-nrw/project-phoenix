@@ -4,6 +4,20 @@ import { releaseFakeTimers } from "~/test/clock";
 import { useSSE } from "../use-sse";
 import type { SSEEvent } from "../../sse-types";
 
+// Retry/state tests isolate the transport; fetch-boundary tests live next to
+// use-sse.ts and exercise the real streaming implementation.
+vi.mock("~/lib/fetch-event-source", () => ({
+  FetchEventSource: class {
+    constructor(url: string) {
+      return new EventSource(url);
+    }
+  },
+}));
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null }),
+  getSession: vi.fn(),
+}));
+
 // Mock EventSource
 class MockEventSource {
   public url: string;
@@ -818,8 +832,8 @@ describe("useSSE Hook", () => {
       expect(onMessage).not.toHaveBeenCalled();
     });
 
-    it("should warn when EventSource is not supported", () => {
-      vi.stubGlobal("EventSource", undefined);
+    it("should warn when fetch streaming is not supported", () => {
+      vi.stubGlobal("fetch", undefined);
 
       const { result } = renderHook(() => useSSE("/api/sse/events"));
 

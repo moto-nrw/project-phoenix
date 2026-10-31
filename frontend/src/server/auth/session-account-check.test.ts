@@ -225,28 +225,24 @@ describe("another account signed in in another tab (#5183)", () => {
 });
 
 describe("routes that must work with another account in the cookie", () => {
-  it.each([
-    "/api/auth/logout",
-    "/api/auth/token",
-    "/api/auth/switch-tenant",
-    "/api/auth/staff-preview/end",
-    "/api/logs",
-    "/api/invitations/accept",
-  ])("tenant %s stays reachable", async (path) => {
-    const route = (await import("~/lib/route-proxy.server")).proxyPost(
-      "/api/x",
-    );
+  it.each(["/api/auth/logout", "/api/auth/token", "/api/logs"])(
+    "tenant %s stays reachable",
+    async (path) => {
+      const route = (await import("~/lib/route-proxy.server")).proxyPost(
+        "/api/x",
+      );
 
-    const response = await call(route, {
-      host: "schule-a.localhost:3000",
-      account: "1",
-      method: "POST",
-      path,
-    });
+      const response = await call(route, {
+        host: "schule-a.localhost:3000",
+        account: "1",
+        method: "POST",
+        path,
+      });
 
-    expect(response.status).toBe(200);
-    expect(mockFetch).toHaveBeenCalledTimes(1);
-  });
+      expect(response.status).toBe(200);
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it.each([
     ["operator", "operator.localhost:3000", "/api/operator/auth/logout"],
@@ -267,6 +263,54 @@ describe("routes that must work with another account in the cookie", () => {
     expect(response.status).toBe(200);
   });
 });
+
+it.each(["/api/auth/switch-tenant", "/api/auth/staff-preview/end"])(
+  "%s cannot act on a different cookie account",
+  async (path) => {
+    const route = (await import("~/lib/route-proxy.server")).proxyPost(
+      "/api/x",
+    );
+    const response = await call(route, {
+      host: "schule-a.localhost:3000",
+      account: "1",
+      method: "POST",
+      path,
+    });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "identity.session_account_mismatch",
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+    const sameAccount = await call(route, {
+      host: "schule-a.localhost:3000",
+      account: "2",
+      method: "POST",
+      path,
+    });
+    expect(sameAccount.status).toBe(200);
+  },
+);
+
+it.each([
+  ["schule-a.localhost:3000", "~/app/api/sse/events/route"],
+  ["eltern.localhost:3000", "~/app/api/parent/sse/events/route"],
+  ["schule.localhost:3000", "~/app/api/school/sse/events/route"],
+])(
+  "%s rejects the stale tab before opening an upstream stream",
+  async (host, module) => {
+    const { GET } = (await import(module)) as { GET: Route };
+    const response = await call(GET, { host, account: "1" });
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      code: "identity.session_account_mismatch",
+    });
+    expect(mockFetch).not.toHaveBeenCalled();
+    const sameAccount = await call(GET, { host, account: "2" });
+    expect(sameAccount.status).toBe(200);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    await sameAccount.body?.cancel();
+  },
+);
 
 describe("school and account checks of the tenant portal", () => {
   it("keeps the school mismatch for the same account on another school", async () => {
