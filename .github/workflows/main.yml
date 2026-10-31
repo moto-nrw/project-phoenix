@@ -407,7 +407,7 @@ jobs:
 
       - name: Verify pre-push failure and selection behavior
         if: matrix.suite == 'unit'
-        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/deploy-grafana-provisioning.test.mjs scripts/deploy-caddy-remote.test.mjs scripts/posthog-dashboards.test.mjs
+        run: node --test scripts/pre-push.test.mjs scripts/check-secrets.test.mjs scripts/dev-native.test.mjs scripts/check-release-architecture.test.mjs scripts/release-backup.test.mjs scripts/demo-environment.test.mjs scripts/report-sentry-deploy.test.mjs scripts/deploy-grafana-provisioning.test.mjs scripts/deploy-caddy-remote.test.mjs scripts/posthog-dashboards.test.mjs scripts/worktree-ports.test.mjs
 
       - name: Verify repository script suites
         if: matrix.suite == 'unit'
