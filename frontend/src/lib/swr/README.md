@@ -130,7 +130,8 @@ shared with the panel, so mounting it does not repeat the request.
 `useParentChildren`, `useParentFeatures` and `useParentToday` share the parent
 resources between the shell, start page and child page. Features and today's
 status use the sorted `(tenant_id, student_id)` relationship set in their
-factory key. Each relationship is fetched, including siblings at the same
+factory key, together with the Berlin calendar day for date-dependent flags
+and status. Each relationship is fetched, including siblings at the same
 school; a school's flags never stand in for another child's permissions.
 A failed lookup hides only that relationship's flags, never a previously
 confirmed stale value; other successful children stay available. Partial
@@ -142,7 +143,9 @@ school, and account-wide lists can span schools. They must not use a tenant,
 school or operator session. News, message lists and the start-page calendar
 also have one factory key per response.
 
-Warm mounts use confirmed data immediately. Focus recovery is throttled to
+Warm mounts use confirmed data immediately. Revalidating readers refresh an
+unmounted resource after an SSE invalidation; only the session-wide children
+list and profile skip mount revalidation. Requests deduplicate for 60 seconds. Focus recovery is throttled to
 60 seconds; SSE events revalidate the shared resources. Profile, children and
 the start-page feeds start independently, then features and day status start
 in parallel as soon as children are known. The child header still reads the

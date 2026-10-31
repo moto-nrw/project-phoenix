@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { setTestClock } from "~/test/clock";
 import { Profiler } from "react";
 import type { Session } from "next-auth";
 import { SWRConfig } from "~/lib/swr/testing";
@@ -247,5 +248,29 @@ describe("parent start cache isolation", () => {
     expect(listMyChildren).toHaveBeenCalledTimes(1);
     expect(getChildFeatures).toHaveBeenCalledTimes(1);
     expect(getChildToday).toHaveBeenCalledTimes(1);
+  });
+  it("does not reuse yesterday's day status or date-dependent features on a warm mount", async () => {
+    const view = mount();
+    expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
+    expect(getChildToday).toHaveBeenCalledTimes(1);
+    view.rerender(<Fixture visible={false} />);
+    setTestClock("2026-09-10T12:00:00+02:00");
+    view.rerender(<Fixture />);
+    await waitFor(() => expect(getChildToday).toHaveBeenCalledTimes(2));
+    expect(getChildFeatures).toHaveBeenCalledTimes(2);
+    expect(listMyChildren).toHaveBeenCalledTimes(1);
+  });
+
+  it("revalidates a message list invalidated while its page was unmounted", async () => {
+    const view = mount();
+    expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
+    expect(listMessageThreads).toHaveBeenCalledTimes(1);
+    view.rerender(<Fixture visible={false} />);
+    act(() => {
+      window.dispatchEvent(new CustomEvent("parent-threads-refresh"));
+    });
+    view.rerender(<Fixture />);
+    await waitFor(() => expect(listMessageThreads).toHaveBeenCalledTimes(2));
+    expect(listMyChildren).toHaveBeenCalledTimes(1);
   });
 });

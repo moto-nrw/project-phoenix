@@ -158,11 +158,10 @@ export function ParentStartPage() {
   const childrenResource = useParentChildren();
   const featuresResource = useParentFeatures(childrenResource.data);
   const todayResource = useParentToday(childrenResource.data);
-  const accountProfile = useSWRAuth(
-    parentKeys.profile(),
-    fetchParentProfile,
-    PARENT_RESOURCE_OPTIONS,
-  );
+  const accountProfile = useSWRAuth(parentKeys.profile(), fetchParentProfile, {
+    ...PARENT_RESOURCE_OPTIONS,
+    revalidateIfStale: false,
+  });
   const invalidate = useInvalidateMatching();
   const load = useCallback(
     () => invalidate(parentKeys.isResource),

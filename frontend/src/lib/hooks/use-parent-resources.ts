@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { ApiError } from "~/lib/api-error";
 import { useSWRAuth, useInvalidateMatching } from "~/lib/swr";
 import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
@@ -27,7 +28,7 @@ export const PARENT_RESOURCE_OPTIONS = {
   revalidateOnFocus: true,
   focusThrottleInterval: 60_000,
   dedupingInterval: 60_000,
-  revalidateIfStale: false,
+  revalidateIfStale: true,
 } as const;
 
 /** A refusal withdraws every derived page too, not only the endpoint's entry. */
@@ -69,7 +70,7 @@ export function useParentResourceEvents() {
   const account =
     session?.user.scope === "parent" ? session.user.id : undefined;
   const { data: children } = useParentChildren(!!account);
-  const relationships = children ? parentKeys.features(children) : null;
+  const relationships = children ? parentKeys.relationshipSet(children) : null;
   const previous = useRef({ account, relationships });
   useLayoutEffect(() => {
     const before = previous.current;
@@ -145,7 +146,7 @@ export function useParentChildren(enabled = true) {
       ? parentKeys.shellChildren()
       : null,
     listMyChildren,
-    PARENT_RESOURCE_OPTIONS,
+    { ...PARENT_RESOURCE_OPTIONS, revalidateIfStale: false },
   );
 }
 
@@ -164,11 +165,12 @@ const NO_FEATURE_FAILURES: Readonly<Record<string, unknown>> = {};
 
 /** Every relationship is probed, including siblings at the same school. */
 export function useParentFeatures(children: readonly Child[] | undefined) {
+  const day = useBerlinToday();
   const refuse = useParentRefusal();
   const { data: session } = useSession();
   const resource = useSWRAuth(
     session?.user.scope === "parent" && children
-      ? parentKeys.features(children)
+      ? parentKeys.features(children, day)
       : null,
     async () => {
       const list = children ?? [];
@@ -222,11 +224,12 @@ export function useParentFeatures(children: readonly Child[] | undefined) {
 }
 
 export function useParentToday(children: readonly Child[] | undefined) {
+  const day = useBerlinToday();
   const refuse = useParentRefusal();
   const { data: session } = useSession();
   return useSWRAuth(
     session?.user.scope === "parent" && children
-      ? parentKeys.today(children)
+      ? parentKeys.today(children, day)
       : null,
     async () => {
       const entries = await Promise.all(

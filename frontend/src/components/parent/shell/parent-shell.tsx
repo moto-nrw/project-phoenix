@@ -44,7 +44,7 @@ export function ParentShell({
   const scoped = useSWRCacheKey();
   const identity = scoped("");
   const relationships = linkedChildren
-    ? parentKeys.features(linkedChildren)
+    ? parentKeys.relationshipSet(linkedChildren)
     : null;
   const [contentEpoch, setContentEpoch] = useState({
     identity,

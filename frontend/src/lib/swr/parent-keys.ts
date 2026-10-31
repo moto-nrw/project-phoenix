@@ -45,10 +45,11 @@ export const parentKeys = {
   isNewsResource: (key: string) => key === "parent-announcements",
   isResource: (key: string) =>
     key.startsWith("parent-") && !key.startsWith("parent-profile"),
-  features: (children: readonly Child[]) =>
-    `parent-features-${relationships(children)}`,
-  today: (children: readonly Child[]) =>
-    `parent-today-${relationships(children)}`,
+  relationshipSet: (children: readonly Child[]) => relationships(children),
+  features: (children: readonly Child[], day: string) =>
+    `parent-features-${relationships(children)}-${day}`,
+  today: (children: readonly Child[], day: string) =>
+    `parent-today-${relationships(children)}-${day}`,
   calendar: (day: string) => `parent-calendar-${day}-90`,
   messages: () => "parent-messages",
   groupThreads: () => "parent-group-threads",
