@@ -187,7 +187,7 @@ function HomeContent() {
     ],
   );
 
-  const placements = draft ?? saved.placements;
+  const placements = saving ? saved.placements : (draft ?? saved.placements);
   const placedKeys = useMemo(
     () => new Set(placements.map((placement) => placement.key)),
     [placements],

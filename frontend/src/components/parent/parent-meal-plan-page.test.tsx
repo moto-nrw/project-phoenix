@@ -9,15 +9,30 @@ import {
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { SWRConfig } from "~/lib/swr/testing";
 import { ToastProvider } from "~/contexts/ToastContext";
 import deMessages from "~/i18n/messages/de.generated";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
 
+vi.unmock("swr");
+
 // A failed week registration has no dialog and reports through the toast
 // provider of the shared error path.
 function render(ui: React.ReactElement) {
-  return renderPlain(ui, { wrapper: ToastProvider });
+  return renderPlain(ui, {
+    wrapper: ({ children }) => (
+      <SWRConfig
+        value={{
+          provider: () => new Map(),
+          dedupingInterval: 0,
+          shouldRetryOnError: false,
+        }}
+      >
+        <ToastProvider>{children}</ToastProvider>
+      </SWRConfig>
+    ),
+  });
 }
 
 const unavailable = () =>
@@ -41,6 +56,14 @@ const mocks = vi.hoisted(() => ({
   clearMealParticipationDay: vi.fn(),
   listMyChildren: vi.fn(),
   today: "2026-08-12",
+}));
+
+// The participation reader and optimistic writes require an authenticated scope.
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "parent-1", scope: "parent" } },
+    status: "authenticated",
+  }),
 }));
 
 vi.mock("~/lib/parent-api", () => ({
@@ -591,6 +614,71 @@ describe("ParentMealPlanPage", () => {
         "2026-08-14",
       );
     });
+  });
+
+  it("keeps dishes and participation visible while a saved day revalidates", async () => {
+    mocks.getChildFeatures.mockResolvedValue({
+      meal_plan_enabled: true,
+      meal_registration_enabled: true,
+    });
+    mocks.getChildMealPlan.mockResolvedValue([
+      { date: mocks.today, position: 0, dish: "Gemüse-Reis", note: "" },
+    ]);
+    const participation = {
+      weekdays: [],
+      cutoff_time: "09:00",
+      model: "ongoing_single",
+      schedule_changeable: true,
+      sick_cancels_after_deadline: false,
+      days: [
+        {
+          date: mocks.today,
+          participating: false,
+          regular_participating: false,
+          source: "none",
+          changeable: true,
+          can_register: true,
+          can_cancel: true,
+          register_until: "2026-08-12T15:00:00+02:00",
+          cancel_until: "2026-08-12T15:00:00+02:00",
+        },
+      ],
+    };
+    mocks.getMealParticipation
+      .mockResolvedValueOnce(participation)
+      .mockReturnValue(new Promise(() => {}));
+    let resolveWrite!: () => void;
+    mocks.setMealParticipationDay.mockReturnValue(
+      new Promise<void>((resolve) => {
+        resolveWrite = resolve;
+      }),
+    );
+    render(<ParentMealPlanPage />);
+    await screen.findByText("Nicht zum Mittagessen angemeldet");
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Anmeldung ändern: Mittwoch, 12. August",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anmelden" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(screen.getByText("Zum Mittagessen angemeldet")).toBeInTheDocument();
+    expect(screen.getByText("Gemüse-Reis")).toBeInTheDocument();
+    await act(async () => {
+      resolveWrite();
+    });
+    await waitFor(() =>
+      expect(mocks.getMealParticipation).toHaveBeenCalledTimes(2),
+    );
+    // Anker: Gericht und geänderter Tag bleiben beim ausstehenden Abgleich da.
+    expect(screen.getByText("Gemüse-Reis")).toBeInTheDocument();
+    expect(screen.getByText("Zum Mittagessen angemeldet")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("meal-participation-week-skeleton"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("meal-plan-week-skeleton"),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the school's per-day deadlines", async () => {

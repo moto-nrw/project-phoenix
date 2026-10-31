@@ -167,3 +167,8 @@ export const operatorBillingKeys = {
   keyDay: () => "operator-billing-key-day",
   counts: () => "operator-billing-key-date-counts",
 } as const;
+
+export const displayKeys = { list: () => "info-displays" } as const;
+export const timeTrackingKeys = {
+  current: () => "time-tracking-current",
+} as const;

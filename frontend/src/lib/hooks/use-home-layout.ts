@@ -1,7 +1,7 @@
 "use client";
 
 import { homeLayoutKeys } from "~/lib/swr/portal-keys";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 
@@ -17,6 +17,8 @@ import {
   saveHomeLayout,
   type HomeLayoutState,
 } from "~/lib/home-layout-api";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { HOME_LAYOUT_REFUSALS } from "~/lib/everyday-action-refusals";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const EMPTY: HomeLayoutState = {
@@ -43,7 +45,7 @@ function homeLayoutAccountChanged(accountID: string): string {
  * einer Sitzung kennt SWR die Auswahl und ausgeblendete Kacheln fragen nichts
  * mehr nach.
  *
- * Beim Speichern wird die neue Auswahl sofort in den Cache gelegt und danach
+ * Beim Speichern liegt die neue Auswahl sofort über den bestätigten Daten und wird danach
  * neu geladen: die Startseite soll sich unter dem Dialog schon geändert haben,
  * wenn er zugeht.
  */
@@ -96,37 +98,59 @@ export function useHomeLayout(): {
     };
   }, [accountID, cacheKey, mutate]);
 
-  const save = async (
+  const action = useOptimisticAction(cacheKey, data);
+  const inFlight = useRef(false);
+  const change = async (
+    update: (current: HomeLayoutState) => HomeLayoutState,
+    request: () => Promise<void>,
+  ) => {
+    if (inFlight.current || !data) return;
+    inFlight.current = true;
+    try {
+      const outcome = await action.run({
+        optimistic: update,
+        request,
+        commit: () => {
+          void mutate((current) => current && update(current), {
+            revalidate: true,
+          });
+        },
+        refusal: {
+          codes: HOME_LAYOUT_REFUSALS,
+          matches: (key) => key === homeLayoutKeys.key(),
+        },
+      });
+      if (outcome.status === "failed") throw outcome.error;
+    } finally {
+      inFlight.current = false;
+    }
+  };
+
+  const save = (
     overrides: HomeLayoutOverrides,
     blocks: readonly HomeBlockPlacement[],
-  ) => {
-    await saveHomeLayout(overrides, blocks);
-    await mutate((current) => ({ ...(current ?? EMPTY), overrides, blocks }), {
-      revalidate: true,
-    });
-  };
-
-  const reset = async () => {
-    await resetHomeLayout();
-    await mutate(
-      (current) => ({ ...(current ?? EMPTY), overrides: {}, blocks: [] }),
-      { revalidate: true },
+  ) =>
+    change(
+      (current) => ({ ...current, overrides, blocks }),
+      () => saveHomeLayout(overrides, blocks),
     );
-  };
-
-  const savePolicies = async (policies: HomeBlockPolicies) => {
-    await saveHomeBlockPolicies(policies);
-    await mutate((current) => ({ ...(current ?? EMPTY), policies }), {
-      revalidate: true,
-    });
-  };
+  const reset = () =>
+    change(
+      (current) => ({ ...current, overrides: {}, blocks: [] }),
+      resetHomeLayout,
+    );
+  const savePolicies = (policies: HomeBlockPolicies) =>
+    change(
+      (current) => ({ ...current, policies }),
+      () => saveHomeBlockPolicies(policies),
+    );
 
   // Ein leerer Zustand ist erst nach einer erfolgreichen Antwort eine sichere
   // Grundlage zum Speichern. Während Laden oder nach einem Fehler bliebe eine
   // Bearbeitung sonst fälschlich bei der Standardansicht stehen und könnte
   // die persönliche Anordnung überschreiben.
   return {
-    state: data ?? EMPTY,
+    state: action.data ?? EMPTY,
     isLoading,
     isReady: data !== undefined,
     save,
