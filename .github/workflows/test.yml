@@ -602,11 +602,30 @@ jobs:
           } >> "${GITHUB_ENV}"
 
       - name: Setup Go
+        id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
+
+      # setup-go's go.sum-only key is immutable. All scenarios build the same
+      # binaries, so they share one source-keyed layer with the last source
+      # build as a warm fallback. nightly.yml saves it on development.
+      - name: Compute seed smoke build cache key
+        id: build-cache-key
+        env:
+          SEED_CACHE_PREFIX: seed-smoke-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum') }}-
+          SEED_SOURCE_HASH: ${{ hashFiles('backend/**/*.go') }}
+        run: |
+          echo "prefix=$SEED_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$SEED_CACHE_PREFIX$SEED_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+      - name: Restore seed smoke build cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
       - name: Build backend and dev tools binaries
         working-directory: backend
