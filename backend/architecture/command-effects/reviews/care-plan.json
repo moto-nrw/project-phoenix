@@ -12219,9 +12219,19 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.StudentCarePeriods",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.StudentCarePeriodRecords; modules/enrollment/offering_selection_record.go:136. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; maps the student identity with the care period and has no owned-row mutation or locking read at this terminal. Target modules/enrollment.StudentCarePeriodRecords; modules/enrollment/offering_selection_record.go:136. May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.StudentCarePeriodRecords",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.StudentCarePeriodsByStudentIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.StudentCarePeriodsByStudentIDs",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/enrollment.StudentCarePeriodRecordsByStudentIDs; modules/enrollment/offering_selection_record.go:149. May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.StudentCarePeriodRecordsByStudentIDs",
       "target_owner": "enrollment"
     },
     {

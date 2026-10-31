@@ -8850,10 +8850,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.StudentCarePeriods",
-      "binding_digest": "ea5ae8ff1ea8d23d4ea7ecd9eec526a9",
+      "binding_digest": "9436877e4d6dd1735cbd4e8f66dc6adc",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.StudentCarePeriods",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.StudentCarePeriodRecords",
+      "target_owner": "enrollment"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.offeringChangeEnrollment.StudentCarePeriodsByStudentIDs",
+      "binding_digest": "5b3560b348c2221708b9637fc54591bd",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.OfferingChangeEnrollment.StudentCarePeriodsByStudentIDs",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-nrw/project-phoenix/modules/enrollment.StudentCarePeriodRecordsByStudentIDs",
       "target_owner": "enrollment"
     },
     {
