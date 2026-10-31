@@ -1,8 +1,10 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { Suspense, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR, { useSWRConfig } from "swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -50,15 +52,15 @@ function OperatorDevicesPageContent() {
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
 
-  const { mutate: globalMutate } = useSWRConfig();
+  const refreshFamily = useTenantMutateMatching(DEVICE_SWR_PREFIXES);
 
   const {
     data: schoolDevices,
     error: schoolDevicesError,
     isLoading: schoolDevicesLoading,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && selectedSchool
-      ? `operator-school-devices-${selectedSchool.id}`
+      ? operatorProvisioningKeys.schoolDevices(selectedSchool.id)
       : null,
     () => operatorProvisioningService.listSchoolDevices(selectedSchool!.id),
     {
@@ -72,9 +74,9 @@ function OperatorDevicesPageContent() {
     data: orgDevices,
     error: orgDevicesError,
     isLoading: orgDevicesLoading,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && filterOrgId && !selectedSchool
-      ? `operator-org-devices-${filterOrgId}`
+      ? operatorProvisioningKeys.orgDevices(filterOrgId)
       : null,
     () => operatorProvisioningService.listOrganizationDevices(filterOrgId),
     {
@@ -88,9 +90,9 @@ function OperatorDevicesPageContent() {
     data: allDevices,
     error: allDevicesError,
     isLoading: allDevicesLoading,
-  } = useSWR(
+  } = useSWRAuth(
     isAuthenticated && !filterOrgId && !selectedSchool
-      ? "operator-all-devices"
+      ? operatorProvisioningKeys.allDevices()
       : null,
     () => operatorProvisioningService.listAllDevices(),
     {
@@ -100,13 +102,7 @@ function OperatorDevicesPageContent() {
     },
   );
 
-  const refreshDevices = useCallback(() => {
-    return globalMutate(
-      (key: unknown) =>
-        typeof key === "string" &&
-        DEVICE_SWR_PREFIXES.some((p) => key.startsWith(p)),
-    );
-  }, [globalMutate]);
+  const refreshDevices = useCallback(() => refreshFamily(), [refreshFamily]);
 
   // Only one of the three lists is active at a time.
   const devicesLoadError = useSwrLoadError(

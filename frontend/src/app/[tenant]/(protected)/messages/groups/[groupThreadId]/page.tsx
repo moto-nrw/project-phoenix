@@ -1,8 +1,10 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useState } from "react";
 import { useParams } from "next/navigation";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -25,7 +27,7 @@ import {
   fetchGroupThread,
   postGroupMessage,
 } from "~/lib/parent-group-threads-api";
-import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "GroupMessagePage" });
 
@@ -44,13 +46,12 @@ function GroupMessageContent() {
   const params = useParams();
   const threadId = params.groupThreadId as string;
   const { tenant } = useTenant();
-  const tenantSlug = useTenantSlugSafe();
   const messagingEnabled = tenant?.messagingEnabled === true;
 
-  const { data, error, isLoading, mutate } = useSWR<GroupThreadDetail>(
-    [`${tenantSlug ?? ""}:group-message`, threadId],
+  const { data, error, isLoading, mutate } = useSWRAuth<GroupThreadDetail>(
+    messageKeys.groupMessage(threadId),
     () => fetchGroupThread(threadId),
-    { revalidateOnFocus: false },
+    { keepPreviousData: false, revalidateOnFocus: false },
   );
   const loadError = useSwrLoadError(error, "die Gruppennachricht", mutate);
 

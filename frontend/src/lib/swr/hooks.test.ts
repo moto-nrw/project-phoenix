@@ -97,6 +97,14 @@ describe("SWR Hooks", () => {
   });
 
   describe("useSWRAuth", () => {
+    it("never passes the scoped SWR key as resource parameters", async () => {
+      renderHook(() => useSWRAuth("test-key", mockFetcher));
+      const passed = vi.mocked(useSWR).mock.calls.at(-1)?.[1] as (
+        key: string,
+      ) => Promise<unknown>;
+      await passed("tenant:-:user-1:test-key");
+      expect(mockFetcher).toHaveBeenCalledExactlyOnceWith();
+    });
     it("fetches data when user is authenticated", () => {
       vi.mocked(useSession).mockReturnValue(
         createMockSession("test-token") as ReturnType<typeof useSession>,
@@ -106,7 +114,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "tenant:-:user-1:test-key",
-        mockFetcher,
+        expect.any(Function),
         expect.objectContaining({
           dedupingInterval: 5000,
         }),
@@ -134,7 +142,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "school:42:teacher-1:school-supervisions-2026-08-24",
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -155,7 +163,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         null,
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -169,7 +177,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         null, // Key should be null when session is loading
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -183,7 +191,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         null, // Key should be null when unauthenticated
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -197,7 +205,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         null, // Key should be null when no token
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -211,7 +219,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "tenant:-:user-1:test-key",
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -231,7 +239,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "school:42:teacher-1:school-supervisions-2026-08-24",
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -245,7 +253,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         null,
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -260,7 +268,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "tenant:-:user-1:test-key",
-        mockFetcher,
+        expect.any(Function),
         expect.objectContaining({
           refreshInterval: 5000,
         }),
@@ -278,7 +286,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "tenant:-:user-1:immutable-key",
-        mockFetcher,
+        expect.any(Function),
         expect.objectContaining({
           revalidateIfStale: false,
           revalidateOnFocus: false,
@@ -425,7 +433,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "school-a:user-1:students-list",
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });
@@ -440,7 +448,7 @@ describe("SWR Hooks", () => {
 
       expect(useSWR).toHaveBeenCalledWith(
         "tenant:-:user-1:students-list",
-        mockFetcher,
+        expect.any(Function),
         expect.any(Object),
       );
     });

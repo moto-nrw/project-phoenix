@@ -31,8 +31,8 @@
       "maxBytes": 989322
     },
     "/[tenant]/database/groups": {
-      "referenceBytes": 981994,
-      "maxBytes": 1001634
+      "referenceBytes": 992093,
+      "maxBytes": 1011935
     },
     "/[tenant]/database/permissions": {
       "referenceBytes": 975653,
@@ -59,8 +59,8 @@
       "maxBytes": 1010719
     },
     "/[tenant]/database/rooms": {
-      "referenceBytes": 972850,
-      "maxBytes": 992307
+      "referenceBytes": 982615,
+      "maxBytes": 1002267
     },
     "/[tenant]/database/shift-types": {
       "referenceBytes": 982089,

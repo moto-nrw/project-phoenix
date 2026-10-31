@@ -1,13 +1,10 @@
 "use client";
 
+import { announcementKeys } from "~/lib/swr/shell-keys";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-// eslint-disable-next-line no-restricted-imports -- platform-scoped announcements, not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { authFetch } from "~/lib/api-helpers";
-
-/** Platform-scoped, so deliberately NOT tenant-prefixed. */
-export const ANNOUNCEMENTS_UNREAD_SWR_KEY = "user-announcements-unread";
 
 export interface UnreadAnnouncement {
   id: number;
@@ -40,10 +37,11 @@ export function useAnnouncements() {
   const pathname = usePathname();
   const previousPathname = useRef(pathname);
 
-  const { data, mutate, isLoading } = useSWR(
-    ANNOUNCEMENTS_UNREAD_SWR_KEY,
+  const { data, mutate, isLoading } = useSWRAuth(
+    announcementKeys.unread(),
     fetchUnread,
     {
+      keepPreviousData: false,
       refreshInterval: 60000, // Poll every 60s
       revalidateOnFocus: false, // Don't revalidate on window focus to avoid showing dismissed items again
       revalidateOnMount: true, // Always fetch fresh data on component mount

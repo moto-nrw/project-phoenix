@@ -1,5 +1,6 @@
 "use client";
 
+import { groups as groupsKeys } from "~/lib/swr/groups";
 import {
   Suspense,
   useEffect,
@@ -108,8 +109,7 @@ import {
   insertPastedOptions,
 } from "~/lib/announcement-poll-options";
 import { useSWRAuth } from "~/lib/swr";
-import { groupService, studentService } from "~/lib/api";
-import type { Group } from "~/lib/api";
+import { studentService, type Group } from "~/lib/api";
 import { fetchActivities } from "~/lib/activity-api";
 import type { Activity } from "~/lib/activity-helpers";
 import {
@@ -311,8 +311,8 @@ function ParentAnnouncementsContent() {
     error: groupsError,
     mutate: reloadGroups,
   } = useSWRAuth<Group[]>(
-    isFormOpen ? "parent-announcements-groups" : null,
-    () => groupService.getGroups(),
+    isFormOpen ? groupsKeys.key() : null,
+    groupsKeys.fetcher,
     { revalidateOnFocus: false },
   );
   const {

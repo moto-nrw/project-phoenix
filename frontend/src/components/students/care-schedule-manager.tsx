@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { mutate } from "swr";
+import { mutate } from "~/lib/swr/mutate";
 import {
   ChevronLeft,
   ChevronRight,

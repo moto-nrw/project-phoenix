@@ -23,6 +23,7 @@ import {
   DataGrid,
 } from "~/components/ui/detail-modal-components";
 import { useSWRAuth } from "~/lib/swr";
+import { roomKeys } from "~/lib/swr/rooms-keys";
 import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
@@ -138,11 +139,6 @@ export interface UseRoomDetailResult {
   historyError: FormError | null;
 }
 
-/** SWR-Schlüssel der Raumseite; das globale SSE lädt darüber nach. */
-export function roomDetailKey(roomId: string): string {
-  return `room-detail-${roomId}`;
-}
-
 export function useRoomDetail(roomId: string): UseRoomDetailResult {
   // SWR-cached so the global SSE handler can invalidate the header on
   // checkin/checkout/activity events, see use-global-sse.ts. The cache
@@ -159,7 +155,7 @@ export function useRoomDetail(roomId: string): UseRoomDetailResult {
     history: RoomHistoryEntry[];
     historyDisabled: boolean;
     historyFailure: unknown;
-  }>(roomDetailKey(roomId), async () => {
+  }>(roomKeys.detailKey(roomId), async () => {
     // Both routes read the session cookie (#5005).
     const [roomResponse, historyResponse] = await Promise.all([
       transportFetch(`/api/rooms/${roomId}`, {

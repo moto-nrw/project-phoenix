@@ -10,7 +10,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
 import type { StaffAbsenceRequestRow } from "~/lib/staff-api";
-import { mutate, SWRConfig, type Cache } from "~/lib/swr";
+import { mutate } from "~/lib/swr";
+import { SWRConfig, type Cache } from "~/lib/swr/testing";
 import { catalogText } from "~/test/error-catalog-text";
 
 import { StaffAbsenceRequestList } from "./staff-absence-request-list";

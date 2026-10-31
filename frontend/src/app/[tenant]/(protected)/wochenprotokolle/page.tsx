@@ -12,6 +12,7 @@ import {
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ogsGroupHref } from "~/lib/ogs-groups-navigation";
 import { useSWRAuth } from "~/lib/swr";
+import { weekProtocolKeys } from "~/lib/swr/portal-keys";
 import { useTenantRouter } from "~/lib/tenant-router";
 import {
   weekProtocolPath,
@@ -55,7 +56,7 @@ function WeekProtocolsContent() {
   const groupId = useSearchParams().get("group");
   const router = useTenantRouter();
   const { data, error, isLoading, mutate } = useSWRAuth<WeekProtocol[]>(
-    `week-protocols-${groupId ?? "all"}`,
+    weekProtocolKeys.list(groupId),
     () => weekProtocolsService.list(groupId),
   );
   const loadError = useSwrLoadError(error, "die Wochenprotokolle", mutate);

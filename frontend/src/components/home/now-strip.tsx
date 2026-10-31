@@ -27,6 +27,7 @@ import { ownShiftService } from "~/lib/shift-api";
 import type { OwnAssignment } from "~/lib/shift-helpers";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { useSWRAuth } from "~/lib/swr";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
 import type { PlannedTimetableInstance } from "~/lib/timetable-operations-types";
@@ -96,7 +97,7 @@ export function NowStrip({
   );
   const school = wantsSchool ? day : { data: undefined, error: undefined };
   const analytics = useSWRAuth<DashboardAnalytics>(
-    wantsAnalytics ? "dashboard-analytics" : null,
+    wantsAnalytics ? dashboardKeys.analytics() : null,
     fetchDashboardAnalyticsClient,
     { refreshInterval: 5 * 60 * 1000 },
   );

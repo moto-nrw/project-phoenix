@@ -141,6 +141,7 @@
       "src/**/*.css!",
       "scripts/**/*.{js,mjs,ts}",
       "!src/test/**!",
+      "!src/lib/swr/testing.ts!",
       "!src/**/*.{test,spec,stories}.{js,jsx,ts,tsx}!"
     ],
     "ignore": [

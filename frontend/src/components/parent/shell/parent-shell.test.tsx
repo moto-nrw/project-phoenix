@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ParentShell } from "./parent-shell";
 
-vi.mock("swr", () => ({
-  default: () => ({ data: [] }),
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({ data: [] }),
 }));
 
 vi.mock("~/components/dashboard/header", () => ({

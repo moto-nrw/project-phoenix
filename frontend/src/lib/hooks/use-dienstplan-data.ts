@@ -1,8 +1,9 @@
 "use client";
 
+import { staff as staffKeys } from "~/lib/swr/staff";
 import { useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import type { KeyedMutator } from "swr";
+import type { KeyedMutator } from "~/lib/swr";
 
 import { hasPermission } from "~/lib/auth-utils";
 import { staffShiftService } from "~/lib/shift-api";
@@ -16,7 +17,7 @@ import {
 } from "~/lib/shift-helpers";
 import { shiftTypeService } from "~/lib/shift-type-api";
 import { indexShiftTypes, type ShiftType } from "~/lib/shift-type-helpers";
-import { staffService, type Staff } from "~/lib/staff-api";
+import { type Staff } from "~/lib/staff-api";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import {
   VERTRETUNG_GAPS_KEY_PREFIX,
@@ -157,9 +158,9 @@ export function useDienstplanData(
     isLoading: legacyStaffLoading,
     mutate: mutateLegacyStaff,
   } = useSWRAuth<Staff[]>(
-    canUseAssignmentOverview ? null : "dienstplan-staff",
+    canUseAssignmentOverview ? null : staffKeys.key({}, { strict: true }),
     // strict: a failed load must reject, not arrive as an empty staff list.
-    () => staffService.getAllStaff(undefined, { strict: true }),
+    () => staffKeys.fetcher({}, { strict: true }),
   );
 
   const {

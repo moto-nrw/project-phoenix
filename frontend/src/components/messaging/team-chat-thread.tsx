@@ -1,5 +1,7 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import {
   useCallback,
   useEffect,
@@ -9,7 +11,7 @@ import {
   type ReactNode,
   type RefObject,
 } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { BackLink } from "~/components/ui/back-link";
@@ -140,14 +142,12 @@ export function TeamChatThread({
     isLoading,
     isValidating,
     mutate,
-  } = useSWR<StaffThreadDetail>(
+  } = useSWRAuth<StaffThreadDetail>(
     // Same gate as the inbox: with the feature off there is nothing to fetch,
     // and firing anyway leaves the page in a permanent skeleton while SWR
     // retries a 403 (isLoading is !data && isValidating). The backend code is
     // still consulted below for the case the cached flag is stale.
-    flagSaysEnabled
-      ? [`${portal.cacheScope}:team-chat-thread`, threadID]
-      : null,
+    flagSaysEnabled ? messageKeys.teamChatThread(threadID) : null,
     () => api.fetchThread(threadID),
     {
       revalidateOnFocus: false,
