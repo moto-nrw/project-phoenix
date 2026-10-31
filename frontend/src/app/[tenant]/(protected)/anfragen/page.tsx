@@ -40,7 +40,7 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
 import type { CourseWaitlist } from "~/lib/course-waitlist-helpers";
-import { useSWRAuth } from "~/lib/swr";
+import { courseWaitlistKeys, useSWRAuth } from "~/lib/swr";
 
 const NO_WAITLISTS: readonly CourseWaitlist[] = [];
 
@@ -556,7 +556,7 @@ function ElternTab({
   const showWaitlists =
     view === "open" && hasPermission(session, "users:update");
   const waitlistsSWR = useSWRAuth(
-    showWaitlists ? "course-waitlists" : null,
+    showWaitlists ? courseWaitlistKeys.all() : null,
     () => fetchCourseWaitlists(),
   );
   const waitlistLoadError = useSwrLoadError(

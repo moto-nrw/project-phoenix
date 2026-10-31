@@ -44,6 +44,9 @@ const waitlistState = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
+  courseWaitlistKeys: {
+    all: () => "course-waitlists",
+  },
   useSWRAuth: (key: string | null) => ({
     data: key === "course-waitlists" ? waitlistState.waitlists : undefined,
     error: undefined,

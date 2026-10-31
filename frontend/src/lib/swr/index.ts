@@ -24,6 +24,10 @@ export {
   useTenantMutate,
   useTenantMutateMatching,
 } from "./hooks";
+export {
+  activityWaitlistKeys,
+  courseWaitlistKeys,
+} from "./course-waitlist-keys";
 export { scopedSWRKey, tenantSWRScope } from "./scope";
 
 // Re-export SWR utilities that consumers might need

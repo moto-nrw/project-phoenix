@@ -9,7 +9,11 @@ import { hasPermission } from "~/lib/auth-utils";
 import { getEnrolledStudents } from "~/lib/activity-api";
 import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
-import { useSWRAuth } from "~/lib/swr";
+import {
+  activityWaitlistKeys,
+  courseWaitlistKeys,
+  useSWRAuth,
+} from "~/lib/swr";
 
 /**
  * Plätze und Warteliste einer AG (#4767), im Fenster der Aktivität. Nur zur
@@ -22,13 +26,14 @@ export function ActivityWaitlistSection({
   const { data: session } = useSession();
   const allowed = hasPermission(session, "users:update");
   const mayReadParticipants = hasPermission(session, "activities:read");
-  const swr = useSWRAuth(allowed ? `course-waitlist-${activityId}` : null, () =>
-    fetchCourseWaitlists(activityId),
+  const swr = useSWRAuth(
+    allowed ? courseWaitlistKeys.activity(activityId) : null,
+    () => fetchCourseWaitlists(activityId),
   );
   // Die Namen der Teilnehmenden kommen aus der Kinderliste der Aktivität.
   const participants = useSWRAuth(
     allowed && mayReadParticipants
-      ? `activity-participants-${activityId}`
+      ? activityWaitlistKeys.participants(activityId)
       : null,
     () => getEnrolledStudents(activityId),
   );

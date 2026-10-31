@@ -26,6 +26,12 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
+  activityWaitlistKeys: {
+    participants: (activityId: string) => `activity-participants-${activityId}`,
+  },
+  courseWaitlistKeys: {
+    activity: (activityId: string) => `course-waitlist-${activityId}`,
+  },
   useSWRAuth: (key: string | null) => {
     state.keys.push(key);
     if (key?.startsWith("activity-participants-")) {
