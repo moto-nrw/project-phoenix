@@ -1,12 +1,21 @@
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { encode } from "next-auth/jwt";
 import { NextRequest } from "next/server";
 import { env } from "~/env";
-import { dropUnchangedSessionCookie } from "~/server/auth/session-cookie-writes";
+import { gateSessionCookieWrites } from "~/server/auth/session-cookie-writes";
 
-// #5399: a response that only re-reads the session must not carry its
-// cookie. Arriving after a logout or a school switch, it would write the old
-// session back; a change (sign-in, rotation, update(), end) keeps it.
+// #5399, server invariant: a response writes a session cookie only for a
+// changed session whose refresh-token family Identity & Access confirms live
+// while the response is built. Whenever its request started and however late
+// its answer arrives, an unchanged, an ended or a revoked session sets none.
 
 const NAME = "parent.session-token";
 const SESSION = {
@@ -19,12 +28,47 @@ const SESSION = {
   refreshTokenExpiry: Date.now() + 24 * 60 * 60_000,
 };
 
+const backend = vi.fn<typeof fetch>();
+/** The answer of Identity & Access on the session's family. */
+let familyStatus = 200;
+
+function familyChecks() {
+  return backend.mock.calls.filter(([url]) =>
+    String(url).endsWith("/auth/session/validate"),
+  );
+}
+
+/** A JWT-shaped token; the BFF reads its claims without a signature. */
+function jwt(claims: Record<string, unknown>) {
+  const part = (value: unknown) =>
+    Buffer.from(JSON.stringify(value)).toString("base64url");
+  return `${part({ alg: "HS256" })}.${part(claims)}.signature`;
+}
+
 beforeAll(() => {
   // Auth.js reads AUTH_SECRET before NEXTAUTH_SECRET.
   vi.stubEnv("AUTH_SECRET", env.NEXTAUTH_SECRET);
 });
 afterAll(() => {
   vi.unstubAllEnvs();
+});
+beforeEach(() => {
+  familyStatus = 200;
+  backend.mockReset();
+  backend.mockImplementation(async (url) => {
+    const target = String(url);
+    if (target.endsWith("/auth/session/validate"))
+      return Response.json({ id: 7 }, { status: familyStatus });
+    if (target.endsWith("/auth/refresh")) {
+      const now = Math.floor(Date.now() / 1000);
+      return Response.json({
+        access_token: jwt({ id: 7, scope: "parent", exp: now + 900 }),
+        refresh_token: jwt({ id: 7, exp: now + 86_400 }),
+      });
+    }
+    return new Response(null, { status: 404 });
+  });
+  vi.stubGlobal("fetch", backend);
 });
 
 function sealed(token: Record<string, unknown>, salt = NAME) {
@@ -49,13 +93,13 @@ function written(answer: Response, name = NAME) {
     .filter((cookie) => cookie.split("=")[0]?.replace(/\.\d+$/, "") === name);
 }
 
-describe("dropUnchangedSessionCookie", () => {
+describe("gateSessionCookieWrites", () => {
   it("drops a re-encoded copy of the presented session, other cookies stay", async () => {
     const before = await sealed(SESSION);
     const after = await sealed(SESSION);
     expect(after).not.toBe(before);
 
-    const answer = await dropUnchangedSessionCookie(
+    const answer = await gateSessionCookieWrites(
       request(`${NAME}=${before}`),
       response(
         `${NAME}=${after}; Path=/; HttpOnly; SameSite=Lax`,
@@ -65,10 +109,11 @@ describe("dropUnchangedSessionCookie", () => {
 
     expect(written(answer)).toEqual([]);
     expect(answer.headers.getSetCookie()).toEqual(["other=1; Path=/"]);
+    expect(familyChecks()).toEqual([]);
   });
 
-  it("keeps a rotated session", async () => {
-    const answer = await dropUnchangedSessionCookie(
+  it("keeps a rotated session of a live family", async () => {
+    const answer = await gateSessionCookieWrites(
       request(`${NAME}=${await sealed(SESSION)}`),
       response(
         `${NAME}=${await sealed({ ...SESSION, token: "access-2" })}; Path=/`,
@@ -76,36 +121,57 @@ describe("dropUnchangedSessionCookie", () => {
     );
 
     expect(written(answer)).toHaveLength(1);
+    expect(familyChecks()).toHaveLength(1);
   });
 
-  it("keeps an ended session and a deletion", async () => {
+  it.each([
+    [401, "revoked"],
+    [503, "not readable"],
+  ])("drops a rotated session whose family answers %s (%s)", async (status) => {
+    familyStatus = status;
+
+    const answer = await gateSessionCookieWrites(
+      request(`${NAME}=${await sealed(SESSION)}`),
+      response(
+        `${NAME}=${await sealed({ ...SESSION, token: "access-2" })}; Path=/`,
+        "other=1; Path=/",
+      ),
+    );
+
+    expect(written(answer)).toEqual([]);
+    expect(answer.headers.getSetCookie()).toEqual(["other=1; Path=/"]);
+  });
+
+  it("drops an ended session without asking, keeps a deletion", async () => {
     const presented = request(`${NAME}=${await sealed(SESSION)}`);
-    const ended = await dropUnchangedSessionCookie(
+    const ended = await gateSessionCookieWrites(
       presented,
       response(
         `${NAME}=${await sealed({ ...SESSION, error: "RefreshTokenError" })}; Path=/`,
       ),
     );
-    const deleted = await dropUnchangedSessionCookie(
+    const deleted = await gateSessionCookieWrites(
       presented,
       response(`${NAME}=; Path=/; Max-Age=0`),
     );
 
-    expect(written(ended)).toHaveLength(1);
+    expect(written(ended)).toEqual([]);
     expect(written(deleted)).toEqual([`${NAME}=; Path=/; Max-Age=0`]);
+    expect(familyChecks()).toEqual([]);
   });
 
-  it("keeps a session the request did not present (sign-in)", async () => {
-    const answer = await dropUnchangedSessionCookie(
+  it("keeps a sign-in of a live family the request did not present", async () => {
+    const answer = await gateSessionCookieWrites(
       request("other=1"),
       response(`${NAME}=${await sealed(SESSION)}; Path=/`),
     );
 
     expect(written(answer)).toHaveLength(1);
+    expect(familyChecks()).toHaveLength(1);
   });
 
-  it("keeps a cookie it cannot read", async () => {
-    const answer = await dropUnchangedSessionCookie(
+  it("keeps a cookie it cannot read: it carries no session", async () => {
+    const answer = await gateSessionCookieWrites(
       request(`${NAME}=not-a-session`),
       response(`${NAME}=also-not-a-session; Path=/`),
     );
@@ -120,7 +186,7 @@ describe("dropUnchangedSessionCookie", () => {
     const [b0, b1] = cut(before);
     const [a0, a1] = cut(after);
 
-    const answer = await dropUnchangedSessionCookie(
+    const answer = await gateSessionCookieWrites(
       request(`${NAME}.1=${b1}; ${NAME}.0=${b0}`),
       response(`${NAME}.0=${a0}; Path=/`, `${NAME}.1=${a1}; Path=/`),
     );
@@ -128,25 +194,32 @@ describe("dropUnchangedSessionCookie", () => {
     expect(written(answer)).toEqual([]);
   });
 
-  it("keeps a session of another portal's cookie name apart", async () => {
-    const tenant = "authjs.session-token";
-    const answer = await dropUnchangedSessionCookie(
+  it("asks once per access token", async () => {
+    const answer = await gateSessionCookieWrites(
       request(`${NAME}=${await sealed(SESSION)}`),
-      response(`${tenant}=${await sealed(SESSION, tenant)}; Path=/`),
+      response(
+        `${NAME}=${await sealed({ ...SESSION, name: "Erika B." })}; Path=/`,
+        `${NAME}=${await sealed({ ...SESSION, name: "Erika C." })}; Path=/`,
+      ),
     );
 
-    expect(written(answer, tenant)).toHaveLength(1);
+    expect(written(answer)).toHaveLength(2);
+    expect(familyChecks()).toHaveLength(1);
   });
 });
 
 describe("BFF route of a portal (#5399)", () => {
-  it("answers a route that only read the session without its cookie", async () => {
+  async function route() {
     const { withParentAuth } = await import("~/server/auth/parent");
-    const route = withParentAuth(async (authRequest) =>
+    return withParentAuth(async (authRequest) =>
       Response.json({ account: authRequest.auth?.user?.id ?? null }),
     );
+  }
 
-    const answer = await route(
+  it("answers a route that only read the session without its cookie", async () => {
+    const answer = await (
+      await route()
+    )(
       new NextRequest("http://parents.localhost:3000/api/parent/children", {
         headers: { cookie: `${NAME}=${await sealed(SESSION)}` },
       }),
@@ -155,4 +228,36 @@ describe("BFF route of a portal (#5399)", () => {
     expect(await answer.json()).toEqual({ account: "7" });
     expect(written(answer)).toEqual([]);
   });
+
+  // The request renewed its session before the logout revoked the family;
+  // its answer is built after it. No cookie of the revoked family leaves.
+  it.each([
+    [200, 1],
+    [401, 0],
+  ])(
+    "writes a renewed session only while its family is live (%s)",
+    async (status, cookies) => {
+      familyStatus = status;
+      const due = {
+        ...SESSION,
+        refreshToken: `refresh-due-${status}`,
+        tokenExpiry: Date.now() + 1_000,
+      };
+
+      const answer = await (
+        await route()
+      )(
+        new NextRequest("http://parents.localhost:3000/api/parent/children", {
+          headers: { cookie: `${NAME}=${await sealed(due)}` },
+        }),
+      );
+
+      expect(
+        backend.mock.calls.some(([url]) =>
+          String(url).endsWith("/auth/refresh"),
+        ),
+      ).toBe(true);
+      expect(written(answer)).toHaveLength(cookies);
+    },
+  );
 });

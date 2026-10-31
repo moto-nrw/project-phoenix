@@ -199,10 +199,30 @@ const api = createServer(async (req, res) => {
   } else if (path === "/auth/session/validate") {
     let body = "";
     for await (const chunk of req) body += chunk;
-    const { portal, access_token: access } = JSON.parse(body);
+    const {
+      portal,
+      access_token: access,
+      refresh_token: refresh,
+    } = JSON.parse(body);
+    const family = tokenClaims(access)?.family_id;
+    // Like Identity & Access (#5399): without the refresh token the access
+    // token's family is read, and a revoked family is refused.
+    if (
+      sharedTenantCookie &&
+      !refresh &&
+      family !== undefined &&
+      !liveFamilies.has(family)
+    ) {
+      refuse(res, {
+        status: 401,
+        detail: "invalid token format",
+        code: "general.permission",
+      });
+      return;
+    }
     data = {
       ...claims(portal === "tenant" ? "" : portal),
-      family_id: tokenClaims(access)?.family_id,
+      family_id: family,
     };
   } else if (path === "/api/me/profile") data = envelope(profile);
   else if (path === "/api/me/navigation")

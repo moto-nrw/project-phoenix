@@ -20,7 +20,7 @@ import {
   type SentryPortal,
 } from "~/lib/sentry-context";
 import { sessionAccountMismatchResponse } from "./session-account-check";
-import { dropUnchangedSessionCookie } from "./session-cookie-writes";
+import { gateSessionCookieWrites } from "./session-cookie-writes";
 import { withForcedSessionRenewal, type ServerSession } from "./shared";
 
 export type ResponseRouteHandler<Context = RouteContext> = (
@@ -190,10 +190,6 @@ export function createResponseAwareAuth(
   ): Promise<Response> {
     // Every authenticated BFF route of every portal leaves through here.
     applyPrivateNoStore(response.headers);
-    // Without a renewal or replacement the route only re-read the session.
-    // Its re-encoded cookie must not outlive a logout or switch (#5399).
-    if (!current.freshCookies.length && !current.replacementCookies)
-      return dropUnchangedSessionCookie(current.request, response);
     // Auth.js appends the outer session cookie after the route callback.
     // Append explicit retry cookies afterwards so the freshly rotated cookie
     // wins when multiple Set-Cookie headers use the same cookie name.
@@ -218,7 +214,10 @@ export function createResponseAwareAuth(
       for (const cookie of replacements)
         response.headers.append("Set-Cookie", cookie);
     }
-    return response;
+    // The browser receives a session cookie only for a changed session of a
+    // live family (#5399): never an unchanged re-encoding, an ended session
+    // or one whose family a logout revoked while this request ran.
+    return gateSessionCookieWrites(current.request, response);
   }
 
   /** Public session minting: capture server-action cookies without reading or

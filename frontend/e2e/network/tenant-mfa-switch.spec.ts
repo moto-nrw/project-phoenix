@@ -293,7 +293,11 @@ test("failed family revocation keeps the shared session and shows a recoverable 
   await expect(page.locator('input[type="email"]')).toBeVisible();
 });
 
-test("a failed Auth.js cookie deletion stops at the target guard and permits explicit recovery", async ({
+// #5399: the revocation went through, the cookie deletion did not. The
+// server reads the revoked family's session as ended, so the target school
+// offers its login (the explicit reauthentication) instead of a mismatch;
+// the stale cookie loops nowhere and opens nothing.
+test("a failed Auth.js cookie deletion stops at the target login without a loop", async ({
   page,
   context,
 }) => {
@@ -306,16 +310,23 @@ test("a failed Auth.js cookie deletion stops at the target guard and permits exp
   await page.getByText("School B", { exact: true }).click();
   await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
   await page.waitForURL(`${target}/`);
-  const recovery = page.getByRole("button", { name: "Zur Schulanmeldung" });
-  await expect(recovery).toBeVisible();
-  await expect(
-    page.getByRole("alert").filter({ hasText: "zweiten Anmeldenachweis" }),
-  ).toBeVisible();
-  expect(page.url()).toBe(`${target}/`);
-  // When Auth.js is available again, the explicit action reaches the form.
-  await page.unroute("**/api/auth/signout");
-  await recovery.click();
   await expect(page.locator('input[type="email"]')).toBeVisible();
+  // Positive anchor first, then the absence: no further navigation.
+  const navigated = await page
+    .waitForEvent("framenavigated", {
+      predicate: (frame) => frame === page.mainFrame(),
+      timeout: 2_000,
+    })
+    .then(
+      () => true,
+      () => false,
+    );
+  expect(navigated).toBe(false);
+  expect(page.url()).toBe(`${target}/`);
+  // The stale cookie names a revoked family: it opens nothing.
+  expect(
+    await page.evaluate(() => fetch("/api/me/profile").then((r) => r.status)),
+  ).not.toBe(200);
 });
 
 test("tenant reauthentication preserves the independent school-portal session", async ({

@@ -40,9 +40,25 @@ beforeAll(() => {
 afterAll(() => {
   vi.unstubAllEnvs();
 });
+/** The answer of Identity & Access on the session's family (#5399). */
+let familyStatus = 200;
+
+/** Only the family check reaches the backend from the session route. */
+function familyChecks() {
+  return backend.mock.calls.filter(([url]) =>
+    String(url).endsWith("/auth/session/validate"),
+  );
+}
+
 beforeEach(() => {
   vi.stubGlobal("fetch", backend);
   backend.mockReset();
+  familyStatus = 200;
+  backend.mockImplementation(async (url: unknown) =>
+    String(url).endsWith("/auth/session/validate")
+      ? Response.json({ id: 7 }, { status: familyStatus })
+      : new Response(null, { status: 404 }),
+  );
 });
 
 type Route = (request: NextRequest) => Promise<Response>;
@@ -174,7 +190,14 @@ describe.each(PORTALS)(
       expect(JSON.parse(body)).toMatchObject({
         user: { id: "7", email: "erika@example.com", scope },
       });
-      expect(backend).not.toHaveBeenCalled();
+      // #5399: the family is confirmed with Identity & Access, without the
+      // refresh token; nothing else reaches the backend.
+      expect(backend).toHaveBeenCalledOnce();
+      expect(familyChecks()).toHaveLength(1);
+      const check = JSON.parse(String(familyChecks()[0]?.[1]?.body)) as {
+        refresh_token?: string;
+      };
+      expect(check.refresh_token).toBeUndefined();
     });
 
     it("answers the update() POST without any token", async () => {
@@ -217,6 +240,76 @@ describe.each(PORTALS)(
     // #5399: a poll or update() that only re-reads the session answers
     // without its cookie. Arriving after a logout or a school switch, it
     // would otherwise write the old session back into the browser.
+    // #5399, server invariant: a session whose refresh-token family is gone
+    // reads as ended and writes no cookie, however late its answer arrives
+    // or whenever its request started.
+    it("reads the session of a revoked family as ended and writes no cookie", async () => {
+      const { GET } = await route();
+      const name = await cookieName();
+      familyStatus = 401;
+
+      const response = await GET(
+        new NextRequest(`http://localhost:3000${basePath}/session`, {
+          headers: { cookie: await sessionCookie(name, scope) },
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      expect(JSON.parse(await response.text())).toMatchObject({
+        user: { id: "7" },
+        error: "RefreshTokenError",
+      });
+      expect(
+        response.headers
+          .getSetCookie()
+          .filter((value) => value.startsWith(name)),
+      ).toEqual([]);
+    });
+
+    it.each([
+      [401, "a revoked family"],
+      [503, "a family that cannot be read"],
+    ])(
+      "writes no cookie when update() changes the session of %s (%s)",
+      async (status) => {
+        const { GET, POST } = await route();
+        const csrfResponse = await GET(
+          new NextRequest(`http://localhost:3000${basePath}/csrf`),
+        );
+        const { csrfToken } = (await csrfResponse.json()) as {
+          csrfToken: string;
+        };
+        const csrfCookie = csrfResponse.headers
+          .getSetCookie()
+          .map((value) => value.split(";")[0])
+          .join("; ");
+        const name = await cookieName();
+        familyStatus = status;
+
+        const response = await POST(
+          new NextRequest(`http://localhost:3000${basePath}/session`, {
+            method: "POST",
+            headers: {
+              cookie: `${await sessionCookie(name, scope)}; ${csrfCookie}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ csrfToken, data: { name: "Erika B." } }),
+          }),
+        );
+
+        expect(response.status).toBe(200);
+        expect(
+          response.headers
+            .getSetCookie()
+            .filter((value) => value.startsWith(name)),
+        ).toEqual([]);
+        // A family that cannot be read is not ended: the session stays.
+        expect(
+          (JSON.parse(await response.text()) as { error?: string }).error,
+        ).toBe(status === 401 ? "RefreshTokenError" : undefined);
+      },
+    );
+
     it("writes no session cookie when GET only re-reads the session", async () => {
       const { GET } = await route();
       const name = await cookieName();

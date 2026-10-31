@@ -1,18 +1,18 @@
 import "server-only";
 import { decode } from "next-auth/jwt";
 import { env } from "~/env";
+import {
+  portalOfScope,
+  sessionFamilyState,
+  type SessionFamilyState,
+} from "./token-validation";
 
 /**
- * Auth.js re-encodes the session cookie on every session read: the session
- * route (poll, update()) and every BFF route through `auth(handler)` answer
- * with a fresh Set-Cookie even when nothing changed. Such an answer that
- * arrives after a logout or a school switch deleted or replaced the cookie
- * wrote the old session back (#5399). A response therefore keeps its
- * session Set-Cookie only when the session itself changed: sign-in,
- * rotation, update() or its end. The cookie's lifetime only moves with a
- * change then; it equals the refresh lifetime, which moves with a rotation.
+ * Session cookie writes of every portal's session route and BFF routes
+ * (#5399). Auth.js re-encodes the session cookie on every session read, and a
+ * response that arrives after a logout or a school switch deleted or
+ * replaced the cookie wrote the old session back. See gateSessionCookieWrites.
  */
-
 /** Claims Auth.js sets on every encode; they change on every write. */
 const ENCODE_CLAIMS = new Set(["iat", "exp", "jti"]);
 
@@ -93,29 +93,69 @@ function stable(value: unknown): unknown {
   return value;
 }
 
-async function sessionContent(token: string, salt: string) {
+async function readSession(token: string, salt: string) {
   try {
-    const payload = await decode({
+    return (await decode({
       token,
       salt,
       secret: env.NEXTAUTH_SECRET,
-    });
-    return payload ? JSON.stringify(stable(payload)) : null;
+    })) as Record<string, unknown> | null;
   } catch {
-    // Unreadable: no proof that nothing changed.
+    // Not a session Auth.js can read back either: it carries no session.
     return null;
   }
 }
 
+/** The family state per access token, asked once per response. */
+export type FamilyStates = Map<string, Promise<SessionFamilyState>>;
+
+export function familyStateOf(
+  states: FamilyStates,
+  session: Record<string, unknown>,
+): Promise<SessionFamilyState> {
+  const token = typeof session.token === "string" ? session.token : "";
+  let state = states.get(token);
+  if (!state) {
+    state = sessionFamilyState(token, portalOfScope(session.scope));
+    states.set(token, state);
+  }
+  return state;
+}
+
+/** Whether a written session may reach the browser (#5399). */
+async function mayWrite(
+  written: Record<string, unknown> | null,
+  presented: Record<string, unknown> | null,
+  states: FamilyStates,
+): Promise<boolean> {
+  // Auth.js cannot read it back either; it carries no session.
+  if (!written) return true;
+  // A mere re-encoding of the presented session.
+  if (
+    presented &&
+    JSON.stringify(stable(written)) === JSON.stringify(stable(presented))
+  )
+    return false;
+  // An ended session: the response body reports the end; the cookie stays
+  // as the browser holds it, possibly already deleted or replaced.
+  if (written.error || typeof written.token !== "string" || !written.token)
+    return false;
+  // A new or renewed session only while its family is live, asked now.
+  return (await familyStateOf(states, written)) === "live";
+}
+
 /**
- * Removes the session Set-Cookie of a response that only re-encodes the
- * session the request presented. Every other cookie, a deletion, a cookie
- * the request did not carry or one that cannot be read stays: those are
- * changes or cannot be shown to be none.
+ * The server invariant of #5399: a response writes a session cookie only for
+ * a session that changed (sign-in, rotation, update()) and whose
+ * refresh-token family Identity & Access confirms live while the response is
+ * built. A re-encoded unchanged session, an ended one and one of a revoked or
+ * unreadable family set nothing, whenever the request started and however
+ * late its answer arrives. Deletions and every other cookie pass unchanged.
  */
-export async function dropUnchangedSessionCookie(
+export async function gateSessionCookieWrites(
   request: Request,
   response: Response,
+  states: FamilyStates = new Map(),
 ): Promise<Response> {
   const setCookies = response.headers.getSetCookie();
   const writes = setCookies.map(parseSetCookie);
@@ -128,7 +168,7 @@ export async function dropUnchangedSessionCookie(
   if (!bases.size) return response;
 
   const presented = requestCookies(request);
-  const unchanged = new Set<string>();
+  const refused = new Set<string>();
   for (const base of bases) {
     const own = writes.filter(
       (write): write is CookieWrite =>
@@ -139,19 +179,18 @@ export async function dropUnchangedSessionCookie(
     const latest = new Map(own.map((write) => [write.name, write.value]));
     const written = joinChunks(latest, base);
     const before = joinChunks(presented, base);
-    if (!written || !before) continue;
-    const [previous, next] = await Promise.all([
-      sessionContent(before, base),
-      sessionContent(written, base),
+    const [next, previous] = await Promise.all([
+      written ? readSession(written, base) : null,
+      before ? readSession(before, base) : null,
     ]);
-    if (previous !== null && previous === next) unchanged.add(base);
+    if (!(await mayWrite(next, previous, states))) refused.add(base);
   }
-  if (!unchanged.size) return response;
+  if (!refused.size) return response;
 
   response.headers.delete("Set-Cookie");
   setCookies.forEach((cookie, index) => {
     const write = writes[index];
-    if (!write || !unchanged.has(baseName(write.name)))
+    if (!write || !refused.has(baseName(write.name)))
       response.headers.append("Set-Cookie", cookie);
   });
   return response;

@@ -58,3 +58,51 @@ export async function validateSessionToken(
     return null;
   }
 }
+
+/** live: the family backs the token; ended: revoked or expired; unknown: no answer. */
+export type SessionFamilyState = "live" | "ended" | "unknown";
+
+/** The validation portal of a session's scope claim. */
+export function portalOfScope(scope: unknown): Portal {
+  switch (scope) {
+    case "platform":
+    case "parent":
+    case "school":
+    case "caterer":
+    case "org":
+      return scope;
+    default:
+      return "tenant";
+  }
+}
+
+/**
+ * Asks Identity & Access whether the refresh-token family an access token
+ * names still backs it (#5399). Without the refresh token the backend reads
+ * the family itself; with it, a rotated token of a live family would fail.
+ * The BFF writes or shows a session only for a live family, so the answer of
+ * a request that outlived its logout sets no cookie and reads as ended.
+ */
+export async function sessionFamilyState(
+  accessToken: string,
+  portal: Portal,
+): Promise<SessionFamilyState> {
+  if (!accessToken || accessToken.length > 16000) return "ended";
+  try {
+    const response = await fetch(`${getServerApiUrl()}/auth/session/validate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        ...(await incomingClientForwardHeaders()),
+      },
+      body: JSON.stringify({ access_token: accessToken, portal }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+    });
+    if (response.ok) return "live";
+    return response.status === 401 ? "ended" : "unknown";
+  } catch {
+    return "unknown";
+  }
+}

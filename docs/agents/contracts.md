@@ -445,10 +445,10 @@ family and ends with the admin's session.
 In the frontend a backend 401 for an unexpired token renews the session at
 once (`withForcedSessionRenewal` in `frontend/src/server/auth/shared.ts`,
 used by `uncachedAuth` and by `withAuthResponse` for routes without their own
-retry). A revoked family fails that refresh, the response carries the ended
-session (`RefreshTokenError`), and a written-back copy of that cookie ends on
-its next read without a backend call. A live family continues with fresh
-tokens.
+retry). A revoked family fails that refresh; the response ends the session
+in its body but writes no cookie (#5399, below), and `/api/auth/token`
+answers 401 for a revoked family, so the browser signs out. A live family
+continues with fresh tokens.
 
 | Portal | Host | Cookie | basePath | JWT scope | Backend login |
 |---|---|---|---|---|---|
@@ -498,58 +498,60 @@ pinned and protected by the cookie-order/chunk-deletion integration tests.
 ### Late responses after logout (#5399)
 
 A response sets its cookies when its headers arrive, whatever the JavaScript
-that sent it does with the result. Two rules keep a response started before
-a logout or a "Zur Schulanmeldung" from writing the old session back:
+that sent it does with the result. The server is the source of truth that a
+response started before a logout or a "Zur Schulanmeldung" cannot bring the
+old session back; the browser only saves requests.
 
-1. **Only a changed session is written.** Auth.js re-encodes the session
-   cookie on every session read. Every portal's session route (GET and the
-   `update()` POST, `withBrowserSession`) and every BFF route
-   (`finishResponse` in `frontend/src/server/auth/route-handler.ts`) drop the
-   session Set-Cookie when it decodes to the session the request presented
-   (`frontend/src/server/auth/session-cookie-writes.ts`, claims `iat`, `exp`,
-   `jti` ignored). Sign-in, rotation, `update()` with a change, forced renewal
-   and the end of a session still write it. The cookie's lifetime equals the
-   refresh lifetime and moves with each rotation.
-2. **The session-end barrier** (`frontend/src/lib/session-end-barrier.ts`)
-   covers the writes that remain. Every portal's logout and the tenant relogin
-   close it before revocation: requests to the tab's own `/api/` whose answer
-   has not arrived are aborted, so the browser drops their Set-Cookie; new
-   ones wait (or end at once when their caller aborts); the SessionProvider's
-   poll stops (`useSessionPollInterval`). An aborted GET or HEAD is sent again
-   when the barrier opens, any other method fails. The fetch observer
-   (`session-tenant-mismatch-observer.ts`) applies it to every fetch once
-   installed; the
-   browser's BFF calls all use fetch, Axios runs only on the server against
-   the backend. `<SessionEndBarrier />` installs it where a session is used:
-   the tenant shell's protected layout and the other portals' providers.
-   The public tenant pages (password reset, Anmeldung, demo, invitation,
-   Träger hand-off) share the tenant layout but carry only its state module
-   (`session-end-state.ts`): the barrier code would exceed their bundle
-   budgets. The shell's logout does not run there; `TenantGuard`'s
-   „Zur Schulanmeldung“ can, for a session of another school, and then runs
-   without barrier, protected by rule 1 only (#5402). Invariants:
-   - **Exits belong to one attempt.** BFF logout, CSRF, Auth.js signout,
-     staff-preview end and the push cleanup (`DELETE …/push/subscriptions`)
-     pass only while this tab's own attempt runs, and carry that attempt's
-     signal: started before the logout they are aborted like any request,
-     and they abort when the attempt fails or its signout deleted the cookie.
-   - **Other tabs stay closed while the owner lives.** They close on `begin`
-     (`BroadcastChannel` `moto-session-end`). After 15 s they ask (`ping`);
-     each owner answers `begin` with its attempt ID while that attempt runs,
-     however long CSRF or signout hang. Holds and pings are tracked per
-     attempt, including while this tab logs out. Another tab opens only once
-     every attempt reports `ended` or `failed`, or fails to answer its own
-     ping within 2 s (that owner is gone). An `ended` also aborts
-     every request an open tab still has in flight.
-   - **Opening.** The owner opens when the logout fails or, outside the
-     tenant shell, once its signout answer deleted the cookie; the tenant exit
-     keeps it closed while it navigates and opens only on `pagehide` or a
-     cancelled exit.
+1. **Write gate.** Every portal's session route (GET and the `update()` POST,
+   `withBrowserSession`) and every BFF route (`finishResponse` in
+   `frontend/src/server/auth/route-handler.ts`) pass their session Set-Cookie
+   through `gateSessionCookieWrites`
+   (`frontend/src/server/auth/session-cookie-writes.ts`). A cookie leaves
+   only for a changed session (sign-in, rotation, `update()` with a change,
+   school switch, preview) whose refresh-token family Identity & Access
+   confirms live while the response is built. An unchanged re-encoding
+   (claims `iat`, `exp`, `jti` ignored), an ended session and a session of a
+   revoked or unreadable family write nothing; deletions pass. The cookie's
+   lifetime equals the refresh lifetime and moves with each rotation.
+2. **Read gate.** The session route asks the family on every call and reads
+   a revoked family as ended (`RefreshTokenError`); the layout snapshots of
+   every portal (`readFreshPortalToken`, `readTenantSessionSnapshot`) hydrate
+   only a live family. A family that cannot be read (503) leaves the shown
+   session as it is and writes nothing.
+3. **Family check.** `POST /auth/session/validate` without a refresh token
+   reads the access token's family (`ValidateSessionTokens`,
+   `verifyAccessFamily` in
+   `backend/modules/identityaccess/internal/application/session_validation.go`):
+   `VerifyAccessSession` for account portals, the latest operator session of
+   the family for the operator. 401 means revoked or foreign, 503 means the
+   family could not be read. The BFF calls it through `sessionFamilyState`
+   (`frontend/src/server/auth/token-validation.ts`).
 
-`BroadcastChannel` does not cross origins. A tab on another school's
-subdomain sharing the domain-scoped tenant cookie does not hear the
-barrier; only rule 1 protects it, so a renewal it has in flight can still
-write a cookie of the revoked family back (no access, see above).
+Invariants: no response sets a session cookie of a family whose revocation
+committed before the response was built, whichever tab, subdomain or frozen
+document sent the request and however late it arrives. A cookie built in the
+moment before the revocation and delivered after the deletion still lands;
+it names a revoked family, opens nothing (#5194) and reads as ended on the
+next session read or page load. A school switch that committed before the
+logout mints a family of its own, which the logout of the old family does not
+revoke (#5422).
+
+**Session-end barrier** (`frontend/src/lib/session-end-barrier.ts`): an
+optimization of the document that logs out, not a guarantee. Every portal's
+logout and the tenant relogin close it before revocation: requests to the
+tab's own `/api/` whose response headers have not arrived are aborted; new
+ones wait (or end at once when their caller aborts); the SessionProvider's
+poll stops (`useSessionPollInterval`). An aborted GET or HEAD is sent again
+when the barrier opens, any other method fails; answered requests (an SSE
+stream, a body still being read) keep running. The exit's own requests (BFF
+logout, CSRF, Auth.js signout, staff-preview end, `DELETE
+…/push/subscriptions`) pass only for the running attempt. The barrier opens
+when the logout fails or, outside the tenant shell, once the signout answer
+deleted the cookie; the tenant exit keeps it closed while it navigates.
+`<SessionEndBarrier />` installs it in the tenant shell's protected layout
+and the other portals' providers; the fetch observer applies it once
+installed. Other tabs, a tab started during a logout and the public tenant
+pages need no barrier: their answers pass the same server gates.
 
 ### Login, refresh, and MFA
 
