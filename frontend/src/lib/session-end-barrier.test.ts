@@ -48,6 +48,15 @@ function through(path: string, init?: RequestInit) {
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+/** The barrier's timers; message delivery keeps the real event loop. */
+const BARRIER_TIMERS = ["setTimeout", "clearTimeout"] as const;
+
+/** BroadcastChannel delivers on the event loop, not on (fake) timers. */
+async function flushMessages() {
+  for (let turn = 0; turn < 5; turn++)
+    await new Promise((resolve) => setImmediate(resolve));
+}
+
 /** Another tab of the same origin. */
 function otherTab() {
   const channel = new BroadcastChannel("moto-session-end");
@@ -319,8 +328,7 @@ describe("session-end barrier", () => {
     await expect(cleanup).rejects.toMatchObject({ name: "AbortError" });
   });
 
-  it("keeps telling the other tabs while its logout runs", async () => {
-    vi.useFakeTimers();
+  it("tells an asking tab that its logout still runs", async () => {
     listenForSessionEnds();
     const listener = new BroadcastChannel("moto-session-end");
     const heard: string[] = [];
@@ -328,16 +336,19 @@ describe("session-end barrier", () => {
       heard.push(event.data);
     try {
       const end = beginSessionEnd();
-      // CSRF or signout may hang far longer than the other tabs' hold.
-      await vi.advanceTimersByTimeAsync(40_000);
-      await vi.waitFor(() =>
-        expect(heard.filter((type) => type === "begin").length).toBe(9),
-      );
+      await vi.waitFor(() => expect(heard).toEqual(["begin"]));
+
+      // CSRF or signout hang past the other tab's hold; it asks.
+      listener.postMessage("ping");
+      await vi.waitFor(() => expect(heard).toEqual(["begin", "begin"]));
 
       end.fail();
-      await vi.advanceTimersByTimeAsync(20_000);
-      await vi.waitFor(() => expect(heard.at(-1)).toBe("failed"));
-      expect(heard.filter((type) => type === "begin").length).toBe(9);
+      listener.postMessage("ping");
+      await vi.waitFor(() =>
+        expect(heard).toEqual(["begin", "begin", "failed"]),
+      );
+      await flush();
+      expect(heard).toHaveLength(3);
     } finally {
       listener.close();
     }
@@ -376,33 +387,38 @@ describe("session-end barrier", () => {
     });
 
     it("stays closed while the other tab's logout still runs", async () => {
-      vi.useFakeTimers();
+      vi.useFakeTimers({ toFake: [...BARRIER_TIMERS] });
       listenForSessionEnds();
-      const tab = otherTab();
+      const owner = new BroadcastChannel("moto-session-end");
+      // A live owner answers every ping, however long its signout hangs.
+      owner.onmessage = (event: MessageEvent<string>) => {
+        if (event.data === "ping") owner.postMessage("begin");
+      };
       try {
-        tab.post("begin");
+        owner.postMessage("begin");
         await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
-        for (let beat = 0; beat < 6; beat++) {
-          await vi.advanceTimersByTimeAsync(5_000);
-          tab.post("begin");
+        for (let step = 0; step < 6; step++) {
+          await vi.advanceTimersByTimeAsync(10_000);
+          await flushMessages();
         }
-        await vi.advanceTimersByTimeAsync(5_000);
 
         expect(isSessionBarrierClosed()).toBe(true);
       } finally {
-        tab.close();
+        owner.close();
       }
     });
 
     it("aborts what it sent after the hold ran out once the other tab ends", async () => {
-      vi.useFakeTimers();
+      vi.useFakeTimers({ toFake: [...BARRIER_TIMERS] });
       listenForSessionEnds();
       const tab = otherTab();
       try {
         tab.post("begin");
         await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
-        // The other tab went silent: the hold runs out.
+        // The other tab went silent: the hold runs out, no answer comes.
         await vi.advanceTimersByTimeAsync(15_000);
+        await flushMessages();
+        await vi.advanceTimersByTimeAsync(2_000);
         expect(isSessionBarrierClosed()).toBe(false);
         const read = through("/api/auth/session");
         await vi.waitFor(() => expect(sent).toHaveLength(1));

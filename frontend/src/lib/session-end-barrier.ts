@@ -17,12 +17,12 @@ import { isOwnApiUrl } from "./session-account";
  *    cleanup.
  * 3. The SessionProvider stops polling while it is closed
  *    (useSessionPollInterval).
- * 4. Other tabs of this origin close too (BroadcastChannel). The owner
- *    repeats `begin` every HEARTBEAT_MS while its attempt runs, however long
- *    CSRF or signout hang. Another tab opens only on the owner's `ended` or
- *    `failed`, or OTHER_TAB_HOLD_MS after the owner's last `begin` (the owner
- *    is gone). An `ended` also aborts what an open tab still has in flight:
- *    those requests carry the cookie the signout just deleted.
+ * 4. Other tabs of this origin close too (BroadcastChannel). After
+ *    OTHER_TAB_HOLD_MS they ask (`ping`); the owner answers `begin` while its
+ *    attempt runs, however long CSRF or signout hang. Another tab opens only
+ *    on the owner's `ended` or `failed`, or when no answer comes within
+ *    OWNER_REPLY_MS (the owner is gone). An `ended` also aborts what an open
+ *    tab still has in flight: those requests carry the deleted cookie.
  * 5. The exit's own requests pass only while this tab's attempt runs, and
  *    only for that attempt: started before the logout they are aborted like
  *    any other request; they end with a failed attempt or the deleted cookie.
@@ -36,17 +36,16 @@ import { isOwnApiUrl } from "./session-account";
  * server, against the backend.
  */
 
-/** The owner's sign of life to the other tabs while its logout runs. */
-const HEARTBEAT_MS = 5_000;
-/** Three missed heartbeats: the owner is gone. */
+/** Upper bound of a logout: revocation (5 s), CSRF and signout. */
 const OTHER_TAB_HOLD_MS = 15_000;
+/** A live owner answers a `ping` at once; silence means it is gone. */
+const OWNER_REPLY_MS = 2_000;
 
 let closedBy: "self" | "other" | null = null;
 let reopenAfterDeletion = true;
 let epoch = new AbortController();
 /** The current logout attempt: its exit requests carry this signal. */
 let attempt = new AbortController();
-let heartbeat: ReturnType<typeof setInterval> | undefined;
 const waiters = new Set<() => void>();
 let otherTabTimer: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<() => void>();
@@ -57,10 +56,18 @@ function abortInFlight() {
   epoch = new AbortController();
 }
 
-/** Ends this tab's attempt: no more heartbeats, its exit requests abort. */
+/** Ends this tab's attempt: its exit requests abort, pings go unanswered. */
 function endAttempt() {
-  clearInterval(heartbeat);
   attempt.abort();
+}
+
+/** Holds the other tab's logout; asks after the hold before opening. */
+function holdForOwner() {
+  clearTimeout(otherTabTimer);
+  otherTabTimer = setTimeout(() => {
+    channel?.postMessage("ping");
+    otherTabTimer = setTimeout(setClosed, OWNER_REPLY_MS, null);
+  }, OTHER_TAB_HOLD_MS);
 }
 
 function setClosed(owner: typeof closedBy) {
@@ -79,14 +86,19 @@ export function listenForSessionEnds() {
   if (channel || typeof BroadcastChannel === "undefined") return;
   channel = new BroadcastChannel("moto-session-end");
   channel.onmessage = ({ data }: MessageEvent<string>) => {
-    if (closedBy === "self") return;
-    if (data === "begin") {
-      if (!closedBy) setClosed("other");
-      clearTimeout(otherTabTimer);
-      otherTabTimer = setTimeout(setClosed, OTHER_TAB_HOLD_MS, null);
+    if (closedBy === "self") {
+      // Still at work: the asking tab keeps holding.
+      if (data === "ping" && !attempt.signal.aborted)
+        channel?.postMessage("begin");
       return;
     }
-    // Requests sent after the hold ran out carry the deleted cookie.
+    if (data === "begin") {
+      if (!closedBy) setClosed("other");
+      holdForOwner();
+      return;
+    }
+    if (data !== "ended" && data !== "failed") return;
+    // Requests sent while open carry the cookie the signout deleted.
     if (data === "ended") abortInFlight();
     if (closedBy) setClosed(null);
   };
@@ -123,9 +135,7 @@ export function beginSessionEnd({
   const current = (attempt = new AbortController());
   reopenAfterDeletion = !keepClosed;
   setClosed("self");
-  const beat = () => channel?.postMessage("begin");
-  beat();
-  heartbeat = setInterval(beat, HEARTBEAT_MS);
+  channel?.postMessage("begin");
   return {
     fail() {
       // Also after the signout (bfcache restore), never for a later attempt.
@@ -212,7 +222,6 @@ export function resetSessionBarrierForTests() {
   closedBy = null;
   reopenAfterDeletion = true;
   epoch = new AbortController();
-  clearInterval(heartbeat);
   attempt = new AbortController();
   waiters.clear();
   clearTimeout(otherTabTimer);
