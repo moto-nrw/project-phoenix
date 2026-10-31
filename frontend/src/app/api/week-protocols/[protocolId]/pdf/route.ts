@@ -7,6 +7,7 @@ import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 import { problemResponse } from "~/lib/api-helpers.server";
+import { incomingAnalyticsSessionHeaders } from "~/lib/analytics-session-header.server";
 
 // Wochenprotokoll (#4769): das PDF eines abgeschlossenen Protokolls. Das
 // Backend prüft die Reichweite der Person und schreibt vor der Auslieferung
@@ -25,7 +26,13 @@ async function proxyPdf(
 ): Promise<Response> {
   const backendResponse = await fetch(
     `${getServerApiUrl()}/api/week-protocols/${encodeURIComponent(protocolId)}/pdf`,
-    { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        ...(await incomingAnalyticsSessionHeaders()),
+      },
+      cache: "no-store",
+    },
   );
   if (!backendResponse.ok) {
     const response = forwardBackendResponse(backendResponse, request);
