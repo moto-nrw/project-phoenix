@@ -12,7 +12,8 @@ import (
 )
 
 // dayFacts builds what each protocol records for the day: the attendance of
-// its groups, its blocks and the staff notices of the day.
+// its group or of the whole school, its blocks and the staff notices of the
+// day.
 func (e weekProtocolEvening) dayFacts(ctx context.Context, day calendar.Date, targets []weekProtocolTarget) (map[int64]timetable.WeekProtocolDayFacts, error) {
 	kind, err := e.dayKind(ctx, day)
 	if err != nil {
@@ -36,9 +37,7 @@ func (e weekProtocolEvening) dayFacts(ctx context.Context, day calendar.Date, ta
 			Kind: kind, Missing: []timetable.WeekProtocolMissingChild{}, Notices: notices,
 			Blocks: blocksOfTarget(blocks, target),
 		}
-		for _, groupID := range target.groupIDs {
-			addWeekProtocolAttendance(&facts, attendance[groupID])
-		}
+		addWeekProtocolAttendance(&facts, attendance[target.key])
 		if kind != timetable.WeekProtocolDayCare {
 			// On a holiday or closing day nobody is missing; only the children
 			// who came (holiday care) and its blocks count.
@@ -68,12 +67,22 @@ func (e weekProtocolEvening) dayKind(ctx context.Context, day calendar.Date) (st
 	}
 }
 
+// groupAttendance reads the day of every target by its key: a group's
+// children from its day log, the whole school's from the school's day log.
 func (e weekProtocolEvening) groupAttendance(ctx context.Context, day calendar.Date, targets []weekProtocolTarget) (map[int64]timetable.WeekProtocolGroupDay, error) {
 	groupIDs := []int64{}
-	for _, target := range targets {
-		groupIDs = append(groupIDs, target.groupIDs...)
-	}
 	result := map[int64]timetable.WeekProtocolGroupDay{}
+	for _, target := range targets {
+		if target.target.GroupID != nil {
+			groupIDs = append(groupIDs, target.key)
+			continue
+		}
+		school, err := e.sources.Attendance.SchoolDayAttendance(ctx, day)
+		if err != nil {
+			return nil, fmt.Errorf("read the school's day log: %w", err)
+		}
+		result[target.key] = school
+	}
 	if len(groupIDs) == 0 {
 		return result, nil
 	}

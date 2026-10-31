@@ -107,23 +107,38 @@ func (a weekProtocolAttendance) GroupDayAttendance(ctx context.Context, day cale
 	}
 	result := make([]timetableModule.WeekProtocolGroupDay, 0, len(logs))
 	for _, log := range logs {
-		entry := timetableModule.WeekProtocolGroupDay{
-			GroupID: log.GroupID, StudentIDs: log.StudentIDs, Present: log.Present, Sick: log.Sick,
-			Excused: log.Excused, ClassTrip: log.ClassTrip, Absent: log.Absent,
-			Missing: make([]timetableModule.WeekProtocolMissingChild, 0, len(log.MissingChild)),
-		}
-		for _, child := range log.MissingChild {
-			entry.Missing = append(entry.Missing, timetableModule.WeekProtocolMissingChild{
-				StudentID: child.StudentID, Name: child.FirstName + " " + child.LastName, Reason: child.Status, Label: child.Label,
-			})
-		}
-		result = append(result, entry)
+		result = append(result, weekProtocolGroupDayOf(log))
 	}
 	return result, nil
 }
 
+// SchoolDayAttendance reads the whole school's day log: every child of the
+// day once, with a group or without one (#5401).
+func (a weekProtocolAttendance) SchoolDayAttendance(ctx context.Context, day calendar.Date) (timetableModule.WeekProtocolGroupDay, error) {
+	log, err := a.dayLog.SchoolDayLog(ctx, day)
+	if err != nil {
+		return timetableModule.WeekProtocolGroupDay{}, err
+	}
+	return weekProtocolGroupDayOf(log), nil
+}
+
+func weekProtocolGroupDayOf(log projectionStudentsHTTP.GroupDayLog) timetableModule.WeekProtocolGroupDay {
+	entry := timetableModule.WeekProtocolGroupDay{
+		GroupID: log.GroupID, StudentIDs: log.StudentIDs, Present: log.Present, Sick: log.Sick,
+		Excused: log.Excused, ClassTrip: log.ClassTrip, Absent: log.Absent,
+		Missing: make([]timetableModule.WeekProtocolMissingChild, 0, len(log.MissingChild)),
+	}
+	for _, child := range log.MissingChild {
+		entry.Missing = append(entry.Missing, timetableModule.WeekProtocolMissingChild{
+			StudentID: child.StudentID, Name: child.FirstName + " " + child.LastName, Reason: child.Status, Label: child.Label,
+		})
+	}
+	return entry
+}
+
 type weekProtocolAttendanceSource interface {
 	GroupDayAttendance(context.Context, calendar.Date, []int64) ([]timetableModule.WeekProtocolGroupDay, error)
+	SchoolDayAttendance(context.Context, calendar.Date) (timetableModule.WeekProtocolGroupDay, error)
 }
 
 type weekProtocolSeedAttendance struct {
@@ -133,6 +148,10 @@ type weekProtocolSeedAttendance struct {
 
 func (a weekProtocolSeedAttendance) GroupDayAttendance(ctx context.Context, _ calendar.Date, groupIDs []int64) ([]timetableModule.WeekProtocolGroupDay, error) {
 	return a.source.GroupDayAttendance(ctx, a.today(), groupIDs)
+}
+
+func (a weekProtocolSeedAttendance) SchoolDayAttendance(ctx context.Context, _ calendar.Date) (timetableModule.WeekProtocolGroupDay, error) {
+	return a.source.SchoolDayAttendance(ctx, a.today())
 }
 
 // weekProtocolAccessTrail appends to the Audit Platform's data access log.
