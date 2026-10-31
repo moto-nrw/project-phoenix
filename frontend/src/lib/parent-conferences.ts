@@ -115,6 +115,8 @@ export interface ParentConferenceDraft {
   readonly slotMinutes: string;
   readonly breakStart: string;
   readonly breakEnd: string;
+  // The form edits the first break; retain further API-created breaks on save.
+  readonly additionalBreaks: readonly ParentConferenceWindow[];
   readonly location: string;
 }
 
@@ -131,6 +133,7 @@ export function emptyParentConferenceDraft(
     slotMinutes: "15",
     breakStart: "",
     breakEnd: "",
+    additionalBreaks: [],
     location: "",
   };
 }
@@ -147,6 +150,7 @@ export function parentConferenceDraftOf(
     slotMinutes: String(conference.slot_minutes),
     breakStart: pause?.start_time ?? "",
     breakEnd: pause?.end_time ?? "",
+    additionalBreaks: conference.breaks.slice(1),
     location: conference.location ?? "",
   };
 }
@@ -197,10 +201,12 @@ export function parentConferenceRequest(
     start_time: draft.startTime,
     end_time: draft.endTime,
     slot_minutes: Number(draft.slotMinutes),
-    breaks:
-      draft.breakStart && draft.breakEnd
+    breaks: [
+      ...(draft.breakStart && draft.breakEnd
         ? [{ start_time: draft.breakStart, end_time: draft.breakEnd }]
-        : [],
+        : []),
+      ...draft.additionalBreaks,
+    ],
     ...(location ? { location } : {}),
   };
 }

@@ -10,14 +10,16 @@ import {
   bookChildParentConference,
   fetchChildParentConferences,
   listMyChildren,
+  getChildFeatures,
 } from "~/lib/parent-api";
-import type { Child } from "~/lib/parent-api";
+import type { Child, ChildFeatures } from "~/lib/parent-api";
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
 import { catalogText } from "~/test/error-catalog-text";
 import ParentConferencePage from "./page";
 
 vi.mock("~/lib/parent-api", () => ({
   listMyChildren: vi.fn(),
+  getChildFeatures: vi.fn(),
   fetchChildParentConferences: vi.fn(),
   bookChildParentConference: vi.fn(),
   cancelChildParentConference: vi.fn(),
@@ -54,6 +56,9 @@ async function renderPage() {
 describe("Elternsprechtag in der Eltern-App (#4801)", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.mocked(getChildFeatures).mockResolvedValue({
+      conference_book_allowed: true,
+    } as ChildFeatures);
     vi.mocked(listMyChildren).mockResolvedValue([
       { student_id: "42", first_name: "Mia" } as Child,
     ]);
@@ -89,6 +94,40 @@ describe("Elternsprechtag in der Eltern-App (#4801)", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "14:30" })).toBeInTheDocument();
   });
+
+  it.each([false, true])(
+    "shows times read-only without booking permission (booked=%s)",
+    async (booked) => {
+      vi.mocked(getChildFeatures).mockResolvedValue({
+        conference_book_allowed: false,
+      } as ChildFeatures);
+      vi.mocked(fetchChildParentConferences).mockResolvedValue([
+        {
+          ...offer,
+          ...(booked
+            ? { booking: { start_time: "15:00", end_time: "15:15" } }
+            : {}),
+        },
+      ]);
+      await renderPage();
+
+      // Anker: freie Zeiten der geladenen Angebote bleiben sichtbar.
+      expect(await screen.findByText("14:30")).toBeInTheDocument();
+      expect(screen.getByText("14:00")).toBeInTheDocument();
+      if (booked)
+        expect(screen.getByText("15:00–15:15 Uhr")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "14:30" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "14:00" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Termin absagen" }),
+      ).not.toBeInTheDocument();
+      expect(getChildFeatures).toHaveBeenCalledWith("42");
+    },
+  );
 
   it("tells the family to call the teacher within 24 hours", async () => {
     vi.mocked(fetchChildParentConferences).mockResolvedValue([

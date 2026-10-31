@@ -44,6 +44,7 @@ import {
   cancelChildParentConference,
   fetchChildParentConferences,
   listMyChildren,
+  getChildFeatures,
   type Child,
 } from "~/lib/parent-api";
 import type {
@@ -70,6 +71,7 @@ export default function ParentConferencePage({
   } = useApiLoadError();
   const cancelErrors = useApiFormError();
 
+  const [canBook, setCanBook] = useState(false);
   const [child, setChild] = useState<Child | null>(null);
   const [offers, setOffers] = useState<ParentConferenceOffer[] | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -80,9 +82,14 @@ export default function ParentConferencePage({
 
   useEffect(() => {
     let active = true;
-    Promise.all([listMyChildren(), fetchChildParentConferences(studentId)])
-      .then(([children, loaded]) => {
+    Promise.all([
+      listMyChildren(),
+      fetchChildParentConferences(studentId),
+      getChildFeatures(studentId),
+    ])
+      .then(([children, loaded, features]) => {
         if (!active) return;
+        setCanBook(features.conference_book_allowed === true);
         setChild(
           children.find((entry) => entry.student_id === studentId) ?? null,
         );
@@ -125,7 +132,7 @@ export default function ParentConferencePage({
     offer: ParentConferenceOffer,
     window: ParentConferenceWindow,
   ) => {
-    if (busy) return;
+    if (busy || !canBook) return;
     setBusy(`${offer.id}:${window.start_time}`);
     try {
       const next = await bookChildParentConference(
@@ -147,7 +154,7 @@ export default function ParentConferencePage({
   };
 
   const confirmCancel = async () => {
-    if (!cancelTarget || busy) return;
+    if (!cancelTarget || busy || !canBook) return;
     cancelErrors.clear();
     setBusy(`${cancelTarget.id}:cancel`);
     try {
@@ -227,7 +234,7 @@ export default function ParentConferencePage({
                     {timeLabel(offer.booking)}
                   </p>
                 </div>
-                {offer.can_change ? (
+                {canBook && offer.can_change ? (
                   <Button
                     type="button"
                     variant="outline_danger"
@@ -244,7 +251,7 @@ export default function ParentConferencePage({
               </div>
             ) : null}
 
-            {offer.booking && !offer.can_change ? (
+            {canBook && offer.booking && !offer.can_change ? (
               <Alert type="info" message={t("locked")} />
             ) : (
               <div>
@@ -255,30 +262,43 @@ export default function ParentConferencePage({
                   <p className="text-sm text-gray-600">{t("noFree")}</p>
                 ) : (
                   <>
-                    <p className="mb-3 text-sm text-gray-600">
-                      {offer.booking ? t("moveHint") : t("chooseHint")}
-                    </p>
+                    {canBook ? (
+                      <p className="mb-3 text-sm text-gray-600">
+                        {offer.booking ? t("moveHint") : t("chooseHint")}
+                      </p>
+                    ) : null}
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                      {offer.free_slots.map((window) => (
-                        <ChoiceTile
-                          key={window.start_time}
-                          as="button"
-                          tone="green"
-                          className="justify-center px-3 py-2.5 text-sm font-semibold"
-                          disabled={busy !== null}
-                          onClick={() => void book(offer, window)}
-                        >
-                          {busy === `${offer.id}:${window.start_time}`
-                            ? "…"
-                            : window.start_time}
-                        </ChoiceTile>
-                      ))}
+                      {offer.free_slots.map((window) =>
+                        canBook ? (
+                          <ChoiceTile
+                            key={window.start_time}
+                            as="button"
+                            tone="green"
+                            className="justify-center px-3 py-2.5 text-sm font-semibold"
+                            disabled={busy !== null}
+                            onClick={() => void book(offer, window)}
+                          >
+                            {busy === `${offer.id}:${window.start_time}`
+                              ? "…"
+                              : window.start_time}
+                          </ChoiceTile>
+                        ) : (
+                          <span
+                            key={window.start_time}
+                            className="text-sm text-gray-600"
+                          >
+                            {window.start_time}
+                          </span>
+                        ),
+                      )}
                     </div>
                   </>
                 )}
               </div>
             )}
-            <p className="text-xs text-gray-500">{t("rule")}</p>
+            {canBook ? (
+              <p className="text-xs text-gray-500">{t("rule")}</p>
+            ) : null}
           </div>
         </ParentSection>
       ))}

@@ -227,6 +227,7 @@ export interface SickNoteSubmitResult {
 
 // Resolved per-tenant parent-portal feature toggles for a child.
 export interface ChildFeatures {
+  readonly conference_book_allowed?: boolean;
   // Zustand, keine Fähigkeit: Das Kind ist nicht mehr in Betreuung (#2487).
   // Ist es true, sind alle Schreib-Flags unten false — das Portal zeigt dann
   // ein Nur-Lesen-Profil mit einem Satz dazu statt Knöpfe, die alle gleich

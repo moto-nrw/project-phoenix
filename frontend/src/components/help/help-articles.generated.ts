@@ -5440,13 +5440,13 @@ export const parentConferenceTopic =
         "Tippen Sie auf eine andere Zeit, um Ihren Termin zu verschieben. Mit `Termin absagen` sagen Sie ab.",
       ],
       differences: [
+        "Sie sehen Zeiten ohne Schaltflächen? Für dieses Kind dürfen Sie nicht buchen. Fragen Sie bei Bedarf die Schule.",
         "Sie sehen nur freie Zeiten. Was andere Familien gebucht haben, sehen Sie nicht.",
         "Ändert die Lehrkraft den Tag oder sagt ihn ab, bekommen Sie eine Nachricht.",
       ],
       troubleshootingDetails: [
         "Sie sehen keinen `Elternsprechtag`? Dann bietet die Lehrkraft der Klasse zurzeit keinen an.",
         "Sie können nicht mehr buchen oder absagen? Bis 24 Stunden vor dem Termin ist das in der App möglich. Danach wenden Sie sich direkt an die Lehrkraft.",
-        "Die Buchung wird abgelehnt? Vielleicht dürfen Sie für dieses Kind keine Termine buchen. Fragen Sie die Schule.",
       ],
       related: [HELP_TOPICS.parentCalendar, HELP_TOPICS.parentChildOverview],
     };

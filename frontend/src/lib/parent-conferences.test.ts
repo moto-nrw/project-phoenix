@@ -3,6 +3,8 @@ import {
   emptyParentConferenceDraft,
   parentConferenceFieldErrors,
   parentConferenceRequest,
+  parentConferenceDraftOf,
+  type ParentConference,
 } from "./parent-conferences";
 
 describe("parent conference form (#4801)", () => {
@@ -29,6 +31,32 @@ describe("parent conference form (#4801)", () => {
       breaks: [{ start_time: "15:00", end_time: "15:15" }],
       location: "Raum 12",
     });
+  });
+
+  it("preserves all breaks through an unrelated edit and edits only the first break", () => {
+    const breaks = [
+      { start_time: "14:30", end_time: "14:45" },
+      { start_time: "15:00", end_time: "15:15" },
+      { start_time: "16:00", end_time: "16:15" },
+    ];
+    const conference: ParentConference = {
+      id: "5",
+      ...parentConferenceRequest(draft),
+      breaks,
+      booked_count: 0,
+      slots: [],
+    };
+    const editing = parentConferenceDraftOf(conference);
+    expect(
+      parentConferenceRequest({ ...editing, location: "Raum 13" }).breaks,
+    ).toEqual(breaks);
+    expect(
+      parentConferenceRequest({ ...editing, breakStart: "14:15" }).breaks,
+    ).toEqual([{ ...breaks[0], start_time: "14:15" }, ...breaks.slice(1)]);
+    expect(
+      parentConferenceRequest({ ...editing, breakStart: "", breakEnd: "" })
+        .breaks,
+    ).toEqual(breaks.slice(1));
   });
 
   it("names every wrong field", () => {

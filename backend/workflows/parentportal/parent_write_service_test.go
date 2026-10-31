@@ -989,9 +989,12 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.True(t, flags.ConferenceBookAllowed)
 
 	portalAndSick := `{"` + "parent_portal.access" + `": true, "` + "parent_portal.sick_note.submit" + `": true}`
-	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
+	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE auth.guardian_student_access AS a
 		SET permissions = ?::jsonb
 		FROM users.student_guardian_relationships AS r
@@ -1000,10 +1003,11 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 	`, portalAndSick, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	flags, err := svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
+	flags, err = svc.ChildFeatures(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.True(t, flags.SickNoteEnabled)
 	assert.False(t, flags.NotesEnabled)
+	assert.False(t, flags.ConferenceBookAllowed)
 
 	portalOnly := `{"` + "parent_portal.access" + `": true}`
 	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
@@ -1019,6 +1023,7 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, flags.SickNoteEnabled)
 	assert.False(t, flags.NotesEnabled)
+	assert.False(t, flags.ConferenceBookAllowed)
 }
 
 func TestChildFeatures_NotOwned(t *testing.T) {
