@@ -24,6 +24,7 @@ import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   acknowledgeSchoolVacation,
@@ -31,7 +32,7 @@ import {
   SCHOOL_VACATION_HINTS_KEY,
   type SchoolVacationHint,
 } from "~/lib/school-vacations-api";
-import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { timetableKeys } from "~/lib/swr/portal-keys";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
@@ -79,10 +80,11 @@ export function SchoolVacationHints({
   enabled,
   ...props
 }: Readonly<SchoolVacationHintsProps>) {
+  const today = useBerlinToday();
   // A failed load leaves only this hint out (see the file comment); the
   // planning surfaces keep their own load errors.
   const { data } = useSWRAuth(
-    enabled ? timetableKeys.schoolVacationHints() : null,
+    enabled ? timetableKeys.schoolVacationHints(today) : null,
     getSchoolVacationHints,
   );
   const hints = Array.isArray(data) ? data : [];
@@ -101,7 +103,7 @@ function SchoolVacationHintList({
 >) {
   const toast = useToast();
   const { show: showActionError } = useApiErrorDisplay();
-  const tenantMutate = useTenantMutate();
+  const revalidateHints = useTenantMutateMatching([SCHOOL_VACATION_HINTS_KEY]);
   const tenantPath = useTenantAwarePath();
   const [cancelling, setCancelling] = useState<SchoolVacationHint | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -114,7 +116,7 @@ function SchoolVacationHintList({
         toast.success(
           `Gespeichert: Für „${hint.name}“ ist Betreuung geplant. Der Hinweis ist ausgeblendet.`,
         );
-        await tenantMutate(SCHOOL_VACATION_HINTS_KEY);
+        await revalidateHints();
       } catch (err) {
         logger.error("school_vacation_acknowledge_failed", {
           start_date: hint.startDate,
@@ -125,7 +127,7 @@ function SchoolVacationHintList({
         setBusy(null);
       }
     },
-    [showActionError, tenantMutate, toast],
+    [revalidateHints, showActionError, toast],
   );
 
   const actions = (hint: SchoolVacationHint, compact: boolean): ReactNode => {
@@ -222,7 +224,7 @@ function SchoolVacationHintList({
           initialTo={cancelling.endDate}
           onClose={() => setCancelling(null)}
           onCancelled={() => {
-            void tenantMutate(SCHOOL_VACATION_HINTS_KEY);
+            void revalidateHints();
             onAppointmentsCancelled?.();
           }}
         />

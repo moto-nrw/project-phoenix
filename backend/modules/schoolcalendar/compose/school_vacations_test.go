@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -40,19 +41,42 @@ type vacationSource struct {
 	body   atomic.Value
 	status atomic.Int32
 	calls  atomic.Int32
+	query  atomic.Value
 }
 
 func newVacationSource(t *testing.T, body string) *vacationSource {
 	t.Helper()
 	source := &vacationSource{}
 	source.answer(http.StatusOK, body)
-	source.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	source.query.Store("")
+	source.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		source.calls.Add(1)
+		source.query.Store(r.URL.RawQuery)
 		w.WriteHeader(int(source.status.Load()))
 		_, _ = w.Write([]byte(source.body.Load().(string)))
 	}))
 	t.Cleanup(source.server.Close)
 	return source
+}
+
+func TestSchoolVacationSync_StaysWithinOpenHolidaysInclusiveLimit(t *testing.T) {
+	t.Parallel()
+	_, source, runtime, _, _ := vacationFixture(t, `[]`, "DE-NW")
+	vacations, err := NewSchoolVacations(nil, source.server.URL, func() string { return "2028-07-31" })
+	require.NoError(t, err)
+
+	_, err = vacations.SyncSchoolVacations(runtime)
+	require.NoError(t, err)
+	query, err := url.ParseQuery(source.query.Load().(string))
+	require.NoError(t, err)
+	from, err := calendar.ParseDate(query.Get("validFrom"))
+	require.NoError(t, err)
+	to, err := calendar.ParseDate(query.Get("validTo"))
+	require.NoError(t, err)
+
+	assert.Equal(t, "2027-08-01", from.String())
+	assert.Equal(t, "2030-07-30", to.String())
+	assert.Equal(t, 1095, from.DaysUntil(to)+1, "OpenHolidays counts both ends of its window")
 }
 
 func (s *vacationSource) answer(status int, body string) {

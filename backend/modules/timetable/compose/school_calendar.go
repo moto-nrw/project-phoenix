@@ -34,6 +34,14 @@ type CalendarRows struct {
 	ClassArrivalException ports.ClassArrivalExceptionRecords
 }
 
+// SchoolVacationHintRows joins Timetable's planned occurrences with their
+// Student Presence session state. The root supplies the consumer-owned
+// presence read, so the Timetable owner does not query Student Presence.
+type SchoolVacationHintRows struct {
+	ports.LegacyInstanceReads
+	timetable.ActivityGroupQuery
+}
+
 // NewSchoolVacationHints composes the vacation hint (#5345) over the
 // Timetable rows and the School Calendar; nil today is the Berlin day.
 func NewSchoolVacationHints(rows application.SchoolVacationHintRows, days application.SchoolVacationDays, vacations application.SchoolVacationReader, today func() string) (timetable.SchoolVacationHintQuery, error) {

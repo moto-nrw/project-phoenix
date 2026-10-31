@@ -12,6 +12,7 @@ const state = vi.hoisted(() => ({
   success: [] as string[],
   shownErrors: [] as unknown[],
   modal: null as null | { initialFrom: string; initialTo: string },
+  today: "2026-09-09",
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -19,10 +20,14 @@ vi.mock("~/lib/swr", () => ({
     state.keys.push(key);
     return key === null ? {} : { data: state.hints };
   },
-  useTenantMutate: () => (key: string) => {
-    state.mutated.push(key);
+  useTenantMutateMatching: (keys: string[]) => () => {
+    state.mutated.push(...keys);
     return Promise.resolve();
   },
+}));
+
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => state.today,
 }));
 
 vi.mock("~/lib/school-vacations-api", () => ({
@@ -98,13 +103,14 @@ describe("SchoolVacationHints (#5345)", () => {
     state.success = [];
     state.shownErrors = [];
     state.modal = null;
+    state.today = "2026-09-09";
   });
 
   it("names the vacation, its dates and the number of Regeltermine without claiming the OGS is closed", () => {
     state.hints = [christmas];
     render(<SchoolVacationHints enabled />);
 
-    expect(state.keys).toContain("timetable-school-vacation-hints");
+    expect(state.keys).toContain("timetable-school-vacation-hints-2026-09-09");
     expect(
       screen.getByText("Termine in den Ferien prüfen"),
     ).toBeInTheDocument();
@@ -124,6 +130,17 @@ describe("SchoolVacationHints (#5345)", () => {
     expect(vacationHintMessage(autumn)).toBe(
       "Herbstferien vom 17.10.2026 bis 31.10.2026: In dieser Zeit ist noch 1 Regeltermin geplant. Findet in dieser Zeit Betreuung statt? Wenn nicht, sagen Sie die Termine ab oder tragen Sie Schließtage ein.",
     );
+  });
+
+  it("loads fresh hints when the Berlin calendar day changes", () => {
+    state.hints = [christmas];
+    const { rerender } = render(<SchoolVacationHints enabled />);
+
+    state.today = "2026-09-10";
+    rerender(<SchoolVacationHints enabled />);
+
+    expect(state.keys).toContain("timetable-school-vacation-hints-2026-09-09");
+    expect(state.keys).toContain("timetable-school-vacation-hints-2026-09-10");
   });
 
   it("words one Regeltermin and a single vacation day", () => {

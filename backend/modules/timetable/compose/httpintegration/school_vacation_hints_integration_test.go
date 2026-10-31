@@ -66,7 +66,11 @@ func makeVacationHintScenario(t *testing.T) *vacationHintScenario {
 	require.NoError(t, err)
 	require.Equal(t, 4, result.InstancesCreated)
 
-	rows := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db)).Timetable
+	repositories := api.NewUnobservedTimetableRepositories(testpkg.MustDatabase(s.db))
+	rows := compose.SchoolVacationHintRows{
+		LegacyInstanceReads: repositories.ActivityInstance.Reads,
+		ActivityGroupQuery:  repositories.Timetable,
+	}
 	days := nrwDays{Calendar: api.MustNewSchoolCalendar(testpkg.MustDatabase(s.db))}
 	vacation := &autumnVacation{vacations: []schoolcalendar.SchoolVacation{{
 		Name: "Herbstferien", StartDate: autumnStart.String(), EndDate: autumnEnd.String(),
@@ -144,6 +148,21 @@ func TestSchoolVacationHints_AcknowledgedVacationAndCancelledTermine(t *testing.
 
 	s.vacation.vacations[0].Acknowledged = true
 	assert.Empty(t, s.hints(today), "the school confirmed care in this vacation")
+}
+
+func TestSchoolVacationHints_LeavesOutStartedTermine(t *testing.T) {
+	t.Parallel()
+	s := makeVacationHintScenario(t)
+	today := calendar.NewDate(2026, time.September, 1)
+
+	first := listInstancesForDate(t, s.db, s.template.ID, autumnFirst)
+	last := listInstancesForDate(t, s.db, s.template.ID, autumnLast)
+	require.Len(t, first, 1)
+	require.Len(t, last, 1)
+	setInstanceStatus(t, s.scenarioSetup, first[0].ID, timetable.InstanceStatusActive)
+	setInstanceStatus(t, s.scenarioSetup, last[0].ID, timetable.InstanceStatusCompleted)
+
+	assert.Empty(t, s.hints(today), "started Termine cannot be cancelled in bulk")
 }
 
 func TestSchoolVacationHints_EightWeeksAheadAndWhileRunning(t *testing.T) {

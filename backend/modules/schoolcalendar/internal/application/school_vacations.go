@@ -16,6 +16,9 @@ import (
 // years, so the next school year is known before it starts.
 const schoolVacationSyncAheadDays = 730
 
+// schoolVacationSyncMaxDays is OpenHolidays' inclusive request limit.
+const schoolVacationSyncMaxDays = 1095
+
 // SchoolVacationDependencies wire the school vacations (#5345). FederalState
 // resolves the tenant's operations.federal_state; nil serves only the sync,
 // and every school read answers schoolcalendar.ErrFederalStateUnavailable.
@@ -206,7 +209,12 @@ func schoolVacationSyncWindow(today string) (string, string, error) {
 		year--
 	}
 	start := calendar.NewDate(year, 8, 1)
-	return start.String(), day.AddDays(schoolVacationSyncAheadDays).String(), nil
+	end := day.AddDays(schoolVacationSyncAheadDays)
+	latest := start.AddDays(schoolVacationSyncMaxDays - 1)
+	if latest.Before(end) {
+		end = latest
+	}
+	return start.String(), end.String(), nil
 }
 
 func (s *SchoolVacationService) region(ctx context.Context) (string, error) {

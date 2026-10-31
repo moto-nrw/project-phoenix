@@ -125,7 +125,11 @@ func mountSchoolPortalRoutes(
 	if err != nil {
 		return err
 	}
-	vacationHints, err := timetableCompose.NewSchoolVacationHints(timetableOwner, calendar, vacations, nil)
+	vacationHintRows := timetableCompose.SchoolVacationHintRows{
+		LegacyInstanceReads: owners.MustPresenceReads(db),
+		ActivityGroupQuery:  timetableOwner,
+	}
+	vacationHints, err := timetableCompose.NewSchoolVacationHints(vacationHintRows, calendar, vacations, nil)
 	if err != nil {
 		return err
 	}

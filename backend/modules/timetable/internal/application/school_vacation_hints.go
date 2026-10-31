@@ -7,6 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -25,9 +27,9 @@ type SchoolVacationReader interface {
 }
 
 // SchoolVacationHintRows are the Timetable reads of the hint: the planned
-// occurrences and their series.
+// occurrences with their execution state and their series.
 type SchoolVacationHintRows interface {
-	ListActivityInstances(ctx context.Context, filter timetable.ActivityInstanceFilter) ([]timetable.ActivityInstance, error)
+	ports.LegacyInstanceReads
 	ListGroups(ctx context.Context, filter timetable.GroupFilter) ([]timetable.Group, error)
 }
 
@@ -105,7 +107,7 @@ func openVacationWindows(vacations []schoolcalendar.SchoolVacation, today string
 // day flag of their series and whether their period is a holiday period:
 // one instance, one group and one period query.
 func (s *SchoolVacationHintService) candidates(ctx context.Context, from, to string) ([]timetable.SchoolVacationCandidate, error) {
-	instances, err := s.rows.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{
+	instances, err := s.rows.ListLegacyInstances(ctx, ports.LegacyInstanceFilter{
 		FromDate: &from, ToDate: &to, MaterializedPlanned: true,
 	})
 	if err != nil {
@@ -124,7 +126,7 @@ func (s *SchoolVacationHintService) candidates(ctx context.Context, from, to str
 	}
 	candidates := make([]timetable.SchoolVacationCandidate, 0, len(instances))
 	for _, instance := range instances {
-		candidate := timetable.SchoolVacationCandidate{Date: instance.Date}
+		candidate := timetable.SchoolVacationCandidate{Date: instance.Date.String()}
 		if instance.ActivityGroupID != nil {
 			candidate.SeriesIncludesClosingDays = includeClosing[*instance.ActivityGroupID]
 		}
@@ -136,7 +138,7 @@ func (s *SchoolVacationHintService) candidates(ctx context.Context, from, to str
 	return candidates, nil
 }
 
-func (s *SchoolVacationHintService) seriesIncludingClosingDays(ctx context.Context, instances []timetable.ActivityInstance) (map[int64]bool, error) {
+func (s *SchoolVacationHintService) seriesIncludingClosingDays(ctx context.Context, instances []*scheduleModels.ActivityInstance) (map[int64]bool, error) {
 	seen := make(map[int64]bool, len(instances))
 	ids := make([]int64, 0, len(instances))
 	for _, instance := range instances {

@@ -12745,6 +12745,14 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.SchoolVacationHintRows.ListLegacyInstances",
+      "binding_digest": "08b9b7d25d2aa8196653d09c36a6e04e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationHintRows.ListLegacyInstances",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
       "binding_digest": "a359e5bceb16d1de3db530f388bb5b86",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationReader.TenantSchoolVacations",
