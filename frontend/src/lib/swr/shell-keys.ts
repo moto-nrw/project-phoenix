@@ -11,3 +11,12 @@ export const announcementKeys = {
 export const dashboardKeys = {
   analytics: () => "dashboard-analytics",
 } as const;
+
+// Family prefixes of the shared resource factories, here so the
+// always-mounted SSE invalidator carries no key factory.
+export const SWR_FAMILIES = {
+  rooms: "rooms-",
+  groups: "groups-",
+  staff: "staff-directory-",
+  me: "me-",
+} as const;

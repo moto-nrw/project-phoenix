@@ -1,4 +1,4 @@
-import { SWR_FAMILIES } from "./families";
+import { SWR_FAMILIES } from "./shell-keys";
 import type { roomService } from "~/lib/api";
 import { resourceKey } from "./resource-key";
 export type RoomFilters = NonNullable<

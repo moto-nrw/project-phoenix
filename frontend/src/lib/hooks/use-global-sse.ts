@@ -25,7 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInvalidateFamily } from "~/lib/swr";
 import { mutate } from "~/lib/swr/mutate";
-import { SWR_FAMILIES } from "~/lib/swr/families";
+import { SWR_FAMILIES } from "~/lib/swr/shell-keys";
 import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";

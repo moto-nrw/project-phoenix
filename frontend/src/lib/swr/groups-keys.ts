@@ -1,4 +1,4 @@
-import { SWR_FAMILIES } from "./families";
+import { SWR_FAMILIES } from "./shell-keys";
 import { resourceKey } from "./resource-key";
 export type GroupFilters = {
   search?: string;

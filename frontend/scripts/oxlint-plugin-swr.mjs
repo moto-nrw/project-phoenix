@@ -125,7 +125,6 @@ const PUBLIC_MODULES = new Set(
     "portal-keys",
     "shell-keys",
     "parent-keys",
-    "families",
     "rooms-keys",
     "groups-keys",
     "staff-keys",
