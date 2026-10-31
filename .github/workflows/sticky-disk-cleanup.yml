@@ -71,7 +71,8 @@ jobs:
           BLACKSMITH_CLI_TOKEN: ${{ secrets.BLACKSMITH_CLI_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${BLACKSMITH_CLI_TOKEN:-}" ]; then
+          # GitHub always sets the variable; a missing secret makes it empty.
+          if [ -z "$BLACKSMITH_CLI_TOKEN" ]; then
             echo "::error::BLACKSMITH_CLI_TOKEN is not set. Mint one with 'blacksmith org-token create' and add it as a repository secret."
             exit 1
           fi
