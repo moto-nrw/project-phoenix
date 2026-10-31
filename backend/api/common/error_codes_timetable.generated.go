@@ -136,6 +136,10 @@ const CodeTimetableTemplateWeekPatternInvalid = "timetable.template_week_pattern
 const CodeTimetableTemplateWeekend = "timetable.template_weekend"
 const CodeTimetableTooManyDates = "timetable.too_many_dates"
 const CodeTimetableUnderstaffedStillStaffed = "timetable.understaffed_still_staffed"
+const CodeTimetableWeekProtocolNotClosed = "timetable.week_protocol_not_closed"
+const CodeTimetableWeekProtocolNotDraft = "timetable.week_protocol_not_draft"
+const CodeTimetableWeekProtocolNotFound = "timetable.week_protocol_not_found"
+const CodeTimetableWeekProtocolNotesInvalid = "timetable.week_protocol_notes_invalid"
 const CodeTimetableWindowEndBeforeStart = "timetable.window_end_before_start"
 const CodeTimetableWindowTooLarge = "timetable.window_too_large"
 
@@ -275,6 +279,10 @@ var errorCodeClassesTimetable = []errorCodeClass{
 	{CodeTimetableTemplateWeekend, "input"},
 	{CodeTimetableTooManyDates, "input"},
 	{CodeTimetableUnderstaffedStillStaffed, "business_rejection"},
+	{CodeTimetableWeekProtocolNotClosed, "business_rejection"},
+	{CodeTimetableWeekProtocolNotDraft, "business_rejection"},
+	{CodeTimetableWeekProtocolNotFound, "business_rejection"},
+	{CodeTimetableWeekProtocolNotesInvalid, "input"},
 	{CodeTimetableWindowEndBeforeStart, "input"},
 	{CodeTimetableWindowTooLarge, "input"},
 }

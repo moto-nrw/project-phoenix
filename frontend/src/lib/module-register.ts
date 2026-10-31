@@ -91,6 +91,8 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   "/dienstplan": "dienstplan",
   "/vertretung": BASIS,
   "/lists": BASIS,
+  // Wochenprotokolle (#4769): Basis wie im Backend; Planung hat keinen Schalter.
+  "/wochenprotokolle": BASIS,
   "/calendar-periods": BASIS,
   // Lohnabrechnung aus der Zeiterfassung (Lohnbüro-Versand, Personalnummer).
   "/payroll": "zeiterfassung",

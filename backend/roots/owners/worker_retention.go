@@ -449,7 +449,7 @@ func schoolContentRetentionSteps(
 	settings settingsModule.StatisticsRetentionSource, announcements communicationModule.ParentAnnouncementRetention,
 	staffNotices timetable.StaffNoticeRetention, appointments appointmentRetention,
 	transitions schoolstructure.GradeTransitionRetention, removedFiles fileStorageModule.CleanupRetention,
-	homework homeworkRetention,
+	homework homeworkRetention, weekProtocols weekProtocolRetention,
 ) []schedulerPorts.RetentionStep {
 	var steps []schedulerPorts.RetentionStep
 	if announcements != nil {
@@ -466,6 +466,11 @@ func schoolContentRetentionSteps(
 		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeHomeworkRetention,
 			settingsModule.HomeworkRetentionWindow(settings), timetable.ErrHomeworkRetentionWindow,
 			homework.DeleteExpiredHomework))
+	}
+	if weekProtocols != nil {
+		steps = append(steps, windowRetentionStep(auditModels.DeletionTypeWeekProtocolRetention,
+			settingsModule.WeekProtocolRetentionWindow(settings), timetable.ErrWeekProtocolRetentionWindow,
+			weekProtocols.DeleteExpiredWeekProtocols))
 	}
 	if appointments != nil {
 		steps = append(steps,
@@ -503,6 +508,19 @@ func surveyRetentionSteps(settings settingsModule.StatisticsRetentionSource, sur
 				return surveys.DeleteExpiredSurveys(ctx, communicationModule.SurveyAudienceStaff, days)
 			}),
 	}
+}
+
+// weekProtocolRetention deletes the weekly protocols of the groups after the
+// school's attendance window (#4769); the Timetable owner is one.
+type weekProtocolRetention interface {
+	DeleteExpiredWeekProtocols(ctx context.Context, retentionDays int) (int, error)
+}
+
+// timetableContentRetention is the Timetable owner's retention of the
+// content a school creates itself: the homework and the weekly protocols.
+type timetableContentRetention interface {
+	homeworkRetention
+	weekProtocolRetention
 }
 
 // homeworkRetention deletes the homework of the classes and the OGS feedback
@@ -557,7 +575,7 @@ func ownerRetentionStep(kind string, deleteExpired func(context.Context) (int, i
 
 // newSchoolContentRetentionSteps builds the owners of the content a school
 // creates itself (#4045) over db and returns their retention steps.
-func newSchoolContentRetentionSteps(db transactionruntime.Database, settings retentionSettings, announcements communicationModule.ParentAnnouncementRetention, homework homeworkRetention) ([]schedulerPorts.RetentionStep, error) {
+func newSchoolContentRetentionSteps(db transactionruntime.Database, settings retentionSettings, announcements communicationModule.ParentAnnouncementRetention, homework timetableContentRetention) ([]schedulerPorts.RetentionStep, error) {
 	appointments, err := BuildServeAppointments(db)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker appointment retention: %w", err)
@@ -569,5 +587,6 @@ func newSchoolContentRetentionSteps(db transactionruntime.Database, settings ret
 	return schoolContentRetentionSteps(
 		settings, announcements, timetable.NewStaffNoticeRetention(timetableCompose.NewStaffNoticeRepository(db.Pool()), calendar.TodayDate),
 		appointments, transitions, fileStorageCompose.NewCleanupRetention(), homework,
+		homework,
 	), nil
 }

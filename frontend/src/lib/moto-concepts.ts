@@ -48,6 +48,7 @@ import {
   MegaphoneIcon,
   MonitorIcon,
   NotePencilIcon,
+  NotebookIcon,
   PersonSimpleWalkIcon,
   PresentationChartIcon,
   QuestionIcon,
@@ -387,6 +388,14 @@ export const MOTO_CONCEPTS = {
     "orange",
     "function",
     "administration",
+  ),
+  // Wochenprotokoll je Gruppe (#4769): die Woche aus den Abenden der Tage.
+  weekProtocols: concept(
+    "Wochenprotokolle",
+    NotebookIcon,
+    "greenDeep",
+    "function",
+    "planning",
   ),
   lists: concept(
     "Tageslisten",

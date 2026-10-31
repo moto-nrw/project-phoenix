@@ -20,6 +20,7 @@ import {
 import { clearRateLimitBackoff } from "./rate-limit-backoff";
 import { hasSessionAccess } from "./session-access";
 import { SESSION_PROVIDER_POLL_SECONDS } from "./session-provider-poll";
+import { isTenantSessionEnding } from "./tenant-session-end";
 
 let cached: {
   session: Awaited<ReturnType<typeof getSession>>;
@@ -167,6 +168,10 @@ export function announceSessionChange() {
  * the cookie's session; TenantGuard then switches back to this school.
  */
 function handleSessionTenantMismatch() {
+  // A deliberate logout/relogin owns the cookie deletion and destination.
+  // Waking SessionProvider here can reissue the old shared cookie after its
+  // deletion response arrives.
+  if (isTenantSessionEnding()) return;
   if (mismatchReported) return;
   mismatchReported = true;
   clearSessionCache();

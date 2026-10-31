@@ -283,7 +283,7 @@ export const FEATURES = Object.freeze([
   },
   {
     name: 'Tagesplan und Tagesinfos',
-    pages: { ogs: ['/tagesplan', '/tagesinformationen', '/day-log', '/betreuungsplan', '/planung', '/timetables'], school: ['/tagesinformationen'] },
+    pages: { ogs: ['/tagesplan', '/tagesinformationen', '/day-log', '/betreuungsplan', '/planung', '/timetables', '/wochenprotokolle', '/wochenprotokolle/:protocolId'], school: ['/tagesinformationen'] },
   },
   {
     name: 'Kalender und Speiseplan',

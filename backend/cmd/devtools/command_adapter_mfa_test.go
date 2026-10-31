@@ -378,7 +378,7 @@ func newCodeMailpitServer(t *testing.T, recipient, code string) *testpkg.HTTPSer
 			_ = json.NewEncoder(w).Encode(mailpitMessageList{
 				Total: 1,
 				Messages: []mailpitMessageSummary{
-					{ID: id, To: []mailpitAddress{{Address: recipient}}, Created: now},
+					{ID: id, To: []mailpitAddress{{Address: recipient}}, Subject: mfaEmailSubject, Created: now},
 				},
 			})
 		case strings.HasPrefix(r.URL.Path, "/api/v1/message/"):

@@ -36,6 +36,7 @@ func TestCoreActionRouteGapsReportsUnclassifiedAndStaleRoutes(t *testing.T) {
 
 	router := chi.NewRouter()
 	router.Post("/api/groups/", nil)
+	router.Post("/api/week-protocols/seed", nil)
 	router.Post("/api/brand-new-feature", nil)
 	router.Get("/api/only-reads", nil)
 	router.Post("/api/iot/checkin", nil)
@@ -47,6 +48,7 @@ func TestCoreActionRouteGapsReportsUnclassifiedAndStaleRoutes(t *testing.T) {
 	assert.Equal(t, []string{"POST /api/brand-new-feature"}, unclassified)
 	assert.Contains(t, stale, "PUT /api/groups/{id}")
 	assert.NotContains(t, stale, "POST /api/groups/")
+	assert.NotContains(t, stale, "POST /api/week-protocols/seed")
 	for _, route := range stale {
 		assert.False(t, strings.HasPrefix(route, "POST /demo/"), "the demo routes come from the demo resource: %s", route)
 	}

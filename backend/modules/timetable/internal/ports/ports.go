@@ -10,6 +10,7 @@ import (
 )
 
 type Store interface {
+	WeekProtocolStore
 	ListReplannableActivityInstanceIDs(context.Context, string, *string, *int64, bool) ([]int64, domain.OperationStats, error)
 	DeleteActivityInstancesByID(context.Context, []int64) (int64, domain.OperationStats, error)
 	ListRemovedWeekendActivityInstanceIDs(context.Context, int64, []int, string) ([]int64, domain.OperationStats, error)

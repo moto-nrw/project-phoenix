@@ -108,6 +108,8 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/umfragen",
   "/umfragen/:id",
   "/vertretung",
+  "/wochenprotokolle",
+  "/wochenprotokolle/:protocolId",
 ] as const;
 
 /** Tenant-host pages outside `(protected)`: login, enrollment, display. */
