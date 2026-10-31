@@ -35,7 +35,7 @@ func (s seedSchoolTeacherStep) runOn(rt *Runtime, today seedDate) error {
 	email := scopedEmail("lehrkraft@example.test", fs.accountScope)
 	username := "lehrkraft"
 	if fs.accountScope != "" {
-		username += "-" + fs.accountScope
+		username = "lk-" + fs.accountScope
 	}
 	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/auth/register", map[string]any{
 		"email": email, "username": username, "password": password, "confirm_password": password,

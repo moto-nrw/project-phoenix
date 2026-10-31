@@ -103,6 +103,12 @@ func TestSeedSchoolTeacherScreenshotWeekendsPreserveAccountWithoutDayWrites(t *t
 					w.Header().Set("Content-Type", "application/json")
 					switch r.URL.Path {
 					case "/auth/register":
+						var body struct {
+							Username string `json:"username"`
+						}
+						require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+						assert.LessOrEqual(t, len(body.Username), 30, "registration username limit")
+						assert.True(t, strings.HasSuffix(body.Username, strings.Repeat("s", 23)), "keep the complete account scope")
 						_, _ = fmt.Fprint(w, `{"data":{"id":81,"school_identity":{"staff_id":"91"}}}`)
 					case "/api/staff/91/school-classes":
 						_, _ = fmt.Fprint(w, `{"status":"success"}`)
@@ -117,6 +123,8 @@ func TestSeedSchoolTeacherScreenshotWeekendsPreserveAccountWithoutDayWrites(t *t
 
 				client := newTestClient(srv.URL, false)
 				fs := NewFixedSeeder(client, false, "")
+				// demo20- plus this scope reaches the existing 30-character limit.
+				fs.accountScope = strings.Repeat("s", 23)
 				fs.roleIDs["lehrkraft"] = 71
 				fs.studentIDByIndex[0] = 101
 				fs.staffCredentials = []StaffCredentials{{Password: t.Name()}}
