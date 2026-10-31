@@ -17,6 +17,13 @@ function relationships(children: readonly Child[]): string {
  */
 export const parentKeys = {
   shellChildren: () => "parent-shell-children",
+  isChildResource: (key: string) =>
+    key === "parent-shell-children" ||
+    key.startsWith("parent-features-") ||
+    key.startsWith("parent-today-"),
+  isMessagesResource: (key: string) =>
+    key === "parent-messages" || key === "parent-group-threads",
+  isNewsResource: (key: string) => key === "parent-announcements",
   isResource: (key: string) =>
     key.startsWith("parent-") && !key.startsWith("parent-profile"),
   features: (children: readonly Child[]) =>

@@ -89,8 +89,14 @@ export function useParentResourceEvents() {
     }
   }, [account, relationships, invalidate]);
   useEffect(() => {
-    const refresh = () => {
-      void invalidate(parentKeys.isResource);
+    const refreshChild = () => {
+      void invalidate(parentKeys.isChildResource);
+    };
+    const refreshMessages = () => {
+      void invalidate(parentKeys.isMessagesResource);
+    };
+    const refreshNews = () => {
+      void invalidate(parentKeys.isNewsResource);
     };
     const accessRefused = (event: Event) => {
       const detail = (
@@ -117,14 +123,14 @@ export function useParentResourceEvents() {
         refuse(new ApiError(code, status, { code }), false);
       }
     };
-    window.addEventListener("parent-child-status-refresh", refresh);
-    window.addEventListener("parent-threads-refresh", refresh);
-    window.addEventListener("parent-news-unread-refresh", refresh);
+    window.addEventListener("parent-child-status-refresh", refreshChild);
+    window.addEventListener("parent-threads-refresh", refreshMessages);
+    window.addEventListener("parent-news-unread-refresh", refreshNews);
     window.addEventListener(PARENT_ACCESS_REFUSED_EVENT, accessRefused);
     return () => {
-      window.removeEventListener("parent-child-status-refresh", refresh);
-      window.removeEventListener("parent-threads-refresh", refresh);
-      window.removeEventListener("parent-news-unread-refresh", refresh);
+      window.removeEventListener("parent-child-status-refresh", refreshChild);
+      window.removeEventListener("parent-threads-refresh", refreshMessages);
+      window.removeEventListener("parent-news-unread-refresh", refreshNews);
       channel.close();
       window.removeEventListener(PARENT_ACCESS_REFUSED_EVENT, accessRefused);
     };

@@ -176,16 +176,17 @@ export function ParentStartPage() {
   };
   const failure =
     childrenResource.error ?? featuresResource.error ?? todayResource.error;
-  const loading =
-    (!childrenResource.data && !childrenResource.error) ||
-    (!!childrenResource.data &&
-      ((!featuresResource.data && !featuresResource.error) ||
-        (!todayResource.data && !todayResource.error)));
   const {
     error: loadError,
     show: showLoadError,
     clear: clearLoadError,
   } = useApiLoadError();
+  const loading =
+    (!!failure && !loadError) ||
+    (!childrenResource.data && !childrenResource.error) ||
+    (!!childrenResource.data &&
+      ((!featuresResource.data && !featuresResource.error) ||
+        (!todayResource.data && !todayResource.error)));
   useEffect(() => {
     if (!failure) {
       clearLoadError();
@@ -402,11 +403,12 @@ function StartTodoSection() {
     }),
     [announcements.data, threads.data, calendar.data],
   );
+  const failure = announcements.error ?? threads.error ?? calendar.error;
   const loaded =
     (!!announcements.data || !!announcements.error) &&
     (!!threads.data || !!threads.error) &&
-    (!!calendar.data || !!calendar.error);
-  const failure = announcements.error ?? threads.error ?? calendar.error;
+    (!!calendar.data || !!calendar.error) &&
+    (!failure || !!loadError);
   useEffect(() => {
     if (!failure) {
       clearLoadError();

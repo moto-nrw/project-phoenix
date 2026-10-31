@@ -1,5 +1,6 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { Profiler } from "react";
 import type { Session } from "next-auth";
 import { SWRConfig } from "~/lib/swr/testing";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
@@ -11,6 +12,8 @@ import {
   getChildFeatures,
   getChildToday,
   listMyChildren,
+  listMessageThreads,
+  listAnnouncements,
 } from "~/lib/parent-api";
 import { ParentStartPage } from "./parent-start-page";
 
@@ -60,6 +63,7 @@ beforeEach(() => {
   resetSWRScope({ revalidate: false });
   state.account = "A";
   vi.clearAllMocks();
+  vi.mocked(listAnnouncements).mockResolvedValue([]);
   vi.mocked(fetchParentProfile).mockResolvedValue({
     first_name: "Eltern",
     portal_locale: null,
@@ -93,12 +97,14 @@ function Fixture({ visible = true }: Readonly<{ visible?: boolean }>) {
     </>
   );
 }
-function mount() {
+function mount(onCommit?: () => void) {
   const cache = new Map();
   return render(<Fixture />, {
     wrapper: ({ children }) => (
       <SWRConfig value={{ provider: () => cache, dedupingInterval: 60_000 }}>
-        {children}
+        <Profiler id="parent-cache" onRender={() => onCommit?.()}>
+          {children}
+        </Profiler>
       </SWRConfig>
     ),
   });
@@ -200,5 +206,46 @@ describe("parent start cache isolation", () => {
     await waitFor(() => expect(getChildFeatures).toHaveBeenCalledWith("42"));
     expect(getChildToday).toHaveBeenCalledWith("42");
     expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
+  });
+  it("never paints the no-children state while presenting a load failure", async () => {
+    const commits: string[] = [];
+    vi.mocked(listMyChildren).mockRejectedValue(
+      new ApiError("offline", 503, { code: "general.unavailable" }),
+    );
+    mount(() => commits.push(document.body.textContent ?? ""));
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(
+      commits.some((text) =>
+        text.includes("Mit Ihrem Konto ist noch kein Kind verknüpft"),
+      ),
+    ).toBe(false);
+  });
+  it("never paints all-done while presenting an incomplete todo feed", async () => {
+    const commits: string[] = [];
+    let rejectFeed!: (error: unknown) => void;
+    vi.mocked(listAnnouncements).mockReturnValue(
+      new Promise((_resolve, reject) => {
+        rejectFeed = reject;
+      }),
+    );
+    mount(() => commits.push(document.body.textContent ?? ""));
+    expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
+    await act(async () => {
+      rejectFeed(new ApiError("offline", 503, { code: "general.unavailable" }));
+    });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(commits.some((text) => text.includes("Alles erledigt"))).toBe(false);
+  });
+  it("revalidates messages without repeating unrelated child requests", async () => {
+    mount();
+    expect(await screen.findByText("Kind A Test")).toBeInTheDocument();
+    expect(listMessageThreads).toHaveBeenCalledTimes(1);
+    act(() => {
+      window.dispatchEvent(new CustomEvent("parent-threads-refresh"));
+    });
+    await waitFor(() => expect(listMessageThreads).toHaveBeenCalledTimes(2));
+    expect(listMyChildren).toHaveBeenCalledTimes(1);
+    expect(getChildFeatures).toHaveBeenCalledTimes(1);
+    expect(getChildToday).toHaveBeenCalledTimes(1);
   });
 });
