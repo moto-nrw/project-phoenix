@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "next-auth/react";
+import { metadataLoadError } from "./metadata-load-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth } from "~/lib/swr";
 import { traegerKeys } from "~/lib/swr/portal-keys";
@@ -21,7 +22,11 @@ export function useTraegerSchools() {
   );
   return {
     schools: response.data ?? null,
-    error,
+    error: metadataLoadError(
+      error,
+      response.data !== undefined,
+      response.error,
+    ),
     fetchError: response.error,
     mutate: response.mutate,
   };

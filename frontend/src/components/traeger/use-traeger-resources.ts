@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
+import { metadataLoadError } from "./metadata-load-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { useSWRAuth, useSWRSeedFrom } from "~/lib/swr";
 import { traegerKeys } from "~/lib/swr/portal-keys";
@@ -23,7 +24,14 @@ export function useTraegerHolidayPeriods() {
     "die Liste der Ferienzeiträume",
     response.mutate,
   );
-  return { ...response, loadError: error };
+  return {
+    ...response,
+    loadError: metadataLoadError(
+      error,
+      response.data !== undefined,
+      response.error,
+    ),
+  };
 }
 
 export function useTraegerHolidayPeriod(id: string) {
@@ -50,7 +58,15 @@ export function useTraegerHolidayPeriod(id: string) {
     "den Ferienzeitraum",
     response.mutate,
   );
-  return { ...response, preview, loadError: error };
+  return {
+    ...response,
+    preview,
+    loadError: metadataLoadError(
+      error,
+      response.data !== undefined,
+      response.error,
+    ),
+  };
 }
 
 export function useTraegerSettingsSchema() {
@@ -65,5 +81,12 @@ export function useTraegerSettingsSchema() {
     "die Liste der Einstellungen",
     response.mutate,
   );
-  return { ...response, loadError: error };
+  return {
+    ...response,
+    loadError: metadataLoadError(
+      error,
+      response.data !== undefined,
+      response.error,
+    ),
+  };
 }

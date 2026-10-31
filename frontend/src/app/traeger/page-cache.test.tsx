@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useEffect } from "react";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import type { Session } from "next-auth";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -16,9 +17,11 @@ import { catalogText } from "~/test/error-catalog-text";
 import { resumeSWRSession } from "~/lib/swr/scope";
 import PeriodsPage from "./ferien/page";
 import PeriodPage from "./ferien/[id]/page";
+import NewPeriodPage from "./ferien/neu/page";
+import FormPage from "./ferien/[id]/formular/page";
 
 vi.unmock("swr");
-const { api, identity, announce } = vi.hoisted(() => ({
+const { api, identity, announce, discardUploads } = vi.hoisted(() => ({
   api: {
     fetchHolidayPeriods: vi.fn(),
     fetchHolidayPeriod: vi.fn(),
@@ -26,6 +29,7 @@ const { api, identity, announce } = vi.hoisted(() => ({
   },
   identity: { session: null as Session | null, id: "" },
   announce: vi.fn(),
+  discardUploads: vi.fn(),
 }));
 vi.mock("~/lib/traeger-api", () => api);
 vi.mock("next-auth/react", () => ({
@@ -47,10 +51,10 @@ vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 vi.mock("~/components/traeger/holiday-period-form", () => ({
   HolidayPeriodForm: ({
     onSaved,
-    period,
+    period = HOLIDAY_PERIOD,
   }: {
     onSaved: (next: HolidayPeriod) => void;
-    period: HolidayPeriod;
+    period?: HolidayPeriod;
   }) => (
     <>
       <p>Confirmed form</p>
@@ -64,7 +68,7 @@ vi.mock("~/components/traeger/holiday-period-form", () => ({
 vi.mock("~/components/traeger/holiday-period-publish-card", () => ({
   HolidayPeriodPublishCard: ({
     onPublished,
-    period,
+    period = HOLIDAY_PERIOD,
   }: {
     onPublished: (next: HolidayPeriod) => void;
     period: HolidayPeriod;
@@ -78,6 +82,17 @@ vi.mock("~/components/traeger/holiday-period-publish-card", () => ({
       </button>
     </>
   ),
+}));
+
+vi.mock("~/lib/traeger-holiday-form-api", () => ({
+  fetchHolidayForm: () =>
+    Promise.resolve({ version: 1, createdAt: "2026-09-01T08:00:00Z" }),
+}));
+vi.mock("~/components/traeger/holiday-form-editor", () => ({
+  HolidayFormEditor: function Editor() {
+    useEffect(() => () => discardUploads(), []);
+    return <textarea aria-label="Questions" defaultValue="Saved questions" />;
+  },
 }));
 
 function signIn(id = "A", orgId = 7) {
@@ -100,8 +115,10 @@ function setup() {
   }
   return { wrapper: Wrapper };
 }
-function Refresh() {
-  const mutate = useTenantMutateMatching([traegerKeys.period(identity.id)]);
+function Refresh({ schools = false }: { schools?: boolean }) {
+  const mutate = useTenantMutateMatching([
+    schools ? traegerKeys.schools() : traegerKeys.period(identity.id),
+  ]);
   return (
     <button
       onClick={() => {
@@ -124,6 +141,7 @@ function Route({ detail }: Readonly<{ detail: boolean }>) {
 }
 beforeEach(() => {
   signIn();
+  discardUploads.mockClear();
   identity.id = HOLIDAY_PERIOD.id;
   api.fetchHolidayPeriods.mockReset().mockResolvedValue([HOLIDAY_PERIOD]);
   api.fetchHolidayPeriod.mockReset().mockResolvedValue(HOLIDAY_PERIOD);
@@ -190,6 +208,57 @@ describe("Träger list-to-detail cache", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Draft text")).toHaveValue("Unsaved text");
+  });
+
+  it("keeps a new draft mounted when shared schools fail to refresh", async () => {
+    render(
+      <>
+        <Refresh schools />
+        <NewPeriodPage />
+      </>,
+      setup(),
+    );
+    expect(await screen.findByText("Confirmed form")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Draft text"), {
+      target: { value: "New unsaved text" },
+    });
+    api.fetchTraegerSchools.mockRejectedValue(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Liste der Schulen"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Draft text")).toHaveValue("New unsaved text");
+  });
+
+  it("keeps unsaved questions and draft uploads when period metadata fails to refresh", async () => {
+    render(
+      <>
+        <Refresh />
+        <FormPage />
+      </>,
+      setup(),
+    );
+    expect(await screen.findByLabelText("Questions")).toHaveValue(
+      "Saved questions",
+    );
+    fireEvent.change(screen.getByLabelText("Questions"), {
+      target: { value: "Unsaved questions" },
+    });
+    api.fetchHolidayPeriod.mockRejectedValue(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "den Ferienzeitraum"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Questions")).toHaveValue("Unsaved questions");
+    expect(discardUploads).not.toHaveBeenCalled();
   });
 
   it("still replaces the form when the server refuses the cached detail", async () => {
