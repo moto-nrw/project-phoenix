@@ -1,3 +1,8 @@
+import { act } from "@testing-library/react";
+import { setTestClock } from "~/test/clock";
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { useSession } from "next-auth/react";
@@ -1019,4 +1024,21 @@ describe("StudentRoomHistoryPage", () => {
       expect(screen.queryByText("Korrigieren")).not.toBeInTheDocument();
     });
   });
+
+  it.each(schoolDateCases("2026-04-06"))(
+    "updates the Berlin today highlight after midnight in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-04-06");
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      setupFetch(mockAttendanceHistoryResponse([fullDay]));
+      render(<StudentRoomHistoryPage />);
+      const row = (await screen.findByText(/Montag, 06/)).closest("tr")!;
+      expect(row.className).toContain("bg-moto-blue-soft/60");
+      await act(async () => {
+        setTestClock("2026-04-06T22:01:00Z");
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(row.className).not.toContain("bg-moto-blue-soft/60");
+    },
+  );
 });

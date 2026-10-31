@@ -6,7 +6,7 @@ Paths start at `frontend/`; commands run from `frontend/`.
 
 ## Projects
 
-`vitest.config.ts` runs three projects. `api-node` covers `src/app/api/**`.
+`vitest.config.ts` runs four projects. `api-node` covers `src/app/api/**`.
 `logic-node` runs the files listed in `src/test/node-test-files.ts` in the
 node environment with only `setup-common.ts`. Everything else runs in
 `app-dom` (happy-dom plus `setup.ts`). List a new `*.test.ts` in
@@ -14,9 +14,16 @@ node environment with only `setup-common.ts`. Everything else runs in
 next-intl, SWR or tenant-context mock, and confirm it passes with
 `pnpm vitest run --project logic-node`.
 
+`school-date-dom` runs the school-date component suites listed in
+`schoolDateTestFiles` in `frontend/vitest.config.ts`, using happy-dom and forked
+processes. Its regression cases change `TZ` to UTC, Pacific/Honolulu and
+Pacific/Kiritimati at runtime (the original sick-report suite also uses Tokyo);
+Node worker threads do not apply those timezone changes. The cases assert the
+local date first so an ineffective timezone change cannot hide the defect.
+
 ## Scope
 
-Every Vitest test in all projects (`app-dom`, `api-node`, `logic-node`) runs
+Every Vitest test in all projects (`app-dom`, `school-date-dom`, `api-node`, `logic-node`) runs
 on a
 deterministic clock (#3101). `src/test/setup-common.ts` freezes `Date` at
 `TEST_CLOCK_INSTANT` before each test and normally restores the real clock
@@ -62,9 +69,10 @@ valid: fixture and product code see the same frozen instant. Fixtures that use
 ## Enforcement
 
 - `src/test/clock.test.tsx` is the regression test of the mechanism: a pinned
-  hook plus the real kit `DatePicker` renders the today label on the frozen
-  day, `setTestClock` covers Berlin midnight, a week change and the DST
-  switch, and time and timer state reset between tests.
+  hook supplies the explicit today marker to the real kit `DatePicker`, while
+  the independent `Date`/`Date.now()` assertions remain on the frozen instant.
+  `setTestClock` covers Berlin midnight, a week change and the DST switch,
+  and time and timer state reset between tests.
 - oxlint rule `test-clock/no-real-clock`
   (`scripts/oxlint-plugin-test-clock.mjs`, tested in
   `scripts/oxlint-plugin-test-clock.test.ts`) runs in `pnpm run check` and CI.

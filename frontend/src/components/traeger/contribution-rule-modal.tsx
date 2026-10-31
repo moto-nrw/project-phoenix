@@ -11,7 +11,7 @@ import {
 } from "~/components/ui/segmented-control";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
-import { todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   type ContributionRule,
@@ -54,7 +54,7 @@ const MODE_ITEMS: readonly SegmentedControlItem<DiscountMode>[] = [
 function draftOf(edit: ContributionRuleEdit): Draft {
   if (edit.kind === "create") {
     return {
-      validFrom: todayISO(),
+      validFrom: berlinTodayISO(),
       validUntil: "",
       siblingFromChild: "2",
       mode: "share",

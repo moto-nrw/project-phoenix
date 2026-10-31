@@ -110,6 +110,7 @@ import {
 import {
   formatDate as formatCalendarDate,
   parseISODate,
+  berlinTodayISO,
 } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useWeekendFollowsFriday } from "~/lib/tenant-context";
@@ -376,9 +377,9 @@ interface StatusDayRange {
 }
 
 function getStatusDayRange(): StatusDayRange {
-  const from = new Date();
+  const from = parseISODate(berlinTodayISO());
   from.setDate(from.getDate() - 14);
-  const to = new Date();
+  const to = parseISODate(berlinTodayISO());
   to.setDate(to.getDate() + 90);
   return {
     from: formatLocalDate(from),

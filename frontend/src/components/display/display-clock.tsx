@@ -23,12 +23,14 @@ export function DisplayClock() {
     <div className="text-right">
       <p className="font-mono text-6xl font-bold text-gray-900 tabular-nums lg:text-7xl">
         {now.toLocaleTimeString("de-DE", {
+          timeZone: "Europe/Berlin",
           hour: "2-digit",
           minute: "2-digit",
         })}
       </p>
       <p className="mt-1 text-xl text-gray-500 lg:text-2xl">
         {now.toLocaleDateString("de-DE", {
+          timeZone: "Europe/Berlin",
           weekday: "long",
           day: "2-digit",
           month: "long",

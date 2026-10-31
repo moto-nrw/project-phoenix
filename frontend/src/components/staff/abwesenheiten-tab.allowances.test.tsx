@@ -1,3 +1,8 @@
+import { act } from "@testing-library/react";
+import { setTestClock } from "~/test/clock";
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   fireEvent,
   render,
@@ -361,4 +366,37 @@ describe("AbwesenheitenTab Kontingente (#3256)", () => {
       screen.queryByRole("link", { name: /Abwesenheitsarten verwalten/ }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-05-27"))(
+    "moves ended absences to history at Berlin midnight in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-27");
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      mocks.getAbsences.mockResolvedValue([
+        {
+          id: 1,
+          absence_type: "sick",
+          date_start: "2026-05-27",
+          date_end: "2026-05-27",
+          status: "reported",
+          note: "Heute krank",
+        },
+      ]);
+      renderTab();
+      const upcoming = (
+        await screen.findByRole("heading", { name: "Kommende Abwesenheiten" })
+      ).closest("section")!;
+      expect(
+        await within(upcoming).findByText("Heute krank"),
+      ).toBeInTheDocument();
+      await act(async () => {
+        setTestClock("2026-05-27T22:01:00Z");
+        vi.advanceTimersByTime(60_000);
+      });
+      const history = screen
+        .getByRole("heading", { name: /Historie/ })
+        .closest("section")!;
+      expect(within(history).getByText("Heute krank")).toBeInTheDocument();
+    },
+  );
 });

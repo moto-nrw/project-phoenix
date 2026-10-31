@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { format } from "date-fns/format";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -12,7 +11,10 @@ import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
 import { TimeField } from "~/components/ui/time-field";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import type { Student } from "~/lib/api";
-import { formatDate as formatCalendarDate } from "~/lib/date-helpers";
+import {
+  formatDate as formatCalendarDate,
+  berlinTodayISO,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   classTripConflictsFromError,
@@ -52,7 +54,7 @@ interface ClassTripBulkStatusModalProps {
 }
 
 function todayKey(): string {
-  return format(new Date(), "yyyy-MM-dd");
+  return berlinTodayISO();
 }
 
 export function ClassTripBulkStatusModal({
