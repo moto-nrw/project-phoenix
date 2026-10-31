@@ -12,6 +12,7 @@ import {
   type RefObject,
 } from "react";
 import { useSWRAuth } from "~/lib/swr";
+import { TEAM_CHAT_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -301,6 +302,7 @@ export function TeamChatThread({
         ),
       keepFailed: true,
       refusal: {
+        codes: TEAM_CHAT_SEND_REFUSALS,
         matches: (key) =>
           key === messageKeys.teamChatThread(threadID) ||
           key.startsWith(messageKeys.teamChatInboxFamily()),

@@ -142,7 +142,10 @@ function send(
     },
     keepFailed: options.keepFailed,
     refusal: options.refusal
-      ? { matches: (key) => key === "thread-1" || key === "inbox-1" }
+      ? {
+          codes: ["general.permission"],
+          matches: (key) => key === "thread-1" || key === "inbox-1",
+        }
       : undefined,
   });
 }
@@ -486,6 +489,59 @@ describe("useOptimisticAction (#5011)", () => {
       // The state before the action belongs to the old scope: no rollback
       // brings it back.
       expect(frames.some((frame) => frame === "a")).toBe(false);
+    });
+
+    // O8 (G21): a callback kept from before the change, e.g. a retry
+    // handler, holds the old render's data. It must start nothing.
+    it("starts nothing from a run retained before the change", async () => {
+      let calls = 0;
+      const fetcher = () => {
+        calls += 1;
+        return Promise.resolve(
+          calls === 1 ? START : { items: [{ id: "9", body: "neu" }] },
+        );
+      };
+      const view = await mounted(fetcher);
+      const retainedRun = action.run;
+      const retainedMutate = reader.mutate;
+      // The text the old session had on screen, captured by the closure.
+      const captured = "stale-private-text";
+      act(() =>
+        operation(() =>
+          view.rerender(
+            <Page>
+              <Chat fetcher={fetcher} />
+            </Page>,
+          ),
+        ),
+      );
+      await flush();
+      frames = [];
+      const request = vi.fn(() => Promise.resolve({ id: "2", body: captured }));
+      const commit = vi.fn((saved: Item) => {
+        void retainedMutate(
+          (thread) => (thread ? { items: [...thread.items, saved] } : thread),
+          { revalidate: false },
+        );
+      });
+      let outcome: OptimisticOutcome<Item> = {
+        status: "done",
+        result: START.items[0]!,
+      };
+      await act(async () => {
+        outcome = await retainedRun({
+          optimistic: (thread, { id }) => ({
+            items: [...thread.items, { id, body: captured }],
+          }),
+          request,
+          commit,
+        });
+      });
+      await flush();
+      expect(outcome).toEqual({ status: "discarded" });
+      expect(request).not.toHaveBeenCalled();
+      expect(commit).not.toHaveBeenCalled();
+      expect(frames.some((frame) => frame.includes(captured))).toBe(false);
     });
   });
 

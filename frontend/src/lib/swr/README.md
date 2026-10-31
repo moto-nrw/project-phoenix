@@ -40,10 +40,13 @@ void invalidateFamily(rooms.family);
    expected result is an overlay on the confirmed data per scoped key and
    data generation, never a cache write. A failure drops exactly its own
    overlay, concurrent actions keep theirs, and after a scope or data bump
-   neither overlay, answer nor rollback appears. `commit` writes the answer
-   through the reader's bound `mutate` (or local state); `refusal` drops the
-   resource on a 401/403 with its code (default `general.permission`), a
-   business 403 only rolls back. SWR's own `optimisticData` restores the
+   neither overlay, answer nor rollback appears. A `run` kept from before a
+   bump of its key (a closure, a retry handler) starts nothing. `commit`
+   writes the answer through the reader's bound `mutate` (or local state);
+   `refusal` drops the resource on a 401/403/404 with one of the codes the
+   caller lists for its backend route (no default; message routes:
+   `~/lib/message-send-refusals`). A business 403, a session code or a
+   failure without a response only rolls back. SWR's own `optimisticData` restores the
    value before the first optimistic write and lets a newer mutation swallow
    an older one's rollback, so concurrent actions would overwrite each other.
 4. Family prefixes end in `-`. `useInvalidateFamily` matches that prefix

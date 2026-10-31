@@ -4,7 +4,7 @@
  * An action shows its expected result at once and confirms it with the
  * server answer. The expected result never enters the SWR cache: it is an
  * overlay on the confirmed data, kept here per scoped key and per data
- * generation. That gives four invariants by construction:
+ * generation. That gives these invariants by construction:
  *
  * - O1 An overlay is visible only under the scoped key (portal, school,
  *   account) and in the data generation it started in. A scope or data
@@ -23,11 +23,16 @@
  *   (a reader's bound `mutate`, useTenantMutate) or into local state. This
  *   module reads and writes no cache entry; a refusal goes through
  *   useDiscardRefusedEntity. It adds no option to the allowlists.
+ * - O8 (G21) `run` belongs to the render it came from. A callback retained
+ *   across a scope or data bump of its key (a closure, a retry handler)
+ *   starts nothing: no overlay, no request, no commit. Its captured data
+ *   never becomes an overlay of the next generation.
  *
- * 401 and 403 count as a refusal only with one of the given codes (status
- * and code, ADR 0006). A refusal drops every representation of the
- * resource the caller names; other failures, also a business 403, only
- * roll back.
+ * A 401, 403 or 404 counts as a refusal only with one of the codes the
+ * caller lists for its backend route (status and code, ADR 0006); there is
+ * no default. A refusal drops every representation of the resource the
+ * caller names. Other failures, a business 403, a session-level code or a
+ * failure without a response, only roll back.
  */
 
 "use client";
@@ -76,13 +81,13 @@ export interface OptimisticRun<T, R> {
    */
   readonly keepFailed?: boolean;
   /**
-   * The resource behind the action. A 401/403/404 with one of `codes`
-   * (default `general.permission`) drops every cached key `matches` names
-   * (unscoped, as the factories build it); the refusal stays visible.
+   * The resource behind the action. A 401/403/404 with one of `codes` (the
+   * refusals of the action's backend route) drops every cached key `matches`
+   * names (unscoped, as the factories build it); the refusal stays visible.
    */
   readonly refusal?: {
     readonly matches: (key: string) => boolean;
-    readonly codes?: readonly ErrorCode[];
+    readonly codes: readonly ErrorCode[];
   };
 }
 
@@ -96,8 +101,6 @@ export type OptimisticOutcome<R> =
     }
   /** The generation or scope moved while the request ran: nothing happened. */
   | { readonly status: "discarded" };
-
-const REFUSAL_CODES: readonly ErrorCode[] = ["general.permission"];
 
 interface Overlay {
   readonly id: string;
@@ -164,7 +167,7 @@ subscribeSWRDataGeneration(() => {
  *   request: () => postMessage(threadId, body),
  *   commit: (sent) => void mutate((t) => withSent(t, sent), { revalidate: true }),
  *   keepFailed: true,
- *   refusal: { matches: (k) => k === key },
+ *   refusal: { codes: TEAM_CHAT_SEND_REFUSALS, matches: (k) => k === key },
  * });
  * ```
  */
@@ -192,6 +195,8 @@ export function useOptimisticAction<T>(
     currentSWRDataGeneration,
   );
   const generation = fullKey === null ? null : dataGenerationOf(fullKey);
+  // The generation `run` of this render may act in (O8).
+  const origin = generation;
   const stored = useSyncExternalStore(
     subscribe,
     () => (fullKey === null ? NONE : (overlays.get(fullKey) ?? NONE)),
@@ -253,12 +258,21 @@ export function useOptimisticAction<T>(
   const run = useCallback(
     async <R>(action: OptimisticRun<T, R>): Promise<OptimisticOutcome<R>> => {
       // Without a session there is no scope to show or confirm anything in.
-      if (fullKey === null || scope === null || isSWRSessionPending()) {
+      // A callback kept from before a bump of its key starts nothing (O8):
+      // its caller's data belongs to the generation that ended.
+      if (
+        fullKey === null ||
+        scope === null ||
+        origin === null ||
+        isSWRSessionPending() ||
+        latestScope.current !== scope ||
+        dataGenerationOf(fullKey) !== origin
+      ) {
         return { status: "discarded" };
       }
       const view = lifetime.current;
       const target = fullKey;
-      const generation = dataGenerationOf(target);
+      const generation = origin;
       sequence += 1;
       const id = `optimistic-${sequence}`;
       const overlay: Overlay = {
@@ -287,7 +301,7 @@ export function useOptimisticAction<T>(
         const refused =
           action.refusal !== undefined &&
           discard(error, {
-            codes: action.refusal.codes ?? REFUSAL_CODES,
+            codes: action.refusal.codes,
             matches: action.refusal.matches,
           });
         if (!view?.active) {
@@ -315,7 +329,7 @@ export function useOptimisticAction<T>(
       drop();
       return { status: "done", result };
     },
-    [fullKey, scope, owner, discard],
+    [fullKey, scope, origin, owner, discard],
   );
 
   const pending = visible.some((overlay) => overlay.state === "pending");

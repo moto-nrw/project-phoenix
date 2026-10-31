@@ -193,6 +193,70 @@ describe("OgsConversation optimistic send", () => {
   });
 });
 
+// #5011: Ablehnungen der Route POST /api/parent/me/messages/children/{id}
+// (child_write_errors.go) verwerfen den Verlauf, fachliche Zustände nicht.
+describe("OgsConversation send refusals", () => {
+  const history = {
+    ...thread,
+    messages: [
+      {
+        id: "s1",
+        kind: "message",
+        sender_kind: "staff",
+        sender_name: "OGS",
+        body: "Felix hat heute gut gegessen.",
+        created_at: "2026-09-09T09:00:00Z",
+      },
+    ],
+  };
+
+  async function send() {
+    render(<OgsConversation studentId="42" />);
+    const field = await screen.findByLabelText("Nachricht");
+    // Anker: der private Verlauf ist geladen.
+    expect(
+      screen.getByText("Felix hat heute gut gegessen."),
+    ).toBeInTheDocument();
+    fireEvent.change(field, { target: { value: "Hallo OGS" } });
+    fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+  }
+
+  it.each([
+    "care.child_not_linked",
+    "care.guardian_permission_denied",
+  ] as const)("drops the history and the composer on 403 %s", async (code) => {
+    const refusal = new ApiError("refused", 403, { code });
+    mockGetConversation
+      .mockResolvedValueOnce(history)
+      .mockRejectedValue(refusal);
+    mockPostMessage.mockRejectedValueOnce(refusal);
+    await send();
+
+    expect(
+      await screen.findByText(catalogText(code, "die Unterhaltung")),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Felix hat heute gut gegessen."),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+    expect(mockGetConversation).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps the history on 403 care.child_care_ended and marks the bubble", async () => {
+    mockGetConversation.mockResolvedValue(history);
+    mockPostMessage.mockRejectedValueOnce(
+      new ApiError("ended", 403, { code: "care.child_care_ended" }),
+    );
+    await send();
+
+    expect(await screen.findByText("Nicht gesendet")).toBeInTheDocument();
+    expect(
+      screen.getByText("Felix hat heute gut gegessen."),
+    ).toBeInTheDocument();
+    expect(mockGetConversation).toHaveBeenCalledTimes(1);
+  });
+});
+
 // #4784: eine Antwort auf eine Gruppennachricht zeigt, worauf sie sich bezieht.
 describe("OgsConversation group thread answers", () => {
   it("shows the group thread an own answer refers to and links to it", async () => {

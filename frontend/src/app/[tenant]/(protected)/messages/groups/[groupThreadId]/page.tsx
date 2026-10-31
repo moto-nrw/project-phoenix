@@ -5,6 +5,7 @@ import { messageKeys } from "~/lib/swr/portal-keys";
 import { useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSWRAuth } from "~/lib/swr";
+import { GROUP_THREAD_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -115,6 +116,7 @@ function GroupMessageContent() {
       commit: (next) => void mutate(next, { revalidate: false }),
       keepFailed: true,
       refusal: {
+        codes: GROUP_THREAD_SEND_REFUSALS,
         matches: (key) =>
           key === messageKeys.groupMessage(threadId) ||
           key === messageKeys.groupMessages(),

@@ -324,6 +324,32 @@ describe("TeamChatThread optimistic send (#5011)", () => {
     expect(api.fetchThread).toHaveBeenCalledTimes(1);
   });
 
+  // The backend answers "not a participant" with 404 on purpose
+  // (staffmessages/errors.go): leaving a group chat ends access that way.
+  it("drops the conversation when the backend says it is no longer the sender's (404)", async () => {
+    api.postMessage.mockRejectedValue(
+      new ApiError("Diese Unterhaltung gibt es nicht.", 404, {
+        code: "general.input",
+      }),
+    );
+    await typeAndSend("Bin unterwegs");
+
+    expect(
+      await screen.findByText(catalogText("general.input", "die Unterhaltung")),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Hallo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bin unterwegs")).not.toBeInTheDocument();
+    expect(api.fetchThread).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the conversation and marks the bubble on a failure without a response", async () => {
+    api.postMessage.mockRejectedValue(new TypeError("Failed to fetch"));
+    await typeAndSend("Bin unterwegs");
+
+    expect(await screen.findByText("Nicht gesendet")).toBeInTheDocument();
+    expect(screen.getByText("Hallo")).toBeInTheDocument();
+  });
+
   it("keeps the conversation on a business 403 with its own code", async () => {
     api.postMessage.mockRejectedValue(
       new ApiError("Aus", 403, {

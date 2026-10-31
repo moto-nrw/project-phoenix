@@ -56,6 +56,7 @@ import {
 } from "~/components/parent/child-care";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
+import { PARENT_PORTAL_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { parentKeys } from "~/lib/swr/parent-keys";
 import { formatChatTime } from "~/lib/date-helpers";
@@ -372,7 +373,10 @@ export function OgsConversation({
         }
       },
       keepFailed: true,
-      refusal: { matches: (key) => key === conversationKey },
+      refusal: {
+        codes: PARENT_PORTAL_SEND_REFUSALS,
+        matches: (key) => key === conversationKey,
+      },
     });
     if (outcome.status === "done") {
       // Sending advances the reader's own cursor (any prior staff messages
@@ -392,10 +396,13 @@ export function OgsConversation({
       retry: () => void sendRef.current(),
     });
     if (outcome.refused) {
-      // The school refused this conversation: drop what is on screen and
-      // ask again, so only what the server still grants shows.
+      // The school refused this conversation (relationship gone, no
+      // writing right): drop the history, the composer and the overview of
+      // both conversations, then ask again, so only what the server still
+      // grants shows.
       ++applySeqRef.current;
       setThread(null);
+      setSummaries([]);
       void refreshRef.current();
     } else if (
       err instanceof ApiError &&

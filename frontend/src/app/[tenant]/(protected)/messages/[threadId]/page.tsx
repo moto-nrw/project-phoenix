@@ -13,6 +13,7 @@ import {
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useSWRSeedFrom } from "~/lib/swr";
+import { PARENT_THREAD_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { Button } from "~/components/ui/button";
@@ -390,6 +391,7 @@ function MessageThreadContent() {
         }),
       keepFailed: true,
       refusal: {
+        codes: PARENT_THREAD_SEND_REFUSALS,
         matches: (key) =>
           key === messageKeys.messageThread(threadId) ||
           key.startsWith(messageKeys.messagesInboxFamily()),
