@@ -123,12 +123,17 @@ func NewSeeder(adapter Adapter, random io.Reader, verbose bool, options SeedOpti
 	if statePath == "" {
 		statePath = DefaultSeedStatePath
 	}
+	client := NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose)
 	definition := fullOperationProfileDefinition()
+	if !localSeedAccountsEnabled(client.baseURL, options) {
+		delete(definition.Settings, profileSettingSchoolWriteScope)
+		delete(definition.Settings, profileSettingSchoolMorning)
+	}
 	if options.ProductScreenshots {
 		definition.Settings[profileSettingWeekendFollowsFriday] = SeedSetting{Value: []byte(`false`), ManagedBy: SettingManagedByOperator}
 	}
 	return &Seeder{
-		client:     NewClientWithAdapter(newLoginCachingAdapter(adapter), verbose),
+		client:     client,
 		random:     random,
 		verbose:    verbose,
 		options:    options,

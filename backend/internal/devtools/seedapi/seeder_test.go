@@ -1847,7 +1847,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 
 		case "/school/auth/login":
-			_, _ = fmt.Fprint(w, `{"status":"success","access_token":"school-token"}`)
+			_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"school-token"}`)
 
 		case "/parent/auth/login":
 			_ = json.NewEncoder(w).Encode(map[string]any{

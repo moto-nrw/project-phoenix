@@ -15,7 +15,7 @@ func TestSeedSchoolTeacherUsesSchoolSessionAndAssignedOGSClass(t *testing.T) {
 
 	var paths []string
 	var bodies []map[string]any
-	password := t.Name()
+	password := "example-test-password"
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
 		paths = append(paths, r.URL.Path)
 		var body map[string]any
@@ -38,7 +38,7 @@ func TestSeedSchoolTeacherUsesSchoolSessionAndAssignedOGSClass(t *testing.T) {
 			assert.Empty(t, r.Header.Get("Authorization"), "school login is public, not a tenant session")
 			assert.Equal(t, "vollbetrieb", body["tenant_slug"])
 			assert.Equal(t, password, body["password"])
-			_, _ = fmt.Fprint(w, `{"status":"success","access_token":"school-session"}`)
+			_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"school-session"}`)
 		default:
 			assert.True(t, strings.HasPrefix(r.URL.Path, "/school/class-day/"), r.URL.Path)
 			assert.Equal(t, "PUT", r.Method)
@@ -54,7 +54,7 @@ func TestSeedSchoolTeacherUsesSchoolSessionAndAssignedOGSClass(t *testing.T) {
 	fs.studentIDByIndex[0] = 101
 	fs.staffCredentials = []StaffCredentials{{Password: password}}
 	fs.accountScope = "vollbetrieb"
-	s := &Seeder{}
+	s := &Seeder{client: client}
 	rt := &Runtime{Client: client, FixedSeeder: fs, Bootstrap: &bootstrapSeedState{TenantSlug: "vollbetrieb"}, TenantAuth: AuthRef{Kind: AuthBearer, Token: "admin"}}
 	require.NoError(t, (seedSchoolTeacherStep{seeder: s}).Run(t.Context(), rt))
 
@@ -81,10 +81,14 @@ func TestSeedSchoolTeacherUsesSchoolSessionAndAssignedOGSClass(t *testing.T) {
 func TestFullOperationProfileOpensAllSchoolWrites(t *testing.T) {
 	t.Parallel()
 
-	settings := fullOperationSettings()
+	settings := fullOperationProfileSettings()
 	assert.Equal(t, SettingManagedByTenant, settings[profileSettingSchoolWriteScope].ManagedBy)
 	assert.JSONEq(t, `["class_arrival_exceptions","class_handover","class_trips","day_hints"]`, string(settings[profileSettingSchoolWriteScope].Value))
 	assert.JSONEq(t, `true`, string(settings[profileSettingSchoolMorning].Value))
+	for _, definition := range []demoProfileDefinition{enrollmentWeeklyProfileDefinition(), enrollmentBookingsProfileDefinition(), manualProfileDefinition()} {
+		assert.NotContains(t, definition.Settings, profileSettingSchoolWriteScope, definition.Key)
+		assert.NotContains(t, definition.Settings, profileSettingSchoolMorning, definition.Key)
+	}
 }
 
 func TestSeedSchoolTeacherScreenshotWeekendsPreserveAccountWithoutDayWrites(t *testing.T) {
@@ -113,7 +117,7 @@ func TestSeedSchoolTeacherScreenshotWeekendsPreserveAccountWithoutDayWrites(t *t
 					case "/api/staff/91/school-classes":
 						_, _ = fmt.Fprint(w, `{"status":"success"}`)
 					case "/school/auth/login":
-						_, _ = fmt.Fprint(w, `{"access_token":"school-session"}`)
+						_, _ = fmt.Fprint(w, `{"status":"authenticated","access_token":"school-session"}`)
 					default:
 						assert.True(t, wantDayWrites, "no class-day writes on screenshot weekends")
 						_, _ = fmt.Fprint(w, `{"status":"success"}`)
@@ -127,8 +131,8 @@ func TestSeedSchoolTeacherScreenshotWeekendsPreserveAccountWithoutDayWrites(t *t
 				fs.accountScope = strings.Repeat("s", 23)
 				fs.roleIDs["lehrkraft"] = 71
 				fs.studentIDByIndex[0] = 101
-				fs.staffCredentials = []StaffCredentials{{Password: t.Name()}}
-				s := &Seeder{options: SeedOptions{ProductScreenshots: screenshots}}
+				fs.staffCredentials = []StaffCredentials{{Password: "example-test-password"}}
+				s := &Seeder{client: client, options: SeedOptions{ProductScreenshots: screenshots}}
 				rt := &Runtime{Client: client, FixedSeeder: fs, Bootstrap: &bootstrapSeedState{TenantSlug: "vollbetrieb"}, TenantAuth: AuthRef{Kind: AuthBearer, Token: "admin"}}
 				require.NoError(t, (seedSchoolTeacherStep{seeder: s}).runOn(rt, today))
 
@@ -149,5 +153,27 @@ func TestSeedSchoolTeacherScreenshotWeekendsPreserveAccountWithoutDayWrites(t *t
 				assert.EqualValues(t, 91, state.Accounts.Lehrkraft[0].StaffID)
 			})
 		}
+	}
+}
+
+func TestLoginSchoolTeacherRequiresAuthenticatedSession(t *testing.T) {
+	t.Parallel()
+	for _, response := range []string{
+		`{"status":"mfa_enrollment_required","access_token":"enrollment-only-token"}`,
+		`{"status":"mfa_required"}`,
+		`{"access_token":"unclassified-token"}`,
+	} {
+		t.Run(response, func(t *testing.T) {
+			t.Parallel()
+			srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+				assert.Equal(t, "/school/auth/login", r.URL.Path)
+				_, _ = fmt.Fprint(w, response)
+			})
+			defer srv.Close()
+			rt := &Runtime{Client: newTestClient(srv.URL, false), Bootstrap: &bootstrapSeedState{TenantSlug: "vollbetrieb"}}
+			auth, err := loginSchoolTeacher(rt, "lehrkraft@example.test", "example-test-password")
+			require.ErrorContains(t, err, "requires an authenticated session")
+			assert.Empty(t, auth.Token)
+		})
 	}
 }

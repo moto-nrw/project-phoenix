@@ -20,6 +20,9 @@ func (s seedSchoolTeacherStep) Run(_ context.Context, rt *Runtime) error {
 }
 
 func (s seedSchoolTeacherStep) runOn(rt *Runtime, today seedDate) error {
+	if !localSeedAccountsEnabled(s.seeder.client.baseURL, s.seeder.options) {
+		return nil
+	}
 	fs := rt.FixedSeeder
 	if fs == nil || rt.Bootstrap == nil || len(fs.staffCredentials) == 0 || len(DemoStudents) == 0 {
 		return fmt.Errorf("school teacher requires bootstrap, staff credentials and students")
@@ -37,28 +40,14 @@ func (s seedSchoolTeacherStep) runOn(rt *Runtime, today seedDate) error {
 	if fs.accountScope != "" {
 		username = "lk-" + fs.accountScope
 	}
-	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/auth/register", map[string]any{
+	account, err := registerSeedStaffAccount(rt, map[string]any{
 		"email": email, "username": username, "password": password, "confirm_password": password,
 		"first_name": "Lena", "last_name": "Weber", "role_id": roleID,
 	})
 	if err != nil {
 		return fmt.Errorf("register school teacher: %w", err)
 	}
-	var account struct {
-		Data struct {
-			ID             int64 `json:"id"`
-			SchoolIdentity *struct {
-				StaffID int64 `json:"staff_id,string"`
-			} `json:"school_identity"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &account); err != nil {
-		return fmt.Errorf("decode school teacher: %w", err)
-	}
-	if account.Data.ID <= 0 || account.Data.SchoolIdentity == nil || account.Data.SchoolIdentity.StaffID <= 0 {
-		return fmt.Errorf("school teacher created without account or staff identity")
-	}
-	staffID := account.Data.SchoolIdentity.StaffID
+	staffID := account.StaffID
 	class := DemoStudents[0].Class
 	if _, err := rt.Client.PutWithAuth(rt.TenantAuth, fmt.Sprintf("/api/staff/%d/school-classes", staffID), map[string]any{
 		"school_classes": []string{class},
@@ -66,7 +55,7 @@ func (s seedSchoolTeacherStep) runOn(rt *Runtime, today seedDate) error {
 		return fmt.Errorf("assign school teacher's class: %w", err)
 	}
 	s.seeder.schoolTeacherAccount = &AccountCredentials{
-		Key: "lehrkraft", AccountID: account.Data.ID, StaffID: staffID,
+		Key: "lehrkraft", AccountID: account.AccountID, StaffID: staffID,
 		Email: email, Password: password, Name: "Lena Weber",
 	}
 	auth, err := loginSchoolTeacher(rt, email, password)
@@ -84,10 +73,14 @@ func loginSchoolTeacher(rt *Runtime, email, password string) (AuthRef, error) {
 		return AuthRef{}, fmt.Errorf("school teacher login: %w", err)
 	}
 	var session struct {
+		Status      string `json:"status"`
 		AccessToken string `json:"access_token"`
 	}
 	if err := json.Unmarshal(raw, &session); err != nil {
 		return AuthRef{}, fmt.Errorf("decode school teacher session: %w", err)
+	}
+	if session.Status != "authenticated" {
+		return AuthRef{}, fmt.Errorf("school teacher login requires an authenticated session; MFA or enrollment must be completed first")
 	}
 	if session.AccessToken == "" {
 		return AuthRef{}, fmt.Errorf("school teacher login returned no school session")

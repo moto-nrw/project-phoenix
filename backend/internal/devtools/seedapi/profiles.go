@@ -100,6 +100,8 @@ func fullOperationProfileDefinition() demoProfileDefinition {
 // (#5032).
 func fullOperationProfileSettings() map[string]SeedSetting {
 	settings := fullOperationSettings()
+	settings[profileSettingSchoolWriteScope] = SeedSetting{Value: json.RawMessage(`["class_arrival_exceptions","class_handover","class_trips","day_hints"]`), ManagedBy: SettingManagedByTenant}
+	settings[profileSettingSchoolMorning] = SeedSetting{Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant}
 	for key, setting := range demoHistorySettings() {
 		settings[key] = setting
 	}
@@ -175,8 +177,6 @@ func notOfferedModuleSettings() map[string]SeedSetting {
 
 func fullOperationFeatureSettings() map[string]SeedSetting {
 	return map[string]SeedSetting{
-		profileSettingSchoolWriteScope:   {Value: json.RawMessage(`["class_arrival_exceptions","class_handover","class_trips","day_hints"]`), ManagedBy: SettingManagedByTenant},
-		profileSettingSchoolMorning:      {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
 		profileSettingOverviewScope:      {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
 		profileSettingAttendanceScope:    {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
 		profileSettingBlockStartScope:    {Value: json.RawMessage(`"all_staff"`), ManagedBy: SettingManagedByTenant},
