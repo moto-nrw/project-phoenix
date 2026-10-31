@@ -292,13 +292,13 @@ it.each(["/api/auth/switch-tenant", "/api/auth/staff-preview/end"])(
 );
 
 it.each([
-  ["schule-a.localhost:3000", "~/app/api/sse/events/route"],
-  ["eltern.localhost:3000", "~/app/api/parent/sse/events/route"],
-  ["schule.localhost:3000", "~/app/api/school/sse/events/route"],
-])(
+  ["schule-a.localhost:3000", () => import("~/app/api/sse/events/route")],
+  ["eltern.localhost:3000", () => import("~/app/api/parent/sse/events/route")],
+  ["schule.localhost:3000", () => import("~/app/api/school/sse/events/route")],
+] as const)(
   "%s rejects the stale tab before opening an upstream stream",
-  async (host, module) => {
-    const { GET } = (await import(module)) as { GET: Route };
+  async (host, loadRoute) => {
+    const { GET } = await loadRoute();
     const response = await call(GET, { host, account: "1" });
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({
