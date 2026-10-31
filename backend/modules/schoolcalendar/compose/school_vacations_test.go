@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -286,5 +287,5 @@ func TestSchoolVacationListQueryBudgetStaysFlat(t *testing.T) {
 
 	require.Len(t, large, len(small), "statement count must not grow with the vacation windows")
 	t.Logf("query budget: 3 school vacations → %d queries, 8 school vacations → %d queries", len(small), len(large))
-	testpkg.AssertQueryBudget(t, "modules.schoolcalendar.school_vacations.list", large)
+	querybudgets.AssertQueryBudget(t, "modules.schoolcalendar.school_vacations.list", large)
 }
