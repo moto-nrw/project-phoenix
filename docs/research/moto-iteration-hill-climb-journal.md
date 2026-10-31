@@ -157,6 +157,32 @@ Seed 120 s, Browser-Flow 31 s; zusammen etwa 3 min ohne manuellen Eingriff auße
 dem Ergänzen der von `doctor` genannten Env-Schlüssel. Der Seed ist der größte
 Posten. Ergebnis: behalten.
 
+### Runde 6: CI-Fehlerklassen seit dem aktuellen Bundle-Gate
+
+Die Auswertung der Baseline umfasst überwiegend die Zeit vor dem Delta-Gate
+(#5285, 29.10.) und `98608f2ee9` (30.10.). Nachmessung für 30.10. 10:00 UTC bis
+31.10. 11:00 UTC mit `gh run list --workflow main.yml --event pull_request`,
+fehlgeschlagenen Jobs aus der Jobs-API und `gh run view --job ID --log`:
+62 PR-Läufe, 13 fehlgeschlagen.
+
+| Klasse | Läufe | Branches | Lokal abfangbar |
+| --- | ---: | ---: | --- |
+| Bundle-Obergrenze (absolut, kein Delta) | 5 | 3 | kaum: 13 bis 201 Bytes über der Grenze, macOS und Linux weichen ab |
+| `deadcode` | 5 | 1 | ja, aber 33 s, 70 CPU-s, 11,7 GB Peak-RSS |
+| Backend-Tests | 4 | – | `test-changed.sh` |
+| knip | 3 | 2 | ja, Runde 2 |
+| Seed-Smoke, Core-Action fehlt | 2 | 1 | ja, `TestFullProductionRouterGolden` im `api`-Paket |
+
+4 der 5 Bundle-Fehler trafen `/[tenant]/reset-password`: `development` liegt
+wenige Bytes unter `referenceBytes` plus 2 %, sodass jede PR mit wenigen Bytes
+Wachstum gemeinsamen Codes rot wird. Das ist eine Policy-Frage (Puffer,
+Warnschwelle, Neubasierung) und in #5396 nachgetragen; nicht autonom geändert.
+
+Verworfen: `deadcode` in Pre-Push. Ein Branch pro Tag rechtfertigt 11,7 GB
+Spitzenspeicher pro Backend-Push nicht, solange mehrere Agents den Rechner
+teilen. Auffällig ist eher, dass derselbe Fehler auf einem Branch fünfmal in
+Folge gepusht wurde.
+
 ## Verworfen
 
 - Frontend-Guards bei Backend-Änderungen verkleinern: Die 45 Guard-Dateien sind
@@ -193,8 +219,9 @@ Startfehler des Testplatzes, erst danach reine Laufzeit.
 
 ## Nächster belegter Engpass
 
-1. Bundle-Gates in `frontend-build` (144 von 366 fehlgeschlagenen PR-Läufen,
-   #5396): lokal prüfbar machen oder billiger auslösen.
+1. Bundle-Obergrenzen in `frontend-build`: seit dem aktuellen Gate 5 von 13
+   fehlgeschlagenen PR-Läufen, alle absolute Grenzen knapp über dem Ist (#5396).
+   Wartet auf eine Policy-Entscheidung.
 2. Vitest bei zentralen Frontend-Dateien: 495 Dateien, 409 CPU-s, ohne
    Ergebnis-Cache bei unveränderter Wiederholung. Setup 31 s und Environment
    60 s der Vitest-Zeit sind der größte Posten.
