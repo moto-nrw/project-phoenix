@@ -220,19 +220,39 @@ export function AggregatedRequestList({
   // sie das Kind findet oder keine offene Seite mehr bleibt.
   const listAreaRef = useRef<HTMLDivElement>(null);
   const handledFocus = useRef(0);
+  const attemptedFocusLoad = useRef<{
+    nonce: number;
+    cases: readonly OpenCase[];
+  } | null>(null);
   useEffect(() => {
     if (!focusRequest || handledFocus.current === focusRequest.nonce) return;
     const target = openCases.find(
       (childCase) => childCase.studentID === focusRequest.studentId,
     );
     if (!target) {
-      if (hasMore && !loadingMore) void loadMore();
+      const attempted = attemptedFocusLoad.current;
+      if (
+        hasMore &&
+        !loadingMore &&
+        !listError &&
+        (attempted?.nonce !== focusRequest.nonce ||
+          attempted.cases !== openCases)
+      ) {
+        // Ein fehlgeschlagener Seitenabruf lässt dieselben Fälle stehen. Erst
+        // eine neue Seite darf den automatischen Sprung erneut fortsetzen;
+        // Wiederholen bleibt die ausdrückliche Aktion im Ladefehler.
+        attemptedFocusLoad.current = {
+          nonce: focusRequest.nonce,
+          cases: openCases,
+        };
+        void loadMore();
+      }
       return;
     }
     handledFocus.current = focusRequest.nonce;
     setSelectedCaseKey(target.key);
     listAreaRef.current?.scrollIntoView?.({ block: "start" });
-  }, [focusRequest, hasMore, loadMore, loadingMore, openCases]);
+  }, [focusRequest, hasMore, listError, loadMore, loadingMore, openCases]);
 
   const backToList = useCallback(() => {
     setSelectedCaseKey(null);

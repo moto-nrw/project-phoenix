@@ -560,3 +560,24 @@ func TestCourseWaitlistCapacityUntilUsesQueuedChildPhaseEnd(t *testing.T) {
 
 	assert.Equal(t, calendar.NewDate(2028, 8, 1), until)
 }
+
+func TestTeamCourseQueueCapacityWindowUsesAppliedRequestDate(t *testing.T) {
+	t.Parallel()
+
+	queue := teamCourseQueue{
+		rows: []careplan.OfferingChangeRequest{{
+			ID: 11, StudentID: 33, RequestChildID: 17, EffectiveFrom: "2026-08-01",
+		}},
+		periods: []ports.OfferingCarePeriod{{
+			StudentID: 33, RequestChildID: 17, ServiceStart: calendar.NewDate(2026, 9, 1), ServiceEnd: calendar.NewDate(2027, 7, 31),
+		}},
+	}
+
+	from, until := queue.capacityWindow(
+		[]careplan.CourseWaitlistEntry{{RequestID: 11, Rank: 1}},
+		calendar.NewDate(2026, 8, 24),
+	)
+
+	assert.Equal(t, calendar.NewDate(2026, 9, 1), from)
+	assert.Equal(t, calendar.NewDate(2027, 8, 1), until)
+}

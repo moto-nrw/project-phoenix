@@ -413,6 +413,41 @@ describe("AggregatedRequestList", () => {
     expect(mockListOpen).toHaveBeenCalledTimes(2);
   });
 
+  it("wiederholt einen fehlgeschlagenen Wartelisten-Sprung nicht selbst", async () => {
+    const firstPage = Array.from({ length: 25 }, (_, index) => ({
+      ...(openItem("master_data", String(index)) as object),
+      data: { id: String(index) },
+    })) as never[];
+    mockListOpen.mockImplementation(async (params) => {
+      if (params?.cursor)
+        throw new ApiError("page unavailable", 503, {
+          code: "general.unavailable",
+        });
+      return { items: firstPage, next_cursor: "nächste-seite" };
+    });
+
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    await screen.findByText("master-item-0");
+
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={NO_FILTERS}
+        focusRequest={{ studentId: "30", nonce: 1 }}
+      />,
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Liste der Anfragen ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
+      ),
+    ).toBeVisible();
+    await act(async () => {});
+    expect(mockListOpen).toHaveBeenCalledTimes(2);
+  });
+
   it("kennzeichnet widersprüchliche Wünsche im Fall", async () => {
     mockListOpen.mockResolvedValue({
       items: ["alleine", "bus"].map((mode, index) => ({

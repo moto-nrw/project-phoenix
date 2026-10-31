@@ -146,6 +146,15 @@ func (s *OfferingChanges) loadTeamQueueChildren(
 	for i := range children {
 		queue.childrenByID[children[i].ID] = &children[i]
 	}
+	slices.Sort(studentIDs)
+	periods, err := s.deps.Enrollment.StudentCarePeriodsByStudentIDs(ctx, slices.Compact(studentIDs))
+	if err != nil {
+		return fmt.Errorf("course waitlist: load care periods: %w", err)
+	}
+	queue.periods = periods
+	for requestChildID, requested := range dates {
+		dates[requestChildID] = queue.appliedRequestDate(requestChildID, requested, today)
+	}
 	current, err := s.deps.Enrollment.EffectiveSelectionsAt(ctx, dates)
 	if err != nil {
 		return fmt.Errorf("course waitlist: load current offerings: %w", err)
@@ -156,13 +165,21 @@ func (s *OfferingChanges) loadTeamQueueChildren(
 		}
 		queue.bookedByChild[link.RequestChildID][link.CareOfferingID] = true
 	}
-	slices.Sort(studentIDs)
-	periods, err := s.deps.Enrollment.StudentCarePeriodsByStudentIDs(ctx, slices.Compact(studentIDs))
-	if err != nil {
-		return fmt.Errorf("course waitlist: load care periods: %w", err)
-	}
-	queue.periods = periods
 	return nil
+}
+
+// appliedRequestDate follows the date the approval uses for a child: an old
+// request starts today, and a request before the child's care phase starts at
+// the phase boundary. The queue uses the same date for current selections and
+// for its capacity interval.
+func (q *teamCourseQueue) appliedRequestDate(requestChildID int64, requested, today calendar.Date) calendar.Date {
+	applied := appliedOfferingChangeDate(requested, today)
+	for _, period := range q.periods {
+		if period.RequestChildID == requestChildID && applied.Before(period.ServiceStart) {
+			return period.ServiceStart
+		}
+	}
+	return applied
 }
 
 // courseWaitlistCapacityUntil covers the current phase of the queued child.
@@ -176,7 +193,7 @@ func courseWaitlistCapacityUntil(
 	effectiveDates := make(map[int64]calendar.Date, len(rows))
 	for _, row := range rows {
 		if row.StudentID > 0 {
-			effectiveDates[row.StudentID] = offeringChangeEffectiveFrom(row)
+			effectiveDates[row.StudentID] = appliedOfferingChangeDate(offeringChangeEffectiveFrom(row), today)
 		}
 	}
 	until := today.AddDays(1)
@@ -250,7 +267,7 @@ func (q *teamCourseQueue) capacityWindow(entries []careplan.CourseWaitlistEntry,
 		if row.ID != entries[0].RequestID {
 			continue
 		}
-		from := offeringChangeEffectiveFrom(row)
+		from := q.appliedRequestDate(row.RequestChildID, offeringChangeEffectiveFrom(row), today)
 		return from, courseWaitlistCapacityUntil([]careplan.OfferingChangeRequest{row}, q.periods, from)
 	}
 	return today, today.AddDays(1)
