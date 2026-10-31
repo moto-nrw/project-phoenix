@@ -425,8 +425,9 @@ pass alone is not confirmation. Every portal shell revokes through its BFF logou
 (`/api/{,parent/,school/,caterer/,traeger/,operator/}auth/logout`) before
 Auth.js clears the cookie; a failed revocation keeps the session and shows
 the error with a retry, as does the tenant relogin action. Portal cookies
-are host-only, but a late response of the same portal can still write one
-back; the revoked family makes it worthless. Migration 1.15.707 gives every
+are host-only; a late response of the same portal may write one back only
+in the narrow cases [below](#late-responses-after-logout-5399), and the
+revoked family makes it worthless. Migration 1.15.707 gives every
 live chain from before families (head plus rotated predecessors linked by
 `replacement_token`, same account, generation + 1) one family, so it keeps
 signing in through one forced renewal. It works one account per
@@ -493,6 +494,62 @@ calling the backend; failed installation revokes the freshly minted family.
 The regular parent Credentials login and Träger handoff continue to redeem
 credentials/proofs server-side. The internal Next.js cookie adapter remains
 pinned and protected by the cookie-order/chunk-deletion integration tests.
+
+### Late responses after logout (#5399)
+
+A response sets its cookies when its headers arrive, whatever the JavaScript
+that sent it does with the result. Two rules keep a response started before
+a logout or a "Zur Schulanmeldung" from writing the old session back:
+
+1. **Only a changed session is written.** Auth.js re-encodes the session
+   cookie on every session read. Every portal's session route (GET and the
+   `update()` POST, `withBrowserSession`) and every BFF route
+   (`finishResponse` in `frontend/src/server/auth/route-handler.ts`) drop the
+   session Set-Cookie when it decodes to the session the request presented
+   (`frontend/src/server/auth/session-cookie-writes.ts`, claims `iat`, `exp`,
+   `jti` ignored). Sign-in, rotation, `update()` with a change, forced renewal
+   and the end of a session still write it. The cookie's lifetime equals the
+   refresh lifetime and moves with each rotation.
+2. **The session-end barrier** (`frontend/src/lib/session-end-barrier.ts`)
+   covers the writes that remain. Every portal's logout and the tenant relogin
+   close it before revocation: requests to the tab's own `/api/` whose answer
+   has not arrived are aborted, so the browser drops their Set-Cookie; new
+   ones wait (or end at once when their caller aborts); the SessionProvider's
+   poll stops (`useSessionPollInterval`). An aborted GET or HEAD is sent again
+   when the barrier opens, any other method fails. The fetch observer
+   (`session-tenant-mismatch-observer.ts`) applies it to every fetch once
+   installed; the
+   browser's BFF calls all use fetch, Axios runs only on the server against
+   the backend. `<SessionEndBarrier />` installs it where a session is used:
+   the tenant shell's protected layout and the other portals' providers.
+   The public tenant pages (password reset, Anmeldung, demo, invitation,
+   Träger hand-off) share the tenant layout but carry only its state module
+   (`session-end-state.ts`): the barrier code would exceed their bundle
+   budgets. The shell's logout does not run there; `TenantGuard`'s
+   „Zur Schulanmeldung“ can, for a session of another school, and then runs
+   without barrier, protected by rule 1 only (#5402). Invariants:
+   - **Exits belong to one attempt.** BFF logout, CSRF, Auth.js signout,
+     staff-preview end and the push cleanup (`DELETE …/push/subscriptions`)
+     pass only while this tab's own attempt runs, and carry that attempt's
+     signal: started before the logout they are aborted like any request,
+     and they abort when the attempt fails or its signout deleted the cookie.
+   - **Other tabs stay closed while the owner lives.** They close on `begin`
+     (`BroadcastChannel` `moto-session-end`). After 15 s they ask (`ping`);
+     each owner answers `begin` with its attempt ID while that attempt runs,
+     however long CSRF or signout hang. Holds and pings are tracked per
+     attempt, including while this tab logs out. Another tab opens only once
+     every attempt reports `ended` or `failed`, or fails to answer its own
+     ping within 2 s (that owner is gone). An `ended` also aborts
+     every request an open tab still has in flight.
+   - **Opening.** The owner opens when the logout fails or, outside the
+     tenant shell, once its signout answer deleted the cookie; the tenant exit
+     keeps it closed while it navigates and opens only on `pagehide` or a
+     cancelled exit.
+
+`BroadcastChannel` does not cross origins. A tab on another school's
+subdomain sharing the domain-scoped tenant cookie does not hear the
+barrier; only rule 1 protects it, so a renewal it has in flight can still
+write a cookie of the revoked family back (no access, see above).
 
 ### Login, refresh, and MFA
 

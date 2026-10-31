@@ -1,0 +1,287 @@
+import { isOwnApiUrl } from "./session-account";
+import { announceSessionBarrier, type SessionEnd } from "./session-end-state";
+
+/**
+ * Session-end barrier (#5399). A response sets its cookies when its headers
+ * arrive, whatever the JavaScript that sent it does with the result. A
+ * session lookup, refresh or BFF call still running when a logout deletes
+ * the session cookie could therefore write the session back. From the start
+ * of a logout until the cookie is gone, this tab sends nothing to its own BFF
+ * that could renew the old session:
+ *
+ * 1. Closing the barrier aborts every fetch to this origin's `/api/` whose
+ *    response headers have not arrived. The browser then drops their
+ *    Set-Cookie. A GET or HEAD is sent again once the barrier opens; any
+ *    other method fails, as an interrupted connection would.
+ * 2. New requests wait until the barrier opens. Only the exit's own requests
+ *    pass: revocation, CSRF, Auth.js signout, the preview end and the push
+ *    cleanup.
+ * 3. The SessionProvider stops polling while it is closed
+ *    (useSessionPollInterval, through session-end-state).
+ * 4. Other tabs of this origin close too (BroadcastChannel). After
+ *    OTHER_TAB_HOLD_MS they ask (`ping`); each owner answers `begin` with its
+ *    attempt ID while that attempt runs, however long CSRF or signout hang.
+ *    Another tab opens only once every owner reports `ended` or `failed`,
+ *    or fails to answer its own ping within OWNER_REPLY_MS (it is gone).
+ *    An `ended` also aborts what an open
+ *    tab still has in flight: those requests carry the deleted cookie.
+ * 5. The exit's own requests pass only while this tab's attempt runs, and
+ *    only for that attempt: started before the logout they are aborted like
+ *    any other request; they end with a failed attempt or the deleted cookie.
+ *
+ * The barrier opens again when the logout fails (the session stays, and
+ * waiting requests continue with it) or, unless the owner keeps it closed for
+ * its own navigation, once the signout answer deleted the cookie: a request
+ * sent after that carries no session. The server keeps a response that only
+ * re-read the session from writing its cookie at all (session-cookie-writes).
+ * Axios needs no barrier: the browser paths use fetch; Axios only runs on the
+ * server, against the backend.
+ */
+
+/** Initial hold before checking whether a remote logout still runs. */
+const OTHER_TAB_HOLD_MS = 15_000;
+/** A live owner answers a `ping` at once; silence means it is gone. */
+const OWNER_REPLY_MS = 2_000;
+
+let closedBy: "self" | "other" | null = null;
+let reopenAfterDeletion = true;
+/**
+ * Requests whose response headers have not arrived: only their Set-Cookie
+ * can still land. An answered request keeps running (an SSE stream, a body
+ * still being read); its cookies were set before the logout went on.
+ */
+const awaiting = new Set<AbortController>();
+/** The same for the exit requests of this tab's running attempt. */
+const exits = new Set<AbortController>();
+/** This tab's latest attempt; live until it failed or deleted the cookie. */
+let attempt: string | null = null;
+let attemptLive = false;
+const waiters = new Set<() => void>();
+const owners = new Map<string, ReturnType<typeof setTimeout>>();
+let channel: BroadcastChannel | undefined;
+
+function abortAll(requests: Set<AbortController>) {
+  for (const request of requests) request.abort();
+  requests.clear();
+}
+
+function abortInFlight() {
+  abortAll(awaiting);
+}
+
+/** Ends this tab's attempt: its exit requests abort, pings go unanswered. */
+function endAttempt() {
+  attemptLive = false;
+  abortAll(exits);
+}
+
+/** Sends one request that the given set can abort until its headers arrive. */
+async function sendTracked(
+  requests: Set<AbortController>,
+  request: AbortController,
+  send: () => Promise<Response>,
+): Promise<Response> {
+  requests.add(request);
+  try {
+    return await send();
+  } finally {
+    requests.delete(request);
+  }
+}
+
+type SessionEndMessage = {
+  type: "begin" | "ping" | "ended" | "failed";
+  attempt: string;
+};
+
+function broadcast(type: SessionEndMessage["type"], id: string) {
+  channel?.postMessage({ type, attempt: id } satisfies SessionEndMessage);
+}
+
+/** A remote completion releases only its own hold, never this tab's exit. */
+function releaseOwner(id: string) {
+  clearTimeout(owners.get(id));
+  owners.delete(id);
+  if (closedBy === "other" && owners.size === 0) setClosed(null);
+}
+
+/** Each owner must answer its own ping; another owner's reply cannot keep it. */
+function holdForOwner(id: string) {
+  clearTimeout(owners.get(id));
+  owners.set(
+    id,
+    setTimeout(() => {
+      broadcast("ping", id);
+      owners.set(
+        id,
+        setTimeout(() => releaseOwner(id), OWNER_REPLY_MS),
+      );
+    }, OTHER_TAB_HOLD_MS),
+  );
+}
+
+function releaseLocalHold() {
+  setClosed(owners.size ? "other" : null);
+}
+
+function setClosed(owner: typeof closedBy) {
+  if (owner) abortInFlight();
+  else {
+    for (const resume of waiters) resume();
+    waiters.clear();
+  }
+  closedBy = owner;
+  announceSessionBarrier(owner !== null);
+}
+
+/** Hears the other tabs' logouts; the fetch observer starts it at load. */
+export function listenForSessionEnds() {
+  if (channel || typeof BroadcastChannel === "undefined") return;
+  channel = new BroadcastChannel("moto-session-end");
+  channel.onmessage = ({ data }: MessageEvent<SessionEndMessage>) => {
+    if (!data || typeof data.attempt !== "string") return;
+    const { type, attempt: id } = data;
+    if (type === "ping") {
+      if (attemptLive && attempt === id) broadcast("begin", id);
+      return;
+    }
+    if (type === "begin") {
+      holdForOwner(id);
+      if (!closedBy) setClosed("other");
+      return;
+    }
+    if (type !== "ended" && type !== "failed") return;
+    // Requests sent while open carry the cookie the signout deleted.
+    if (type === "ended") abortInFlight();
+    releaseOwner(id);
+  };
+}
+
+/** Whether this tab holds its BFF requests for a session end. */
+export function isSessionBarrierClosed(): boolean {
+  return closedBy !== null;
+}
+
+/**
+ * Starts a logout: closes the barrier here and in the other tabs of this
+ * origin. `keepClosed`: the owner navigates itself after the cookie is
+ * deleted, so waiting requests never go out (tenant logout and relogin:
+ * a late redirect to the source school's login must not race navigation).
+ */
+export function beginSessionEnd({
+  keepClosed = false,
+}: { keepClosed?: boolean } = {}): SessionEnd {
+  listenForSessionEnds();
+  if (attemptLive && attempt) broadcast("failed", attempt);
+  endAttempt();
+  const current = (attempt = crypto.randomUUID());
+  attemptLive = true;
+  reopenAfterDeletion = !keepClosed;
+  setClosed("self");
+  broadcast("begin", current);
+  return {
+    fail() {
+      // Also after the signout (bfcache restore), never for a later attempt.
+      if (attempt !== current || closedBy !== "self") return;
+      endAttempt();
+      broadcast("failed", current);
+      releaseLocalHold();
+    },
+  };
+}
+
+/** The exit's auth requests: revocation, CSRF, signout and preview end. */
+const EXIT_PATH =
+  /^\/api\/(?:[a-z]+\/)?auth\/(?:logout|csrf|signout|staff-preview\/end)$/;
+
+/**
+ * Sends one fetch through the barrier. Requests to other origins and paths
+ * outside `/api/` pass unchanged; an open barrier sends at once, in the
+ * caller's task, as fetch does.
+ */
+export async function fetchThroughSessionBarrier(
+  send: typeof fetch,
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const isRequest = input instanceof Request;
+  const raw = isRequest ? input.url : input.toString();
+  if (!isOwnApiUrl(raw)) return send(input, init);
+  const { pathname } = new URL(raw, location.origin);
+  const method = init?.method ?? (isRequest ? input.method : "GET");
+  const callerSignal = init?.signal ?? (isRequest ? input.signal : undefined);
+  const exit =
+    EXIT_PATH.test(pathname) ||
+    (method.toUpperCase() === "DELETE" &&
+      pathname.endsWith("/push/subscriptions"));
+  const merged = (own: AbortController) =>
+    callerSignal ? AbortSignal.any([callerSignal, own.signal]) : own.signal;
+  if (exit && closedBy === "self" && attemptLive) {
+    const current = attempt;
+    const own = new AbortController();
+    const response = await sendTracked(exits, own, () =>
+      send(input, { ...init, signal: merged(own) }),
+    );
+    // The signout answer of this attempt deleted the session cookie.
+    if (
+      pathname.endsWith("/signout") &&
+      response.ok &&
+      attemptLive &&
+      attempt === current
+    ) {
+      endAttempt();
+      broadcast("ended", current!);
+      if (reopenAfterDeletion) releaseLocalHold();
+    }
+    return response;
+  }
+
+  const repeatable = /^(GET|HEAD)$/i.test(method);
+  for (;;) {
+    callerSignal?.throwIfAborted();
+    if (closedBy) {
+      await new Promise<void>((resolve, reject) => {
+        const resume = () => {
+          callerSignal?.removeEventListener("abort", cancel);
+          resolve();
+        };
+        const cancel = () => {
+          waiters.delete(resume);
+          reject(callerSignal?.reason);
+        };
+        waiters.add(resume);
+        callerSignal?.addEventListener("abort", cancel, { once: true });
+      });
+    }
+    const own = new AbortController();
+    try {
+      return await sendTracked(awaiting, own, () =>
+        send(repeatable && isRequest ? input.clone() : input, {
+          ...init,
+          signal: merged(own),
+        }),
+      );
+    } catch (error) {
+      if (!own.signal.aborted || callerSignal?.aborted || !repeatable)
+        throw error;
+      // The barrier stopped this read before its answer could set a cookie.
+      // Ask again once it opens, with the cookie that holds then.
+    }
+  }
+}
+
+/** Test seam: forget the state of a previous test. */
+export function resetSessionBarrierForTests() {
+  closedBy = null;
+  reopenAfterDeletion = true;
+  awaiting.clear();
+  exits.clear();
+  attempt = null;
+  attemptLive = false;
+  waiters.clear();
+  for (const timer of owners.values()) clearTimeout(timer);
+  owners.clear();
+  announceSessionBarrier(false);
+  channel?.close();
+  channel = undefined;
+}
