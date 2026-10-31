@@ -75,6 +75,18 @@ func (rs *Resource) mountCalendarRoutes(r chi.Router, withTx common.Middleware) 
 	// period page (schedules:read) both read them, without a time-tracking
 	// permission.
 	r.With(common.RequiresAnyPermission(permissions.SchedulesRead, permissions.CalendarOwn), withTx).Get("/holidays", rs.listHolidays)
+
+	// School vacations of the school's federal state (#5345), read from the
+	// daily sync. The list holds for the whole school like the holidays; the
+	// hint and its confirmation belong to the people who plan.
+	r.With(common.RequiresAnyPermission(permissions.SchedulesRead, permissions.CalendarOwn), withTx).Get("/school-vacations", rs.listSchoolVacations)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).Get("/school-vacation-hints", rs.listSchoolVacationHints)
+	r.With(common.RequiresPermission(permissions.SchedulesManage), withTx).Post("/school-vacation-hints/acknowledgements", rs.acknowledgeSchoolVacation)
+	if rs.IsLocalSeed != nil {
+		// No tenant transaction: the seed writes the vacations of every
+		// state in its own administrative transaction.
+		r.With(common.RequiresPermission(permissions.SchedulesManage)).Post("/school-vacations/seed", rs.seedSchoolVacations)
+	}
 }
 
 // mountInstancePlanningRoutes registers the planner's reads and writes of

@@ -31,6 +31,8 @@ GET /api/timetable/periods/ -> basis
 GET /api/timetable/periods/{id} -> basis
 GET /api/timetable/pickup-extensions/ -> basis
 GET /api/timetable/planning-tracks/ -> basis
+GET /api/timetable/school-vacation-hints -> basis
+GET /api/timetable/school-vacations -> basis
 GET /api/timetable/student/{id}/day -> basis
 GET /api/timetable/student/{id}/week -> basis
 GET /api/timetable/templates -> basis
@@ -69,6 +71,8 @@ POST /api/timetable/periods/bootstrap -> basis
 POST /api/timetable/pickup-extensions/{id}/resolve -> basis
 POST /api/timetable/planning-tracks/ -> basis
 POST /api/timetable/planning-tracks/{id}/restore -> basis
+POST /api/timetable/school-vacation-hints/acknowledgements -> basis
+POST /api/timetable/school-vacations/seed -> basis
 POST /api/timetable/shift-coverage -> dienstplan
 POST /api/timetable/substitutions/bulk -> basis
 POST /api/timetable/templates -> basis

@@ -7897,6 +7897,14 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.ClosingDayDates",
+      "binding_digest": "93abd005b22840ef83ceef1c6b633579",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.NonWorkingDayCalendar.ClosingDayDates",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
       "binding_digest": "72e5b6937621c2caeb8739e4a537432e",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.NonWorkingDayCalendar.TenantHolidayDates",
@@ -7910,6 +7918,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.NonWorkingDayCalendar.TenantHolidayDates",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.TenantHolidayDates",
+      "binding_digest": "72e5b6937621c2caeb8739e4a537432e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.NonWorkingDayCalendar.TenantHolidayDates",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
       "target_owner": "school-calendar"
     },
     {
@@ -12105,6 +12121,30 @@
       "target_owner": "care-exit"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.AcknowledgeSchoolVacation",
+      "binding_digest": "56d9b6f6d5e0ac4ae14db52d4f926113",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.SchoolVacations.AcknowledgeSchoolVacation",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.AcknowledgeSchoolVacation",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.SeedSchoolVacations",
+      "binding_digest": "2c12c3070c05fc288fef136d0fd2d7f3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.SchoolVacations.SeedSchoolVacations",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.SeedSchoolVacations",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "binding_digest": "a359e5bceb16d1de3db530f388bb5b86",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.SchoolVacations.TenantSchoolVacations",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "target_owner": "school-calendar"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetableSupervisionSheets.SupervisionStudentSheet",
       "binding_digest": "dd44d67d93ebef1b902ba2e59cb12819",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.SupervisionSheets.SupervisionStudentSheet",
@@ -12679,6 +12719,38 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.SessionExecution",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
+      "binding_digest": "93abd005b22840ef83ceef1c6b633579",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.ClosingDayDates",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListCalendarPeriods",
+      "binding_digest": "9c05412d42a29d92efbffd0dc12465ca",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.ListCalendarPeriods",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
+      "binding_digest": "72e5b6937621c2caeb8739e4a537432e",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.TenantHolidayDates",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "binding_digest": "a359e5bceb16d1de3db530f388bb5b86",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationReader.TenantSchoolVacations",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "target_owner": "school-calendar"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.workforceShiftRecords.CreateShiftType",

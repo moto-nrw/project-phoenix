@@ -10454,6 +10454,16 @@
       "target_owner": "school-calendar"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.ClosingDayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.NonWorkingDayCalendar.ClosingDayDates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Calendar.ClosingDayDates (vacation hint, #5345). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
       "classification": "query",
       "effect": "query",
@@ -10471,6 +10481,16 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Days.TenantHolidayDates; modules/schoolcalendar.Days (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.TenantHolidayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.TenantHolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.NonWorkingDayCalendar.TenantHolidayDates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Calendar.TenantHolidayDates (vacation hint, #5345). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
       "target_owner": "school-calendar"
     },
     {
@@ -15897,6 +15917,38 @@
       "target_owner": "care-exit"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.AcknowledgeSchoolVacation",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.SchoolVacations.AcknowledgeSchoolVacation",
+      "reason": "Guarded target record command: the timetable HTTP route records the school's confirmation of planned vacation care through School Calendar's public command inside the request's tenant transaction (#5345); no source coordination, preserve ambient scope and failure propagation. Target modules/schoolcalendar.SchoolVacationOwner.AcknowledgeSchoolVacation. ",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.AcknowledgeSchoolVacation",
+      "target_owner": "school-calendar"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.SeedSchoolVacations",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.SchoolVacations.SeedSchoolVacations",
+      "reason": "Guarded target record command: the local-only timetable seed route stores fixed school vacations through School Calendar's public command in its own administrative transaction (#5345); only the local demo seeder reaches it, no source coordination. Target modules/schoolcalendar.SchoolVacationOwner.SeedSchoolVacations. ",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.SeedSchoolVacations",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.SchoolVacations.TenantSchoolVacations",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations (vacation hint, #5345). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "target_owner": "school-calendar"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.TimetableSupervisionSheets.SupervisionStudentSheet",
       "classification": "query",
       "effect": "query",
@@ -16639,6 +16691,46 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.SessionExecution",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.ClosingDayDates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Calendar.ClosingDayDates (vacation hint, #5345). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ClosingDayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListCalendarPeriods",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.ListCalendarPeriods",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Calendar.ListCalendarPeriods (vacation hint, #5345). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.ListCalendarPeriods",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationDays.TenantHolidayDates",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.Calendar.TenantHolidayDates (vacation hint, #5345). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Calendar.TenantHolidayDates",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.SchoolVacationReader.TenantSchoolVacations",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations (vacation hint, #5345). May-bind method surface, not a production-call/liveness claim.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.SchoolVacationOwner.TenantSchoolVacations",
+      "target_owner": "school-calendar"
     },
     {
       "adr": "0067",

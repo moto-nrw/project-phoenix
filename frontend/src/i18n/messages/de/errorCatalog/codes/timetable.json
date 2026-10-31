@@ -83,6 +83,7 @@
   "reopen_student_active": "Ein Kind ist inzwischen woanders eingecheckt. Der Termin lässt sich nicht wieder öffnen.",
   "reopen_supervision_changed": "Die Betreuung wurde nach dem Abschluss geändert. Der Termin lässt sich nicht wieder öffnen.",
   "room_occupied": "In diesem Raum läuft schon eine andere Gruppe. Bitte wählen Sie einen anderen Raum.",
+  "school_vacation_not_found": "Diese Ferien gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "series_end_before_start": "Die Serie beginnt am {start}. Das Enddatum darf nicht davor liegen.",
   "series_end_outside_period": "Der Zeitraum endet am {end}. Bitte wählen Sie ein früheres Enddatum.",
   "sick_absence_scope_locked": "Diese Abwesenheit kommt aus einer Krankmeldung. Sie lässt sich hier nicht ändern.",
