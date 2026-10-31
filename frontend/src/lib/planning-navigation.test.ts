@@ -62,6 +62,7 @@ describe("planning navigation", () => {
       "/dienstplan": "time_tracking:manage",
       "/vertretung": "schedules:manage",
       "/lists": "schedules:manage",
+      "/wochenprotokolle": "groups:manage",
       "/calendar-periods": "schedules:manage",
       "/payroll": "config:manage",
     });

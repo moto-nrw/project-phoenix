@@ -578,11 +578,11 @@
       "target_owner": "identity-access"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/api.declarationReports.RenderReport",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements.ReportRenderer.RenderReport",
-      "reason": "Read-only newly exposed target: communication reaches modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) through api.declarationReports.RenderReport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "reason": "Read-only newly exposed target: communication reaches modules/documentrendering/lists.RecordRenderer.RenderRecords (document-rendering) through roots/owners.RecordReports.RenderReport. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "communication",
       "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
       "target_owner": "document-rendering"

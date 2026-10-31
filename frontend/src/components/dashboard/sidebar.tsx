@@ -750,23 +750,26 @@ function SidebarContent({
   // Nur die Seiten des Betreuungsplans hängen an timetable.enabled.
   // Kalenderzeiträume bleiben erreichbar (Anmeldephasen verknüpfen sich mit
   // ihnen); Dienstplan und Abrechnung folgen ihren Modulen (#4894).
+  // Gruppenübergaben (#1940) sind nur bei
+  // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
+  // Berechtigten mit allen Kindern.
+  const openCareGroupMode = useOpenCareGroupMode();
   const planningSubPages = PLANNING_SUB_PAGES.flatMap((page) => {
     // Nicht-Admins sehen nur Seiten mit gehaltener nonAdminPermission
-    // (#2283).
+    // (#2283), bei offener Betreuung auch mit openCarePermission (#4769).
     const gate = moduleGate(
       moduleNav.page(page.href),
       userIsAdmin ||
         (page.nonAdminPermission !== undefined &&
-          hasPermission(session, page.nonAdminPermission)),
+          hasPermission(session, page.nonAdminPermission)) ||
+        (openCareGroupMode &&
+          page.openCarePermission !== undefined &&
+          hasPermission(session, page.openCarePermission)),
       !page.requiresTimetable || timetableEnabled,
     );
     return gate.show ? [{ ...page, locked: gate.locked }] : [];
   });
 
-  // Gruppenübergaben (#1940) sind nur bei
-  // festen Gruppen sinnvoll; bei offener Betreuung arbeiten ohnehin alle
-  // Berechtigten mit allen Kindern.
-  const openCareGroupMode = useOpenCareGroupMode();
   // Kinder nur über „Alle Kinder“ (#1321): Gruppen und Aktuelle
   // Aufsicht verlassen die Leiste und stehen dort als Reiter.
   const childSearchOnlyNavigation = useChildSearchOnlyNavigation();

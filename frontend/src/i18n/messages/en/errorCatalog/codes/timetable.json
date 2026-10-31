@@ -134,6 +134,10 @@
   "template_weekend": "{object} could not be saved. Please check your entries.",
   "too_many_dates": "{object} could not be saved. Please check your entries.",
   "understaffed_still_staffed": "{object} could not be changed. Please check its current status.",
+  "week_protocol_not_closed": "{object} could not be changed. Please check its current status.",
+  "week_protocol_not_draft": "{object} could not be changed. Please check its current status.",
+  "week_protocol_not_found": "{object} could not be changed. Please check its current status.",
+  "week_protocol_notes_invalid": "{object} could not be saved. Please check your entries.",
   "window_end_before_start": "{object} could not be saved. Please check your entries.",
   "window_too_large": "{object} could not be saved. Please check your entries."
 }

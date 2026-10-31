@@ -25,6 +25,11 @@ type offeringGapResponse struct {
 	Weekdays            []int                                     `json:"weekdays"`
 	Acknowledged        bool                                      `json:"acknowledged"`
 	AcknowledgedClasses []string                                  `json:"acknowledged_classes"`
+	// NewSeriesClasses is the Klassenfilter of a Regeltermin started from
+	// the hint; NewSeriesPlansCovered says the hint offers no creation
+	// because it would plan children a second time (#5343).
+	NewSeriesClasses      []string `json:"new_series_classes"`
+	NewSeriesPlansCovered bool     `json:"new_series_plans_covered"`
 }
 
 type offeringGapsResponse struct {
@@ -70,7 +75,7 @@ func (rs *Resource) listOfferingGaps(w http.ResponseWriter, r *http.Request) {
 }
 
 // offeringGaps compares the bookings of an active period from today on with
-// the Regeltermine the offerings feed, date by date.
+// the Regeltermine and the Klassentag, date by date (#5140, #5343).
 // errInactivePlanningPeriod for an unknown or inactive period. Without the
 // offering side there is nothing to compare.
 func (rs *Resource) offeringGaps(ctx context.Context, periodID int64) ([]timetable.OfferingGap, error) {
@@ -86,7 +91,10 @@ func (rs *Resource) offeringGaps(ctx context.Context, periodID int64) ([]timetab
 	if err != nil || len(bookings) == 0 {
 		return []timetable.OfferingGap{}, err
 	}
-	templates, err := rs.offeringGapTemplates(ctx, period, &scope)
+	if scope.Arrivals, err = rs.offeringGapArrivals(ctx, scope, bookings); err != nil {
+		return nil, err
+	}
+	templates, err := rs.offeringGapTemplates(ctx, period, &scope, offeringGapNeedsAnyRoster(scope, bookings))
 	if err != nil {
 		return nil, err
 	}
@@ -104,11 +112,14 @@ func (rs *Resource) activePlanningPeriod(ctx context.Context, periodID int64) (s
 }
 
 // offeringGapTemplates reads the period's Regeltermine with the offerings
-// that feed them and the dates materialization creates their occurrences
-// on, and fills the scope's closed days from the same projection. Unlike the
+// that feed them, the dates and clock times materialization creates their
+// occurrences with and, where one can cover a booking, their rosters; it
+// fills the scope's closed days from the same projection. Unlike the
 // template list, a failed read fails the request: without it every booking
-// would look uncovered.
-func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalendar.CalendarPeriod, scope *timetable.OfferingGapScope) ([]timetable.OfferingGapTemplate, error) {
+// would look uncovered. allRosters reads every roster, since with clock
+// times any Regeltermin may cover a booking; otherwise only those the strict
+// day rule admits.
+func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalendar.CalendarPeriod, scope *timetable.OfferingGapScope, allRosters bool) ([]timetable.OfferingGapTemplate, error) {
 	if rs.MaterializationService == nil {
 		return nil, errors.New("timetable offering gaps: materialization not wired")
 	}
@@ -117,18 +128,10 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalen
 	if err != nil {
 		return []timetable.OfferingGapTemplate{}, err
 	}
-	templates := mapTemplateRows(rows, ratio, nil)
-	queries := make([]timetable.TemplateRosterMaintenanceQuery, 0, len(templates))
-	for _, template := range templates {
-		queries = append(queries, timetable.TemplateRosterMaintenanceQuery{
-			TemplateID:            template.ID,
-			CalendarPeriodID:      rosterMaintenanceCalendarPeriodID(template, &period.ID),
-			SourceCareOfferingIDs: template.SourceCareOfferingIDs,
-			SourceGradeLevels:     template.SourceGradeLevels,
-			SourceSchoolClasses:   template.SourceSchoolClasses,
-		})
-	}
-	feeds, err := rs.OfferingSourceOptions.TemplateRosterMaintenance(ctx, queries)
+	templates := slices.DeleteFunc(mapTemplateRows(rows, ratio, nil), func(template templateResponse) bool {
+		return template.Type == timetable.GroupTypeDuty
+	})
+	feeds, err := rs.OfferingSourceOptions.TemplateRosterMaintenance(ctx, offeringGapFeedQueries(templates, period.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -143,17 +146,31 @@ func (rs *Resource) offeringGapTemplates(ctx context.Context, period schoolcalen
 	scope.ClosedDays = projection.ClosedDays
 	result := make([]timetable.OfferingGapTemplate, 0, len(templates))
 	for _, template := range templates {
-		if template.Type == timetable.GroupTypeDuty {
-			continue
-		}
-		result = append(result, offeringGapTemplate(template, feeds[template.ID], projection.Dates[template.ID]))
+		gapTemplate := offeringGapTemplate(template, feeds[template.ID], projection.Dates[template.ID])
+		gapTemplate.Times = projection.Times[template.ID]
+		result = append(result, gapTemplate)
 	}
-	return result, nil
+	return result, rs.attachOfferingGapRosters(ctx, templates, result, allRosters)
+}
+
+func offeringGapFeedQueries(templates []templateResponse, periodID int64) []timetable.TemplateRosterMaintenanceQuery {
+	queries := make([]timetable.TemplateRosterMaintenanceQuery, 0, len(templates))
+	for _, template := range templates {
+		queries = append(queries, timetable.TemplateRosterMaintenanceQuery{
+			TemplateID:            template.ID,
+			CalendarPeriodID:      rosterMaintenanceCalendarPeriodID(template, &periodID),
+			SourceCareOfferingIDs: template.SourceCareOfferingIDs,
+			SourceGradeLevels:     template.SourceGradeLevels,
+			SourceSchoolClasses:   template.SourceSchoolClasses,
+		})
+	}
+	return queries
 }
 
 // offeringGapTemplate splits the feeding offerings into the source rule,
 // which keeps its Jahrgang or Klassen filter, and the offerings' own links,
-// which feed every booked child. occurrences are the projected dates.
+// which feed every booked child, and carries the kind. occurrences are the
+// projected dates; the caller attaches their times and the roster.
 func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRosterMaintenance, occurrences []calendar.Date) timetable.OfferingGapTemplate {
 	gapTemplate := timetable.OfferingGapTemplate{
 		Occurrences:       make(map[calendar.Date]bool, len(occurrences)),
@@ -161,6 +178,9 @@ func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRost
 		Sources: timetable.OfferingSourceFilter{
 			GradeLevels: feeds.GradeLevels, SchoolClasses: feeds.SchoolClasses,
 		},
+		HasOfferingSource: len(template.SourceCareOfferingIDs) > 0 || len(feeds.LinkedOfferingIDs) > 0 || len(feeds.Offerings) > 0 ||
+			len(feeds.InactiveOfferings) > 0 || len(feeds.InvalidOfferings) > 0,
+		Kind: timetable.RosterOfferingKindFor(template.Type, template.ListKind),
 	}
 	for _, date := range occurrences {
 		gapTemplate.Occurrences[date] = true
@@ -175,12 +195,14 @@ func offeringGapTemplate(template templateResponse, feeds timetable.TemplateRost
 
 func offeringGapResponseFrom(gap timetable.OfferingGap) offeringGapResponse {
 	return offeringGapResponse{
-		Offering:            templateRosterMaintenanceOfferingResponse{ID: gap.OfferingID, Name: gap.OfferingName},
-		StudentCount:        gap.StudentCount,
-		SchoolClasses:       gap.SchoolClasses,
-		Weekdays:            gap.Weekdays,
-		Acknowledged:        gap.Acknowledged,
-		AcknowledgedClasses: gap.AcknowledgedClasses,
+		Offering:              templateRosterMaintenanceOfferingResponse{ID: gap.OfferingID, Name: gap.OfferingName},
+		StudentCount:          gap.StudentCount,
+		SchoolClasses:         gap.SchoolClasses,
+		Weekdays:              gap.Weekdays,
+		Acknowledged:          gap.Acknowledged,
+		AcknowledgedClasses:   gap.AcknowledgedClasses,
+		NewSeriesClasses:      gap.NewSeriesClasses,
+		NewSeriesPlansCovered: gap.NewSeriesPlansCovered,
 	}
 }
 
