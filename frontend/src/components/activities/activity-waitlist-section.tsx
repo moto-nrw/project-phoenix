@@ -23,13 +23,17 @@ export function ActivityWaitlistSection({
   const swr = useSWRAuth(allowed ? `course-waitlist-${activityId}` : null, () =>
     fetchCourseWaitlists(activityId),
   );
-  const loadError = useSwrLoadError(swr.error, "die Warteliste der AG", () =>
-    swr.mutate(),
-  );
   // Die Namen der Teilnehmenden kommen aus der Kinderliste der Aktivität.
   const participants = useSWRAuth(
     allowed ? `activity-participants-${activityId}` : null,
     () => getEnrolledStudents(activityId),
+  );
+  // Belegung und Namen gehören zusammen: fehlen die Namen, wäre die
+  // dargestellte Warteliste unvollständig und damit irreführend.
+  const loadError = useSwrLoadError(
+    swr.error ?? participants.error,
+    swr.error ? "die Warteliste der AG" : "die Teilnehmenden der AG",
+    () => (swr.error ? swr.mutate() : participants.mutate()),
   );
   const waitlist = swr.data?.[0];
   const participantNames = participants.data

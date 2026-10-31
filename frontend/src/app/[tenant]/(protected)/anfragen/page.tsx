@@ -179,6 +179,14 @@ export default function AnfragenPage() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined);
   const [requestFeedOpen, setRequestFeedOpen] = useState(false);
 
+  // Ein Sprung aus einer Warteliste muss die Anfrage finden können. Die
+  // Arbeitsliste lädt dafür ohne Such- und Art-Filter; Rechte und Quellen
+  // bleiben unverändert.
+  const clearOpenParentRequestFilters = useCallback(() => {
+    setSearchTerm("");
+    setTypeFilter([]);
+  }, []);
+
   // Stabil memoisiert: die Liste lädt bei jeder Identitätsänderung neu.
   const filters: AggregatedRequestFilters = useMemo(
     () => ({
@@ -514,6 +522,7 @@ export default function AnfragenPage() {
           view={view}
           filters={filters}
           onCountChange={handleParentCount}
+          onOpenWaitlistRequest={clearOpenParentRequestFilters}
         />
       )}
     </TenantPage>
@@ -529,10 +538,12 @@ function ElternTab({
   view,
   filters,
   onCountChange,
+  onOpenWaitlistRequest,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
   onCountChange: (count: number | null, hasMore: boolean) => void;
+  onOpenWaitlistRequest: () => void;
 }>) {
   const { data: session } = useSession();
   const timetableEnabled = useTimetableEnabled();
@@ -563,13 +574,17 @@ function ElternTab({
     requestId: string;
     nonce: number;
   } | null>(null);
-  const openRequest = useCallback((studentId: string, requestId: string) => {
-    setFocusRequest((current) => ({
-      studentId,
-      requestId,
-      nonce: (current?.nonce ?? 0) + 1,
-    }));
-  }, []);
+  const openRequest = useCallback(
+    (studentId: string, requestId: string) => {
+      onOpenWaitlistRequest();
+      setFocusRequest((current) => ({
+        studentId,
+        requestId,
+        nonce: (current?.nonce ?? 0) + 1,
+      }));
+    },
+    [onOpenWaitlistRequest],
+  );
   return (
     <div className="flex w-full flex-col gap-4">
       {showWaitlists && waitlistLoadError && (

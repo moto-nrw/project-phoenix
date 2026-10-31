@@ -322,6 +322,47 @@ describe("AnfragenPage", () => {
     expect(listProbe().focus).toBe("101");
   });
 
+  it("leert Such- und Art-Filter vor dem Sprung aus der Warteliste", () => {
+    waitlistState.waitlists = [
+      {
+        activityGroupId: "70",
+        name: "Theater-AG",
+        participantLimit: 8,
+        participants: 8,
+        freeSlots: 0,
+        slotFreeForNext: false,
+        entries: [
+          {
+            requestId: "11",
+            studentId: "101",
+            studentName: "Lina Amini",
+            rank: 1,
+            submittedAt: "2026-09-01T10:00:00Z",
+          },
+        ],
+      },
+    ];
+    render(<AnfragenPage />);
+
+    const [input] = screen.getAllByPlaceholderText("Kind suchen…");
+    fireEvent.change(input!, { target: { value: "Anderes Kind" } });
+    fireEvent.click(screen.getAllByRole("button", { name: /Filter/ })[0]!);
+    fireEvent.click(screen.getAllByText("Stammdaten")[0]!);
+    expect(listProbe().filters).toMatchObject({
+      search: "Anderes Kind",
+      types: ["master_data"],
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anfrage von Lina Amini öffnen" }),
+    );
+
+    expect(listProbe()).toMatchObject({
+      focus: "101",
+      filters: { search: "", types: [] },
+    });
+  });
+
   it("wechselt per Historie-Schalter auf die Historien-Ansicht", () => {
     render(<AnfragenPage />);
 

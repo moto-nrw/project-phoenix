@@ -2,12 +2,15 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ActivityWaitlistSection } from "./activity-waitlist-section";
+import { ApiError } from "~/lib/api-error";
 import type { CourseWaitlist } from "~/lib/course-waitlist-helpers";
+import { catalogText } from "~/test/error-catalog-text";
 
 const state = vi.hoisted(() => ({
   permissions: ["users:update"] as string[],
   waitlists: undefined as CourseWaitlist[] | undefined,
   error: undefined as unknown,
+  participantError: undefined as unknown,
   keys: [] as (string | null)[],
 }));
 
@@ -26,7 +29,7 @@ vi.mock("~/lib/swr", () => ({
     if (key?.startsWith("activity-participants-")) {
       return {
         data: [{ name: "Emma Klein" }, { name: "Zeynep Çelik" }],
-        error: undefined,
+        error: state.participantError,
         mutate: vi.fn(),
       };
     }
@@ -61,6 +64,7 @@ describe("ActivityWaitlistSection", () => {
     state.permissions = ["users:update"];
     state.waitlists = [theater];
     state.error = undefined;
+    state.participantError = undefined;
     state.keys = [];
   });
 
@@ -90,5 +94,22 @@ describe("ActivityWaitlistSection", () => {
     expect(screen.getByTestId("section")).toBeInTheDocument();
     expect(container.textContent).toBe("");
     expect(state.keys.every((key) => key === null)).toBe(true);
+  });
+
+  it("zeigt keine unvollständige Warteliste, wenn Teilnehmende nicht laden", async () => {
+    state.participantError = new ApiError("down", 503, {
+      code: "general.unavailable",
+    });
+
+    render(<ActivityWaitlistSection activityId="70" />);
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Teilnehmenden der AG"),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("8 von 8 Plätzen vergeben · 0 frei"),
+    ).not.toBeInTheDocument();
   });
 });
