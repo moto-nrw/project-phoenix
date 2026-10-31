@@ -1,11 +1,19 @@
 import { onOtherTabOwnerChange } from "./personal-storage";
 
-let pending: { controller: AbortController; promise: Promise<void> } | null =
-  null;
+let pending: {
+  controller: AbortController;
+  promise: Promise<void>;
+  navigating: boolean;
+} | null = null;
 
 /** Automatic expiry handlers must not compete with this explicit exit. */
 export function isTenantSessionEnding(): boolean {
   return pending !== null;
+}
+
+/** Navigation started, but the old document still owns its explicit exit. */
+export function markTenantSessionNavigation(signal: AbortSignal): void {
+  if (pending?.controller.signal === signal) pending.navigating = true;
 }
 
 /** One tenant logout/relogin per document; stale attempts never own a new slot. */
@@ -23,7 +31,11 @@ export function runTenantSessionEnd(
   const onPageShow = (event: PageTransitionEvent) => {
     if (event.persisted) cancel();
   };
-  const stopOwnerListener = onOtherTabOwnerChange(cancel);
+  const stopOwnerListener = onOtherTabOwnerChange((owner) => {
+    // A second tab echoes this logout by clearing its ended session's storage.
+    // Only a newly bound owner supersedes the explicit exit, not that echo.
+    if (owner !== null) cancel();
+  });
   const dispose = () => {
     window.removeEventListener("pagehide", cancel);
     window.removeEventListener("pageshow", onPageShow);
@@ -41,7 +53,13 @@ export function runTenantSessionEnd(
       // Leaving/restoring the document is not a failed logout to report.
       if (!signal.aborted) throw error;
     })
-    .finally(cancel);
-  pending = { controller, promise };
+    .finally(() => {
+      if (pending?.controller === controller && pending.navigating) {
+        // Stop push cleanup and other completed work immediately, but keep the
+        // exit slot until pagehide. Assigning href does not leave the document.
+        controller.abort();
+      } else cancel();
+    });
+  pending = { controller, promise, navigating: false };
   return promise;
 }

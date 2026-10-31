@@ -1,4 +1,5 @@
 import { apiErrorFromResponse, unavailableApiError } from "./api-error";
+import { markTenantSessionNavigation } from "./tenant-session-end";
 
 /**
  * Auth.js' tenant signout protocol with cancellation between its CSRF and
@@ -38,4 +39,5 @@ export async function signOutTenant(
   // Keep the menu's relative home destination, as its SDK redirect:false
   // path did; Auth.js' configured base URL can be a different tenant host.
   window.location.href = callbackUrl === "/" ? "/" : (data.url ?? callbackUrl);
+  markTenantSessionNavigation(signal);
 }
