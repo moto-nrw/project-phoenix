@@ -831,16 +831,6 @@ describe("useSSE Hook", () => {
       // Should not crash, onMessage should not be called
       expect(onMessage).not.toHaveBeenCalled();
     });
-
-    it("should warn when fetch streaming is not supported", () => {
-      vi.stubGlobal("fetch", undefined);
-
-      const { result } = renderHook(() => useSSE("/api/sse/events"));
-
-      expect(result.current.error).toBe(
-        "Browser does not support Server-Sent Events",
-      );
-    });
   });
 
   describe("Event Parsing", () => {

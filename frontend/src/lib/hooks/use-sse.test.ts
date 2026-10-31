@@ -222,3 +222,11 @@ it("disabling aborts a pending request and ignores its late result", async () =>
   expect(result.current.status).toBe("idle");
   expect(onMessage).not.toHaveBeenCalled();
 });
+
+// Native EventSource support is no longer a prerequisite; fetch owns the stream.
+it("streams even when native EventSource is unavailable", async () => {
+  vi.stubGlobal("EventSource", undefined);
+  const { result } = renderHook(() => useSSE("/api/sse/events", { onMessage }));
+  await waitFor(() => expect(result.current.isConnected).toBe(true));
+  expect(sentAccount()).toBe("A");
+});

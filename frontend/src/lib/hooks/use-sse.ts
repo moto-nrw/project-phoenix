@@ -39,7 +39,6 @@ export function useSSE(
   } = options;
 
   const { data: session } = useSession();
-  const accountId = session?.user?.id;
 
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +49,6 @@ export function useSSE(
   const mountedRef = useRef(true);
   const reconnectAttemptsRef = useRef(0); // Track live count to avoid stale closure
   const reconnectKeyRef = useRef(reconnectKey);
-  const accountIdRef = useRef(accountId);
   const confirmedSessionRef = useRef(session);
 
   // Stable onMessage callback
@@ -79,10 +77,8 @@ export function useSSE(
   useEffect(() => {
     const reconnectKeyChanged =
       reconnectKeyRef.current !== reconnectKey ||
-      accountIdRef.current !== accountId ||
       confirmedSessionRef.current !== session;
     confirmedSessionRef.current = session;
-    accountIdRef.current = accountId;
     reconnectKeyRef.current = reconnectKey;
 
     if (!enabled) {
@@ -103,16 +99,6 @@ export function useSSE(
       setError(null);
       reconnectAttemptsRef.current = 0;
       setReconnectAttempts(0);
-    }
-
-    // Fetch streaming is available in supported browsers.
-    if (typeof fetch === "undefined") {
-      logger.warn("fetch streaming not supported", {
-        endpoint,
-        browser: navigator.userAgent.substring(0, 100),
-      });
-      setError("Browser does not support Server-Sent Events");
-      return;
     }
 
     // Event handler for SSE messages - handles parsing and error reporting
@@ -395,7 +381,6 @@ export function useSSE(
     maxReconnectAttempts,
     enabled,
     reconnectKey,
-    accountId,
     session,
   ]);
 
