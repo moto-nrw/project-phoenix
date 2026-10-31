@@ -132,13 +132,21 @@ force on the first rewritten day, its phase's service window holds that day
 and its offering is active. Timetable receives them as `OtherBookings` of
 the query.
 
-Where the times decide, such a booking carries a Regeltermin by the same
-rule: a fitting kind and a known pickup time no earlier than the end. It
-never decides the earlier rule: whether a day falls back to the net loss
-depends only on the Regeltermin's end and the changed enrollment's pickup
-times, and the net loss counts only the change. An unchanged booking without
-a pickup time carries nothing. A day therefore loses a notice only when a
-booking of another enrollment provably carries the Regeltermin; with a single
-enrollment and in schools without pickup times every notice stays as it was.
+Such a booking carries a Regeltermin by the same rule: a fitting kind and a
+pickup time no earlier than the end. Decided for #5366: the times decide only
+when the Regeltermin has an end and every remaining booking of the child's
+day has a pickup time, in any enrollment. Where one of them lacks it, the day
+keeps the earlier rule across all enrollments, whatever the kinds: the
+Regeltermin counts as lost when the change drops more offerings on the day
+than it newly books. An enrollment the change leaves as it is adds nothing to
+that balance. A booking without a pickup time therefore decides alike in the
+changed and in another enrollment.
+
+The decision keeps the known limit of the earlier rule: a net loss reports a
+Regeltermin although another booking of the day provably carries it, when a
+pickup time of that day is missing. With a single enrollment and in schools
+without pickup times every notice stays as it was. No school has children
+with parallel approved enrollments today, and none mixes offerings with and
+without pickup times (read-only production check of 2026-10-31).
 
 The read adds no owner edge, no write and no binding-flow diagnostic.

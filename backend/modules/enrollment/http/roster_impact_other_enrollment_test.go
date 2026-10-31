@@ -17,7 +17,9 @@ import (
 // example a custom phase for existing students beside the school year
 // (#5366). A booking change of one enrollment leaves the others as they are;
 // their bookings carry a hand-maintained Regeltermin by the same rule as the
-// changed enrollment's (#5342), but only with a known pickup time.
+// changed enrollment's (#5342). Decided for #5366: where any remaining booking
+// of the child's day, in any enrollment, has no pickup time, the day keeps the
+// earlier net-loss rule across all enrollments, whatever the kinds.
 
 // otherPhase creates a further custom phase of the school with the service
 // window.
@@ -160,9 +162,10 @@ func TestRosterImpact_OtherEnrollmentOutsideItsPhase_Reports(t *testing.T) {
 	}
 }
 
-// Without a pickup time the other enrollment cannot show that it carries
-// the hand list. The day is decided as with one enrollment: the change drops
-// the child's only Friday, so the notice stays, as before.
+// The other enrollment's Friday has no pickup time, so the net-loss rule
+// decides the day (decision for #5366). The change drops Friday from the
+// school year without booking anything new there: a net loss, so the notice
+// stays.
 func TestRosterImpact_OtherEnrollmentWithoutPickupTime_KeepsTheNotice(t *testing.T) {
 	t.Parallel()
 
@@ -195,4 +198,28 @@ func TestRosterImpact_OtherEnrollmentWithoutPickupTimes_KeepsTheNetLossRule(t *t
 	}, false)
 
 	assert.Equal(t, map[int64][]int{handList: {carryFriday}}, reported)
+}
+
+// Decided for #5366: a booking without a pickup time in another enrollment
+// moves the day to the net-loss rule, as one in the changed enrollment does.
+// The school year switches Friday from Ganztag until 16:00 to Ganztag until
+// 14:30, no net loss. The hand list ends at 16:00. With one enrollment the
+// earlier pickup reports it; with the other enrollment's Friday without a
+// pickup time the times cannot decide, and the even balance keeps it.
+func TestRosterImpact_OtherEnrollmentWithoutPickupTime_SwitchKeepsTheNetLossRule(t *testing.T) {
+	t.Parallel()
+	f := newCarryFixture(t)
+	late := f.offering("Ganztag bis 16 Uhr", "16:00", true)
+	early := f.offering("Ganztag bis 14.30", "14:30", true)
+	afternoon := f.template("Nachmittag Fr", carryFriday, "14:30", "16:00", "")
+	requestID, childID, studentID := f.child("1a", map[*offeringContract.CareOfferingRecord][]string{late: {"fri"}})
+	f.plan(studentID, afternoon)
+	phase := f.otherPhase(otherPhaseStart, otherPhaseEnd)
+	f.enrollAgain(phase, studentID, "1a", map[*offeringContract.CareOfferingRecord][]string{
+		f.phaseOffering(phase, "Ferien-Ganztag", ""): {"fri"},
+	})
+
+	reported := f.change(requestID, childID, map[*offeringContract.CareOfferingRecord][]string{early: {"fri"}}, false)
+
+	assert.Empty(t, reported, "a Friday without pickup time in the other enrollment keeps the net-loss rule")
 }

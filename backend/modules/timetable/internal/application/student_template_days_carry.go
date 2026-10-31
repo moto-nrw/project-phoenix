@@ -27,10 +27,10 @@ import (
 // times therefore see the earlier notices.
 //
 // A student may hold further approved enrollments the change leaves as they
-// are (#5366). Where the times decide, their bookings carry a Regeltermin
-// like the changed enrollment's, but only with a known pickup time: an
-// unchanged booking is no part of the change's balance, so it never moves a
-// day to the earlier rule and never carries without its time.
+// are (#5366). Their bookings carry a Regeltermin like the changed
+// enrollment's. Decided for #5366: a booking of the day without a pickup time
+// keeps the earlier rule for the day in any enrollment. The net loss stays the
+// change's own balance, to which an unchanged enrollment adds nothing.
 //
 // Only schedules that are valid on a date of their weekday from the date on
 // name weekdays and ends, by materialization's own validity rule
@@ -211,9 +211,9 @@ func (c bookingCarry) dropCarriedDays(groups []timetable.Group, days templateDay
 }
 
 // keeps reports whether the Regeltermin keeps a booking on the weekday. With
-// an end and every pickup time of the changed enrollment's day known, a
-// fitting booking of any enrollment must reach the end; otherwise the day
-// keeps it unless it is a net loss.
+// an end and every pickup time of the child's day known, a fitting booking of
+// any enrollment must reach the end; otherwise the day keeps it unless it is a
+// net loss.
 func (c bookingCarry) keeps(weekday int, kind timetable.RosterOfferingKind, end int, endKnown bool) bool {
 	if !endKnown || !c.pickupsKnown(weekday) {
 		return !c.netLoss[weekday]
@@ -222,17 +222,17 @@ func (c bookingCarry) keeps(weekday int, kind timetable.RosterOfferingKind, end 
 		if booking.Weekday != weekday || !kind.AdmitsOffering(booking.CountsAsCare, booking.IncludesLunch) {
 			continue
 		}
-		if pickup, known := clockMinutes(booking.PickupTime); known && end <= pickup {
+		if pickup, _ := clockMinutes(booking.PickupTime); end <= pickup {
 			return true
 		}
 	}
 	return false
 }
 
-// pickupsKnown reports whether every booking of the changed enrollment on
-// the weekday has a pickup time.
+// pickupsKnown reports whether every booking of the weekday, in any
+// enrollment, has a pickup time.
 func (c bookingCarry) pickupsKnown(weekday int) bool {
-	for _, booking := range c.bookings {
+	for _, booking := range slices.Concat(c.bookings, c.others) {
 		if _, known := clockMinutes(booking.PickupTime); booking.Weekday == weekday && !known {
 			return false
 		}

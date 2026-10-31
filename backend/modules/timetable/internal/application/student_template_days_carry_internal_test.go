@@ -156,16 +156,25 @@ func TestBookingCarry_OtherEnrollmentCarriesByItsPickupTime(t *testing.T) {
 	assert.True(t, withOthers(netLossOn(friday), course).keeps(friday, courseKind, endAt1245, true))
 }
 
-// An unchanged booking of another enrollment without a pickup time carries
-// nothing and leaves the decision as it was: a known pickup time of the
-// changed enrollment still decides, and so does an empty day.
-func TestBookingCarry_OtherEnrollmentWithoutPickupTimeDecidesNothing(t *testing.T) {
+// Decided for #5366: a booking without a pickup time in another enrollment
+// leaves the times undecided like one in the changed enrollment. The day
+// keeps the net-loss rule across all enrollments, whatever the kinds.
+func TestBookingCarry_OtherEnrollmentWithoutPickupTimeKeepsTheNetLossRule(t *testing.T) {
 	t.Parallel()
 
 	unknown := careDay(friday, "")
 	assert.False(t, withOthers(netLossOn(friday), unknown).keeps(friday, careKind, endAt1245, true))
-	assert.True(t, withOthers(netLossOn(friday, careDay(friday, "12:45")), unknown).keeps(friday, careKind, endAt1245, true))
-	assert.False(t, withOthers(noNetLoss(careDay(friday, "14:30")), unknown).keeps(friday, careKind, endAt1600, true))
+	// The known limit of the decision: a net loss reports the Regeltermin
+	// although the Randstunde until 12:45 carries it.
+	assert.False(t, withOthers(netLossOn(friday, careDay(friday, "12:45")), unknown).keeps(friday, careKind, endAt1245, true))
+	// Review blocker: a switch to an earlier pickup is no net loss, so the
+	// block until 16:00 keeps the child, as with the unknown pickup time in
+	// the changed enrollment.
+	assert.True(t, withOthers(noNetLoss(careDay(friday, "14:30")), unknown).keeps(friday, careKind, endAt1600, true))
+	assert.Equal(t,
+		noNetLoss(careDay(friday, "14:30"), unknown).keeps(friday, careKind, endAt1600, true),
+		withOthers(noNetLoss(careDay(friday, "14:30")), unknown).keeps(friday, careKind, endAt1600, true),
+		"the missing pickup time decides alike in either enrollment")
 	assert.False(t, withOthers(netLossOn(friday), unknown).keeps(friday, careKind, 0, true),
 		"a missing pickup time is no pickup at midnight")
 }
