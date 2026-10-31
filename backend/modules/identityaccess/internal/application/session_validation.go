@@ -34,6 +34,11 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 	if err != nil {
 		return identityaccess.SessionClaims{}, err
 	}
+	if refreshClaims == nil {
+		if err := s.verifyAccessFamily(ctx, claims, portal); err != nil {
+			return identityaccess.SessionClaims{}, err
+		}
+	}
 	err = s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
 		return s.validateSessionInTx(txCtx, claims, refreshClaims, portal)
 	})
@@ -41,6 +46,34 @@ func (s *AccountAuthentication) ValidateSessionTokens(ctx context.Context, acces
 		return identityaccess.SessionClaims{}, err
 	}
 	return identityaccess.SessionClaims(claims), nil
+}
+
+// verifyAccessFamily confirms that the refresh-token family an access token
+// names still backs it, for a hand-off without its refresh token (#5399).
+// The refresh row check covers the family otherwise. The BFF asks before it
+// writes or shows a session, so the answer of a request that outlived its
+// logout neither sets a cookie nor reads as signed in. ErrInvalidToken means
+// revoked, expired or foreign; any other error means the check could not run.
+func (s *AccountAuthentication) verifyAccessFamily(ctx context.Context, claims domain.SessionClaims, portal string) error {
+	if portal != "platform" {
+		return s.VerifyAccessSession(ctx, identityaccess.AccessSession{
+			AccountID: claims.AccountID, ActingAdminID: claims.ActingAdminID, Scope: claims.Scope, FamilyID: claims.FamilyID,
+		})
+	}
+	if claims.FamilyID == "" {
+		return identityaccess.ErrInvalidToken
+	}
+	head, err := s.sessions.LatestOperatorSessionInFamily(ctx, claims.FamilyID)
+	if errors.Is(err, identityaccess.ErrOperatorSessionNotFound) {
+		return identityaccess.ErrInvalidToken
+	}
+	if err != nil {
+		return err
+	}
+	if head.OperatorID != claims.AccountID || !head.Expiry.After(time.Now()) {
+		return identityaccess.ErrInvalidToken
+	}
+	return nil
 }
 
 func (s *AccountAuthentication) validateOperatorSession(ctx context.Context, claims domain.SessionClaims, refreshClaims *domain.RefreshClaims) error {
