@@ -89,4 +89,6 @@ test('every reproduction is one shell command that stops at the first failure', 
     assert.doesNotMatch(command.replace(/#.*$/, ''), /;/, `${job} must not ignore an earlier failure`);
   }
   assert.match(localCommand('lint / frontend-build'), /--prepare-ci .*--build-base .*perf:bundle-ratchet/);
+  assert.match(localCommand('test / Backend tests (0)'), /test-changed\.sh/);
+  assert.match(localCommand('Backend architecture ratchet'), /backend-architecture\.sh check/);
 });

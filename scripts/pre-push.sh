@@ -69,9 +69,9 @@ trap 'rm -r -- "$workspace"' EXIT
 export TMPDIR="${TMPDIR:-$workspace}"
 changed="$workspace/changed"
 if [[ "$worktree" == true ]]; then
-  { git diff --name-only -z "$merge_base"; git ls-files --others --exclude-standard -z; } > "$changed"
+  { git diff --no-renames --name-only -z "$merge_base"; git ls-files --others --exclude-standard -z; } > "$changed"
 else
-  git diff --name-only -z "$merge_base" "$head" > "$changed"
+  git diff --no-renames --name-only -z "$merge_base" "$head" > "$changed"
 fi
 while IFS= read -r -d '' file; do
   case "$file" in
@@ -111,7 +111,11 @@ cached() {
     node scripts/pre-push-cache.mjs "$stage" "$merge_base" "$@"
   fi
 }
-quality_step secrets bash scripts/check-secrets.sh pre-push "$base"
+if [[ "$worktree" == true ]]; then
+  quality_step secrets bash scripts/check-secrets.sh worktree "$base"
+else
+  quality_step secrets bash scripts/check-secrets.sh pre-push "$base"
+fi
 require_pinned node
 if [[ "$context" == true || "$hooks" == true ]]; then
   quality_step context node scripts/check-agent-context.mjs

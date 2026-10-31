@@ -470,6 +470,14 @@ test('worktree mode checks uncommitted and untracked changes without caching', t
   assert.match(result.stdout, /\[backend-lint\] starting/);
   assert.doesNotMatch(result.stdout, /cache (hit|miss)/);
   assert.doesNotMatch(result.stderr, /clean working tree/);
+  f.git('add', 'backend/untracked.go');
+  f.git('commit', '-qm', 'backend');
+  f.commit('frontend/widget.tsx', 'export {};\n');
+  f.git('branch', '-f', 'base');
+  f.git('mv', 'frontend/widget.tsx', 'widget.tsx');
+  const moved = f.run('bash', ['scripts/pre-push.sh', '--worktree', 'base'], { env: f.env });
+  assert.equal(moved.status, 0, moved.stderr);
+  assert.match(moved.stdout, /frontend=true/, 'moving a file out of frontend/ still selects frontend checks');
 });
 
 test('a warm cache cannot hide dirty source or source changes during validation', t => {

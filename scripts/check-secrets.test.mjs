@@ -61,6 +61,29 @@ test('pre-push scans every branch commit, including credentials removed at the t
   assert.equal(f.args().at(-1), `--log-opts=${base}..HEAD`);
 });
 
+test('worktree mode scans uncommitted and untracked changes as one snapshot commit', t => {
+  const f = fixture(t);
+  writeFileSync(join(f.root, '.gitignore'), '.devbox/\nscanner-args\n');
+  f.git('add', '.gitignore', 'scripts', '.gitleaks.toml');
+  f.git('commit', '-qm', 'tooling');
+  f.git('branch', '-f', 'base');
+  writeFileSync(join(f.root, 'fixture.txt'), 'changed but not committed');
+  writeFileSync(join(f.root, 'untracked.env'), 'TOKEN=not-committed');
+  const result = f.scan(['worktree', 'base']);
+  assert.equal(result.status, 0, result.stderr);
+  const range = f.args().find(arg => arg.startsWith('--log-opts='));
+  const [from, snapshot] = range.slice('--log-opts='.length).split('..');
+  assert.equal(from, f.git('rev-parse', 'base'));
+  assert.equal(f.git('show', `${snapshot}:untracked.env`), 'TOKEN=not-committed');
+  assert.equal(f.git('show', `${snapshot}:fixture.txt`), 'changed but not committed');
+  assert.equal(f.git('diff', '--cached', '--name-only'), '', 'the real index stays untouched');
+  rmSync(join(f.root, 'scanner-args'));
+  f.git('checkout', '--', 'fixture.txt');
+  rmSync(join(f.root, 'untracked.env'));
+  assert.equal(f.scan(['worktree', 'base']).status, 0);
+  assert.equal(existsSync(join(f.root, 'scanner-args')), false, 'an unchanged tree needs no scan');
+});
+
 test('missing pinned scanner cannot fall back to another installation', t => {
   const f = fixture(t);
   rmSync(join(f.root, '.devbox/nix/profile/default/bin/gitleaks'));

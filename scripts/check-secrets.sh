@@ -20,7 +20,25 @@ case "${1:-}" in
     fi
     scan=(--log-opts="$merge_base..HEAD")
     ;;
-  *) echo 'Usage: check-secrets.sh pre-commit | pre-push <base-ref>' >&2; exit 2 ;;
+  worktree)
+    # Uncommitted and untracked changes too: snapshot the working tree into an
+    # unreferenced commit on the merge-base, so path allowlists still apply.
+    [[ $# -eq 2 ]] || { echo 'Usage: check-secrets.sh worktree <base-ref>' >&2; exit 2; }
+    merge_base=$(git merge-base "$2" HEAD)
+    index=$(mktemp)
+    trap 'rm -f "$index"' EXIT
+    cp "$(git rev-parse --git-path index)" "$index"
+    GIT_INDEX_FILE=$index git add -A
+    tree=$(GIT_INDEX_FILE=$index git write-tree)
+    if [[ "$tree" == "$(git rev-parse "$merge_base^{tree}")" ]]; then
+      exit 0
+    fi
+    snapshot=$(GIT_AUTHOR_NAME=check-secrets GIT_AUTHOR_EMAIL=check-secrets@localhost \
+      GIT_COMMITTER_NAME=check-secrets GIT_COMMITTER_EMAIL=check-secrets@localhost \
+      git commit-tree "$tree" -p "$merge_base" -m 'check-secrets working tree snapshot')
+    scan=(--log-opts="$merge_base..$snapshot")
+    ;;
+  *) echo 'Usage: check-secrets.sh pre-commit | pre-push <base-ref> | worktree <base-ref>' >&2; exit 2 ;;
 esac
 # The explicit config ignores GITLEAKS_CONFIG and other environment overrides.
 exec "$bin/gitleaks" git "$root" --config "$root/.gitleaks.toml" --redact --no-banner --exit-code 1 "${scan[@]}"

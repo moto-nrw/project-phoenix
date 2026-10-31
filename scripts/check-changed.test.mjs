@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -63,4 +63,31 @@ test('the inputs key follows untracked files and the base, not the order of runs
   assert.notEqual(withUntracked, first);
   assert.notEqual(inputsKey(root, 'other-base', env), withUntracked);
   assert.equal(git('status', '--porcelain'), '?? untracked.go', 'the key leaves the real index alone');
+  assert.notEqual(inputsKey(root, base, { ...env, GOFLAGS: '-p=1' }), withUntracked, 'Go flags change outcomes');
+  assert.notEqual(inputsKey(root, base, { ...env, PHX_PREPUSH: 'skip' }), withUntracked, 'a skipped gate is another input');
+  assert.equal(inputsKey(root, base, { ...env, PHX_CACHE_VERIFY_RATE: '1' }), withUntracked, 'the sampling rate is no input');
+  mkdirSync(join(root, 'frontend/.next/types'), { recursive: true });
+  writeFileSync(join(root, '.gitignore'), 'frontend/.next/\n');
+  const ignoredBase = inputsKey(root, base, env);
+  writeFileSync(join(root, 'frontend/.next/types/routes.d.ts'), 'export type Broken = ;\n');
+  assert.notEqual(inputsKey(root, base, env), ignoredBase, 'ignored generated route types feed the typecheck');
+});
+
+test('Ctrl-C reaches the running step\'s process group and no further step starts', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'phoenix-check-changed-int-'));
+  try {
+    setTimeout(() => process.emit('SIGINT', 'SIGINT'), 500);
+    const results = await runSteps([
+      { name: 'long', command: ['sh', '-c', `sh -c 'sleep 3; touch ${join(dir, 'survived')}' & wait`] },
+      { name: 'later', command: ['sh', '-c', `touch ${join(dir, 'started')}`] },
+    ], { concurrency: 1, timeoutMs: 60_000, graceMs: 200, cwd: dir, write: () => {} });
+    assert.deepEqual(results.map(result => result.status), ['FAILED', 'SKIPPED']);
+    await new Promise(done => setTimeout(done, 3500));
+    assert.equal(existsSync(join(dir, 'survived')), false, 'the interrupted step left a child running');
+    assert.equal(existsSync(join(dir, 'started')), false);
+    assert.equal(process.exitCode, 130);
+    process.exitCode = 0;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

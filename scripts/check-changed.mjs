@@ -20,7 +20,7 @@
 // (default 0.05) of such hits run anyway to catch a wrong cache key.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { availableParallelism, loadavg, totalmem, tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -46,15 +46,37 @@ function formatSeconds(ms) {
 
 // Runs each step in its own process group, at most `concurrency` at a time.
 // Output is buffered per step and printed in one block when the step ends.
-export async function runSteps(steps, { concurrency, timeoutMs, cwd, env = process.env, write = text => process.stdout.write(text) }) {
+export async function runSteps(steps, { concurrency, timeoutMs, graceMs = 2000, cwd, env = process.env, write = text => process.stdout.write(text) }) {
   const results = [];
   let next = 0;
+  // Steps run in their own process groups, so a Ctrl-C reaches only this
+  // runner: pass it on and let each step clean up (test-changed sweeps its
+  // test database clones on exit) before exiting.
+  const active = new Set();
+  let interrupted;
+  // Non-interactive shells ignore SIGINT in background jobs, so escalate
+  // like a timeout: SIGTERM after a grace period, SIGKILL after ten more seconds.
+  const escalations = [];
+  const signalActive = signal => { for (const pid of active) { try { process.kill(-pid, signal); } catch {} } };
+  const forward = signal => {
+    if (interrupted) return;
+    interrupted = signal;
+    signalActive(signal);
+    escalations.push(setTimeout(() => signalActive('SIGTERM'), graceMs), setTimeout(() => signalActive('SIGKILL'), graceMs + 10_000));
+  };
+  process.on('SIGINT', forward);
+  process.on('SIGTERM', forward);
   async function worker() {
     while (next < steps.length) {
       const step = steps[next++];
       const started = Date.now();
       const result = await new Promise(done => {
+        if (interrupted) {
+          done({ name: step.name, status: 'SKIPPED', code: null, ms: 0, output: `not started after ${interrupted}\n` });
+          return;
+        }
         const child = spawn(step.command[0], step.command.slice(1), { cwd, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+        active.add(child.pid);
         const chunks = [];
         child.stdout.on('data', chunk => chunks.push(chunk));
         child.stderr.on('data', chunk => chunks.push(chunk));
@@ -67,6 +89,7 @@ export async function runSteps(steps, { concurrency, timeoutMs, cwd, env = proce
         }, timeoutMs);
         child.on('error', error => chunks.push(Buffer.from(`${error.message}\n`)));
         child.on('close', code => {
+          active.delete(child.pid);
           clearTimeout(timer);
           clearTimeout(killer);
           done({ name: step.name, status: timedOut ? 'TIMEOUT' : code === 0 ? 'ok' : 'FAILED', code, ms: Date.now() - started, output: Buffer.concat(chunks).toString('utf8') });
@@ -76,7 +99,14 @@ export async function runSteps(steps, { concurrency, timeoutMs, cwd, env = proce
       results.push(result);
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, steps.length) }, worker));
+  try {
+    await Promise.all(Array.from({ length: Math.min(concurrency, steps.length) }, worker));
+  } finally {
+    process.off('SIGINT', forward);
+    process.off('SIGTERM', forward);
+    escalations.forEach(clearTimeout);
+  }
+  if (interrupted) process.exitCode = 130;
   return steps.map(step => results.find(result => result.name === step.name));
 }
 
@@ -91,8 +121,13 @@ function git(root, args, env = process.env) {
   return result.stdout.trim();
 }
 
+// Environment that can change a step's outcome: Go and Node flags, frontend
+// configuration, test database and the repository's own switches.
+const outcomeEnvironment = /^(GO[A-Z]*|CGO_[A-Z_]+|PHX_(?!CACHE_VERIFY_RATE$|CHECK_TIMEOUT_MINUTES$)[A-Z_]+|NEXT_[A-Z_]+|NEXTAUTH_[A-Z_]+|AUTH_[A-Z_]+|API_URL|TENANT_DOMAIN|NODE_OPTIONS|NODE_ENV|TEST_DB_[A-Z_]+|TZ|CI)$/;
+
 // Every non-ignored file (untracked included, via a scratch index), the base,
-// local env files, installed dependencies and the toolchain versions.
+// local env files, generated types, installed dependencies, the toolchain
+// versions and the outcome-relevant environment.
 export function inputsKey(root, mergeBase, env = process.env) {
   const scratch = mkdtempSync(join(tmpdir(), 'phoenix-check-changed-'));
   try {
@@ -105,9 +140,24 @@ export function inputsKey(root, mergeBase, env = process.env) {
     const go = spawnSync('go', ['version'], { cwd: root, env, encoding: 'utf8' }).stdout ?? '';
     const hash = createHash('sha256').update(JSON.stringify({ tree, mergeBase, node: process.version, go, platform: process.platform, arch: process.arch }));
     for (const file of ['.env', '.wt.env', 'backend/dev.env', 'frontend/.env', 'frontend/.env.local', 'frontend/.env.test', 'frontend/.env.test.local',
-      'frontend/.env.development', 'frontend/.env.development.local', 'frontend/node_modules/.modules.yaml', 'frontend/node_modules/.pnpm/lock.yaml']) {
+      'frontend/.env.development', 'frontend/.env.development.local', 'frontend/next-env.d.ts',
+      'frontend/node_modules/.modules.yaml', 'frontend/node_modules/.pnpm/lock.yaml']) {
       hash.update(file).update(existsSync(join(root, file)) ? readFileSync(join(root, file)) : '<absent>');
     }
+    // Ignored generated route types feed the typecheck, as in pre-push-cache.mjs.
+    const generated = directory => {
+      if (!existsSync(directory)) return;
+      for (const entry of readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+        const path = join(directory, entry.name);
+        hash.update(path);
+        if (entry.isDirectory()) generated(path);
+        else hash.update(readFileSync(path));
+      }
+    };
+    generated(join(root, 'frontend/.next/types'));
+    generated(join(root, 'frontend/.next/dev/types'));
+    // Values stay in memory; only their digest enters the key.
+    hash.update(JSON.stringify(Object.entries(env).filter(([name]) => outcomeEnvironment.test(name)).sort()));
     return hash.digest('hex');
   } finally {
     rmSync(scratch, { recursive: true, force: true });
@@ -153,7 +203,8 @@ async function main(argv) {
   const summary = summarize(results);
   console.log(`\n===== summary =====\n${summary}`);
   const passed = results.every(result => result.status === 'ok');
-  if (passed && inputsKey(root, mergeBase) === key) {
+  // PHX_PREPUSH=skip passes the static step without checking anything.
+  if (passed && process.env.PHX_PREPUSH !== 'skip' && inputsKey(root, mergeBase) === key) {
     mkdirSync(resolve(recordPath, '..'), { recursive: true });
     writeFileSync(recordPath, JSON.stringify({ key, at: new Date().toISOString(), summary }));
   }

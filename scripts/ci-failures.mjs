@@ -24,6 +24,11 @@ const localCommands = {
   'test-backend': 'scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development',
   'seed-smoke': 'cd backend && ../scripts/run-go-toolchain.sh go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet',
   'env-sync-check': 'bash scripts/env-check.sh',
+  // Jobs with a display name are keyed by it ("test / Backend tests (0)").
+  'Backend tests': 'scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development',
+  'Backend tests with race detector': 'cd backend && ../scripts/run-go-toolchain.sh go test -race -tags=testhooks ./...',
+  'Seed & simulate smoke': 'cd backend && ../scripts/run-go-toolchain.sh go test ./internal/devtools/seedapi/ -run TestSeedCoverageRatchet',
+  'Backend architecture ratchet': 'scripts/run-go-toolchain.sh scripts/backend-architecture.sh check',
 };
 const ignoredJobs = new Set(['ci-gate']);
 // Case-sensitive on purpose: tools print findings as FAIL, Error, Unused, while
