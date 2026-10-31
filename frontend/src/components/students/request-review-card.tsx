@@ -197,6 +197,7 @@ export function RequestReviewCard({
   onApprove,
   onReject,
   grouped = false,
+  defaultOpen = false,
 }: Readonly<{
   childName: string;
   summary?: string;
@@ -249,8 +250,10 @@ export function RequestReviewCard({
   onReject?: () => void;
   /** Der umgebende Fall nennt das Kind bereits. */
   grouped?: boolean;
+  /** Aufgeklappt beginnen, etwa nach dem Sprung aus der Warteliste (#4767). */
+  defaultOpen?: boolean;
 }>) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [now, setNow] = useState<Date | null>(null);
   // Nur für die Pflicht-Begründung beim Freigeben: der Fehler entsteht hier,
   // beim Klick, und nicht in der aufrufenden Karte.

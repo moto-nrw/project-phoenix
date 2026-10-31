@@ -98,7 +98,7 @@ describe("CourseWaitlistOverview", () => {
       screen.getByRole("button", { name: "Anfrage von Mia Berg öffnen" }),
     );
 
-    expect(onOpenRequest).toHaveBeenCalledWith("102");
+    expect(onOpenRequest).toHaveBeenCalledWith("102", "12");
   });
 
   it("zeigt keine Karte ohne wartendes Kind oder ohne Teilnehmergrenze", () => {

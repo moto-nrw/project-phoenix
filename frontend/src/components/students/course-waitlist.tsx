@@ -25,12 +25,15 @@ import {
 
 interface CourseWaitlistContextValue {
   readonly places: ReadonlyMap<string, readonly RequestWaitlistPlace[]>;
+  /** Die Anfrage, zu der die Warteliste zuletzt gesprungen ist. */
+  readonly openRequestId: string | null;
   /** Nach einer Entscheidung neu laden: die Reihenfolge hat sich verschoben. */
   readonly refresh: () => void;
 }
 
 const EMPTY_CONTEXT: CourseWaitlistContextValue = {
   places: new Map(),
+  openRequestId: null,
   refresh: () => undefined,
 };
 
@@ -40,15 +43,21 @@ const CourseWaitlistContext =
 export function CourseWaitlistProvider({
   waitlists,
   refresh,
+  openRequestId = null,
   children,
 }: Readonly<{
   waitlists: readonly CourseWaitlist[];
   refresh: () => void;
+  openRequestId?: string | null;
   children: React.ReactNode;
 }>) {
   const value = useMemo(
-    () => ({ places: waitlistPlacesByRequest(waitlists), refresh }),
-    [waitlists, refresh],
+    () => ({
+      places: waitlistPlacesByRequest(waitlists),
+      openRequestId,
+      refresh,
+    }),
+    [waitlists, openRequestId, refresh],
   );
   return (
     <CourseWaitlistContext.Provider value={value}>
@@ -59,6 +68,11 @@ export function CourseWaitlistProvider({
 
 export function useCourseWaitlistRefresh(): () => void {
   return useContext(CourseWaitlistContext).refresh;
+}
+
+/** Ist diese Anfrage das Ziel des letzten Sprungs aus der Warteliste? */
+export function useOpenedFromWaitlist(requestId: string): boolean {
+  return useContext(CourseWaitlistContext).openRequestId === requestId;
 }
 
 function freeSlotSentence(waitlist: CourseWaitlist): string {
@@ -78,7 +92,7 @@ export function CourseWaitlistOverview({
   onOpenRequest,
 }: Readonly<{
   waitlists: readonly CourseWaitlist[];
-  onOpenRequest: (studentId: string) => void;
+  onOpenRequest: (studentId: string, requestId: string) => void;
 }>) {
   const queues = waitlistsWithQueue(waitlists);
   if (queues.length === 0) return null;
@@ -126,7 +140,7 @@ function CourseWaitlistBlock({
   onOpenRequest,
 }: Readonly<{
   waitlist: CourseWaitlist;
-  onOpenRequest: (studentId: string) => void;
+  onOpenRequest: (studentId: string, requestId: string) => void;
 }>) {
   const headingId = `waitlist-${waitlist.activityGroupId}`;
   return (
@@ -166,7 +180,7 @@ function CourseWaitlistBlock({
                 variant="surface"
                 size="compact"
                 aria-label={`Anfrage von ${entry.studentName} öffnen`}
-                onClick={() => onOpenRequest(entry.studentId)}
+                onClick={() => onOpenRequest(entry.studentId, entry.requestId)}
               >
                 Zur Anfrage
               </Button>

@@ -39,6 +39,7 @@ async function expectDialogError(expected: RegExp | string) {
 const networkError = () =>
   new ApiError("network", 503, { code: "general.unavailable" });
 
+import { CourseWaitlistProvider } from "~/components/students/course-waitlist";
 import { OfferingRequestReviewItem } from "./offering-request-review-item";
 import {
   decideOfferingChangeRequest,
@@ -143,6 +144,24 @@ describe("OfferingRequestReviewItem", () => {
     expect(screen.getByText(/ab 01\.02\.2027/)).toBeInTheDocument();
     expect(screen.getByText("Mo, Di, Mi")).toBeInTheDocument();
     expect(screen.getByText("Mo, Di")).toBeInTheDocument();
+  });
+
+  it("opens expanded when the waiting list jumped to it", () => {
+    const row = request();
+    render(
+      <CourseWaitlistProvider
+        waitlists={[]}
+        refresh={vi.fn()}
+        openRequestId={row.id}
+      >
+        <OfferingRequestReviewItem row={row} onDecided={vi.fn()} />
+      </CourseWaitlistProvider>,
+    );
+
+    expect(screen.getByText("Mo, Di, Mi")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /^Freigeben$/ }),
+    ).toBeInTheDocument();
   });
 
   it("marks a course line in German, not with a raw message key", () => {

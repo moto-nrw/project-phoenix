@@ -560,11 +560,13 @@ function ElternTab({
   // „Zur Anfrage“ in der Warteliste öffnet das Kind in der Liste darunter.
   const [focusRequest, setFocusRequest] = useState<{
     studentId: string;
+    requestId: string;
     nonce: number;
   } | null>(null);
-  const openRequest = useCallback((studentId: string) => {
+  const openRequest = useCallback((studentId: string, requestId: string) => {
     setFocusRequest((current) => ({
       studentId,
+      requestId,
       nonce: (current?.nonce ?? 0) + 1,
     }));
   }, []);
@@ -581,7 +583,11 @@ function ElternTab({
       )}
       {/* key={view}: die Liste mountet beim Umschalten frisch, wie zuvor die
           Einzelsektionen — so braucht die Historie keine Refresh-Listener. */}
-      <CourseWaitlistProvider waitlists={waitlists} refresh={refreshWaitlists}>
+      <CourseWaitlistProvider
+        waitlists={waitlists}
+        refresh={refreshWaitlists}
+        openRequestId={focusRequest?.requestId ?? null}
+      >
         <PickupExtensionAccessProvider value={canPlanBlocks}>
           <AggregatedRequestList
             key={view}

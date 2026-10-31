@@ -387,7 +387,7 @@ export function AggregatedRequestList({
           />
           <div
             ref={listAreaRef}
-            className="grid scroll-mt-4 gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
+            className="grid scroll-mt-20 gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
           >
             {showList && (
               <RequestCaseList

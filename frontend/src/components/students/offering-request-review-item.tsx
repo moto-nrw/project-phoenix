@@ -23,6 +23,7 @@ import { CarePlanImpact } from "~/components/students/care-plan-impact";
 import {
   RequestWaitlistPlaces,
   useCourseWaitlistRefresh,
+  useOpenedFromWaitlist,
 } from "~/components/students/course-waitlist";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
@@ -143,6 +144,7 @@ export function OfferingRequestReviewItem({
 }>) {
   // Eine Entscheidung verschiebt die Warteliste der AG (#4767).
   const refreshWaitlists = useCourseWaitlistRefresh();
+  const openedFromWaitlist = useOpenedFromWaitlist(row.id);
   const { show: showError } = useApiErrorDisplay();
   // Scheitert die Freigabe im offenen Bestätigungsdialog, steht der Fehler
   // dort: ein Toast läge hinter dem Hintergrund des Dialogs.
@@ -431,6 +433,7 @@ export function OfferingRequestReviewItem({
       type="offering"
       childName={row.student_name}
       grouped={grouped}
+      defaultOpen={openedFromWaitlist}
       summary={`ab ${formatDate(effectiveFrom)}`}
       badge={
         fullWithdrawal ? (
