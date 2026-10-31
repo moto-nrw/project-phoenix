@@ -1,3 +1,4 @@
+import { previewRow, previewText, type ListPreview } from "./list-preview";
 import { resourceKey } from "./resource-key";
 
 export { announcementKeys, dashboardKeys } from "./shell-keys";
@@ -78,6 +79,36 @@ export const messageKeys = {
 } as const;
 
 export const studentKeys = {
+  statisticsReport: (params: object) =>
+    resourceKey("student-statistics-report-", params),
+  detail: (id: string) => `student-detail-${encodeURIComponent(id)}`,
+  previewSources: (key: string) =>
+    key.startsWith("search-students-") ||
+    key.startsWith("ogs-students-") ||
+    key.startsWith("room-students-") ||
+    key.startsWith("student-status-days-overview-") ||
+    key.startsWith("student-statistics-report-"),
+  preview(data: unknown, id: string): ListPreview | undefined {
+    const row = previewRow(data, id);
+    if (!row) return undefined;
+    const name =
+      previewText(row.name) ??
+      [
+        previewText(row.first_name),
+        previewText(row.second_name) ?? previewText(row.last_name),
+      ]
+        .filter(Boolean)
+        .join(" ");
+    if (!name) return undefined;
+    return {
+      id,
+      name,
+      context:
+        [previewText(row.school_class), previewText(row.group_name)]
+          .filter(Boolean)
+          .join(" · ") || undefined,
+    };
+  },
   studentThreads: (id: string | undefined) =>
     `student-threads-${encodeURIComponent(id ?? "")}`,
   changeHistory: (id: string) =>

@@ -6,17 +6,32 @@ import {
   waitFor,
 } from "@testing-library/react";
 import type { ReactElement } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import StatisticsPage from "./page";
+import { SWRConfig } from "~/lib/swr/testing";
+import { SessionProvider } from "next-auth/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { StatisticsReport } from "~/lib/statistics-api";
 import { catalogText } from "~/test/error-catalog-text";
 import { TEST_CLOCK_TODAY } from "~/test/clock";
 
+vi.unmock("swr");
+
 // Exportfehler kommen als Toast (#2517).
 function render(ui: ReactElement) {
-  return rtlRender(ui, { wrapper: ToastProvider });
+  return rtlRender(
+    <SessionProvider
+      session={{
+        user: { id: "staff-7", scope: "tenant", tenantId: 42 },
+        expires: "2099-01-01",
+      }}
+    >
+      <SWRConfig value={{ provider: () => new Map() }}>
+        <ToastProvider>{ui}</ToastProvider>
+      </SWRConfig>
+    </SessionProvider>,
+  );
 }
 
 vi.mock("next/navigation", () => ({
@@ -167,6 +182,8 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
   });
 
   it("zeigt einen Ladefehler mit Katalogtext und lädt auf Wiederholen neu", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => logged.mockRestore());
     mockFetchReport.mockRejectedValueOnce(
       new ApiError("down", 503, { code: "general.unavailable" }),
     );
@@ -177,6 +194,13 @@ describe("Statistik — Bereich Kurse (#2891)", () => {
         catalogText("general.unavailable", "die Statistik"),
       ),
     ).toBeInTheDocument();
+    expect(logged).toHaveBeenCalledWith(
+      "swr_fetch_failed",
+      expect.objectContaining({
+        error_code: "general.unavailable",
+        status: 503,
+      }),
+    );
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
     await waitFor(() => expect(mockFetchReport).toHaveBeenCalledTimes(2));
   });
