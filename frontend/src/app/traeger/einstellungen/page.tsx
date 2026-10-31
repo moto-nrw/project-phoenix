@@ -8,7 +8,6 @@ import { useCallback, useState } from "react";
 import { SettingsCategory } from "~/components/settings/settings-category";
 import { displayTabLabel } from "~/components/settings/settings-filter";
 import { Alert } from "~/components/ui/alert";
-import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { createLogger } from "~/lib/logger";
 import type { SettingsSchema } from "~/lib/settings-api";
@@ -70,17 +69,6 @@ export default function TraegerSettingsPage() {
     .flatMap((tab) => tab.categories)
     .flatMap((category) => category.items)
     .filter((item) => item.source === "traeger").length;
-  // Ein fehlgeschlagenes Nachladen lässt die gezeigten Werte stehen; die
-  // Meldung steht dann über ihnen statt an ihrer Stelle.
-  const error =
-    loadError && schema
-      ? {
-          ...loadError,
-          action: errorAlertActions(loadError),
-          keepContent: true,
-        }
-      : loadError;
-
   return (
     <TenantPage
       title="Einstellungen"
@@ -112,7 +100,7 @@ export default function TraegerSettingsPage() {
             }
           : undefined
       }
-      error={error}
+      error={loadError}
       loading={loading && !schema}
       empty={
         !loading && schema && tabs.length === 0

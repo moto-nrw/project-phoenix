@@ -1,3 +1,5 @@
+import { useTenantMutateMatching } from "~/lib/swr";
+import { traegerKeys } from "~/lib/swr/portal-keys";
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
 import {
@@ -144,6 +146,41 @@ describe("TraegerBriefkopfPage", () => {
     api.fetchTraegerMasterData.mockResolvedValue(MASTER_DATA);
     api.fetchTraegerSettingsSchema.mockResolvedValue(brandingSchema());
   });
+
+  it.each([503, 403])(
+    "keeps loaded content only for recoverable schema refresh errors (%s)",
+    async (status) => {
+      render(
+        <ToastProvider>
+          <RefreshSchema />
+          <TraegerBriefkopfPage />
+        </ToastProvider>,
+      );
+      expect(
+        await screen.findByRole("figure", { name: "Vorschau des Briefkopfs" }),
+      ).toBeInTheDocument();
+      const code =
+        status === 503 ? "general.unavailable" : "general.permission";
+      api.fetchTraegerSettingsSchema.mockRejectedValue(
+        new ApiError("refused", status, { code }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Refresh schema" }));
+      // Anker: the current schema failure is shown after a complete initial load.
+      expect(
+        await screen.findByText(
+          catalogText(code, "die Liste der Einstellungen"),
+        ),
+      ).toBeInTheDocument();
+      if (status === 503)
+        expect(
+          screen.queryByRole("figure", { name: "Vorschau des Briefkopfs" }),
+        ).toBeInTheDocument();
+      else
+        expect(
+          screen.queryByRole("figure", { name: "Vorschau des Briefkopfs" }),
+        ).not.toBeInTheDocument();
+    },
+  );
 
   it("previews the letterhead with sender, contact and the default bank account", async () => {
     renderPage();
@@ -307,5 +344,18 @@ describe("TraegerBriefkopfPage", () => {
 function render(ui: React.ReactElement) {
   return rtlRender(
     <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}
+
+function RefreshSchema() {
+  const refresh = useTenantMutateMatching([traegerKeys.settings()]);
+  return (
+    <button
+      onClick={() => {
+        void refresh().catch(() => undefined);
+      }}
+    >
+      Refresh schema
+    </button>
   );
 }

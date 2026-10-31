@@ -1,3 +1,5 @@
+import { useTenantMutateMatching } from "~/lib/swr";
+import { traegerKeys } from "~/lib/swr/portal-keys";
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
 import {
@@ -88,6 +90,44 @@ describe("TraegerSettingsPage", () => {
     mockSave.mockReset().mockResolvedValue(undefined);
     mockClear.mockReset().mockResolvedValue(undefined);
   });
+
+  it.each([503, 403])(
+    "keeps loaded content only for recoverable schema refresh errors (%s)",
+    async (status) => {
+      mockFetchSchema.mockResolvedValue(schema([NEWS_FROM_TRAEGER]));
+      render(
+        <ToastProvider>
+          <RefreshSchema />
+          <TraegerSettingsPage />
+        </ToastProvider>,
+      );
+      expect(
+        await screen.findByRole("switch", {
+          name: "Neuigkeiten im Elternportal",
+        }),
+      ).toBeInTheDocument();
+      const code =
+        status === 503 ? "general.unavailable" : "general.permission";
+      mockFetchSchema.mockRejectedValue(
+        new ApiError("refused", status, { code }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Refresh schema" }));
+      // Anker: the current schema failure is shown after a complete initial load.
+      expect(
+        await screen.findByText(
+          catalogText(code, "die Liste der Einstellungen"),
+        ),
+      ).toBeInTheDocument();
+      if (status === 503)
+        expect(
+          screen.queryByRole("switch", { name: "Neuigkeiten im Elternportal" }),
+        ).toBeInTheDocument();
+      else
+        expect(
+          screen.queryByRole("switch", { name: "Neuigkeiten im Elternportal" }),
+        ).not.toBeInTheDocument();
+    },
+  );
 
   it("shares one schema request between mounted settings consumers", async () => {
     mockFetchSchema.mockResolvedValue(schema([NEWS_FROM_TRAEGER]));
@@ -249,3 +289,16 @@ vi.mock("next-auth/react", () => ({
     status: "authenticated",
   }),
 }));
+
+function RefreshSchema() {
+  const refresh = useTenantMutateMatching([traegerKeys.settings()]);
+  return (
+    <button
+      onClick={() => {
+        void refresh().catch(() => undefined);
+      }}
+    >
+      Refresh schema
+    </button>
+  );
+}

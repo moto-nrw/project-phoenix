@@ -13,7 +13,7 @@ import { TraegerContactCard } from "~/components/traeger/traeger-contact-card";
 import { TraegerLetterheadPreview } from "~/components/traeger/traeger-letterhead-preview";
 import { TraegerLogoCard } from "~/components/traeger/traeger-logo-card";
 import { Alert } from "~/components/ui/alert";
-import { errorAlertActions } from "~/components/ui/form-error-alert";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -56,11 +56,13 @@ export default function TraegerBriefkopfPage() {
     data: schema,
     isLoading: schemaLoading,
     loadError: schemaError,
+    error: schemaFailure,
     mutate: refreshSchema,
   } = useTraegerSettingsSchema();
   const branding =
     schema?.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null;
   const [loading, setLoading] = useState(true);
+  const [masterFailure, setMasterFailure] = useState<unknown>();
   // The cards show only after one complete read: empty forms after a failed
   // load would overwrite stored values on save.
   const [loaded, setLoaded] = useState(false);
@@ -70,6 +72,7 @@ export default function TraegerBriefkopfPage() {
   const read = useCallback(async () => {
     const data = await fetchTraegerMasterData();
     setMasterData(data);
+    setMasterFailure(undefined);
     setLoaded(true);
     clearLoadError();
   }, [clearLoadError]);
@@ -79,6 +82,7 @@ export default function TraegerBriefkopfPage() {
     try {
       await read();
     } catch (err) {
+      setMasterFailure(err);
       logger.error("traeger_briefkopf_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -101,6 +105,7 @@ export default function TraegerBriefkopfPage() {
         refreshSchema().catch(() => undefined),
       ]);
     } catch (err) {
+      setMasterFailure(err);
       logger.warn("traeger_briefkopf_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -137,15 +142,12 @@ export default function TraegerBriefkopfPage() {
 
   // Ein fehlgeschlagenes Nachladen lässt die gezeigten Angaben stehen; die
   // Meldung steht dann über ihnen statt an ihrer Stelle.
-  const loadError = pageLoad.error ?? schemaError;
-  const error =
-    loadError && loaded && schema
-      ? {
-          ...loadError,
-          action: errorAlertActions(loadError),
-          keepContent: true,
-        }
-      : loadError;
+  const error = metadataLoadError(
+    pageLoad.error ?? schemaError,
+    loaded && schema !== undefined,
+    masterFailure,
+    schemaFailure,
+  );
 
   return (
     <TenantPage
