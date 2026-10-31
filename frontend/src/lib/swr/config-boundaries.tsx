@@ -26,12 +26,19 @@ export function SWRSeedBoundary({
   };
   children: ReactNode;
 }>) {
-  return <SWRConfig value={seed}>{children}</SWRConfig>;
+  // Copied, never passed on: an object that carries `use` or `provider`
+  // besides the seed would reach SWR's configuration (#5007).
+  return (
+    <SWRConfig value={{ fallback: seed.fallback, cacheData: seed.cacheData }}>
+      {children}
+    </SWRConfig>
+  );
 }
 
 /**
  * A subtree with its own empty cache: nothing it loads is shared with the
- * portal, and a remount (another `key`) starts empty again.
+ * portal, and a remount (another `key`) starts empty again. It takes no
+ * configuration; the provider is created here and never handed out.
  */
 export function IsolatedSWRCache({
   children,

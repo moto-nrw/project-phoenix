@@ -55,7 +55,14 @@ void invalidateFamily(rooms.family);
    `swr/no-cache-access` judges every module reference by its resolved
    target and every imported name by the module's actual exports;
    `cache-boundary.test.tsx` holds the reviewed export list. Tests reach
-   SWR's provider through `testing.ts`.
+   SWR's provider through `testing.ts`; `swr/no-test-support-import` keeps
+   `src/test/**` out of production code.
+7. Options are an allowlist in type and at runtime: readers take
+   `ReaderOptions` (`READER_OPTION_KEYS`), mutations `MUTATION_OPTION_KEYS`,
+   `SWRSeedBoundary` only `fallback` and `cacheData`. The hooks copy the
+   allowed keys and throw on any other outside production; `use`,
+   `provider`, `fallback`, `fetcher`, `compare` and `onErrorRetry` never
+   reach SWR. `onSuccess` and `onError` get the value or failure alone.
 
 Migrated direct readers explicitly retain SWR’s former `keepPreviousData: false`
 default unless they already opted in. Do not carry a previous child, thread or

@@ -39,5 +39,6 @@ export { IsolatedSWRCache, SWRSeedBoundary } from "./config-boundaries";
 export { SWRScopeBoundary } from "./scope-boundary";
 
 // Types only: no export of this module hands out the cache (#5007).
+export type { ReaderOptions } from "./hooks";
 export type { SWRConfiguration, SWRResponse, KeyedMutator } from "swr";
 export { mutate } from "./mutate";

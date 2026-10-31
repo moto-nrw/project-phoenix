@@ -1,6 +1,12 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { useSWRConfig } from "swr";
+import { SWRConfig, useSWRConfig, type Middleware } from "swr";
+import { SWRSeedBoundary } from "./config-boundaries";
+import {
+  MUTATION_OPTION_KEYS,
+  READER_OPTION_KEYS,
+  useTenantMutate,
+} from "./hooks";
 import { messageKeys } from "./portal-keys";
 import { roomKeys } from "./rooms-keys";
 import { resetSWRScope, resumeSWRSession, suspendSWRSession } from "./scope";
@@ -78,6 +84,8 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "writeSWRSeeds",
   ],
   hooks: [
+    "MUTATION_OPTION_KEYS",
+    "READER_OPTION_KEYS",
     "useDiscardRefusedEntity",
     "useImmutableSWR",
     "useInvalidateFamily",
@@ -302,5 +310,114 @@ describe("seed helpers", () => {
       expect(result.current.get(own("fresh"))?.data).toBe("seed"),
     );
     expect(result.current.get(own("held"))?.data).toBe("reader");
+  });
+});
+
+// #5007, third review: options and configuration objects are the fifth way
+// into the cache. Each public reader, mutation and boundary copies an
+// allowlist; nothing else reaches SWR, whatever the static type let through.
+describe("option allowlists of ~/lib/swr", () => {
+  it("keeps the reviewed reader and mutation options", () => {
+    expect([...READER_OPTION_KEYS].sort()).toEqual([
+      "dedupingInterval",
+      "errorRetryCount",
+      "fallbackData",
+      "focusThrottleInterval",
+      "isPaused",
+      "keepPreviousData",
+      "onError",
+      "onSuccess",
+      "refreshInterval",
+      "revalidateIfStale",
+      "revalidateOnFocus",
+      "revalidateOnMount",
+      "revalidateOnReconnect",
+      "shouldRetryOnError",
+    ]);
+    expect([...MUTATION_OPTION_KEYS].sort()).toEqual([
+      "optimisticData",
+      "populateCache",
+      "revalidate",
+      "rollbackOnError",
+      "throwOnError",
+    ]);
+  });
+
+  // Every key SWR's configuration knows, plus the hook-only ones: a key
+  // outside the allowlist that slipped through would fail here.
+  const swrKeys = [
+    ...new Set([
+      ...Object.keys(SWRConfig.defaultValue),
+      "use",
+      "provider",
+      "fallback",
+      "fetcher",
+      "compare",
+      "onErrorRetry",
+      "suspense",
+      "strictServerPrefetchWarning",
+    ]),
+  ].filter((name) => !(READER_OPTION_KEYS as readonly string[]).includes(name));
+
+  it.each(swrKeys)("refuses the reader option %s", (name) => {
+    expect(() =>
+      renderHook(() =>
+        useSWRAuth(roomKeys.key(), async () => [], {
+          [name]: () => undefined,
+        } as never),
+      ),
+    ).toThrow(`takes no option '${name}'`);
+  });
+
+  it("runs no middleware from the options", () => {
+    const middleware = vi.fn<Middleware>((next) => next);
+    // Typed wide, as a caller could build it; no cast at the call.
+    const options: { refreshInterval: number; use: Middleware[] } = {
+      refreshInterval: 0,
+      use: [middleware],
+    };
+    expect(() =>
+      renderHook(() => useSWRAuth(roomKeys.key(), async () => [], options)),
+    ).toThrow("takes no option 'use'");
+    expect(middleware).not.toHaveBeenCalled();
+  });
+
+  it("passes only the seed to SWR, no middleware or provider", async () => {
+    const middleware = vi.fn<Middleware>((next) => next);
+    const provider = vi.fn(() => new Map());
+    const seed = {
+      fallback: {},
+      cacheData: {},
+      use: [middleware],
+      provider,
+    };
+    function Reader() {
+      useSWRAuth(roomKeys.key(), async () => ["server"]);
+      return null;
+    }
+    render(
+      <SWRSeedBoundary seed={seed}>
+        <Reader />
+      </SWRSeedBoundary>,
+    );
+    await waitFor(() => expect(middleware).not.toHaveBeenCalled());
+    expect(provider).not.toHaveBeenCalled();
+  });
+
+  it("hands a reader's callbacks the value alone, never SWR's configuration", async () => {
+    const onSuccess = vi.fn();
+    renderHook(() =>
+      useSWRAuth(roomKeys.key(), async () => ["server"], { onSuccess }),
+    );
+    await waitFor(() => expect(onSuccess).toHaveBeenCalled());
+    expect(onSuccess.mock.calls[0]).toEqual([["server"]]);
+  });
+
+  it("refuses a mutation option outside the allowlist", () => {
+    const { result } = renderHook(() => useTenantMutate());
+    const options = { revalidate: false, optimisticData: ["x"], extra: 1 };
+    expect(() => result.current(roomKeys.key(), ["saved"], options)).toThrow(
+      "takes no option 'extra'",
+    );
   });
 });
