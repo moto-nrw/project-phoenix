@@ -35,7 +35,6 @@ const mockAxiosInstance = vi.fn() as Mock & {
   post: Mock;
   put: Mock;
   delete: Mock;
-  getUri: Mock;
 };
 mockAxiosInstance.interceptors = {
   request: {
@@ -66,10 +65,6 @@ mockAxiosInstance.get = vi.fn();
 mockAxiosInstance.post = vi.fn();
 mockAxiosInstance.put = vi.fn();
 mockAxiosInstance.delete = vi.fn();
-// Like the real instance: relative URLs resolve against the backend base URL.
-mockAxiosInstance.getUri = vi.fn((config: { url?: string }) =>
-  new URL(config.url ?? "", "http://localhost:8080").toString(),
-);
 
 vi.mock("axios", () => ({
   create: vi.fn(() => mockAxiosInstance),

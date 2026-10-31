@@ -6,7 +6,6 @@ import {
   isSessionBarrierClosed,
   listenForSessionEnds,
   resetSessionBarrierForTests,
-  sessionBarrierSignal,
 } from "./session-end-barrier";
 import { useSessionPollInterval } from "./use-session-poll-interval";
 
@@ -53,7 +52,7 @@ const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 function otherTab() {
   const channel = new BroadcastChannel("moto-session-end");
   return {
-    post: (type: "begin" | "ended" | "failed") => channel.postMessage({ type }),
+    post: (type: "begin" | "ended" | "failed") => channel.postMessage(type),
     close: () => channel.close(),
   };
 }
@@ -107,6 +106,10 @@ describe("session-end barrier", () => {
       ["/api/parent/auth/logout", "POST"],
       ["/api/auth/staff-preview/end", "POST"],
       ["/api/notifications/push/subscriptions", "DELETE"],
+      // Each portal's push cleanup, awaited by the parent and school logout.
+      ["/api/parent/me/push/subscriptions", "DELETE"],
+      ["/api/school/notifications/push/subscriptions", "DELETE"],
+      ["/api/parent/auth/signout", "POST"],
     ] as const) {
       void through(path, { method });
     }
@@ -118,7 +121,15 @@ describe("session-end barrier", () => {
       "/api/parent/auth/logout",
       "/api/auth/staff-preview/end",
       "/api/notifications/push/subscriptions",
+      "/api/parent/me/push/subscriptions",
+      "/api/school/notifications/push/subscriptions",
+      "/api/parent/auth/signout",
     ]);
+    // Everything else waits, also a lookup of another portal's session.
+    void through("/api/parent/auth/session");
+    void through("/api/parent/me/children");
+    await flush();
+    expect(sent).toHaveLength(8);
     expect(isSessionBarrierClosed()).toBe(true);
     void held;
   });
@@ -164,25 +175,15 @@ describe("session-end barrier", () => {
     expect(isSessionBarrierClosed()).toBe(false);
   });
 
-  it("rejects a held request whose caller gives up", async () => {
-    beginSessionEnd();
+  it("fails a held request whose caller gave up once the barrier opens", async () => {
+    const end = beginSessionEnd();
     const caller = new AbortController();
     const held = through("/api/me/profile", { signal: caller.signal });
 
     caller.abort();
+    end.fail();
 
     await expect(held).rejects.toMatchObject({ name: "AbortError" });
-  });
-
-  it("aborts and holds Axios requests too", async () => {
-    const signal = await sessionBarrierSignal();
-    beginSessionEnd();
-    expect(signal.aborted).toBe(true);
-
-    let resumed = false;
-    void sessionBarrierSignal().then(() => (resumed = true));
-    await flush();
-    expect(resumed).toBe(false);
   });
 
   describe("another tab of this origin", () => {
@@ -221,8 +222,8 @@ describe("session-end barrier", () => {
       listenForSessionEnds();
       const listener = new BroadcastChannel("moto-session-end");
       const heard: string[] = [];
-      listener.onmessage = (event: MessageEvent<{ type: string }>) =>
-        heard.push(event.data.type);
+      listener.onmessage = (event: MessageEvent<string>) =>
+        heard.push(event.data);
 
       const end = beginSessionEnd();
       end.fail();

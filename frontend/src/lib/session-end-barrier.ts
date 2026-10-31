@@ -8,7 +8,7 @@ import { isOwnApiUrl } from "./session-account";
  * of a logout until the cookie is gone, this tab sends nothing to its own BFF
  * that could renew the old session:
  *
- * 1. Closing the barrier aborts every request to this origin's `/api/` whose
+ * 1. Closing the barrier aborts every fetch to this origin's `/api/` whose
  *    response headers have not arrived. The browser then drops their
  *    Set-Cookie. A GET or HEAD is sent again once the barrier opens; any
  *    other method fails, as an interrupted connection would.
@@ -26,63 +26,44 @@ import { isOwnApiUrl } from "./session-account";
  * its own navigation, once the signout answer deleted the cookie: a request
  * sent after that carries no session. The server keeps a response that only
  * re-read the session from writing its cookie at all (session-cookie-writes).
+ * Axios needs no barrier: the browser paths use fetch; Axios only runs on the
+ * server, against the backend.
  */
 
-const CHANNEL = "moto-session-end";
 /** Upper bound of a logout: revocation (5 s), CSRF and signout. */
 const OTHER_TAB_HOLD_MS = 15_000;
 
-type Owner = "self" | "other";
-type Message = { type: "begin" | "ended" | "failed" };
-
-let closedBy: Owner | null = null;
+let closedBy: "self" | "other" | null = null;
 let reopenAfterDeletion = true;
 let epoch = new AbortController();
 let waiters: (() => void)[] = [];
 let otherTabTimer: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<() => void>();
-let channel: BroadcastChannel | null = null;
+let channel: BroadcastChannel | undefined;
 
-function notify() {
-  for (const listener of listeners) listener();
-}
-
-function post(type: Message["type"]) {
-  channel?.postMessage({ type } satisfies Message);
-}
-
-function close(owner: Owner) {
+function setClosed(owner: typeof closedBy) {
+  if (owner) {
+    epoch.abort();
+    epoch = new AbortController();
+  } else {
+    clearTimeout(otherTabTimer);
+    for (const resume of waiters.splice(0)) resume();
+  }
   closedBy = owner;
-  epoch.abort(new DOMException("The session is ending", "AbortError"));
-  epoch = new AbortController();
-  notify();
-}
-
-function open() {
-  if (closedBy === null) return;
-  closedBy = null;
-  clearTimeout(otherTabTimer);
-  const release = waiters;
-  waiters = [];
-  for (const resume of release) resume();
-  notify();
+  for (const listener of listeners) listener();
 }
 
 /** Hears the other tabs' logouts; the fetch observer starts it at load. */
 export function listenForSessionEnds() {
-  listen();
-}
-
-function listen() {
   if (channel || typeof BroadcastChannel === "undefined") return;
-  channel = new BroadcastChannel(CHANNEL);
-  channel.onmessage = (event: MessageEvent<Message>) => {
+  channel = new BroadcastChannel("moto-session-end");
+  channel.onmessage = ({ data }: MessageEvent<string>) => {
     if (closedBy === "self") return;
-    if (event.data?.type === "begin") {
-      close("other");
+    if (data === "begin") {
+      setClosed("other");
       clearTimeout(otherTabTimer);
-      otherTabTimer = setTimeout(open, OTHER_TAB_HOLD_MS);
-    } else if (closedBy === "other") open();
+      otherTabTimer = setTimeout(setClosed, OTHER_TAB_HOLD_MS, null);
+    } else if (closedBy) setClosed(null);
   };
 }
 
@@ -111,121 +92,67 @@ export interface SessionEnd {
 export function beginSessionEnd({
   keepClosed = false,
 }: { keepClosed?: boolean } = {}): SessionEnd {
-  listen();
+  listenForSessionEnds();
   reopenAfterDeletion = !keepClosed;
-  close("self");
-  post("begin");
+  setClosed("self");
+  channel?.postMessage("begin");
   let settled = false;
   return {
     fail() {
       if (settled || closedBy !== "self") return;
       settled = true;
-      post("failed");
-      open();
+      channel?.postMessage("failed");
+      setClosed(null);
     },
   };
 }
 
-/** The portal's signout answer deleted the session cookie. */
-function sessionCookieDeleted() {
-  if (closedBy !== "self") return;
-  post("ended");
-  if (reopenAfterDeletion) open();
-}
-
+/** The exit's own requests: revocation, CSRF, signout, preview end, push. */
 const EXIT_PATH =
-  /^\/api\/(?:[a-z]+\/)?auth\/(?:logout|csrf|signout|staff-preview\/end)$/;
-const PUSH_CLEANUP_PATH = /\/notifications\/push\/subscriptions$/;
-
-function isExitRequest(url: URL, method: string): boolean {
-  return (
-    EXIT_PATH.test(url.pathname) ||
-    (method === "DELETE" && PUSH_CLEANUP_PATH.test(url.pathname))
-  );
-}
-
-function waitUntilOpen(signal: AbortSignal | null | undefined) {
-  if (closedBy === null) return Promise.resolve();
-  return new Promise<void>((resolve, reject) => {
-    const abort = () => {
-      waiters = waiters.filter((waiter) => waiter !== resume);
-      reject(signal?.reason);
-    };
-    const resume = () => {
-      signal?.removeEventListener("abort", abort);
-      resolve();
-    };
-    if (signal?.aborted) {
-      reject(signal.reason);
-      return;
-    }
-    signal?.addEventListener("abort", abort, { once: true });
-    waiters.push(resume);
-  });
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  return input instanceof Request ? input.url : input.toString();
-}
+  /^\/api\/(?:[a-z]+\/)?(?:auth\/(?:logout|csrf|signout|staff-preview\/end)$|.*\/push\/subscriptions$)/;
 
 /**
  * Sends one fetch through the barrier. Requests to other origins and paths
- * outside `/api/` pass unchanged.
+ * outside `/api/` pass unchanged; an open barrier sends at once, in the
+ * caller's task, as fetch does.
  */
 export async function fetchThroughSessionBarrier(
   send: typeof fetch,
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const raw = requestUrl(input);
+  const isRequest = input instanceof Request;
+  const raw = isRequest ? input.url : input.toString();
   if (!isOwnApiUrl(raw)) return send(input, init);
-  listen();
-  const url = new URL(raw, window.location.origin);
-  const method = (
-    init?.method ?? (input instanceof Request ? input.method : "GET")
-  ).toUpperCase();
-  if (isExitRequest(url, method)) {
+  const { pathname } = new URL(raw, location.origin);
+  if (EXIT_PATH.test(pathname)) {
     const response = await send(input, init);
-    if (method === "POST" && url.pathname.endsWith("/signout") && response.ok)
-      sessionCookieDeleted();
+    // The signout answer deleted the session cookie.
+    if (pathname.endsWith("/signout") && response.ok && closedBy === "self") {
+      channel?.postMessage("ended");
+      if (reopenAfterDeletion) setClosed(null);
+    }
     return response;
   }
 
-  const callerSignal =
-    init?.signal ?? (input instanceof Request ? input.signal : undefined);
-  const repeatable = method === "GET" || method === "HEAD";
+  const callerSignal = init?.signal ?? (isRequest ? input.signal : undefined);
+  const method = init?.method ?? (isRequest ? input.method : "GET");
+  const repeatable = /^(GET|HEAD)$/i.test(method);
   for (;;) {
-    // An open barrier sends at once, in the caller's task, as fetch does.
-    if (closedBy !== null) await waitUntilOpen(callerSignal);
+    // A caller that gave up meanwhile fails as soon as its fetch starts.
+    if (closedBy) await new Promise<void>((resume) => waiters.push(resume));
     const ending = epoch.signal;
-    const signal = callerSignal
-      ? AbortSignal.any([callerSignal, ending])
-      : ending;
     try {
-      return await send(
-        repeatable && input instanceof Request ? input.clone() : input,
-        { ...init, signal },
-      );
+      return await send(repeatable && isRequest ? input.clone() : input, {
+        ...init,
+        signal: callerSignal ? AbortSignal.any([callerSignal, ending]) : ending,
+      });
     } catch (error) {
       if (!ending.aborted || callerSignal?.aborted || !repeatable) throw error;
       // The barrier stopped this read before its answer could set a cookie.
       // Ask again once it opens, with the cookie that holds then.
     }
   }
-}
-
-/**
- * Axios runs on XHR: its request waits for the barrier and is aborted with
- * it. Returns the signal the request must carry.
- */
-export async function sessionBarrierSignal(
-  callerSignal?: AbortSignal,
-): Promise<AbortSignal> {
-  listen();
-  await waitUntilOpen(callerSignal);
-  return callerSignal
-    ? AbortSignal.any([callerSignal, epoch.signal])
-    : epoch.signal;
 }
 
 /** Test seam: forget the state of a previous test. */
@@ -237,5 +164,5 @@ export function resetSessionBarrierForTests() {
   clearTimeout(otherTabTimer);
   listeners.clear();
   channel?.close();
-  channel = null;
+  channel = undefined;
 }

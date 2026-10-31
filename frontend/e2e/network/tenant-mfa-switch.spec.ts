@@ -187,14 +187,17 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
     await released;
     await route.continue();
   });
-  // From the exit's start the document asks nothing of the ending session
-  // (#5399): its answer could write the session cookie back.
-  let exitStarted = false;
+  // From the revocation on, the document asks nothing of the ending session
+  // (#5399): its answer could write the session cookie back. The barrier
+  // closes before the revocation request; a lookup started earlier is
+  // aborted by it and is not counted here.
+  let revocationSent = false;
   let sessionLookupsDuringExit = 0;
   page.on("request", (request) => {
     const { pathname } = new URL(request.url());
+    if (pathname === "/api/auth/logout") revocationSent = true;
     if (pathname === "/api/auth/signout") signouts += 1;
-    if (exitStarted && pathname === "/api/auth/session")
+    if (revocationSent && pathname === "/api/auth/session")
       sessionLookupsDuringExit += 1;
   });
   try {
@@ -214,9 +217,9 @@ test("a second tab cannot start a competing logout while relogin CSRF is stalled
           };
         }),
     );
-    exitStarted = true;
     await page.getByRole("button", { name: "Zur Schulanmeldung" }).click();
     await csrf;
+    expect(revocationSent).toBe(true);
     // Expose the revoked family through a protected read, instead of relying
     // on incidental background traffic to turn its unexpired cookie terminal.
     expect(
