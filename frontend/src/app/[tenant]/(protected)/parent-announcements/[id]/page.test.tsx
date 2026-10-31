@@ -85,25 +85,31 @@ vi.mock("~/lib/parent-announcements-api", async (importOriginal) => {
   };
 });
 
-vi.mock("~/components/announcements/announcement-detail", () => ({
-  AnnouncementDetail: ({
-    announcement,
-    onReminded,
-  }: {
-    announcement: Announcement;
-    onReminded: (count: number) => void;
-  }) => (
-    <div data-testid="announcement-detail">
-      {announcement.body}
-      <button type="button" onClick={() => onReminded(3)}>
-        Erinnern
-      </button>
-    </div>
-  ),
-  AnnouncementDetailSkeleton: () => (
-    <div data-testid="announcement-detail-skeleton" />
-  ),
-}));
+vi.mock(
+  "~/components/announcements/announcement-detail",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/components/announcements/announcement-detail")
+    >()),
+    AnnouncementDetail: ({
+      announcement,
+      onReminded,
+    }: {
+      announcement: Announcement;
+      onReminded: (count: number) => void;
+    }) => (
+      <div data-testid="announcement-detail">
+        {announcement.body}
+        <button type="button" onClick={() => onReminded(3)}>
+          Erinnern
+        </button>
+      </div>
+    ),
+    AnnouncementDetailSkeleton: () => (
+      <div data-testid="announcement-detail-skeleton" />
+    ),
+  }),
+);
 
 vi.mock("~/components/announcements/announcement-reminder-dialog", () => ({
   AnnouncementReminderDialog: ({

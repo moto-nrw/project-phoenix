@@ -76,3 +76,38 @@ it.each(["same", "school", "account"])(
     expect(fetch).toHaveBeenCalled();
   },
 );
+
+it.each(["school", "account"])(
+  "withdraws a mounted preview on %s change",
+  async (change) => {
+    const cache = new Map();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SWRConfig value={{ provider: () => cache }}>
+        <ToastProvider>{children}</ToastProvider>
+      </SWRConfig>
+    );
+    const list = renderHook(
+      () =>
+        useSWRAuth(messageKeys.groupMessages(), async () => [
+          { id: "4", title: "Sommerfest" },
+        ]),
+      { wrapper },
+    );
+    await waitFor(() => expect(list.result.current.data).toBeDefined());
+    list.unmount();
+    const view = render(<GroupMessagePage />, { wrapper });
+    expect(
+      screen.getByRole("heading", { name: "Sommerfest" }),
+    ).toBeInTheDocument();
+    if (change === "school") owner.school = "andere-schule";
+    else owner.account = "8";
+    view.rerender(<GroupMessagePage />);
+    // Anker: die neue Sitzung zeigt ihren eigenen Ladekopf statt der alten Identität.
+    expect(
+      screen.getByRole("heading", { name: "Gruppennachricht" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Sommerfest" }),
+    ).not.toBeInTheDocument();
+  },
+);

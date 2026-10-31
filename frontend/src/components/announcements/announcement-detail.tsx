@@ -66,6 +66,13 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 const logger = createLogger({ component: "AnnouncementDetail" });
 
+/** Both the early page reader and the panel retain the poll-specific event. */
+export function logPollResultsError(error: unknown): void {
+  logger.error("announcement_poll_results_failed", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
+
 const RECIPIENT_STATUS_META: Record<
   AnnouncementRecipient["status"],
   { label: string; tone: StatusBadgeTone }
@@ -214,6 +221,7 @@ function PollResultsPanel({
       // The page already owns revalidation. This is a complete evaluation,
       // not a partial list seed; mounting the panel must not fetch it twice.
       revalidateIfStale: false,
+      onError: logPollResultsError,
     },
   );
   const results = data?.results ?? null;

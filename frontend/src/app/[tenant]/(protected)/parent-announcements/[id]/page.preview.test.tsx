@@ -1,5 +1,5 @@
 import { render, renderHook, screen, waitFor } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
+import { beforeEach, expect, it, onTestFinished, vi } from "vitest";
 import { SWRConfig } from "~/lib/swr/testing";
 import { useSWRAuth } from "~/lib/swr";
 import { parentAnnouncementKeys } from "~/lib/swr/portal-keys";
@@ -161,3 +161,85 @@ it("loads evaluation before detail and reuses it only after detail confirms the 
       .mock.calls.filter(([url]) => String(url).endsWith("/poll-results")),
   ).toHaveLength(1);
 });
+
+it.each([true, false])(
+  "logs poll failures through the reader (early list gate: %s)",
+  async (seeded) => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => errors.mockRestore());
+    const cache = new Map();
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
+        <ToastProvider>{children}</ToastProvider>
+      </SWRConfig>
+    );
+    if (seeded) {
+      const list = renderHook(
+        () =>
+          useSWRAuth(parentAnnouncementKeys.list(), async () => [
+            {
+              id: "4",
+              title: "Sommerfest",
+              status: "published",
+              response_type: "single_choice",
+            },
+          ]),
+        { wrapper },
+      );
+      await waitFor(() => expect(list.result.current.data).toBeDefined());
+      list.unmount();
+    }
+    let finish!: (response: Response) => void;
+    const pending = new Promise<Response>((resolve) => {
+      finish = resolve;
+    });
+    vi.mocked(fetch).mockImplementation((input) => {
+      const url = String(input);
+      if (url.endsWith("/poll-results"))
+        return Promise.reject(new Error("Auswertung offline"));
+      if (url.endsWith("/poll-children"))
+        return Promise.resolve(Response.json({ data: [] }));
+      return pending;
+    });
+    render(<AnnouncementDetailPage />, { wrapper });
+    if (seeded) {
+      expect(
+        screen.getByRole("heading", { name: "Sommerfest" }),
+      ).toBeInTheDocument();
+      await waitFor(() =>
+        expect(errors).toHaveBeenCalledWith(
+          "announcement_poll_results_failed",
+          { error: "Auswertung offline" },
+        ),
+      );
+    }
+    finish(
+      Response.json({
+        data: {
+          id: "4",
+          title: "Sommerfest",
+          body: "Bestätigter Detailtext",
+          status: "published",
+          priority: "info",
+          response_type: "single_choice",
+          delivery_mode: "standard",
+          targets: [],
+          options: [],
+        },
+      }),
+    );
+    expect(
+      await screen.findByText("Bestätigter Detailtext"),
+    ).toBeInTheDocument();
+    await waitFor(() =>
+      expect(errors).toHaveBeenCalledWith("announcement_poll_results_failed", {
+        error: "Auswertung offline",
+      }),
+    );
+    expect(
+      errors.mock.calls.filter(
+        ([event]) => event === "announcement_poll_results_failed",
+      ),
+    ).toHaveLength(1);
+  },
+);

@@ -7,7 +7,10 @@ import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { AnnouncementDetail } from "~/components/announcements/announcement-detail";
+import {
+  AnnouncementDetail,
+  logPollResultsError,
+} from "~/components/announcements/announcement-detail";
 import { AnnouncementReminderDialog } from "~/components/announcements/announcement-reminder-dialog";
 import {
   buildAnnouncementMenuItems,
@@ -140,7 +143,11 @@ function AnnouncementDetailPageContent() {
       ]);
       return { results, children };
     },
-    { revalidateOnFocus: false, keepPreviousData: false },
+    {
+      revalidateOnFocus: false,
+      keepPreviousData: false,
+      onError: logPollResultsError,
+    },
   );
 
   // Der Rückweg: die Sammlung samt Reiter, aus der die Seite geöffnet wurde.
@@ -159,8 +166,9 @@ function AnnouncementDetailPageContent() {
     referrerPage: referrer,
   });
 
-  // Die Zielgruppen tragen echte Namen; die Nachschlagelisten laden erst,
-  // wenn die Mitteilung da ist.
+  // Die Nachschlagelisten für Zielgruppennamen starten parallel zum Detail.
+  // Auch bei 404/Fehler dürfen diese unabhängigen, wiederverwendbaren Listen
+  // laden: Ein Detail-Gate würde auf dem normalen Weg einen Wasserfall erzeugen.
   const { data: groups } = useSWRAuth<Group[]>(
     groupsKeys.key(),
     groupsKeys.fetcher,
