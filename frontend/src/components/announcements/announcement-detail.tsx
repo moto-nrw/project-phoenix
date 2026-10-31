@@ -60,7 +60,18 @@ import {
   targetChips,
 } from "./announcement-meta";
 
+import { useSWRAuth } from "~/lib/swr";
+import { parentAnnouncementKeys } from "~/lib/swr/portal-keys";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+
 const logger = createLogger({ component: "AnnouncementDetail" });
+
+/** Both the early page reader and the panel retain the poll-specific event. */
+export function logPollResultsError(error: unknown): void {
+  logger.error("announcement_poll_results_failed", {
+    error: error instanceof Error ? error.message : String(error),
+  });
+}
 
 const RECIPIENT_STATUS_META: Record<
   AnnouncementRecipient["status"],
@@ -192,47 +203,39 @@ function PollResultsPanel({
   readonly announcement: Announcement;
   readonly onReminded: (count: number) => void;
 }) {
-  const [results, setResults] = useState<PollResults | null>(null);
-  const [children, setChildren] = useState<PollChild[] | null>(null);
-  const [loadFailed, setLoadFailed] = useState(false);
-  const loadError = useApiLoadError();
-  const showLoadError = loadError.show;
-  const clearLoadError = loadError.clear;
+  const { data, error, mutate } = useSWRAuth<{
+    results: PollResults;
+    children: PollChild[];
+  }>(
+    parentAnnouncementKeys.pollEvaluation(announcement.id),
+    async () => {
+      const [results, children] = await Promise.all([
+        fetchPollResults(announcement.id),
+        fetchPollChildren(announcement.id),
+      ]);
+      return { results, children };
+    },
+    {
+      revalidateOnFocus: false,
+      keepPreviousData: false,
+      // The page already owns revalidation. This is a complete evaluation,
+      // not a partial list seed; mounting the panel must not fetch it twice.
+      revalidateIfStale: false,
+      onError: logPollResultsError,
+    },
+  );
+  const results = data?.results ?? null;
+  const children = data?.children ?? null;
+  const shownLoadError = useSwrLoadError(
+    error,
+    "das Ergebnis der Umfrage",
+    mutate,
+  );
+  const loadFailed = Boolean(error);
   const { show: showError } = useApiErrorDisplay();
-  // „Wiederholen“ lädt neu: ein neuer Wert startet den Abruf erneut.
-  const [reloadKey, setReloadKey] = useState(0);
   const [onlyOpen, setOnlyOpen] = useState(false);
   const [reminding, setReminding] = useState(false);
   const latestRemindRef = useRef<() => void>(() => undefined);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetchPollResults(announcement.id),
-      fetchPollChildren(announcement.id),
-    ])
-      .then(([resultsData, childrenData]) => {
-        if (cancelled) return;
-        setResults(resultsData);
-        setChildren(childrenData);
-        setLoadFailed(false);
-        clearLoadError();
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        logger.error("announcement_poll_results_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        setLoadFailed(true);
-        void showLoadError(err, {
-          object: "das Ergebnis der Umfrage",
-          retry: () => setReloadKey((key) => key + 1),
-        });
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [announcement.id, reloadKey, showLoadError, clearLoadError]);
 
   const deadlinePassed =
     announcement.response_deadline !== undefined &&
@@ -275,12 +278,12 @@ function PollResultsPanel({
       description="Gezählt werden Kinder, nicht Konten: die Zahl, mit der die Schule plant."
     >
       <LoadErrorAlert
-        error={loadFailed ? loadError.error : null}
+        error={loadFailed ? shownLoadError : null}
         className="mb-2"
       />
 
       {results === null || children === null ? (
-        loadFailed && loadError.error ? null : (
+        loadFailed && shownLoadError ? null : (
           <SkeletonRegion label="Umfrageergebnisse werden geladen…">
             <ListSkeleton rows={4} avatar={false} />
           </SkeletonRegion>
