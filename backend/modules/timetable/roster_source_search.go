@@ -48,10 +48,9 @@ func bestSourceCombinations(candidates []deviationCandidate, planned map[rosterS
 	var best []sourceCombination
 	bounded := false
 	for _, members := range searchablePhaseMembers(candidates, slots) {
-		if len(members) > MaxSourceSearchOfferings {
-			members, bounded = boundSearchMembers(slots, members), true
-		}
-		for _, combination := range phaseSourceCombinations(candidates, slots, members) {
+		combinations, phaseBounded := searchPhaseCombinations(candidates, slots, members)
+		bounded = bounded || phaseBounded
+		for _, combination := range combinations {
 			switch {
 			case len(best) == 0:
 				best = []sourceCombination{combination}
@@ -64,6 +63,27 @@ func bestSourceCombinations(candidates []deviationCandidate, planned map[rosterS
 	}
 	slices.SortFunc(best, compareSourceCombinations)
 	return best, bounded
+}
+
+// searchPhaseCombinations bounds only the subset search. Qualifying offerings
+// outside that search remain eligible as singletons, so the bound cannot hide
+// every valid source or a better singleton fallback.
+func searchPhaseCombinations(candidates []deviationCandidate, slots slotIndex, members []int) ([]sourceCombination, bool) {
+	if len(members) <= MaxSourceSearchOfferings {
+		return phaseSourceCombinations(candidates, slots, members), false
+	}
+	retained := boundSearchMembers(slots, members)
+	combinations := phaseSourceCombinations(candidates, slots, retained)
+	for _, index := range members {
+		if !candidates[index].passes || slices.Contains(retained, index) {
+			continue
+		}
+		kept := slots.offerings[index].and(slots.planned).count()
+		combinations = append(combinations, sourceCombination{
+			members: []int{index}, kept: kept, added: slots.offerings[index].count() - kept,
+		})
+	}
+	return combinations, true
 }
 
 // searchablePhaseMembers groups the candidates that book at least one

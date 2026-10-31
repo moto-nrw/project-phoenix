@@ -85,7 +85,7 @@ type RosterDeviation struct {
 	// passing the rule; when Ambiguous, only their equal alternatives follow.
 	Candidates []OfferingRef
 	// Combinations lists every combination with the best score when several
-	// share it, Offerings first; otherwise it is empty.
+	// share it or the search is bounded, Offerings first; otherwise it is empty.
 	Combinations [][]OfferingRef
 	// Ambiguous is set when several combinations share the best score, in
 	// one phase or across phases, or when the search bound kept the choice
@@ -139,7 +139,7 @@ func SuggestOfferingSource(roster TemplateFutureRoster, bookings []OfferingWeekd
 	chosen := best[0].members
 	booked := unionBookedSlots(candidates, chosen)
 	combinations := [][]OfferingRef{}
-	if len(best) > 1 {
+	if len(best) > 1 || bounded {
 		for _, combination := range best {
 			combinations = append(combinations, candidateOfferingRefs(candidates, combination.members))
 		}

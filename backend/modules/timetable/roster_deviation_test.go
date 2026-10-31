@@ -895,4 +895,32 @@ func TestSuggestOfferingSourceSearchBound(t *testing.T) {
 
 	require.NotNil(t, suggestion)
 	assert.True(t, suggestion.Ambiguous, "13 offerings exceed the search bound")
+	assert.Len(t, suggestion.Offerings, timetable.MaxSourceSearchOfferings)
+	assert.Equal(t, [][]timetable.OfferingRef{suggestion.Offerings}, suggestion.Combinations,
+		"the bounded choice must keep its complementary offerings together")
+}
+
+// A higher matched-slot count must not hide the only offering passing #5103.
+func TestSuggestOfferingSourceSearchBoundRetainsQualifyingOffering(t *testing.T) {
+	t.Parallel()
+	const qualifying = int64(600)
+	roster := classRoster([]int{1}, studentRange(1, 4), "1a")
+	bookings := []timetable.OfferingWeekdayBooking{}
+	for _, studentID := range studentRange(1, 3) {
+		bookings = append(bookings, booking(qualifying, "Passendes Angebot", studentID, "1a", 1))
+	}
+	for index := range timetable.MaxSourceSearchOfferings {
+		for _, studentID := range studentRange(1, 6) {
+			bookings = append(bookings, booking(qualifying+1+int64(index), fmt.Sprintf("Kurs %d", index), studentID, "1a", 1))
+		}
+	}
+
+	suggestion := timetable.SuggestOfferingSource(roster, bookings)
+
+	require.NotNil(t, suggestion)
+	assert.Equal(t, []timetable.OfferingRef{{ID: qualifying, Name: "Passendes Angebot"}}, suggestion.Offerings)
+	assert.True(t, suggestion.Ambiguous)
+	assert.Equal(t, 1, suggestion.UnbookedCount)
+	assert.Zero(t, suggestion.MissingCount)
+	assert.Equal(t, [][]timetable.OfferingRef{suggestion.Offerings}, suggestion.Combinations)
 }
