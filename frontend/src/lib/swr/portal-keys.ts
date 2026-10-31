@@ -64,8 +64,12 @@ export const messageKeys = {
     resourceKey("group-message-audience-", { type: id, targetId }),
   teamChatInbox: (onlyUnread: boolean) =>
     `team-chat-inbox-${encodeURIComponent(String(onlyUnread))}`,
+  /** Every filter of the team-chat inbox. */
+  teamChatInboxFamily: () => "team-chat-inbox-",
   messagesInbox: (onlyUnread: boolean) =>
     `messages-inbox-${encodeURIComponent(String(onlyUnread))}`,
+  /** Every filter of the parent-message inbox. */
+  messagesInboxFamily: () => "messages-inbox-",
   groupMessages: () => "group-messages",
   messageThread: (id: string | undefined) =>
     `message-thread-${encodeURIComponent(id ?? "")}`,

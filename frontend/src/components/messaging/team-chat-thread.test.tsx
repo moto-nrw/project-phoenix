@@ -216,6 +216,157 @@ describe("TeamChatThread (#2517)", () => {
   });
 });
 
+// Senden zeigt die Nachricht sofort (#5011): markiert, bis die Antwort sie
+// bestätigt; ein Fehler markiert sie als nicht gesendet und gibt den Text
+// zurück ins Feld.
+describe("TeamChatThread optimistic send (#5011)", () => {
+  let api: ReturnType<typeof stubApi>;
+
+  beforeEach(() => {
+    api = stubApi();
+    api.fetchThread.mockResolvedValue(thread);
+  });
+
+  // Der Text einer Blase; das Feld trägt nach einem Fehler denselben Text.
+  const bubble = (text: string) => screen.getByText(text, { selector: "span" });
+
+  async function typeAndSend(text: string) {
+    render(
+      <TeamChatThread
+        portal={portalFor(api)}
+        threadID="t1"
+        myAccountId="1"
+        back={{ href: "/team-chat", label: "Zurück zum Team-Chat" }}
+      />,
+      { wrapper: Fresh },
+    );
+    await screen.findByText("Hallo");
+    fireEvent.change(screen.getByLabelText("Nachricht"), {
+      target: { value: text },
+    });
+    const started = performance.now();
+    fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+    return started;
+  }
+
+  it("shows the message within 100 ms, marked as on its way, and clears the field", async () => {
+    let answer: (
+      value: Awaited<ReturnType<StaffMessagesApi["postMessage"]>>,
+    ) => void = () => {};
+    const sent = {
+      id: "m2",
+      sender_account_id: "1",
+      sender_name: "Ich",
+      body: "Bin unterwegs",
+      created_at: "2026-09-09T10:05:00Z",
+    };
+    api.postMessage.mockReturnValue(
+      new Promise((resolve) => {
+        answer = resolve;
+      }),
+    );
+    // Der Abgleich nach dem Senden kennt die Nachricht.
+    api.fetchThread
+      .mockReset()
+      .mockResolvedValueOnce(thread)
+      .mockResolvedValue({ ...thread, messages: [...thread.messages, sent] });
+    const started = await typeAndSend("Bin unterwegs");
+
+    // Kein await: die Blase steht vor der Antwort.
+    expect(bubble("Bin unterwegs")).toBeInTheDocument();
+    expect(screen.getByText("Wird gesendet")).toBeInTheDocument();
+    expect(performance.now() - started).toBeLessThan(100);
+    expect(screen.getByLabelText("Nachricht")).toHaveValue("");
+
+    answer(sent);
+    await waitFor(() =>
+      expect(screen.queryByText("Wird gesendet")).not.toBeInTheDocument(),
+    );
+    expect(bubble("Bin unterwegs")).toBeInTheDocument();
+    await waitFor(() => expect(api.fetchThread).toHaveBeenCalledTimes(2));
+    expect(
+      screen.getAllByText("Bin unterwegs", { selector: "span" }),
+    ).toHaveLength(1);
+  });
+
+  it("marks a failed message, puts the text back and shows the error", async () => {
+    api.postMessage.mockRejectedValue(
+      new ApiError("send kaputt", 503, { code: "general.unavailable" }),
+    );
+    await typeAndSend("Bin unterwegs");
+
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Nachricht"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nicht gesendet")).toBeInTheDocument();
+    expect(bubble("Bin unterwegs")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nachricht")).toHaveValue("Bin unterwegs");
+    expect(screen.queryByText("Wird gesendet")).not.toBeInTheDocument();
+  });
+
+  it("drops the conversation on a refusal and shows the refusal", async () => {
+    api.postMessage.mockRejectedValue(
+      new ApiError("Forbidden", 403, { code: "general.permission" }),
+    );
+    await typeAndSend("Bin unterwegs");
+
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "die Unterhaltung"),
+      ),
+    ).toBeInTheDocument();
+    // Verworfen: weder der Verlauf noch die Blase bleiben stehen, und ohne
+    // Zutun fragt die Seite nicht erneut.
+    expect(screen.queryByText("Hallo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bin unterwegs")).not.toBeInTheDocument();
+    expect(api.fetchThread).toHaveBeenCalledTimes(1);
+  });
+
+  // The backend answers "not a participant" with 404 on purpose
+  // (staffmessages/errors.go): leaving a group chat ends access that way.
+  it("drops the conversation when the backend says it is no longer the sender's (404)", async () => {
+    api.postMessage.mockRejectedValue(
+      new ApiError("Diese Unterhaltung gibt es nicht.", 404, {
+        code: "general.input",
+      }),
+    );
+    await typeAndSend("Bin unterwegs");
+
+    expect(
+      await screen.findByText(catalogText("general.input", "die Unterhaltung")),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Hallo")).not.toBeInTheDocument();
+    expect(screen.queryByText("Bin unterwegs")).not.toBeInTheDocument();
+    expect(api.fetchThread).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps the conversation and marks the bubble on a failure without a response", async () => {
+    api.postMessage.mockRejectedValue(new TypeError("Failed to fetch"));
+    await typeAndSend("Bin unterwegs");
+
+    expect(await screen.findByText("Nicht gesendet")).toBeInTheDocument();
+    expect(screen.getByText("Hallo")).toBeInTheDocument();
+  });
+
+  it("keeps the conversation on a business 403 with its own code", async () => {
+    api.postMessage.mockRejectedValue(
+      new ApiError("Aus", 403, {
+        code: "communication.staff_messaging_disabled",
+      }),
+    );
+    await typeAndSend("Bin unterwegs");
+
+    expect(
+      await screen.findByText(
+        "Der Team-Chat ist ausgeschaltet. Sie können hier nicht schreiben.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Hallo")).toBeInTheDocument();
+  });
+});
+
 describe("TeamChatInbox (#2517)", () => {
   it("never shows the empty state for a list that failed to load", async () => {
     const api = stubApi();

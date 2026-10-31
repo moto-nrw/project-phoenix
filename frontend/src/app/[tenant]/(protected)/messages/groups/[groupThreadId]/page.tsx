@@ -5,6 +5,8 @@ import { messageKeys } from "~/lib/swr/portal-keys";
 import { useCallback, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSWRAuth } from "~/lib/swr";
+import { GROUP_THREAD_SEND_REFUSALS } from "~/lib/message-send-refusals";
+import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { Alert } from "~/components/ui/alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -48,11 +50,34 @@ function GroupMessageContent() {
   const { tenant } = useTenant();
   const messagingEnabled = tenant?.messagingEnabled === true;
 
-  const { data, error, isLoading, mutate } = useSWRAuth<GroupThreadDetail>(
+  const {
+    data: confirmed,
+    error: readerError,
+    isLoading,
+    mutate,
+  } = useSWRAuth<GroupThreadDetail>(
     messageKeys.groupMessage(threadId),
     () => fetchGroupThread(threadId),
     { keepPreviousData: false, revalidateOnFocus: false },
   );
+  // Eine weitere Nachricht steht sofort im Verlauf (#5011), markiert, bis
+  // die Antwort sie bestätigt oder ihr Fehlschlag sie als nicht gesendet
+  // zeigt.
+  const sendAction = useOptimisticAction(
+    messageKeys.groupMessage(threadId),
+    confirmed,
+  );
+  const data = sendAction.data;
+  // Lehnt der Server beim Senden die Gruppennachricht ab, ist sie verworfen
+  // (#5011). Die Ablehnung steht dann dort, wo sie fehlt, bis ein neuer
+  // Abruf wieder Daten liefert.
+  const [refusal, setRefusal] = useState<{
+    readonly id: string;
+    readonly error: unknown;
+  }>();
+  const error =
+    readerError ??
+    (data || refusal?.id !== threadId ? undefined : refusal.error);
   const loadError = useSwrLoadError(error, "die Gruppennachricht", mutate);
 
   // Group-thread broadcasts deliberately omit the thread id from staff events,
@@ -66,7 +91,7 @@ function GroupMessageContent() {
   });
 
   const [draft, setDraft] = useState("");
-  const [sending, setSending] = useState(false);
+  const sending = sendAction.pending;
   const sendError = useApiFormError();
   const [confirmClose, setConfirmClose] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -76,19 +101,39 @@ function GroupMessageContent() {
     const body = draft.trim();
     if (!body || sending) return;
     sendError.clear();
-    setSending(true);
-    try {
-      const next = await postGroupMessage(threadId, body);
-      setDraft("");
-      await mutate(next, { revalidate: false });
-    } catch (err) {
-      logger.error("group_message_send_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void sendError.show(err, { object: "die Nachricht" });
-    } finally {
-      setSending(false);
+    // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
+    sendAction.dismiss();
+    setDraft("");
+    const outcome = await sendAction.run({
+      optimistic: (current, { id }) => ({
+        ...current,
+        messages: [
+          ...current.messages,
+          { id, sender_name: "", body, created_at: "" },
+        ],
+      }),
+      request: () => postGroupMessage(threadId, body),
+      commit: (next) => void mutate(next, { revalidate: false }),
+      keepFailed: true,
+      refusal: {
+        codes: GROUP_THREAD_SEND_REFUSALS,
+        matches: (key) =>
+          key === messageKeys.groupMessage(threadId) ||
+          key === messageKeys.groupMessages(),
+      },
+    });
+    if (outcome.status !== "failed") return;
+    const err = outcome.error;
+    // Der Text kommt zurück ins Feld, außer dort steht schon ein neuer.
+    setDraft((current) => (current === "" ? body : current));
+    logger.error("group_message_send_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    if (outcome.refused) {
+      setRefusal({ id: threadId, error: err });
+      return;
     }
+    void sendError.show(err, { object: "die Nachricht" });
   };
 
   const close = async () => {
@@ -177,6 +222,7 @@ function GroupMessageContent() {
               own
               senderName={message.sender_name}
               createdAt={message.created_at}
+              pending={sendAction.stateOf(message.id)}
             />
           ))}
         </div>

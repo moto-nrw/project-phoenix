@@ -14,4 +14,7 @@ export const parentKeys = {
       : `parent-meal-plan-enabled-${encodeURIComponent(id)}`,
   shellChildren: () => "parent-shell-children",
   profile: () => "parent-profile",
+  /** The conversation of one child with one audience (#5011, #5200). */
+  conversation: (studentId: string, audience: string) =>
+    `parent-conversation-${encodeURIComponent(studentId)}-${encodeURIComponent(audience)}`,
 } as const;
