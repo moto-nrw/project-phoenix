@@ -1,4 +1,5 @@
 {
+  "absence_list_invalid_period": "Dieser Zeitraum geht nicht. Bis darf nicht vor Von liegen. Wählen Sie höchstens ein Schuljahr.",
   "absence_report_conflict": "Für dieses Kind steht heute schon etwas, zum Beispiel eine frühere Abholung. Es wurde nichts gespeichert. Bitte sprechen Sie mit der OGS.",
   "absence_report_no_school_day": "Heute ist kein Schultag. Eine Meldung lässt sich nur an Schultagen eintragen.",
   "absence_report_not_found": "Diese Meldung gibt es nicht mehr. Bitte laden Sie die Seite neu.",

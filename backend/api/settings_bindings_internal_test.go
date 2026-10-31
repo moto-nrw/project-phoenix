@@ -7,7 +7,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type roomHistorySettingsDouble struct {
@@ -99,4 +101,35 @@ func TestClassDayWriteScopeReadsTheMultiSelect(t *testing.T) {
 		require.Error(t, err)
 		require.False(t, allowed)
 	})
+}
+
+type absenceRetentionSettings struct {
+	marks, statuses int
+	failKey         string
+}
+
+func (s absenceRetentionSettings) ResolveInt(_ context.Context, key string) (int, error) {
+	if key == s.failKey {
+		return 0, errors.New("settings unavailable")
+	}
+	if key == configModels.KeyGDPRMorningAttendanceRetentionDays {
+		return s.marks, nil
+	}
+	return s.statuses, nil
+}
+
+func TestAbsenceListRetentionUsesShorterWindowAndPropagatesErrors(t *testing.T) {
+	t.Parallel()
+	today := calendar.Date("2026-09-16")
+	for _, windows := range []absenceRetentionSettings{{marks: 365, statuses: 30}, {marks: 30, statuses: 365}} {
+		deps := withClassDayAbsenceList(classdayCompose.MorningAttendanceDependencies{}, nil, nil, nil, nil, nil, windows, nil, nil)
+		from, err := deps.AbsenceList.AvailableFrom(context.Background(), today)
+		require.NoError(t, err)
+		require.Equal(t, today.AddDays(-30), from)
+	}
+	for _, key := range []string{configModels.KeyGDPRMorningAttendanceRetentionDays, configModels.KeyGDPRStatusDayRetentionDays} {
+		deps := withClassDayAbsenceList(classdayCompose.MorningAttendanceDependencies{}, nil, nil, nil, nil, nil, absenceRetentionSettings{marks: 365, statuses: 365, failKey: key}, nil, nil)
+		_, err := deps.AbsenceList.AvailableFrom(context.Background(), today)
+		require.Error(t, err)
+	}
 }

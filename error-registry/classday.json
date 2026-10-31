@@ -1,6 +1,12 @@
 {
   "codes": [
     {
+      "code": "classday.absence_list_invalid_period",
+      "class": "input",
+      "parameters": [],
+      "legacy": "classday.absence_list_invalid_period"
+    },
+    {
       "code": "classday.absence_report_conflict",
       "class": "business_rejection",
       "parameters": [],
