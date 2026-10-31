@@ -11,6 +11,10 @@
   "api/school/calendar/my": [
     "GET school /school/calendar/my"
   ],
+  "api/school/calendar/parent-conferences": [
+    "GET school /school/calendar/parent-conferences",
+    "POST school /school/calendar/parent-conferences"
+  ],
   "api/school/calendar/recipients/[recipientId]/response": [
     "POST school /school/calendar/recipients/recipientId%2F1/response"
   ]

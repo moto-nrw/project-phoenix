@@ -48,6 +48,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 	canManageGuardianContacts := child.HasPermission(GuardianPermissionGuardianEdit)
 	canManageRelatedAccounts := child.HasPermission(GuardianPermissionRelatedAccountsManage)
 	return ChildFeatureFlags{
+		ConferenceBookAllowed:        child.HasPermission(GuardianPermissionConferenceBook),
 		HasOpenChangeRequest:         hasOpenChangeRequest,
 		SickNoteEnabled:              f.sick && f.sickReports && child.HasPermission(GuardianPermissionSickNoteSubmit),
 		ExcusedNoteEnabled:           f.sick && f.excusedReports && child.HasPermission(GuardianPermissionSickNoteSubmit),

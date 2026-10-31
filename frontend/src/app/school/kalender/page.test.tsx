@@ -17,6 +17,8 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/school/kalender",
   redirect: vi.fn(),
 }));
+// The Elternsprechtag link (#4801) resolves its portal path at render.
+vi.mock("~/lib/school-url", () => ({ schoolPath: (path: string) => path }));
 vi.mock("~/lib/shell-auth-context", () => ({
   SchoolShellProvider: ({ children }: { children: ReactNode }) => children,
 }));

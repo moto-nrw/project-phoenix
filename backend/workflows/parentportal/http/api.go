@@ -33,10 +33,12 @@ type Resource struct {
 	Auth LoginRuntime
 	// Resets is the reset runtime the composition root binds to Identity &
 	// Access (#3332); the zero value leaves the reset routes answering 500.
-	Resets                PasswordResetRuntime
-	ParentService         PortalService
-	RequestSharing        parentService.RequestSharingService
-	CalendarService       calendarService.ParentCalendar
+	Resets          PasswordResetRuntime
+	ParentService   PortalService
+	RequestSharing  parentService.RequestSharingService
+	CalendarService calendarService.ParentCalendar
+	// Conferences books the Elternsprechtag (#4801).
+	Conferences           calendarService.ParentConferenceBookings
 	EnrollmentForms       EnrollmentForms
 	GuardianProfileLoader GuardianProfileLoader
 	SchoolService         SchoolDirectory
@@ -61,6 +63,8 @@ type ResourceConfig struct {
 	Resets   PasswordResetRuntime
 	Parent   PortalService
 	Calendar calendarService.ParentCalendar
+	// Conferences books the Elternsprechtag (#4801).
+	Conferences calendarService.ParentConferenceBookings
 	// Enrollment is the public form flow the composition root binds (#2734).
 	Enrollment            EnrollmentForms
 	GuardianProfileLoader GuardianProfileLoader
@@ -95,6 +99,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		ParentService:         cfg.Parent,
 		RequestSharing:        sharing,
 		CalendarService:       cfg.Calendar,
+		Conferences:           cfg.Conferences,
 		EnrollmentForms:       cfg.Enrollment,
 		GuardianProfileLoader: cfg.GuardianProfileLoader,
 		SchoolService:         cfg.Schools,

@@ -125,6 +125,16 @@ func BuildServeAppointments(db transactionruntime.Database) (appointmentsModule.
 	})
 }
 
+// BuildServeParentConferences composes the Elternsprechtag days and
+// bookings of the School Calendar (#4801); nil without a database, which
+// leaves the Sprechtag routes answering that it is not configured.
+func BuildServeParentConferences(db transactionruntime.Database) schoolcalendar.ParentConferences {
+	if db.Pool() == nil {
+		return nil
+	}
+	return schoolCalendarCompose.NewParentConferences(db.Pool())
+}
+
 // BuildPeopleDirectory composes the People Directory over its owners, the
 // photo runtime and the guardian provider, both built before it. Care Plan's
 // companion slice and student profiles are constructible from the database

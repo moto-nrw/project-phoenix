@@ -82,7 +82,12 @@ export function schoolAppointmentDraftFromEvent(
 ): SchoolAppointmentDraft {
   return {
     title: event.title,
-    eventType: event.school_event_type ?? "sonstiges",
+    // Ein Elternsprechtag-Termin (#4801) ist nie änderbar und kommt hier
+    // nicht an; er fiele auf „Sonstiges“ zurück.
+    eventType:
+      event.school_event_type && event.school_event_type !== "elternsprechtag"
+        ? event.school_event_type
+        : "sonstiges",
     startDate: event.start_date,
     endDate: event.end_date,
     allDay: event.all_day,

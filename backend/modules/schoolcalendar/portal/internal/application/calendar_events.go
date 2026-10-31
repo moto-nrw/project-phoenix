@@ -236,7 +236,7 @@ func appointmentEvent(appointment *appointmentcap.Appointment, occurrenceDate ap
 		// cancelled appointment freezes RSVP entirely (matching the server-side
 		// rejection in RespondTo*Invitation).
 		CanRespond:      appointment.CancelledAt == nil && recipientID != nil && responseStatus != nil && *responseStatus != appointmentcap.ResponseStatusInfo,
-		CanEdit:         appointment.OrganizerStaffID == staffID,
+		CanEdit:         appointment.OrganizerStaffID == staffID && !isParentConferenceAppointment(appointment),
 		CanViewOverview: canStaffViewOverview(appointment, staffID, isStaffRecipient),
 		SchoolEventType: appointment.SchoolEventType,
 	}

@@ -21,7 +21,7 @@ import {
 } from "~/components/calendar/personal-calendar";
 import { Plus } from "lucide-react";
 
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -70,7 +70,9 @@ import {
   schoolCalendarEvents,
   type SchoolAppointmentDraft,
 } from "~/lib/school-calendar";
+import { SCHOOL_PARENT_CONFERENCES_ROUTE } from "~/lib/parent-conferences";
 import { schoolClassLabel } from "~/lib/school-class-label";
+import { schoolPath } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr";
 
 const logger = createLogger({ component: "SchoolCalendarPage" });
@@ -290,16 +292,27 @@ export default function SchoolCalendarPage() {
         </div>
         {/* Neben der Überschrift statt in der Zeitleiste: auf dem Handy
             bleibt dort sonst kein Platz für Tag, Woche und Monat. */}
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          className="gap-1.5"
-          onClick={openCreate}
-        >
-          <Plus className="h-4 w-4" aria-hidden />
-          Neuer Termin
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {/* Der Elternsprechtag (#4801) hat keinen eigenen Platz in der
+              Navigation: die mobile Leiste fasst kein achtes Ziel. */}
+          <ButtonLink
+            href={schoolPath(SCHOOL_PARENT_CONFERENCES_ROUTE)}
+            variant="outline"
+            size="md"
+          >
+            Elternsprechtag
+          </ButtonLink>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            className="gap-1.5"
+            onClick={openCreate}
+          >
+            <Plus className="h-4 w-4" aria-hidden />
+            Neuer Termin
+          </Button>
+        </div>
       </div>
 
       <SectionCard>
