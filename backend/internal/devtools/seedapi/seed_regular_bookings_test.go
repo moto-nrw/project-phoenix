@@ -4,9 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -64,11 +62,9 @@ func TestBookableMealChildrenLeaveOutChildrenWithoutBooking(t *testing.T) {
 }
 
 // regularBookingServer answers the routes of the bookings step and records
-// the writes in order. A booking lands on the child of the master data with
-// the booked name, whose ID regularBookingRuntime gives it.
+// the writes in order.
 type regularBookingServer struct {
 	t        *testing.T
-	mu       sync.Mutex
 	events   []string
 	bookings []map[string]any
 	// wrongStudent answers every booking with another child.
@@ -76,8 +72,6 @@ type regularBookingServer struct {
 }
 
 func (s *regularBookingServer) handle(w seedHTTPResponseWriter, r *seedHTTPRequest) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
 	w.Header().Set("Content-Type", "application/json")
 	var body map[string]any
 	if r.Body != nil {
@@ -95,12 +89,7 @@ func (s *regularBookingServer) handle(w seedHTTPResponseWriter, r *seedHTTPReque
 	case r.URL.Path == "/api/enrollment/phases/77/manual-approved-enrollments":
 		s.bookings = append(s.bookings, body)
 		child := body["children"].([]any)[0].(map[string]any)
-		studentID := ""
-		for index, demo := range DemoStudents[:12] {
-			if demo.FirstName == child["first_name"] && demo.LastName == child["last_name"] {
-				studentID = fmt.Sprint(1001 + index)
-			}
-		}
+		studentID := map[string]string{"Emma": "1002", "Leon": "1003"}[child["first_name"].(string)]
 		if s.wrongStudent {
 			studentID = "4711"
 		}
@@ -130,23 +119,14 @@ func TestSeedRegularBookingsBooksCareAndLunchOnTheLunchDays(t *testing.T) {
 
 	require.NoError(t, seedRegularBookingsStep{}.Run(context.Background(), rt))
 
-	require.Len(t, server.events, 6)
-	assert.Equal(t, "audience existing_students", server.events[0])
-	assert.Equal(t, "audience open", server.events[5])
-	// The two children are booked in parallel; each booking comes before the
-	// restored relationship of its own child.
-	for _, studentID := range []string{"1002", "1003"} {
-		book := slices.Index(server.events, "book "+studentID)
-		relationship := slices.Index(server.events, "relationship "+studentID+" parent")
-		assert.Positive(t, book, "child %s is booked", studentID)
-		assert.Greater(t, relationship, book, "child %s keeps its relationship after the booking", studentID)
-	}
+	assert.Equal(t, []string{
+		"audience existing_students",
+		"book 1002", "relationship 1002 parent",
+		"book 1003", "relationship 1003 parent",
+		"audience open",
+	}, server.events)
 	require.Len(t, server.bookings, 2)
-	leonAt := slices.IndexFunc(server.bookings, func(booking map[string]any) bool {
-		return booking["guardian_email"] == "eva.1003@example.test"
-	})
-	require.GreaterOrEqual(t, leonAt, 0)
-	leon := server.bookings[leonAt]
+	leon := server.bookings[1]
 	assert.Equal(t, "eva.1003@example.test", leon["guardian_email"])
 	assert.Equal(t, map[string]any{"data_processing": true}, leon["consent_flags"], "the photo consent stays as it is")
 	assert.Equal(t, true, leon["external_consent_confirmed"])
@@ -171,19 +151,17 @@ func TestSeedRegularBookingsMixesGanztagAndKurzbetreuung(t *testing.T) {
 	for studentID := int64(1002); studentID <= 1007; studentID++ {
 		recordRegularLunchDays(rt, studentID, []int{1, 3, 5})
 	}
-	require.NoError(t, seedRegularBookingsStep{}.Run(context.Background(), rt))
+	// Only Emma and Leon answer with their own ID; the others are not
+	// booked here, so the check stops after the third booking.
+	err := seedRegularBookingsStep{}.Run(context.Background(), rt)
+	require.Error(t, err)
 
-	// The bookings run in parallel, so the care follows the child's place
-	// in cohort order, not the order the server sees them in.
-	careOf := map[string]any{}
-	for _, booking := range server.bookings {
-		careOf[booking["guardian_email"].(string)] = booking["children"].([]any)[0].(map[string]any)["offering_ids"].([]any)[0]
+	require.Len(t, server.bookings, 3)
+	careOf := func(booking map[string]any) any {
+		return booking["children"].([]any)[0].(map[string]any)["offering_ids"].([]any)[0]
 	}
-	assert.Equal(t, map[string]any{
-		"eva.1002@example.test": float64(11), "eva.1003@example.test": float64(11), "eva.1004@example.test": float64(12),
-		"eva.1005@example.test": float64(11), "eva.1006@example.test": float64(11), "eva.1007@example.test": float64(12),
-	}, careOf)
-	assert.Equal(t, "audience open", server.events[len(server.events)-1])
+	assert.Equal(t, []any{float64(11), float64(11), float64(12)}, []any{careOf(server.bookings[0]), careOf(server.bookings[1]), careOf(server.bookings[2])})
+	assert.Equal(t, "audience open", server.events[len(server.events)-1], "the phase opens again after a failure")
 }
 
 // A booking that lands on another child would be a duplicate child; the

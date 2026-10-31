@@ -5,11 +5,15 @@ import (
 	"sync/atomic"
 )
 
-// seedLoopWorkers is how many requests a loop over families or children
-// sends at once. Each item waits mostly for the server, so four of them
-// overlap well on the four-core CI runner, where the server, PostgreSQL and
-// the seeder share the machine, and on the demo server, whose process seeds
-// up to three schools at the same time.
+// seedLoopWorkers is how many requests a loop over families sends at once.
+// Each family waits mostly for the server, so four of them overlap well on
+// the four-core CI runner, where the server, PostgreSQL and the seeder share
+// the machine, and on the demo server, whose process seeds up to three
+// schools at the same time.
+//
+// The regular bookings stay sequential: the server takes one lock per
+// enrollment phase for every booking of an existing child, and four workers
+// made that step slower in CI (11-20 s before, 19 s with them).
 const seedLoopWorkers = 4
 
 // worker is a copy of the runtime with its own client on the same adapter,
