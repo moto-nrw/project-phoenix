@@ -15,8 +15,9 @@
       "maxBytes": 923968
     },
     "/[tenant]/anmeldung/status/[token]": {
-      "referenceBytes": 724090,
-      "maxBytes": 738572
+      "referenceBytes": 725114,
+      "maxBytes": 739616,
+      "_reason": "#4801: Zwei neue Fehlercodes des Elternsprechtags liegen im globalen Fehlerkatalog (7 Sprachen, rund 0,9 kB gzip auf jeder Route). Development lag schon knapp unter der Obergrenze; Referenz um 1 KiB angehoben, Toleranz unverändert 2 %."
     },
     "/[tenant]/anmeldung/status/[token]/adjust": {
       "referenceBytes": 828477,
@@ -27,8 +28,9 @@
       "maxBytes": 845047
     },
     "/[tenant]/anmeldung/submitted": {
-      "referenceBytes": 616346,
-      "maxBytes": 628673
+      "referenceBytes": 617370,
+      "maxBytes": 629717,
+      "_reason": "#4801: Zwei neue Fehlercodes des Elternsprechtags liegen im globalen Fehlerkatalog (7 Sprachen, rund 0,9 kB gzip auf jeder Route). Development lag schon knapp unter der Obergrenze; Referenz um 1 KiB angehoben, Toleranz unverändert 2 %."
     }
   }
 }
