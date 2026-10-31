@@ -7,8 +7,13 @@ vi.mock("./session-cache", () => ({
 import { sessionFetch } from "./session-cache";
 import {
   duplicateLohnartNumbers,
+  fetchPayrollDispatch,
   fetchPayrollStatus,
   mapPayrollStatus,
+  PAYROLL_DISPATCH_EMAIL_PATTERN,
+  payrollDispatchReasonText,
+  payrollMonthLabel,
+  savePayrollSetting,
   type PayrollStatus,
 } from "./payroll-api";
 
@@ -40,6 +45,12 @@ const backendStatus = {
   total_categories: 7,
   staff_total: 21,
   staff_without_personnel_number: 19,
+  dispatch: {
+    auto: true,
+    channel: "email",
+    format: "datev_lodas",
+    email: "lohn@example.de",
+  },
 };
 
 describe("mapPayrollStatus", () => {
@@ -121,5 +132,181 @@ describe("duplicateLohnartNumbers", () => {
 
   it("ignores empty (unconfigured) numbers", () => {
     expect(duplicateLohnartNumbers(withNumbers(["", "", "9001"]))).toEqual([]);
+  });
+});
+
+describe("mapPayrollStatus dispatch (#4805)", () => {
+  it("maps the Lohnbüro settings", () => {
+    expect(mapPayrollStatus(backendStatus).dispatch).toEqual({
+      auto: true,
+      channel: "email",
+      format: "datev_lodas",
+      email: "lohn@example.de",
+    });
+  });
+
+  it("falls back to the backend defaults when the block is missing or unknown", () => {
+    const { dispatch: _dispatch, ...withoutDispatch } = backendStatus;
+    expect(mapPayrollStatus(withoutDispatch).dispatch).toEqual({
+      auto: false,
+      channel: "sftp",
+      format: "csv",
+      email: "",
+    });
+    expect(
+      mapPayrollStatus({
+        ...backendStatus,
+        dispatch: { auto: false, channel: "fax", format: "pdf", email: "" },
+      }).dispatch,
+    ).toMatchObject({ channel: "sftp", format: "csv" });
+  });
+});
+
+describe("savePayrollSetting", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("sends the value in its schema type", async () => {
+    mockedSessionFetch.mockResolvedValue({ ok: true } as Response);
+
+    await savePayrollSetting("payroll.dispatch_auto", true);
+    await savePayrollSetting("payroll.dispatch_channel", "email");
+
+    expect(mockedSessionFetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/settings/values/payroll.dispatch_auto",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ value: true }),
+      }),
+    );
+    expect(mockedSessionFetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/settings/values/payroll.dispatch_channel",
+      expect.objectContaining({ body: JSON.stringify({ value: "email" }) }),
+    );
+  });
+});
+
+describe("fetchPayrollDispatch", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("maps the latest dispatch", async () => {
+    mockedSessionFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            latest: {
+              year: 2026,
+              month: 9,
+              correction: true,
+              channel: "email",
+              format: "xlsx",
+              recipient: "lohn@example.de",
+              state: "sent",
+              attempts: 1,
+              filename: "zeitkonten_2026-09_korrektur-1.xlsx",
+              created_at: "2026-10-01T08:00:00Z",
+              finished_at: "2026-10-01T08:01:00Z",
+              download_expires_at: "2026-10-15T08:00:00Z",
+            },
+          },
+        }),
+    } as Response);
+
+    const latest = await fetchPayrollDispatch();
+
+    expect(mockedSessionFetch).toHaveBeenCalledWith(
+      "/api/staff/time-tracking/payroll-dispatch",
+    );
+    expect(latest).toEqual({
+      year: 2026,
+      month: 9,
+      correction: true,
+      channel: "email",
+      format: "xlsx",
+      recipient: "lohn@example.de",
+      state: "sent",
+      reason: null,
+      attempts: 1,
+      filename: "zeitkonten_2026-09_korrektur-1.xlsx",
+      createdAt: "2026-10-01T08:00:00Z",
+      finishedAt: "2026-10-01T08:01:00Z",
+      downloadExpiresAt: "2026-10-15T08:00:00Z",
+      downloadedAt: null,
+    });
+  });
+
+  it("answers null before the first dispatch", async () => {
+    mockedSessionFetch.mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ data: { latest: null } }),
+    } as Response);
+
+    await expect(fetchPayrollDispatch()).resolves.toBeNull();
+  });
+});
+
+describe("payrollDispatchReasonText", () => {
+  it("names the reason of a blocked dispatch in the e-mail's words", () => {
+    expect(
+      payrollDispatchReasonText({
+        state: "blocked",
+        reason: "datev_incomplete",
+        channel: "sftp",
+      }),
+    ).toBe(
+      "Die DATEV-Angaben sind nicht vollständig. Zum Beispiel fehlt eine Personalnummer oder die Nummer einer Lohnart.",
+    );
+    expect(
+      payrollDispatchReasonText({
+        state: "blocked",
+        reason: "email_missing",
+        channel: "email",
+      }),
+    ).toBe("Für den Versand per E-Mail fehlt die Adresse des Lohnbüros.");
+  });
+
+  it("reuses the SFTP transfer text after four failed attempts", () => {
+    expect(
+      payrollDispatchReasonText({
+        state: "failed",
+        reason: "connection_failed",
+        channel: "sftp",
+      }),
+    ).toBe(
+      "Die Übertragung an das Lohnbüro hat viermal nicht geklappt. Die Gegenstelle war nicht erreichbar. Bitte versuchen Sie es später noch einmal.",
+    );
+  });
+
+  it("says nothing while nothing went wrong", () => {
+    expect(
+      payrollDispatchReasonText({
+        state: "sent",
+        reason: null,
+        channel: "email",
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("payrollMonthLabel", () => {
+  it("names the month in German", () => {
+    expect(payrollMonthLabel(2026, 9)).toBe("September 2026");
+    expect(payrollMonthLabel(2027, 1)).toBe("Januar 2027");
+  });
+});
+
+describe("PAYROLL_DISPATCH_EMAIL_PATTERN", () => {
+  it("matches the backend pattern", () => {
+    expect(PAYROLL_DISPATCH_EMAIL_PATTERN.test("lohn@example.de")).toBe(true);
+    expect(PAYROLL_DISPATCH_EMAIL_PATTERN.test("lohn@example")).toBe(false);
+    expect(PAYROLL_DISPATCH_EMAIL_PATTERN.test("lohn büro@example.de")).toBe(
+      false,
+    );
   });
 });

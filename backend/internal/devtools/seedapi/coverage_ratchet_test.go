@@ -70,6 +70,7 @@ var seedCoverageExemptions = map[string]string{
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",
 	"active.staff_month_balance_snapshots": "empty in prod too",
+	"active.payroll_dispatches":            "not in prod yet (migration newer than the deployed image); only a month close queues a dispatch, and the seeder closes no month (see active.staff_month_balance_snapshots)",
 	"active.staff_vacation_openings":       "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",

@@ -113,7 +113,7 @@ func newTimeTrackingResource(
 // adapted capabilities; schedules is the Workforce query the schedule views
 // read from and the Sonderarbeitszeiten are written through; notifyChanged
 // invalidates the time-account views after such a write.
-func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absenceWrites timeTrackingHTTP.AdminAbsenceWrites, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer exportTransferModule.Capability, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
+func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absenceWrites timeTrackingHTTP.AdminAbsenceWrites, schedules workforceModule.Capability, notifyChanged func(context.Context), exportTransfer exportTransferModule.Capability, payroll workforceModule.PayrollDispatch, db transactionruntime.Database, logger *slog.Logger) *timeTrackingHTTP.StaffAdminResource {
 	cleanup, err := workforceCompose.NewDocumentCleanup(db.Pool(), nil)
 	if err != nil {
 		panic(err)
@@ -141,6 +141,7 @@ func newStaffAdminResource(capabilities owners.WorkforceAdminCapabilities, absen
 		TargetOverrides:    schedules,
 		NotifyChanged:      notifyChanged,
 		ExportTransfer:     newExportTransferPort(exportTransfer),
+		PayrollDispatch:    payroll,
 		Identity:           timeTrackingIdentity,
 		Logger:             logger,
 	})

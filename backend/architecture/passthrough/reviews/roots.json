@@ -4382,6 +4382,21 @@
     },
     {
       "decision": "0090",
+      "id": "roots/owners/payrollMailOutbox.Enqueue",
+      "reason": "Root translation of Workforce's payroll mail port onto Delivery's durable outbox (#4805): builds the message with sender and the school's reply-to and maps attempts, backoff and link expiry onto the DurableMail; no forwarding without translation."
+    },
+    {
+      "decision": "0090",
+      "id": "roots/owners/payrollManagers.TimeTrackingManagers",
+      "reason": "Root translation of Workforce's manager port onto the People Directory (#4805): names the time_tracking:manage permission and maps staff rows onto contacts; no forwarding without translation."
+    },
+    {
+      "decision": "0090",
+      "id": "roots/owners/payrollTransfer.RecordEmail",
+      "reason": "Root translation of Workforce's journal port onto Export Transfer's e-mail record (#4805): sets the export kind and the failure reason code; no forwarding without translation."
+    },
+    {
+      "decision": "0090",
       "id": "roots/owners/pendingApplicantSource.PendingAnnouncementApplicants",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

@@ -49,4 +49,7 @@ type Journal interface {
 	Begin(context.Context, domain.JournalEntry) (int64, error)
 	Claim(context.Context, int64) (string, error)
 	Complete(context.Context, int64, string, domain.JournalEntry) error
+	// Record writes an already settled send, such as a delivered e-mail,
+	// as one terminal entry.
+	Record(context.Context, domain.JournalEntry) error
 }

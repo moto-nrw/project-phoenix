@@ -11,26 +11,10 @@ import {
   resolveTenantCached,
   TenantResolveStatusError,
 } from "~/lib/tenant-resolve.server";
+import { MISMATCH_EXEMPT_PATHS } from "./session-check-exempt-paths";
 import type { ServerSession } from "./shared";
 
 const logger = createLogger({ component: "TenantHostCheck" });
-
-/**
- * Routes that must work while the cookie belongs to another school: the
- * switch back to this host's school (TenantGuard), the token refresh, the
- * logout, the audit call that ends a staff preview before the switch, and
- * the tab's own log lines about all of that. Accepting an invitation with an
- * existing account acts for the school the invitation names, not for the
- * session's; the bare domain's invitation page calls it.
- */
-const MISMATCH_EXEMPT_PATHS = new Set([
-  "/api/auth/switch-tenant",
-  "/api/auth/token",
-  "/api/auth/logout",
-  "/api/auth/staff-preview/end",
-  "/api/logs",
-  "/api/invitations/accept",
-]);
 
 function mismatchResponse(
   request: NextRequest,

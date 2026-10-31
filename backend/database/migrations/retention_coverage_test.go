@@ -107,6 +107,7 @@ var tableRetentions = map[string]tableRetention{
 	"active.staff_absence_types":                            notPersonal("absence type catalog"),
 	"active.staff_absences":                                 own("nightly time-tracking-cleanup, CleanupExpiredTimeTrackingData -> staffAbsenceRepo.DeleteOlderThan(date_end)"),
 	"active.staff_balance_adjustments":                      staffRetention("Workforce SQL users.erase_retired_staff_records"),
+	"active.payroll_dispatches":                             own("payroll-dispatch job, PayrollDispatch.RunDue -> PurgePayrollDispatches (file data when the link expires, the row 400 days after it finished)"),
 	"active.staff_month_balance_snapshots":                  staffRetention("Workforce SQL users.erase_retired_staff_records"),
 	"active.staff_vacation_openings":                        staffRetention("Workforce SQL users.erase_retired_staff_records"),
 	"active.staff_vacation_quota":                           staffRetention("Workforce SQL users.erase_retired_staff_records"),

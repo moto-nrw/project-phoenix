@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4801): the 1.15.705 residual with the two Elternsprechtag tables,
+// 1.15.719 (#4801): the 1.15.718 (#4805) residual with the two Elternsprechtag tables,
 // calendar.parent_conferences and calendar.parent_conference_bookings.
 func installParentConferenceErasureResidual(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasureResidualSQL)
@@ -58,6 +58,8 @@ const parentConferenceErasureResidualSQL = `CREATE OR REPLACE FUNCTION platform.
     SELECT 1 FROM active.staff_absences AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.staff_balance_adjustments AS r WHERE r.tenant_id = p_school_id
+    UNION ALL
+    SELECT 1 FROM active.payroll_dispatches AS r WHERE r.tenant_id = p_school_id
     UNION ALL
     SELECT 1 FROM active.staff_month_balance_snapshots AS r WHERE r.tenant_id = p_school_id
     UNION ALL

@@ -14,7 +14,7 @@ export const runtime = "nodejs";
  * SSE (Server-Sent Events) proxy endpoint for the tenant/staff portal.
  *
  * Bypasses route-wrapper.ts because SSE requires streaming responses, not buffered
- * JSON. EventSource cannot set custom headers, so the JWT is injected server-side.
+ * JSON. The browser binds its account with a header; the JWT stays server-side.
  * The streaming/abort/cleanup plumbing is shared with the parent portal via
  * proxySSEStream; only auth, the upstream path, and the logger differ here.
  */

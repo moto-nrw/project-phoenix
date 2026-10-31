@@ -1019,6 +1019,27 @@ describe("TenantGuard", () => {
       expect(providerUpdate).toHaveBeenCalledTimes(1);
     });
 
+    it("hides the page on a refusal of another account and says it reloads (#5183)", async () => {
+      render(<Tab />);
+      // Anker: die Seite der eigenen Schule ist sichtbar.
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+
+      act(() =>
+        reportSessionTenantMismatch("identity.session_account_mismatch"),
+      );
+
+      expect(screen.getByText("Seite wird neu geladen...")).toBeInTheDocument();
+      expect(screen.queryByText("Protected Content")).not.toBeInTheDocument();
+      expect(providerUpdate).toHaveBeenCalledTimes(1);
+
+      // The lookup names this school: no switch; the new account's session
+      // is the provider's now, and PersonalStorageGuard leaves the page.
+      await act(async () => settleLookup(1));
+
+      expect(screen.getByText("Protected Content")).toBeInTheDocument();
+      expect(mockPerformTenantSwitch).not.toHaveBeenCalled();
+    });
+
     it("shows the page again once its own lookup names this school", async () => {
       render(<Tab />);
       act(() => reportSessionTenantMismatch());

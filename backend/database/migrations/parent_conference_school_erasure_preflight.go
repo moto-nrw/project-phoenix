@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.718 (#4801): the 1.15.705 preflight with the two Elternsprechtag tables,
+// 1.15.719 (#4801): the 1.15.718 (#4805) preflight with the two Elternsprechtag tables,
 // calendar.parent_conferences and calendar.parent_conference_bookings.
 func installParentConferenceErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasurePreflightSQL)
@@ -43,6 +43,7 @@ const parentConferenceErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform
     active.staff_absence_types,
     active.staff_absences,
     active.staff_balance_adjustments,
+    active.payroll_dispatches,
     active.staff_month_balance_snapshots,
     active.staff_vacation_openings,
     active.staff_vacation_quota,
@@ -304,7 +305,7 @@ const parentConferenceErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '178f789b8efa2474ef6ebf24274a3e150c3c3637f7ba55ee0af21317282c13e7' THEN
+    ) AS edge) <> '3ebb31d7a61b624ba5c4271fa161b6dd65dd78b07f48219dc78ec6db5a273728' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
