@@ -626,7 +626,8 @@ vi.mock("~/components/timetable/connect-offering-modal", () => ({
     deviation: RosterDeviation;
   }) => (
     <div role="dialog" aria-label="Mit Angebot verbinden">
-      {templateName} · {deviation.offering.name}
+      {templateName} ·{" "}
+      {deviation.offerings.map((offering) => offering.name).join(", ")}
     </div>
   ),
 }));
@@ -1332,12 +1333,13 @@ describe("BetreuungsplanView", () => {
 
   const deviation: RosterDeviation = {
     templateId: "7",
-    offering: { id: "3", name: "OGS Ganztag" },
+    offerings: [{ id: "3", name: "OGS Ganztag" }],
     gradeLevels: [],
     schoolClasses: ["2a"],
     unbookedCount: 1,
     missingCount: 0,
     candidates: [],
+    combinations: [],
     ambiguous: false,
   };
 

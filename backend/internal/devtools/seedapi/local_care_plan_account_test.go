@@ -54,8 +54,12 @@ func TestLocalCarePlanAccountIsLocalOnly(t *testing.T) {
 			s := NewSeeder(newSeedTestAdapter(tc.url), newSeedTestRandom(), false, tc.options)
 			step := seedLocalCarePlanAccountStep{seeder: s}
 			assert.Equal(t, tc.want, step.enabled())
+			_, schoolWritesOpen := s.definition.Settings[profileSettingSchoolWriteScope]
+			assert.Equal(t, tc.want, schoolWritesOpen, "only local teacher seeds open school writes")
 			if !tc.want {
 				require.NoError(t, step.Run(t.Context(), &Runtime{}), "excluded seeds must make no API calls")
+				require.NoError(t, (seedSchoolTeacherStep{seeder: s}).Run(t.Context(), &Runtime{}), "excluded teacher seeds must make no API calls")
+				assert.Nil(t, s.schoolTeacherAccount)
 			}
 		})
 	}

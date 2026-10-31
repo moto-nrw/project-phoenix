@@ -1724,6 +1724,7 @@ function TimetablesContent() {
       careOfferingIds: [gap.offering.id],
       title: gap.offering.name,
       weekdays: gap.weekdays,
+      schoolClasses: gap.newSeriesClasses,
     });
     setEventDefaultRepeat("weekly");
     setEventModalOpen(true);
@@ -2206,6 +2207,7 @@ function TimetablesContent() {
         <ConnectOfferingModal
           isOpen
           templateName={connecting.template.name}
+          periodId={templatePeriodID}
           deviation={connecting.deviation}
           onClose={() => setConnecting(null)}
           onConnected={handleOfferingConnected}

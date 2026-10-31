@@ -29,6 +29,7 @@ import { SWR_FAMILIES } from "~/lib/swr/shell-keys";
 import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
+import { useTenantSafe } from "~/lib/tenant-context";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -283,6 +284,8 @@ function currentStudentDetailId(): string | null {
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
   const invalidateFamily = useInvalidateFamily();
+  const tenantID = session?.user?.tenantId;
+  const tenant = useTenantSafe()?.tenant;
   const [groupAccessRevision, setGroupAccessRevision] = useState(0);
   const now = useMinuteClock();
   const groupAccessDay = berlinTodayISO(now);
@@ -291,17 +294,20 @@ export function useGlobalSSE(): SSEHookState {
   // Enable SSE for staff and effective admins. The backend treats admin:* and
   // *:* as admin scope even when a custom role does not include the literal
   // "admin" role, so the connection gate must mirror that rule.
-  const isStaff = session?.user?.roles?.includes("user") ?? false;
+  const hasStaffRole =
+    session?.user?.roles?.some((role) => role === "user" || role === "admin") ??
+    false;
   const hasAdminWildcard =
     session?.user?.permissions?.some(
       (permission) => permission === "admin:*" || permission === "*:*",
     ) ?? false;
-  const isAdmin =
-    (session?.user?.roles?.includes("admin") ?? false) || hasAdminWildcard;
   const isAuthenticated =
     sessionStatus === "authenticated" &&
     hasSessionAccess(session) &&
-    (isStaff || isAdmin);
+    // A refused stream would re-read the same wrong-school session forever,
+    // and a late lookup could restore its cookie after explicit signout.
+    (!tenant || tenantID === tenant.tenantId) &&
+    (hasStaffRole || hasAdminWildcard);
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   // (+ per-burst jitter). pendingGroupIds holds ACTIVE-group ids (activity
@@ -1298,7 +1304,6 @@ export function useGlobalSSE(): SSEHookState {
   // reconnectKey ensures the EventSource tears down and reconnects with a
   // fresh JWT whenever the user switches tenant, and refreshes the server's
   // fixed group-topic subscription after an access change.
-  const tenantID = session?.user?.tenantId;
   const reconnectKey =
     groupAccessRevision === 0
       ? tenantID

@@ -133,6 +133,9 @@ type Dependencies struct {
 	// OfferingGapDecisions stores "Kein eigener Regeltermin nötig" for an
 	// offering without a matching Regeltermin (#5140); Care Plan's catalog.
 	OfferingGapDecisions timetable.OfferingTemplateGapDecision
+	// ClassArrivals is the Klassentag the offering-gap check reads the
+	// classes' arrival from (#5343); Timetable's own class arrival plans.
+	ClassArrivals timetable.ClassArrivalQuery
 	// SupervisionSheets serves the per-child supervision sheet of the school
 	// portal (#2527). Only SchoolSupervisionRouter consumes it.
 	SupervisionSheets SupervisionSheets

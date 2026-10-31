@@ -9418,11 +9418,21 @@
       "target_owner": "enrollment"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingEnrollment.StudentSelectionsAt",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingEnrollment.StudentSelectionsAt",
+      "reason": "Reviewed read: the roster impact of a booking change reads the selections of the student's other approved request children in force on the first rewritten day, so their bookings may carry a hand-maintained Regeltermin (#5366, ADR 0128). The binding filters the student and maps the rows onto Care Plan's booked offerings. Target modules/enrollment.BookingProjection.ApprovedSelectionsForStudents; modules/enrollment/booking_approved.go:26 reads approved request children and Care Plan's booking history; no owned-row mutation or locking read.",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/enrollment.BookingProjection.ApprovedSelectionsForStudents",
+      "target_owner": "enrollment"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.bookingManualPlans.ManualStudentPlan",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports.BookingManualPlans.ManualStudentPlan",
-      "reason": "Reviewed read: Care Plan asks Timetable which Regeltermine still plan the child on weekdays a booking change dropped a booking on, and passes the net-loss weekdays and the remaining bookings with their kind flags and pickup times so Timetable leaves out the Regeltermine they carry (#5102, #5342, ADR 0128). The binding only maps the day change onto the query. Target modules/timetable.StudentTemplateDays.ManualStudentPlan reads roster rows, occurrences, schedules, timeframes, active calendar periods and targets; no owned-row mutation or locking read.",
+      "reason": "Reviewed read: Care Plan asks Timetable which Regeltermine still plan the child on weekdays a booking change dropped a booking on, and passes the net-loss weekdays, the remaining bookings and the bookings of the student's other enrollments with their kind flags and pickup times so Timetable leaves out the Regeltermine they carry (#5102, #5342, #5366, ADR 0128). The binding only maps the day change onto the query. Target modules/timetable.StudentTemplateDays.ManualStudentPlan reads roster rows, occurrences, schedules, timeframes, active calendar periods and targets; no owned-row mutation or locking read.",
       "source_owner": "care-plan",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.StudentTemplateDays.ManualStudentPlan",
       "target_owner": "timetable-activities"

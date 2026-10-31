@@ -115,3 +115,38 @@ periods, not a callable; the root binding that maps Care Plan's day change
 onto the query is reviewed again as a query. Materialization's per-date rule
 `candidateSlot` now calls `scheduleValidOn` for its validity part, without a
 change in behaviour.
+
+## Addendum 2026-10-31: the student's other enrollments carry as well (#5366)
+
+A student may hold approved enrollments of several phases at once, for
+example a custom phase for existing students beside the school year. The
+first addendum read only the bookings of the changed enrollment, so an
+unchanged booking of another enrollment that carries the Regeltermin did not
+prevent the notice.
+
+Care Plan now also names the bookings of the student's other approved
+request children, read through Enrollment's existing approved-selection
+projection (`ApprovedSelectionsForStudents`) behind its consumer port
+`BookingEnrollment.StudentSelectionsAt`. A selection counts when it is in
+force on the first rewritten day, its phase's service window holds that day
+and its offering is active. Timetable receives them as `OtherBookings` of
+the query.
+
+Such a booking carries a Regeltermin by the same rule: a fitting kind and a
+pickup time no earlier than the end. Decided for #5366: the times decide only
+when the Regeltermin has an end and every remaining booking of the child's
+day has a pickup time, in any enrollment. Where one of them lacks it, the day
+keeps the earlier rule across all enrollments, whatever the kinds: the
+Regeltermin counts as lost when the change drops more offerings on the day
+than it newly books. An enrollment the change leaves as it is adds nothing to
+that balance. A booking without a pickup time therefore decides alike in the
+changed and in another enrollment.
+
+The decision keeps the known limit of the earlier rule: a net loss reports a
+Regeltermin although another booking of the day provably carries it, when a
+pickup time of that day is missing. With a single enrollment and in schools
+without pickup times every notice stays as it was. No school has children
+with parallel approved enrollments today, and none mixes offerings with and
+without pickup times (read-only production check of 2026-10-31).
+
+The read adds no owner edge, no write and no binding-flow diagnostic.

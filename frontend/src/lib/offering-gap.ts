@@ -2,9 +2,11 @@ import { schoolClassesLabel } from "~/lib/school-class-label";
 
 /**
  * An offering whose booked children no Regeltermin of the planning period
- * takes over (#5140). The backend compares bookings and Regeltermine; the
- * school creates or connects a Regeltermin, or decides that these children
- * need none of their own.
+ * takes over (#5140). The backend compares bookings with the Regeltermine
+ * and the Klassentag (#5343): a child already planned at the time, or whose
+ * class arrives only at the pickup time, is not listed. The school creates
+ * or connects a Regeltermin, or decides that these children need none of
+ * their own.
  */
 export interface OfferingGap {
   offering: { id: string; name: string };
@@ -18,6 +20,13 @@ export interface OfferingGap {
   acknowledged: boolean;
   /** The classes of the stored decision, also when a new class came up. */
   acknowledgedClasses: string[];
+  /** Klassenfilter of a Regeltermin started from the hint; empty = none. */
+  newSeriesClasses: string[];
+  /**
+   * Such a Regeltermin would plan children a second time, or on days their
+   * class is still at school: the hint offers no creation then.
+   */
+  newSeriesPlansCovered: boolean;
 }
 
 interface BackendOfferingGap {
@@ -27,6 +36,8 @@ interface BackendOfferingGap {
   weekdays?: number[] | null;
   acknowledged: boolean;
   acknowledged_classes?: string[] | null;
+  new_series_classes?: string[] | null;
+  new_series_plans_covered?: boolean | null;
 }
 
 export interface BackendOfferingGapsResponse {
@@ -43,6 +54,9 @@ export function mapOfferingGaps(
     weekdays: gap.weekdays ?? [],
     acknowledged: gap.acknowledged,
     acknowledgedClasses: gap.acknowledged_classes ?? [],
+    newSeriesClasses: gap.new_series_classes ?? [],
+    // An unknown answer offers no creation rather than a second list.
+    newSeriesPlansCovered: gap.new_series_plans_covered ?? true,
   }));
 }
 

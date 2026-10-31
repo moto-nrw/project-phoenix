@@ -16,14 +16,33 @@ var ErrOfferingGapNotFound = errors.New("offering has no booked children without
 
 // Offering without a matching Regeltermin (#5140): a child booked an
 // offering on a school day, but no Regeltermin of the planning period takes
-// it over on that date. Only Regeltermine the offering feeds count: the
-// source rule with its Jahrgang or Klassen filter, or the offering's own
-// link. The same children on a hand-kept list or in another offering's
-// Regeltermin do not cover the booking; the roster review (#5103) handles
-// hand-kept lists. A Regeltermin for Klasse 1/2 therefore never hides
-// Klasse 3/4, and a series that only runs in November never hides a
-// booking in December. A date counts as covered exactly when
-// materialization creates an occurrence there (#5140).
+// it over on that date. A Regeltermin the offering feeds covers the date
+// whenever materialization creates an occurrence there: the source rule
+// with its Jahrgang or Klassen filter, or the offering's own link. A
+// Regeltermin for Klasse 1/2 therefore never hides Klasse 3/4, and a series
+// that only runs in November never hides a booking in December.
+//
+// A date the offering's Regeltermine leave open is checked against the
+// rest of the plan (#5343), so a class that the school plans through its
+// Klasse, Jahrgang or by hand is not reported as unplanned:
+//
+//   - With clock times (the class's arrival from the Klassentag and the
+//     offering's pickup time that day), the child needs care from arrival to
+//     pickup. A class that arrives at the pickup time or later needs none
+//     from this offering that day; the date is not reported. Otherwise the
+//     Regeltermine that plan the child on that date, whatever feeds them,
+//     cover it only when their occurrences together span the whole stretch
+//     without a gap; occurrences that meet (11:45–12:45 and 12:45–16:00)
+//     count as seamless, a mere overlap does not.
+//   - Without both times, or for an offering outside school days (a holiday
+//     phase or holiday care, where the Klassentag says nothing), the strict
+//     day rule holds: only a Regeltermin without any offering source that
+//     plans the child on that date and is of the offering's kind (#5103: a
+//     care block for care, a Mensa list for lunch, an AG for courses) covers
+//     it. Another offering's Regeltermin never does.
+//
+// Every date the offering's Regeltermine cover stays covered, so the check
+// reports a subset of what #5140 reported; it never adds a child or a day.
 //
 // The school may decide that the uncovered children need no Regeltermin of
 // their own. Care Plan stores that decision per offering and planning
@@ -43,6 +62,35 @@ type OfferingGapScope struct {
 	From       calendar.Date
 	Until      calendar.Date
 	ClosedDays map[calendar.Date]bool
+	// Arrivals is the Klassentag of the booked classes.
+	Arrivals OfferingGapArrivals
+}
+
+// OfferingGapArrivals is the Klassentag as the gap check reads it: when a
+// class reaches the OGS, in minutes after midnight, keyed by the trimmed,
+// lower-case class. A class-wide change on a single date wins over the
+// weekly time.
+type OfferingGapArrivals struct {
+	Weekly map[string]map[int]int
+	Dated  map[string]map[calendar.Date]int
+}
+
+// on is the class's arrival on date; false when the Klassentag has none.
+func (a OfferingGapArrivals) on(class string, date calendar.Date) (int, bool) {
+	key := OfferingGapClassKey(class)
+	if key == "" {
+		return 0, false
+	}
+	if minute, ok := a.Dated[key][date]; ok {
+		return minute, true
+	}
+	minute, ok := a.Weekly[key][calendar.ISOWeekday(date)]
+	return minute, ok
+}
+
+// OfferingGapClassKey is the class as the Klassentag keys it.
+func OfferingGapClassKey(class string) string {
+	return strings.ToLower(strings.TrimSpace(class))
 }
 
 // OfferingGapTemplate is one Regeltermin of the period as the gap check sees
@@ -58,6 +106,18 @@ type OfferingGapTemplate struct {
 	// LinkedOfferingIDs are offerings whose own timetable link points at the
 	// series; they feed every booked child.
 	LinkedOfferingIDs []int64
+	// HasOfferingSource is true when an offering feeds the Regeltermin, also
+	// one the school switched off; such a Regeltermin never stands in for
+	// another offering under the strict day rule.
+	HasOfferingSource bool
+	// Kind names the offerings it stands in for under the strict day rule.
+	Kind RosterOfferingKind
+	// Times are the clock windows of its occurrences per date, as
+	// ProjectOccurrences reports them: one per schedule materialized there,
+	// an exception's moved time applied.
+	Times map[calendar.Date][]OccurrenceClock
+	// Roster is who it plans on which date; nil plans nobody.
+	Roster *TemplatePlannedRoster
 }
 
 // OfferingGap is one offering with booked children no Regeltermin takes
@@ -79,16 +139,26 @@ type OfferingGap struct {
 	// AcknowledgedClasses are the classes of the school's stored decision
 	// for this period.
 	AcknowledgedClasses []string
+	// NewSeriesClasses is the Klassenfilter of a new Regeltermin started
+	// from the hint: the listed classes, or none when a child without a class
+	// is listed, since a Klassenfilter never admits one.
+	NewSeriesClasses []string
+	// NewSeriesPlansCovered is true when that Regeltermin, fed by the
+	// offering on the listed weekdays, would also plan a booked child on a
+	// date that needs no Regeltermin of its own: covered already, or the
+	// class arrives only at the pickup time. The hint then offers no
+	// creation, so no second list arises.
+	NewSeriesPlansCovered bool
 }
 
 // DetectOfferingGaps lists, per offering, the booked children with a booked
-// school day in scope that no Regeltermin fed by the offering covers,
-// ordered by offering name.
+// school day in scope that no Regeltermin covers, ordered by offering name.
 func DetectOfferingGaps(scope OfferingGapScope, templates []OfferingGapTemplate, bookings []OfferingWeekdayBooking) []OfferingGap {
+	plan := newOfferingGapPlan(scope, templates)
 	byOffering := make(map[int64]*offeringGapCollector)
 	order := make([]int64, 0)
 	for _, booking := range bookings {
-		uncovered := uncoveredWeekdays(scope, templates, booking)
+		uncovered := plan.uncoveredWeekdays(booking)
 		if len(uncovered) == 0 {
 			continue
 		}
@@ -108,7 +178,9 @@ func DetectOfferingGaps(scope OfferingGapScope, templates []OfferingGapTemplate,
 	}
 	gaps := make([]OfferingGap, 0, len(order))
 	for _, offeringID := range order {
-		gaps = append(gaps, byOffering[offeringID].result())
+		gap := byOffering[offeringID].result()
+		gap.NewSeriesPlansCovered = plan.newSeriesPlansCovered(gap, bookings)
+		gaps = append(gaps, gap)
 	}
 	slices.SortFunc(gaps, compareOfferingGaps)
 	return gaps
@@ -127,30 +199,6 @@ func compareOfferingGaps(left, right OfferingGap) int {
 	return 0
 }
 
-// uncoveredWeekdays are the school weekdays with a booked open date in scope
-// on which no Regeltermin fed by the booking's offering has an occurrence.
-func uncoveredWeekdays(scope OfferingGapScope, templates []OfferingGapTemplate, booking OfferingWeekdayBooking) []int {
-	covered := make([]map[calendar.Date]bool, 0)
-	for _, template := range templates {
-		if template.feeds(booking) {
-			covered = append(covered, template.Occurrences)
-		}
-	}
-	windows := booking.Windows
-	if len(windows) == 0 {
-		windows = []OfferingBookingWindow{{Weekdays: booking.Weekdays}}
-	}
-	uncovered := make([]int, 0)
-	for _, weekday := range offeringGapWeekdays {
-		if slices.ContainsFunc(windows, func(window OfferingBookingWindow) bool {
-			return window.hasUncoveredDate(scope, weekday, covered)
-		}) {
-			uncovered = append(uncovered, weekday)
-		}
-	}
-	return uncovered
-}
-
 // feeds reports whether the Regeltermin takes its children from the
 // booking's offering: through the offering's own link, or through the source
 // rule when the child passes its filter.
@@ -161,9 +209,9 @@ func (t OfferingGapTemplate) feeds(booking OfferingWeekdayBooking) bool {
 	return slices.Contains(t.Sources.OfferingIDs, booking.OfferingID) && bookingPassesSourceFilter(t.Sources, booking)
 }
 
-// hasUncoveredDate reports whether the window books an open date of the
-// weekday in scope on which no fed Regeltermin has an occurrence.
-func (w OfferingBookingWindow) hasUncoveredDate(scope OfferingGapScope, weekday int, covered []map[calendar.Date]bool) bool {
+// bookedOpenDates calls visit for every open date of the weekday in scope
+// the window books, until visit returns true; it reports whether one did.
+func (w OfferingBookingWindow) bookedOpenDates(scope OfferingGapScope, weekday int, visit func(calendar.Date) bool) bool {
 	if !slices.Contains(w.Weekdays, weekday) {
 		return false
 	}
@@ -175,10 +223,7 @@ func (w OfferingBookingWindow) hasUncoveredDate(scope OfferingGapScope, weekday 
 		last = w.ValidUntil.AddDays(-1)
 	}
 	for date := NextWeekdayOnOrAfter(first, weekday); !date.After(last); date = date.AddDays(7) {
-		if scope.ClosedDays[date] {
-			continue
-		}
-		if !slices.ContainsFunc(covered, func(occurrences map[calendar.Date]bool) bool { return occurrences[date] }) {
+		if !scope.ClosedDays[date] && visit(date) {
 			return true
 		}
 	}
@@ -213,6 +258,10 @@ func (c *offeringGapCollector) result() OfferingGap {
 	gap.SchoolClasses = slices.Sorted(maps.Keys(c.classes))
 	gap.Weekdays = slices.Sorted(maps.Keys(c.weekdays))
 	gap.AcknowledgedClasses = append([]string{}, c.acked...)
+	gap.NewSeriesClasses = []string{}
+	if !c.classes[""] {
+		gap.NewSeriesClasses = slices.Clone(gap.SchoolClasses)
+	}
 	gap.Acknowledged = OfferingGapClassesAcknowledged(gap.SchoolClasses, c.acked)
 	return gap
 }
