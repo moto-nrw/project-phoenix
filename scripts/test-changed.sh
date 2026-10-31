@@ -42,7 +42,9 @@ if [ "${#affected[@]}" -gt 0 ]; then
   backend_go_log=
   summarize_backend_go_failure() {
     echo "==> go test failure summary" >&2
-    summary=$(grep -E '^(FAIL$|FAIL[[:space:]]|--- FAIL:)|panic:|Error Trace:|Received unexpected error|Not equal:|Should be' "$backend_go_log" | tail -200 || true)
+    # Indented file_test.go:N lines carry t.Error/t.Fatal messages; go test
+    # prints them only for failed tests.
+    summary=$(grep -E '^(FAIL$|FAIL[[:space:]]|--- FAIL:)|^[[:space:]]+(--- FAIL:|[^[:space:]]+_test\.go:[0-9]+: )|panic:|Error Trace:|Received unexpected error|Not equal:|Should be' "$backend_go_log" | tail -200 || true)
     if [ -n "$summary" ]; then
       printf '%s\n' "$summary" >&2
     else
@@ -53,6 +55,8 @@ if [ "${#affected[@]}" -gt 0 ]; then
     status=$?
     if [ "$status" -ne 0 ] && [ "$backend_go_phase" -eq 1 ] && [ -f "$backend_go_log" ]; then
       summarize_backend_go_failure
+      gzip -f "$backend_go_log" &&
+        echo "==> full go test output: $backend_go_log.gz ($(du -h "$backend_go_log.gz" | cut -f1))" >&2
     fi
     if ! (cd "$repo_root/backend" && go run ./internal/testdb/cmd/sweep) &&
       [ "$status" -eq 0 ]; then
@@ -76,10 +80,16 @@ if [ "${#affected[@]}" -gt 0 ]; then
   # sie genauso).
   PHX_TEST_TEMPLATE=$(cd backend && go run ./internal/testdb/cmd/bootstrap)
   export PHX_TEST_TEMPLATE
-  backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
+  # A failed package prints everything its binary wrote, once 494 MB from one
+  # api run. Keep that in one log per worktree (the run lock prevents overlap)
+  # and show only package results and build errors live; a failure adds the
+  # summary above and keeps the compressed log.
+  backend_go_log=$(git rev-parse --path-format=absolute --git-path test-changed-go.log)
+  rm -f "$backend_go_log" "$backend_go_log.gz"
   backend_go_phase=1
   (cd backend && go test \
-    -p "$package_workers" -parallel 8 -tags=testhooks "${affected[@]}") 2>&1 | tee "$backend_go_log"
+    -p "$package_workers" -parallel 8 -tags=testhooks "${affected[@]}") 2>&1 | tee "$backend_go_log" |
+    awk '/^(ok|FAIL|\?|--- FAIL|panic:|# )/ || /^[^[:space:]]+\.go:[0-9]+:[0-9]+: / { print; fflush() }'
   backend_go_phase=0
 else
   echo "==> backend: keine Go-Änderungen"
