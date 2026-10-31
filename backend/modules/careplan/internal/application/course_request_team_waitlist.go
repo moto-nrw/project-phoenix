@@ -221,6 +221,52 @@ func (q *teamCourseQueue) capacityWindow(entries []careplan.CourseWaitlistEntry,
 	return today, today.AddDays(1)
 }
 
+type waitlistOccupancyWindow struct {
+	from, until calendar.Date
+	groupIDs    []int64
+}
+
+func waitlistOccupancyWindows(
+	groups []ports.CourseGroup,
+	entries map[int64][]careplan.CourseWaitlistEntry,
+	today calendar.Date,
+	queue *teamCourseQueue,
+) map[string]*waitlistOccupancyWindow {
+	windows := map[string]*waitlistOccupancyWindow{}
+	for _, group := range groups {
+		if !group.Active {
+			continue
+		}
+		from, until := queue.capacityWindow(entries[group.ID], today)
+		key := from.String() + "|" + until.String()
+		if windows[key] == nil {
+			windows[key] = &waitlistOccupancyWindow{from: from, until: until}
+		}
+		windows[key].groupIDs = append(windows[key].groupIDs, group.ID)
+	}
+	return windows
+}
+
+func (s *OfferingChanges) waitlistOccupancy(
+	ctx context.Context,
+	groups []ports.CourseGroup,
+	entries map[int64][]careplan.CourseWaitlistEntry,
+	today calendar.Date,
+	queue *teamCourseQueue,
+) (map[int64]int, error) {
+	taken := make(map[int64]int, len(groups))
+	for _, window := range waitlistOccupancyWindows(groups, entries, today, queue) {
+		counts, err := s.courseOccupancy(ctx, window.groupIDs, window.from, window.until, 0)
+		if err != nil {
+			return nil, err
+		}
+		for groupID, count := range counts {
+			taken[groupID] = count
+		}
+	}
+	return taken, nil
+}
+
 // courseWaitlistsFor reads the AGs' names, limits and occupancy and joins
 // them with their queues, sorted by name. An id that names no active AG of
 // the school is left out.
@@ -239,30 +285,9 @@ func (s *OfferingChanges) courseWaitlistsFor(
 	if err != nil {
 		return nil, fmt.Errorf("course waitlist: read course groups: %w", err)
 	}
-	type occupancyWindow struct {
-		from, until calendar.Date
-		groupIDs    []int64
-	}
-	windows := map[string]*occupancyWindow{}
-	for _, group := range groups {
-		if group.Active {
-			from, until := queue.capacityWindow(entries[group.ID], today)
-			key := from.String() + "|" + until.String()
-			if windows[key] == nil {
-				windows[key] = &occupancyWindow{from: from, until: until}
-			}
-			windows[key].groupIDs = append(windows[key].groupIDs, group.ID)
-		}
-	}
-	taken := make(map[int64]int, len(groups))
-	for _, window := range windows {
-		counts, err := s.courseOccupancy(ctx, window.groupIDs, window.from, window.until, 0)
-		if err != nil {
-			return nil, err
-		}
-		for groupID, count := range counts {
-			taken[groupID] = count
-		}
+	taken, err := s.waitlistOccupancy(ctx, groups, entries, today, queue)
+	if err != nil {
+		return nil, err
 	}
 	seen := make(map[int64]bool, len(groups))
 	for _, group := range groups {
