@@ -265,7 +265,7 @@ export function AttendanceCorrectionModal({
               setStatus(nextStatus);
               if (nextStatus === "expected") setSubstatus("");
             }}
-            labelId="correction-status-label"
+            ariaLabelledBy="correction-status-label"
           />
         </div>
 
@@ -282,7 +282,7 @@ export function AttendanceCorrectionModal({
             value={substatus}
             options={[...SUBSTATUS_OPTIONS]}
             onChange={setSubstatus}
-            labelId="correction-substatus-label"
+            ariaLabelledBy="correction-substatus-label"
             ariaDescribedBy={
               status === "expected" ? "correction-substatus-help" : undefined
             }

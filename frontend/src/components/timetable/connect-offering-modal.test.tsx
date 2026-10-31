@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
+import { duplicateIds } from "~/test/helpers/duplicate-ids";
 import type { OfferingPreview, RosterDeviation } from "~/lib/roster-deviation";
 
 const { mockPreview, mockConnect, mockToastSuccess, mockOfferingSources } =
@@ -203,6 +204,35 @@ describe("ConnectOfferingModal (#5103)", () => {
         "2026-10-28",
       ),
     );
+  });
+
+  it("keeps every HTML ID unique before, during and after choosing an offering (#5350)", async () => {
+    render(
+      <ConnectOfferingModal
+        isOpen
+        templateName="RDST 3a"
+        deviation={{ ...deviation, ambiguous: true }}
+        onClose={vi.fn()}
+        onConnected={vi.fn()}
+      />,
+    );
+
+    // Anker: the offering field is rendered, named by its label.
+    const select = screen.getByRole("button", { name: "Angebote" });
+    expect(select).toHaveTextContent("Angebote wählen");
+    expect(duplicateIds()).toEqual([]);
+
+    fireEvent.click(select);
+    // Anker: the open menu carries the field name.
+    expect(screen.getByRole("dialog", { name: "Angebote" })).toBeVisible();
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Ganztag" }));
+    expect(duplicateIds()).toEqual([]);
+
+    expect(await screen.findByText("Mittwoch")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Angebote" })).toHaveTextContent(
+      "Ganztag",
+    );
+    expect(duplicateIds()).toEqual([]);
   });
 
   it("connects Randstunde and Ganztag together and keeps the Ganztag children (#5139)", async () => {

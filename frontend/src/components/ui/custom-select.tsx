@@ -21,7 +21,6 @@ interface CustomSelectProps {
   readonly ariaLabel?: string;
   readonly ariaLabelledBy?: string;
   readonly ariaDescribedBy?: string;
-  readonly labelId?: string;
   readonly placeholder?: string;
   readonly disabled?: boolean;
   readonly required?: boolean;
@@ -75,7 +74,6 @@ export function CustomSelect({
   ariaLabel,
   ariaLabelledBy,
   ariaDescribedBy,
-  labelId,
   placeholder = "Bitte wählen",
   disabled = false,
   required = false,
@@ -158,7 +156,6 @@ export function CustomSelect({
         renderTrigger={({ selectedLabel, open }) => (
           <>
             <span
-              id={labelId}
               className={`min-w-0 flex-1 ${wrapLabels ? "wrap-anywhere whitespace-normal" : "truncate"} ${
                 options.some((option) => option.value === value)
                   ? "text-gray-900"
