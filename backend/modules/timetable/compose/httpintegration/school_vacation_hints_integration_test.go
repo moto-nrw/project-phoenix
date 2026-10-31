@@ -203,7 +203,9 @@ func TestSchoolVacationHintsQueryBudgetStaysFlat(t *testing.T) {
 		}
 		return result
 	}
-	counter := testpkg.CaptureQueries(t, s.db)
+	// This package shares its pool across parallel scenarios. Scope the counter
+	// to this query's context so their fixture writes cannot affect the budget.
+	counter := testpkg.CaptureQueriesForContext(t, s.db)
 	run := func(expected int) []string {
 		counter.Reset()
 		hints := s.query(counter.Context(s.ctx), today)
