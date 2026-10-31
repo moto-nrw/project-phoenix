@@ -122,6 +122,7 @@ const PUBLIC_MODULES = new Set(
     "mutate",
     "config-boundaries",
     "scope-boundary",
+    "course-waitlist-keys",
     "portal-keys",
     "shell-keys",
     "parent-keys",

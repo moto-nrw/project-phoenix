@@ -68,6 +68,9 @@ func (s seedFamilyAppAccountsStep) Run(ctx context.Context, rt *Runtime) error {
 	}); err != nil {
 		return err
 	}
+	if err := seedFurtherWaitlistedCourseRequests(ctx, rt, password); err != nil {
+		return err
+	}
 	fmt.Printf("  %d parent app accounts created\n", len(guardians)+len(invitations))
 	return nil
 }
