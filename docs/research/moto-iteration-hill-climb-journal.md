@@ -321,6 +321,65 @@ mit `read tcp …:5453: i/o timeout` abbrach. Das ist genau der dokumentierte
 Fehlermodus. Abbruchkriterium erreicht, Grenze bleibt 2. Eine Lockerung
 bräuchte eine Grenze pro Test-DB-Server statt pro Lauf.
 
+### Runde 14: CI-Fehler nach der Bundle-Neubasierung
+
+Nachmessung für 31.10. 12:45 bis 22:00 UTC (nach #5400), gleiche Methode wie
+Runde 6: 54 PR-Läufe, 9 fehlgeschlagen, alle im Frontend. Ein Lauf kann mehrere
+Klassen haben.
+
+| Klasse | Läufe | Branches | Vom bestehenden Pre-Push abgedeckt |
+| --- | ---: | ---: | --- |
+| knip, ungenutzte Exporte | 4 | 2 | ja |
+| oxlint (SWR-Schlüssel, doppelter Bezeichner) | 3 | 3 | ja |
+| Guard-Inventar `--check-guards` | 3 | 2 | nein |
+| Bundle | 2 | 2 | nein; ein echtes PR-Delta (+45 KB), eine Grenze 144 Bytes über |
+| depcruise, Zyklus | 1 | 1 | nein |
+| Vitest `dom-2` | 1 | 1 | nein |
+
+7 der 9 Läufe scheiterten an einer Prüfung, die der Pre-Push schon ausführt; diese
+Pushes liefen also ohne den Hook (andere Rechner, `PHX_PREPUSH=skip` oder
+`--no-verify`). Auf 2 von 4 Branches scheiterte derselbe Job zweimal in Folge.
+Zwei Änderungen:
+
+- `--check-guards` läuft jetzt im schnellen Frontend-Gate des Pre-Push
+  (etwa 3 s). Probe: eine neue Testdatei mit `node:fs` ohne Inventareintrag
+  scheitert lokal mit derselben Assertion wie in CI.
+- `scripts/ci-failures.mjs` zeigt für den letzten Lauf eines Branches die roten
+  Jobs und Schritte, deren Fehlerzeilen (höchstens 30 plus 12 Zeilen Ende) und
+  den lokalen Befehl, und warnt, wenn der vorige Push im selben Job scheiterte.
+  An #4767 gegen echte Logs geprüft: 5 rote Jobs auf etwa 70 Zeilen.
+
+Beifund: #5430 benennt `testpkg.AssertQueryBudget` um. Offene PRs, die neue
+Aufrufer hinzufügen, scheitern nach dem Merge der Basis am Build (#4767).
+
+### Runde 15: `deadcode` lokal, verworfen
+
+Über 233 rote PR-Läufe (25. bis 31.10.) scheiterten 11 an `deadcode`, auf 6
+Branches; einer davon fünfmal hintereinander. Kosten lokal (Last 18 bis 30):
+
+| Modus | Wandzeit s | CPU-s | Peak-RSS |
+| --- | ---: | ---: | ---: |
+| Tests (`-test`) | 30 | 55 | 11,9 GB |
+| Produktion | 10 | 16 | 4,4 GB |
+| Tests, `GOMEMLIMIT=3GiB` | 53 | 194 | 8,2 GB |
+| Produktion, `GOMEMLIMIT=3GiB` | 9 | 22 | 3,2 GB |
+
+Der Live-Heap im Testmodus liegt über 3 GiB; das Limit erzwingt nur GC-Arbeit.
+Pro Backend-Push 12 GB bei mehreren Agents auf einer Maschine sind nicht
+vertretbar. Stattdessen nennt `ci-failures.mjs` für `backend-quality` den
+lokalen Befehl `scripts/check-deadcode.sh`, damit nach einem roten Lauf nicht
+erneut ungeprüft gepusht wird.
+
+### Runde 16: Go-Testausgabe für Agents begrenzt
+
+Ein gescheitertes Paket gibt alles aus, was sein Binary geschrieben hat; einmal
+494 MB aus `api`. `test-changed.sh` schrieb das per `tee` in die Ausgabe des
+Agents. Jetzt gehen live nur Paketergebnisse und Build-Fehler durch; ein Fehler
+ergänzt die Zusammenfassung, die jetzt auch `t.Fatal`-Meldungen enthält, und
+behält die volle Ausgabe gzip-komprimiert unter `test-changed-go.log.gz`.
+Probe mit einem Test, der 20 000 Zeilen schreibt und scheitert: vorher
+20 000 Zeilen live, nachher 14 Zeilen mit Meldung; Log 52 KB komprimiert.
+
 ## Verworfen
 
 - Frontend-Guards bei Backend-Änderungen verkleinern: Die 45 Guard-Dateien sind
@@ -328,6 +387,7 @@ bräuchte eine Grenze pro Test-DB-Server statt pro Lauf.
   ändern, nicht nur Kosten senken.
 - `-p 4` auf macOS (Runde 13): einzeln 38 % schneller, unter paralleler Last
   DB-Timeouts.
+- `deadcode` im Pre-Push (Runde 15): 30 s und 11,9 GB pro Backend-Push.
 
 ## Unknown Unknowns
 
@@ -372,8 +432,12 @@ Startfehler des Testplatzes, erst danach reine Laufzeit.
    60 s der Vitest-Zeit sind der größte Posten.
 4. Frontend-Guards bei reinen Go-Änderungen: 45 Dateien, 15,7 s bei jeder
    Wiederholung, auch wenn Go alles aus dem Cache liefert.
+5. Pushes ohne Pre-Push-Hook (Runde 14): 7 von 9 roten Läufen hätte der Hook
+   abgefangen. Unklar ist, ob Hooks auf anderen Rechnern installiert sind oder
+   übersprungen werden; erst messen, dann entscheiden.
 
 Erledigt aus dieser Liste: Bundle-Obergrenzen nahe der Basis (#5400, Neubasierung
 nach Entscheidung des Nutzers in #5396), Heavy-Gate nach Last gewichtet (Runde 10),
-Query-Budget-Paket (Runde 12). Verworfen: Seed-Cache (Runde 11), `-p 4` auf
-macOS (Runde 13).
+Query-Budget-Paket (Runde 12), CI-Fehlerbericht und Guard-Inventar im Pre-Push
+(Runde 14), begrenzte Go-Testausgabe (Runde 16). Verworfen: Seed-Cache
+(Runde 11), `-p 4` auf macOS (Runde 13), `deadcode` im Pre-Push (Runde 15).
