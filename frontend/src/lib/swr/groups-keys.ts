@@ -1,3 +1,4 @@
+import { SWR_FAMILIES } from "./families";
 import { resourceKey } from "./resource-key";
 export type GroupFilters = {
   search?: string;
@@ -5,6 +6,6 @@ export type GroupFilters = {
   pageSize?: number;
 };
 export const groupKeys = {
-  family: "groups-",
+  family: SWR_FAMILIES.groups,
   key: (params: GroupFilters = {}) => resourceKey("groups-list-", params),
 } as const;

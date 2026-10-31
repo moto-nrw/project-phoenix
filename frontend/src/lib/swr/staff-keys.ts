@@ -1,10 +1,11 @@
+import { SWR_FAMILIES } from "./families";
 import type { staffService } from "~/lib/staff-api";
 import { resourceKey } from "./resource-key";
 export type StaffFilters = NonNullable<
   Parameters<typeof staffService.getAllStaff>[0]
 >;
 export const staffKeys = {
-  family: "staff-directory-",
+  family: SWR_FAMILIES.staff,
   key: (params: StaffFilters = {}, options: { strict?: boolean } = {}) =>
     resourceKey("staff-directory-list-", {
       ...params,

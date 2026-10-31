@@ -58,7 +58,7 @@ import {
 } from "~/lib/redirect-utils";
 import { schoolPortalLoginUrl } from "~/lib/school-url";
 import { useSWRAuth } from "~/lib/swr/hooks";
-import { dashboardKeys } from "~/lib/swr/portal-keys";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
 import {
   useBookedModules,
   useOpenCareGroupMode,

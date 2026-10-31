@@ -1,6 +1,6 @@
 "use client";
 
-import { parentKeys } from "~/lib/swr/portal-keys";
+import { parentKeys } from "~/lib/swr/parent-keys";
 
 import { useSWRAuth } from "~/lib/swr";
 

@@ -1,5 +1,8 @@
 import { resourceKey } from "./resource-key";
 
+export { announcementKeys, dashboardKeys } from "./shell-keys";
+export { parentKeys } from "./parent-keys";
+
 /** Unscoped family factories. Only the shared hooks turn these into cache keys. */
 export const operatorProvisioningKeys = {
   schoolDevices: (id: string | undefined) =>
@@ -47,19 +50,6 @@ export const operatorInvitationKeys = {
   list: () => "operator-invitations",
 } as const;
 
-export const parentKeys = {
-  newsEnabled: (id?: string) =>
-    id === undefined
-      ? "parent-news-enabled"
-      : `parent-news-enabled-${encodeURIComponent(id)}`,
-  mealPlanEnabled: (id?: string) =>
-    id === undefined
-      ? "parent-meal-plan-enabled"
-      : `parent-meal-plan-enabled-${encodeURIComponent(id)}`,
-  shellChildren: () => "parent-shell-children",
-  profile: () => "parent-profile",
-} as const;
-
 export const staffMergeKeys = {
   preview: (id: string | undefined) =>
     `operator-staff-person-merges-${encodeURIComponent(id ?? "")}`,
@@ -97,12 +87,6 @@ export const studentKeys = {
   arrivalData: (id: string) => `arrival-data-${encodeURIComponent(id)}`,
 } as const;
 
-// Shared by the home page, its now strip and the rooms page; the SSE hook
-// refreshes it on attendance events.
-export const dashboardKeys = {
-  analytics: () => "dashboard-analytics",
-} as const;
-
 export const timetableKeys = {
   offeringGaps: (periodId: string) =>
     `offering-gaps-${encodeURIComponent(periodId)}`,
@@ -128,10 +112,6 @@ export const schoolSetupKeys = {
 
 export const staffOnboardingKeys = {
   key: () => "staff-onboarding",
-} as const;
-
-export const announcementKeys = {
-  unread: () => "user-announcements-unread",
 } as const;
 
 export const operatorBillingKeys = {

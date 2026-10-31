@@ -1,10 +1,11 @@
+import { SWR_FAMILIES } from "./families";
 import type { roomService } from "~/lib/api";
 import { resourceKey } from "./resource-key";
 export type RoomFilters = NonNullable<
   Parameters<typeof roomService.getRooms>[0]
 >;
 export const roomKeys = {
-  family: "rooms-",
+  family: SWR_FAMILIES.rooms,
   key: (params: RoomFilters = {}) => resourceKey("rooms-list-", params),
   // The room page's room with its history. Outside the list family; the SSE
   // hook and the room sections refresh it via the "room-detail-" prefix.

@@ -1,6 +1,6 @@
 "use client";
 
-import { parentKeys } from "~/lib/swr/portal-keys";
+import { parentKeys } from "~/lib/swr/parent-keys";
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useLocale } from "next-intl";

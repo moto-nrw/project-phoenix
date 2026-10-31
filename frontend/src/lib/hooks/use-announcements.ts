@@ -1,6 +1,6 @@
 "use client";
 
-import { announcementKeys } from "~/lib/swr/portal-keys";
+import { announcementKeys } from "~/lib/swr/shell-keys";
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useSWRAuth } from "~/lib/swr";

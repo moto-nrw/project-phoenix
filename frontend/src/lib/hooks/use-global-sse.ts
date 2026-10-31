@@ -25,11 +25,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useInvalidateFamily } from "~/lib/swr";
 import { mutate } from "~/lib/swr/mutate";
-import { roomKeys } from "~/lib/swr/rooms-keys";
-import { groupKeys } from "~/lib/swr/groups-keys";
-import { staffKeys } from "~/lib/swr/staff-keys";
-import { meKeys } from "~/lib/swr/me-keys";
-import { dashboardKeys } from "~/lib/swr/portal-keys";
+import { SWR_FAMILIES } from "~/lib/swr/families";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
 import { useSSE } from "~/lib/hooks/use-sse";
@@ -365,15 +362,15 @@ export function useGlobalSSE(): SSEHookState {
   const flushInvalidations = useCallback(() => {
     const families = new Set<string>();
     if (hasPendingGroupAccessEvent.current) {
-      families.add(groupKeys.family);
-      families.add(meKeys.family);
-      families.add(staffKeys.family);
+      families.add(SWR_FAMILIES.groups);
+      families.add(SWR_FAMILIES.me);
+      families.add(SWR_FAMILIES.staff);
     }
     if (
       hasPendingStaffTimeTrackingEvent.current ||
       hasPendingTimetableEvent.current
     ) {
-      families.add(staffKeys.family);
+      families.add(SWR_FAMILIES.staff);
     }
     if (
       hasPendingActivityEvent.current ||
@@ -383,7 +380,7 @@ export function useGlobalSSE(): SSEHookState {
       pendingGroupIds.current.size > 0 ||
       pendingStudentIds.current.size > 0
     ) {
-      families.add(roomKeys.family);
+      families.add(SWR_FAMILIES.rooms);
     }
     for (const family of families) {
       void invalidateFamily(family).catch((err) => {
@@ -562,7 +559,7 @@ export function useGlobalSSE(): SSEHookState {
             // groupName, studentCount, isOccupied. Without this, the
             // "Aktuell anwesend: X" InfoItem stays stale while the
             // section above it refreshes (#1374).
-            // Room lists are invalidated once via roomKeys.family above.
+            // Room lists are invalidated once via SWR_FAMILIES.rooms above.
             key.includes("room-detail-")),
       ).catch((err) => {
         // Fire-and-forget: the screen keeps its data until the next event or load.

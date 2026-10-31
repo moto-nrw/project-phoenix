@@ -27,7 +27,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { formatFloor, getRoomCategoryColor } from "~/lib/room-helpers";
 import { useSWRAuth } from "~/lib/swr";
-import { dashboardKeys } from "~/lib/swr/portal-keys";
+import { dashboardKeys } from "~/lib/swr/shell-keys";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { ChevronRight, FileSpreadsheet, FileText } from "lucide-react";
