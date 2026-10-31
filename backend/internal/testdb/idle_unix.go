@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -272,6 +273,9 @@ func buildIdleWatcher(ctx context.Context, cache string) (string, error) {
 // exclusive users lock must be released in that order when exiting: a new
 // starter then either sees this watcher or starts its replacement, never a gap.
 func WatchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll time.Duration) error {
+	if err := closeInheritedIdleFiles(singleton); err != nil {
+		return err
+	}
 	if idle <= 0 || poll <= 0 {
 		return fmt.Errorf("idle and poll durations must be positive")
 	}
@@ -284,6 +288,39 @@ func WatchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll t
 		return err
 	}
 	return watchIdle(ctx, dir, singleton, idle, poll, server)
+}
+
+// Go's exec preserves foreign descriptors that arrived without FD_CLOEXEC.
+// Only the detached watcher calls this: retain its explicit singleton and
+// stdio, and leave close-on-exec runtime descriptors alone. Closing arbitrary
+// descriptors in the multi-threaded test runner would race its other users.
+func closeInheritedIdleFiles(singleton *os.File) error {
+	entries, err := os.ReadDir("/dev/fd")
+	if err != nil {
+		return fmt.Errorf("list inherited watcher descriptors: %w", err)
+	}
+	for _, entry := range entries {
+		fd, err := strconv.Atoi(entry.Name())
+		if err != nil || fd < 3 || uintptr(fd) == singleton.Fd() {
+			continue
+		}
+		flags, _, errno := syscall.Syscall(syscall.SYS_FCNTL, uintptr(fd), syscall.F_GETFD, 0)
+		// The directory scan closed its own FD.
+		if errno == syscall.EBADF {
+			continue
+		}
+		if errno != 0 {
+			return fmt.Errorf("inspect watcher descriptor %d: %w", fd, errno)
+		}
+		if flags&syscall.FD_CLOEXEC == 0 {
+			if err := syscall.Close(fd); err != nil {
+				return fmt.Errorf("close inherited watcher descriptor %d: %w", fd, err)
+			}
+		}
+	}
+	// Docker commands must not prolong the singleton lock either.
+	syscall.CloseOnExec(int(singleton.Fd()))
+	return nil
 }
 
 func watchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll time.Duration, server idleServer) error {

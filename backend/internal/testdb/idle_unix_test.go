@@ -341,3 +341,69 @@ func TestIdleDiscoveryFallbackDoesNotHideLeaseErrors(t *testing.T) {
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "users.lock"), 0700))
 	require.Error(t, holdRegisteredIdleServers(t.Context(), cache, server.Project, held), "invalid lease storage must remain an error")
 }
+
+// Exercise the real detached entry point with an admission lock deliberately
+// inherited without close-on-exec, just like an agent-heavy wrapper.
+func TestIdleWatcherReleasesInheritedAdmissionLock(t *testing.T) {
+	t.Parallel()
+	dir, _ := idleFixture(t)
+	binary, err := buildIdleWatcher(t.Context(), t.TempDir())
+	require.NoError(t, err)
+	singleton, err := tryLockFile(filepath.Join(dir, "watcher.lock"), syscall.LOCK_EX)
+	require.NoError(t, err)
+	require.NotNil(t, singleton)
+	defer func() { _ = singleton.Close() }()
+	slotPath := filepath.Join(dir, "slot-0.lock")
+	slot, err := tryLockFile(slotPath, syscall.LOCK_EX)
+	require.NoError(t, err)
+	require.NotNil(t, slot)
+	defer func() { _ = slot.Close() }()
+	log, err := os.Create(filepath.Join(dir, "process.log"))
+	require.NoError(t, err)
+	defer func() { _ = log.Close() }()
+	process, err := os.StartProcess(binary, []string{binary, "--idle-watch", dir}, &os.ProcAttr{
+		Files: []*os.File{nil, log, log, singleton, slot},
+		Sys:   &syscall.SysProcAttr{Setsid: true},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = process.Kill(); _, _ = process.Wait() })
+	require.NoError(t, singleton.Close())
+	require.NoError(t, slot.Close())
+	// Closing the originating process's copies must free admission, but not
+	// the singleton: the watcher must still be alive and protecting its server.
+	require.Eventually(t, func() bool {
+		lock, err := tryLockFile(slotPath, syscall.LOCK_EX)
+		if err != nil || lock == nil {
+			return false
+		}
+		_ = lock.Close()
+		return true
+	}, 5*time.Second, 10*time.Millisecond, "detached watcher retained the admission slot")
+	require.NoError(t, process.Signal(syscall.Signal(0)))
+	replacement, err := tryLockFile(filepath.Join(dir, "watcher.lock"), syscall.LOCK_EX)
+	require.NoError(t, err)
+	if replacement != nil {
+		_ = replacement.Close()
+	}
+	require.Nil(t, replacement, "watcher must retain its singleton lock")
+	// The kernel assertion above is portable; also capture lsof evidence when
+	// the system tool is installed (macOS and conventional Linux locations).
+	for _, lsof := range []string{"/usr/sbin/lsof", "/usr/bin/lsof"} {
+		if _, err := os.Stat(lsof); err != nil {
+			continue
+		}
+		output, err := os.Create(filepath.Join(dir, "lsof.log"))
+		require.NoError(t, err)
+		defer func() { _ = output.Close() }()
+		probe, err := os.StartProcess(lsof, []string{lsof, "-p", fmt.Sprint(process.Pid)}, &os.ProcAttr{Files: []*os.File{nil, output, output}})
+		require.NoError(t, err)
+		state, err := probe.Wait()
+		require.NoError(t, err)
+		data, err := os.ReadFile(output.Name())
+		require.NoError(t, err)
+		require.True(t, state.Success(), "%s", data)
+		require.NotContains(t, string(data), slotPath)
+		t.Logf("watcher PID %d: lsof confirms no admission lock", process.Pid)
+		break
+	}
+}
