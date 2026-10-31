@@ -46,6 +46,13 @@ vi.mock("~/lib/hooks/use-sse", () => ({
 }));
 
 // Override the global SWR mock from setup.ts with a version that exposes our spy
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
+  useInvalidateFamily: () => (family: string) =>
+    mockMutate(
+      (key: unknown) => typeof key === "string" && key.includes(`:${family}`),
+    ),
+}));
 vi.mock("swr", () => ({
   default: vi.fn(() => ({
     data: undefined,
@@ -55,10 +62,6 @@ vi.mock("swr", () => ({
     mutate: vi.fn(),
   })),
   mutate: mockMutate,
-}));
-
-vi.mock("~/lib/swr/room-derived-caches", () => ({
-  ROOM_LIST_CACHE_KEYS: ["rooms-list"],
 }));
 
 import { useGlobalSSE } from "./use-global-sse";
@@ -402,7 +405,13 @@ describe("useGlobalSSE — SWR invalidation debounce", () => {
     // Should have called mutate, but not once per event
     const beforeNextFlush = mockMutate.mock.calls.length;
     expect(beforeNextFlush).toBeGreaterThan(0);
-    expect(beforeNextFlush).toBeLessThan(9); // definitely not 3 per event × 3 events
+    mockMutate.mockClear();
+    fireSSE(makeEvent("student_checkin", { student_id: "s1" }, "grp1"));
+    act(() => vi.advanceTimersByTime(500));
+    // One burst costs exactly one flush, regardless of its event count.
+    // Three different children add exactly two per-child detail invalidations,
+    // not two additional flushes of every family.
+    expect(beforeNextFlush).toBe(mockMutate.mock.calls.length + 2);
   });
 
   it("calls mutate on dashboard_counts_changed after debounce", () => {

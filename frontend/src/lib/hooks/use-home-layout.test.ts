@@ -2,7 +2,17 @@ import { renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
-vi.mock("swr", () => ({ default: vi.fn() }));
+vi.mock("swr", () => ({
+  default: vi.fn(),
+  useSWRConfig: () => ({
+    cache: new Map(),
+    mutate: (_key: unknown, ...args: unknown[]) =>
+      vi
+        .mocked(useSWR)
+        .mock.results.at(-1)
+        ?.value.mutate(...args),
+  }),
+}));
 vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: vi.fn() }));
 vi.mock("~/lib/home-layout-api", () => ({
   fetchHomeLayout: vi.fn(),
@@ -44,9 +54,9 @@ describe("useHomeLayout", () => {
     renderHook(() => useHomeLayout());
 
     expect(useSWR).toHaveBeenCalledWith(
-      "home-layout:school-a:account-a",
+      "school-a:account-a:home-layout",
       expect.any(Function),
-      { revalidateOnFocus: false },
+      expect.objectContaining({ revalidateOnFocus: false }),
     );
 
     vi.mocked(useSession).mockReturnValue({
@@ -61,9 +71,9 @@ describe("useHomeLayout", () => {
     renderHook(() => useHomeLayout());
 
     expect(useSWR).toHaveBeenLastCalledWith(
-      "home-layout:school-b:account-b",
+      "school-b:account-b:home-layout",
       expect.any(Function),
-      { revalidateOnFocus: false },
+      expect.objectContaining({ revalidateOnFocus: false }),
     );
   });
 

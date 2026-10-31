@@ -3,8 +3,6 @@
 import { useLayoutEffect, useMemo, useRef } from "react";
 import type { Session } from "next-auth";
 import { SessionProvider, useSession } from "next-auth/react";
-// eslint-disable-next-line no-restricted-imports -- SWRConfig only; hooks stay on ~/lib/swr
-import { SWRConfig } from "swr";
 import { ProfileProvider } from "~/lib/profile-context";
 import { SupervisionProvider } from "~/lib/supervision-context";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
@@ -13,16 +11,22 @@ import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { ModuleBookingAudienceProvider } from "~/contexts/ToastContext";
 import { TenantAuthWrapper } from "~/components/auth/tenant-auth-wrapper";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
-import { ANNOUNCEMENTS_UNREAD_SWR_KEY } from "~/lib/hooks/use-announcements";
+import { announcementKeys } from "~/lib/swr/shell-keys";
 import { USER_CONTEXT_SWR_KEY } from "~/lib/hooks/use-user-context";
 import { REMINDERS_SWR_KEY } from "~/lib/reminders-api";
 import { primeSessionCache } from "~/lib/session-cache";
 import { SESSION_PROVIDER_POLL_SECONDS } from "~/lib/session-provider-poll";
 import { ShellSeedProvider, type ShellBootstrap } from "~/lib/shell-seed";
-import { mutate, scopedSWRKey, tenantSWRScope } from "~/lib/swr";
-import { dataGenerationOf, stampSWRValue } from "~/lib/swr/generation";
-import { authGeneration, useSWRSessionRefresh } from "~/lib/swr/scope";
-import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
+import {
+  authGeneration,
+  scopedSWRKey,
+  stampSWRSeeds,
+  SWRScopeBoundary,
+  SWRSeedBoundary,
+  tenantSWRScope,
+  useSWRSessionRefresh,
+  writeSWRSeeds,
+} from "~/lib/swr";
 import { staffNoticesTodayKey } from "~/lib/staff-notices-api";
 import { TenantProvider, type TenantRoutingMode } from "~/lib/tenant-context";
 import { tenantAwarePath } from "~/lib/tenant-path";
@@ -101,9 +105,10 @@ export function shellOwnedEntries(shell: ShellBootstrap, tenantSlug: string) {
  */
 export function shellSwrConfig(shell: ShellBootstrap, tenantSlug: string) {
   const consumed: Record<string, unknown> = {};
-  // Platform-scoped, so its key carries no tenant prefix.
+  const scope = tenantSWRScope(tenantSlug, shell.accountId);
   if (shell.announcements) {
-    consumed[ANNOUNCEMENTS_UNREAD_SWR_KEY] = shell.announcements;
+    consumed[scopedSWRKey(scope, announcementKeys.unread())] =
+      shell.announcements;
   }
   return {
     fallback: { ...shellOwnedEntries(shell, tenantSlug), ...consumed },
@@ -124,11 +129,7 @@ export function ShellCacheSeeder({
   entries,
 }: Readonly<{ entries: Record<string, unknown> }>) {
   useLayoutEffect(() => {
-    for (const [key, data] of Object.entries(entries)) {
-      void mutate(key, (current: unknown) => current ?? data, {
-        revalidate: false,
-      });
-    }
+    writeSWRSeeds(entries);
   }, [entries]);
   return null;
 }
@@ -167,10 +168,10 @@ function ShellSwrSeed({
     if (invalidated || current !== generation) left.current = true;
   }, [invalidated, current, generation]);
   return (
-    <SWRConfig value={active ? seed.config : NO_SEED}>
+    <SWRSeedBoundary seed={active ? seed.config : NO_SEED}>
       <ShellCacheSeeder entries={active ? seed.owned : NO_ENTRIES} />
       {children}
-    </SWRConfig>
+    </SWRSeedBoundary>
   );
 }
 
@@ -207,9 +208,7 @@ export function TenantProviders({
     const config = shellSwrConfig(shell, tenantSlug);
     // The seed belongs to the generation it was built in (#5006): after a
     // drop of one of its keys no reader shows it, also not as fallback.
-    for (const [key, value] of Object.entries(config.fallback)) {
-      stampSWRValue(key, value, dataGenerationOf(key));
-    }
+    stampSWRSeeds(config.fallback);
     return { config, owned: shellOwnedEntries(shell, tenantSlug) };
   }, [shell, tenantSlug]);
   // The seed belongs to the session the server rendered with.

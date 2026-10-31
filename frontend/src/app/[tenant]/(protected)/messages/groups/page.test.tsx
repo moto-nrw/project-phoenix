@@ -19,8 +19,8 @@ const { state, push, mutate } = vi.hoisted(() => ({
   mutate: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: () => ({
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: () => ({
     data: state.threads,
     error: undefined,
     isLoading: false,

@@ -1,5 +1,6 @@
 "use client";
 
+import { parentKeys } from "~/lib/swr/parent-keys";
 import {
   createContext,
   useCallback,
@@ -13,14 +14,10 @@ import {
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useLocale, useTranslations } from "next-intl";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import type { AppLocale } from "~/i18n/locales";
 import { normalizeLocale, writeLocaleCookie } from "~/i18n/locales";
-import {
-  fetchParentProfile,
-  parentProfileCacheKey,
-  updateParentPortalLocale,
-} from "~/lib/parent-api";
+import { fetchParentProfile, updateParentPortalLocale } from "~/lib/parent-api";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 
@@ -88,11 +85,10 @@ export function ParentLocaleProvider({
   // re-runs when `status` flips to "authenticated".
   const { data: session, status } = useSession();
   const authenticated = status === "authenticated";
-  const { data: profile, error: profileError } = useSWR(
-    authenticated && session?.user?.id
-      ? parentProfileCacheKey(session.user.id)
-      : null,
+  const { data: profile, error: profileError } = useSWRAuth(
+    authenticated && session?.user?.id ? parentKeys.profile() : null,
     fetchParentProfile,
+    { keepPreviousData: false },
   );
   const { show: showError } = useApiErrorDisplay();
   const router = useRouter();

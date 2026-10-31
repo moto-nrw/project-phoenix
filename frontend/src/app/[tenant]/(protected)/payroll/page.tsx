@@ -1,5 +1,7 @@
 "use client";
 
+import { payrollKeys } from "~/lib/swr/portal-keys";
+
 import {
   useCallback,
   useEffect,
@@ -7,7 +9,7 @@ import {
   useRef,
   useState,
 } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { BooleanField } from "~/components/settings/fields/boolean-field";
 import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -34,7 +36,6 @@ import { errorStatus } from "~/lib/expected-failure";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
 import {
   duplicateLohnartNumbers,
   fetchPayrollDispatch,
@@ -85,16 +86,14 @@ export default function PayrollPage() {
   const { isReady, isLoading: permissionLoading } = useRequirePermission([
     "config:manage",
   ]);
-  const tenantSlug = useTenantSlugSafe();
 
   const {
     data: status,
     error,
     mutate,
-  } = useSWR(
-    isReady && tenantSlug ? `${tenantSlug}:payroll-status` : null,
-    fetchPayrollStatus,
-  );
+  } = useSWRAuth(isReady ? payrollKeys.status() : null, fetchPayrollStatus, {
+    keepPreviousData: false,
+  });
 
   const loadError = useSwrLoadError(
     error,
@@ -108,9 +107,10 @@ export default function PayrollPage() {
     data: latestDispatch,
     error: dispatchError,
     mutate: mutateDispatch,
-  } = useSWR(
-    isReady && tenantSlug ? `${tenantSlug}:payroll-dispatch` : null,
+  } = useSWRAuth(
+    isReady ? payrollKeys.dispatch() : null,
     fetchPayrollDispatch,
+    { keepPreviousData: false },
   );
   const dispatchLoadError = useSwrLoadError(
     dispatchError,
@@ -121,12 +121,13 @@ export default function PayrollPage() {
   // Ob die SFTP-Gegenstelle bereit ist, braucht time_tracking:manage. Fehlt
   // das Recht oder scheitert die Abfrage, entfällt nur der Hinweis: Der
   // Versand meldet eine fehlende Gegenstelle ohnehin selbst.
-  const { data: sftpStatus } = useSWR(
-    isReady && tenantSlug && status?.dispatch.channel === "sftp"
-      ? `${tenantSlug}:payroll-sftp-status`
+  const { data: sftpStatus } = useSWRAuth(
+    isReady && status?.dispatch.channel === "sftp"
+      ? payrollKeys.sftpStatus()
       : null,
     fetchSFTPStatus,
     {
+      keepPreviousData: false,
       shouldRetryOnError: false,
       onError: (err: unknown) => {
         if (errorStatus(err) === 403) return;

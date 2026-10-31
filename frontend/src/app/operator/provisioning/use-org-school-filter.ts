@@ -1,9 +1,11 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { useSession } from "next-auth/react";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { Organization, School } from "~/lib/operator/provisioning-helpers";
@@ -43,8 +45,8 @@ export function useOrgSchoolFilter(routePath: string): {
     data: organizations,
     error: organizationsError,
     mutate: reloadOrganizations,
-  } = useSWR(
-    isAuthenticated ? "operator-organizations" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.organizations() : null,
     () => operatorProvisioningService.listOrganizations(),
     {
       keepPreviousData: true,
@@ -57,8 +59,8 @@ export function useOrgSchoolFilter(routePath: string): {
     data: schools,
     error: schoolsError,
     mutate: reloadSchools,
-  } = useSWR(
-    isAuthenticated ? "operator-schools" : null,
+  } = useSWRAuth(
+    isAuthenticated ? operatorProvisioningKeys.schools() : null,
     () => operatorProvisioningService.listSchools(),
     {
       keepPreviousData: true,

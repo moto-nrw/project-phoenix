@@ -1,5 +1,6 @@
 "use client";
 
+import { groups as groupsKeys } from "~/lib/swr/groups";
 import { Suspense, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
@@ -24,7 +25,6 @@ import {
 } from "~/components/announcements/announcement-meta";
 import type { AnnouncementKind } from "~/components/announcements/announcement-meta";
 import { useToast } from "~/contexts/ToastContext";
-import { groupService } from "~/lib/api";
 import { ApiError } from "~/lib/api-error";
 import type { Group } from "~/lib/api";
 import { fetchActivities } from "~/lib/activity-api";
@@ -127,8 +127,8 @@ function AnnouncementDetailPageContent() {
   // Die Zielgruppen tragen echte Namen; die Nachschlagelisten laden erst,
   // wenn die Mitteilung da ist.
   const { data: groups } = useSWRAuth<Group[]>(
-    announcement ? "parent-announcements-groups" : null,
-    () => groupService.getGroups(),
+    announcement ? groupsKeys.key() : null,
+    groupsKeys.fetcher,
     { revalidateOnFocus: false },
   );
   const { data: activities } = useSWRAuth<Activity[]>(

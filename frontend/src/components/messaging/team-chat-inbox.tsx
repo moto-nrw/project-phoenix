@@ -1,5 +1,7 @@
 "use client";
 
+import { messageKeys } from "~/lib/swr/portal-keys";
+
 import {
   useCallback,
   useEffect,
@@ -7,7 +9,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { MessagesSquare, UsersRound } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { Button } from "~/components/ui/button";
@@ -120,10 +122,8 @@ export function TeamChatInbox({
     error,
     isLoading,
     mutate,
-  } = useSWR(
-    flagSaysEnabled
-      ? [`${portal.cacheScope}:team-chat-inbox`, onlyUnread]
-      : null,
+  } = useSWRAuth(
+    flagSaysEnabled ? messageKeys.teamChatInbox(onlyUnread) : null,
     () => api.fetchInbox({ onlyUnread }),
     {
       revalidateOnFocus: false,

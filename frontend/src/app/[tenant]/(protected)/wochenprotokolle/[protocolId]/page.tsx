@@ -31,6 +31,7 @@ import {
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
+import { weekProtocolKeys } from "~/lib/swr/portal-keys";
 import {
   weekProtocolsPath,
   weekProtocolsService,
@@ -123,7 +124,7 @@ function WeekProtocolContent() {
   const params = useParams();
   const protocolId = params.protocolId as string;
   const { data, error, isLoading, mutate } = useSWRAuth<WeekProtocol>(
-    `week-protocol-${protocolId}`,
+    weekProtocolKeys.detail(protocolId),
     () => weekProtocolsService.get(protocolId),
   );
   const loadError = useSwrLoadError(error, "das Wochenprotokoll", mutate);

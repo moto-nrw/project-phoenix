@@ -35,8 +35,8 @@ const {
   mockReactivateOperator: vi.fn(),
 }));
 
-vi.mock("swr", () => ({
-  default: mockUseSWR,
+vi.mock("~/lib/swr", () => ({
+  useSWRAuth: mockUseSWR,
 }));
 
 vi.mock("~/lib/operator/operator-invitation-api", () => ({

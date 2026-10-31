@@ -38,7 +38,7 @@ vi.mock("~/lib/swr", async (importOriginal) => {
 
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import { SWRConfig } from "~/lib/swr";
+import { SWRConfig } from "~/lib/swr/testing";
 import Page from "./page";
 
 const notes = {

@@ -134,6 +134,16 @@ export interface FetchWithRetryResult<T> {
   response: Response | null;
   data: T | null;
   accessDeniedStatus?: 401 | 403;
+  /** The parsed error envelope of the refusal: code, details, instance. */
+  accessDeniedBody?: unknown;
+}
+
+function parseErrorText(text: string): unknown {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -188,7 +198,12 @@ export async function fetchWithRetry<T>(
         return { response, data };
       }
     } else {
-      return { response: null, data: null, accessDeniedStatus: 401 };
+      return {
+        response: null,
+        data: null,
+        accessDeniedStatus: 401,
+        accessDeniedBody: parseErrorText(errorText),
+      };
     }
   }
 
@@ -207,6 +222,7 @@ export async function fetchWithRetry<T>(
         response: null,
         data: null,
         accessDeniedStatus: response.status,
+        accessDeniedBody: parseErrorText(errorText),
       };
     }
     // All other errors (4xx bugs, 5xx server errors) should throw
@@ -222,17 +238,10 @@ export async function fetchWithRetry<T>(
     } else {
       logger.error("api error", logContext);
     }
-    const parsed = (() => {
-      try {
-        return JSON.parse(errorText) as unknown;
-      } catch {
-        return undefined;
-      }
-    })();
     throw apiErrorFromBody(
       `API error: ${response.status}`,
       response.status,
-      parsed,
+      parseErrorText(errorText),
     );
   }
 

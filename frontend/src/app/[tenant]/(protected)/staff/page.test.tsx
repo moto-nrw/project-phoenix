@@ -32,6 +32,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
+  useInvalidateMatching: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/lib/hooks/use-staff-pending-absences", () => ({
@@ -289,7 +290,10 @@ describe("StaffPage", () => {
         key === formerKey
           ? { data: former, isLoading: false, error: null }
           : {
-              data: key === "staff-list" ? mockStaff : undefined,
+              data:
+                key === 'staff-directory-list-{"strict":false}'
+                  ? mockStaff
+                  : undefined,
               isLoading: false,
               error: null,
             }) as never);
@@ -543,7 +547,7 @@ describe("StaffPage", () => {
       status: "authenticated",
     } as never);
     vi.mocked(useSWRAuth).mockImplementation((key) => {
-      if (key === "staff-list") {
+      if (key === 'staff-directory-list-{"strict":false}') {
         return { data: mockStaff, isLoading: false, error: null } as never;
       }
       return {

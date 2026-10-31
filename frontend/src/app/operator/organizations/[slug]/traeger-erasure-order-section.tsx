@@ -1,7 +1,9 @@
 "use client";
 
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+
 import { useCallback, useRef, useState } from "react";
-import useSWR from "swr";
+import { useSWRAuth } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import {
@@ -59,8 +61,10 @@ export function TraegerErasureOrderSection({
     error,
     isLoading,
     mutate,
-  } = useSWR(["operator-org-erasure-order", organizationId], () =>
-    operatorProvisioningService.getTraegerErasureOrder(organizationId),
+  } = useSWRAuth(
+    operatorProvisioningKeys.orgErasureOrder(organizationId),
+    () => operatorProvisioningService.getTraegerErasureOrder(organizationId),
+    { keepPreviousData: false },
   );
   const loadError = useSwrLoadError(
     error,

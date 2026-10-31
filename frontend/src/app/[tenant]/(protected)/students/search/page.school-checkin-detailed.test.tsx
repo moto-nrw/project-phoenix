@@ -305,7 +305,7 @@ describe("StudentSearchPage — check-in mode on detailed-mode tenants", () => {
       error: null,
     } as never);
     vi.mocked(useSWRAuth).mockImplementation((key) => {
-      if (key === "search-rooms-list") {
+      if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
         return { data: [], isLoading: false, error: null } as never;
       }
       return {
@@ -481,7 +481,7 @@ describe("StudentSearchPage — check-in mode on detailed-mode tenants", () => {
     // visible result set. The snapshot must not shrink underneath the
     // confirmation the user is reading.
     vi.mocked(useSWRAuth).mockImplementation((key) => {
-      if (key === "search-rooms-list") {
+      if (key === 'rooms-list-{"page":1,"pageSize":1000}') {
         return { data: [], isLoading: false, error: null } as never;
       }
       return {

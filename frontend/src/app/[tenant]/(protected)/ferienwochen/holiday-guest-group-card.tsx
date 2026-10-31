@@ -6,7 +6,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
-import { groupService } from "~/lib/api";
+import { groups as groupResource } from "~/lib/swr/groups";
 import {
   assignHolidayGuestGroup,
   type HostedHolidayWeek,
@@ -39,9 +39,7 @@ export function HolidayGuestGroupCard({
   canAssign: boolean;
   onAssigned: () => void;
 }>) {
-  const groups = useSWRAuth("holiday-guest-groups", () =>
-    groupService.getGroups(),
-  );
+  const groups = useSWRAuth(groupResource.key(), groupResource.fetcher);
   const groupsError = useSwrLoadError(groups.error, "die Gruppen", () =>
     groups.mutate(),
   );

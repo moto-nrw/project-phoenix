@@ -945,6 +945,30 @@ describe("fetchWithRetry", () => {
     });
   });
 
+  it.each([
+    [401, false],
+    [403, undefined],
+  ] as const)(
+    "reports the error envelope of a refusal (%s)",
+    async (status, refreshed) => {
+      const envelope = { status, code: "module.not_booked", instance: "req-7" };
+      mockFetchRetry.mockResolvedValueOnce({
+        ok: false,
+        status,
+        text: () => Promise.resolve(JSON.stringify(envelope)),
+      } as Response);
+
+      const result = await fetchWithRetry("http://api.test/endpoint", {
+        ...(refreshed === undefined
+          ? {}
+          : { onAuthFailure: vi.fn().mockResolvedValue(refreshed) }),
+      });
+
+      expect(result.accessDeniedStatus).toBe(status);
+      expect(result.accessDeniedBody).toEqual(envelope);
+    },
+  );
+
   it("returns null for 403 Forbidden (access denied)", async () => {
     mockFetchRetry.mockResolvedValueOnce({
       ok: false,

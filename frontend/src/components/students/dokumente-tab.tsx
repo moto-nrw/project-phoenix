@@ -38,6 +38,7 @@ import {
   type StudentDocumentList,
 } from "~/lib/student-documents-api";
 import { useSWRAuth } from "~/lib/swr";
+import { studentKeys } from "~/lib/swr/portal-keys";
 
 // Dokumente tab (#777): flat file list per child with upload, download,
 // audited delete and category filter. The backend already filters per
@@ -104,7 +105,7 @@ export function StudentDokumenteTab({
 }) {
   const [accidentOpen, setAccidentOpen] = useState(false);
   const { data, isLoading, error, mutate } = useSWRAuth<StudentDocumentList>(
-    `student-documents-${studentId}`,
+    studentKeys.documents(studentId),
     () => studentDocumentsService.list(studentId),
   );
 
