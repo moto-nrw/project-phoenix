@@ -81,11 +81,14 @@ function label(thread: Thread | undefined): string {
     .join("|");
 }
 
-function Chat({ fetcher }: Readonly<{ fetcher: () => Promise<Thread> }>) {
-  reader = useSWRAuth<Thread>("thread-1", fetcher, {
+function Chat({
+  fetcher,
+  name = "thread-1",
+}: Readonly<{ fetcher: () => Promise<Thread>; name?: string }>) {
+  reader = useSWRAuth<Thread>(name, fetcher, {
     revalidateOnFocus: false,
   });
-  action = useOptimisticAction("thread-1", reader.data);
+  action = useOptimisticAction(name, reader.data);
   const shown = label(action.data);
   frames.push(shown);
   return <p data-testid="chat">{shown}</p>;
@@ -250,6 +253,80 @@ describe("useOptimisticAction (#5011)", () => {
     act(() => action.dismiss());
     expect(screen.getByTestId("chat")).toHaveTextContent(/^a$/);
     expect(action.data).toBe(before);
+  });
+
+  it.each(["unmount", "key change"])(
+    "discards a late failure after %s, even when the conversation reopens",
+    async (navigation) => {
+      const fetcher = () => Promise.resolve(START);
+      const view = await mounted(fetcher);
+      const answer = deferred<Item>();
+      let outcome: Promise<OptimisticOutcome<Item>> = Promise.resolve({
+        status: "discarded",
+      });
+      act(() => {
+        outcome = send("b", () => answer.promise, { keepFailed: true });
+      });
+      expect(screen.getByTestId("chat")).toHaveTextContent("a|b:pending");
+      view.rerender(
+        <Page>
+          {navigation === "key change" ? (
+            <Chat name="thread-2" fetcher={fetcher} />
+          ) : (
+            <p>Andere Seite</p>
+          )}
+        </Page>,
+      );
+      // Return before the old request settles: this is a new view lifetime.
+      view.rerender(
+        <Page>
+          <Chat fetcher={fetcher} />
+        </Page>,
+      );
+      await flush();
+      await act(async () => {
+        answer.reject(new Error("offline"));
+        await outcome;
+      });
+      expect(await outcome).toEqual({ status: "discarded" });
+      expect(screen.getByTestId("chat")).toHaveTextContent(/^a$/);
+      act(() => action.dismiss());
+      expect(screen.getByTestId("chat")).toHaveTextContent(/^a$/);
+      expect(committed).toEqual([]);
+    },
+  );
+
+  it("still commits a successful answer after the sending view unmounts", async () => {
+    const fetcher = () => Promise.resolve(START);
+    const view = await mounted(fetcher);
+    const answer = deferred<Item>();
+    let outcome: Promise<OptimisticOutcome<Item>> = Promise.resolve({
+      status: "discarded",
+    });
+    act(() => {
+      outcome = send("b", () => answer.promise, { keepFailed: true });
+    });
+    expect(screen.getByTestId("chat")).toHaveTextContent("a|b:pending");
+    view.rerender(
+      <Page>
+        <p>Andere Seite</p>
+      </Page>,
+    );
+    const saved = { id: "2", body: "b" };
+    await act(async () => {
+      answer.resolve(saved);
+      await outcome;
+    });
+    expect(await outcome).toEqual({ status: "done", result: saved });
+    expect(committed).toEqual([saved]);
+    view.rerender(
+      <Page>
+        <Chat fetcher={() => new Promise<Thread>(() => {})} />
+      </Page>,
+    );
+    await flush();
+    expect(screen.getByTestId("chat")).toHaveTextContent(/^a\|b$/);
+    expect(reader.data?.items).toEqual([START.items[0], saved]);
   });
 
   describe("concurrent actions", () => {

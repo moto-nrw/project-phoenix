@@ -34,7 +34,6 @@
 
 import {
   useCallback,
-  useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -178,6 +177,7 @@ export function useOptimisticAction<T>(
   const scope = scoped("");
   const discard = useDiscardRefusedEntity();
   const owner = useRef<object>({}).current;
+  const lifetime = useRef<{ active: boolean } | null>(null);
   // The scope of the latest render: an answer of an earlier scope is not
   // committed, also when no generation moved for its key.
   const latestScope = useRef(scope);
@@ -217,18 +217,22 @@ export function useOptimisticAction<T>(
     [confirmed, visible],
   );
 
-  // A kept failure belongs to the view that showed it.
-  useEffect(
-    () => () => {
+  // Each visit has its own lifetime, even when the same hook changes keys
+  // and comes back. Pending successes may still commit after leaving; late
+  // failures must not become undismissable overlays in a later visit.
+  useLayoutEffect(() => {
+    const view = { active: true };
+    lifetime.current = view;
+    return () => {
+      view.active = false;
       if (fullKey === null) return;
       update(fullKey, (list) =>
         list.filter(
           (overlay) => overlay.owner !== owner || overlay.state !== "failed",
         ),
       );
-    },
-    [fullKey, owner],
-  );
+    };
+  }, [fullKey, owner]);
 
   const stateOf = useCallback(
     (id: string): OptimisticState | undefined =>
@@ -252,6 +256,7 @@ export function useOptimisticAction<T>(
       if (fullKey === null || scope === null || isSWRSessionPending()) {
         return { status: "discarded" };
       }
+      const view = lifetime.current;
       const target = fullKey;
       const generation = dataGenerationOf(target);
       sequence += 1;
@@ -285,6 +290,10 @@ export function useOptimisticAction<T>(
             codes: action.refusal.codes ?? REFUSAL_CODES,
             matches: action.refusal.matches,
           });
+        if (!view?.active) {
+          drop();
+          return { status: "discarded" };
+        }
         if (action.keepFailed === true && !refused) {
           update(target, (list) =>
             list.map((entry) =>
