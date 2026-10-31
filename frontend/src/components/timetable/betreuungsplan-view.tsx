@@ -1726,6 +1726,7 @@ function TimetablesContent() {
       careOfferingIds: [gap.offering.id],
       title: gap.offering.name,
       weekdays: gap.weekdays,
+      schoolClasses: gap.newSeriesClasses,
     });
     setEventDefaultRepeat("weekly");
     setEventModalOpen(true);

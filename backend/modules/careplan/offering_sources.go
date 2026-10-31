@@ -131,6 +131,13 @@ type OfferingWeekdayBooking struct {
 	// Regeltermin of this offering in the requested planning period (#5140);
 	// empty without a decision there.
 	TemplateGapAckClasses []string
+	// ClassDayApplies is true when the offering runs on school days only:
+	// its phase is a school year and it includes no holiday care. Only then
+	// does the Klassentag tell when its children arrive (#5343).
+	ClassDayApplies bool
+	// PickupTimes are the offering's pickup times ("HH:MM") per ISO weekday;
+	// a weekday without one has no known end.
+	PickupTimes map[int]string
 	// Windows are the child's links to the offering that still run on or
 	// after from, each with its own validity and weekdays; Weekdays is their
 	// union.

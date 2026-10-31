@@ -10518,7 +10518,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase, and whether that phase is of the kind Ferienbetreuung): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase, and whether that phase is of the kind Ferienbetreuung; #5343 copies whether the Klassentag applies and the offering's pickup times): timetable-activities reaches modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings",
       "target_owner": "care-plan"
@@ -10528,7 +10528,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase, and whether that phase is of the kind Ferienbetreuung): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase, and whether that phase is of the kind Ferienbetreuung; #5343 copies whether the Klassentag applies and the offering's pickup times): timetable-activities reaches modules/careplan.CareOfferingCapability.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.OfferingWeekdayBookings",
       "target_owner": "care-plan"
@@ -10538,7 +10538,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
-      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase, and whether that phase is of the kind Ferienbetreuung): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
+      "reason": "Read-only reviewed target (#5103; #5140 copies the offering's template-gap decision for the period and each link's validity window onto the booking; #5139 copies the offering's enrollment phase id so a combined source stays within one phase, and whether that phase is of the kind Ferienbetreuung; #5343 copies whether the Klassentag applies and the offering's pickup times): timetable-activities reaches modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings (care-plan) through api.timetableOfferingSources.OfferingWeekdayBookings. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings",
       "target_owner": "care-plan"
@@ -12836,6 +12836,76 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.FutureRosters",
       "reason": "Read-only reviewed target (#5103): timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentsByID (people-directory) through modules/timetable/internal/application.templateRosterReview.FutureRosters. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "reason": "Read-only reviewed target (#5343): timetable-activities reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.templateRosterReview.PlannedRosters. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "reason": "Read-only reviewed target (#5343): timetable-activities reaches modules/peopledirectory.Capability.ListStudentsByID (people-directory) through modules/timetable/internal/application.templateRosterReview.PlannedRosters. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "reason": "Read-only reviewed target (#5343): timetable-activities reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.templateRosterReview.PlannedRosters. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "reason": "Read-only reviewed target (#5343): timetable-activities reaches modules/peopledirectory.Owner.ListStudentsByID (people-directory) through modules/timetable/internal/application.templateRosterReview.PlannedRosters. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "reason": "Read-only reviewed target (#5343): timetable-activities reaches modules/peopledirectory.Student.IsAlumnus (people-directory) through modules/timetable/internal/application.templateRosterReview.PlannedRosters. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "reason": "Read-only reviewed target (#5343): timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.templateRosterReview.PlannedRosters. No persistent, lock or scope effect.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "reason": "Read-only reviewed target (#5343): timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentsByID (people-directory) through modules/timetable/internal/application.templateRosterReview.PlannedRosters. No persistent, lock or scope effect.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
       "target_owner": "people-directory"

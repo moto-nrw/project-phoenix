@@ -3745,9 +3745,11 @@ export const leadRosterDeviationTopic =
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
         "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot. Schlägt moto mehrere Angebote zusammen vor, heißt der Knopf `Angebote übernehmen`.",
         "Passen beim Anlegen mehrere Angebotskombinationen gleich gut? Wählen Sie einen der Knöpfe mit den Angebotsnamen. Er übernimmt alle dort genannten Angebote zusammen.",
-        "Haben Kinder ein Angebot gebucht, aber kein Regeltermin übernimmt sie? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
+        "Haben Kinder ein Angebot gebucht, aber an manchen Tagen keinen passenden Regeltermin? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots aus den genannten Klassen. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
         "Brauchen diese Kinder bewusst keinen eigenen Regeltermin? Wählen Sie `Kein Regeltermin nötig`. Das gilt für den gewählten Zeitraum. Der Hinweis kommt wieder, sobald Kinder einer anderen Klasse betroffen sind. Das gilt auch für Ferienangebote.",
         "Diesen Hinweis holen Sie zurück: Klappen Sie `Ohne eigenen Regeltermin` auf und wählen Sie `Hinweis wieder zeigen`.",
+        // #5343: Klassen-Regeltermine und Ankunftszeit der Klasse zählen mit.
+        "Die Liste nennt nur Kinder, die an diesen Tagen auf keinem passenden Regeltermin stehen. Kommt die Klasse laut ihrer Ankunftszeit erst zur Abholzeit des Angebots, fehlt das Kind auch. Fehlt der Knopf, sind einige dieser Kinder schon ganz oder teilweise eingeplant oder haben noch Unterricht. Prüfen Sie dann ihre Regeltermine und ergänzen Sie, was fehlt.",
         // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
         "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Findet moto kein passendes Angebot, öffnet sich der Regeltermin zum Bearbeiten. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
       ],
