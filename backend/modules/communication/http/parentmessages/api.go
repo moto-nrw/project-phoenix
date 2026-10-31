@@ -508,7 +508,9 @@ func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, communication.ErrParentMessageThreadNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
-	case errors.Is(err, communication.ErrParentMessagingForbidden), errors.Is(err, communication.ErrParentMessagingDisabled):
+	case errors.Is(err, communication.ErrParentMessagingDisabled):
+		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeCommunicationParentMessagingDisabled))
+	case errors.Is(err, communication.ErrParentMessagingForbidden):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, communication.ErrParentMessageEmptyBody),
 		errors.Is(err, communication.ErrParentMessageBodyTooLong),

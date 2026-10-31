@@ -1,5 +1,7 @@
 "use client";
 
+import { isParentMessagingDisabled } from "~/lib/parent-messages-api";
+
 import { messageKeys } from "~/lib/swr/portal-keys";
 
 import { useCallback, useState } from "react";
@@ -19,6 +21,7 @@ import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { useApiErrorDisplay, useApiFormError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import { createLogger } from "~/lib/logger";
 import {
@@ -48,7 +51,12 @@ function GroupMessageContent() {
   const params = useParams();
   const threadId = params.groupThreadId as string;
   const { tenant } = useTenant();
-  const messagingEnabled = tenant?.messagingEnabled === true;
+  const flagSaysEnabled = tenant?.messagingEnabled === true;
+  const { switchedOff, markSwitchedOff } = useSwitchedOffWhileOpen(
+    flagSaysEnabled,
+    threadId,
+  );
+  const messagingEnabled = flagSaysEnabled && !switchedOff;
 
   const {
     data: confirmed,
@@ -99,7 +107,7 @@ function GroupMessageContent() {
 
   const send = async () => {
     const body = draft.trim();
-    if (!body || sending) return;
+    if (!body || sending || !messagingEnabled) return;
     sendError.clear();
     // Ein neuer Versuch ersetzt die als nicht gesendet markierte Blase.
     sendAction.dismiss();
@@ -133,11 +141,15 @@ function GroupMessageContent() {
       setRefusal({ id: threadId, error: err });
       return;
     }
+    if (isParentMessagingDisabled(err)) {
+      markSwitchedOff();
+      return;
+    }
     void sendError.show(err, { object: "die Nachricht" });
   };
 
   const close = async () => {
-    if (closing) return;
+    if (closing || !messagingEnabled) return;
     setClosing(true);
     try {
       const next = await closeGroupThread(threadId);
@@ -148,6 +160,10 @@ function GroupMessageContent() {
         error: err instanceof Error ? err.message : String(err),
       });
       setConfirmClose(false);
+      if (isParentMessagingDisabled(err)) {
+        markSwitchedOff();
+        return;
+      }
       void showActionError(err, {
         object: "die Gruppennachricht",
         retry: () => setConfirmClose(true),

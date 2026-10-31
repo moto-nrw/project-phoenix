@@ -14,6 +14,7 @@ import {
 import { useSWRAuth } from "~/lib/swr";
 import { TEAM_CHAT_SEND_REFUSALS } from "~/lib/message-send-refusals";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
+import { useSwitchedOffWhileOpen } from "~/lib/hooks/use-switched-off-while-open";
 import { MessagesSquare } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import { BackLink } from "~/components/ui/back-link";
@@ -181,8 +182,11 @@ export function TeamChatThread({
   // Die Schule kann den Chat abschalten, WÄHREND diese Seite offen steht. Dann
   // lädt der Verlauf längst, nur das Senden fällt in den 403. Ohne diesen
   // Merker bliebe der Composer aktiv und jeder weitere Versuch liefe in
-  // denselben Fehler.
-  const [disabledWhileOpen, setDisabledWhileOpen] = useState(false);
+  // denselben Fehler. Schaltet die Schule den Chat wieder ein, endet er.
+  const {
+    switchedOff: disabledWhileOpen,
+    markSwitchedOff: markDisabledWhileOpen,
+  } = useSwitchedOffWhileOpen(flagSaysEnabled, threadID);
   // Das Gegenüber hat die Schule verlassen, während diese Seite offen stand.
   // Der Verlauf bleibt lesbar, geschrieben wird hier nichts mehr.
   const [counterpartGone, setCounterpartGone] = useState(false);
@@ -324,7 +328,7 @@ export function TeamChatThread({
       setCounterpartGone(true);
     } else if (isStaffMessagingDisabled(err)) {
       // Kein roter Fehler: das ist kein Fehlschlag, sondern ein Zustand.
-      setDisabledWhileOpen(true);
+      markDisabledWhileOpen();
     } else {
       void sendError.show(err, {
         object: "die Nachricht",
