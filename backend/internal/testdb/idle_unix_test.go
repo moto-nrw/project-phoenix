@@ -3,6 +3,7 @@
 package testdb
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -402,8 +403,33 @@ func TestIdleWatcherReleasesInheritedAdmissionLock(t *testing.T) {
 		data, err := os.ReadFile(output.Name())
 		require.NoError(t, err)
 		require.True(t, state.Success(), "%s", data)
-		require.NotContains(t, string(data), slotPath)
+		canonicalSlot, err := filepath.EvalSymlinks(slotPath)
+		require.NoError(t, err)
+		canonicalSingleton, err := filepath.EvalSymlinks(filepath.Join(dir, "watcher.lock"))
+		require.NoError(t, err)
+		require.Contains(t, string(data), canonicalSingleton, "lsof must recognize the retained lock's canonical path")
+		require.NotContains(t, string(data), canonicalSlot)
 		t.Logf("watcher PID %d: lsof confirms no admission lock", process.Pid)
 		break
 	}
+}
+
+func TestIdleFileCleanupLogsDiscoveryFailureAndPreservesShutdown(t *testing.T) {
+	t.Parallel()
+	dir, server := idleFixture(t)
+	singleton, err := tryLockFile(filepath.Join(dir, "watcher.lock"), syscall.LOCK_EX)
+	require.NoError(t, err)
+	require.NotNil(t, singleton)
+	defer func() { _ = singleton.Close() }()
+	var log bytes.Buffer
+	closeInheritedIdleFiles(singleton, filepath.Join(dir, "missing-fd-directory"), &log)
+	require.Contains(t, log.String(), "testdb idle: list inherited watcher descriptors:")
+	flags, _, errno := syscall.Syscall(syscall.SYS_FCNTL, singleton.Fd(), syscall.F_GETFD, 0)
+	require.Zero(t, errno)
+	require.NotZero(t, flags&syscall.FD_CLOEXEC, "singleton must remain close-on-exec even when discovery fails")
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	require.NoError(t, watchIdle(ctx, dir, singleton, 20*time.Millisecond, 5*time.Millisecond, server))
+	_, err = os.Stat(filepath.Join(dir, "stopped"))
+	require.NoError(t, err, "cleanup failure must not disable idle shutdown")
 }

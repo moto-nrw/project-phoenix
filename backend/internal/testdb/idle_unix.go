@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -273,9 +274,7 @@ func buildIdleWatcher(ctx context.Context, cache string) (string, error) {
 // exclusive users lock must be released in that order when exiting: a new
 // starter then either sees this watcher or starts its replacement, never a gap.
 func WatchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll time.Duration) error {
-	if err := closeInheritedIdleFiles(singleton); err != nil {
-		return err
-	}
+	closeInheritedIdleFiles(singleton, "/dev/fd", os.Stderr)
 	if idle <= 0 || poll <= 0 {
 		return fmt.Errorf("idle and poll durations must be positive")
 	}
@@ -294,10 +293,14 @@ func WatchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll t
 // Only the detached watcher calls this: retain its explicit singleton and
 // stdio, and leave close-on-exec runtime descriptors alone. Closing arbitrary
 // descriptors in the multi-threaded test runner would race its other users.
-func closeInheritedIdleFiles(singleton *os.File) error {
-	entries, err := os.ReadDir("/dev/fd")
+func closeInheritedIdleFiles(singleton *os.File, fdDir string, log io.Writer) {
+	// Docker commands must not prolong the singleton lock either, even when
+	// descriptor discovery fails. Cleanup errors must not disable idle shutdown.
+	syscall.CloseOnExec(int(singleton.Fd()))
+	entries, err := os.ReadDir(fdDir)
 	if err != nil {
-		return fmt.Errorf("list inherited watcher descriptors: %w", err)
+		_, _ = fmt.Fprintf(log, "testdb idle: list inherited watcher descriptors: %v\n", err)
+		return
 	}
 	for _, entry := range entries {
 		fd, err := strconv.Atoi(entry.Name())
@@ -310,17 +313,15 @@ func closeInheritedIdleFiles(singleton *os.File) error {
 			continue
 		}
 		if errno != 0 {
-			return fmt.Errorf("inspect watcher descriptor %d: %w", fd, errno)
+			_, _ = fmt.Fprintf(log, "testdb idle: inspect watcher descriptor %d: %v\n", fd, errno)
+			continue
 		}
 		if flags&syscall.FD_CLOEXEC == 0 {
 			if err := syscall.Close(fd); err != nil {
-				return fmt.Errorf("close inherited watcher descriptor %d: %w", fd, err)
+				_, _ = fmt.Fprintf(log, "testdb idle: close inherited watcher descriptor %d: %v\n", fd, err)
 			}
 		}
 	}
-	// Docker commands must not prolong the singleton lock either.
-	syscall.CloseOnExec(int(singleton.Fd()))
-	return nil
 }
 
 func watchIdle(ctx context.Context, dir string, singleton *os.File, idle, poll time.Duration, server idleServer) error {
