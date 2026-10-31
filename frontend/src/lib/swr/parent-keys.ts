@@ -12,6 +12,16 @@ export const parentKeys = {
     id === undefined
       ? "parent-meal-plan-enabled"
       : `parent-meal-plan-enabled-${encodeURIComponent(id)}`,
+  mealParticipationFamily: (schoolId: string, studentId: string) =>
+    `parent-meal-participation-${encodeURIComponent(schoolId)}-${encodeURIComponent(studentId)}-`,
+  mealParticipation: (
+    schoolId: string,
+    studentId: string,
+    from: string,
+    to: string,
+    asOf: string,
+  ) =>
+    `parent-meal-participation-${encodeURIComponent(schoolId)}-${encodeURIComponent(studentId)}-${from}-${to}-${asOf}`,
   shellChildren: () => "parent-shell-children",
   profile: () => "parent-profile",
   /** The conversation of one child with one audience (#5011, #5200). */

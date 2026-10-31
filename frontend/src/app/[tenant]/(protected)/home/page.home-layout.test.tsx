@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -374,6 +375,38 @@ describe("Startseite — Abfragen nicht platzierter Bausteine", () => {
     fireEvent.click(adjust);
     expect(screen.queryByText("Startseite anpassen")).not.toBeInTheDocument();
   });
+
+  // Schluss-Review auf c99735a: ein verworfenes Speichern (Kontowechsel
+  // während der Anfrage) ist kein Erfolg, der Entwurf bleibt offen.
+  it.each([
+    ["done", false],
+    ["discarded", true],
+  ] as const)(
+    "schließt den Entwurf nach „Fertig“ nur bei %s nicht: offen=%s",
+    async (outcome, staysOpen) => {
+      save.mockResolvedValue(outcome);
+      render(<HomePage />);
+
+      fireEvent.click(await screen.findByRole("button", { name: "Anpassen" }));
+      // Anker: der Entwurf ist offen.
+      expect(screen.getByText("Startseite anpassen")).toBeInTheDocument();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
+      });
+
+      expect(save).toHaveBeenCalledTimes(1);
+      if (staysOpen) {
+        expect(screen.getByText("Startseite anpassen")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Fertig" })).toBeEnabled();
+      } else {
+        await waitFor(() =>
+          expect(
+            screen.queryByText("Startseite anpassen"),
+          ).not.toBeInTheDocument(),
+        );
+      }
+    },
+  );
 
   it("lässt einen von der Schule abgeschalteten Baustein weg", async () => {
     layoutState.policies = { "tile.students_present": "disabled" };

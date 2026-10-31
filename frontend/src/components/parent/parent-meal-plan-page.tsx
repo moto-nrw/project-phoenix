@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  useCallback,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -37,15 +36,12 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import {
   getChildFeatures,
   getChildMealPlan,
-  getMealParticipation,
   listMyChildren,
-  replaceMealParticipationSchedule,
-  setMealParticipationDay,
-  setMealParticipationWeek,
-  clearMealParticipationDay,
   type MealParticipation,
   type MealPlanEntry,
 } from "~/lib/parent-api";
+import { useMealParticipation } from "~/lib/hooks/use-meal-participation";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import { usedMealAllergens } from "~/lib/meal-allergens";
 import {
@@ -383,6 +379,7 @@ function MealParticipationDaysSkeleton({
 }
 
 function ParticipationWeek({
+  schoolId,
   studentId,
   childName,
   today,
@@ -397,6 +394,7 @@ function ParticipationWeek({
   onWeekChange,
   onEditingChange,
 }: Readonly<{
+  schoolId: string;
   studentId: string;
   childName: string;
   today: string;
@@ -417,17 +415,10 @@ function ParticipationWeek({
   const weekDishes = weekDates.flatMap((date) => dishesByDate.get(date) ?? []);
   const hasDishes = weekDishes.length > 0;
   const weekAllergens = usedMealAllergens(weekDishes);
-  const [participation, setParticipation] = useState<MealParticipation | null>(
-    null,
-  );
-  const [participationDate, setParticipationDate] = useState<string | null>(
-    null,
-  );
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [editingRegularDays, setEditingRegularDays] = useState(false);
   const [editingDate, setEditingDate] = useState<string | null>(null);
   const [dayChange, setDayChange] = useState<DraftDayChange | null>(null);
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [confirmingWeek, setConfirmingWeek] = useState(false);
   const [weekResult, setWeekResult] = useState<{
@@ -435,11 +426,6 @@ function ParticipationWeek({
     readonly participating: boolean;
     readonly locked: string[];
   } | null>(null);
-  const {
-    error: loadError,
-    show: showLoadError,
-    clear: clearLoadError,
-  } = useApiLoadError();
   const {
     error: saveError,
     show: showSaveError,
@@ -470,7 +456,6 @@ function ParticipationWeek({
     new Map<string, HTMLButtonElement | null>(),
   );
   const restoreFocusDateRef = useRef<string | null>(null);
-  const loadSequenceRef = useRef(0);
 
   const isEditing = editingRegularDays || editingDate !== null;
 
@@ -506,45 +491,24 @@ function ParticipationWeek({
     return { from: monday, to: toISODate(end) };
   }, [today]);
 
-  const load = useCallback(async (): Promise<boolean> => {
-    const loadSequence = ++loadSequenceRef.current;
-    setLoading(true);
-    clearLoadError();
-    setParticipation(null);
-    setParticipationDate(null);
-    try {
-      const value = await getMealParticipation(studentId, range.from, range.to);
-      if (loadSequence !== loadSequenceRef.current) return false;
-      setParticipation(value);
-      setParticipationDate(today);
-      setWeekdays(value.weekdays);
-      return true;
-    } catch (err) {
-      if (loadSequence !== loadSequenceRef.current) return false;
-      logger.error("parent_meal_participation_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: t("errorObjectParticipation"),
-        retry: () => void load(),
-      });
-      return false;
-    } finally {
-      if (loadSequence === loadSequenceRef.current) setLoading(false);
-    }
-  }, [
-    clearLoadError,
+  const meal = useMealParticipation(
+    schoolId,
+    studentId,
     range.from,
     range.to,
-    showLoadError,
-    studentId,
-    t,
     today,
-  ]);
-
+  );
+  const participation = meal.data;
+  const loading = meal.isLoading;
+  const loadError = useSwrLoadError(
+    meal.error,
+    t("errorObjectParticipation"),
+    () => meal.mutate(),
+  );
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (participation && !editingRegularDays)
+      setWeekdays(participation.weekdays);
+  }, [participation, editingRegularDays]);
 
   // Ist in dieser Woche kein Tag mehr änderbar (Wochenende, Freitag nach
   // Annahmeschluss), öffnet die Seite einmalig die nächste Woche: Nur dort
@@ -554,8 +518,7 @@ function ParticipationWeek({
     weekChosenRef.current = false;
   }, [today]);
   useEffect(() => {
-    if (!participation || participationDate !== today || weekChosenRef.current)
-      return;
+    if (!participation || weekChosenRef.current) return;
     weekChosenRef.current = true;
     if (weekOffset !== 0) return;
     const thisWeek = new Set(workWeekDates(mondayISOFromOffset(today, 0)));
@@ -568,7 +531,7 @@ function ParticipationWeek({
     ) {
       onWeekChange(1);
     }
-  }, [onWeekChange, participation, participationDate, today, weekOffset]);
+  }, [onWeekChange, participation, today, weekOffset]);
 
   function toggleWeekday(weekday: number) {
     setWeekdays((current) =>
@@ -582,7 +545,12 @@ function ParticipationWeek({
     setSaving(true);
     clearSaveError();
     try {
-      await replaceMealParticipationSchedule(studentId, weekdays);
+      const outcome = await meal.saveSchedule(weekdays);
+      if (outcome.status === "discarded") {
+        setSaving(false);
+        return;
+      }
+      if (outcome.status === "failed") throw outcome.error;
     } catch (err) {
       logger.error("parent_meal_participation_schedule_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -594,8 +562,9 @@ function ParticipationWeek({
       setSaving(false);
       return;
     }
-    // A failed reload after a successful save shows as load error.
-    if (await load()) setEditingRegularDays(false);
+    // The saved state stays on screen while the reader loads again in the
+    // background; a failed reload shows as load error above it.
+    setEditingRegularDays(false);
     setSaving(false);
   }
 
@@ -647,15 +616,15 @@ function ParticipationWeek({
     setSaving(true);
     clearSaveError();
     try {
-      if (dayChange.mode === "reset") {
-        await clearMealParticipationDay(studentId, editingDate);
-      } else {
-        await setMealParticipationDay(
-          studentId,
-          editingDate,
-          dayChange.participating,
-        );
+      const outcome = await meal.saveDay(
+        editingDate,
+        dayChange.mode === "reset" ? null : dayChange.participating,
+      );
+      if (outcome.status === "discarded") {
+        setSaving(false);
+        return;
       }
+      if (outcome.status === "failed") throw outcome.error;
     } catch (err) {
       logger.error("parent_meal_participation_day_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -667,8 +636,9 @@ function ParticipationWeek({
       setSaving(false);
       return;
     }
-    // A failed reload after a successful save shows as load error.
-    if (await load()) cancelDayEdit();
+    // The saved state stays on screen while the reader loads again in the
+    // background; a failed reload shows as load error above it.
+    cancelDayEdit();
     setSaving(false);
   }
 
@@ -679,11 +649,13 @@ function ParticipationWeek({
     setSaving(true);
     clearWeekCancelError();
     try {
-      const change = await setMealParticipationWeek(
-        studentId,
-        mondayISO,
-        participating,
-      );
+      const outcome = await meal.saveWeek(weekDates, mondayISO, participating);
+      if (outcome.status === "discarded") {
+        setSaving(false);
+        return;
+      }
+      if (outcome.status === "failed") throw outcome.error;
+      const change = outcome.result;
       setWeekResult({
         monday: mondayISO,
         participating,
@@ -712,7 +684,6 @@ function ParticipationWeek({
       return;
     }
     setConfirmingWeek(false);
-    await load();
     setSaving(false);
   }
 
@@ -815,7 +786,8 @@ function ParticipationWeek({
 
         {loadError ? (
           <LoadErrorAlert error={loadError} className="mt-4" />
-        ) : loading || !participation ? (
+        ) : null}
+        {!participation && loadError ? null : loading || !participation ? (
           <div
             className="mt-4 rounded-xl bg-gray-50 p-4"
             aria-label={t("participationLoading")}
@@ -1542,6 +1514,7 @@ export function ParentMealPlanPage() {
       ) : selectedSchool?.registrationEnabled ? (
         <ParticipationWeek
           key={selectedSchool.studentId}
+          schoolId={selectedSchool.tenantId}
           studentId={selectedSchool.studentId}
           childName={selectedSchool.childName}
           today={today}
