@@ -260,6 +260,13 @@ export function RequestReviewCard({
   const [approveReasonMissing, setApproveReasonMissing] = useState(false);
   const reasonId = useId();
 
+  // Ein Wartelisten-Sprung kann eine bereits gemountete Anfrage treffen.
+  // Öffnen ist dann ein Impuls; ein späteres `false` klappt keine Karte zu,
+  // die jemand selbst geöffnet hat.
+  useEffect(() => {
+    if (defaultOpen) setOpen(true);
+  }, [defaultOpen]);
+
   // Die aktuelle Zeit erst im Browser lesen: ein während SSR erzeugtes
   // "heute" kann beim Hydrieren nach Mitternacht schon nicht mehr stimmen.
   // Danach wird die Beschriftung regelmäßig erneuert, damit sie nicht bis zum

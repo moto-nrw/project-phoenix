@@ -537,3 +537,25 @@ func TestCourseWaitlistNamesTheNextChildOnlyForAFreePlace(t *testing.T) {
 	assert.False(t, careplan.CourseWaitlist{FreeSlots: &free}.HasFreeSlotForNext(), "nobody waits")
 	assert.False(t, careplan.CourseWaitlist{Entries: waiting}.HasFreeSlotForNext(), "an AG without a limit has no waiting list")
 }
+
+func TestCourseWaitlistCapacityUntilUsesQueuedChildPhaseEnd(t *testing.T) {
+	t.Parallel()
+
+	today := calendar.NewDate(2026, 9, 9)
+	until := courseWaitlistCapacityUntil(
+		[]careplan.OfferingChangeRequest{{StudentID: 11, EffectiveFrom: "2026-10-01"}},
+		[]ports.OfferingCarePeriod{
+			{
+				StudentID: 11, ServiceStart: calendar.NewDate(2026, 8, 1),
+				ServiceEnd: calendar.NewDate(2028, 7, 31),
+			},
+			{
+				StudentID: 12, ServiceStart: calendar.NewDate(2026, 8, 1),
+				ServiceEnd: calendar.NewDate(2030, 7, 31),
+			},
+		},
+		today,
+	)
+
+	assert.Equal(t, calendar.NewDate(2028, 8, 1), until)
+}

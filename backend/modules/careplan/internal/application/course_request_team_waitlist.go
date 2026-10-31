@@ -12,12 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// courseWaitlistHorizonDays bounds the occupancy window of the team's view.
-// The peak over the coming year counts every seat already promised to a
-// child, also one that starts later, so a free place is never shown while
-// an approval would still find the AG full.
-const courseWaitlistHorizonDays = 366
-
 // teamCourseQueue is every open request with the facts the rank rule reads:
 // the request children, what they already hold and the AGs each requested
 // offering feeds.
@@ -26,6 +20,7 @@ type teamCourseQueue struct {
 	childrenByID     map[int64]*ports.OfferingChangeChild
 	bookedByChild    map[int64]map[int64]bool
 	groupsByOffering map[int64][]ports.CourseGroup
+	capacityUntil    calendar.Date
 }
 
 // CourseWaitlists is the team's view of the AG queues (#4767). The queue is
@@ -60,7 +55,7 @@ func (s *OfferingChanges) CourseWaitlists(ctx context.Context, activityGroupID i
 		groupIDs = append(groupIDs, activityGroupID)
 	}
 	slices.Sort(groupIDs)
-	return s.courseWaitlistsFor(ctx, groupIDs, entries, today)
+	return s.courseWaitlistsFor(ctx, groupIDs, entries, today, queue.capacityUntil)
 }
 
 func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []careplan.OfferingChangeRequest, today calendar.Date) (*teamCourseQueue, error) {
@@ -73,6 +68,7 @@ func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []carepl
 	}
 	dates := make(map[int64]calendar.Date, len(rows))
 	childIDs := make([]int64, 0, len(rows))
+	studentIDs := make([]int64, 0, len(rows))
 	offeringIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
 		if row.RequestChildID <= 0 {
@@ -80,6 +76,9 @@ func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []carepl
 		}
 		dates[row.RequestChildID] = offeringChangeEffectiveFrom(row)
 		childIDs = append(childIDs, row.RequestChildID)
+		if row.StudentID > 0 {
+			studentIDs = append(studentIDs, row.StudentID)
+		}
 		selections, err := requestSelections(row)
 		if err != nil {
 			continue
@@ -88,7 +87,7 @@ func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []carepl
 			offeringIDs = append(offeringIDs, selected.OfferingID)
 		}
 	}
-	if err := s.loadTeamQueueChildren(ctx, queue, childIDs, dates); err != nil {
+	if err := s.loadTeamQueueChildren(ctx, queue, childIDs, studentIDs, dates, today); err != nil {
 		return nil, err
 	}
 	slices.Sort(offeringIDs)
@@ -98,7 +97,13 @@ func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []carepl
 	return queue, nil
 }
 
-func (s *OfferingChanges) loadTeamQueueChildren(ctx context.Context, queue *teamCourseQueue, childIDs []int64, dates map[int64]calendar.Date) error {
+func (s *OfferingChanges) loadTeamQueueChildren(
+	ctx context.Context,
+	queue *teamCourseQueue,
+	childIDs, studentIDs []int64,
+	dates map[int64]calendar.Date,
+	today calendar.Date,
+) error {
 	slices.Sort(childIDs)
 	children, err := s.deps.Enrollment.Children(ctx, slices.Compact(childIDs))
 	if err != nil {
@@ -117,7 +122,40 @@ func (s *OfferingChanges) loadTeamQueueChildren(ctx context.Context, queue *team
 		}
 		queue.bookedByChild[link.RequestChildID][link.CareOfferingID] = true
 	}
+	slices.Sort(studentIDs)
+	periods, err := s.deps.Enrollment.StudentCarePeriodsByStudentIDs(ctx, slices.Compact(studentIDs))
+	if err != nil {
+		return fmt.Errorf("course waitlist: load care periods: %w", err)
+	}
+	queue.capacityUntil = courseWaitlistCapacityUntil(queue.rows, periods, today)
 	return nil
+}
+
+// courseWaitlistCapacityUntil covers every queued child's current phase. A
+// shared read uses the latest end, so the team never sees a free place that
+// the approval's complete phase check would reject later.
+func courseWaitlistCapacityUntil(
+	rows []careplan.OfferingChangeRequest,
+	periods []ports.OfferingCarePeriod,
+	today calendar.Date,
+) calendar.Date {
+	effectiveDates := make(map[int64]calendar.Date, len(rows))
+	for _, row := range rows {
+		if row.StudentID > 0 {
+			effectiveDates[row.StudentID] = offeringChangeEffectiveFrom(row)
+		}
+	}
+	until := today.AddDays(1)
+	for _, period := range periods {
+		effectiveOn, ok := effectiveDates[period.StudentID]
+		if !ok || !carePeriodCovers(period, effectiveOn) {
+			continue
+		}
+		if until.Before(period.ServiceEnd.AddDays(1)) {
+			until = period.ServiceEnd.AddDays(1)
+		}
+	}
+	return until
 }
 
 func (s *OfferingChanges) loadTeamQueueGroups(ctx context.Context, queue *teamCourseQueue, offeringIDs []int64, today calendar.Date) error {
@@ -173,7 +211,7 @@ func (s *OfferingChanges) courseWaitlistsFor(
 	ctx context.Context,
 	groupIDs []int64,
 	entries map[int64][]careplan.CourseWaitlistEntry,
-	today calendar.Date,
+	today, capacityUntil calendar.Date,
 ) ([]careplan.CourseWaitlist, error) {
 	result := []careplan.CourseWaitlist{}
 	if len(groupIDs) == 0 {
@@ -189,7 +227,7 @@ func (s *OfferingChanges) courseWaitlistsFor(
 			activeIDs = append(activeIDs, group.ID)
 		}
 	}
-	taken, err := s.courseOccupancy(ctx, activeIDs, today, today.AddDays(courseWaitlistHorizonDays), 0)
+	taken, err := s.courseOccupancy(ctx, activeIDs, today, capacityUntil, 0)
 	if err != nil {
 		return nil, err
 	}

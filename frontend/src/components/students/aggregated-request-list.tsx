@@ -114,6 +114,7 @@ export function AggregatedRequestList({
     loadingMore,
     reviewAccess,
     error: listError,
+    loadMore,
   } = feed;
   const withdrawalsFeed = useWithdrawalFeed(view, filters);
   const {
@@ -215,7 +216,8 @@ export function AggregatedRequestList({
   );
 
   // Ein Sprung aus der Warteliste wählt das Kind und holt die Liste in den
-  // Blick. Er läuft je Wunsch einmal, auch wenn die Liste später neu lädt.
+  // Blick. Fehlt es auf der ersten Seite, folgt die Liste ihrem Cursor, bis
+  // sie das Kind findet oder keine offene Seite mehr bleibt.
   const listAreaRef = useRef<HTMLDivElement>(null);
   const handledFocus = useRef(0);
   useEffect(() => {
@@ -223,11 +225,14 @@ export function AggregatedRequestList({
     const target = openCases.find(
       (childCase) => childCase.studentID === focusRequest.studentId,
     );
-    if (!target) return;
+    if (!target) {
+      if (hasMore && !loadingMore) void loadMore();
+      return;
+    }
     handledFocus.current = focusRequest.nonce;
     setSelectedCaseKey(target.key);
     listAreaRef.current?.scrollIntoView?.({ block: "start" });
-  }, [focusRequest, openCases]);
+  }, [focusRequest, hasMore, loadMore, loadingMore, openCases]);
 
   const backToList = useCallback(() => {
     setSelectedCaseKey(null);

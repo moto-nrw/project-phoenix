@@ -375,6 +375,44 @@ describe("AggregatedRequestList", () => {
     expect(screen.queryByText("master-item-1")).not.toBeInTheDocument();
   });
 
+  it("lädt weitere Seiten, bis die Wartelisten-Anfrage gefunden ist", async () => {
+    const firstPage = Array.from({ length: 25 }, (_, index) => ({
+      ...openItem("master_data", String(index)),
+      data: { id: String(index) },
+    }));
+    mockListOpen.mockImplementation(async (params) =>
+      params?.cursor
+        ? {
+            items: [
+              {
+                ...openItem("offering", "warteliste"),
+                student_id: "30",
+                student_name: "Wartendes Kind",
+              },
+            ],
+          }
+        : { items: firstPage, next_cursor: "nächste-seite" },
+    );
+
+    const { rerender } = render(
+      <AggregatedRequestList view="open" filters={NO_FILTERS} />,
+    );
+    await screen.findByText("master-item-0");
+
+    rerender(
+      <AggregatedRequestList
+        view="open"
+        filters={NO_FILTERS}
+        focusRequest={{ studentId: "30", nonce: 1 }}
+      />,
+    );
+
+    expect(
+      await screen.findByText("offering-item-warteliste"),
+    ).toBeInTheDocument();
+    expect(mockListOpen).toHaveBeenCalledTimes(2);
+  });
+
   it("kennzeichnet widersprüchliche Wünsche im Fall", async () => {
     mockListOpen.mockResolvedValue({
       items: ["alleine", "bus"].map((mode, index) => ({

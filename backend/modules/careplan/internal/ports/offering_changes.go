@@ -33,6 +33,7 @@ type OfferingChangeRows interface {
 // OfferingCarePeriod is one approved enrollment of a student with the care
 // window of its phase.
 type OfferingCarePeriod struct {
+	StudentID         int64
 	RequestChildID    int64
 	RequestID         int64
 	PhaseID           int64
@@ -63,6 +64,7 @@ type OfferingCatalogState struct {
 // child, request or phase is (nil, nil).
 type OfferingChangeEnrollment interface {
 	StudentCarePeriods(ctx context.Context, studentID int64) ([]OfferingCarePeriod, error)
+	StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]OfferingCarePeriod, error)
 	Child(ctx context.Context, id int64) (*OfferingChangeChild, error)
 	Children(ctx context.Context, ids []int64) ([]OfferingChangeChild, error)
 	Request(ctx context.Context, id int64) (*BookingRequest, error)
