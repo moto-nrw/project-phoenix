@@ -1,4 +1,20 @@
-import type * as SessionEndBarrier from "./session-end-barrier";
+/**
+ * What the pages call of the installed barrier (session-end-barrier.ts),
+ * stated here so that this module imports nothing from it.
+ */
+export interface SessionEndBarrier {
+  fetchThroughSessionBarrier(
+    send: typeof fetch,
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response>;
+  beginSessionEnd(options?: { keepClosed?: boolean }): SessionEnd;
+}
+
+export interface SessionEnd {
+  /** The logout failed or was cancelled: the session stays, requests go on. */
+  fail(): void;
+}
 
 /**
  * What every page knows of the session-end barrier (#5399): whether one is
@@ -10,7 +26,7 @@ import type * as SessionEndBarrier from "./session-end-barrier";
  * the session writes no cookie anyway (session-cookie-writes).
  */
 
-let barrier: typeof SessionEndBarrier | null = null;
+let barrier: SessionEndBarrier | null = null;
 let closed = false;
 const listeners = new Set<() => void>();
 
@@ -26,7 +42,7 @@ export const isSessionBarrierClosed = () => closed;
 /** The installed barrier, or null on a page without one. */
 export const sessionEndBarrier = () => barrier;
 
-export function installSessionEndBarrier(installed: typeof SessionEndBarrier) {
+export function installSessionEndBarrier(installed: SessionEndBarrier) {
   barrier = installed;
 }
 

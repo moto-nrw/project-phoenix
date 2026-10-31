@@ -27,12 +27,15 @@ const approved = new Map([
  * #5260 room detail (logout safeguards) and #5399 (session-end barrier).
  * The parents portal decides public and signed-in pages at run time in one
  * layout, so its public pages carry the barrier; async chunks count too.
+ * The parents' Elternsprechtag page (#4801) was budgeted without room for
+ * it, although every signed-in page needs the barrier.
  */
 const increases = new Map([
   ["/[tenant]/rooms/[id]", 2_048],
   ["/parents/reset-password", 1_024],
   ["/parents/accept-guardian-invite/[token]", 1_024],
   ["/parents/anmeldung/status/[token]", 1_024],
+  ["/parents/children/[id]/elternsprechtag", 1_024],
 ]);
 
 test("bundle policy retains migration ceilings except the explicit increases", () => {

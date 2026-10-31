@@ -1,6 +1,5 @@
 import { onOtherTabOwnerChange } from "./personal-storage";
-import type { SessionEnd } from "./session-end-barrier";
-import { sessionEndBarrier } from "./session-end-state";
+import { sessionEndBarrier, type SessionEnd } from "./session-end-state";
 import {
   allowConfirmedUnload,
   attemptNavigation,

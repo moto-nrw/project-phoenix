@@ -1,5 +1,5 @@
 import { isOwnApiUrl } from "./session-account";
-import { announceSessionBarrier } from "./session-end-state";
+import { announceSessionBarrier, type SessionEnd } from "./session-end-state";
 
 /**
  * Session-end barrier (#5399). A response sets its cookies when its headers
@@ -133,11 +133,6 @@ export function listenForSessionEnds() {
 /** Whether this tab holds its BFF requests for a session end. */
 export function isSessionBarrierClosed(): boolean {
   return closedBy !== null;
-}
-
-export interface SessionEnd {
-  /** The logout failed or was cancelled: the session stays, requests go on. */
-  fail(): void;
 }
 
 /**
