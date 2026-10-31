@@ -127,6 +127,21 @@ describe("Arbeitszeitmodell preview", () => {
     },
   );
 
+  it.each(["UTC", "Pacific/Honolulu"])(
+    "starts the new preview week at Berlin Monday 00:30 in %s",
+    (zone) => {
+      setSchoolDateClock(zone, "2026-09-14T00:30:00+02:00", "2026-09-14");
+      expect(new Date().toLocaleDateString("sv-SE")).toBe("2026-09-13");
+
+      render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
+
+      expect(mocks.projectionKey).toBe(
+        "staff-schedule-targets-preview-42-2026-09-14-2026-10-11",
+      );
+      expect(within(weekRow("KW 38")).getByText("40h")).toBeInTheDocument();
+    },
+  );
+
   it("shows a Sonderarbeitszeit week with its own hours and marks it", () => {
     render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
 
