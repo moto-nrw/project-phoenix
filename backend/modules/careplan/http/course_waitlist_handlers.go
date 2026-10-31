@@ -22,7 +22,7 @@ type CourseWaitlistEntryResponse struct {
 }
 
 // CourseWaitlistResponse is one AG with its places and its ranked queue.
-// ParticipantLimit and FreeSlots are null for an AG without a limit.
+// ParticipantLimit and FreeSlots are null without an applicable capacity.
 // SlotFreeForNext marks the moment the team confirms the first child.
 type CourseWaitlistResponse struct {
 	ActivityGroupID  string                        `json:"activity_group_id"`

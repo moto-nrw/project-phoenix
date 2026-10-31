@@ -96,8 +96,8 @@ type CourseWaitlistEntry struct {
 }
 
 // CourseWaitlist is the team's view of one AG: its places, the children it
-// holds and the open requests waiting for it. FreeSlots is nil for an AG
-// without a Teilnehmergrenze. The waiting position is read, never stored;
+// holds and the open requests waiting for it. FreeSlots is nil without an
+// applicable AG or offering capacity. The waiting position is read, never stored;
 // moving up is the team's ordinary approval of the first request.
 type CourseWaitlist struct {
 	ActivityGroupID  int64

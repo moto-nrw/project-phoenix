@@ -16,12 +16,13 @@ import (
 // the request children, what they already hold and the AGs each requested
 // offering feeds.
 type teamCourseQueue struct {
-	rows             []careplan.OfferingChangeRequest
-	childrenByID     map[int64]*ports.OfferingChangeChild
-	bookedByChild    map[int64]map[int64]bool
-	groupsByOffering map[int64][]ports.CourseGroup
-	offeringsByID    map[int64]*careplan.CareOffering
-	periods          []ports.OfferingCarePeriod
+	rows                  []careplan.OfferingChangeRequest
+	childrenByID          map[int64]*ports.OfferingChangeChild
+	bookedByChild         map[int64]map[int64]bool
+	groupsByOffering      map[int64][]ports.CourseGroup
+	offeringsByID         map[int64]*careplan.CareOffering
+	emptyOfferingsByGroup map[int64][]*careplan.CareOffering
+	periods               []ports.OfferingCarePeriod
 }
 
 // CourseWaitlists is the team's view of the AG queues (#4767). The queue is
@@ -69,14 +70,14 @@ func (s *OfferingChanges) CourseWaitlists(ctx context.Context, activityGroupID i
 		groupIDs = append(groupIDs, activityGroupID)
 	}
 	slices.Sort(groupIDs)
-	return s.courseWaitlistsFor(ctx, groupIDs, entries, today, queue)
+	return s.courseWaitlistsFor(ctx, groupIDs, entries, today, queue, activityGroupID)
 }
 
 func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []careplan.OfferingChangeRequest, today calendar.Date) (*teamCourseQueue, error) {
 	queue := &teamCourseQueue{
 		rows: rows, childrenByID: map[int64]*ports.OfferingChangeChild{},
 		bookedByChild: map[int64]map[int64]bool{}, groupsByOffering: map[int64][]ports.CourseGroup{},
-		offeringsByID: map[int64]*careplan.CareOffering{},
+		offeringsByID: map[int64]*careplan.CareOffering{}, emptyOfferingsByGroup: map[int64][]*careplan.CareOffering{},
 	}
 	if len(rows) == 0 {
 		return queue, nil
@@ -96,7 +97,7 @@ func (s *OfferingChanges) loadTeamCourseQueue(ctx context.Context, rows []carepl
 		}
 		selections, err := requestSelections(row)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("course waitlist: parse pending request %d: %w", row.ID, err)
 		}
 		for _, selected := range selections {
 			offeringIDs = append(offeringIDs, selected.OfferingID)
@@ -330,6 +331,13 @@ func (q *teamCourseQueue) nextOfferingForGroup(groupID, requestChildID, offering
 	return q.offeringsByID[offeringID]
 }
 
+func (q *teamCourseQueue) capacityOfferingsForGroup(groupID int64, entries []careplan.CourseWaitlistEntry) []*careplan.CareOffering {
+	if len(entries) == 0 {
+		return q.emptyOfferingsByGroup[groupID]
+	}
+	return q.nextOfferingsForGroup(groupID, entries)
+}
+
 func waitlistOccupancyWindows(
 	groups []ports.CourseGroup,
 	entries map[int64][]careplan.CourseWaitlistEntry,
@@ -347,7 +355,7 @@ func waitlistOccupancyWindows(
 			windows[key] = &waitlistOccupancyWindow{from: from, until: until}
 		}
 		windows[key].groupIDs = append(windows[key].groupIDs, group.ID)
-		for _, offering := range queue.nextOfferingsForGroup(group.ID, entries[group.ID]) {
+		for _, offering := range queue.capacityOfferingsForGroup(group.ID, entries[group.ID]) {
 			if offering.Capacity != nil {
 				windows[key].offeringIDs = append(windows[key].offeringIDs, offering.ID)
 			}
@@ -404,6 +412,7 @@ func (s *OfferingChanges) courseWaitlistsFor(
 	entries map[int64][]careplan.CourseWaitlistEntry,
 	today calendar.Date,
 	queue *teamCourseQueue,
+	explicitGroupID int64,
 ) ([]careplan.CourseWaitlist, error) {
 	if len(groupIDs) == 0 {
 		return []careplan.CourseWaitlist{}, nil
@@ -412,11 +421,48 @@ func (s *OfferingChanges) courseWaitlistsFor(
 	if err != nil {
 		return nil, err
 	}
+	if err := s.loadExplicitEmptyWaitlistOfferings(ctx, queue, groups, entries, explicitGroupID); err != nil {
+		return nil, err
+	}
 	taken, offeringTaken, err := s.waitlistOccupancy(ctx, groups, entries, today, queue)
 	if err != nil {
 		return nil, err
 	}
 	return queue.waitlists(groups, entries, taken, offeringTaken), nil
+}
+
+// loadExplicitEmptyWaitlistOfferings adds the offering limits an activity
+// view can show before anyone waits. A queued AG instead uses the first
+// child's selected offerings, the same inputs its approval will check.
+func (s *OfferingChanges) loadExplicitEmptyWaitlistOfferings(
+	ctx context.Context,
+	queue *teamCourseQueue,
+	groups []ports.CourseGroup,
+	entries map[int64][]careplan.CourseWaitlistEntry,
+	explicitGroupID int64,
+) error {
+	if explicitGroupID <= 0 || len(entries[explicitGroupID]) > 0 {
+		return nil
+	}
+	if !slices.ContainsFunc(groups, func(group ports.CourseGroup) bool { return group.ID == explicitGroupID }) {
+		return nil
+	}
+	offerings, err := s.listOfferings(ctx, careplan.CareOfferingFilter{
+		ActivityGroupIDs: []int64{explicitGroupID}, ActiveOnly: true, Order: careplan.OfferingOrderCatalog,
+	}, "course waitlist: list offerings for empty activity group")
+	if err != nil {
+		return err
+	}
+	queue.emptyOfferingsByGroup[explicitGroupID] = offeringPointers(offerings)
+	return nil
+}
+
+func offeringPointers(offerings []careplan.CareOffering) []*careplan.CareOffering {
+	result := make([]*careplan.CareOffering, 0, len(offerings))
+	for i := range offerings {
+		result = append(result, &offerings[i])
+	}
+	return result
 }
 
 func (s *OfferingChanges) waitlistGroups(
@@ -511,7 +557,7 @@ func (q *teamCourseQueue) waitlistCapacity(
 	offeringTaken map[int64]int,
 ) (*int, *int) {
 	capacity, free := effectiveCourseCapacity(group.ParticipantLimit, groupTaken, nil, nil)
-	for _, offering := range q.nextOfferingsForGroup(group.ID, entries) {
+	for _, offering := range q.capacityOfferingsForGroup(group.ID, entries) {
 		if offering.Capacity == nil {
 			continue
 		}

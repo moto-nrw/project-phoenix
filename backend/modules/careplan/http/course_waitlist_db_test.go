@@ -203,6 +203,49 @@ func TestCourseWaitlistsReadsOneAGWithoutQueue(t *testing.T) {
 	assert.False(t, waitlists[0].SlotFreeForNext, "nobody waits, so there is nothing to confirm")
 }
 
+func TestCourseWaitlistsRejectMalformedPendingRequest(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Ungültige", "Anfrage")
+	group := testpkg.CreateTestActivityGroupWithLimit(t, tc.db, "Theater-AG", 8)
+	request := createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Ungültig")
+	_, err := tc.db.NewRaw(`UPDATE enrollment.offering_change_requests
+		SET payload = ?::jsonb
+		WHERE id = ? AND tenant_id = ?`, `{"not_offerings":[]}`, request.request.ID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+
+	rr := authExec(t, tc, testutil.NewRequest(http.MethodGet, "/offering-change-requests/course-waitlists", nil),
+		testutil.AdminTestClaims(int(reviewer.ID)), []string{"users:update"})
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code, rr.Body.String())
+}
+
+func TestCourseWaitlistsReadOfferingCapacityForEmptyExplicitAG(t *testing.T) {
+	t.Parallel()
+	tc := setupStudentsRoute(t, fixedCalendarClock)
+	_, reviewer := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Leere", "Angebotsgrenze")
+	claims := testutil.AdminTestClaims(int(reviewer.ID))
+	group := testpkg.CreateTestActivityGroup(t, tc.db, "Offene AG")
+	_, err := tc.db.NewRaw(`UPDATE activities.groups SET max_participants = NULL WHERE id = ? AND tenant_id = ?`,
+		group.ID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+	request := createCourseWaitlistRequest(t, tc, group.ID, "Mia", "Erledigt")
+	_, err = tc.db.NewRaw(`UPDATE enrollment.care_offerings SET capacity = 3 WHERE id = ? AND tenant_id = ?`,
+		request.courseID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+	_, err = tc.db.NewRaw(`UPDATE enrollment.offering_change_requests SET status = ? WHERE id = ? AND tenant_id = ?`,
+		careplan.OfferingChangeRejected, request.request.ID, testpkg.Tenant(t)).Exec(t.Context())
+	require.NoError(t, err)
+
+	waitlist := waitlistFor(fetchCourseWaitlists(t, tc, claims, fmt.Sprintf("?activity_group_id=%d", group.ID)), group.ID)
+	require.NotNil(t, waitlist)
+	require.NotNil(t, waitlist.ParticipantLimit)
+	assert.Equal(t, 3, *waitlist.ParticipantLimit)
+	require.NotNil(t, waitlist.FreeSlots)
+	assert.Equal(t, 3, *waitlist.FreeSlots)
+	assert.Empty(t, waitlist.Entries)
+}
+
 func TestCourseWaitlistsExcludeUnlimitedGroupsFromQueue(t *testing.T) {
 	t.Parallel()
 	tc := setupStudentsRoute(t, fixedCalendarClock)
