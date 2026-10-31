@@ -95,6 +95,7 @@ export const timetableKeys = {
 // School portal (Lehrkräfte).
 export const schoolPortalKeys = {
   classDayClasses: () => "class-day-my-classes",
+  parentConferences: () => "school-parent-conferences",
   absenceList: (schoolClass: string, from = "", to = "") =>
     `school-absence-list-${schoolClass}-${from}-${to}`,
 } as const;

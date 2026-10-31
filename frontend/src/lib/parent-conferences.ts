@@ -62,7 +62,6 @@ export interface ParentConferenceRequest {
   readonly location?: string;
 }
 
-export const SCHOOL_PARENT_CONFERENCES_KEY = "school-parent-conferences";
 export const SCHOOL_PARENT_CONFERENCES_ROUTE = "/school/elternsprechtag";
 const SCHOOL_BASE = "/api/school/calendar/parent-conferences";
 
