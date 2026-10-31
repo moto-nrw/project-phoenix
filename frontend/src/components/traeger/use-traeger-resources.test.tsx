@@ -119,6 +119,7 @@ describe.each(resources)("Träger $name", (resource) => {
     "organization",
     "logout",
     "other-tab-account",
+    "other-tab-organization",
     "other-tab-logout",
   ])(
     "shows no old response after %s, including late answers",
@@ -152,12 +153,23 @@ describe.each(resources)("Träger $name", (resource) => {
           globalThis.dispatchEvent(
             new StorageEvent("storage", {
               key: "moto:personal-storage-owner",
-              newValue: change.endsWith("logout") ? null : "7:B",
+              newValue: change.endsWith("logout")
+                ? null
+                : change === "other-tab-organization"
+                  ? "8:A"
+                  : "7:B",
             }),
           );
         });
         expect(announce).toHaveBeenCalledTimes(1);
         expect(resource.fetcher).toHaveBeenCalledTimes(2);
+        if (change === "other-tab-organization") {
+          // A fresh lookup of the old organization is not confirmation.
+          signIn("A", 7);
+          view.rerender();
+          expect(view.result.current.data ?? null).toBeNull();
+          expect(resource.fetcher).toHaveBeenCalledTimes(2);
+        }
       } else {
         if (change === "logout") identity.session = null;
         else
@@ -175,6 +187,7 @@ describe.each(resources)("Träger $name", (resource) => {
       expect(shown.every((data) => data == null)).toBe(true);
       if (change.startsWith("other-tab")) {
         if (change.endsWith("logout")) identity.session = null;
+        else if (change === "other-tab-organization") signIn("A", 8);
         else signIn("B");
         view.rerender();
         expect(view.result.current.data ?? null).toBeNull();

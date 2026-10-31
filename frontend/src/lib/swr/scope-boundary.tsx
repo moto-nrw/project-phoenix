@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react";
 import {
   onOtherTabOwnerChange,
   personalStorageAccount,
+  personalStorageOwner,
 } from "~/lib/personal-storage";
 import { hasSessionAccess } from "~/lib/session-access";
 import { announceSessionChange } from "~/lib/session-cache";
@@ -67,6 +68,8 @@ export function SWRScopeBoundary({
     accountId: string | null;
     /** The account this tab showed when the other tab changed the owner. */
     shownAccountId: string | null;
+    /** Org portals must confirm the Träger too, not just the same account. */
+    organizationOwner?: string | null;
   } | null>(null);
 
   useLayoutEffect(() => {
@@ -79,7 +82,10 @@ export function SWRScopeBoundary({
       // or, after a mere owner removal, this tab's account at another school
       // (#5007).
       const confirmed =
-        accountId === waiting.accountId ||
+        (accountId === waiting.accountId &&
+          (waiting.organizationOwner === undefined ||
+            personalStorageOwner(session?.user) ===
+              waiting.organizationOwner)) ||
         (waiting.accountId === null &&
           accountId !== null &&
           accountId === waiting.shownAccountId &&
@@ -107,11 +113,21 @@ export function SWRScopeBoundary({
         const shown = committed.current;
         if (shown === null) return;
         const nextAccount = personalStorageAccount(owner);
-        if (pending.current === null && nextAccount === shown.accountId) return;
+        const organizationChanged =
+          shown.session?.user.scope === "org" &&
+          owner !== personalStorageOwner(shown.session.user);
+        if (
+          pending.current === null &&
+          nextAccount === shown.accountId &&
+          !organizationChanged
+        )
+          return;
         pending.current = {
           session: shown.session,
           accountId: nextAccount,
           shownAccountId: shown.accountId,
+          organizationOwner:
+            shown.session?.user.scope === "org" ? owner : undefined,
         };
         suspendSWRSession();
         resetSWRScope({ revalidate: false });
