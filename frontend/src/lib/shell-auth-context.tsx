@@ -18,7 +18,7 @@ import { hasPermission } from "~/lib/auth-utils";
 import { getSmartRedirectPath } from "~/lib/redirect-utils";
 import { recordStaffPreviewEnd } from "~/lib/staff-preview-api";
 import { runTenantSessionEnd } from "~/lib/tenant-session-end";
-import { beginSessionEnd } from "~/lib/session-end-barrier";
+import { sessionEndBarrier } from "~/lib/session-end-state";
 import { signOutTenant } from "~/lib/tenant-session-cookie";
 
 const logger = createLogger({ component: "ShellAuthContext" });
@@ -65,11 +65,11 @@ function behindSessionBarrier(
   endSession: () => Promise<void>,
 ): () => Promise<void> {
   return async () => {
-    const barrier = beginSessionEnd();
+    const barrier = sessionEndBarrier()?.beginSessionEnd();
     try {
       await endSession();
     } catch (error) {
-      barrier.fail();
+      barrier?.fail();
       throw error;
     }
   };

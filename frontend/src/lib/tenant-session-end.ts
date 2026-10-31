@@ -1,5 +1,6 @@
 import { onOtherTabOwnerChange } from "./personal-storage";
-import { beginSessionEnd, type SessionEnd } from "./session-end-barrier";
+import type { SessionEnd } from "./session-end-barrier";
+import { sessionEndBarrier } from "./session-end-state";
 import {
   allowConfirmedUnload,
   attemptNavigation,
@@ -71,7 +72,7 @@ export function runTenantSessionEnd(
           // From here no answer of the ending session may set its cookie
           // (#5399). The document navigates itself after the signout, so the
           // barrier stays closed until it leaves.
-          barrier = beginSessionEnd({ keepClosed: true });
+          barrier = sessionEndBarrier()?.beginSessionEnd({ keepClosed: true });
           if (confirmed) restoreUnloadGuard = allowConfirmedUnload();
           try {
             resolve(endSession(signal));

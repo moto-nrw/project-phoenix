@@ -6,6 +6,7 @@ import { useSessionPollInterval } from "~/lib/use-session-poll-interval";
 import { ParentPortalAnalyticsSession } from "~/components/analytics/parent-portal-analytics-session";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
 import { SessionAccountBinding } from "~/components/auth/session-account-binding";
+import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { parentPath } from "~/lib/parent-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
@@ -48,6 +49,7 @@ export function ParentProviders({
       refetchOnWindowFocus={false}
     >
       <SessionAccountBinding />
+      <SessionEndBarrier />
       <PersonalStorageGuard homeHref={parentsHome} />
       <SWRScopeBoundary />
       <PushSubscriptionSync portal="parent" />

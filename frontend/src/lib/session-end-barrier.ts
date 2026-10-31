@@ -1,4 +1,5 @@
 import { isOwnApiUrl } from "./session-account";
+import { announceSessionBarrier } from "./session-end-state";
 
 /**
  * Session-end barrier (#5399). A response sets its cookies when its headers
@@ -16,7 +17,7 @@ import { isOwnApiUrl } from "./session-account";
  *    pass: revocation, CSRF, Auth.js signout, the preview end and the push
  *    cleanup.
  * 3. The SessionProvider stops polling while it is closed
- *    (useSessionPollInterval).
+ *    (useSessionPollInterval, through session-end-state).
  * 4. Other tabs of this origin close too (BroadcastChannel). After
  *    OTHER_TAB_HOLD_MS they ask (`ping`); the owner answers `begin` while its
  *    attempt runs, however long CSRF or signout hang. Another tab opens only
@@ -48,7 +49,6 @@ let epoch = new AbortController();
 let attempt = new AbortController();
 const waiters = new Set<() => void>();
 let otherTabTimer: ReturnType<typeof setTimeout> | undefined;
-const listeners = new Set<() => void>();
 let channel: BroadcastChannel | undefined;
 
 function abortInFlight() {
@@ -78,7 +78,7 @@ function setClosed(owner: typeof closedBy) {
     waiters.clear();
   }
   closedBy = owner;
-  for (const listener of listeners) listener();
+  announceSessionBarrier(owner !== null);
 }
 
 /** Hears the other tabs' logouts; the fetch observer starts it at load. */
@@ -107,12 +107,6 @@ export function listenForSessionEnds() {
 /** Whether this tab holds its BFF requests for a session end. */
 export function isSessionBarrierClosed(): boolean {
   return closedBy !== null;
-}
-
-/** For useSyncExternalStore: notified when the barrier closes or opens. */
-export function subscribeSessionBarrier(listener: () => void): () => void {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
 }
 
 export interface SessionEnd {
@@ -225,7 +219,7 @@ export function resetSessionBarrierForTests() {
   attempt = new AbortController();
   waiters.clear();
   clearTimeout(otherTabTimer);
-  listeners.clear();
+  announceSessionBarrier(false);
   channel?.close();
   channel = undefined;
 }

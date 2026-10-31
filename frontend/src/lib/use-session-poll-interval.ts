@@ -4,7 +4,7 @@ import { useSyncExternalStore } from "react";
 import {
   isSessionBarrierClosed,
   subscribeSessionBarrier,
-} from "./session-end-barrier";
+} from "./session-end-state";
 
 /**
  * The SessionProvider's `refetchInterval`: none while a logout runs (#5399).

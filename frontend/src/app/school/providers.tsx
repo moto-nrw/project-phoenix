@@ -7,6 +7,7 @@ import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-
 import { SCHOOL_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
 import { SessionAccountBinding } from "~/components/auth/session-account-binding";
+import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { schoolPath } from "~/lib/school-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
@@ -43,6 +44,7 @@ export function SchoolProviders({
       refetchOnWindowFocus={false}
     >
       <SessionAccountBinding />
+      <SessionEndBarrier />
       <PersonalStorageGuard homeHref={schoolHome} />
       <SWRScopeBoundary />
       {/* Rebinds an existing browser push subscription to the current school
