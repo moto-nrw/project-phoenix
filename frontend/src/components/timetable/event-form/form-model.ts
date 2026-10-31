@@ -528,12 +528,15 @@ export function emptyForm(
 /**
  * A new Regeltermin started from an offering without one (#5140): the
  * offering feeds its children, and title and weekdays follow its bookings.
- * The form is empty, so there is no manual list the source would replace.
+ * schoolClasses is the Klassenfilter, so only the listed classes come in
+ * (#5343). The form is empty, so there is no manual list the source would
+ * replace.
  */
 export interface SeriesSourcePrefill {
   careOfferingIds: string[];
   title: string;
   weekdays: number[];
+  schoolClasses?: string[];
 }
 
 export function withSourcePrefill(
@@ -547,6 +550,13 @@ export function withSourcePrefill(
       prefill.weekdays.length > 0 ? [...prefill.weekdays] : form.weekdays,
     targetGroupType: "angebot",
     sourceCareOfferingIds: [...prefill.careOfferingIds],
+    ...(prefill.schoolClasses && prefill.schoolClasses.length > 0
+      ? {
+          sourceGradeLevels: [],
+          sourceSchoolClasses: [...prefill.schoolClasses],
+          sourceFilterMode: "klasse" as const,
+        }
+      : {}),
   };
 }
 

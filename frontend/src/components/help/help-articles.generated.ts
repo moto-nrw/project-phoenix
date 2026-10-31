@@ -344,6 +344,8 @@ import type { vacationTopic as authored_vacationTopic } from "./articles/vacatio
 
 import type { webAttendanceTopic as authored_webAttendanceTopic } from "./articles/web-attendance";
 
+import type { weekProtocolTopic as authored_weekProtocolTopic } from "./articles/week-protocol";
+
 import type { workTimeHintsTopic as authored_workTimeHintsTopic } from "./articles/work-time-hints";
 
 import type { workTimeReviewTopic as authored_workTimeReviewTopic } from "./articles/work-time-review";
@@ -3749,9 +3751,11 @@ export const leadRosterDeviationTopic =
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
         "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot. Schlägt moto mehrere Angebote zusammen vor, heißt der Knopf `Angebote übernehmen`.",
         "Passen beim Anlegen mehrere Angebotskombinationen gleich gut? Wählen Sie einen der Knöpfe mit den Angebotsnamen. Er übernimmt alle dort genannten Angebote zusammen.",
-        "Haben Kinder ein Angebot gebucht, aber kein Regeltermin übernimmt sie? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
+        "Haben Kinder ein Angebot gebucht, aber an manchen Tagen keinen passenden Regeltermin? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots aus den genannten Klassen. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
         "Brauchen diese Kinder bewusst keinen eigenen Regeltermin? Wählen Sie `Kein Regeltermin nötig`. Das gilt für den gewählten Zeitraum. Der Hinweis kommt wieder, sobald Kinder einer anderen Klasse betroffen sind. Das gilt auch für Ferienangebote.",
         "Diesen Hinweis holen Sie zurück: Klappen Sie `Ohne eigenen Regeltermin` auf und wählen Sie `Hinweis wieder zeigen`.",
+        // #5343: Klassen-Regeltermine und Ankunftszeit der Klasse zählen mit.
+        "Die Liste nennt nur Kinder, die an diesen Tagen auf keinem passenden Regeltermin stehen. Kommt die Klasse laut ihrer Ankunftszeit erst zur Abholzeit des Angebots, fehlt das Kind auch. Fehlt der Knopf, sind einige dieser Kinder schon ganz oder teilweise eingeplant oder haben noch Unterricht. Prüfen Sie dann ihre Regeltermine und ergänzen Sie, was fehlt.",
         // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
         "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Findet moto kein passendes Angebot, öffnet sich der Regeltermin zum Bearbeiten. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
       ],
@@ -10418,6 +10422,72 @@ export const webAttendanceTopic = function webAttendanceTopic(
     ],
   };
 } satisfies typeof authored_webAttendanceTopic;
+
+/**
+ * Wochenprotokoll (#4769): moto hält jeden Abend den Tag der Gruppe fest. Ab
+ * Freitagabend ergänzt die Gruppenleitung die Woche und schließt sie ab.
+ */
+export const weekProtocolTopic = function weekProtocolTopic(
+  groupMode: HelpGroupMode,
+): HelpTopic {
+  // Ohne feste Gruppen gibt es ein Protokoll für die ganze Schule.
+  const openCare = groupMode === "open_care";
+  return {
+    id: HELP_TOPICS.weekProtocol,
+    title: "Das Wochenprotokoll ergänzen",
+    question: "Wie ergänze und schließe ich das Wochenprotokoll ab?",
+    summary: openCare
+      ? "moto schreibt jede Woche ein Protokoll für die ganze Schule. Sie ergänzen es und schließen es ab."
+      : "moto schreibt jede Woche ein Protokoll für jede Gruppe. Die Gruppenleitung ergänzt es und schließt es ab.",
+    group: "gruppen",
+    audience: ["caregiver", "lead"],
+    icon: "Notebook",
+    requirements: [
+      openCare
+        ? "Sie arbeiten im Team der Schule."
+        : "Sie leiten die Gruppe oder vertreten sie. Die Leitung sieht die Protokolle aller Gruppen.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Das Protokoll öffnen",
+        steps: [
+          ...(openCare
+            ? [
+                "Klappen Sie in der Seitenleiste `Planung` auf und öffnen Sie `Wochenprotokolle`.",
+              ]
+            : [
+                "Öffnen Sie Ihre Gruppe unter `Gruppen`.",
+                "Wählen Sie oben `Weitere Aktionen` und dann `Wochenprotokolle`.",
+              ]),
+          "Wählen Sie die Woche.",
+        ],
+      },
+      {
+        title: "Ergänzen und abschließen",
+        steps: [
+          "Wählen Sie `Ergänzen`. Das geht ab Freitagabend.",
+          "Schreiben Sie bei einem Tag oder bei der Woche, was wichtig war.",
+          "Wählen Sie `Speichern`.",
+          "Wählen Sie `Abschließen` und bestätigen Sie mit `Abschließen`.",
+        ],
+      },
+    ],
+    result:
+      "Das Protokoll ist abgeschlossen und ändert sich nicht mehr. Mit `PDF herunterladen` laden Sie es als PDF.",
+    notes: [
+      "Jeden Abend hält moto fest, wer da war, wer fehlte und warum, welche Blöcke gelaufen oder ausgefallen sind und welche Tagesinformationen galten.",
+      "Gesundheitsangaben stehen nicht im Protokoll. Bei einem fehlenden Kind steht nur der Grund, wie in der Tagesauswertung.",
+      "Ältere Protokolle bleiben in der Liste. moto löscht sie nach der Frist für die Anwesenheit Ihrer Schule.",
+    ],
+    differences: [
+      "Steht oben `Woche läuft`? Dann ist die Woche noch nicht vorbei. Ab Freitagabend können Sie ergänzen.",
+      "Schließt niemand ab, schließt moto das Protokoll nach der folgenden Woche mit den bisherigen Ergänzungen ab.",
+      "Steht bei einem Tag `Dieser Tag wurde nicht festgehalten`? Dann fehlen die Zahlen für diesen Tag. Schreiben Sie das Wichtigste in die Ergänzung.",
+    ],
+    related: [HELP_TOPICS.ownGroups, HELP_TOPICS.dayLog],
+  };
+} satisfies typeof authored_weekProtocolTopic;
 
 // Hinweise zu Pausen und Höchstarbeitszeit (#4804). Nur Hinweise, sie sperren
 // nichts. Werte und Grenzen bewertet der Server.

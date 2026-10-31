@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	parentConferencesVersion     = "1.15.719"
+	parentConferencesVersion     = "1.15.720"
 	parentConferencesDescription = "Elternsprechtag: Lehrkraft legt Zeitfenster an, Eltern buchen je Kind (#4801)"
 )
 
@@ -18,10 +18,9 @@ func init() {
 		Version:     parentConferencesVersion,
 		Description: parentConferencesDescription,
 		DependsOn: []string{
-			payrollDispatchesVersion,  // the last migration before this one, whose erasure functions this extends
+			groupWeekProtocolsVersion, // the last migration before this one, whose erasure functions and deletion kinds this extends
 			schoolCalendarVersion,     // school_event_type the booked appointment carries
 			parentDeclarationsVersion, // auth.guardian_student_access as the permission store
-			surveysVersion,            // the deletion kinds this extends
 		},
 	})
 	Migrations.MustRegister(parentConferencesUp, parentConferencesDown)
@@ -152,7 +151,7 @@ const parentConferencesGrantSQL = `
 
 // parentConferenceDataKindsUpSQL extends the subject check of
 // audit.data_deletions by the Elternsprechtag retention kind;
-// parentConferenceDataKindsDownSQL restores the check of 1.15.568. The list
+// parentConferenceDataKindsDownSQL restores the check of 1.15.719. The list
 // is spelled out: the architecture check classifies only static migration
 // SQL.
 const parentConferenceDataKindsUpSQL = `
@@ -204,6 +203,7 @@ const parentConferenceDataKindsUpSQL = `
 						'enrollment_upload_retention',
 						'parent_survey_retention',
 						'staff_survey_retention',
+						'week_protocol_retention',
 						'parent_conference_retention'
 					)
 				)
@@ -258,7 +258,8 @@ const parentConferenceDataKindsDownSQL = `
 						'setting_audit_retention',
 						'enrollment_upload_retention',
 						'parent_survey_retention',
-						'staff_survey_retention'
+						'staff_survey_retention',
+						'week_protocol_retention'
 					)
 				)
 			);
@@ -318,18 +319,18 @@ func parentConferencesUp(ctx context.Context, db *bun.DB) error {
 func parentConferencesDown(ctx context.Context, db *bun.DB) error {
 	return db.RunInTx(ctx, &sql.TxOptions{}, func(ctx context.Context, tx bun.Tx) error {
 		for _, step := range []func(context.Context, bun.Tx) error{
-			installPayrollDispatchErasurePlan, installPayrollDispatchErasurePreflight, installPayrollDispatchErasureResidual,
-			installPayrollDispatchErasureDelete, installPayrollDispatchErasurePreview,
+			installWeekProtocolErasurePlan, installWeekProtocolErasurePreflight, installWeekProtocolErasureResidual,
+			installWeekProtocolErasureDelete, installWeekProtocolErasurePreview,
 		} {
 			if err := step(ctx, tx); err != nil {
-				return fmt.Errorf("restore the school erasure of 1.15.718: %w", err)
+				return fmt.Errorf("restore the school erasure of 1.15.719: %w", err)
 			}
 		}
 		if _, err := tx.ExecContext(ctx, `DELETE FROM audit.data_deletions WHERE deletion_type = 'parent_conference_retention'`); err != nil {
 			return fmt.Errorf("drop the parent conference retention log: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, parentConferenceDataKindsDownSQL); err != nil {
-			return fmt.Errorf("restore the deletion kinds of 1.15.568: %w", err)
+			return fmt.Errorf("restore the deletion kinds of 1.15.719: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, parentConferencesDownSQL); err != nil {
 			return fmt.Errorf("drop the parent conference tables: %w", err)

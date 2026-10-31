@@ -46,6 +46,7 @@ Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellun
 | Zeiterfassung (Stempelzeiten, Pausen, Abwesenheiten) | `gdpr.time_tracking_retention_days` | 2 Jahre | 2 bis 8 Jahre | Arbeitstag | Workforce | umgesetzt |
 | AU-Bescheinigungen (samt Datei) | `gdpr.staff_sick_note_retention_days` | 365 Tage | 90 Tage bis 3 Jahre | Hochladen | Workforce | umgesetzt (#3961) |
 | Tagesanwesenheit (wann ein Kind kam und ging) | `gdpr.attendance_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | Betreuungstag | Student Presence | umgesetzt (#3957) |
+| Wochenprotokolle der Gruppen samt Tagen, Ergänzungen und PDF | keine eigene: `gdpr.attendance_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | Sonntag der Woche | Timetable | umgesetzt (#4769) |
 | Kinder nach Austritt und Abgänger (vollständig, samt angenommener Anmeldung) | `gdpr.student_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | letzter Betreuungstag | People Directory, Workflow Kinderlöschung | umgesetzt (#3962) |
 | Jahrgangswechsel samt Verlauf mit Kindernamen und Transpondern, Klassenlisten-Verlauf und Klassenleitungen | keine eigene: `gdpr.student_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | Anwenden bzw. Zurücknehmen; Entwurf: letzte Änderung | School Structure | umgesetzt (#4045) |
 | Ausgetretenes Personal (alle Personaldaten, Person anonymisiert) | keine eigene: `gdpr.time_tracking_retention_days` | 2 Jahre | 2 bis 8 Jahre | Personalaustritt | Workflow neben dem Personalaustritt mit School Membership, Workforce, Student Presence, People Directory | umgesetzt (#3963) |

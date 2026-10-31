@@ -5,6 +5,7 @@ export type PlanningPageHref =
   | "/dienstplan"
   | "/vertretung"
   | "/lists"
+  | "/wochenprotokolle"
   | "/calendar-periods"
   | "/payroll";
 
@@ -13,6 +14,11 @@ export interface PlanningSubPage {
   readonly label: string;
   readonly showInMobileNav: boolean;
   readonly nonAdminPermission?: string;
+  /**
+   * Bei offener Betreuung öffnet auch dieses Recht den Eintrag. Ohne feste
+   * Gruppen fehlt der Einstieg über die Gruppenseite (#4769).
+   */
+  readonly openCarePermission?: string;
   /**
    * Die Seite gehört zum Betreuungsplan und verschwindet, wenn die Schule
    * ihn ausschaltet (`timetable.enabled`). Dienstplan und Abrechnung hängen
@@ -77,6 +83,19 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     showInMobileNav: true,
     requiresTimetable: true,
     nonAdminPermission: "schedules:manage",
+  },
+  {
+    // Wochenprotokolle (#4769): die Protokolle aller Gruppen für die Leitung,
+    // die alle Gruppen führt (groups:manage). Die Gruppenleitung öffnet die
+    // Protokolle ihrer Gruppe von der Gruppenseite aus. Bei offener
+    // Betreuung gibt es keine Gruppenseite: dort führt der Eintrag jede
+    // Fachkraft (groups:update) zum Protokoll der ganzen Schule.
+    href: "/wochenprotokolle",
+    label: "Wochenprotokolle",
+    showInMobileNav: true,
+    requiresTimetable: false,
+    nonAdminPermission: "groups:manage",
+    openCarePermission: "groups:update",
   },
   {
     // Die Seite verwaltet Schuljahr, Halbjahre, Ferien und Schließtage. Der

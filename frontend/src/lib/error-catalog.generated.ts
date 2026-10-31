@@ -1340,6 +1340,14 @@ export const ERROR_CATALOG = {
         "Bitte wählen Sie höchstens {max} Tage auf einmal.",
       "timetable.understaffed_still_staffed":
         "Für den Termin ist noch Personal eingeteilt. Bitte nehmen Sie das Personal zuerst heraus.",
+      "timetable.week_protocol_not_closed":
+        "Das PDF entsteht erst, wenn das Wochenprotokoll abgeschlossen ist.",
+      "timetable.week_protocol_not_draft":
+        "Das Wochenprotokoll ist kein Entwurf mehr. Bitte laden Sie die Seite neu.",
+      "timetable.week_protocol_not_found":
+        "Dieses Wochenprotokoll gibt es nicht oder Sie dürfen es nicht sehen.",
+      "timetable.week_protocol_notes_invalid":
+        "Bitte prüfen Sie die Ergänzungen. Ein Text ist zu lang oder gehört nicht zu dieser Woche.",
       "timetable.window_end_before_start":
         "Das Enddatum darf nicht vor dem Startdatum liegen. Bitte prüfen Sie die Daten.",
       "timetable.window_too_large":

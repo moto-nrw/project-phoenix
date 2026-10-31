@@ -20,7 +20,9 @@ import (
 // skipped days are therefore the materializer's by construction. Unknown or
 // archived templates are absent. A constant number of reads.
 func (s *materializationService) ProjectOccurrences(ctx context.Context, templateIDs []int64, from, to calendar.Date) (timetable.OccurrenceProjection, error) {
-	projection := timetable.OccurrenceProjection{Dates: map[int64][]calendar.Date{}, ClosedDays: map[calendar.Date]bool{}}
+	projection := timetable.OccurrenceProjection{
+		Dates: map[int64][]calendar.Date{}, Times: map[int64]map[calendar.Date][]timetable.OccurrenceClock{}, ClosedDays: map[calendar.Date]bool{},
+	}
 	if from.After(to) {
 		return projection, nil
 	}
@@ -47,8 +49,9 @@ func (s *materializationService) ProjectOccurrences(ctx context.Context, templat
 		if !tmpl.IsTemplate || tmpl.ArchivedAt != nil {
 			continue
 		}
-		if dates := world.occurrenceDates(tmpl, byTemplate[tmpl.ID]); len(dates) > 0 {
+		if dates, times := world.occurrenceDates(tmpl, byTemplate[tmpl.ID]); len(dates) > 0 {
 			projection.Dates[tmpl.ID] = dates
+			projection.Times[tmpl.ID] = times
 		}
 	}
 	return projection, nil
@@ -83,24 +86,40 @@ func (w *materializationWorld) closedDays() map[calendar.Date]bool {
 }
 
 // occurrenceDates replays materializeTemplate's date loop for one template
-// and keeps the dates at least one schedule is materialized on.
-func (w *materializationWorld) occurrenceDates(tmpl *activityContract.Group, schedules []*activityContract.Schedule) []calendar.Date {
+// and keeps the dates at least one schedule is materialized on, with the
+// effective clock window of every schedule materialized there.
+func (w *materializationWorld) occurrenceDates(tmpl *activityContract.Group, schedules []*activityContract.Schedule) ([]calendar.Date, map[calendar.Date][]timetable.OccurrenceClock) {
 	dates := make([]calendar.Date, 0)
+	times := map[calendar.Date][]timetable.OccurrenceClock{}
 	for date := w.from; !date.After(w.to); date = date.AddDays(1) {
 		if isWeekend(date) && !w.weekendFollowsFriday {
 			continue
 		}
-		isoWd := planWeekday(date, w.weekendFollowsFriday)
-		for _, sch := range schedules {
-			if sch.Weekday != isoWd {
-				continue
-			}
-			exc := w.exceptionIdx[exceptionKey{tmpl.ID, date}]
-			if _, _, skip := candidateSlot(tmpl, sch, date, w.periods, w.days, exc, w.timeframeByID, nil); skip == candidateKept {
-				dates = append(dates, date)
-				break
-			}
+		if clocks := w.occurrenceClocks(tmpl, schedules, date); len(clocks) > 0 {
+			dates = append(dates, date)
+			times[date] = clocks
 		}
 	}
-	return dates
+	return dates, times
+}
+
+// occurrenceClocks are the effective clock windows of the template's
+// schedules materialized on date, each with the period candidateSlot selects.
+func (w *materializationWorld) occurrenceClocks(tmpl *activityContract.Group, schedules []*activityContract.Schedule, date calendar.Date) []timetable.OccurrenceClock {
+	isoWd := planWeekday(date, w.weekendFollowsFriday)
+	exc := w.exceptionIdx[exceptionKey{tmpl.ID, date}]
+	clocks := make([]timetable.OccurrenceClock, 0)
+	for _, sch := range schedules {
+		if sch.Weekday != isoWd {
+			continue
+		}
+		if params, period, skip := candidateSlot(tmpl, sch, date, w.periods, w.days, exc, w.timeframeByID, nil); skip == candidateKept {
+			clocks = append(clocks, timetable.OccurrenceClock{
+				StartMinute: params.StartTime.Hour()*60 + params.StartTime.Minute(),
+				EndMinute:   params.EndTime.Hour()*60 + params.EndTime.Minute(),
+				PeriodID:    period.ID,
+			})
+		}
+	}
+	return clocks
 }

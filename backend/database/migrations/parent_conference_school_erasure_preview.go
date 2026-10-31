@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.719 (#4801): the 1.15.718 (#4805) preview with the two Elternsprechtag tables,
+// 1.15.720 (#4801): the 1.15.719 (#4769) preview with the two Elternsprechtag tables,
 // calendar.parent_conferences and calendar.parent_conference_bookings.
 func installParentConferenceErasurePreview(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasurePreviewSQL)
@@ -183,6 +183,9 @@ const parentConferenceErasurePreviewSQL = `
  v_counts := v_counts || jsonb_build_object('schedule.dateframes',(SELECT count(*) FROM schedule.dateframes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.grade_transition_roster_removals',(SELECT count(*) FROM schedule.grade_transition_roster_removals AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.instance_staff',(SELECT count(*) FROM schedule.instance_staff AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('schedule.group_week_protocol_pdfs',(SELECT count(*) FROM schedule.group_week_protocol_pdfs AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('schedule.group_week_protocol_days',(SELECT count(*) FROM schedule.group_week_protocol_days AS r WHERE r.tenant_id = p_school));
+ v_counts := v_counts || jsonb_build_object('schedule.group_week_protocols',(SELECT count(*) FROM schedule.group_week_protocols AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.instance_students',(SELECT count(*) FROM schedule.instance_students AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.meal_order_changes',(SELECT count(*) FROM schedule.meal_order_changes AS r WHERE r.tenant_id = p_school));
  v_counts := v_counts || jsonb_build_object('schedule.meal_order_lines',(SELECT count(*) FROM schedule.meal_order_lines AS r WHERE r.tenant_id = p_school));

@@ -58,6 +58,7 @@ function caregiverTopics(
     articles.emergencyTopic(presenceMode),
     articles.ownGroupsTopic(presenceMode, groupMode),
     articles.transferGroupTopic(groupMode),
+    articles.weekProtocolTopic(groupMode),
     articles.holidayGuestsTopic(),
     articles.roomsTopic(presenceMode),
     articles.activeSupervisionTopic(presenceMode),

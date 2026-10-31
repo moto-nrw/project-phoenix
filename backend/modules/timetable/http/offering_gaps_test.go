@@ -121,6 +121,7 @@ func TestOfferingGapsSchuleAmBerg(t *testing.T) {
 	assert.Equal(t, offeringGapResponse{
 		Offering:     templateRosterMaintenanceOfferingResponse{ID: randstunde, Name: "Randstunde"},
 		StudentCount: 3, SchoolClasses: []string{"3a"}, Weekdays: []int{1, 3}, AcknowledgedClasses: []string{},
+		NewSeriesClasses: []string{"3a"},
 	}, gaps[0])
 
 	w := s.decide(t, randstunde, period.ID, true)

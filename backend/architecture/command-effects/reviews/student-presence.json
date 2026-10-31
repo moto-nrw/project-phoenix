@@ -9846,6 +9846,166 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.FindActiveByStudentAndDateRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindActiveByStudentAndDateRange",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Capability.ListStudentStatusDays (care-plan) through roots/owners.StudentStatusDayRepository.FindActiveByStudentAndDateRange. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.FindActiveByStudentAndDateRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindActiveByStudentAndDateRange",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Owner.ListStudentStatusDays (care-plan) through roots/owners.StudentStatusDayRepository.FindActiveByStudentAndDateRange. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.FindActiveByStudentAndDateRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindActiveByStudentAndDateRange",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Capability.ListStudentStatusDays (care-plan) through modules/studentpresence.StatusDays.FindActiveByStudentAndDateRange. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.FindActiveByStudentAndDateRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindActiveByStudentAndDateRange",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Owner.ListStudentStatusDays (care-plan) through modules/studentpresence.StatusDays.FindActiveByStudentAndDateRange. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.FindActiveByStudentIDsAndDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindActiveByStudentIDsAndDate",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Capability.ListStudentStatusDays (care-plan) through roots/owners.StudentStatusDayRepository.FindActiveByStudentIDsAndDate. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.FindActiveByStudentIDsAndDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindActiveByStudentIDsAndDate",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Owner.ListStudentStatusDays (care-plan) through roots/owners.StudentStatusDayRepository.FindActiveByStudentIDsAndDate. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.FindActiveByStudentIDsAndDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindActiveByStudentIDsAndDate",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Capability.ListStudentStatusDays (care-plan) through modules/studentpresence.StatusDays.FindActiveByStudentIDsAndDate. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.FindActiveByStudentIDsAndDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindActiveByStudentIDsAndDate",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Owner.ListStudentStatusDays (care-plan) through modules/studentpresence.StatusDays.FindActiveByStudentIDsAndDate. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.FindByStudentAndDateRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindByStudentAndDateRange",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Capability.ListStudentStatusDays (care-plan) through roots/owners.StudentStatusDayRepository.FindByStudentAndDateRange. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.FindByStudentAndDateRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindByStudentAndDateRange",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Owner.ListStudentStatusDays (care-plan) through roots/owners.StudentStatusDayRepository.FindByStudentAndDateRange. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.FindByStudentAndDateRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindByStudentAndDateRange",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Capability.ListStudentStatusDays (care-plan) through modules/studentpresence.StatusDays.FindByStudentAndDateRange. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.FindByStudentAndDateRange",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindByStudentAndDateRange",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Owner.ListStudentStatusDays (care-plan) through modules/studentpresence.StatusDays.FindByStudentAndDateRange. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.FindSignedOffByStudentIDsAndDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindSignedOffByStudentIDsAndDate",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Capability.ListStudentStatusDays (care-plan) through roots/owners.StudentStatusDayRepository.FindSignedOffByStudentIDsAndDate. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.StudentStatusDayRepository.FindSignedOffByStudentIDsAndDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindSignedOffByStudentIDsAndDate",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Owner.ListStudentStatusDays (care-plan) through roots/owners.StudentStatusDayRepository.FindSignedOffByStudentIDsAndDate. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.FindSignedOffByStudentIDsAndDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindSignedOffByStudentIDsAndDate",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Capability.ListStudentStatusDays (care-plan) through modules/studentpresence.StatusDays.FindSignedOffByStudentIDsAndDate. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.FindSignedOffByStudentIDsAndDate",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDayReads.FindSignedOffByStudentIDsAndDate",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/careplan.Owner.ListStudentStatusDays (care-plan) through modules/studentpresence.StatusDays.FindSignedOffByStudentIDsAndDate. No persistent, lock or scope effect; exposed by #4769 (weekly protocols) binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListStudentStatusDays",
+      "target_owner": "care-plan"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0094",
       "binding": "*github.com/moto-nrw/project-phoenix/api.statusDayStudents.LockForStatusWrite",

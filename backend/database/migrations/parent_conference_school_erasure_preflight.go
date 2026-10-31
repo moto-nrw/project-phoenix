@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// 1.15.719 (#4801): the 1.15.718 (#4805) preflight with the two Elternsprechtag tables,
+// 1.15.720 (#4801): the 1.15.719 (#4769) preflight with the two Elternsprechtag tables,
 // calendar.parent_conferences and calendar.parent_conference_bookings.
 func installParentConferenceErasurePreflight(ctx context.Context, tx bun.Tx) error {
 	_, err := tx.ExecContext(ctx, parentConferenceErasurePreflightSQL)
@@ -180,6 +180,9 @@ const parentConferenceErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform
     schedule.dateframes,
     schedule.grade_transition_roster_removals,
     schedule.instance_staff,
+    schedule.group_week_protocol_pdfs,
+    schedule.group_week_protocol_days,
+    schedule.group_week_protocols,
     schedule.instance_students,
     schedule.meal_order_changes,
     schedule.meal_order_lines,
@@ -305,7 +308,7 @@ const parentConferenceErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform
      WHERE f.contype='f' AND pn.nspname || '.' || pc.relname IN
       (SELECT item->>'name' FROM jsonb_array_elements(v_plan) AS item)
      GROUP BY f.oid,cn.nspname,cc.relname,f.conname,pn.nspname,pc.relname,f.confdeltype
-    ) AS edge) <> '3ebb31d7a61b624ba5c4271fa161b6dd65dd78b07f48219dc78ec6db5a273728' THEN
+    ) AS edge) <> '292c668bf30d74a444e6eee89cf2120b054853ac37ae95419cab97639ed617e0' THEN
     RAISE EXCEPTION 'school erasure foreign keys changed; review plan' USING ERRCODE = '55000';
    END IF;
    -- Generated incoming-FK scope checks. Never cascade into foreign rows.
@@ -467,6 +470,10 @@ const parentConferenceErasurePreflightSQL = `CREATE OR REPLACE FUNCTION platform
     SELECT 1 FROM platform.email_delivery AS c JOIN users.guardian_profiles AS p ON c."guardian_profile_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM platform.email_delivery AS c JOIN platform.email_outbox AS p ON c."outbox_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM schedule.group_week_protocol_days AS c JOIN schedule.group_week_protocols AS p ON c."protocol_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
+    UNION ALL
+    SELECT 1 FROM schedule.group_week_protocol_pdfs AS c JOIN schedule.group_week_protocols AS p ON c."protocol_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL
     SELECT 1 FROM schedule.activity_instances AS c JOIN schedule.calendar_periods AS p ON c."calendar_period_id" = p."id" WHERE (p.tenant_id = p_school_id) AND NOT COALESCE((c.tenant_id = p_school_id), FALSE)
     UNION ALL

@@ -67,9 +67,11 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 			WHERE table_schema = 'audit' AND table_name = 'export_transfers' AND column_name = 'export_channel')`).Scan(ctx, &found))
 		return found
 	}
-	require.NoError(t, payrollDispatchesUp(ctx, db), "the migration is idempotent")
-	// The Elternsprechtag (1.15.719, #4801) extends this erasure; it goes first.
+	// Roll back the newer erasures before testing the payroll migration alone:
+	// the Elternsprechtag (1.15.720, #4801) extends the weekly protocols'.
 	require.NoError(t, parentConferencesDown(ctx, db))
+	require.NoError(t, groupWeekProtocolsDown(ctx, db))
+	require.NoError(t, payrollDispatchesUp(ctx, db), "the migration is idempotent")
 	require.NoError(t, payrollDispatchesDown(ctx, db))
 	assert.False(t, exists())
 	assert.False(t, channelColumn())
@@ -84,7 +86,6 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 	require.NoError(t, payrollDispatchesUp(ctx, db))
 	assert.True(t, exists())
 	assert.True(t, channelColumn())
-	require.NoError(t, parentConferencesUp(ctx, db))
 }
 
 // TestExportTransferJournalNamesTheRecipientOfAnEmailSend pins the CHECK of
