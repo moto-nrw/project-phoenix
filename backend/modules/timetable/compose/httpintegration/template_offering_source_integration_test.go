@@ -9,6 +9,7 @@
 package httpintegration_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -121,7 +123,9 @@ func linkApprovedChildToOffering(
 		CareOfferingID: offering.ID,
 	}
 	link.TenantID = s.tenantID
-	require.NoError(t, api.NewEnrollmentBookingFixture().InsertRequestChildOffering(s.ctx, link))
+	require.NoError(t, testpkg.WithTenantTx(t, s.ctx, s.db, s.tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return api.NewEnrollmentBookingFixture().InsertRequestChildOffering(ctx, link)
+	}))
 }
 
 // Create with an offering source + materialize must land the approved
