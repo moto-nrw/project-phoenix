@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"syscall"
 	"testing"
@@ -46,7 +47,7 @@ func TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail(t *testing.T) {
 		WithAuthTestMailer(transport), WithAuthTestMFABackoff(time.Millisecond))
 	require.NoError(t, err)
 	password := testpkg.NewTestPassword()
-	account := testpkg.CreateTestAccountWithPassword(t, db, "demo-mfa@example.test", password)
+	account := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("demo-mfa-%d@example.test", testpkg.UniqueSuffix()), password)
 	school, slug := testpkg.CreateTestTenant(t, db)
 	testpkg.EnsureAccountTenant(t, db, account.ID, school)
 	testpkg.GrantTestPermission(t, db, school, account.ID, "config:manage")
