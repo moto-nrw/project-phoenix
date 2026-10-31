@@ -59,8 +59,11 @@ export function SchoolBottomNav({
   // die Beschriftung des aktiven Ziels kommt erst ab 480 px dazu.
   // Gemessen auf 360 px: sieben Icons à 40 px ohne Lücke passen in die
   // 294 px der Pille, mit px-3 und gap-1 wären es 332 px.
+  //
+  // Mit den Fehlzeiten (#4793) sind es sieben, mit Team-Chat acht Ziele.
+  // Acht Icons à 40 px brauchen 320 px; mit px-2 sind es 8 × 36 = 288 px.
   const crowded = items.length >= 6;
-  const itemPadding = crowded ? "px-2.5" : "px-4";
+  const itemPadding = items.length >= 8 ? "px-2" : crowded ? "px-2.5" : "px-4";
   const listGap = crowded ? "gap-0" : "gap-1";
   const labelClass = crowded
     ? "hidden text-sm font-semibold whitespace-nowrap min-[480px]:inline"

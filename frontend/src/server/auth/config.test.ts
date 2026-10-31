@@ -139,6 +139,7 @@ describe("authConfig", () => {
 
   it("should export valid NextAuthConfig", () => {
     expect(authConfig).toBeDefined();
+    expect(authConfig.secret).toBe("test-auth-secret-with-sufficient-entropy");
     expect(authConfig).toHaveProperty("providers");
     expect(authConfig).toHaveProperty("callbacks");
     expect(authConfig).toHaveProperty("pages");

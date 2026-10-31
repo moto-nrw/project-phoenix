@@ -61,4 +61,31 @@ describe("buildGroupOverflowItems", () => {
 
     expect(items).toEqual([]);
   });
+
+  it("offers the weekly protocols of the group (#4769)", () => {
+    const onOpenWeekProtocols = vi.fn();
+    const items = buildGroupOverflowItems({
+      viaSubstitution: false,
+      canTransfer: true,
+      activeTransfersCount: 0,
+      onOpenTransfer: vi.fn(),
+      onOpenWeekProtocols,
+    });
+    expect(items.map((item) => item.label)).toEqual([
+      "Gruppe übergeben",
+      "Wochenprotokolle",
+    ]);
+    expect(items[1]?.onClick).toBe(onOpenWeekProtocols);
+  });
+
+  it("offers the weekly protocols to a substitute who cannot hand over", () => {
+    const items = buildGroupOverflowItems({
+      viaSubstitution: true,
+      canTransfer: true,
+      activeTransfersCount: 0,
+      onOpenTransfer: vi.fn(),
+      onOpenWeekProtocols: vi.fn(),
+    });
+    expect(items.map((item) => item.label)).toEqual(["Wochenprotokolle"]);
+  });
 });

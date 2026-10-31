@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -172,11 +173,20 @@ func buildClassDayViews(
 	homework timetable.HomeworkBook,
 	emitter presenceStudentsHTTP.GuardianWake, classTeachers schoolstructure.StaffGroupQuery,
 	notifications owners.DeliveryNotifications,
+	schoolDays schoolcalendar.Days,
 ) (ClassDayViews, error) {
 	classDayReads, err := arrivalTimetable.NewPresenceReads(owners.NewTimetablePresenceProjection(db))
 	if err != nil {
 		return ClassDayViews{}, fmt.Errorf("compose class day timetable reads: %w", err)
 	}
+	morning := withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
+		presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
+			AbsenceNotifier: studentAbsenceNotifier{notifier: notifications.AbsenceNotifier},
+			Broadcaster:     hub, Logger: env.Logger.With("service", "class-day-absence-reports"), ParentEventEmitter: emitter,
+			PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
+		}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences)
+	// The absence list (#4793) counts the morning marks of a period.
+	morning = withClassDayAbsenceList(morning, presence.Presence, carePlanRows.StatusDays, schoolDays, audit.Persistence.DataAccessLog, renderer, settings, schedules.Lifecycle, reports)
 	classDay := NewClassDay(classdayCompose.ClassDayDependencies{
 		Caller: caller, PickupTimes: schedules.Pickups, ArrivalTimes: schedules.Arrivals, CareDays: schedules.CareDay,
 		Companions: owners.NewStudentCompanionRepository(carePlan), ClassArrivalExceptions: schedules.Arrivals,
@@ -191,13 +201,8 @@ func buildClassDayViews(
 		StudentNoteDependencies: classdayCompose.StudentNoteDependencies{
 			DayHints: persons, Today: calendar.CalendarDateClock(env.Now), SharedNotes: persons, ClassTeachers: classTeachers,
 		},
-		MorningAttendanceDependencies: withClassDayAbsenceReports(classdayCompose.MorningAttendanceDependencies{Store: presence.Presence, Now: env.Now},
-			presenceStudentsHTTP.NewSchoolAbsenceReports(presenceStudentsHTTP.ResourceConfig{
-				AbsenceNotifier: studentAbsenceNotifier{notifier: notifications.AbsenceNotifier},
-				Broadcaster:     hub, Logger: env.Logger.With("service", "class-day-absence-reports"), ParentEventEmitter: emitter,
-				PeopleDirectory: persons, StudentStatusDayService: presence.StatusDays,
-			}, presence.Presence), audit.Persistence.StudentFieldEdit, notifications.UnreportedAbsences),
-		HomeworkDependencies: classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
+		MorningAttendanceDependencies: morning,
+		HomeworkDependencies:          classdayCompose.HomeworkDependencies{Homework: NewClassDayHomework(homework)},
 		ClassHandoverDependencies: classdayCompose.ClassHandoverDependencies{
 			Handovers: presence.Presence, HandoverStaffNames: classHandoverStaffNames(people.Staff),
 		},

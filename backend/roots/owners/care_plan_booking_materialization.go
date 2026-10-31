@@ -52,16 +52,10 @@ type bookingManualPlans struct{ days timetable.StudentTemplateDays }
 func (p bookingManualPlans) ManualStudentPlan(
 	ctx context.Context, studentID int64, from calendar.Date, change careplan.BookingDayChange,
 ) ([]careplan.ManualRosterTemplate, error) {
-	bookings := make([]timetable.StudentDayBooking, 0, len(change.Remaining))
-	for _, booking := range change.Remaining {
-		bookings = append(bookings, timetable.StudentDayBooking{
-			Weekday: booking.Weekday, CountsAsCare: booking.CountsAsCare, IncludesLunch: booking.IncludesLunch,
-			PickupTime: booking.PickupTime,
-		})
-	}
 	plans, err := p.days.ManualStudentPlan(ctx, timetable.ManualStudentPlanQuery{
 		StudentID: studentID, From: from, Weekdays: change.DroppedWeekdays,
-		NetLossWeekdays: change.NetLossWeekdays, Bookings: bookings,
+		NetLossWeekdays: change.NetLossWeekdays, Bookings: studentDayBookings(change.Remaining),
+		OtherBookings: studentDayBookings(change.OtherEnrollments),
 	})
 	if err != nil {
 		return nil, err
@@ -73,6 +67,17 @@ func (p bookingManualPlans) ManualStudentPlan(
 		})
 	}
 	return result, nil
+}
+
+func studentDayBookings(remaining []careplan.RemainingDayBooking) []timetable.StudentDayBooking {
+	bookings := make([]timetable.StudentDayBooking, 0, len(remaining))
+	for _, booking := range remaining {
+		bookings = append(bookings, timetable.StudentDayBooking{
+			Weekday: booking.Weekday, CountsAsCare: booking.CountsAsCare, IncludesLunch: booking.IncludesLunch,
+			PickupTime: booking.PickupTime,
+		})
+	}
+	return bookings
 }
 
 type bookingTimetableOwner interface {
@@ -283,6 +288,7 @@ type bookingEnrollmentReads interface {
 	PhasesByID(context.Context, []int64) ([]*enrollmentOwner.Phase, error)
 	RequestChildOfferingsAtDate(context.Context, int64, enrollmentOwner.Date) ([]*enrollmentOwner.RequestChildOffering, error)
 	RequestChildOfferingHistory(context.Context, int64) ([]*enrollmentOwner.RequestChildOffering, error)
+	ApprovedSelectionsForStudents(context.Context, []int64, enrollmentOwner.Date, enrollmentOwner.Date) ([]*enrollmentOwner.ApprovedOfferingSelection, error)
 }
 
 // bookingApprovedChildren resolves approved offering selections to their
@@ -362,6 +368,8 @@ func BookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
 	return careplan.OfferingPhase{
 		ID: phase.ID, Name: phase.Name,
 		ServiceStart: calendar.Date(phase.ServiceStartDate), ServiceEnd: calendar.Date(phase.ServiceEndDate),
+		SchoolYear: phase.Kind == enrollmentOwner.PhaseKindSchoolYear,
+		Holiday:    phase.Kind == enrollmentOwner.PhaseKindHoliday,
 	}
 }
 
@@ -373,6 +381,22 @@ func (e bookingEnrollment) SelectionsAt(ctx context.Context, childID int64, on c
 func (e bookingEnrollment) SelectionHistory(ctx context.Context, childID int64) ([]careplan.BookedOffering, error) {
 	values, err := e.owner.RequestChildOfferingHistory(ctx, childID)
 	return BookedOfferings(values), err
+}
+
+// StudentSelectionsAt reads the approved selections of the student that
+// overlap the single day, across all the student's request children.
+func (e bookingEnrollment) StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error) {
+	selections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(on), enrollmentOwner.Date(on))
+	if err != nil {
+		return nil, err
+	}
+	values := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))
+	for _, selection := range selections {
+		if selection != nil && selection.StudentID == studentID {
+			values = append(values, selection.Selection)
+		}
+	}
+	return BookedOfferings(values), nil
 }
 
 // BookedOfferings are Enrollment's selections as Care Plan's booked

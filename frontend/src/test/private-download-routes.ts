@@ -39,6 +39,7 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
   ["parent/me/news/[announcementId]/declaration/proof/pdf", "GET"],
   ["public/payroll-download/[link]", "POST"],
   ["rooms/export", "POST"],
+  ["school/class-day/absence-list/export", "GET"],
   ["school/parent-letters/[announcementId]/declaration-export", "GET"],
   ["staff-shifts/export", "POST"],
   ["staff/[id]/documents/[documentId]/download", "GET"],
@@ -66,4 +67,5 @@ export const PRIVATE_DOWNLOAD_ROUTES = [
     "traeger/holiday-periods/[id]/registrations/[registrationId]/proofs/[proofId]",
     "GET",
   ],
+  ["week-protocols/[protocolId]/pdf", "GET"],
 ] as const;

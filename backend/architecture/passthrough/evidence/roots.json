@@ -618,6 +618,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (l classDayAccessLog) RecordAbsenceList(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassAbsenceList, entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "api/classDayAccessLog.RecordAbsenceList",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l classDayAccessLog) RecordAbsenceListExport(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassAbsenceListExport, entry))\n}",
+      "form": "unclassified-evidence",
+      "id": "api/classDayAccessLog.RecordAbsenceListExport",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (l classDayAccessLog) RecordClassDayView(ctx context.Context, entry classdayCompose.AccessRecord) error {\n\treturn l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassDayView, entry))\n}",
       "form": "unclassified-evidence",
       "id": "api/classDayAccessLog.RecordClassDayView",
@@ -1559,6 +1573,13 @@
       "evidence": "func (s traegerSchoolIDs) ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error) {\n\tids, err := s.organizations.ListTraegerSchoolIDs(ctx, organizationID)\n\tif errors.Is(err, organizationtenancy.ErrOrganizationInactive) || errors.Is(err, organizationtenancy.ErrOrganizationNotFound) {\n\t\treturn nil, traegerview.ErrTraegerUnavailable\n\t}\n\treturn ids, err\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerSchoolIDs.ListTraegerSchoolIDs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a weekProtocolSeedAttendance) GroupDayAttendance(ctx context.Context, _ calendar.Date, groupIDs []int64) ([]timetableModule.WeekProtocolGroupDay, error) {\n\treturn a.source.GroupDayAttendance(ctx, a.today(), groupIDs)\n}",
+      "form": "unclassified-evidence",
+      "id": "api/weekProtocolSeedAttendance.GroupDayAttendance",
       "owner": "roots"
     },
     {
@@ -3799,6 +3820,13 @@
       "evidence": "func (e bookingEnrollment) SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error) {\n\tvalues, err := e.owner.RequestChildOfferingsAtDate(ctx, childID, enrollmentOwner.Date(on))\n\treturn BookedOfferings(values), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingEnrollment.SelectionsAt",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (e bookingEnrollment) StudentSelectionsAt(ctx context.Context, studentID int64, on calendar.Date) ([]careplan.BookedOffering, error) {\n\tselections, err := e.owner.ApprovedSelectionsForStudents(ctx, []int64{studentID}, enrollmentOwner.Date(on), enrollmentOwner.Date(on))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tvalues := make([]*enrollmentOwner.RequestChildOffering, 0, len(selections))\n\tfor _, selection := range selections {\n\t\tif selection != nil \u0026\u0026 selection.StudentID == studentID {\n\t\t\tvalues = append(values, selection.Selection)\n\t\t}\n\t}\n\treturn BookedOfferings(values), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/bookingEnrollment.StudentSelectionsAt",
       "owner": "roots"
     },
     {

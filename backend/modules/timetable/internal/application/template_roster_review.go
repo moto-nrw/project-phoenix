@@ -64,6 +64,45 @@ func (r *templateRosterReview) FutureRosters(ctx context.Context, templateIDs []
 	return result, nil
 }
 
+// PlannedRosters reads the enrollment rows and the target members of all
+// templates at once (#5343).
+func (r *templateRosterReview) PlannedRosters(ctx context.Context, templateIDs []int64) (map[int64]timetable.TemplatePlannedRoster, error) {
+	result := make(map[int64]timetable.TemplatePlannedRoster, len(templateIDs))
+	if len(templateIDs) == 0 {
+		return result, nil
+	}
+	enrollments, err := r.futureRosterEnrollments(ctx, templateIDs)
+	if err != nil {
+		return nil, err
+	}
+	members, err := r.templates.deps.ActivityGroupRepo.ListTargetStudentIDs(ctx, templateIDs)
+	if err != nil {
+		return nil, &ports.ScheduleError{Op: "planned rosters: load target students", Err: err}
+	}
+	for _, templateID := range templateIDs {
+		roster := timetable.TemplatePlannedRoster{TargetStudentIDs: members[templateID]}
+		for _, row := range enrollments[templateID] {
+			roster.Entries = append(roster.Entries, plannedRosterEntry(row))
+		}
+		result[templateID] = roster
+	}
+	return result, nil
+}
+
+func plannedRosterEntry(row *activityContract.StudentEnrollment) timetable.TemplateRosterEntry {
+	entry := timetable.TemplateRosterEntry{
+		StudentID: row.StudentID, CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday,
+		SelectedWeekdays: slices.Clone(row.SelectedWeekdays),
+	}
+	if !row.ValidFrom.IsZero() {
+		entry.ValidFrom = new(calendar.Date(row.ValidFrom))
+	}
+	if row.ValidUntil != nil {
+		entry.ValidUntil = new(calendar.Date(*row.ValidUntil))
+	}
+	return entry
+}
+
 // futureRosterEnrollments lists the enrollment rows of the templates without
 // the children who left the school.
 func (r *templateRosterReview) futureRosterEnrollments(ctx context.Context, templateIDs []int64) (map[int64][]*activityContract.StudentEnrollment, error) {

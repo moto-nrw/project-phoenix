@@ -133,6 +133,9 @@ type GuardianDirectory interface {
 // context carries; the public validate and accept routes hold the
 // administrative transaction.
 type GuardianInvitationStore interface {
+	// LockGuardianAccountEmail serializes guardian provisioning across schools,
+	// including when no account row exists. Held until the caller's transaction ends.
+	LockGuardianAccountEmail(ctx context.Context, email string) error
 	FindGuardianInvitation(ctx context.Context, id int64) (domain.GuardianInvitation, bool, error)
 	FindGuardianInvitationByToken(ctx context.Context, token string) (domain.GuardianInvitation, bool, error)
 	ListGuardianInvitationsByProfile(ctx context.Context, guardianProfileID int64) ([]domain.GuardianInvitation, error)

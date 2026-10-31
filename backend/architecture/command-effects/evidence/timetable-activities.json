@@ -5609,6 +5609,22 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceBetween",
+      "binding_digest": "324ffd4454a1ce0447df8e307e1d2876",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceBetween",
+      "target_owner": "student-presence"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "binding_digest": "6221eabae34b8dd4461e65b3dc6bb6f3",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceBetween",
+      "target_owner": "student-presence"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.MorningAttendanceOn",
       "binding_digest": "c537206b2cc1e20820eeb33ef3a332c8",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.MorningAttendanceOn",
@@ -7385,6 +7401,38 @@
       "target_owner": "school-membership"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "binding_digest": "3acd27bc166b4984b40c71e797efc899",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.RunWeekProtocolEvening",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "binding_digest": "051ad0d61f59d9d4e12fd7323b161da0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.RunWeekProtocolEvening",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "binding_digest": "4bf20efb0b3ac4553d33350cdeff1344",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.RunWeekProtocolEvening",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "binding_digest": "89039792be4680fd999b501486ad81dc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.RunWeekProtocolEvening",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.UpdateActivityInstance",
       "binding_digest": "f8c79a544e4e468d4ce676665468fced",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Capability.UpdateActivityInstance",
@@ -7946,7 +7994,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
-      "binding_digest": "bd1c204457d003a81374c8dfaad5eac1",
+      "binding_digest": "36e229e975b235cf41e1181acc848b73",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings",
@@ -7954,7 +8002,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
-      "binding_digest": "84a16ba465ab08a431fbe4fa46f9ca5e",
+      "binding_digest": "15baac297403eec52f1b967b8fb92f28",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.OfferingWeekdayBookings",
@@ -7962,7 +8010,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
-      "binding_digest": "b2cd77adb0c29439f04301f1a804d9c7",
+      "binding_digest": "60ddcfa6c146c1c269f321b37ac53191",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings",
@@ -8191,6 +8239,38 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.Owner.FindStaffForMutation",
       "target_owner": "school-membership"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.RunWeekProtocolEvening",
+      "binding_digest": "3acd27bc166b4984b40c71e797efc899",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.RunWeekProtocolEvening",
+      "binding_digest": "051ad0d61f59d9d4e12fd7323b161da0",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.RunWeekProtocolEvening",
+      "binding_digest": "4bf20efb0b3ac4553d33350cdeff1344",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
+      "target_owner": "school-structure"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.RunWeekProtocolEvening",
+      "binding_digest": "89039792be4680fd999b501486ad81dc",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.Owner.RunWeekProtocolEvening",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.UpdateActivityInstance",
@@ -9689,6 +9769,62 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "binding_digest": "5e9b7778d16ad3ce5b1725ee0523b5e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "binding_digest": "296cb42e362cdd433ac81debaf7500cf",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "binding_digest": "77c1553af9eb366c3233eacf263699b4",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "binding_digest": "b91ebe2abbad34e99a468839b552a61a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "binding_digest": "45f9bf0244c9358ad546ab9fc349275f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "binding_digest": "b695db2e331d6127d3569a3beaf02b74",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateRosterReview.PlannedRosters",
+      "binding_digest": "c043fcc0bc0ddc43f4c2f40e1ebc6cda",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateRosterReview.PlannedRosters",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.timetableCommands.BlockDisplayMetadata",
       "binding_digest": "a95060c05ca2fce383674f3ce5a3552f",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TimetableDataCapability.BlockDisplayMetadata",
@@ -10487,6 +10623,30 @@
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAttendance.GroupDayAttendance",
+      "binding_digest": "b29c7afdb68db42d3b7ce48a451bcf02",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
+      "target_owner": "presence-legacy-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolSeedAttendance.GroupDayAttendance",
+      "binding_digest": "cd956a2dfe6769783f3030c76a00eac6",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolAttendance.GroupDayAttendance",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/presenceprojection/http.Resource.GroupDayLogs",
+      "target_owner": "presence-legacy-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.RecordReports.RenderReport",
+      "binding_digest": "d5d70a2681e3724a795af2869aa2855f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.WeekProtocolRenderer.RenderReport",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists.RecordRenderer.RenderRecords",
+      "target_owner": "document-rendering"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.ActivityService.AddSupervisor",
@@ -11975,6 +12135,54 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.SchoolDayHintQuery.ListSchoolDayHints",
       "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAccessLog.RecordWeekProtocolAccess",
+      "binding_digest": "be0246af1f0d9c05630e3663a88179ea",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolAccessLog.RecordWeekProtocolAccess",
+      "source_owner": "timetable-activities",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAccessLog.RecordWeekProtocolAccess",
+      "binding_digest": "8c02753ca18326251cc3270c94953f5f",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolAccessLog.RecordWeekProtocolAccess",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAccessLog.RecordWeekProtocolAccess",
+      "binding_digest": "2c494eb333af7f0dc7deaf204743e10b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolAccessLog.RecordWeekProtocolAccess",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.weekProtocolAccessLog.RecordWeekProtocolAccess",
+      "binding_digest": "66fe5392cb3c27c012435c2b5436f383",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolAccessLog.RecordWeekProtocolAccess",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
+      "target_owner": "audit-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.HasCurrentStaff",
+      "binding_digest": "d0dec710ce5fb6b08baa4faabc5956c8",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolCaller.HasCurrentStaff",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.HasCurrentStaff",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.MyGroupIDs",
+      "binding_digest": "7ddf66295846406eed4524048308e327",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/http.WeekProtocolCaller.MyGroupIDs",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.CallerContext.MyGroupIDs",
+      "target_owner": "identity-access"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/roots/owners.CallerRows.CurrentPersonName",

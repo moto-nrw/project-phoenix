@@ -53,3 +53,71 @@ func TestCollectOfferingWeekdayBookingsServiceWindow(t *testing.T) {
 		})
 	}
 }
+
+// TestCollectOfferingWeekdayBookingsClassDay: the Klassentag applies to an
+// offering of a school-year phase without holiday care only (#5343); the
+// pickup times travel keyed by ISO weekday.
+func TestCollectOfferingWeekdayBookingsClassDay(t *testing.T) {
+	t.Parallel()
+	start := calendar.NewDate(2026, 11, 2)
+	end := calendar.NewDate(2027, 1, 29)
+	for _, tc := range []struct {
+		name          string
+		schoolYear    bool
+		holidayCare   bool
+		wantClassDays bool
+	}{
+		{name: "school year", schoolYear: true, wantClassDays: true},
+		{name: "school year with holiday care", schoolYear: true, holidayCare: true},
+		{name: "holiday or custom phase", schoolYear: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			phase := careplan.OfferingPhase{ServiceStart: start, ServiceEnd: end, SchoolYear: tc.schoolYear}
+			offering := &careplan.CareOffering{
+				DaysOfWeekMode: daysOfWeekModeFixed, AvailableDays: []string{"mon", "tue"}, IncludesHolidayCare: tc.holidayCare,
+				PickupTimes: map[string]string{"mon": "12:45", " TUE ": " 13:30 ", "wed": "", "xyz": "14:00"},
+			}
+			bookings := collectOfferingWeekdayBookings(
+				map[int64]*careplan.CareOffering{offering.ID: offering},
+				map[int64]careplan.OfferingPhase{phase.ID: phase},
+				[]ports.ApprovedOfferingChild{{Link: careplan.BookedOffering{CareOfferingID: offering.ID}}},
+				start, nil,
+			)
+			require.Len(t, bookings, 1)
+			assert.Equal(t, tc.wantClassDays, bookings[0].ClassDayApplies)
+			assert.Equal(t, map[int]string{1: "12:45", 2: "13:30"}, bookings[0].PickupTimes)
+		})
+	}
+}
+
+// TestCollectOfferingWeekdayBookingsHolidayPhase (#5139): a booking carries
+// whether its offering's phase is of the kind Ferienbetreuung. The
+// offering's own holiday-care flag does not count: Ganztag including holiday
+// care in a school-year phase stays a school-year booking.
+func TestCollectOfferingWeekdayBookingsHolidayPhase(t *testing.T) {
+	t.Parallel()
+	start, end := calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 7, 31)
+	schoolYear := careplan.OfferingPhase{ID: 1, ServiceStart: start, ServiceEnd: end}
+	holiday := careplan.OfferingPhase{ID: 2, ServiceStart: calendar.NewDate(2026, 10, 12), ServiceEnd: calendar.NewDate(2026, 10, 23), Holiday: true}
+	ganztag := &careplan.CareOffering{ID: 11, PhaseID: schoolYear.ID, DaysOfWeekMode: daysOfWeekModeFixed, AvailableDays: []string{"mon"}, IncludesHolidayCare: true}
+	ferien := &careplan.CareOffering{ID: 12, PhaseID: holiday.ID, DaysOfWeekMode: daysOfWeekModeFixed, AvailableDays: []string{"mon"}, IncludesHolidayCare: true}
+
+	bookings := collectOfferingWeekdayBookings(
+		map[int64]*careplan.CareOffering{ganztag.ID: ganztag, ferien.ID: ferien},
+		map[int64]careplan.OfferingPhase{schoolYear.ID: schoolYear, holiday.ID: holiday},
+		[]ports.ApprovedOfferingChild{
+			{StudentID: 21, Link: careplan.BookedOffering{CareOfferingID: ganztag.ID}},
+			{StudentID: 21, Link: careplan.BookedOffering{CareOfferingID: ferien.ID}},
+		},
+		calendar.NewDate(2026, 9, 1), nil,
+	)
+
+	require.Len(t, bookings, 2)
+	byOffering := map[int64]careplan.OfferingWeekdayBooking{}
+	for _, booking := range bookings {
+		byOffering[booking.OfferingID] = booking
+	}
+	assert.False(t, byOffering[ganztag.ID].HolidayPhase, "Ganztag including holiday care stays suggestible")
+	assert.True(t, byOffering[ferien.ID].HolidayPhase)
+}

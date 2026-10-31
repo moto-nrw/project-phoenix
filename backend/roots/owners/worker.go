@@ -59,19 +59,15 @@ func NewWorker(
 	calendarApp calendarCompose.Application, notifications DeliveryNotifications, usage deliveryCompose.PWAUsageService,
 	staffMessaging communication.StaffMessagingRuntime, outbox *deliveryModule.Worker, reminders reminder.Module,
 	fileStore filestorageModule.Capability, announcements communication.ParentAnnouncementCapability, mealPlan mealplanModule.Capability, schoolNames SchoolNamesPublisher,
-	plannedExits PlannedStaffExitsBuilder,
+	plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker billing: %w", err)
 	}
-	lease, err := newWorkerLease(db.UnitOfWork())
+	lease, runtime, err := newWorkerRuntime(db.UnitOfWork())
 	if err != nil {
-		return nil, fmt.Errorf("compose worker lease: %w", err)
-	}
-	runtime, err := schedulerRuntimeCompose.NewTenantRuntime(db.UnitOfWork())
-	if err != nil {
-		return nil, fmt.Errorf("compose worker tenant runtime: %w", err)
+		return nil, err
 	}
 	resolver, err := schedulerSettings(settings)
 	if err != nil {
@@ -146,7 +142,8 @@ func NewWorker(
 		InstanceStudentRepo:          timetableRepos.ParticipantCheckouts(),
 		StudentStatusDayRepo:         NewStudentStatusDayRepository(carePlan),
 		OverdueBroadcaster:           newSchedulerOverdueBroadcaster(hub),
-		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), PayrollDispatch: workforce.PayrollDispatch.RunDue,
+		StudentLifecycleRepo:         schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
+		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
 		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, carePlan, services.Users, accessLog), PlannedStaffExits: plannedExits(identity, notifications, people.Staff),
 	})
 }

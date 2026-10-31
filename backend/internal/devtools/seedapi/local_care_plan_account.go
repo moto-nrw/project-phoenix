@@ -2,10 +2,7 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net"
-	"net/url"
 )
 
 const localCarePlanAccountKey = "nachbearbeitung-ohne-planung"
@@ -35,15 +32,7 @@ func (seedLocalCarePlanAccountStep) Name() string {
 }
 
 func (s seedLocalCarePlanAccountStep) enabled() bool {
-	if s.seeder.options.StandingDemo || s.seeder.options.VisitorFirstName != "" {
-		return false
-	}
-	u, err := url.Parse(s.seeder.client.baseURL)
-	if err != nil {
-		return false
-	}
-	host := u.Hostname()
-	return host == "localhost" || net.ParseIP(host).IsLoopback()
+	return localSeedAccountsEnabled(s.seeder.client.baseURL, s.seeder.options)
 }
 
 func (s seedLocalCarePlanAccountStep) Run(ctx context.Context, rt *Runtime) error {
@@ -67,7 +56,7 @@ func (s seedLocalCarePlanAccountStep) Run(ctx context.Context, rt *Runtime) erro
 		// Keep the scoped prefix shorter than demo20- of the existing staff.
 		username = "np-" + fs.accountScope
 	}
-	raw, err := rt.Client.Post("/auth/register", map[string]any{
+	account, err := registerSeedStaffAccount(rt, map[string]any{
 		"email": email, "username": username,
 		"password": password, "confirm_password": password,
 		"first_name": "Testkonto", "last_name": "Nachbearbeitung",
@@ -76,24 +65,10 @@ func (s seedLocalCarePlanAccountStep) Run(ctx context.Context, rt *Runtime) erro
 	if err != nil {
 		return fmt.Errorf("register local care-plan account: %w", err)
 	}
-	var account struct {
-		Data struct {
-			ID             int64 `json:"id"`
-			SchoolIdentity *struct {
-				StaffID int64 `json:"staff_id,string"`
-			} `json:"school_identity"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(raw, &account); err != nil {
-		return fmt.Errorf("decode local care-plan account: %w", err)
-	}
-	if account.Data.ID <= 0 || account.Data.SchoolIdentity == nil || account.Data.SchoolIdentity.StaffID <= 0 {
-		return fmt.Errorf("local care-plan account was created without a staff identity")
-	}
 	s.seeder.localCarePlanAccount = &AccountCredentials{
-		Key: localCarePlanAccountKey, AccountID: account.Data.ID,
+		Key: localCarePlanAccountKey, AccountID: account.AccountID,
 		Email: email, Password: password, Name: "Testkonto Nachbearbeitung",
-		StaffID: account.Data.SchoolIdentity.StaffID,
+		StaffID: account.StaffID,
 	}
 	return nil
 }

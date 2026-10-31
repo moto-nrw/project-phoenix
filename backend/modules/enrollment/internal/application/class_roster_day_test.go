@@ -139,3 +139,22 @@ func TestSchoolRosterDayBuildsEveryClassOnce(t *testing.T) {
 	}
 	assert.Equal(t, map[string]string{"Anders": "1a", "Becker": "2b", "Cramer": "2b"}, classes)
 }
+
+func TestClassReportChildrenReadsOnlyNamesInSelectedClass(t *testing.T) {
+	t.Parallel()
+	service := NewReports(ReportDependencies{
+		Students: &fakeClassRosterStudentRepo{students: []*RosterStudent{
+			{ID: 1, PersonID: 11, SchoolClass: "3a"},
+			{ID: 2, PersonID: 12, SchoolClass: "3b"},
+		}},
+		Persons: &fakeClassRosterPersonRepo{persons: map[int64]*RosterPerson{
+			11: {FirstName: "Anna", LastName: "Arndt"},
+		}},
+	})
+	children, err := service.ClassReportChildren(context.Background(), "3a")
+	require.NoError(t, err)
+	require.Equal(t, []enrollment.ClassReportChild{{StudentID: 1, FirstName: "Anna", LastName: "Arndt"}}, children)
+	service.deps.Persons = &fakeClassRosterPersonRepo{}
+	_, err = service.ClassReportChildren(context.Background(), "3a")
+	require.ErrorContains(t, err, "person missing")
+}

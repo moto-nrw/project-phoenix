@@ -53,6 +53,11 @@ var classDayExportColumns = map[classday.ExportColumnID]lists.ColumnID{
 	classday.ExportColumnPlannedPickup:  lists.ColumnPlannedPickup,
 	classday.ExportColumnPresenceStatus: lists.ColumnPresenceStatus,
 	classday.ExportColumnChecklist:      lists.ColumnChecklist,
+	// The absence list's counts (#4793) are plain columns of their own.
+	classday.ExportColumnAbsentDays:      lists.ColumnID(classday.ExportColumnAbsentDays),
+	classday.ExportColumnExcusedDays:     lists.ColumnID(classday.ExportColumnExcusedDays),
+	classday.ExportColumnUnexcusedDays:   lists.ColumnID(classday.ExportColumnUnexcusedDays),
+	classday.ExportColumnNotRecordedDays: lists.ColumnID(classday.ExportColumnNotRecordedDays),
 }
 
 var classDayExportFormats = map[classday.Format]lists.Format{

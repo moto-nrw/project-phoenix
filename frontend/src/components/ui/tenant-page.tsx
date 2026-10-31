@@ -316,7 +316,12 @@ export function TenantPageStats({
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
       {items.slice(0, MAX_STATS_ITEMS).map((item, index) => (
-        <span key={item.label} className="inline-flex items-center gap-1.5">
+        // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
+        // die Position macht den Schlüssel eindeutig.
+        <span
+          key={`${index}-${item.label}`}
+          className="inline-flex items-center gap-1.5"
+        >
           {index > 0 && (
             <span aria-hidden="true" className="text-gray-300">
               ·

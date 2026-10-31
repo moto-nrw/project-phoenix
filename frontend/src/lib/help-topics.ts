@@ -72,6 +72,7 @@ export const HELP_TOPICS = {
   dayLog: "betreuungstag-pruefen",
   ownGroups: "meine-gruppen",
   transferGroup: "gruppe-uebergeben",
+  weekProtocol: "wochenprotokoll-ergaenzen",
   rooms: "raeume-und-belegung",
   activeSupervision: "aktuelle-aufsicht",
   homeworkFeedback: "rueckmeldung-zu-hausaufgaben-geben",
@@ -237,6 +238,7 @@ export const HELP_TOPICS = {
   teacherArrivalChange: "ankunftszeit-meiner-klasse-aendern",
   teacherClassTrip: "ausflug-oder-klassenfahrt-melden",
   teacherAbsenceReport: "meldung-fuer-ein-fehlendes-kind-nachtragen",
+  teacherAbsenceList: "fehlzeiten-einer-klasse-ansehen",
   teacherDayHint: "der-ogs-einen-hinweis-fuer-heute-geben",
   teacherSharedNotes: "beobachtungen-der-ogs-lesen",
   teacherSupervision: "meine-aufsichten-ansehen",
@@ -262,6 +264,7 @@ const EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/tagesplan": HELP_TOPICS.dayPlan,
   "/ogs-groups": HELP_TOPICS.ownGroups,
   "/ogs-groups/overview": HELP_TOPICS.ownGroups,
+  "/wochenprotokolle": HELP_TOPICS.weekProtocol,
   "/active-supervisions": HELP_TOPICS.activeSupervision,
   "/absences": HELP_TOPICS.absences,
   "/day-log": HELP_TOPICS.dayLog,
@@ -325,6 +328,7 @@ const PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/rooms", HELP_TOPICS.rooms],
   ["/team-chat", HELP_TOPICS.teamChat],
   ["/umfragen", HELP_TOPICS.leadSurveys],
+  ["/wochenprotokolle", HELP_TOPICS.weekProtocol],
   // Der erste Treffer gewinnt, nicht der längste: die Unterbereiche der
   // Datenverwaltung müssen vor `/database` stehen.
   ["/database/students/class-list", HELP_TOPICS.leadClassListEntries],
@@ -384,6 +388,7 @@ const SCHOOL_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/aufsichten": HELP_TOPICS.teacherSupervision,
   "/tagesinformationen": HELP_TOPICS.teacherNotices,
   "/kalender": HELP_TOPICS.teacherCalendar,
+  "/fehlzeiten": HELP_TOPICS.teacherAbsenceList,
   "/einstellungen": HELP_TOPICS.teacherSettings,
 };
 

@@ -254,6 +254,8 @@ import type { tagAssignmentTopic as authored_tagAssignmentTopic } from "./articl
 
 import type { targetOverrideTopic as authored_targetOverrideTopic } from "./articles/target-override";
 
+import type { teacherAbsenceListTopic as authored_teacherAbsenceListTopic } from "./articles/teacher-absence-list";
+
 import type { teacherAbsenceReportTopic as authored_teacherAbsenceReportTopic } from "./articles/teacher-absence-report";
 
 import type { teacherAccessTopic as authored_teacherAccessTopic } from "./articles/teacher-access";
@@ -339,6 +341,8 @@ import type { transferGroupTopic as authored_transferGroupTopic } from "./articl
 import type { vacationTopic as authored_vacationTopic } from "./articles/vacation";
 
 import type { webAttendanceTopic as authored_webAttendanceTopic } from "./articles/web-attendance";
+
+import type { weekProtocolTopic as authored_weekProtocolTopic } from "./articles/week-protocol";
 
 import type { workTimeHintsTopic as authored_workTimeHintsTopic } from "./articles/work-time-hints";
 
@@ -3704,18 +3708,18 @@ export const leadMissingMenuTopic = function leadMissingMenuTopic(): HelpTopic {
 /**
  * Regeltermine, deren Kinderliste von den Anmeldungen abweicht (#5103):
  * Hinweis an der Karte, „Zu prüfen“, „Mit Angebot verbinden“ mit Vorschau
- * und „Bleibt von Hand gepflegt“. Beschriftungen aus
+ * und „Bleibt von Hand gepflegt“; mehrere Angebote zusammen (#5139). Beschriftungen aus
  * roster-deviation-hint.tsx, template-list.tsx, connect-offering-modal.tsx.
  */
 export const leadRosterDeviationTopic =
   function leadRosterDeviationTopic(): HelpTopic {
     return {
       id: HELP_TOPICS.leadRosterDeviation,
-      title: "Regeltermin mit einem Angebot verbinden",
+      title: "Regeltermin mit Angeboten verbinden",
       question:
         "Warum passt die Kinderliste eines Regeltermins nicht zu den Anmeldungen?",
       summary:
-        "moto zeigt, wenn ein Regeltermin Kinder ohne Buchung hat. Mit einem Angebot verbunden, folgt die Kinderliste den Anmeldungen.",
+        "moto zeigt, wenn die Kinderliste eines Regeltermins nicht zu den Anmeldungen passt. Mit Angeboten verbunden, folgt die Kinderliste den Anmeldungen.",
       group: "planung",
       audience: "lead",
       icon: "ListChecks",
@@ -3726,30 +3730,37 @@ export const leadRosterDeviationTopic =
       steps: [
         "Öffnen Sie `Betreuungsplan` und wählen Sie oben `Serien`.",
         "Wählen Sie `Zu prüfen`. Dann sehen Sie nur Regeltermine mit dem Hinweis `Weicht von Anmeldungen ab`.",
-        "Lesen Sie den Hinweis. Er nennt die Kinder ohne Buchung und das passende Angebot.",
+        "Lesen Sie den Hinweis. Er nennt die passenden Angebote und die Kinder, die dort nicht angemeldet sind.",
         "Wählen Sie `Mit Angebot verbinden`.",
-        "Prüfen Sie Angebot und Kinder. Die Vorschau zeigt für jeden Wochentag, wer dazukommt und wer wegfällt.",
+        "Prüfen Sie unter `Angebote` die gewählten Angebote. Sie können weitere Angebote dazu wählen oder abwählen.",
+        "Prüfen Sie die Vorschau. Sie zeigt für jeden Wochentag, wer dazukommt und wer wegfällt.",
         "Wählen Sie `Verbinden`.",
       ],
       result:
         "Der Regeltermin zeigt `Automatisch`. An- und Abmeldungen im Angebot kommen ab dem nächsten Termin von selbst in die Kinderliste.",
       notes: [
+        // #5139: mehrere Angebote zusammen als Quelle.
+        "Passen mehrere Angebote zusammen, etwa `Randstunde` und `Ganztag`? Dann schlägt moto beide vor. Ein Kind kommt, wenn es für eines davon angemeldet ist. So fällt kein Ganztagskind aus der Randstunde.",
+        "Angebote einer Anmeldephase für die Ferienbetreuung schlägt moto nie vor. Brauchen Sie eines davon, wählen Sie es in `Mit Angebot verbinden` unter `Angebote` selbst aus.",
         "Pflegen Sie die Kinder bewusst selbst? Wählen Sie `Bleibt von Hand gepflegt`. Dann verschwindet der Hinweis für diesen Regeltermin.",
         "Den Hinweis holen Sie zurück: Öffnen Sie einen Termin des Regeltermins und wählen Sie `Hinweis wieder zeigen`.",
         "`Manuell` heißt: An- und Abmeldungen werden nicht übernommen. Die Kinder pflegen Sie selbst.",
         "Die Startseite zeigt die Aufgabe `Regeltermine prüfen`, solange ein Regeltermin abweicht.",
         "Wechseln Sie beim Bearbeiten die `Zielgruppe` auf `Angebot`, zeigt moto dieselbe Vorschau pro Wochentag.",
-        "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot. Passen mehrere Angebote, wählen Sie eins davon aus.",
-        "Haben Kinder ein Angebot gebucht, aber kein Regeltermin übernimmt sie? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
+        "Beim Anlegen eines Regeltermins schlägt moto ein passendes Angebot vor. Mit `Angebot übernehmen` verbinden Sie den neuen Regeltermin gleich mit dem Angebot. Schlägt moto mehrere Angebote zusammen vor, heißt der Knopf `Angebote übernehmen`.",
+        "Passen beim Anlegen mehrere Angebotskombinationen gleich gut? Wählen Sie einen der Knöpfe mit den Angebotsnamen. Er übernimmt alle dort genannten Angebote zusammen.",
+        "Haben Kinder ein Angebot gebucht, aber an manchen Tagen keinen passenden Regeltermin? Dann steht über den Regelterminen die Liste `Angebote ohne Regeltermin`. Jede Zeile nennt Angebot, Klassen und Wochentage. Wählen Sie `Regeltermin anlegen`: Der neue Regeltermin übernimmt die Kinder dieses Angebots aus den genannten Klassen. Oder verbinden Sie einen bestehenden Regeltermin mit dem Angebot.",
         "Brauchen diese Kinder bewusst keinen eigenen Regeltermin? Wählen Sie `Kein Regeltermin nötig`. Das gilt für den gewählten Zeitraum. Der Hinweis kommt wieder, sobald Kinder einer anderen Klasse betroffen sind. Das gilt auch für Ferienangebote.",
         "Diesen Hinweis holen Sie zurück: Klappen Sie `Ohne eigenen Regeltermin` auf und wählen Sie `Hinweis wieder zeigen`.",
+        // #5343: Klassen-Regeltermine und Ankunftszeit der Klasse zählen mit.
+        "Die Liste nennt nur Kinder, die an diesen Tagen auf keinem passenden Regeltermin stehen. Kommt die Klasse laut ihrer Ankunftszeit erst zur Abholzeit des Angebots, fehlt das Kind auch. Fehlt der Knopf, sind einige dieser Kinder schon ganz oder teilweise eingeplant oder haben noch Unterricht. Prüfen Sie dann ihre Regeltermine und ergänzen Sie, was fehlt.",
         // #5137: Weg aus der Rückmeldung nach einer Buchungsänderung.
         "Nach einer Abmeldung führt `Mit Angebot verbinden` in der Rückmeldung direkt zu diesem Schritt. Findet moto kein passendes Angebot, öffnet sich der Regeltermin zum Bearbeiten. Wechseln Sie im Schritt `Personal und Kinder` die `Zielgruppe` auf `Angebot`.",
       ],
       differences: [
         "Hat der Regeltermin mehrere Abschnitte, etwa nach einer Änderung `Ab jetzt dauerhaft`? `Mit Angebot verbinden` stellt alle Termine ab dem nächsten Termin um. Das Bearbeiten ändert nur einen Abschnitt; die Vorschau nennt dann die Tage, die gleich bleiben.",
-        // #5138: Bei Klasse oder Jahrgang passen oft mehrere Angebote gleich gut.
-        "Nennt der Hinweis mehrere Angebote und keine Zahl? Dann passen mehrere Angebote gleich gut, oft bei einer ganzen Klasse oder Jahrgangsstufe. moto wählt keins vor. Wählen Sie in `Mit Angebot verbinden` unter `Angebot` das passende aus.",
+        // #5138: Passen Angebote gleich gut, wählt die Schule.
+        "Nennt der Hinweis Angebote mit „oder“ und keine Zahl? Dann passen mehrere Angebote gleich gut. moto wählt keins vor. Wählen Sie in `Mit Angebot verbinden` unter `Angebote` die passenden aus.",
         "Sie sehen keine Knöpfe am Hinweis? Dann dürfen Sie den Plan nur ansehen.",
       ],
       related: [HELP_TOPICS.leadCarePlan, HELP_TOPICS.leadEnrollmentSetup],
@@ -8110,6 +8121,55 @@ export const targetOverrideTopic = function targetOverrideTopic(): HelpTopic {
 } satisfies typeof authored_targetOverrideTopic;
 
 /**
+ * `/school/fehlzeiten` (#4793): Fehltage je Kind einer Klasse in einem
+ * Zeitraum, mit Export als PDF oder Excel.
+ */
+export const teacherAbsenceListTopic =
+  function teacherAbsenceListTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.teacherAbsenceList,
+      title: "Fehlzeiten einer Klasse ansehen",
+      question: "Wie viele Tage hat ein Kind gefehlt?",
+      summary:
+        "Unter `Fehlzeiten` stehen die Fehltage je Kind, für Klassenbuch und Zeugnis.",
+      group: "klasse",
+      audience: "teacher",
+      icon: "ClipboardList",
+      steps: [
+        "Öffnen Sie `Fehlzeiten`.",
+        "Wählen Sie die Klasse.",
+        "Prüfen Sie `Von` und `Bis`. Vorgewählt ist das laufende Halbjahr.",
+        "Lesen Sie je Kind die Fehltage, davon entschuldigt und unentschuldigt.",
+        "Wählen Sie bei Bedarf `Exportieren`. Wählen Sie `PDF` oder `Excel`.",
+      ],
+      result: "Sie sehen die Fehltage jedes Kindes im gewählten Zeitraum.",
+      notes: [
+        "Gezählt werden die Anwesenheit am Vormittag und die Meldungen.",
+        "Krank oder entschuldigt gemeldet zählt als entschuldigt. Auch eine Meldung der Schulverwaltung zählt.",
+        "Ein Kind war am Vormittag da, ist aber krank gemeldet? Dann zählt der Tag nicht als Fehltag.",
+        "Klassenfahrt ist kein Fehltag.",
+        "`Nicht erfasst` heißt: An diesem Schultag gibt es keinen Eintrag. Das ist kein Fehltag.",
+        "Es gibt nur ganze Tage. Ein halber Tag zählt nicht extra.",
+        "Kinder, deren Betreuung im Zeitraum endet, bleiben in der Liste. Gezählt werden nur ihre Betreuungstage.",
+        "Jeder Abruf und jeder Export wird protokolliert.",
+      ],
+      differences: [
+        "Die Schulverwaltung sieht alle Klassen. Eine Lehrkraft sieht nur ihre Klassen.",
+        "Kinder ohne eigenen Eintrag in moto stehen noch nicht in der Liste.",
+      ],
+      troubleshootingDetails: [
+        "Viele Tage `Nicht erfasst`? Dann fehlt die Anwesenheit am Vormittag. Tragen Sie sie jeden Morgen ein.",
+        "`Unvollständiger Zeitraum`? Ältere Anwesenheit oder Meldungen können bereits gelöscht sein. Die Liste und der Export zählen erst ab dem angegebenen Datum.",
+      ],
+      related: [
+        HELP_TOPICS.teacherMorningAttendance,
+        HELP_TOPICS.teacherAbsenceReport,
+        HELP_TOPICS.teacherNoClasses,
+      ],
+    };
+  } satisfies typeof authored_teacherAbsenceListTopic;
+
+/**
  * `Fehlen ohne Meldung` in der Tagesübersicht der Schulverwaltung
  * (`class-day-overview.tsx`, #4791): Meldung nachtragen und zurücknehmen.
  */
@@ -10326,6 +10386,72 @@ export const webAttendanceTopic = function webAttendanceTopic(
     ],
   };
 } satisfies typeof authored_webAttendanceTopic;
+
+/**
+ * Wochenprotokoll (#4769): moto hält jeden Abend den Tag der Gruppe fest. Ab
+ * Freitagabend ergänzt die Gruppenleitung die Woche und schließt sie ab.
+ */
+export const weekProtocolTopic = function weekProtocolTopic(
+  groupMode: HelpGroupMode,
+): HelpTopic {
+  // Ohne feste Gruppen gibt es ein Protokoll für die ganze Schule.
+  const openCare = groupMode === "open_care";
+  return {
+    id: HELP_TOPICS.weekProtocol,
+    title: "Das Wochenprotokoll ergänzen",
+    question: "Wie ergänze und schließe ich das Wochenprotokoll ab?",
+    summary: openCare
+      ? "moto schreibt jede Woche ein Protokoll für die ganze Schule. Sie ergänzen es und schließen es ab."
+      : "moto schreibt jede Woche ein Protokoll für jede Gruppe. Die Gruppenleitung ergänzt es und schließt es ab.",
+    group: "gruppen",
+    audience: ["caregiver", "lead"],
+    icon: "Notebook",
+    requirements: [
+      openCare
+        ? "Sie arbeiten im Team der Schule."
+        : "Sie leiten die Gruppe oder vertreten sie. Die Leitung sieht die Protokolle aller Gruppen.",
+    ],
+    steps: [],
+    instructionGroups: [
+      {
+        title: "Das Protokoll öffnen",
+        steps: [
+          ...(openCare
+            ? [
+                "Klappen Sie in der Seitenleiste `Planung` auf und öffnen Sie `Wochenprotokolle`.",
+              ]
+            : [
+                "Öffnen Sie Ihre Gruppe unter `Gruppen`.",
+                "Wählen Sie oben `Weitere Aktionen` und dann `Wochenprotokolle`.",
+              ]),
+          "Wählen Sie die Woche.",
+        ],
+      },
+      {
+        title: "Ergänzen und abschließen",
+        steps: [
+          "Wählen Sie `Ergänzen`. Das geht ab Freitagabend.",
+          "Schreiben Sie bei einem Tag oder bei der Woche, was wichtig war.",
+          "Wählen Sie `Speichern`.",
+          "Wählen Sie `Abschließen` und bestätigen Sie mit `Abschließen`.",
+        ],
+      },
+    ],
+    result:
+      "Das Protokoll ist abgeschlossen und ändert sich nicht mehr. Mit `PDF herunterladen` laden Sie es als PDF.",
+    notes: [
+      "Jeden Abend hält moto fest, wer da war, wer fehlte und warum, welche Blöcke gelaufen oder ausgefallen sind und welche Tagesinformationen galten.",
+      "Gesundheitsangaben stehen nicht im Protokoll. Bei einem fehlenden Kind steht nur der Grund, wie in der Tagesauswertung.",
+      "Ältere Protokolle bleiben in der Liste. moto löscht sie nach der Frist für die Anwesenheit Ihrer Schule.",
+    ],
+    differences: [
+      "Steht oben `Woche läuft`? Dann ist die Woche noch nicht vorbei. Ab Freitagabend können Sie ergänzen.",
+      "Schließt niemand ab, schließt moto das Protokoll nach der folgenden Woche mit den bisherigen Ergänzungen ab.",
+      "Steht bei einem Tag `Dieser Tag wurde nicht festgehalten`? Dann fehlen die Zahlen für diesen Tag. Schreiben Sie das Wichtigste in die Ergänzung.",
+    ],
+    related: [HELP_TOPICS.ownGroups, HELP_TOPICS.dayLog],
+  };
+} satisfies typeof authored_weekProtocolTopic;
 
 // Hinweise zu Pausen und Höchstarbeitszeit (#4804). Nur Hinweise, sie sperren
 // nichts. Werte und Grenzen bewertet der Server.

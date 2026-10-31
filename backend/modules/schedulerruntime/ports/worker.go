@@ -61,6 +61,7 @@ type WorkerDependencies struct {
 	BookingConsistency        BookingConsistencyAudit
 	HolidayGuests             HolidayGuestReconciliation
 	PlannedStaffExits         PlannedStaffExits
+	WeekProtocols             WeekProtocolEvenings
 	PayrollDispatch           PayrollDispatch
 	MealOrders                MealOrderSettlement
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner

@@ -344,6 +344,21 @@ in the dev tools binary `cmd/devtools` (ADR 0060): run them with
 the demo image does. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
 
+Local `vollbetrieb` seeds against localhost also create the moto schule teacher
+Lena Weber with role `lehrkraft` and class `Klasse 1a` (OGS children). Find the login in
+the private `backend/.seed-state.json`, under
+`profiles.vollbetrieb.credentials.accounts.lehrkraft` (key `lehrkraft`).
+The account reuses the existing staff seed password, including
+`--staff-password`; do not publish the credential file. Sign in to moto schule
+with this account, not the OGS portal. The profile opens all school write
+scopes through tenant settings and seeds today’s class arrival exception,
+class and child hints for the OGS, and morning attendance through the school
+portal contracts. Today means the Europe/Berlin calendar day, including the
+profile’s Friday-based weekend plan. In the supervision view, the hints appear
+only after the child has checked in, either through `simulate full-day` or a
+check-in. Standing and visitor demos do not create this account or open
+school-portal writes.
+
 Local `vollbetrieb` seeds against localhost also create the separate role and
 account `nachbearbeitung-ohne-planung` (#5300). Find its login in
 `backend/.seed-state.json`, under

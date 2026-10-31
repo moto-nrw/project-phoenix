@@ -67,6 +67,8 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 			WHERE table_schema = 'audit' AND table_name = 'export_transfers' AND column_name = 'export_channel')`).Scan(ctx, &found))
 		return found
 	}
+	// Roll back the newer erasure before testing the payroll migration alone.
+	require.NoError(t, groupWeekProtocolsDown(ctx, db))
 	require.NoError(t, payrollDispatchesUp(ctx, db), "the migration is idempotent")
 	require.NoError(t, payrollDispatchesDown(ctx, db))
 	assert.False(t, exists())

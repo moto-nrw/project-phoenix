@@ -35,3 +35,28 @@ func TestOfferingGapTemplateIndependentLinks(t *testing.T) {
 		offeringGapTemplate(template, feeds, mondays),
 	}, bookings), "the independent direct link covers 3a without the source filter")
 }
+
+// Unusable links are still offering sources, never independent hand lists.
+func TestOfferingGapTemplateUnusableLinks(t *testing.T) {
+	t.Parallel()
+	cases := []struct {
+		name  string
+		feeds timetable.TemplateRosterMaintenance
+	}{
+		{name: "inactive", feeds: timetable.TemplateRosterMaintenance{InactiveOfferings: []timetable.OfferingRef{{ID: rosterReviewOfferingID}}}},
+		{name: "invalid", feeds: timetable.TemplateRosterMaintenance{InvalidOfferings: []timetable.OfferingRef{{ID: rosterReviewOfferingID}}}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			date := calendar.NewDate(2026, 10, 26)
+			template := offeringGapTemplate(templateResponse{Type: timetable.GroupTypeCare}, tc.feeds, []calendar.Date{date})
+			assert.True(t, template.HasOfferingSource)
+			template.Roster = &timetable.TemplatePlannedRoster{TargetStudentIDs: []int64{11}}
+			bookings := []timetable.OfferingWeekdayBooking{{OfferingID: rosterReviewOfferingID + 1, StudentID: 11, CountsAsCare: true, Weekdays: []int{1}}}
+			scope := timetable.OfferingGapScope{From: date, Until: date}
+			assert.Len(t, timetable.DetectOfferingGaps(scope, []timetable.OfferingGapTemplate{template}, bookings), 1,
+				"an unusable offering link must not hide another offering's gap without known times")
+		})
+	}
+}
