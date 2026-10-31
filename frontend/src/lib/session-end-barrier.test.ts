@@ -262,6 +262,87 @@ describe("session-end barrier", () => {
     expect(isSessionBarrierClosed()).toBe(true);
   });
 
+  // Final review of #5403: an exit path passes only for the logout attempt
+  // that sends it. Started before, it carried no abort signal, and its
+  // renewing or ending answer could write the cookie after its deletion.
+  it("aborts a push cleanup that started before the logout", async () => {
+    const cleanup = through("/api/parent/me/push/subscriptions", {
+      method: "DELETE",
+    });
+    await flush();
+
+    beginSessionEnd();
+
+    expect(sent[0]!.signal?.aborted).toBe(true);
+    await expect(cleanup).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("aborts a CSRF lookup that started before the logout and asks again", async () => {
+    const csrf = through("/api/auth/csrf");
+    await flush();
+
+    const end = beginSessionEnd();
+
+    expect(sent[0]!.signal?.aborted).toBe(true);
+    end.fail();
+    await vi.waitFor(() => expect(sent).toHaveLength(2));
+    sent[1]!.answer();
+    await csrf;
+  });
+
+  it("ends the exit's own requests with a failed attempt", async () => {
+    const end = beginSessionEnd();
+    const cleanup = through("/api/parent/me/push/subscriptions", {
+      method: "DELETE",
+    });
+    await flush();
+    expect(sent[0]!.signal?.aborted).toBe(false);
+
+    end.fail();
+
+    expect(sent[0]!.signal?.aborted).toBe(true);
+    await expect(cleanup).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("aborts the exit's push cleanup once the signout deleted the cookie", async () => {
+    beginSessionEnd({ keepClosed: true });
+    const cleanup = through("/api/notifications/push/subscriptions", {
+      method: "DELETE",
+    });
+    const signout = through("/api/auth/signout", { method: "POST" });
+    await flush();
+
+    sent[1]!.answer(Response.json({ url: "/" }));
+    await signout;
+
+    expect(sent[0]!.signal?.aborted).toBe(true);
+    await expect(cleanup).rejects.toMatchObject({ name: "AbortError" });
+  });
+
+  it("keeps telling the other tabs while its logout runs", async () => {
+    vi.useFakeTimers();
+    listenForSessionEnds();
+    const listener = new BroadcastChannel("moto-session-end");
+    const heard: string[] = [];
+    listener.onmessage = (event: MessageEvent<string>) =>
+      heard.push(event.data);
+    try {
+      const end = beginSessionEnd();
+      // CSRF or signout may hang far longer than the other tabs' hold.
+      await vi.advanceTimersByTimeAsync(40_000);
+      await vi.waitFor(() =>
+        expect(heard.filter((type) => type === "begin").length).toBe(9),
+      );
+
+      end.fail();
+      await vi.advanceTimersByTimeAsync(20_000);
+      await vi.waitFor(() => expect(heard.at(-1)).toBe("failed"));
+      expect(heard.filter((type) => type === "begin").length).toBe(9);
+    } finally {
+      listener.close();
+    }
+  });
+
   describe("another tab of this origin", () => {
     it("closes with the other tab's logout and opens when it reports the end", async () => {
       listenForSessionEnds();
@@ -292,6 +373,50 @@ describe("session-end barrier", () => {
 
       await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(false));
       tab.close();
+    });
+
+    it("stays closed while the other tab's logout still runs", async () => {
+      vi.useFakeTimers();
+      listenForSessionEnds();
+      const tab = otherTab();
+      try {
+        tab.post("begin");
+        await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
+        for (let beat = 0; beat < 6; beat++) {
+          await vi.advanceTimersByTimeAsync(5_000);
+          tab.post("begin");
+        }
+        await vi.advanceTimersByTimeAsync(5_000);
+
+        expect(isSessionBarrierClosed()).toBe(true);
+      } finally {
+        tab.close();
+      }
+    });
+
+    it("aborts what it sent after the hold ran out once the other tab ends", async () => {
+      vi.useFakeTimers();
+      listenForSessionEnds();
+      const tab = otherTab();
+      try {
+        tab.post("begin");
+        await vi.waitFor(() => expect(isSessionBarrierClosed()).toBe(true));
+        // The other tab went silent: the hold runs out.
+        await vi.advanceTimersByTimeAsync(15_000);
+        expect(isSessionBarrierClosed()).toBe(false);
+        const read = through("/api/auth/session");
+        await vi.waitFor(() => expect(sent).toHaveLength(1));
+
+        tab.post("ended");
+
+        await vi.waitFor(() => expect(sent[0]!.signal?.aborted).toBe(true));
+        // The read goes out again, now without the deleted cookie.
+        await vi.waitFor(() => expect(sent).toHaveLength(2));
+        sent[1]!.answer();
+        await read;
+      } finally {
+        tab.close();
+      }
     });
 
     it("keeps local ownership past the other tab's timeout", async () => {

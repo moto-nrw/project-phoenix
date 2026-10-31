@@ -17,9 +17,15 @@ import { isOwnApiUrl } from "./session-account";
  *    cleanup.
  * 3. The SessionProvider stops polling while it is closed
  *    (useSessionPollInterval).
- * 4. Other tabs of this origin close too (BroadcastChannel). They open once
- *    the owner reports the deleted cookie or the failed logout, or after
- *    OTHER_TAB_HOLD_MS should the owner vanish.
+ * 4. Other tabs of this origin close too (BroadcastChannel). The owner
+ *    repeats `begin` every HEARTBEAT_MS while its attempt runs, however long
+ *    CSRF or signout hang. Another tab opens only on the owner's `ended` or
+ *    `failed`, or OTHER_TAB_HOLD_MS after the owner's last `begin` (the owner
+ *    is gone). An `ended` also aborts what an open tab still has in flight:
+ *    those requests carry the cookie the signout just deleted.
+ * 5. The exit's own requests pass only while this tab's attempt runs, and
+ *    only for that attempt: started before the logout they are aborted like
+ *    any other request; they end with a failed attempt or the deleted cookie.
  *
  * The barrier opens again when the logout fails (the session stays, and
  * waiting requests continue with it) or, unless the owner keeps it closed for
@@ -30,22 +36,36 @@ import { isOwnApiUrl } from "./session-account";
  * server, against the backend.
  */
 
-/** Upper bound of a logout: revocation (5 s), CSRF and signout. */
+/** The owner's sign of life to the other tabs while its logout runs. */
+const HEARTBEAT_MS = 5_000;
+/** Three missed heartbeats: the owner is gone. */
 const OTHER_TAB_HOLD_MS = 15_000;
 
 let closedBy: "self" | "other" | null = null;
 let reopenAfterDeletion = true;
 let epoch = new AbortController();
+/** The current logout attempt: its exit requests carry this signal. */
+let attempt = new AbortController();
+let heartbeat: ReturnType<typeof setInterval> | undefined;
 const waiters = new Set<() => void>();
 let otherTabTimer: ReturnType<typeof setTimeout> | undefined;
 const listeners = new Set<() => void>();
 let channel: BroadcastChannel | undefined;
 
+function abortInFlight() {
+  epoch.abort();
+  epoch = new AbortController();
+}
+
+/** Ends this tab's attempt: no more heartbeats, its exit requests abort. */
+function endAttempt() {
+  clearInterval(heartbeat);
+  attempt.abort();
+}
+
 function setClosed(owner: typeof closedBy) {
-  if (owner) {
-    epoch.abort();
-    epoch = new AbortController();
-  } else {
+  if (owner) abortInFlight();
+  else {
     clearTimeout(otherTabTimer);
     for (const resume of waiters) resume();
     waiters.clear();
@@ -61,10 +81,14 @@ export function listenForSessionEnds() {
   channel.onmessage = ({ data }: MessageEvent<string>) => {
     if (closedBy === "self") return;
     if (data === "begin") {
-      setClosed("other");
+      if (!closedBy) setClosed("other");
       clearTimeout(otherTabTimer);
       otherTabTimer = setTimeout(setClosed, OTHER_TAB_HOLD_MS, null);
-    } else if (closedBy) setClosed(null);
+      return;
+    }
+    // Requests sent after the hold ran out carry the deleted cookie.
+    if (data === "ended") abortInFlight();
+    if (closedBy) setClosed(null);
   };
 }
 
@@ -95,14 +119,18 @@ export function beginSessionEnd({
 }: { keepClosed?: boolean } = {}): SessionEnd {
   listenForSessionEnds();
   clearTimeout(otherTabTimer);
+  endAttempt();
+  const current = (attempt = new AbortController());
   reopenAfterDeletion = !keepClosed;
   setClosed("self");
-  channel?.postMessage("begin");
-  let settled = false;
+  const beat = () => channel?.postMessage("begin");
+  beat();
+  heartbeat = setInterval(beat, HEARTBEAT_MS);
   return {
     fail() {
-      if (settled || closedBy !== "self") return;
-      settled = true;
+      // Also after the signout (bfcache restore), never for a later attempt.
+      if (attempt !== current || closedBy !== "self") return;
+      endAttempt();
       channel?.postMessage("failed");
       setClosed(null);
     },
@@ -128,20 +156,26 @@ export async function fetchThroughSessionBarrier(
   if (!isOwnApiUrl(raw)) return send(input, init);
   const { pathname } = new URL(raw, location.origin);
   const method = init?.method ?? (isRequest ? input.method : "GET");
-  const pushCleanup =
-    method.toUpperCase() === "DELETE" &&
-    pathname.endsWith("/push/subscriptions");
-  if (EXIT_PATH.test(pathname) || pushCleanup) {
-    const response = await send(input, init);
-    // The signout answer deleted the session cookie.
-    if (pathname.endsWith("/signout") && response.ok && closedBy === "self") {
+  const callerSignal = init?.signal ?? (isRequest ? input.signal : undefined);
+  const exit =
+    EXIT_PATH.test(pathname) ||
+    (method.toUpperCase() === "DELETE" &&
+      pathname.endsWith("/push/subscriptions"));
+  if (exit && closedBy === "self") {
+    const own = attempt.signal;
+    const response = await send(input, {
+      ...init,
+      signal: callerSignal ? AbortSignal.any([callerSignal, own]) : own,
+    });
+    // The signout answer of this attempt deleted the session cookie.
+    if (pathname.endsWith("/signout") && response.ok && !own.aborted) {
+      endAttempt();
       channel?.postMessage("ended");
       if (reopenAfterDeletion) setClosed(null);
     }
     return response;
   }
 
-  const callerSignal = init?.signal ?? (isRequest ? input.signal : undefined);
   const repeatable = /^(GET|HEAD)$/i.test(method);
   for (;;) {
     callerSignal?.throwIfAborted();
@@ -178,6 +212,8 @@ export function resetSessionBarrierForTests() {
   closedBy = null;
   reopenAfterDeletion = true;
   epoch = new AbortController();
+  clearInterval(heartbeat);
+  attempt = new AbortController();
   waiters.clear();
   clearTimeout(otherTabTimer);
   listeners.clear();

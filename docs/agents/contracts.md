@@ -514,17 +514,26 @@ a logout or a "Zur Schulanmeldung" from writing the old session back:
    covers the writes that remain. Every portal's logout and the tenant relogin
    close it before revocation: requests to the tab's own `/api/` whose answer
    has not arrived are aborted, so the browser drops their Set-Cookie; new
-   ones wait; the SessionProvider's poll stops (`useSessionPollInterval`).
-   Only the exit's own requests pass (BFF logout, CSRF, Auth.js signout,
-   staff-preview end, each portal's `…/push/subscriptions` cleanup). The other tabs of the origin
-   close too (`BroadcastChannel` `moto-session-end`) and open on the owner's
-   `ended` or `failed`, at the latest after 15 s. The barrier opens when the
-   logout fails or, outside the tenant shell, once the signout answer deleted
-   the cookie; the tenant exit keeps it closed while it navigates. An aborted
-   GET or HEAD is sent again when the barrier opens, any other method fails.
-   The fetch observer (`session-tenant-mismatch-observer.ts`) applies it to
-   every fetch; the browser's BFF calls all use fetch, Axios runs only on the
-   server against the backend.
+   ones wait (or end at once when their caller aborts); the SessionProvider's
+   poll stops (`useSessionPollInterval`). An aborted GET or HEAD is sent again
+   when the barrier opens, any other method fails. The fetch observer
+   (`session-tenant-mismatch-observer.ts`) applies it to every fetch; the
+   browser's BFF calls all use fetch, Axios runs only on the server against
+   the backend. Invariants:
+   - **Exits belong to one attempt.** BFF logout, CSRF, Auth.js signout,
+     staff-preview end and the push cleanup (`DELETE …/push/subscriptions`)
+     pass only while this tab's own attempt runs, and carry that attempt's
+     signal: started before the logout they are aborted like any request,
+     and they abort when the attempt fails or its signout deleted the cookie.
+   - **Other tabs stay closed while the owner lives.** The owner repeats
+     `begin` on `BroadcastChannel` `moto-session-end` every 5 s, however long
+     CSRF or signout hang. Another tab of the origin opens only on `ended` or
+     `failed`, or 15 s after the last `begin` (the owner is gone). An `ended`
+     also aborts every request an open tab still has in flight.
+   - **Opening.** The owner opens when the logout fails or, outside the
+     tenant shell, once its signout answer deleted the cookie; the tenant exit
+     keeps it closed while it navigates and opens only on `pagehide` or a
+     cancelled exit.
 
 `BroadcastChannel` does not cross origins. A tab on another school's
 subdomain sharing the domain-scoped tenant cookie does not hear the
