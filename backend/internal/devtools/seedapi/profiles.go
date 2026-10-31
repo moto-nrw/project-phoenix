@@ -5,6 +5,8 @@ import "encoding/json"
 // These are HTTP contract values, kept at the dev-tool boundary because the
 // architecture policy forbids CLI packages from importing a domain model.
 const (
+	profileSettingSchoolWriteScope      = "operations.school_portal_write_scope"
+	profileSettingSchoolMorning         = "operations.school_portal_morning_attendance"
 	profileSettingAnalyticsEnabled      = "analytics.enabled"
 	profileSettingPresenceMode          = "operations.presence_mode"
 	profileSettingAttendanceNFC         = "module.nfc_anwesenheit"
@@ -98,6 +100,8 @@ func fullOperationProfileDefinition() demoProfileDefinition {
 // (#5032).
 func fullOperationProfileSettings() map[string]SeedSetting {
 	settings := fullOperationSettings()
+	settings[profileSettingSchoolWriteScope] = SeedSetting{Value: json.RawMessage(`["class_arrival_exceptions","class_handover","class_trips","day_hints"]`), ManagedBy: SettingManagedByTenant}
+	settings[profileSettingSchoolMorning] = SeedSetting{Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant}
 	for key, setting := range demoHistorySettings() {
 		settings[key] = setting
 	}
