@@ -4,6 +4,7 @@ import { useSession } from "next-auth/react";
 
 import { CourseWaitlistSummary } from "~/components/students/course-waitlist";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { SectionCard } from "~/components/ui/section-card";
 import { hasPermission } from "~/lib/auth-utils";
 import { getEnrolledStudents } from "~/lib/activity-api";
 import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
@@ -36,7 +37,10 @@ export function ActivityWaitlistSection({
   const loadError = useSwrLoadError(
     swr.error ?? participants.error,
     swr.error ? "die Warteliste der AG" : "die Teilnehmenden der AG",
-    () => (swr.error ? swr.mutate() : participants.mutate()),
+    () => {
+      if (swr.error) void swr.mutate();
+      if (participants.error) void participants.mutate();
+    },
   );
   const waitlist = swr.data?.[0];
   const participantNames = participants.data
@@ -44,19 +48,14 @@ export function ActivityWaitlistSection({
     .filter((name) => name !== "");
   if (!allowed || (!waitlist && !loadError)) return null;
   return (
-    <section
-      aria-labelledby={`activity-waitlist-${activityId}`}
-      className="rounded-xl border border-gray-200/50 bg-gray-50 p-3 md:p-4"
+    <SectionCard
+      id={`activity-waitlist-${activityId}`}
+      title="Plätze und Warteliste"
+      description="Heute dabei und freie Plätze für die nächste Anfrage."
+      headingLevel={3}
+      namedRegion
+      bodyClassName="mt-3"
     >
-      <h3
-        id={`activity-waitlist-${activityId}`}
-        className="text-xs font-semibold text-gray-700"
-      >
-        Plätze und Warteliste
-      </h3>
-      <p className="mt-0.5 mb-3 text-xs text-gray-500">
-        Heute dabei und freie Plätze für die nächste Anfrage.
-      </p>
       {loadError ? (
         <LoadErrorAlert error={loadError} actionLayout="responsive" />
       ) : (
@@ -67,6 +66,6 @@ export function ActivityWaitlistSection({
           />
         )
       )}
-    </section>
+    </SectionCard>
   );
 }

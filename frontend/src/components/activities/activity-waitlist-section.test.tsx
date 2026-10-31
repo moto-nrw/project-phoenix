@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ActivityWaitlistSection } from "./activity-waitlist-section";
@@ -11,6 +11,8 @@ const state = vi.hoisted(() => ({
   waitlists: undefined as CourseWaitlist[] | undefined,
   error: undefined as unknown,
   participantError: undefined as unknown,
+  waitlistMutate: vi.fn(),
+  participantMutate: vi.fn(),
   keys: [] as (string | null)[],
 }));
 
@@ -30,13 +32,13 @@ vi.mock("~/lib/swr", () => ({
       return {
         data: [{ name: "Emma Klein" }, { name: "Zeynep Çelik" }],
         error: state.participantError,
-        mutate: vi.fn(),
+        mutate: state.participantMutate,
       };
     }
     return {
       data: key ? state.waitlists : undefined,
       error: key ? state.error : undefined,
-      mutate: vi.fn(),
+      mutate: state.waitlistMutate,
     };
   },
 }));
@@ -65,6 +67,8 @@ describe("ActivityWaitlistSection", () => {
     state.waitlists = [theater];
     state.error = undefined;
     state.participantError = undefined;
+    state.waitlistMutate = vi.fn();
+    state.participantMutate = vi.fn();
     state.keys = [];
   });
 
@@ -74,6 +78,11 @@ describe("ActivityWaitlistSection", () => {
     expect(
       screen.getByRole("heading", { name: "Plätze und Warteliste" }),
     ).toBeInTheDocument();
+    expect(
+      screen
+        .getByRole("heading", { name: "Plätze und Warteliste" })
+        .closest("section"),
+    ).toHaveClass("moto-content-surface");
     expect(
       screen.getByText(
         "Für die nächste Anfrage: 8 von 8 Plätzen vergeben · 0 frei",
@@ -152,5 +161,19 @@ describe("ActivityWaitlistSection", () => {
         "Für die nächste Anfrage: 8 von 8 Plätzen vergeben · 0 frei",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("lädt beide Quellen erneut, wenn beide fehlgeschlagen sind", async () => {
+    state.error = new ApiError("down", 503, { code: "general.unavailable" });
+    state.participantError = new ApiError("down", 503, {
+      code: "general.unavailable",
+    });
+
+    render(<ActivityWaitlistSection activityId="70" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    expect(state.waitlistMutate).toHaveBeenCalledOnce();
+    expect(state.participantMutate).toHaveBeenCalledOnce();
   });
 });
