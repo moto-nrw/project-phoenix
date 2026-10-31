@@ -90,6 +90,7 @@ Tools belong in Devbox; do not depend on unrecorded global installations.
 | Frontend | `cd frontend && pnpm run check` — zero warnings; relevant behavior tests |
 | Backend | Relevant tests via `scripts/run-go-toolchain.sh`; architecture migration checks in backend/CLAUDE.md |
 | Code before push | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development`; CI runs the full affected closure |
+| Fix for a red PR check | `node scripts/ci-failures.mjs` names the failed step and its local command; see it fail and pass locally before pushing again |
 | User-visible | Verständlichkeit checklist recorded in PR; UI screenshot and help-guide requirements from the matching rules |
 | Docs/hooks only | `node scripts/check-agent-context.mjs` and `node --test scripts/check-agent-context.test.mjs`; verify changed hook behavior |
 
