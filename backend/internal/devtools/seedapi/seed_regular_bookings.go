@@ -20,6 +20,14 @@ const enrollmentPhaseBodyKey = "enrollment-phase-body"
 // Kurzbetreuung child and the others Ganztag children.
 const regularBookingShortCareEvery = 3
 
+// regularBookingCare is the care of the booked child at position.
+func regularBookingCare(position int) string {
+	if position%regularBookingShortCareEvery == regularBookingShortCareEvery-1 {
+		return "ogs-kurz"
+	}
+	return "ogs-ganztag"
+}
+
 var seedWeekdayKeys = map[int]string{1: "mon", 2: "tue", 3: "wed", 4: "thu", 5: "fri"}
 
 // recordRegularLunchDays notes a child's regular lunch days for the
@@ -91,19 +99,13 @@ func (s seedRegularBookingsStep) Run(_ context.Context, rt *Runtime) error {
 	lunchDays, _ := rt.Values[regularLunchDaysKey].(map[int64][]int)
 	studentIDs := regularBookingStudents(rt, lunchDays)
 	auth := rt.TenantAuth
-	shortCare := 0
+	shortCare := len(studentIDs) / regularBookingShortCareEvery
+	// The bookings of different children are independent, so the school
+	// enters them in parallel; the position alone picks the care.
 	err := withPhaseAudience(rt, auth, rt.Enrollment.PhaseID, phaseBody, "existing_students", func() error {
-		for position, studentID := range studentIDs {
-			careKey := "ogs-ganztag"
-			if position%regularBookingShortCareEvery == regularBookingShortCareEvery-1 {
-				careKey = "ogs-kurz"
-				shortCare++
-			}
-			if err := s.book(rt, auth, studentID, careKey, lunchDays[studentID]); err != nil {
-				return err
-			}
-		}
-		return nil
+		return forEachParallel(rt, studentIDs, func(worker *Runtime, position int, studentID int64) error {
+			return s.book(worker, auth, studentID, regularBookingCare(position), lunchDays[studentID])
+		})
 	})
 	if err != nil {
 		return err
