@@ -42,6 +42,7 @@ const deviation: RosterDeviation = {
     { id: "3", name: "Randstunde" },
     { id: "4", name: "Ganztag" },
   ],
+  combinations: [],
   ambiguous: false,
 };
 

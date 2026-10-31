@@ -44,6 +44,7 @@ function deviation(templateId: string): RosterDeviation {
     unbookedCount: 4,
     missingCount: 0,
     candidates: [],
+    combinations: [],
     ambiguous: false,
   };
 }

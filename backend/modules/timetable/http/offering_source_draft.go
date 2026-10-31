@@ -80,10 +80,6 @@ func (rs *Resource) suggestDraftOfferingSource(w http.ResponseWriter, r *http.Re
 	envelope := offeringSuggestionEnvelope{}
 	if suggestion := timetable.SuggestOfferingSource(roster, bookings); suggestion != nil {
 		response := rosterDeviationResponseFrom(0, suggestion).withoutTemplate()
-		response.Combinations = make([][]templateRosterMaintenanceOfferingResponse, 0, len(suggestion.Combinations))
-		for _, combination := range suggestion.Combinations {
-			response.Combinations = append(response.Combinations, rosterMaintenanceOfferings(combination))
-		}
 		envelope.Suggestion = &response
 	}
 	common.Respond(w, r, http.StatusOK, envelope, "Offering suggestion retrieved")
@@ -94,7 +90,7 @@ func (d rosterDeviationResponse) withoutTemplate() offeringSuggestionResponse {
 	return offeringSuggestionResponse{
 		Offerings: d.Offerings, GradeLevels: d.GradeLevels, SchoolClasses: d.SchoolClasses,
 		UnbookedCount: d.UnbookedCount, MissingCount: d.MissingCount, Candidates: d.Candidates,
-		Ambiguous: d.Ambiguous,
+		Combinations: d.Combinations, Ambiguous: d.Ambiguous,
 	}
 }
 

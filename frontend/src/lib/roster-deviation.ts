@@ -25,6 +25,8 @@ export interface RosterDeviation {
   missingCount: number;
   /** The suggested offerings, then every other one that passes the rule. */
   candidates: Array<{ id: string; name: string }>;
+  /** The equal combinations when ambiguous (#5139), otherwise empty. */
+  combinations: Array<Array<{ id: string; name: string }>>;
   /**
    * Another offering fits as well as a suggested one (#5138). The school
    * picks; nothing is preselected, and the counts belong to no named choice.
@@ -78,6 +80,7 @@ interface BackendRosterDeviation {
   unbooked_count: number;
   missing_count: number;
   candidates?: BackendOfferingRef[] | null;
+  combinations?: BackendOfferingRef[][] | null;
   ambiguous?: boolean;
 }
 
@@ -128,6 +131,9 @@ export function mapRosterDeviations(
     unbookedCount: deviation.unbooked_count,
     missingCount: deviation.missing_count,
     candidates: (deviation.candidates ?? []).map(offeringRef),
+    combinations: (deviation.combinations ?? []).map((combination) =>
+      combination.map(offeringRef),
+    ),
     ambiguous: deviation.ambiguous ?? false,
   }));
 }
@@ -197,7 +203,13 @@ export function offeringSetNames(
 /** The hint text on the Regeltermin card and in the details. */
 export function describeRosterDeviation(deviation: RosterDeviation): string {
   if (deviation.ambiguous) {
-    // The counts compare with the suggestion; no choice is made yet.
+    // The counts compare with the suggestion; no choice is made yet. Equal
+    // combinations are named whole (#5139): „A“ und „B“ oder zu „C“ und „D“.
+    if (deviation.combinations.some((combination) => combination.length > 1)) {
+      return `Weicht von Anmeldungen ab: passt zu ${deviation.combinations
+        .map(offeringSetNames)
+        .join(" oder zu ")}`;
+    }
     return `Weicht von Anmeldungen ab: passt zu ${offeringChoiceNames(deviation.candidates)}`;
   }
   // „dort“ refers to every named offering (#5139): a child counts only when

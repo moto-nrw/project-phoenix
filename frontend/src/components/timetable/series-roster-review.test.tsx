@@ -13,6 +13,7 @@ const deviation: RosterDeviation = {
   unbookedCount: 3,
   missingCount: 2,
   candidates: [{ id: "3", name: "Randstunde" }],
+  combinations: [],
   ambiguous: false,
 };
 

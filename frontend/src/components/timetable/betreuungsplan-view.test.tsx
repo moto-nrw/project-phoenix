@@ -1339,6 +1339,7 @@ describe("BetreuungsplanView", () => {
     unbookedCount: 1,
     missingCount: 0,
     candidates: [],
+    combinations: [],
     ambiguous: false,
   };
 

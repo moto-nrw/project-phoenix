@@ -1,6 +1,7 @@
 package timetable_test
 
 import (
+	"fmt"
 	"slices"
 	"testing"
 
@@ -617,11 +618,14 @@ func TestSuggestOfferingSourceEquivalentCombinations(t *testing.T) {
 			},
 			chosen: []int64{ganztagID, randstundeID},
 		},
+		// Both complements add one unplanned child, so both combinations
+		// are equally close; Spätbetreuung alone (4 of 6) stays below the
+		// rule and only qualifies through the combined coverage.
 		{
 			name: "a complement uses combined coverage",
 			sources: []source{
 				{ganztagID, 1, class[:8]},
-				{randstundeID, 1, class[8:]},
+				{randstundeID, 1, append(slices.Clone(class[8:]), 2002)},
 				{spaetID, 1, append(slices.Clone(class[8:]), 2001)},
 			},
 			chosen:       []int64{ganztagID, randstundeID},
@@ -636,13 +640,27 @@ func TestSuggestOfferingSourceEquivalentCombinations(t *testing.T) {
 			},
 			chosen: []int64{ganztagID, randstundeID},
 		},
+		// Ganztag keeps children 1 to 8, Spätbetreuung 3 to 10, each adds
+		// two others: equally good, and only the offering id could choose,
+		// so the school picks (review of #5363).
 		{
-			name: "equal counts do not make different planned children interchangeable",
+			name: "equal scores with different planned children are a tie",
 			sources: []source{
 				{ganztagID, 1, append(slices.Clone(class[:8]), 2001, 2002)},
 				{spaetID, 1, append(slices.Clone(class[2:]), 3001, 3002)},
 			},
-			chosen: []int64{ganztagID},
+			chosen:       []int64{ganztagID},
+			combinations: [][]int64{{ganztagID}, {spaetID}},
+		},
+		// A combination that also adds an unplanned child is less close.
+		{
+			name: "a complement adding an unplanned child is no equal choice",
+			sources: []source{
+				{ganztagID, 1, class[:8]},
+				{randstundeID, 1, class[8:]},
+				{spaetID, 1, append(slices.Clone(class[8:]), 2001)},
+			},
+			chosen: []int64{ganztagID, randstundeID},
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -792,4 +810,89 @@ func TestSuggestOfferingSourceSkipsHolidayPhases(t *testing.T) {
 		assert.Equal(t, []timetable.OfferingRef{{ID: ganztagID, Name: "Ganztag"}}, suggestion.Offerings)
 		assert.Empty(t, suggestion.Combinations)
 	})
+}
+
+// TestSuggestOfferingSourceTiedCombinations (review of #5363): equal whole
+// combinations are a tie, not only single swaps. Children 1 to 7 are
+// planned; A+B and C+D both explain 1 to 6 and add nobody. The rule cannot
+// tell them apart, so nothing is preselected and both are offered, also
+// when the two combinations lie in different enrollment phases.
+func TestSuggestOfferingSourceTiedCombinations(t *testing.T) {
+	t.Parallel()
+	const (
+		offeringA = int64(401)
+		offeringB = int64(402)
+		offeringC = int64(403)
+		offeringD = int64(404)
+	)
+	planned := studentRange(1, 7)
+	roster := classRoster([]int{1}, planned, "1a")
+	offer := func(offeringID int64, name string, phaseID int64, students ...int64) []timetable.OfferingWeekdayBooking {
+		bookings := make([]timetable.OfferingWeekdayBooking, 0, len(students))
+		for _, studentID := range students {
+			entry := booking(offeringID, name, studentID, "1a", 1)
+			entry.PhaseID = phaseID
+			bookings = append(bookings, entry)
+		}
+		return bookings
+	}
+	tied := func(phaseAB, phaseCD int64) []timetable.OfferingWeekdayBooking {
+		bookings := offer(offeringA, "A", phaseAB, 1, 2, 3)
+		bookings = append(bookings, offer(offeringB, "B", phaseAB, 4, 5, 6)...)
+		bookings = append(bookings, offer(offeringC, "C", phaseCD, 1, 4, 5)...)
+		return append(bookings, offer(offeringD, "D", phaseCD, 2, 3, 6)...)
+	}
+	ab := []timetable.OfferingRef{{ID: offeringA, Name: "A"}, {ID: offeringB, Name: "B"}}
+	cd := []timetable.OfferingRef{{ID: offeringC, Name: "C"}, {ID: offeringD, Name: "D"}}
+
+	for name, phases := range map[string][2]int64{"one phase": {7, 7}, "two phases": {7, 8}} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			suggestion := timetable.SuggestOfferingSource(roster, tied(phases[0], phases[1]))
+
+			require.NotNil(t, suggestion)
+			assert.True(t, suggestion.Ambiguous, "A+B and C+D explain the same children")
+			assert.ElementsMatch(t, [][]timetable.OfferingRef{ab, cd}, suggestion.Combinations)
+			assert.Equal(t, 1, suggestion.UnbookedCount, "child 7 books nothing")
+		})
+	}
+
+	// One more child of C+D breaks the tie: it explains more.
+	t.Run("a better combination stays the clear suggestion", func(t *testing.T) {
+		t.Parallel()
+		bookings := append(tied(7, 7), offer(offeringD, "D", 7, 7)...)
+
+		suggestion := timetable.SuggestOfferingSource(roster, bookings)
+
+		require.NotNil(t, suggestion)
+		assert.False(t, suggestion.Ambiguous)
+		assert.ElementsMatch(t, cd, suggestion.Offerings)
+		assert.Empty(t, suggestion.Combinations)
+		assert.Zero(t, suggestion.UnbookedCount)
+	})
+}
+
+// TestSuggestOfferingSourceSearchBound: beyond twelve offerings in a phase
+// the search cannot prove that its choice is unique, so nothing is
+// preselected.
+func TestSuggestOfferingSourceSearchBound(t *testing.T) {
+	t.Parallel()
+	const ganztag, firstCourse = int64(500), int64(501)
+	planned := studentRange(1, 15)
+	roster := classRoster([]int{1}, planned, "1a")
+	bookings := []timetable.OfferingWeekdayBooking{}
+	// One offering books three children, so it passes the rule; twelve
+	// more book one child each: 13 offerings in one phase.
+	for _, studentID := range planned[:3] {
+		bookings = append(bookings, booking(ganztag, "Ganztag", studentID, "1a", 1))
+	}
+	for index, studentID := range planned[3:] {
+		bookings = append(bookings, booking(firstCourse+int64(index), fmt.Sprintf("Kurs %d", index), studentID, "1a", 1))
+	}
+
+	suggestion := timetable.SuggestOfferingSource(roster, bookings)
+
+	require.NotNil(t, suggestion)
+	assert.True(t, suggestion.Ambiguous, "13 offerings exceed the search bound")
 }

@@ -20,6 +20,7 @@ const deviation: RosterDeviation = {
   unbookedCount: 8,
   missingCount: 0,
   candidates: [{ id: "3", name: "Randstunde" }],
+  combinations: [],
   ambiguous: false,
 };
 
@@ -81,6 +82,33 @@ describe("describeRosterDeviation", () => {
       "Weicht von Anmeldungen ab: passt zu „Ganztag“, „Randstunde“ oder „Spätbetreuung“",
     );
   });
+
+  it("names equal combinations whole and no count (#5139)", () => {
+    expect(
+      describeRosterDeviation({
+        ...deviation,
+        candidates: [
+          { id: "1", name: "A" },
+          { id: "2", name: "B" },
+          { id: "3", name: "C" },
+          { id: "4", name: "D" },
+        ],
+        combinations: [
+          [
+            { id: "1", name: "A" },
+            { id: "2", name: "B" },
+          ],
+          [
+            { id: "3", name: "C" },
+            { id: "4", name: "D" },
+          ],
+        ],
+        ambiguous: true,
+      }),
+    ).toBe(
+      "Weicht von Anmeldungen ab: passt zu „A“ und „B“ oder zu „C“ und „D“",
+    );
+  });
 });
 
 describe("mapRosterDeviations", () => {
@@ -115,6 +143,26 @@ describe("mapRosterDeviations", () => {
         ],
       })[0]?.ambiguous,
     ).toBe(true);
+    expect(
+      mapRosterDeviations({
+        deviations: [
+          {
+            template_id: 7,
+            offerings: [{ id: 3, name: "Randstunde" }],
+            unbooked_count: 0,
+            missing_count: 0,
+            combinations: [
+              [{ id: 3, name: "Randstunde" }],
+              [{ id: 4, name: "Ganztag" }],
+            ],
+            ambiguous: true,
+          },
+        ],
+      })[0]?.combinations,
+    ).toEqual([
+      [{ id: "3", name: "Randstunde" }],
+      [{ id: "4", name: "Ganztag" }],
+    ]);
     expect(mapRosterDeviations({ deviations: null })).toEqual([]);
   });
 });
