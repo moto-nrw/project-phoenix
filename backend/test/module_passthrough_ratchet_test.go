@@ -309,7 +309,7 @@ func TestModulePassthroughRatchet(t *testing.T) {
 
 	backendRoot, err := findBackendRoot()
 	if err != nil {
-		t.Skipf("Could not find backend root: %v", err)
+		t.Fatalf("Could not find backend root: %v", err)
 		return
 	}
 
