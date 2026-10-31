@@ -61,6 +61,8 @@ func (s *staffDeviations) getLogger() *slog.Logger {
 
 // acquireSubstituteDayLock takes the shared (tenant, date) advisory lock that
 // serializes every same-day staffing mutation, within the caller's tx.
+// Take it before instance/participant row locks; if recurrence is needed,
+// take recurrence first (see InstanceLifecycleService.LockDeviationDays).
 func (s *staffDeviations) acquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
 	return s.deps.Locks.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenant.FromContext(ctx), date))
 }
