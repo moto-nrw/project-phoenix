@@ -12,8 +12,7 @@ import {
 import { HolidayPeriodForm } from "~/components/traeger/holiday-period-form";
 import { HolidayPeriodPublishCard } from "~/components/traeger/holiday-period-publish-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
-import { errorAlertActions } from "~/components/ui/form-error-alert";
-import { ApiError } from "~/lib/api-error";
+import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { TenantPage } from "~/components/ui/tenant-page";
 import type { HolidayPeriod } from "~/lib/traeger-api";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
@@ -52,19 +51,12 @@ export default function TraegerHolidayPeriodPage() {
   );
 
   const loadError = periodError ?? schoolsError;
-  const refused = [periodFailure, schoolsFailure].some(
-    (failure) =>
-      failure instanceof ApiError &&
-      [401, 403, 404].includes(failure.status ?? 0),
+  const shownError = metadataLoadError(
+    loadError,
+    Boolean(period && schools),
+    periodFailure,
+    schoolsFailure,
   );
-  const shownError =
-    loadError && period && schools && !refused
-      ? {
-          ...loadError,
-          action: errorAlertActions(loadError),
-          keepContent: true,
-        }
-      : loadError;
 
   return (
     <TenantPage

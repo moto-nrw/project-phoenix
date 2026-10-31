@@ -115,10 +115,18 @@ function setup() {
   }
   return { wrapper: Wrapper };
 }
-function Refresh({ schools = false }: { schools?: boolean }) {
-  const mutate = useTenantMutateMatching([
-    schools ? traegerKeys.schools() : traegerKeys.period(identity.id),
-  ]);
+function Refresh({
+  schools = false,
+  both = false,
+}: {
+  schools?: boolean;
+  both?: boolean;
+}) {
+  const mutate = useTenantMutateMatching(
+    both
+      ? [traegerKeys.period(identity.id), traegerKeys.schools()]
+      : [schools ? traegerKeys.schools() : traegerKeys.period(identity.id)],
+  );
   return (
     <button
       onClick={() => {
@@ -259,6 +267,32 @@ describe("Träger list-to-detail cache", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Questions")).toHaveValue("Unsaved questions");
     expect(discardUploads).not.toHaveBeenCalled();
+  });
+
+  it("hides the form when schools refuse access even if the period also has a recoverable error", async () => {
+    render(
+      <>
+        <Refresh both />
+        <PeriodPage />
+      </>,
+      setup(),
+    );
+    expect(await screen.findByText("Confirmed form")).toBeInTheDocument();
+    api.fetchHolidayPeriod.mockRejectedValue(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    api.fetchTraegerSchools.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
+    // Anker: both refresh requests ran after the form was fully loaded.
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "den Ferienzeitraum"),
+      ),
+    ).toBeInTheDocument();
+    expect(api.fetchTraegerSchools).toHaveBeenCalledTimes(2);
+    expect(screen.queryByLabelText("Draft text")).not.toBeInTheDocument();
   });
 
   it("still replaces the form when the server refuses the cached detail", async () => {
