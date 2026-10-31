@@ -19,5 +19,10 @@ export function useTraegerSchools() {
     "die Liste der Schulen",
     response.mutate,
   );
-  return { schools: response.data ?? null, error, mutate: response.mutate };
+  return {
+    schools: response.data ?? null,
+    error,
+    fetchError: response.error,
+    mutate: response.mutate,
+  };
 }

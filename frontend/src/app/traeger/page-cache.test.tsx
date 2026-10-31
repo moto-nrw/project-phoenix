@@ -9,6 +9,10 @@ import {
   HOLIDAY_PERIOD,
   HOLIDAY_SCHOOLS,
 } from "~/test/fixtures/holiday-registrations";
+import { useTenantMutateMatching } from "~/lib/swr";
+import { traegerKeys } from "~/lib/swr/portal-keys";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
 import { resumeSWRSession } from "~/lib/swr/scope";
 import PeriodsPage from "./ferien/page";
 import PeriodPage from "./ferien/[id]/page";
@@ -50,6 +54,7 @@ vi.mock("~/components/traeger/holiday-period-form", () => ({
   }) => (
     <>
       <p>Confirmed form</p>
+      <input aria-label="Draft text" defaultValue={period.name} />
       <button onClick={() => onSaved({ ...period, name: "Saved period" })}>
         Save answer
       </button>
@@ -95,8 +100,27 @@ function setup() {
   }
   return { wrapper: Wrapper };
 }
+function Refresh() {
+  const mutate = useTenantMutateMatching([traegerKeys.period(identity.id)]);
+  return (
+    <button
+      onClick={() => {
+        void mutate().catch(() => undefined);
+      }}
+    >
+      Refresh metadata
+    </button>
+  );
+}
 function Route({ detail }: Readonly<{ detail: boolean }>) {
-  return detail ? <PeriodPage /> : <PeriodsPage />;
+  return detail ? (
+    <>
+      <Refresh />
+      <PeriodPage />
+    </>
+  ) : (
+    <PeriodsPage />
+  );
 }
 beforeEach(() => {
   signIn();
@@ -148,6 +172,40 @@ describe("Träger list-to-detail cache", () => {
     expect(await screen.findByText("Confirmed form")).toBeInTheDocument();
     expect(screen.getByText("Confirmed actions")).toBeInTheDocument();
     expect(api.fetchHolidayPeriod).toHaveBeenCalledWith(HOLIDAY_PERIOD.id);
+  });
+
+  it("keeps the unsaved draft mounted when a background refresh fails", async () => {
+    render(<Route detail />, setup());
+    expect(await screen.findByText("Confirmed form")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Draft text"), {
+      target: { value: "Unsaved text" },
+    });
+    api.fetchHolidayPeriod.mockRejectedValue(
+      new ApiError("unavailable", 503, { code: "general.unavailable" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "den Ferienzeitraum"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Draft text")).toHaveValue("Unsaved text");
+  });
+
+  it("still replaces the form when the server refuses the cached detail", async () => {
+    render(<Route detail />, setup());
+    expect(await screen.findByText("Confirmed form")).toBeInTheDocument();
+    api.fetchHolidayPeriod.mockRejectedValue(
+      new ApiError("forbidden", 403, { code: "general.permission" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
+    // Anker: the refusal of a previously loaded detail is shown.
+    expect(
+      await screen.findByText(
+        catalogText("general.permission", "den Ferienzeitraum"),
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Draft text")).not.toBeInTheDocument();
   });
 
   it.each(["Save", "Publish"])(
