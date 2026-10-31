@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { spawnSync } from "node:child_process";
 import assert from "node:assert/strict";
-import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { copyFileSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -202,6 +204,48 @@ function vitest(args, capture = false) {
   return result.stdout;
 }
 
+// Guards read files beyond Vitest's module graph, so a guards-only run depends
+// on the whole checkout. Locally, reuse a pass only for byte-identical inputs:
+// every non-ignored file (untracked included, via a scratch index), installed
+// dependencies, local env files, Node and the options. Any change misses.
+function guardsKey() {
+  const scratch = mkdtempSync(join(tmpdir(), "phoenix-guards-"));
+  try {
+    const index = join(scratch, "index");
+    const realIndex = resolve(cwd, "..", git(["rev-parse", "--git-path", "index"]).trim());
+    if (existsSync(realIndex)) copyFileSync(realIndex, index);
+    const scratchGit = args => {
+      const result = spawnSync("git", args, {
+        cwd: resolve(cwd, ".."), env: { ...process.env, GIT_INDEX_FILE: index }, encoding: "utf8",
+      });
+      if (result.error) throw result.error;
+      if (result.status !== 0) throw new Error(result.stderr);
+      return result.stdout.trim();
+    };
+    scratchGit(["add", "-A"]);
+    const tree = scratchGit(["write-tree"]);
+    const hash = createHash("sha256").update(JSON.stringify({
+      tree, options, node: process.version, platform: process.platform, arch: process.arch,
+      env: Object.entries(process.env).filter(([name]) =>
+        /^(NEXT_|NEXTAUTH_|AUTH_|API_URL$|TENANT_DOMAIN$|NODE_OPTIONS$|NODE_ENV$|TZ$|CI$|VITEST)/.test(name)).sort(),
+    }));
+    // Vitest loads the test-mode env files; next dev ones are hashed as well.
+    for (const file of [".env", ".env.local", ".env.test", ".env.test.local", ".env.development", ".env.development.local",
+      "node_modules/.modules.yaml", "node_modules/.pnpm/lock.yaml"]) {
+      hash.update(file).update(existsSync(join(cwd, file)) ? readFileSync(join(cwd, file)) : "<absent>");
+    }
+    return hash.digest("hex");
+  } finally {
+    rmSync(scratch, { recursive: true, force: true });
+  }
+}
+const cacheGuards = mode === "guards" && !process.env.GITHUB_ACTIONS && process.env.PHX_GUARDS_CACHE !== "off";
+const guardsRecord = cacheGuards && resolve(cwd, "..", git(["rev-parse", "--git-path", "test-frontend-guards.pass"]).trim());
+const key = cacheGuards && guardsKey();
+if (cacheGuards && existsSync(guardsRecord) && readFileSync(guardsRecord, "utf8") === key) {
+  console.log("==> vitest guards: same inputs as the last passing run, skipped (PHX_GUARDS_CACHE=off reruns)");
+  process.exit(0);
+}
 console.log(`==> vitest ${mode}`);
 const selected = mode === "guards" ? [] : JSON.parse(
   vitest(
@@ -214,3 +258,5 @@ const files = new Set([
   ...selected.map(({ file }) => relative(cwd, file)),
 ]);
 vitest(["run", ...options, ...files]);
+// vitest() exits on failure. Inputs edited during the run must not be recorded.
+if (cacheGuards && guardsKey() === key) writeFileSync(guardsRecord, key);

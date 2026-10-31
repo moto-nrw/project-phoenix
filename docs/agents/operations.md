@@ -117,6 +117,9 @@ Seeded E2E (`test:e2e`) and guide generation use the frontend port from
 them through `scripts/dev-native.sh frontend`, which sets `PORT` to the
 worktree's `FRONTEND_HOST_PORT`. Playwright then reuses or starts only the
 worktree's own frontend and never tests another checkout's server on 3000.
+If the port already serves a frontend started from another checkout, the
+Playwright config stops with that checkout's path (`e2e/own-server.ts`, local
+runs with `lsof` only).
 
 ### Synthetic network E2E suites
 
