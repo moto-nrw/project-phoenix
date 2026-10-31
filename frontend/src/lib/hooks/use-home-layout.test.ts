@@ -99,6 +99,25 @@ describe("useHomeLayout", () => {
     expect(result.current.isReady).toBe(true);
   });
 
+  it.each(["save", "reset", "savePolicies"] as const)(
+    "rejects %s without loaded layout data",
+    async (operation) => {
+      const { result } = renderHook(() => useHomeLayout());
+      expect(result.current.isLoading).toBe(false);
+      expect(result.current.isReady).toBe(false);
+      const save =
+        operation === "save"
+          ? () => result.current.save({}, [])
+          : operation === "reset"
+            ? result.current.reset
+            : () => result.current.savePolicies({ news: "required" });
+      await expect(save()).rejects.toMatchObject({
+        status: 503,
+        code: "general.unavailable",
+      });
+    },
+  );
+
   it("revalidates only the changed account or a school-wide prescription", () => {
     const mutate = vi.fn();
     vi.mocked(useSWR).mockReturnValue({

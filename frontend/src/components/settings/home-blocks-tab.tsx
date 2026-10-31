@@ -88,7 +88,7 @@ function birthdaySettingsIn(
  * Baustein aus dem persönlichen Dialog heraus.
  */
 export function HomeBlocksTab() {
-  const { state, isLoading, savePolicies } = useHomeLayout();
+  const { state, confirmedPolicies, isLoading, savePolicies } = useHomeLayout();
   const {
     data: schema,
     isLoading: schemaLoading,
@@ -120,8 +120,8 @@ export function HomeBlocksTab() {
   const latestSaveRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
-    setDraft(state.policies);
-  }, [state.policies]);
+    setDraft(confirmedPolicies);
+  }, [confirmedPolicies]);
 
   useEffect(() => {
     setBirthdayDraft(storedBirthdays);

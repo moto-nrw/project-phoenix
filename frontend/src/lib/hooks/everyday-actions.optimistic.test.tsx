@@ -357,6 +357,32 @@ afterEach(() => {
   resetSWRScope({ revalidate: false });
 });
 
+it("keeps confirmed policies separate from optimistic updates and rollback", async () => {
+  const pending = deferred();
+  mocks.policies.mockReturnValue(pending.promise);
+  const { result, unmount } = renderHook(() => useHomeLayout(), {
+    wrapper: Wrapper,
+  });
+  await waitFor(() => expect(result.current.isReady).toBe(true));
+  const confirmed = result.current.confirmedPolicies;
+  expect(confirmed).toBe(layout.policies);
+  let task!: Promise<void>;
+  act(() => {
+    task = result.current
+      .savePolicies({ news: "required" })
+      .catch(() => undefined);
+  });
+  expect(result.current.state.policies).toEqual({ news: "required" });
+  expect(result.current.confirmedPolicies).toBe(confirmed);
+  await act(async () => {
+    pending.reject(new ApiError("diag", 500));
+    await task;
+  });
+  expect(result.current.state.policies).toEqual(layout.policies);
+  expect(result.current.confirmedPolicies).toBe(confirmed);
+  unmount();
+});
+
 it("clears the current session after checkout and permits another check-in", async () => {
   mocks.current.mockResolvedValue(opened);
   const closed = { ...opened, checkOutTime: new Date().toISOString() };

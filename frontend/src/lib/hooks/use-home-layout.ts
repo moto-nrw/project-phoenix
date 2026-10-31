@@ -19,6 +19,7 @@ import {
 } from "~/lib/home-layout-api";
 import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { HOME_LAYOUT_REFUSALS } from "~/lib/everyday-action-refusals";
+import { ApiError } from "~/lib/api-error";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 
 const EMPTY: HomeLayoutState = {
@@ -51,6 +52,8 @@ function homeLayoutAccountChanged(accountID: string): string {
  */
 export function useHomeLayout(): {
   state: HomeLayoutState;
+  /** Edit forms must not seed their drafts from optimistic overlays. */
+  confirmedPolicies: HomeBlockPolicies;
   isLoading: boolean;
   isReady: boolean;
   save: (
@@ -104,7 +107,11 @@ export function useHomeLayout(): {
     update: (current: HomeLayoutState) => HomeLayoutState,
     request: () => Promise<void>,
   ) => {
-    if (inFlight.current || !data) return;
+    if (inFlight.current) return;
+    if (!data)
+      throw new ApiError("Home layout is not loaded", 503, {
+        code: "general.unavailable",
+      });
     inFlight.current = true;
     try {
       const outcome = await action.run({
@@ -151,6 +158,7 @@ export function useHomeLayout(): {
   // die persönliche Anordnung überschreiben.
   return {
     state: action.data ?? EMPTY,
+    confirmedPolicies: data?.policies ?? EMPTY.policies,
     isLoading,
     isReady: data !== undefined,
     save,
