@@ -23,12 +23,6 @@ import { DevicesTable } from "~/components/operator/devices-table";
 import { DeleteDeviceModal } from "~/components/operator/delete-device-modal";
 import { TransferDeviceModal } from "~/components/operator/transfer-device-modal";
 
-const DEVICE_SWR_PREFIXES = [
-  "operator-all-devices",
-  "operator-school-devices-",
-  "operator-org-devices-",
-];
-
 function OperatorDevicesPageContent() {
   useSetBreadcrumb({ pageTitle: "Geräte" });
 
@@ -53,7 +47,9 @@ function OperatorDevicesPageContent() {
   );
   const [deleteDevice, setDeleteDevice] = useState<OperatorDevice | null>(null);
 
-  const refreshFamily = useTenantMutateMatching(DEVICE_SWR_PREFIXES);
+  const refreshFamily = useTenantMutateMatching(
+    operatorProvisioningKeys.deviceFamilies,
+  );
 
   const {
     data: schoolDevices,
@@ -186,7 +182,7 @@ function OperatorDevicesPageContent() {
       <LoadErrorAlert error={schoolsLoadError} className="mb-4" />
       <LoadErrorAlert error={devicesLoadError} className="mb-4" />
 
-      {!selectedSchool && filterOrgId && (
+      {!urlSchoolId && filterOrgId && (
         <>
           {!orgDevicesError &&
           !orgDevicesLoading &&
@@ -209,7 +205,7 @@ function OperatorDevicesPageContent() {
         </>
       )}
 
-      {!selectedSchool && !filterOrgId && (
+      {!urlSchoolId && !filterOrgId && (
         <>
           {!allDevicesError &&
           !allDevicesLoading &&

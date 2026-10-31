@@ -299,7 +299,7 @@ function setupSWR(opts: SetupOpts = {}) {
           isLoading: orgsLoading,
           mutate: mockMutateOrgs,
         };
-      case operatorProvisioningKeys.organizationSchoolSummaries(mockOrg.id):
+      case operatorProvisioningKeys.schoolSummaries():
         return {
           data: schoolsLoading ? undefined : schools,
           isLoading: schoolsLoading,

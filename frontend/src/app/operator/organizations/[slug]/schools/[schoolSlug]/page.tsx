@@ -168,13 +168,8 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
     isLoading: schoolsLoading,
     mutate: mutateSchools,
   } = useSWRAuth(
-    isAuthenticated && organization
-      ? operatorProvisioningKeys.organizationSchoolSummaries(organization.id)
-      : null,
-    () =>
-      operatorProvisioningService.listOrganizationSchools(
-        organization?.id ?? "",
-      ),
+    isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
+    () => operatorProvisioningService.listSchoolSummaries(),
     {
       keepPreviousData: false,
       revalidateOnFocus: false,
@@ -183,8 +178,12 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   );
 
   const school: SchoolSummary | undefined = useMemo(
-    () => schools?.find((item) => item.slug === schoolSlug),
-    [schoolSlug, schools],
+    () =>
+      schools?.find(
+        (item) =>
+          item.slug === schoolSlug && item.organizationId === organization?.id,
+      ),
+    [schoolSlug, schools, organization?.id],
   );
 
   useSetBreadcrumb({ pageTitle: school?.name ?? "Schule" });
@@ -298,9 +297,14 @@ function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const transferSchools = useMemo(
     () =>
       (schools ?? [])
-        .filter((item) => item.active && item.deletedAt == null)
+        .filter(
+          (item) =>
+            item.organizationId === organization?.id &&
+            item.active &&
+            item.deletedAt == null,
+        )
         .map(summaryToSchool),
-    [schools],
+    [schools, organization?.id],
   );
 
   const openCaregiverModal = useCallback(

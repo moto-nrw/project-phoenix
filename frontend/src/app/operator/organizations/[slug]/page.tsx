@@ -160,7 +160,7 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
     isAuthenticated ? operatorProvisioningKeys.organizationSummaries() : null,
     () => operatorProvisioningService.listOrganizationSummaries(),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
@@ -183,21 +183,24 @@ function OperatorOrganizationDetailPageContent({ params }: PageProps) {
   useSetBreadcrumb({ pageTitle: organization?.name ?? "Träger" });
 
   const {
-    data: organizationSchoolSummaries,
+    data: schoolSummaries,
     error: schoolsError,
     isLoading: schoolsLoading,
     mutate: mutateSchoolSummaries,
   } = useSWRAuth(
-    isAuthenticated && organizationId
-      ? operatorProvisioningKeys.organizationSchoolSummaries(organizationId)
-      : null,
-    () =>
-      operatorProvisioningService.listOrganizationSchools(organizationId ?? ""),
+    isAuthenticated ? operatorProvisioningKeys.schoolSummaries() : null,
+    () => operatorProvisioningService.listSchoolSummaries(),
     {
-      keepPreviousData: true,
+      keepPreviousData: false,
       revalidateOnFocus: false,
       dedupingInterval: 5000,
     },
+  );
+
+  const organizationSchoolSummaries = useMemo(
+    () =>
+      schoolSummaries?.filter((item) => item.organizationId === organizationId),
+    [schoolSummaries, organizationId],
   );
 
   const activeSchools = useMemo(

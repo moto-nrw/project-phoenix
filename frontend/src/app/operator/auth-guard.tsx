@@ -1,5 +1,9 @@
 "use client";
 
+import { Fragment } from "react";
+import { useSWRCacheKey } from "~/lib/swr";
+import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
+import { sessionIdentityKey } from "~/lib/session-access";
 import { redirect, usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { operatorPath } from "~/lib/operator-url";
@@ -42,6 +46,10 @@ export function OperatorAuthGuard({
   );
   const { data: session, status } = useSession();
 
+  const contentScope = useSWRCacheKey()(
+    operatorProvisioningKeys.organizations(),
+  );
+
   // Login page: render without auth guards
   if (isPublicPage) {
     return <>{children}</>;
@@ -54,7 +62,7 @@ export function OperatorAuthGuard({
     redirect(operatorPath("/operator/login"));
   }
 
-  if (status === "loading") {
+  if (status === "loading" || !contentScope) {
     return <FullPageLoading />;
   }
 
@@ -62,7 +70,12 @@ export function OperatorAuthGuard({
     <OperatorShellProvider>
       <BreadcrumbProvider>
         <ShellIntlProvider>
-          <AppShell>{children}</AppShell>
+          <AppShell>
+            {/* Also discard local form/modal state, not only cached responses. */}
+            <Fragment key={`${contentScope}:${sessionIdentityKey(session)}`}>
+              {children}
+            </Fragment>
+          </AppShell>
         </ShellIntlProvider>
       </BreadcrumbProvider>
     </OperatorShellProvider>

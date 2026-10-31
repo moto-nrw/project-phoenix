@@ -1,19 +1,18 @@
 "use client";
 
-import { useState, useCallback, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import { operatorAnnouncementsService } from "~/lib/operator/announcements-api";
 import type { AnnouncementViewDetail } from "~/lib/operator/announcements-helpers";
 import { getRelativeTime, getInitial } from "~/lib/format-utils";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { useApiLoadError } from "~/contexts/ToastContext";
-import { createLogger } from "~/lib/logger";
-
-const logger = createLogger({ component: "AnnouncementViewsAccordion" });
+import { useSWRAuth } from "~/lib/swr";
+import { operatorAnnouncementKeys } from "~/lib/swr/portal-keys";
+import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 
 interface AnnouncementViewsAccordionProps {
   readonly announcementId: string;
-  readonly dismissedCount: number;
+  readonly dismissedCount?: number;
 }
 
 export function AnnouncementViewsAccordion({
@@ -21,48 +20,44 @@ export function AnnouncementViewsAccordion({
   dismissedCount,
 }: AnnouncementViewsAccordionProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [viewDetails, setViewDetails] = useState<AnnouncementViewDetail[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const viewsLoad = useApiLoadError();
-  const { show: showLoadError, clear: clearLoadError } = viewsLoad;
-  const loadedRef = useRef(false);
-
-  // Only show users who confirmed (clicked "Verstanden")
+  const {
+    data: stats,
+    error: statsError,
+    mutate: reloadStats,
+  } = useSWRAuth(
+    isOpen ? operatorAnnouncementKeys.stats(announcementId) : null,
+    () => operatorAnnouncementsService.fetchStats(announcementId),
+    { keepPreviousData: false, refreshInterval: 30000 },
+  );
+  const {
+    data: viewDetails,
+    error,
+    isLoading,
+    mutate,
+  } = useSWRAuth<AnnouncementViewDetail[]>(
+    isOpen ? operatorAnnouncementKeys.views(announcementId) : null,
+    () => operatorAnnouncementsService.fetchViewDetails(announcementId),
+    {
+      keepPreviousData: false,
+      revalidateOnFocus: false,
+      dedupingInterval: 5000,
+    },
+  );
+  const loadError = useSwrLoadError(
+    error,
+    "die Liste der Lesebestätigungen",
+    () => void mutate(),
+  );
+  const statsLoadError = useSwrLoadError(
+    statsError,
+    "die Auswertung der Ankündigung",
+    () => void reloadStats(),
+  );
   const confirmedUsers = useMemo(
-    () => viewDetails.filter((d) => d.dismissed),
+    () => (viewDetails ?? []).filter((detail) => detail.dismissed),
     [viewDetails],
   );
-
-  const loadViewDetails = useCallback(async () => {
-    if (loadedRef.current) return;
-    setIsLoading(true);
-    clearLoadError();
-    try {
-      const details =
-        await operatorAnnouncementsService.fetchViewDetails(announcementId);
-      setViewDetails(details);
-      loadedRef.current = true;
-    } catch (err) {
-      logger.warn("announcement_view_details_failed", {
-        announcement_id: announcementId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showLoadError(err, {
-        object: "die Liste der Lesebestätigungen",
-        retry: () => void loadViewDetails(),
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  }, [announcementId, showLoadError, clearLoadError]);
-
-  const handleToggle = useCallback(() => {
-    const opening = !isOpen;
-    setIsOpen(opening);
-    if (opening) {
-      void loadViewDetails();
-    }
-  }, [isOpen, loadViewDetails]);
+  const count = stats?.dismissed_count ?? dismissedCount;
 
   // Only show if there are any confirmations
   if (dismissedCount === 0) {
@@ -79,14 +74,15 @@ export function AnnouncementViewsAccordion({
       {/* Accordion header */}
       <button
         type="button"
-        onClick={handleToggle}
+        onClick={() => setIsOpen((open) => !open)}
+        aria-expanded={isOpen}
         className="flex w-full items-center justify-between py-3 text-sm text-gray-600 transition-colors hover:text-gray-900"
       >
         <span className="flex items-center gap-1.5 font-medium">
           <span>Lesebestätigungen</span>
-          <span className="text-xs font-normal text-gray-400">
-            ({dismissedCount})
-          </span>
+          {count !== undefined && (
+            <span className="text-xs font-normal text-gray-400">({count})</span>
+          )}
         </span>
         <ChevronDown
           className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
@@ -94,67 +90,74 @@ export function AnnouncementViewsAccordion({
       </button>
 
       {/* Accordion body */}
-      <div
-        className={`grid transition-[grid-template-rows] duration-200 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
-      >
-        <div className="overflow-hidden">
-          <div className="pb-3">
-            {/* Loading state */}
-            {isLoading && (
-              <p className="py-2 text-xs text-gray-400">Laden...</p>
-            )}
+      {isOpen && (
+        <div
+          className={`grid transition-[grid-template-rows] duration-200 ${isOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]"}`}
+        >
+          <div className="overflow-hidden">
+            <div className="pb-3">
+              {/* Loading state */}
+              {isLoading && (
+                <p className="py-2 text-xs text-gray-400">Laden...</p>
+              )}
 
-            {/* Error */}
-            <LoadErrorAlert error={viewsLoad.error} className="mb-2" />
+              {/* Error */}
+              <LoadErrorAlert
+                error={loadError ?? statsLoadError}
+                className="mb-2"
+              />
 
-            {/* Confirmed users list */}
-            {!isLoading && confirmedUsers.length > 0 && (
-              <div className="space-y-0 divide-y divide-gray-100">
-                {confirmedUsers.map((detail) => (
-                  <div
-                    key={detail.userId}
-                    className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
-                  >
-                    {/* Initials avatar */}
-                    <div className="bg-moto-green/15 text-moto-green-strong flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
-                      {getInitial(detail.userName)}
-                    </div>
+              {/* Confirmed users list */}
+              {!isLoading && confirmedUsers.length > 0 && (
+                <div className="space-y-0 divide-y divide-gray-100">
+                  {confirmedUsers.map((detail) => (
+                    <div
+                      key={detail.userId}
+                      className="flex items-center gap-2.5 py-2.5 first:pt-0 last:pb-0"
+                    >
+                      {/* Initials avatar */}
+                      <div className="bg-moto-green/15 text-moto-green-strong flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-medium">
+                        {getInitial(detail.userName)}
+                      </div>
 
-                    {/* Content */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-baseline gap-1.5">
-                          <span className="text-sm font-medium text-gray-900">
-                            {detail.userName}
-                          </span>
-                          <time
-                            dateTime={detail.seenAt}
-                            title={new Date(detail.seenAt).toLocaleString(
-                              "de-DE",
-                              { timeZone: "Europe/Berlin" },
-                            )}
-                            className="text-xs text-gray-400"
-                          >
-                            · {getRelativeTime(detail.seenAt)}
-                          </time>
+                      {/* Content */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-sm font-medium text-gray-900">
+                              {detail.userName}
+                            </span>
+                            <time
+                              dateTime={detail.seenAt}
+                              title={new Date(detail.seenAt).toLocaleString(
+                                "de-DE",
+                                { timeZone: "Europe/Berlin" },
+                              )}
+                              className="text-xs text-gray-400"
+                            >
+                              · {getRelativeTime(detail.seenAt)}
+                            </time>
+                          </div>
+                          <Check className="text-moto-green h-4 w-4" />
                         </div>
-                        <Check className="text-moto-green h-4 w-4" />
                       </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
 
-            {/* Empty state */}
-            {!isLoading && loadedRef.current && confirmedUsers.length === 0 && (
-              <p className="text-xs text-gray-400">
-                Noch keine Lesebestätigungen.
-              </p>
-            )}
+              {/* Empty state */}
+              {!isLoading &&
+                viewDetails !== undefined &&
+                confirmedUsers.length === 0 && (
+                  <p className="text-xs text-gray-400">
+                    Noch keine Lesebestätigungen.
+                  </p>
+                )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

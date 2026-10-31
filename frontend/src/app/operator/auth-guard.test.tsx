@@ -1,5 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { useState } from "react";
+import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
+import { resumeSWRSession } from "~/lib/swr/scope";
+import { render, screen, waitFor, act } from "@testing-library/react";
+
+vi.unmock("swr");
+vi.mock("~/lib/session-cache", () => ({ announceSessionChange: vi.fn() }));
 
 const { mockRedirect, mockUseSession, mockUsePathname } = vi.hoisted(() => ({
   mockRedirect: vi.fn(),
@@ -43,6 +49,8 @@ vi.mock("~/components/ui/loading", () => ({
 }));
 
 import { OperatorAuthGuard } from "./auth-guard";
+
+afterEach(() => resumeSWRSession());
 
 describe("OperatorAuthGuard", () => {
   beforeEach(() => {
@@ -113,7 +121,7 @@ describe("OperatorAuthGuard", () => {
   it("renders full shell for authenticated platform users", () => {
     mockUsePathname.mockReturnValue("/operator/settings");
     mockUseSession.mockReturnValue({
-      data: { user: { scope: "platform" } },
+      data: { user: { id: "operator-a", scope: "platform" } },
       status: "authenticated",
     });
 
@@ -128,6 +136,60 @@ describe("OperatorAuthGuard", () => {
     expect(screen.getByTestId("breadcrumb-provider")).toBeInTheDocument();
     expect(screen.getByTestId("app-shell")).toBeInTheDocument();
   });
+
+  it.each(["account", "other-tab-account", "other-tab-logout"])(
+    "discards local modal data on %s before navigation completes",
+    (change) => {
+      mockUsePathname.mockReturnValue("/operator/accounts");
+      mockUseSession.mockReturnValue({
+        data: { user: { id: "operator-a", scope: "platform" } },
+        status: "authenticated",
+      });
+      function LocalModal() {
+        const [owner] = useState(() => mockUseSession().data.user.id);
+        return <p>Dialog von {owner}</p>;
+      }
+      function Page() {
+        return (
+          <>
+            <SWRScopeBoundary />
+            <OperatorAuthGuard>
+              <LocalModal />
+            </OperatorAuthGuard>
+          </>
+        );
+      }
+      const view = render(<Page />);
+      expect(screen.getByText("Dialog von operator-a")).toBeInTheDocument();
+      act(() => {
+        if (change === "account") {
+          mockUseSession.mockReturnValue({
+            data: { user: { id: "operator-b", scope: "platform" } },
+            status: "authenticated",
+          });
+          view.rerender(<Page />);
+        } else {
+          globalThis.dispatchEvent(
+            new StorageEvent("storage", {
+              key: "moto:personal-storage-owner",
+              newValue: change.endsWith("logout")
+                ? null
+                : "platform:operator-b",
+            }),
+          );
+        }
+      });
+      // Anker: either the new account's dialog or the tab's explicit loading state.
+      expect(
+        screen.getByText(
+          change === "account" ? "Dialog von operator-b" : "Loading...",
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Dialog von operator-a"),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("shows loading spinner while session is loading", () => {
     mockUsePathname.mockReturnValue("/operator/settings");

@@ -6,6 +6,20 @@ export { parentKeys } from "./parent-keys";
 
 /** Unscoped family factories. Only the shared hooks turn these into cache keys. */
 export const operatorProvisioningKeys = {
+  accountFamilies: [
+    "operator-all-accounts",
+    "operator-school-accounts-",
+    "operator-org-accounts-",
+    "operator-school-summaries",
+    "operator-organization-summaries",
+  ],
+  deviceFamilies: [
+    "operator-all-devices",
+    "operator-school-devices-",
+    "operator-org-devices-",
+    "operator-school-summaries",
+    "operator-organization-summaries",
+  ],
   schoolDevices: (id: string | undefined) =>
     `operator-school-devices-${encodeURIComponent(id ?? "")}`,
   orgDevices: (id: string | undefined) =>
@@ -43,6 +57,8 @@ export const operatorProvisioningKeys = {
 
 export const operatorAnnouncementKeys = {
   list: () => "operator-announcements",
+  views: (id: string) =>
+    `operator-announcement-views-${encodeURIComponent(id)}`,
   stats: (id: string | undefined) =>
     `announcement-stats-${encodeURIComponent(id ?? "")}`,
 } as const;

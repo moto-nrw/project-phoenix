@@ -36,7 +36,6 @@ import type {
   AnnouncementType,
   AnnouncementSeverity,
   SystemRole,
-  AnnouncementStats,
   CreateAnnouncementRequest,
   UpdateAnnouncementRequest,
 } from "~/lib/operator/announcements-helpers";
@@ -1345,44 +1344,9 @@ function AnnouncementCard({
 
       {/* Views accordion at the bottom */}
       {announcement.status !== "draft" && (
-        <AnnouncementViewsAccordionWrapper announcementId={announcement.id} />
+        <AnnouncementViewsAccordion announcementId={announcement.id} />
       )}
     </div>
-  );
-}
-
-function AnnouncementViewsAccordionWrapper({
-  announcementId,
-}: {
-  readonly announcementId: string;
-}) {
-  const {
-    data: stats,
-    error,
-    mutate,
-  } = useSWRAuth<AnnouncementStats>(
-    operatorAnnouncementKeys.stats(announcementId),
-    () => operatorAnnouncementsService.fetchStats(announcementId),
-    { keepPreviousData: false, refreshInterval: 30000 },
-  );
-  const loadError = useSwrLoadError(
-    error,
-    "die Auswertung der Ankündigung",
-    () => void mutate(),
-  );
-
-  if (loadError) {
-    return <LoadErrorAlert error={loadError} className="mt-3" />;
-  }
-  if (!stats || (stats.seen_count === 0 && stats.dismissed_count === 0)) {
-    return null;
-  }
-
-  return (
-    <AnnouncementViewsAccordion
-      announcementId={announcementId}
-      dismissedCount={stats.dismissed_count}
-    />
   );
 }
 
