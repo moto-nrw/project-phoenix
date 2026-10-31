@@ -29,10 +29,6 @@ export {
   useTenantMutateMatching,
 } from "./hooks";
 export {
-  activityWaitlistKeys,
-  courseWaitlistKeys,
-} from "./course-waitlist-keys";
-export {
   authGeneration,
   scopedSWRKey,
   tenantSWRScope,

@@ -40,7 +40,8 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 import { fetchCourseWaitlists } from "~/lib/course-waitlist-api";
 import type { CourseWaitlist } from "~/lib/course-waitlist-helpers";
-import { courseWaitlistKeys, useSWRAuth } from "~/lib/swr";
+import { courseWaitlistKeys } from "~/lib/swr/course-waitlist-keys";
+import { useSWRAuth } from "~/lib/swr";
 
 const NO_WAITLISTS: readonly CourseWaitlist[] = [];
 

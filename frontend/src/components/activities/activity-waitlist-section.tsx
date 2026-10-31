@@ -12,8 +12,8 @@ import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
   activityWaitlistKeys,
   courseWaitlistKeys,
-  useSWRAuth,
-} from "~/lib/swr";
+} from "~/lib/swr/course-waitlist-keys";
+import { useSWRAuth } from "~/lib/swr";
 
 /**
  * Plätze und Warteliste einer AG (#4767), im Fenster der Aktivität. Nur zur

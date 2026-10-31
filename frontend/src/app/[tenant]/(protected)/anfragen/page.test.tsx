@@ -44,15 +44,18 @@ const waitlistState = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  courseWaitlistKeys: {
-    all: () => "course-waitlists",
-  },
   useSWRAuth: (key: string | null) => ({
     data: key === "course-waitlists" ? waitlistState.waitlists : undefined,
     error: undefined,
     isLoading: false,
     mutate: vi.fn(() => Promise.resolve(undefined)),
   }),
+}));
+
+vi.mock("~/lib/swr/course-waitlist-keys", () => ({
+  courseWaitlistKeys: {
+    all: () => "course-waitlists",
+  },
 }));
 
 vi.mock("~/components/timetable/pickup-extension-access", () => ({
