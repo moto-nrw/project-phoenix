@@ -7962,7 +7962,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
-      "binding_digest": "bd1c204457d003a81374c8dfaad5eac1",
+      "binding_digest": "defadd8f2e4d7e84af30ed1de6b739a9",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.BookingMaterializationCapability.OfferingWeekdayBookings",
@@ -7970,7 +7970,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
-      "binding_digest": "84a16ba465ab08a431fbe4fa46f9ca5e",
+      "binding_digest": "680c45d800123e9799aa2afe583a0f26",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.OfferingWeekdayBookings",
@@ -7978,7 +7978,7 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.timetableOfferingSources.OfferingWeekdayBookings",
-      "binding_digest": "b2cd77adb0c29439f04301f1a804d9c7",
+      "binding_digest": "d6ea161bd41275a084829549cd094e5f",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.OfferingSourceSupport.OfferingWeekdayBookings",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.OfferingSourceEditor.OfferingWeekdayBookings",

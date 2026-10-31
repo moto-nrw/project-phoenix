@@ -75,13 +75,21 @@ func newTestService(resolver fakeResolver, uploader *fakeUploader, journal *fake
 }
 
 type fakeJournal struct {
-	entries []domain.JournalEntry
-	err     error
+	entries     []domain.JournalEntry
+	err         error
+	completeErr error
 }
 
 func (f *fakeJournal) Begin(context.Context, domain.JournalEntry) (int64, error) { return 1, f.err }
 func (f *fakeJournal) Claim(context.Context, int64) (string, error)              { return "one-shot-fence", nil }
 func (f *fakeJournal) Complete(_ context.Context, _ int64, _ string, entry domain.JournalEntry) error {
+	f.entries = append(f.entries, entry)
+	if f.completeErr != nil {
+		return f.completeErr
+	}
+	return f.err
+}
+func (f *fakeJournal) Record(_ context.Context, entry domain.JournalEntry) error {
 	f.entries = append(f.entries, entry)
 	return f.err
 }
@@ -158,6 +166,23 @@ func TestTransfer_FailureIsRecordedAsFailureWithItsReason(t *testing.T) {
 	require.Len(t, journal.entries, 1)
 	assert.False(t, journal.entries[0].Success)
 	assert.Equal(t, domain.ReasonHostKey, journal.entries[0].Reason)
+}
+
+func TestTransfer_UnsettledAttemptIsNotAnOrdinaryUnavailableTransfer(t *testing.T) {
+	t.Parallel()
+
+	completeErr := errors.New("journal outcome unavailable")
+	journal := &fakeJournal{completeErr: completeErr}
+	uploader := &fakeUploader{}
+	service := newTestService(fakeResolver{target: configuredTarget()}, uploader, journal)
+
+	_, err := service.Transfer(context.Background(), testRequest())
+	require.ErrorIs(t, err, completeErr)
+	assert.ErrorIs(t, err, exporttransfer.ErrUnknownSettlement)
+	assert.NotErrorIs(t, err, ErrUnavailable,
+		"the recovery worker, not a caller retry, must settle an attempt whose remote outcome may be unknown")
+	assert.Equal(t, 1, uploader.calls)
+	assert.Equal(t, 1, uploader.pending.commits)
 }
 
 // An unrecognized transport error must not be presented as a known, harmless
@@ -280,4 +305,60 @@ func TestTransferUsesTheFilePreparedWithItsAccessAudit(t *testing.T) {
 	require.Len(t, journal.entries, 1)
 	assert.Equal(t, uploader.filename, journal.entries[0].Filename)
 	assert.Equal(t, int64(len(uploader.data)), journal.entries[0].ByteSize)
+}
+
+// #4805: an automatic send names its month and the SFTP channel, so the
+// journal answers which month left the school and how.
+func TestTransfer_RecordsPeriodAndChannel(t *testing.T) {
+	t.Parallel()
+
+	journal := &fakeJournal{}
+	service := newTestService(fakeResolver{target: configuredTarget()}, &fakeUploader{}, journal)
+	request := testRequest()
+	request.Period = "2026-08"
+
+	_, err := service.Transfer(context.Background(), request)
+	require.NoError(t, err)
+	require.Len(t, journal.entries, 1)
+	assert.Equal(t, "2026-08", journal.entries[0].Period)
+	assert.Equal(t, domain.ChannelSFTP, journal.entries[0].Channel)
+}
+
+func TestRecordEmail_DeliveredAndFailedSends(t *testing.T) {
+	t.Parallel()
+
+	journal := &fakeJournal{}
+	service := newTestService(fakeResolver{target: configuredTarget()}, &fakeUploader{}, journal)
+	record := exporttransfer.EmailRecord{
+		Kind: exporttransfer.KindStaffTimeTracking, Format: "csv", Period: "2026-08",
+		Filename: "zeiterfassung_alle_2026-08.csv", ByteSize: 12, Recipient: "lohn@steuerbuero-beispiel.de",
+		Delivered: true, ActorAccountID: 42, ActorName: "A. Beispiel",
+	}
+	require.NoError(t, service.RecordEmail(context.Background(), record))
+
+	record.Delivered, record.Reason = false, exporttransfer.ReasonMailFailed
+	require.NoError(t, service.RecordEmail(context.Background(), record))
+
+	require.Len(t, journal.entries, 2)
+	assert.True(t, journal.entries[0].Success)
+	assert.Empty(t, journal.entries[0].Reason)
+	assert.Equal(t, domain.ChannelEmail, journal.entries[0].Channel)
+	assert.Equal(t, "lohn@steuerbuero-beispiel.de", journal.entries[0].TargetEmail)
+	assert.Equal(t, "2026-08", journal.entries[0].Period)
+	assert.False(t, journal.entries[1].Success)
+	assert.Equal(t, domain.ReasonMailFailed, journal.entries[1].Reason)
+}
+
+func TestRecordEmail_RejectsIncompleteRecords(t *testing.T) {
+	t.Parallel()
+
+	journal := &fakeJournal{}
+	service := newTestService(fakeResolver{target: configuredTarget()}, &fakeUploader{}, journal)
+
+	err := service.RecordEmail(context.Background(), exporttransfer.EmailRecord{Filename: "datei.csv"})
+	require.ErrorIs(t, err, ErrUnavailable, "a send without recipient says nothing about where the file went")
+
+	err = service.RecordEmail(context.Background(), exporttransfer.EmailRecord{Filename: "datei.csv", Recipient: "a@b.de"})
+	require.ErrorIs(t, err, ErrUnavailable, "a failure must carry its reason")
+	assert.Empty(t, journal.entries)
 }

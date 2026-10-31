@@ -342,6 +342,8 @@ func (s timetableOfferingSources) OfferingWeekdayBookings(ctx context.Context, c
 		result = append(result, timetable.OfferingWeekdayBooking{
 			OfferingID:            booking.OfferingID,
 			OfferingName:          booking.OfferingName,
+			PhaseID:               booking.PhaseID,
+			HolidayPhase:          booking.HolidayPhase,
 			StudentID:             booking.StudentID,
 			SchoolClass:           booking.SchoolClass,
 			GradeLevel:            grade,

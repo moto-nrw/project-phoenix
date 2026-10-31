@@ -26,12 +26,13 @@ function wrapper({ children }: { children: ReactNode }) {
 
 const deviation: RosterDeviation = {
   templateId: "7",
-  offering: { id: "3", name: "OGS Ganztag" },
+  offerings: [{ id: "3", name: "OGS Ganztag" }],
   gradeLevels: [],
   schoolClasses: ["2a"],
   unbookedCount: 1,
   missingCount: 0,
   candidates: [],
+  combinations: [],
   ambiguous: false,
 };
 

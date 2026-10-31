@@ -28,6 +28,7 @@ const CodeWorkforceNoActiveSession = "workforce.no_active_session"
 const CodeWorkforceNoSessionForToday = "workforce.no_session_for_today"
 const CodeWorkforceOpeningBalanceAlreadyExists = "workforce.opening_balance_already_exists"
 const CodeWorkforcePayrollConfigIncomplete = "workforce.payroll_config_incomplete"
+const CodeWorkforcePayrollDownloadUnavailable = "workforce.payroll_download_unavailable"
 const CodeWorkforcePersonnelNumberInvalid = "workforce.personnel_number_invalid"
 const CodeWorkforcePersonnelNumberTaken = "workforce.personnel_number_taken"
 const CodeWorkforceRebookingBeforeVacationOpening = "workforce.rebooking_before_vacation_opening"
@@ -98,6 +99,7 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceNoSessionForToday, "business_rejection"},
 	{CodeWorkforceOpeningBalanceAlreadyExists, "business_rejection"},
 	{CodeWorkforcePayrollConfigIncomplete, "business_rejection"},
+	{CodeWorkforcePayrollDownloadUnavailable, "business_rejection"},
 	{CodeWorkforcePersonnelNumberInvalid, "input"},
 	{CodeWorkforcePersonnelNumberTaken, "business_rejection"},
 	{CodeWorkforceRebookingBeforeVacationOpening, "business_rejection"},

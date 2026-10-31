@@ -148,8 +148,9 @@ func rosterReviewBookings(offeringID int64, name, class string, studentIDs []int
 
 // TestTemplateRosterDeviationsSchuleAmBerg: the whole class 1a sits in a
 // Klasse Regeltermin by hand; "Randstunde" books four of its six children on
-// Monday and Wednesday, "Ganztag" one child. The hint names Randstunde with
-// the Klassenfilter and counts the two children without a booking. An
+// Monday and Wednesday, "Ganztag" one child. The hint names Randstunde and,
+// for that child, Ganztag (#5139) with the Klassenfilter and counts the one
+// child without a booking. An
 // automatic Regeltermin, a roster with too few booked children and a series
 // confirmed as hand-kept show no hint.
 func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
@@ -183,12 +184,14 @@ func TestTemplateRosterDeviationsSchuleAmBerg(t *testing.T) {
 	require.Len(t, deviations, 1, "only the hand-kept Klasse Regeltermin deviates: %+v", deviations)
 	got := deviations[0]
 	assert.Equal(t, deviating, got.TemplateID)
-	assert.Equal(t, templateRosterMaintenanceOfferingResponse{ID: randstunde, Name: "Randstunde"}, got.Offering)
+	assert.Equal(t, []templateRosterMaintenanceOfferingResponse{
+		{ID: randstunde, Name: "Randstunde"}, {ID: randstunde + 1, Name: "Ganztag"},
+	}, got.Offerings)
 	assert.Equal(t, []string{"1a"}, got.SchoolClasses)
 	assert.Empty(t, got.GradeLevels)
-	assert.Equal(t, 2, got.UnbookedCount)
+	assert.Equal(t, 1, got.UnbookedCount, "class[4] books Ganztag; only class[5] books nothing")
 	assert.Zero(t, got.MissingCount)
-	assert.Equal(t, []templateRosterMaintenanceOfferingResponse{{ID: randstunde, Name: "Randstunde"}}, got.Candidates)
+	assert.Equal(t, got.Offerings, got.Candidates, "no other offering passes the rule")
 
 	// The list carries the decision; undoing it brings the hint back.
 	list := decodeTemplateData[listTemplatesResponse](t,
@@ -428,4 +431,42 @@ func TestTemplateRosterDeviationsQueryBudget(t *testing.T) {
 	t.Logf("query budget: 3 templates → %d queries, 8 templates → %d queries", small, large)
 	assert.Equal(t, small, large, "query count must not grow with the number of Regeltermine")
 	testpkg.AssertQueryBudget(t, "api.timetable.templates.roster_deviations", counter.Queries())
+}
+
+// TestTemplateRosterDeviationsTiedCombinations (review of #5363): two
+// combinations explain the same children of a hand-kept Klasse
+// Regeltermin. The hint carries both and preselects neither.
+func TestTemplateRosterDeviationsTiedCombinations(t *testing.T) {
+	t.Parallel()
+	sources := &rosterMaintenanceSources{results: map[int64]timetableModule.TemplateRosterMaintenance{}}
+	s := buildRosterReviewModule(t, sources)
+	period := createTemplateTestPeriodRange(t, s.db, "Review-Period", rosterReviewMonday.AddDays(-30), rosterReviewMonday.AddDays(120), 1, nil)
+	class := createClassStudents(t, s.db, "1c", 7)
+	first := rosterReviewOfferingID
+	offerings := []templateRosterMaintenanceOfferingResponse{
+		{ID: first, Name: "A"}, {ID: first + 1, Name: "B"}, {ID: first + 2, Name: "C"}, {ID: first + 3, Name: "D"},
+	}
+	pick := func(indexes ...int) []int64 {
+		ids := make([]int64, 0, len(indexes))
+		for _, index := range indexes {
+			ids = append(ids, class[index])
+		}
+		return ids
+	}
+	sources.bookings = append(rosterReviewBookings(first, "A", "1c", pick(0, 1, 2), 1, 3),
+		rosterReviewBookings(first+1, "B", "1c", pick(3, 4, 5), 1, 3)...)
+	sources.bookings = append(sources.bookings, rosterReviewBookings(first+2, "C", "1c", pick(0, 3, 4), 1, 3)...)
+	sources.bookings = append(sources.bookings, rosterReviewBookings(first+3, "D", "1c", pick(1, 2, 5), 1, 3)...)
+	template := s.createClassTemplate(t, "RDST 1c", "1c", period.ID, class)
+	sources.results[template] = timetableModule.TemplateRosterMaintenance{Mode: "manual", DynamicTargetsManual: true}
+
+	deviations := s.listDeviations(t, period.ID)
+
+	require.Len(t, deviations, 1)
+	got := deviations[0]
+	assert.True(t, got.Ambiguous)
+	assert.ElementsMatch(t, [][]templateRosterMaintenanceOfferingResponse{
+		{offerings[0], offerings[1]}, {offerings[2], offerings[3]},
+	}, got.Combinations)
+	assert.ElementsMatch(t, offerings, got.Candidates)
 }
