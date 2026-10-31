@@ -75,4 +75,20 @@ describe("shared parent relationship features", () => {
     expect(result.current.master.error).toBeNull();
     expect(result.current.care.features).toEqual(features);
   });
+  it("withdraws previously confirmed capabilities when revalidation fails", async () => {
+    const { result } = mount();
+    await waitFor(() =>
+      expect(result.current.master.features).toEqual(features),
+    );
+    expect(result.current.care.features.sick_note_enabled).toBe(true);
+    vi.mocked(api.getChildFeatures).mockRejectedValue(
+      new ApiError("offline", 503, { code: "general.unavailable" }),
+    );
+    await act(async () => {
+      result.current.care.refresh();
+    });
+    await waitFor(() => expect(result.current.master.error).not.toBeNull());
+    expect(result.current.master.features).toBeNull();
+    expect(result.current.care.features.sick_note_enabled).toBe(false);
+  });
 });

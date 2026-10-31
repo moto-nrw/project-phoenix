@@ -146,7 +146,7 @@ export function useParentChildren(enabled = true) {
 export function useParentFeatures(children: readonly Child[] | undefined) {
   const refuse = useParentRefusal();
   const { data: session } = useSession();
-  return useSWRAuth(
+  const resource = useSWRAuth(
     session?.user.scope === "parent" && children
       ? parentKeys.features(children)
       : null,
@@ -169,6 +169,8 @@ export function useParentFeatures(children: readonly Child[] | undefined) {
       },
     },
   );
+  // Cached capabilities must not keep actions enabled after a failed lookup.
+  return { ...resource, data: resource.error ? undefined : resource.data };
 }
 
 export function useParentToday(children: readonly Child[] | undefined) {
