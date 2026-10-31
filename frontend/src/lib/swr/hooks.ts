@@ -218,6 +218,9 @@ export const MUTATION_OPTION_KEYS = [
 
 const allowedReaderKeys = new Set<string>(READER_OPTION_KEYS);
 const allowedMutationKeys = new Set<string>(MUTATION_OPTION_KEYS);
+// A clear writes nothing but `undefined`: it may revalidate and report a
+// failed revalidation, never populate or show optimistic data.
+const clearOptionKeys = new Set<string>(["revalidate", "throwOnError"]);
 
 /**
  * Copies the allowed keys of `options`; any other key throws outside
@@ -278,15 +281,19 @@ function lockBoundMutate<T>(
     // SWR's bound mutate follows the hook's latest key. A retained callback
     // must write to the same captured key that its generation lock checks.
     // SWR counts the arguments: `mutate()` revalidates, while an explicit
-    // `undefined` writes it. Pass revalidations through unchanged.
+    // `undefined` clears the entry. A clear takes only `revalidate` and
+    // `throwOnError`: populateCache or optimisticData would write past the
+    // lock.
     if (args[0] === undefined) {
-      return currentResult(
-        key,
-        (mutate as (...given: unknown[]) => Promise<T | undefined>)(
-          key,
-          ...args,
-        ),
+      if (args.length === 0) return currentResult(key, mutate(key));
+      const clear = copyAllowed(
+        typeof args[1] === "boolean"
+          ? { revalidate: args[1] }
+          : ((args[1] ?? undefined) as object | undefined),
+        clearOptionKeys,
+        "clear",
       );
+      return currentResult(key, mutate(key, undefined, clear as never));
     }
     const [locked, lockedOptions] = lockMutation(
       key,

@@ -1,5 +1,5 @@
 import { act, render, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { SWRConfig, useSWRConfig, type Middleware } from "swr";
 import { SWRSeedBoundary } from "./config-boundaries";
 import {
@@ -417,6 +417,87 @@ describe("option allowlists of ~/lib/swr", () => {
     );
     await waitFor(() => expect(onSuccess).toHaveBeenCalled());
     expect(onSuccess.mock.calls[0]).toEqual([["server"]]);
+  });
+
+  // Production drops what development refuses: no option outside the
+  // allowlist reaches SWR there either.
+  function inProduction() {
+    vi.stubEnv("NODE_ENV", "production");
+    onTestFinished(() => {
+      vi.unstubAllEnvs();
+    });
+  }
+
+  it("drops a refused reader option in production", () => {
+    inProduction();
+    const middleware = vi.fn<Middleware>((next) => next);
+    const options = { refreshInterval: 0, use: [middleware] };
+    renderHook(() => useSWRAuth(roomKeys.key(), async () => [], options));
+    expect(middleware).not.toHaveBeenCalled();
+  });
+
+  async function boundReader() {
+    const reader = renderHook(() =>
+      useSWRAuth(roomKeys.key(), async () => ["server"], {
+        revalidateIfStale: false,
+      }),
+    );
+    await waitFor(() => expect(reader.result.current.data).toEqual(["server"]));
+    const { result } = renderHook(() => useSWRConfig().cache);
+    return { reader, cache: result.current };
+  }
+
+  it("lets a bound clear take only revalidate and throwOnError", async () => {
+    const { reader, cache } = await boundReader();
+    await act(async () => {
+      await reader.result.current.mutate(undefined, {
+        revalidate: false,
+        throwOnError: true,
+      });
+    });
+    expect(cache.get(own(roomKeys.key()))?.data).toBeUndefined();
+    const middleware = vi.fn<Middleware>((next) => next);
+    const options = {
+      revalidate: false,
+      populateCache: () => ["raw-populate"],
+      use: [middleware],
+    };
+    expect(() => reader.result.current.mutate(undefined, options)).toThrow(
+      "takes no option 'populateCache'",
+    );
+  });
+
+  it("clears without the refused options in production", async () => {
+    const { reader, cache } = await boundReader();
+    inProduction();
+    const options = {
+      revalidate: false,
+      populateCache: () => ["raw-populate"],
+      optimisticData: ["raw-optimistic"],
+    };
+    await act(async () => {
+      await reader.result.current.mutate(undefined, options);
+    });
+    // Neither populateCache nor optimisticData wrote: the entry is cleared.
+    expect(cache.get(own(roomKeys.key()))?.data).toBeUndefined();
+  });
+
+  it("refuses a mutation option outside the allowlist on the bound mutate", async () => {
+    const { reader } = await boundReader();
+    const options = { revalidate: false, extra: 1 };
+    expect(() => reader.result.current.mutate(["saved"], options)).toThrow(
+      "takes no option 'extra'",
+    );
+  });
+
+  it("drops a refused mutation option in production", async () => {
+    const { reader, cache } = await boundReader();
+    inProduction();
+    const options = { revalidate: false, populateCache: true, extra: 1 };
+    await act(async () => {
+      await reader.result.current.mutate(["saved"], options);
+    });
+    expect(cache.get(own(roomKeys.key()))?.data).toEqual(["saved"]);
   });
 
   it("refuses a mutation option outside the allowlist", () => {
