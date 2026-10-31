@@ -4,7 +4,7 @@
 // Reiter „Anmeldungen“ führt zur Prüfung der Anmeldungen (#4663).
 
 import { useParams, useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import {
   HolidayPeriodStatusLine,
   holidayPeriodTabs,
@@ -13,48 +13,42 @@ import { HolidayPeriodForm } from "~/components/traeger/holiday-period-form";
 import { HolidayPeriodPublishCard } from "~/components/traeger/holiday-period-publish-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { useApiLoadError } from "~/contexts/ToastContext";
-import { createLogger } from "~/lib/logger";
-import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
+import type { HolidayPeriod } from "~/lib/traeger-api";
+import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
+import { useTenantMutateMatching } from "~/lib/swr";
+import { traegerKeys } from "~/lib/swr/portal-keys";
 import { traegerPath } from "~/lib/traeger-url";
-
-const logger = createLogger({ component: "TraegerHolidayPeriodPage" });
 
 export default function TraegerHolidayPeriodPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
-  const [period, setPeriod] = useState<HolidayPeriod | null>(null);
+  const {
+    data: period,
+    preview,
+    loadError: periodError,
+    mutate,
+  } = useTraegerHolidayPeriod(id);
+  const invalidatePeriods = useTenantMutateMatching([
+    traegerKeys.periodsFamily,
+  ]);
   const [dirty, setDirty] = useState(false);
   const { schools, error: schoolsError } = useTraegerSchools();
-  const periodLoad = useApiLoadError();
-  const { show: showLoadError, clear: clearLoadError } = periodLoad;
   const listHref = traegerPath("/traeger/ferien");
 
-  const load = useCallback(async () => {
-    try {
-      setPeriod(await fetchHolidayPeriod(id));
-      clearLoadError();
-    } catch (err) {
-      logger.error("traeger_holiday_period_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: "den Ferienzeitraum",
-        retry: () => void load(),
-      });
-    }
-  }, [clearLoadError, id, showLoadError]);
+  const saved = useCallback(
+    (next: HolidayPeriod) => {
+      void mutate(next, { revalidate: false });
+      void invalidatePeriods({ except: [traegerKeys.period(id)] });
+    },
+    [mutate, invalidatePeriods, id],
+  );
 
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const loadError = periodLoad.error ?? schoolsError;
+  const loadError = periodError ?? schoolsError;
 
   return (
     <TenantPage
-      title={period?.name ?? "Ferienzeitraum"}
+      title={period?.name ?? preview?.name ?? "Ferienzeitraum"}
       back
       backHref={listHref}
       backLabel="Zurück zu den Ferien"
@@ -69,7 +63,7 @@ export default function TraegerHolidayPeriodPage() {
           <HolidayPeriodPublishCard
             period={period}
             unsavedChanges={dirty}
-            onPublished={setPeriod}
+            onPublished={saved}
           />
           <HolidayPeriodForm
             key={period.id}
@@ -77,7 +71,7 @@ export default function TraegerHolidayPeriodPage() {
             schools={schools}
             onDirtyChange={setDirty}
             onCancel={() => router.push(listHref)}
-            onSaved={setPeriod}
+            onSaved={saved}
           />
         </>
       ) : null}

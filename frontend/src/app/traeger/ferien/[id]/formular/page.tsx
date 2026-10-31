@@ -16,7 +16,7 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
+import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
   fetchHolidayForm,
   type HolidayForm,
@@ -28,18 +28,18 @@ const logger = createLogger({ component: "TraegerHolidayFormPage" });
 export default function TraegerHolidayFormPage() {
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
-  const [period, setPeriod] = useState<HolidayPeriod | null>(null);
+  const {
+    data: period,
+    preview,
+    loadError: periodError,
+  } = useTraegerHolidayPeriod(id);
   const [form, setForm] = useState<HolidayForm | null>(null);
   const formLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = formLoad;
 
   const load = useCallback(async () => {
     try {
-      const [loadedPeriod, loadedForm] = await Promise.all([
-        fetchHolidayPeriod(id),
-        fetchHolidayForm(id),
-      ]);
-      setPeriod(loadedPeriod);
+      const loadedForm = await fetchHolidayForm(id);
       setForm(loadedForm);
       clearLoadError();
     } catch (err) {
@@ -57,9 +57,11 @@ export default function TraegerHolidayFormPage() {
     void load();
   }, [load]);
 
+  const loadError = formLoad.error ?? periodError;
+
   return (
     <TenantPage
-      title={period?.name ?? "Ferienzeitraum"}
+      title={period?.name ?? preview?.name ?? "Ferienzeitraum"}
       back
       backHref={traegerPath("/traeger/ferien")}
       backLabel="Zurück zu den Ferien"
@@ -81,10 +83,10 @@ export default function TraegerHolidayFormPage() {
           </HolidayPeriodStatusLine>
         ) : null
       }
-      statsLoading={!(period && form) && !formLoad.error}
+      statsLoading={!(period && form) && !loadError}
       tabs={holidayPeriodTabs(id, "formular", period?.registrationCount)}
-      error={formLoad.error}
-      loading={!formLoad.error && !(period && form)}
+      error={loadError}
+      loading={!loadError && !(period && form)}
     >
       {period && form ? (
         <HolidayFormEditor

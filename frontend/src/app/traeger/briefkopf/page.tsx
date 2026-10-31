@@ -23,11 +23,11 @@ import type { ResolvedSetting, SchemaTab } from "~/lib/settings-api";
 import {
   clearTraegerSettingValue,
   fetchTraegerMasterData,
-  fetchTraegerSettingsSchema,
   saveTraegerSettingValue,
   type TraegerMasterData,
   traegerLogoSrc,
 } from "~/lib/traeger-api";
+import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { TRAEGER_BRANDING_TAB } from "~/lib/traeger-branding";
 
 const logger = createLogger({ component: "TraegerBriefkopfPage" });
@@ -52,7 +52,14 @@ export default function TraegerBriefkopfPage() {
   const { data: session } = useSession();
   const canEdit = hasPermission(session ?? null, SETTINGS_RIGHT);
   const [masterData, setMasterData] = useState<TraegerMasterData>(EMPTY);
-  const [branding, setBranding] = useState<SchemaTab | null>(null);
+  const {
+    data: schema,
+    isLoading: schemaLoading,
+    loadError: schemaError,
+    mutate: refreshSchema,
+  } = useTraegerSettingsSchema();
+  const branding =
+    schema?.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null;
   const [loading, setLoading] = useState(true);
   // The cards show only after one complete read: empty forms after a failed
   // load would overwrite stored values on save.
@@ -61,14 +68,8 @@ export default function TraegerBriefkopfPage() {
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
 
   const read = useCallback(async () => {
-    const [data, schema] = await Promise.all([
-      fetchTraegerMasterData(),
-      fetchTraegerSettingsSchema(),
-    ]);
+    const data = await fetchTraegerMasterData();
     setMasterData(data);
-    setBranding(
-      schema.tabs.find((tab) => tab.key === TRAEGER_BRANDING_TAB) ?? null,
-    );
     setLoaded(true);
     clearLoadError();
   }, [clearLoadError]);
@@ -94,7 +95,7 @@ export default function TraegerBriefkopfPage() {
   // values and says so.
   const refresh = useCallback(async () => {
     try {
-      await read();
+      await Promise.all([read(), refreshSchema()]);
     } catch (err) {
       logger.warn("traeger_briefkopf_refresh_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -104,7 +105,7 @@ export default function TraegerBriefkopfPage() {
         retry: () => void load(),
       });
     }
-  }, [load, read, showLoadError]);
+  }, [load, read, showLoadError, refreshSchema]);
 
   useEffect(() => {
     void load();
@@ -132,23 +133,24 @@ export default function TraegerBriefkopfPage() {
 
   // Ein fehlgeschlagenes Nachladen lässt die gezeigten Angaben stehen; die
   // Meldung steht dann über ihnen statt an ihrer Stelle.
+  const loadError = pageLoad.error ?? schemaError;
   const error =
-    pageLoad.error && loaded
+    loadError && loaded && schema
       ? {
-          message: pageLoad.error.message,
-          action: errorAlertActions(pageLoad.error),
+          ...loadError,
+          action: errorAlertActions(loadError),
           keepContent: true,
         }
-      : pageLoad.error;
+      : loadError;
 
   return (
     <TenantPage
       title="Briefkopf"
       info="Diese Angaben stehen auf allen Briefen und Rechnungen Ihres Trägers."
       error={error}
-      loading={loading}
+      loading={loading || schemaLoading}
     >
-      {loaded ? (
+      {loaded && schema ? (
         <>
           {!canEdit ? (
             <Alert

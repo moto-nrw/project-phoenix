@@ -35,7 +35,7 @@ import { useApiErrorDisplay, useApiLoadError } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
-import { fetchHolidayPeriod, type HolidayPeriod } from "~/lib/traeger-api";
+import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
   downloadHolidayRegistrations,
   EMPTY_HOLIDAY_REGISTRATION_FILTER,
@@ -169,7 +169,11 @@ export default function TraegerHolidayRegistrationsPage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const periodId = params?.id ?? "";
-  const [period, setPeriod] = useState<HolidayPeriod | null>(null);
+  const {
+    data: period,
+    preview,
+    loadError: periodError,
+  } = useTraegerHolidayPeriod(periodId);
   const [list, setList] = useState<HolidayRegistrationList | null>(null);
   const [status, setStatus] = useState<StatusChoice>("all");
   const [school, setSchool] = useState("");
@@ -180,8 +184,6 @@ export default function TraegerHolidayRegistrationsPage() {
   // Each new filter starts a new list; an answer for an older one is dropped.
   const generation = useRef(0);
   const { schools, error: schoolsError } = useTraegerSchools();
-  const periodLoad = useApiLoadError();
-  const { show: showPeriodError, clear: clearPeriodError } = periodLoad;
   const listLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = listLoad;
   const { show: showActionError } = useApiErrorDisplay();
@@ -196,25 +198,6 @@ export default function TraegerHolidayRegistrationsPage() {
     }),
     [status, school, weekId, timeModel],
   );
-
-  const loadPeriod = useCallback(async () => {
-    try {
-      setPeriod(await fetchHolidayPeriod(periodId));
-      clearPeriodError();
-    } catch (err) {
-      logger.error("traeger_holiday_period_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showPeriodError(err, {
-        object: "den Ferienzeitraum",
-        retry: () => void loadPeriod(),
-      });
-    }
-  }, [periodId, clearPeriodError, showPeriodError]);
-
-  useEffect(() => {
-    void loadPeriod();
-  }, [loadPeriod]);
 
   const load = useCallback(async () => {
     const current = ++generation.current;
@@ -279,7 +262,7 @@ export default function TraegerHolidayRegistrationsPage() {
   ];
   const filtered = Boolean(status !== "all" || school || weekId || timeModel);
   const duplicates = duplicateCount(list);
-  const loadError = listLoad.error ?? periodLoad.error ?? schoolsError;
+  const loadError = listLoad.error ?? periodError ?? schoolsError;
 
   const filters: FilterConfig[] = [
     {
@@ -366,7 +349,7 @@ export default function TraegerHolidayRegistrationsPage() {
 
   return (
     <TenantPage
-      title={period?.name ?? "Ferienzeitraum"}
+      title={period?.name ?? preview?.name ?? "Ferienzeitraum"}
       back
       backHref={traegerPath("/traeger/ferien")}
       backLabel="Zurück zu den Ferien"

@@ -1,4 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
+import {
+  fireEvent,
+  render as rtlRender,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
@@ -31,6 +38,9 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
       user: {
+        id: "A",
+        scope: "org",
+        orgId: 7,
         email: "buero@traeger.example",
         permissions: session.permissions,
       },
@@ -293,3 +303,9 @@ describe("TraegerBriefkopfPage", () => {
     expect(await screen.findByLabelText("Name")).toHaveValue("Petra Lindner");
   });
 });
+
+function render(ui: React.ReactElement) {
+  return rtlRender(
+    <SWRConfig value={{ provider: () => new Map() }}>{ui}</SWRConfig>,
+  );
+}
