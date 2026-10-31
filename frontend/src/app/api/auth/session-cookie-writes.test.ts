@@ -155,6 +155,51 @@ describe("gateSessionCookieWrites", () => {
     expect(answer.headers.getSetCookie()).toEqual(["other=1; Path=/"]);
   });
 
+  // Quorum review of #5403: without an answer on the family, a refresh
+  // token this request was just issued still lands. Identity & Access issues
+  // one only for a live family; dropping it left the browser on the consumed
+  // token, and the session ended once the recovery grace ran out.
+  it("keeps a just-issued refresh token when the family check gets no answer", async () => {
+    familyStatus = 503;
+
+    const answer = await gateSessionCookieWrites(
+      request(`${NAME}=${await sealed(SESSION)}`),
+      response(
+        `${NAME}=${await sealed({ ...SESSION, token: "access-2", refreshToken: "refresh-2" })}; Path=/`,
+      ),
+    );
+
+    expect(written(answer)).toHaveLength(1);
+  });
+
+  it("drops a just-issued refresh token of a family answered as revoked", async () => {
+    familyStatus = 401;
+
+    const answer = await gateSessionCookieWrites(
+      request(`${NAME}=${await sealed(SESSION)}`),
+      response(
+        `${NAME}=${await sealed({ ...SESSION, token: "access-2", refreshToken: "refresh-2" })}; Path=/`,
+      ),
+    );
+
+    expect(written(answer)).toEqual([]);
+  });
+
+  it("reads an expired access token as unknown without asking", async () => {
+    familyStatus = 401;
+    const { sessionFamilyState } =
+      await import("~/server/auth/token-validation");
+    const expired = Math.floor(Date.now() / 1000) - 60;
+
+    await expect(
+      sessionFamilyState(jwt({ id: 7, exp: expired }), "parent"),
+    ).resolves.toBe("unknown");
+    expect(familyChecks()).toEqual([]);
+    await expect(
+      sessionFamilyState(jwt({ id: 7, exp: expired + 600 }), "parent"),
+    ).resolves.toBe("ended");
+  });
+
   it("drops an ended session without asking, keeps a deletion", async () => {
     const presented = request(`${NAME}=${await sealed(SESSION)}`);
     const ended = await gateSessionCookieWrites(
@@ -335,8 +380,10 @@ describe("BFF route of a portal (#5399)", () => {
   it.each([
     [200, 1],
     [401, 0],
+    // No answer: the rotation Identity & Access just granted still lands.
+    [503, 1],
   ])(
-    "writes a renewed session only while its family is live (%s)",
+    "writes a renewed session unless its family is answered as revoked (%s)",
     async (status, cookies) => {
       familyStatus = status;
       const due = {

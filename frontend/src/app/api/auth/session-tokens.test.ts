@@ -134,7 +134,11 @@ const PORTALS: ReadonlyArray<{
   },
 ];
 
-async function sessionCookie(cookieName: string, scope: string) {
+async function sessionCookie(
+  cookieName: string,
+  scope: string,
+  overrides: Record<string, unknown> = {},
+) {
   const value = await encode({
     token: {
       id: "7",
@@ -152,6 +156,7 @@ async function sessionCookie(cookieName: string, scope: string) {
       scope,
       tokenExpiry: Date.now() + 10 * 60_000,
       refreshTokenExpiry: Date.now() + 24 * 60 * 60_000,
+      ...overrides,
     },
     secret: SECRET,
     salt: cookieName,
@@ -264,6 +269,44 @@ describe.each(PORTALS)(
           .getSetCookie()
           .filter((value) => value.startsWith(name)),
       ).toEqual([]);
+    });
+
+    // Quorum review of #5403: Identity & Access refuses an expired access
+    // token before it reads the family. After a refresh that failed for the
+    // moment, the session keeps its expired token; its refusal must not end
+    // a session whose refresh token is still valid.
+    it("keeps a session whose refresh failed for the moment", async () => {
+      const { GET } = await route();
+      const name = await cookieName();
+      const expired = Math.floor(Date.now() / 1000) - 60;
+      const part = (value: unknown) =>
+        Buffer.from(JSON.stringify(value)).toString("base64url");
+      familyStatus = 401;
+      backend.mockImplementation(async (url: unknown) =>
+        String(url).endsWith("/auth/session/validate")
+          ? Response.json({ id: 7 }, { status: familyStatus })
+          : new Response(null, { status: 503 }),
+      );
+
+      const response = await GET(
+        new NextRequest(`http://localhost:3000${basePath}/session`, {
+          headers: {
+            cookie: await sessionCookie(name, scope, {
+              token: `${part({ alg: "HS256" })}.${part({ id: 7, scope, exp: expired })}.sig`,
+              tokenExpiry: expired * 1000,
+            }),
+          },
+        }),
+      );
+
+      expect(response.status).toBe(200);
+      const body = JSON.parse(await response.text()) as {
+        user?: { id?: string };
+        error?: string;
+      };
+      expect(body.user?.id).toBe("7");
+      expect(body.error).toBeUndefined();
+      expect(familyChecks()).toEqual([]);
     });
 
     it.each([

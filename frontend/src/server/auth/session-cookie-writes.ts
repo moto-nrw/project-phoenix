@@ -141,7 +141,17 @@ async function mayWrite(
   if (written.error || typeof written.token !== "string" || !written.token)
     return false;
   // A new or renewed session only while its family is live, asked now.
-  return (await familyStateOf(states, written)) === "live";
+  const state = await familyStateOf(states, written);
+  if (state === "live") return true;
+  // Without an answer, a refresh token this request was just issued (sign-in
+  // or rotation) still lands: Identity & Access issues one only for a live
+  // family, and dropping it would leave the browser on the consumed token
+  // once the recovery grace ended. A family answered as revoked never lands.
+  return (
+    state === "unknown" &&
+    typeof written.refreshToken === "string" &&
+    written.refreshToken !== presented?.refreshToken
+  );
 }
 
 /**

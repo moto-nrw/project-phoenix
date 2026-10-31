@@ -511,28 +511,35 @@ old session back; the browser only saves requests.
    school switch, preview) whose refresh-token family Identity & Access
    confirms live while the response is built. An unchanged re-encoding
    (claims `iat`, `exp`, `jti` ignored), an ended session and a session of a
-   revoked or unreadable family write nothing; deletions pass. The cookie's
-   lifetime equals the refresh lifetime and moves with each rotation.
+   revoked family write nothing; deletions pass. When the family cannot be
+   read (503, timeout), only a refresh token this request was just issued
+   (sign-in, rotation) lands: Identity & Access issues one only for a live
+   family, and dropping it would strand the browser on the consumed token
+   after the recovery grace. A refused group also drops its chunk cleanup, so
+   the browser keeps its previous cookie. The cookie's lifetime equals the
+   refresh lifetime and moves with each rotation.
 2. **Read gate.** The session route asks the family on every call and reads
    a revoked family as ended (`RefreshTokenError`); the layout snapshots of
    every portal (`readFreshPortalToken`, `readTenantSessionSnapshot`) hydrate
-   only a live family. A family that cannot be read (503) leaves the shown
-   session as it is and writes nothing.
+   only a live family. A family that cannot be read (503) and an expired
+   access token, which the backend refuses before it reads the family, leave
+   the shown session as it is; its own refresh decides.
 3. **Family check.** `POST /auth/session/validate` without a refresh token
    reads the access token's family (`ValidateSessionTokens`,
    `verifyAccessFamily` in
    `backend/modules/identityaccess/internal/application/session_validation.go`):
    `VerifyAccessSession` for account portals, the latest operator session of
-   the family for the operator. 401 means revoked or foreign, 503 means the
-   family could not be read. The BFF calls it through `sessionFamilyState`
-   (`frontend/src/server/auth/token-validation.ts`).
+   the family for the operator. 401 means revoked, foreign or an expired
+   token, 503 means the family could not be read. The BFF calls it through
+   `sessionFamilyState` (`frontend/src/server/auth/token-validation.ts`).
 
-Invariants: no response sets a session cookie of a family whose revocation
-committed before the response was built, whichever tab, subdomain or frozen
+Invariants: no response sets a session cookie of a family Identity & Access
+answers as revoked while the response is built, whichever tab, subdomain or frozen
 document sent the request and however late it arrives. A cookie built in the
 moment before the revocation and delivered after the deletion still lands;
 it names a revoked family, opens nothing (#5194) and reads as ended on the
-next session read or page load. A school switch that committed before the
+next session read or page load. The same holds for a just-issued refresh token
+that lands while the family check had no answer. A school switch that committed before the
 logout mints a family of its own, which the logout of the old family does not
 revoke (#5422).
 

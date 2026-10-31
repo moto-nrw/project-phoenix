@@ -59,7 +59,7 @@ export async function validateSessionToken(
   }
 }
 
-/** live: the family backs the token; ended: revoked or expired; unknown: no answer. */
+/** live: the family backs the token; ended: revoked; unknown: no answer, or an expired token. */
 export type SessionFamilyState = "live" | "ended" | "unknown";
 
 /** The validation portal of a session's scope claim. */
@@ -76,6 +76,18 @@ export function portalOfScope(scope: unknown): Portal {
   }
 }
 
+/** The `exp` claim of an access token in seconds; null when unreadable. */
+function accessTokenExpiry(accessToken: string): number | null {
+  try {
+    const { exp } = JSON.parse(
+      Buffer.from(accessToken.split(".")[1] ?? "", "base64url").toString(),
+    ) as { exp?: unknown };
+    return typeof exp === "number" ? exp : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Asks Identity & Access whether the refresh-token family an access token
  * names still backs it (#5399). Without the refresh token the backend reads
@@ -88,6 +100,11 @@ export async function sessionFamilyState(
   portal: Portal,
 ): Promise<SessionFamilyState> {
   if (!accessToken || accessToken.length > 16000) return "ended";
+  // Identity & Access rejects an expired token before it reads the family,
+  // so its refusal says nothing about the family. The session's refresh
+  // decides; a revoked family ends there.
+  const expiry = accessTokenExpiry(accessToken);
+  if (expiry !== null && expiry * 1000 <= Date.now()) return "unknown";
   try {
     const response = await fetch(`${getServerApiUrl()}/auth/session/validate`, {
       method: "POST",
