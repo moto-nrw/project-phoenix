@@ -549,8 +549,12 @@ answers as revoked while the response is built, whichever tab, subdomain or froz
 document sent the request and however late it arrives. A cookie built in the
 moment before the revocation and delivered after the deletion still lands;
 it names a revoked family, opens nothing (#5194) and reads as ended on the
-next session read or page load. The same holds for a just-issued refresh token
-that lands while the family check had no answer. A school switch that committed before the
+next session read or page load; delivered only after a new login, it replaces
+that login's cookie and asks for the login again. The same holds for a
+just-issued refresh token that lands while the family check had no answer. A
+session cookie the gate cannot decode counts as no session and passes; the
+gate reads with `NEXTAUTH_SECRET`, which Auth.js uses too while no
+environment sets `AUTH_SECRET`. A school switch that committed before the
 logout mints a family of its own, which the logout of the old family does not
 revoke (#5422).
 
