@@ -86,6 +86,11 @@ function productionSources(dir: string): string[] {
   });
 }
 
+// Alias or relative path; import, re-export and dynamic import(). Only
+// `import type` / `export type` stays out of the bundle.
+const RUNTIME_REGISTRY_IMPORT =
+  /^\s*(?:import|export)\s+(?!type\b)[^;]*from\s+["'][^"']*\/moto-concepts["']|\bimport\(\s*["'][^"']*\/moto-concepts["']\s*\)/m;
+
 describe("concept modules", () => {
   it("keeps every definition under the key of its registry entry", () => {
     for (const [key, concept] of Object.entries(MOTO_CONCEPTS)) {
@@ -115,9 +120,7 @@ describe("concept modules", () => {
     const offenders = productionSources(SRC_DIR)
       .filter((file) => !file.endsWith(path.join("lib", "moto-concepts.ts")))
       .filter((file) =>
-        /^import\s+(?!type\b)[^;]*from\s+["']~\/lib\/moto-concepts["']/m.test(
-          readFileSync(file, "utf8"),
-        ),
+        RUNTIME_REGISTRY_IMPORT.test(readFileSync(file, "utf8")),
       )
       .map((file) => path.relative(SRC_DIR, file));
 

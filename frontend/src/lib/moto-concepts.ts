@@ -2,9 +2,12 @@
 //
 // The definitions live one per module in `~/lib/concepts/<key>`. A page that
 // renders a fixed concept imports that module directly, so its bundle carries
-// only that glyph instead of all of them (about 73 kB, see #5135). Import this
-// registry only where the concept key is known at runtime (data-driven
-// navigation, status mappings); it pulls in every glyph.
+// only that glyph instead of all of them (about 73 kB, see #5135). The registry
+// pulls in every glyph, so production code imports it only as a type
+// (`MotoConcept`, `MotoConceptKey`); `moto-concepts.test.ts` fails on a runtime
+// import. A choice made at runtime maps to definitions in a local table
+// (see `STAFF_NAV_CONCEPTS` or `TILE_CONCEPT`). The registry itself serves the
+// tests that keep tones unique and keys in sync.
 import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { childrenConcept } from "~/lib/concepts/children";
 import { groupsConcept } from "~/lib/concepts/groups";

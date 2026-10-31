@@ -93,7 +93,7 @@ interface CatalogRemove<T> {
 }
 
 export interface CatalogConfig<T extends CatalogItem> {
-  /** Symbol und Farbton der Fläche, aus `MOTO_CONCEPTS`. */
+  /** Symbol und Farbton der Fläche, als Konzept aus `~/lib/concepts`. */
   readonly concept: MotoConcept;
   /** Seitentitel, Mehrzahl: „Terminkategorien". */
   readonly title: string;

@@ -7,7 +7,7 @@
  * (`badge`), den die beiden Leisten aus demselben Hook füllen.
  *
  * Ein Eintrag nennt sein Konzept, nicht sein Icon. Glyph und Ton kommen aus
- * `MOTO_CONCEPTS`, damit das Schul-Portal dieselbe Bildsprache spricht wie
+ * der Konzeptdefinition (`~/lib/concepts`), damit das Schul-Portal dieselbe Bildsprache spricht wie
  * das übrige Produkt.
  */
 import type { MotoConcept } from "~/lib/moto-concepts";

@@ -1577,7 +1577,7 @@ function CareBoundaryRow({
     <div className="flex flex-1 px-3 py-2.5">
       <div className="flex min-w-0 flex-1 items-center gap-2.5">
         {/* Neutrale Kachel, wie bei AbsencePlaceholder in derselben Datei:
-            MotoConceptIcon setzt seine Farbe selbst aus MOTO_CONCEPTS und
+            MotoConceptIcon setzt seine Farbe selbst aus dem Konzept und
             ueberschreibt ein geerbtes color. Eine getoente Kachel ergab
             deshalb eine indigofarbene Uhr auf Gruen und ein petrolfarbenes
             Auto auf Orange. */}

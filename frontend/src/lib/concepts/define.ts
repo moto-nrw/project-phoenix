@@ -23,9 +23,9 @@ export interface MotoConceptDefinition<K extends string = string> {
 /**
  * Builds one concept of the concept system. Every concept lives in its own
  * module under `~/lib/concepts/`, so a page that imports one concept carries
- * only that concept's Phosphor glyph. Importing the whole registry
- * (`MOTO_CONCEPTS` in `~/lib/moto-concepts`) carries every glyph; keep that
- * for lookups whose key is only known at runtime.
+ * only that concept's Phosphor glyph. The registry (`MOTO_CONCEPTS` in
+ * `~/lib/moto-concepts`) carries every glyph and is imported by production
+ * code only as a type.
  */
 export function defineMotoConcept<const K extends string>(
   key: K,

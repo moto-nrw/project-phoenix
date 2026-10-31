@@ -8,7 +8,7 @@
  * Nachrichten, Kalender, Mehr.
  *
  * Ein Eintrag nennt sein Konzept, nicht sein Icon. Glyph, Ton und Gewicht
- * kommen aus `MOTO_CONCEPTS`, damit die Eltern-App dieselbe Bildsprache
+ * kommen aus der Konzeptdefinition (`~/lib/concepts`), damit die Eltern-App dieselbe Bildsprache
  * spricht wie das uebrige Produkt.
  */
 import type { MotoConcept } from "~/lib/moto-concepts";
