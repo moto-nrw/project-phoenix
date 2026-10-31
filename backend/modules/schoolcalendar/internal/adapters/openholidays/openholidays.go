@@ -12,6 +12,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // BaseURL is the canonical OpenHolidays API.
@@ -109,8 +111,8 @@ func vacations(holidays []apiHoliday, states []string) ([]Vacation, error) {
 		if holiday.Type != "" && holiday.Type != "School" {
 			continue
 		}
-		start, startErr := time.Parse(time.DateOnly, holiday.StartDate)
-		end, endErr := time.Parse(time.DateOnly, holiday.EndDate)
+		start, startErr := calendar.ParseDate(holiday.StartDate)
+		end, endErr := calendar.ParseDate(holiday.EndDate)
 		if startErr != nil || endErr != nil || end.Before(start) {
 			return nil, fmt.Errorf("school vacations: invalid range %q to %q", holiday.StartDate, holiday.EndDate)
 		}
@@ -119,7 +121,7 @@ func vacations(holidays []apiHoliday, states []string) ([]Vacation, error) {
 			return nil, fmt.Errorf("school vacations: vacation from %s has no name", holiday.StartDate)
 		}
 		for _, region := range regions(holiday, states) {
-			result = append(result, Vacation{Region: region, Name: name, StartDate: holiday.StartDate, EndDate: holiday.EndDate})
+			result = append(result, Vacation{Region: region, Name: name, StartDate: start.String(), EndDate: end.String()})
 		}
 	}
 	return result, nil

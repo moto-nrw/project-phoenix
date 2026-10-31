@@ -104,6 +104,9 @@ function SchoolVacationHintList({
   const toast = useToast();
   const { show: showActionError } = useApiErrorDisplay();
   const revalidateHints = useTenantMutateMatching([SCHOOL_VACATION_HINTS_KEY]);
+  const revalidateVacations = useTenantMutateMatching([
+    timetableKeys.schoolVacationsFamily,
+  ]);
   const tenantPath = useTenantAwarePath();
   const [cancelling, setCancelling] = useState<SchoolVacationHint | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -116,7 +119,7 @@ function SchoolVacationHintList({
         toast.success(
           `Gespeichert: Für „${hint.name}“ ist Betreuung geplant. Der Hinweis ist ausgeblendet.`,
         );
-        await revalidateHints();
+        await Promise.all([revalidateHints(), revalidateVacations()]);
       } catch (err) {
         logger.error("school_vacation_acknowledge_failed", {
           start_date: hint.startDate,
@@ -127,7 +130,7 @@ function SchoolVacationHintList({
         setBusy(null);
       }
     },
-    [revalidateHints, showActionError, toast],
+    [revalidateHints, revalidateVacations, showActionError, toast],
   );
 
   const actions = (hint: SchoolVacationHint, compact: boolean): ReactNode => {

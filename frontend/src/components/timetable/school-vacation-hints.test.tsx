@@ -184,6 +184,7 @@ describe("SchoolVacationHints (#5345)", () => {
     await waitFor(() =>
       expect(state.mutated).toContain("timetable-school-vacation-hints"),
     );
+    expect(state.mutated).toContain("school-vacations-");
     expect(state.acknowledged).toEqual([["2026-12-23", "2027-01-06"]]);
     expect(state.success).toEqual([
       "Gespeichert: Für „Weihnachtsferien“ ist Betreuung geplant. Der Hinweis ist ausgeblendet.",

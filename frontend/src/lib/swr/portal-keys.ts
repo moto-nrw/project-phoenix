@@ -130,8 +130,9 @@ export const timetableKeys = {
     today
       ? `timetable-school-vacation-hints-${today}`
       : "timetable-school-vacation-hints",
+  schoolVacationsFamily: "school-vacations-",
   schoolVacations: (from: string, to: string) =>
-    `school-vacations-${from}-${to}`,
+    `${timetableKeys.schoolVacationsFamily}${from}-${to}`,
 } as const;
 
 // School portal (Lehrkräfte).
