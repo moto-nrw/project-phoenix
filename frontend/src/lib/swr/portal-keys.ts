@@ -92,6 +92,13 @@ export const timetableKeys = {
     `offering-gaps-${encodeURIComponent(periodId)}`,
 } as const;
 
+// School portal (Lehrkräfte).
+export const schoolPortalKeys = {
+  classDayClasses: () => "class-day-my-classes",
+  absenceList: (schoolClass: string, from = "", to = "") =>
+    `school-absence-list-${schoolClass}-${from}-${to}`,
+} as const;
+
 export const weekProtocolKeys = {
   list: (groupId?: string | null) =>
     `week-protocols-${encodeURIComponent(groupId ?? "all")}`,

@@ -40,6 +40,7 @@ import {
 } from "~/lib/school-class-day-api";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { useSWRAuth } from "~/lib/swr";
+import { schoolPortalKeys } from "~/lib/swr/portal-keys";
 
 const EXPORT_FORMATS: readonly AbsenceListExportFormat[] = ["pdf", "xlsx"];
 
@@ -148,7 +149,7 @@ export default function SchoolAbsenceListPage() {
   const { data: session } = useSession();
 
   const classesQuery = useSWRAuth(
-    session ? "class-day-my-classes" : null,
+    session ? schoolPortalKeys.classDayClasses() : null,
     fetchClassDayClassesSchool,
     { revalidateOnFocus: false },
   );
@@ -171,7 +172,11 @@ export default function SchoolAbsenceListPage() {
 
   const listQuery = useSWRAuth(
     session && schoolClass
-      ? `school-absence-list-${schoolClass}-${chosenPeriod?.from ?? ""}-${chosenPeriod?.to ?? ""}`
+      ? schoolPortalKeys.absenceList(
+          schoolClass,
+          chosenPeriod?.from,
+          chosenPeriod?.to,
+        )
       : null,
     () =>
       fetchAbsenceListSchool({

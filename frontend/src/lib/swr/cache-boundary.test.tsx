@@ -115,6 +115,7 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
     "operatorProvisioningKeys",
     "parentKeys",
     "payrollKeys",
+    "schoolPortalKeys",
     "schoolSetupKeys",
     "staffMergeKeys",
     "staffOnboardingKeys",
