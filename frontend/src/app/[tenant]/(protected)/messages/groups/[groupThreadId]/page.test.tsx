@@ -23,7 +23,8 @@ const { state, mutate, api } = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("~/lib/swr", () => ({
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
   useSWRAuth: () => ({
     data: state.detail,
     error: undefined,

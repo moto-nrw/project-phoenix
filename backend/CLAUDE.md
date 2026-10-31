@@ -82,7 +82,7 @@ conventions, and CI ratchets. They constrain code inside an owner; the policy
 defines the module boundary. Pass-throughs (Rule 8): the shapes that may stay
 and the floor per owner are in `docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md`.
 
-**Query budgets (#2940)**: every list endpoint has a scenario in `test/query-budgets/` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
+**Query budgets (#2940)**: every list endpoint has a scenario in `test/query-budgets/` and a test that counts its statements with `testpkg.CaptureQueries` and calls `querybudgets.AssertQueryBudget` (package `test/query-budgets`, kept apart from `testpkg` so a budget edit retests only the packages that assert budgets). The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
 
 ## Calendar Dates: calendar.Date (MANDATORY)
 

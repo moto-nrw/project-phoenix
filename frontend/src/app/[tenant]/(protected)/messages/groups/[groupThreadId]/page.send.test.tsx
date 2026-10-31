@@ -10,10 +10,13 @@ import { catalogText } from "~/test/error-catalog-text";
 // Echtes SWR: Senden, Verwerfen und Zurücknehmen laufen über den Cache.
 vi.unmock("swr");
 
-const { mockFetchGroupThread, mockPostGroupMessage } = vi.hoisted(() => ({
-  mockFetchGroupThread: vi.fn(),
-  mockPostGroupMessage: vi.fn(),
-}));
+const { mockFetchGroupThread, mockPostGroupMessage, tenantFlags } = vi.hoisted(
+  () => ({
+    mockFetchGroupThread: vi.fn(),
+    mockPostGroupMessage: vi.fn(),
+    tenantFlags: { messagingEnabled: true },
+  }),
+);
 
 vi.mock("next/navigation", () => ({
   useParams: () => ({ groupThreadId: "4" }),
@@ -30,7 +33,9 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
-  useTenant: () => ({ tenant: { messagingEnabled: true } }),
+  useTenant: () => ({
+    tenant: { messagingEnabled: tenantFlags.messagingEnabled },
+  }),
   useTenantSlugSafe: () => "schule",
   useTenantRoutingModeSafe: () => "subdomain",
 }));
@@ -105,12 +110,13 @@ function Fresh({ children }: { readonly children: ReactNode }) {
 }
 
 async function typeAndSend(text: string) {
-  render(<GroupMessagePage />, { wrapper: Fresh });
+  const view = render(<GroupMessagePage />, { wrapper: Fresh });
   await screen.findByText("Wer bringt einen Kuchen mit?");
   fireEvent.change(screen.getByLabelText("Nachricht"), {
     target: { value: text },
   });
   fireEvent.click(screen.getByRole("button", { name: "Senden" }));
+  return view;
 }
 
 // Gruppennachricht (#5011): POST /api/messages/group-threads/{id}/messages.
@@ -118,6 +124,68 @@ describe("Gruppennachricht senden: Ablehnung je Code", () => {
   beforeEach(() => {
     mockFetchGroupThread.mockReset().mockResolvedValue(detail);
     mockPostGroupMessage.mockReset();
+    tenantFlags.messagingEnabled = true;
+  });
+
+  it("behält den Verlauf und sperrt Senden, wenn die Schule Nachrichten ausschaltet", async () => {
+    mockPostGroupMessage.mockRejectedValue(
+      new ApiError("messaging disabled", 403, {
+        code: "communication.parent_messaging_disabled",
+      }),
+    );
+    await typeAndSend("Bitte Kuchen mitbringen");
+
+    expect(
+      await screen.findByText(
+        /Die Eltern-Nachrichten sind für diese Schule ausgeschaltet/,
+      ),
+    ).toBeInTheDocument();
+    // Anker: der geladene Verlauf und die nicht gesendete Blase bleiben sichtbar.
+    expect(
+      screen.getByText("Wer bringt einen Kuchen mit?"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Nicht gesendet")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Senden" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+    expect(mockPostGroupMessage).toHaveBeenCalledTimes(1);
+  });
+
+  it("zeigt das Schreibfeld wieder, wenn die Schule Nachrichten wieder einschaltet", async () => {
+    mockPostGroupMessage.mockRejectedValue(
+      new ApiError("messaging disabled", 403, {
+        code: "communication.parent_messaging_disabled",
+      }),
+    );
+    const view = await typeAndSend("Bitte Kuchen mitbringen");
+    expect(
+      await screen.findByText(
+        /Die Eltern-Nachrichten sind für diese Schule ausgeschaltet/,
+      ),
+    ).toBeInTheDocument();
+
+    // Die Einstellung meldet weiter „an“: die Sperre bleibt.
+    view.rerender(<GroupMessagePage />);
+    // Anker: der Ausschalt-Hinweis steht noch.
+    expect(
+      screen.getByText(
+        /Die Eltern-Nachrichten sind für diese Schule ausgeschaltet/,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Nachricht")).not.toBeInTheDocument();
+
+    // Die Schule schaltet aus und wieder ein.
+    tenantFlags.messagingEnabled = false;
+    view.rerender(<GroupMessagePage />);
+    tenantFlags.messagingEnabled = true;
+    view.rerender(<GroupMessagePage />);
+
+    expect(await screen.findByLabelText("Nachricht")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Senden" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Wer bringt einen Kuchen mit?"),
+    ).toBeInTheDocument();
   });
 
   it("verwirft die Gruppennachricht bei 404, wenn es sie nicht mehr gibt", async () => {

@@ -13,6 +13,13 @@ import type { Announcement } from "~/lib/parent-announcements-api";
 import { catalogText } from "~/test/error-catalog-text";
 import AnnouncementDetailPage from "./page";
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({
+    data: { user: { id: "7", tenantId: 1 } },
+    status: "authenticated",
+  }),
+}));
+
 // Erfolgsmeldungen kommen als Toast (#2517).
 function render(ui: ReactElement) {
   return rtlRender(ui, { wrapper: ToastProvider });
@@ -59,7 +66,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useSetBreadcrumb: (data: unknown) => setBreadcrumbMock(data),
 }));
 
-vi.mock("~/lib/swr", () => ({
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
   useSWRAuth: (key: string | null) =>
     key?.startsWith("parent-announcement-")
       ? { ...swrState, mutate: detailMutateMock }
@@ -77,25 +85,31 @@ vi.mock("~/lib/parent-announcements-api", async (importOriginal) => {
   };
 });
 
-vi.mock("~/components/announcements/announcement-detail", () => ({
-  AnnouncementDetail: ({
-    announcement,
-    onReminded,
-  }: {
-    announcement: Announcement;
-    onReminded: (count: number) => void;
-  }) => (
-    <div data-testid="announcement-detail">
-      {announcement.body}
-      <button type="button" onClick={() => onReminded(3)}>
-        Erinnern
-      </button>
-    </div>
-  ),
-  AnnouncementDetailSkeleton: () => (
-    <div data-testid="announcement-detail-skeleton" />
-  ),
-}));
+vi.mock(
+  "~/components/announcements/announcement-detail",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/components/announcements/announcement-detail")
+    >()),
+    AnnouncementDetail: ({
+      announcement,
+      onReminded,
+    }: {
+      announcement: Announcement;
+      onReminded: (count: number) => void;
+    }) => (
+      <div data-testid="announcement-detail">
+        {announcement.body}
+        <button type="button" onClick={() => onReminded(3)}>
+          Erinnern
+        </button>
+      </div>
+    ),
+    AnnouncementDetailSkeleton: () => (
+      <div data-testid="announcement-detail-skeleton" />
+    ),
+  }),
+);
 
 vi.mock("~/components/announcements/announcement-reminder-dialog", () => ({
   AnnouncementReminderDialog: ({

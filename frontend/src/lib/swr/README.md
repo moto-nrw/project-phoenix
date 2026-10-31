@@ -113,3 +113,14 @@ permission flags and detail-only fields wait for the detail request; that
 request always runs. Detail readers use `keepPreviousData: false`, so changing
 the entity cannot reuse the previous entity's complete record. Without a
 matching list the existing loading state remains unchanged.
+
+Message previews use `messageKeys.teamChatPreview` / `groupPreview`; staff
+announcements use `parentAnnouncementKeys.preview`. Only the list-visible
+name/title enters the loading header. Last-message text, unread parts, group
+members, recipients, private replies and permission flags never enter it.
+These sources do not match any parents-portal resource: relationship-filtered
+parent conversations continue to wait for their authorized detail response.
+For a list-known published/expired poll, type and status enable only the
+scoped evaluation request in parallel with the detail. The confirmed detail
+alone renders the evaluation and its actions; the same evaluation key is
+shared with the panel, so mounting it does not repeat the request.

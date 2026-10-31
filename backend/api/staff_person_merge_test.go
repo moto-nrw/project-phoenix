@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge"
 	mergeCompose "github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge/compose"
 	mergeHTTP "github.com/moto-nrw/project-phoenix/workflows/staffpersonmerge/http"
@@ -713,5 +714,5 @@ func TestStaffPersonMergePreviewUsesTwoBulkReads(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/%d", h.schoolID), nil, testutil.WithClaims(t, sessiontoken.AppClaims{ID: int(h.operatorID), Scope: "platform"}))
 	rr := testutil.ExecuteRequest(h.router, req.WithContext(counter.Context(req.Context())))
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
-	testpkg.AssertQueryBudget(t, "api.operator.staff_person_merge.preview", counter.Selects(""))
+	querybudgets.AssertQueryBudget(t, "api.operator.staff_person_merge.preview", counter.Selects(""))
 }

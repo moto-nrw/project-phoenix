@@ -13,6 +13,7 @@ import {
   apiErrorFromResponse,
   apiErrorFromText,
   transportFetch,
+  wireErrorCode,
 } from "~/lib/api-error";
 import {
   type ChatMessage,
@@ -23,6 +24,14 @@ import {
   leadershipNameList,
 } from "~/lib/messaging-status";
 import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
+
+/** The school switched sending off; existing conversations remain readable. */
+export function isParentMessagingDisabled(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    wireErrorCode(error.code) === "communication.parent_messaging_disabled"
+  );
+}
 
 /** Leadership accounts without a person name (#5200), as staff read them. */
 const UNNAMED_LEADER_LABEL = "Schulverwaltung";

@@ -1871,7 +1871,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p StudentRoutePersons) ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error) {\n\tstudents, err := p.persons.GetEligibleStudentsByGroupIDsOnDate(ctx, groupIDs, date, today)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecords := make([]peopleModule.StudentRecord, 0, len(students))\n\tfor _, student := range students {\n\t\tif student != nil {\n\t\t\trecords = append(records, studentRouteRecord(student))\n\t\t}\n\t}\n\treturn records, nil\n}",
+      "evidence": "func (p StudentRoutePersons) ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error) {\n\tstudents, err := p.persons.GetEligibleStudentsByGroupIDsOnDate(ctx, groupIDs, date, today)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn studentRouteRecords(students), nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/peopledirectory/internal/application/StudentRoutePersons.ListStudentsForDay",
       "owner": "modules/peopledirectory"

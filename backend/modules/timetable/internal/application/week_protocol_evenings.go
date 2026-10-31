@@ -127,39 +127,38 @@ func (e weekProtocolEvening) captureDay(ctx context.Context, day calendar.Date, 
 	return captured, "", nil
 }
 
-// weekProtocolTarget is one protocol of the evening; key is its group, or 0
-// for the whole school.
+// weekProtocolTarget is one protocol of the evening; key is its group, or
+// weekProtocolSchoolKey for the whole school.
 type weekProtocolTarget struct {
-	key      int64
-	groupIDs []int64
-	target   timetable.WeekProtocolTarget
+	key    int64
+	target timetable.WeekProtocolTarget
 }
 
-// targets are the school's OGS groups, or the whole school over all its
-// groups when it works without fixed groups.
+// weekProtocolSchoolKey keys the whole school's protocol; group IDs are
+// positive.
+const weekProtocolSchoolKey int64 = 0
+
+// targets are the school's OGS groups, or the whole school when it works
+// without fixed groups. The whole school counts every child of the day,
+// whether or not a group holds it (#5401), so it needs no groups.
 func (e weekProtocolEvening) targets(ctx context.Context) ([]weekProtocolTarget, error) {
-	groups, err := e.sources.Groups(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list week protocol groups: %w", err)
-	}
 	openCare, err := e.sources.SchoolMode(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("resolve group mode: %w", err)
 	}
-	sort.Slice(groups, func(i, j int) bool { return groups[i].ID < groups[j].ID })
 	if openCare {
-		ids := make([]int64, 0, len(groups))
-		for _, group := range groups {
-			ids = append(ids, group.ID)
-		}
-		return []weekProtocolTarget{{groupIDs: ids, target: timetable.WeekProtocolTarget{GroupName: WeekProtocolSchoolName}}}, nil
+		return []weekProtocolTarget{{key: weekProtocolSchoolKey, target: timetable.WeekProtocolTarget{GroupName: WeekProtocolSchoolName}}}, nil
 	}
+	groups, err := e.sources.Groups(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list week protocol groups: %w", err)
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].ID < groups[j].ID })
 	targets := make([]weekProtocolTarget, 0, len(groups))
 	for _, group := range groups {
 		id := group.ID
 		targets = append(targets, weekProtocolTarget{
-			key: id, groupIDs: []int64{id},
-			target: timetable.WeekProtocolTarget{GroupID: &id, GroupName: group.Name},
+			key: id, target: timetable.WeekProtocolTarget{GroupID: &id, GroupName: group.Name},
 		})
 	}
 	return targets, nil

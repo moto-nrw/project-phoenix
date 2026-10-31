@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // TestCombinationGroupsQueryBudget guards GET /active/combined/{id}/groups
@@ -58,5 +59,5 @@ func TestCombinationGroupsQueryBudget(t *testing.T) {
 	add(5)
 	large := run(8)
 	assert.Equal(t, len(small), len(large), "query count must be independent of the mapped session count")
-	testpkg.AssertQueryBudget(t, "api.active.combination_groups.reads", large)
+	querybudgets.AssertQueryBudget(t, "api.active.combination_groups.reads", large)
 }

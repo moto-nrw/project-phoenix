@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // The operator invitation list reads the redeemable links in one statement,
@@ -42,5 +43,5 @@ func TestOperatorInvitationsListQueryBudget(t *testing.T) {
 	add(3, 8)
 	large := run()
 	assert.Equal(t, len(small), len(large), "the listing must not grow a statement per link")
-	testpkg.AssertQueryBudget(t, "services.platform.pending_operator_invitations.reads", large)
+	querybudgets.AssertQueryBudget(t, "services.platform.pending_operator_invitations.reads", large)
 }

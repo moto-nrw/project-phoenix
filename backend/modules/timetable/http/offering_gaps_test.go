@@ -16,6 +16,7 @@ import (
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // offeringGapsSetup drives the offering-gap routes (#5140) over the real
@@ -216,5 +217,5 @@ func TestOfferingGapsQueryBudget(t *testing.T) {
 
 	t.Logf("query budget: 3 templates → %d queries, 8 templates → %d queries", small, large)
 	assert.Equal(t, small, large, "query count must not grow with the number of Regeltermine")
-	testpkg.AssertQueryBudget(t, "api.timetable.offering_gaps", counter.Queries())
+	querybudgets.AssertQueryBudget(t, "api.timetable.offering_gaps", counter.Queries())
 }

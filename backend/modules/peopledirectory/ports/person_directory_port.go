@@ -26,6 +26,9 @@ type PersonDirectory interface {
 	GetAllStudentsWithGroups(ctx context.Context) ([]peopleValues.StudentRosterEntry, error)
 	GetByIDs(ctx context.Context, ids []int64) (map[int64]*peopleValues.DirectoryPersonSnapshot, error)
 	GetEligibleStudentsByGroupIDsOnDate(ctx context.Context, groupIDs []int64, date calendar.Date, today calendar.Date) ([]*peopleValues.StudentState, error)
+	// FilterEligibleStudentsOnDate keeps the candidates whose care covers
+	// date, by the rule GetEligibleStudentsByGroupIDsOnDate applies.
+	FilterEligibleStudentsOnDate(ctx context.Context, students []*peopleValues.StudentState, date calendar.Date, today calendar.Date) ([]*peopleValues.StudentState, error)
 	GetParticipationCandidatesByGroupIDs(ctx context.Context, groupIDs []int64) ([]*peopleValues.StudentState, error)
 	GetStudentByIDForUpdate(ctx context.Context, id int64) (*peopleValues.StudentState, error)
 	GetStudentsWithGroupsByTeacher(ctx context.Context, teacherID int64) ([]peopleValues.StudentRosterEntry, error)

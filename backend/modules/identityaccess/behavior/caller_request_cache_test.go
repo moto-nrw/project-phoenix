@@ -15,6 +15,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // identityQueryCounter buckets SELECT statements against the identity-chain
@@ -111,10 +112,10 @@ func TestIdentityRequestCacheDedupesChain(t *testing.T) {
 	// SubstitutedGroupIDs each read substitutions and are memoized at their
 	// own result level, so 2 is the per-request floor. Sharing one read
 	// between them is out of scope.
-	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.persons", counter.bucket("persons"))
-	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.staff", counter.bucket("staff"))
-	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.teachers", counter.bucket("teachers"))
-	testpkg.AssertQueryBudget(t, "services.usercontext.identity_chain.substitutions", counter.bucket("substitutions"))
+	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.persons", counter.bucket("persons"))
+	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.staff", counter.bucket("staff"))
+	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.teachers", counter.bucket("teachers"))
+	querybudgets.AssertQueryBudget(t, "services.usercontext.identity_chain.substitutions", counter.bucket("substitutions"))
 
 	// A second full chain on the same context must be entirely memo-served.
 	counter.Reset()

@@ -228,10 +228,13 @@ type WeekProtocolGroupDay struct {
 
 // WeekProtocolAttendance ist der Port auf die Tagesauswertung: die heutigen
 // Ergebnisse der Gruppen, mit den Kindern in der Gruppe, zu der sie jetzt
-// gehören. Er beantwortet nur den laufenden Tag, weil das Kind keine
-// datierte Gruppenhistorie hat. Die Wurzel bindet ihn.
+// gehören, und für eine Schule ohne feste Gruppen (offene Betreuung) die
+// Ergebnisse der ganzen Schule: jedes Kind des Tages genau einmal, mit oder
+// ohne Gruppe (#5401). Er beantwortet nur den laufenden Tag, weil das Kind
+// keine datierte Gruppenhistorie hat. Die Wurzel bindet ihn.
 type WeekProtocolAttendance interface {
 	GroupDayAttendance(ctx context.Context, day calendar.Date, groupIDs []int64) ([]WeekProtocolGroupDay, error)
+	SchoolDayAttendance(ctx context.Context, day calendar.Date) (WeekProtocolGroupDay, error)
 }
 
 // WeekProtocolSources sind die Quellen des Abendlaufs außerhalb der eigenen
