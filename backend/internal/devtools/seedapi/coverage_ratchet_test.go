@@ -49,23 +49,20 @@ var seedCoverageExemptions = map[string]string{
 	// seeded stack finds them filled and they carry no exemption any more.
 	// Current owner commands no longer write the rollback archive. Keep it
 	// empty on fresh seeds; filling it would restore retired Guardian copies.
-	// Morning attendance (#4790) is written only by a Lehrkraft through moto
-	// schule for today; the seeder signs in no Lehrkraft and assigns no class
-	// (education.class_teachers below), so nothing it does can write a mark.
-	"active.morning_attendance": "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
 	// Homework (#4796) is entered only by a Lehrkraft with an assigned class
 	// through moto schule, and the OGS feedback needs that homework; the
-	// seeder signs in no Lehrkraft, so it can write neither table.
-	"education.class_homework":    "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
-	"education.homework_feedback": "not in prod yet (migration newer than the deployed image); needs homework of a Lehrkraft, which the seeder seeds none of",
+	// seed teacher enters neither homework nor feedback.
+	"education.class_homework":    "not in prod yet (migration newer than the deployed image); the seed teacher leaves homework empty",
+	"education.homework_feedback": "not in prod yet (migration newer than the deployed image); needs homework of a Lehrkraft; the seed teacher leaves homework empty",
 	// The class handover (#4794) is written the same way: only a Lehrkraft
-	// through moto schule, for today and an assigned class.
-	"active.class_handovers":               "not in prod yet (migration newer than the deployed image); only a Lehrkraft with an assigned class writes it, and the seeder seeds none",
+	// through moto schule; the seed teacher leaves the handover open.
+	"active.class_handovers":               "not in prod yet (migration newer than the deployed image); the seed teacher leaves the class handover open",
 	"active.class_handover_children":       "not in prod yet (migration newer than the deployed image); written only with active.class_handovers",
 	"active.combined_groups":               "empty in prod too",
 	"active.group_mappings":                "empty in prod too",
 	"active.scheduled_checkouts":           "empty in prod too",
 	"active.staff_month_balance_snapshots": "empty in prod too",
+	"active.payroll_dispatches":            "not in prod yet (migration newer than the deployed image); only a month close queues a dispatch, and the seeder closes no month (see active.staff_month_balance_snapshots)",
 	"active.staff_vacation_openings":       "empty in prod too",
 
 	"audit.class_list_entry_changes":    "not in prod yet (migration newer than the deployed image)",
@@ -91,7 +88,6 @@ var seedCoverageExemptions = map[string]string{
 
 	"display.displays": "empty in prod too",
 
-	"education.class_teachers":                      "empty in prod too",
 	"education.grade_transition_class_list_entries": "not in prod yet (migration newer than the deployed image)",
 	"education.grade_transition_class_teachers":     "empty in prod too",
 

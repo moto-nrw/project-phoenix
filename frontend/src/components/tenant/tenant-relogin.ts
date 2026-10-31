@@ -12,13 +12,16 @@ const logger = createLogger({ component: "TenantRelogin" });
 
 /** Same logout endpoints/order as the tenant shell, without its source-host redirect. */
 export function reloginAtTenant(subdomain: string): Promise<void> {
-  return runTenantSessionEnd((signal) =>
-    endSessionAndNavigate(subdomain, signal),
+  const port = window.location.port ? `:${window.location.port}` : "";
+  const callbackUrl = `${window.location.protocol}//${subdomain}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${port}/`;
+  return runTenantSessionEnd(
+    (signal) => endSessionAndNavigate(callbackUrl, signal),
+    callbackUrl,
   );
 }
 
 async function endSessionAndNavigate(
-  subdomain: string,
+  callbackUrl: string,
   signal: AbortSignal,
 ): Promise<void> {
   // Revoke the refresh family BEFORE Auth.js deletes the shared domain cookie.
@@ -55,7 +58,5 @@ async function endSessionAndNavigate(
   } catch {
     // Storage is optional; the server-side revocation and cookie deletion are not.
   }
-  const port = window.location.port ? `:${window.location.port}` : "";
-  const callbackUrl = `${window.location.protocol}//${subdomain}.${clientEnv.NEXT_PUBLIC_TENANT_DOMAIN}${port}/`;
   await signOutTenant({ callbackUrl }, signal);
 }

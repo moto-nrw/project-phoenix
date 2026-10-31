@@ -1,0 +1,6 @@
+{
+  "scenario": "api.timetable.offering_gaps.class_day",
+  "max": 21,
+  "exact": false,
+  "description": "modules/timetable — GET /api/timetable/offering-gaps (#5343) when a\nbooking carries a pickup time and its class a Klassentag: the reads of\napi.timetable.offering_gaps for Klasse Regeltermine (whose template list\nalso reads their targets and target members), plus the class arrival\nplans and changes and one batch of rosters (enrollment rows, targets,\ntarget members). Care Plan's bookings are stubbed (budgeted under\nservices.enrollment.*). Flat from 3 to 8 Regeltermine."
+}

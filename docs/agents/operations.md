@@ -126,8 +126,8 @@ with a running native dev loop.
 
 The config, server and specs read the same variables, so origins, readiness
 URL, fixture calls and route matchers follow the chosen ports. Two runs of the
-same suite in separate worktrees need different ports; each worktree has its
-own `.next`, so run the second copy in another worktree:
+same suite need different ports and separate worktrees for their Playwright
+result directories:
 
 ```bash
 # worktree A
@@ -140,23 +140,33 @@ A taken port fails the run before any test, without switching ports or reusing
 the other server:
 
 - Frontend port answering the readiness URL: Playwright reports
-  `http://127.0.0.1:<port>/api/health is already used`.
+  `http://127.0.0.1:<port>/school-a is already used`.
 - Any other listener on either port, on `127.0.0.1` or `::1`: the server
   reports `Network evidence: <fixture API|frontend> port <port> is already in
   use on <host>` and names the variable to change.
 - An invalid value: `<variable> must be a port between 1024 and 65535`.
-- A second `next dev` in the same checkout (native dev loop or another run)
-  holds the `.next` build lock: `Network evidence: frontend on port <port>
-  exited with code 1`. Run the suite in another worktree or stop your own
-  dev server first.
 
-Both suites share the checkout's `frontend/.next` with different public env
-values. After switching suite or ports, the first run can time out in login
-steps until the dev cache is rebuilt ([#5371](https://github.com/moto-nrw/project-phoenix/issues/5371)).
+Each run creates its own disposable app root under
+`tmp/network-e2e/run-*`, outside frontend test/type/source discovery: a source
+snapshot and copies of the app's build and TypeScript configuration, with links
+to installed dependencies and public assets. Its Next config wraps the real
+config and plugins, with the repository as the Turbopack workspace boundary.
+Next writes its `.next`, lock, `next-env.d.ts` and TypeScript changes
+only there. Local env files are not copied. Changing suite or ports therefore
+never reuses another run's compilation, and the native dev loop can keep running
+in the same worktree without losing its warm cache or generated files
+([#5371](https://github.com/moto-nrw/project-phoenix/issues/5371)). Source edits
+made after startup take effect on the next run, not in the current snapshot.
+Readiness compiles the tenant login page, not just a health endpoint, before
+browser action timeouts begin. Retries, assertions and test timeouts are unchanged.
 
-Cleanup touches only the run's own processes. Playwright stops the server's
-process group, which holds the fixture API and its Next child; the server also
-stops when the Playwright runner ends and closes its stdin. Neither path sends
+Cleanup touches only the run's own processes and app root. Playwright sends
+SIGTERM to the server's process group and allows up to 10 seconds for shutdown;
+the server also stops when the Playwright runner ends and closes its stdin.
+After Next exits, the server removes only its own disposable app root. A direct
+SIGKILL of the server or machine crash can leave that directory behind; later
+runs neither reuse nor sweep it. Remove a leftover only after verifying that
+its owning run has ended. Neither shutdown path sends
 signals to processes by port or name, so a foreign listener stays reachable.
 If a port is still taken, check with `lsof -nP -iTCP:<port> -sTCP:LISTEN`
 whose process it is; stop only your own run, otherwise choose another port.
@@ -327,6 +337,21 @@ in the dev tools binary `cmd/devtools` (ADR 0060): run them with
 `go run ./cmd/devtools <cmd>`. The production image does not contain it; only
 the demo image does. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
+
+Local `vollbetrieb` seeds against localhost also create the moto schule teacher
+Lena Weber with role `lehrkraft` and class `Klasse 1a` (OGS children). Find the login in
+the private `backend/.seed-state.json`, under
+`profiles.vollbetrieb.credentials.accounts.lehrkraft` (key `lehrkraft`).
+The account reuses the existing staff seed password, including
+`--staff-password`; do not publish the credential file. Sign in to moto schule
+with this account, not the OGS portal. The profile opens all school write
+scopes through tenant settings and seeds today’s class arrival exception,
+class and child hints for the OGS, and morning attendance through the school
+portal contracts. Today means the Europe/Berlin calendar day, including the
+profile’s Friday-based weekend plan. In the supervision view, the hints appear
+only after the child has checked in, either through `simulate full-day` or a
+check-in. Standing and visitor demos do not create this account or open
+school-portal writes.
 
 Local `vollbetrieb` seeds against localhost also create the separate role and
 account `nachbearbeitung-ohne-planung` (#5300). Find its login in

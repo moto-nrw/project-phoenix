@@ -41,7 +41,7 @@ func setupInactiveSourceTemplate(t *testing.T) inactiveSourceTemplate {
 	linkApprovedChildToOffering(t, s, b, s.students[1], "1a")
 
 	name := fmt.Sprintf("Mehrquellen-Termin-%d", time.Now().UnixNano())
-	result, err := s.timetableData.Templates.CreateTemplate(s.ctx, timetable.CreateTemplateCommand{
+	result, err := testpkg.TenantQuery1(t, s.ctx, s.db, s.timetableData.Templates.CreateTemplate, timetable.CreateTemplateCommand{
 		Name:                  name,
 		Type:                  activityContract.GroupTypeCare,
 		Weekdays:              []int{activityContract.WeekdayMonday},

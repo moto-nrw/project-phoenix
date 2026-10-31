@@ -241,6 +241,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 		seedSchoolSetupStep{},
 		seedStaffOnboardingStep{},
 		seedLocalCarePlanAccountStep{seeder: seeder},
+		seedSchoolTeacherStep{seeder: seeder},
 		// Nach dem letzten Schritt, der Beschäftigte anlegt: Die Abrechnung
 		// zählt alle, auch Besuch, Admin und Externe (#5032).
 		seedPayrollNumbersStep{},

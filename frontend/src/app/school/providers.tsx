@@ -5,6 +5,7 @@ import { SessionProvider } from "next-auth/react";
 import { PortalAnalyticsSession } from "~/components/analytics/portal-analytics-session";
 import { SCHOOL_ANALYTICS_CONSENT_COPY } from "~/components/analytics/analytics-consent-copy";
 import { PersonalStorageGuard } from "~/components/auth/personal-storage-guard";
+import { SessionAccountBinding } from "~/components/auth/session-account-binding";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { schoolPath } from "~/lib/school-url";
 import { SentrySessionContext } from "~/components/auth/sentry-session-context";
@@ -39,6 +40,7 @@ export function SchoolProviders({
       refetchInterval={4 * 60}
       refetchOnWindowFocus={false}
     >
+      <SessionAccountBinding />
       <PersonalStorageGuard homeHref={schoolHome} />
       <SWRScopeBoundary />
       {/* Rebinds an existing browser push subscription to the current school

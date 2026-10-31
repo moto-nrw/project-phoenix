@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
@@ -99,6 +100,8 @@ func collectOfferingWeekdayBookings(
 		result = append(result, careplan.OfferingWeekdayBooking{
 			OfferingID:    offering.ID,
 			OfferingName:  offering.Name,
+			PhaseID:       offering.PhaseID,
+			HolidayPhase:  phase.Holiday,
 			StudentID:     child.StudentID,
 			SchoolClass:   child.SchoolClass,
 			GradeLevel:    child.GradeLevel,
@@ -109,6 +112,8 @@ func collectOfferingWeekdayBookings(
 			// booking like its catalog flags, so the gap check needs no read
 			// of its own.
 			TemplateGapAckClasses: periodTemplateGapAck(offering, calendarPeriodID),
+			ClassDayApplies:       phase.SchoolYear && !offering.IncludesHolidayCare,
+			PickupTimes:           offeringPickupWeekdays(offering.PickupTimes),
 			Windows:               []careplan.OfferingBookingWindow{window},
 		})
 	}
@@ -122,6 +127,19 @@ func periodTemplateGapAck(offering *careplan.CareOffering, calendarPeriodID *int
 		return nil
 	}
 	return offering.TemplateGapAcks[*calendarPeriodID]
+}
+
+// offeringPickupWeekdays keys the offering's pickup times by ISO weekday;
+// an unknown day key or an empty time is left out.
+func offeringPickupWeekdays(times map[string]string) map[int]string {
+	result := make(map[int]string, len(times))
+	for day, hhmm := range times {
+		weekday, ok := offeringDayWeekday(day)
+		if value := strings.TrimSpace(hhmm); ok && value != "" {
+			result[weekday] = value
+		}
+	}
+	return result
 }
 
 // offeringWeekdays maps stored day abbreviations to sorted ISO weekdays; an

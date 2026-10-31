@@ -61,3 +61,9 @@ func New(values Values) *Settings {
 func (s *Settings) ResolveString(_ context.Context, key string) (string, error) {
 	return s.resolved[key], nil
 }
+
+// ResolveBool answers the payroll switches; the automatic send of #4805 is
+// off, the way an unconfigured tenant reads.
+func (s *Settings) ResolveBool(context.Context, string) (bool, error) {
+	return false, nil
+}

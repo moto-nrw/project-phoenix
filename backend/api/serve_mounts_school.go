@@ -46,6 +46,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/workflows/careexit"
@@ -53,16 +54,22 @@ import (
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 )
 
+// mountPayrollDownload serves the one-time download link of the payroll
+// office (#4805) outside every portal: the link is its only credential.
+func mountPayrollDownload(root chi.Router, payroll workforceModule.PayrollDispatch, logger *slog.Logger) {
+	root.Mount("/public/payroll-download", timeTrackingHTTP.NewPayrollDownloadResource(payroll, logger.With("handler", "payroll-download")).PublicRouter())
+}
+
 // mountStaffRoutes serves the staff administration, shift planning,
 // substitutions and time tracking.
 func mountStaffRoutes(
-	tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, membership schoolMembershipModule.Capability,
+	root, tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, membership schoolMembershipModule.Capability,
 	workTime workforceModule.Capability, users peoplePorts.PersonDirectory, staffAdmin *workforceModule.StaffAdmin,
 	workforce owners.WorkforcePlanning, shifts *workforceCompose.ShiftPlanning, education schoolstructure.GroupManagement,
 	substitution SubstitutionOperations, persons peopledirectory.Capability, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, identity identityaccess.Owner, caller *owners.CallerRows, calendar schoolcalendar.Calendar,
 ) error {
-	staff, _, err := newStaffComposition(membership, workTime, users, staffAdmin, workforce.TimeTracking, workforce.SickReports, education, persons, settings, hub, identity, viper.GetString("app_env"), db, logger.With("handler", "staff"))
+	staff, _, err := newStaffComposition(membership, workTime, users, staffAdmin, workforce.TimeTracking, workforce.PayrollDispatch, workforce.SickReports, education, persons, settings, hub, identity, viper.GetString("app_env"), db, logger.With("handler", "staff"))
 	if err != nil {
 		return err
 	}
@@ -73,6 +80,7 @@ func mountStaffRoutes(
 	})
 	absenceTypes := newAbsenceTypesResource(workforceCompose.NewAbsenceTypeAdministration(workTime, logger.With("service", "active")), currentStaffID(caller)).Router()
 	tenant.Mount("/staff", staff.Router())
+	mountPayrollDownload(root, workforce.PayrollDispatch, logger)
 	tenant.Mount("/work-time-models", newWorkTimeModelsResource(workTime, staffTimeTrackingNotifier(hub)).Router())
 	tenant.Mount("/staff-shifts", staffShifts.Router())
 	tenant.Mount("/shift-types", newShiftTypesResource(shifts.ShiftTypes).Router())
@@ -102,8 +110,14 @@ func mountSchoolPortalRoutes(
 	if err != nil {
 		return err
 	}
+	// The offering-gap check reads the Klassentag of the booked classes
+	// (#5343) from Timetable's class arrival plans.
+	classArrivals, err := owners.BuildClassArrivals(db, logger)
+	if err != nil {
+		return err
+	}
 	timetableResource := newTimetableResource(calendar, timetableOwner, materialization, lifecycle, planning, planningTracks, users, schedules,
-		caller, settings, careOfferings, classDay, planExport, pickupExtensions, persons, logger)
+		caller, settings, careOfferings, classDay, planExport, pickupExtensions, persons, classArrivals, logger)
 	// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
 	// separate surface from /messages (which is parent-facing).
 	staffMessaging := staffMessagingAPI.NewResource(chat.StaffMessaging)
@@ -146,7 +160,8 @@ func newTimetableResource(
 	lifecycle owners.TimetableLifecycle, planning TimetablePlanning, planningTracks timetableModule.PlanningTrackAdministration,
 	users peoplePorts.PersonDirectory, schedules owners.CarePlanSchedules, caller *owners.CallerRows, settings settingsCompose.SettingsService,
 	careOfferings carePlanModule.CareOfferingCapability, classDay ClassDayViews, planExport planexport.Service,
-	pickupExtensions timetableAPI.PickupExtensionDecisions, hints peopledirectory.SchoolDayHintQuery, logger *slog.Logger,
+	pickupExtensions timetableAPI.PickupExtensionDecisions, hints peopledirectory.SchoolDayHintQuery,
+	classArrivals timetableModule.ClassArrivalQuery, logger *slog.Logger,
 ) *timetableAPI.Resource {
 	return timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         calendar,
@@ -174,6 +189,7 @@ func newTimetableResource(
 		SettingsService:         settings,
 		OfferingSourceOptions:   NewTimetableOfferingSources(careOfferings),
 		OfferingGapDecisions:    careOfferings,
+		ClassArrivals:           classArrivals,
 		SupervisionSheets:       NewTimetableSupervisionSheets(classDay.ClassDay),
 		HomeworkFeedback:        timetableOwner,
 		PlanExportService:       planExport,

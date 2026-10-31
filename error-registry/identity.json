@@ -291,6 +291,12 @@
       "legacy": "account_inactive"
     },
     {
+      "code": "identity.session_account_mismatch",
+      "class": "permission",
+      "parameters": [],
+      "legacy": "identity.session_account_mismatch"
+    },
+    {
       "code": "identity.session_tenant_mismatch",
       "class": "permission",
       "parameters": [],

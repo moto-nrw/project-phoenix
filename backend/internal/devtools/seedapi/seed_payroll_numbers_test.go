@@ -104,7 +104,7 @@ func TestPayrollSettings_OnlyTheVollbetriebSchool(t *testing.T) {
 
 	full := fullOperationProfileDefinition().Settings
 	payroll := demoPayrollSettings()
-	require.Len(t, payroll, 12)
+	require.Len(t, payroll, 16, "the twelve payroll numbers and the four Lohnbüro settings of #4805")
 	for key, setting := range payroll {
 		assert.Equal(t, setting, full[key], key)
 		assert.Equal(t, SettingManagedByTenant, setting.ManagedBy, "%s is admin-only and written by the school", key)

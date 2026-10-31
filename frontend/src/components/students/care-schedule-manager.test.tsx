@@ -760,6 +760,46 @@ describe("CareScheduleManager", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("moves the week through the desktop and mobile week arrows", async () => {
+    const onVisibleDateRangeChange = vi.fn();
+
+    render(
+      <CareScheduleManager
+        studentId="42"
+        statusDays={statusDays}
+        onVisibleDateRangeChange={onVisibleDateRangeChange}
+      />,
+    );
+    await screen.findByText("Betreuungszeiten");
+
+    const previous = screen.getAllByRole("button", { name: "Vorherige Woche" });
+    const next = screen.getAllByRole("button", { name: "Nächste Woche" });
+    // Desktop-Leiste und mobile Wochenleiste tragen je ein Pfeilpaar.
+    expect(previous).toHaveLength(2);
+    expect(next).toHaveLength(2);
+    for (const arrow of [...previous, ...next]) {
+      expect(arrow).toHaveAttribute("type", "button");
+    }
+
+    for (const arrow of next) {
+      fireEvent.click(arrow);
+    }
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-06-08",
+      "2026-06-12",
+    );
+
+    for (const arrow of screen.getAllByRole("button", {
+      name: "Vorherige Woche",
+    })) {
+      fireEvent.click(arrow);
+    }
+    expect(onVisibleDateRangeChange).toHaveBeenLastCalledWith(
+      "2026-05-25",
+      "2026-05-29",
+    );
+  });
+
   it("keeps the week Mo–Fr on a weekday although the weekend follows Friday", async () => {
     render(<CareScheduleManager studentId="42" weekendFollowsFriday />);
     await screen.findByText("Betreuungszeiten");

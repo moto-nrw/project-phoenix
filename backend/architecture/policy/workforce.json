@@ -136,6 +136,10 @@
   ],
   "data_objects": [
     {
+      "name": "active.payroll_dispatches",
+      "write_owner": "workforce"
+    },
+    {
       "name": "active.staff_absence_audit",
       "write_owner": "workforce"
     },

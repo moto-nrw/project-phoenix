@@ -26,6 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { mutate } from "swr";
 import { useSession } from "next-auth/react";
 import { hasSessionAccess } from "~/lib/session-access";
+import { useTenantSafe } from "~/lib/tenant-context";
 import { useSSE } from "~/lib/hooks/use-sse";
 import { useMinuteClock } from "~/lib/pickup-helpers";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -280,6 +281,8 @@ function currentStudentDetailId(): string | null {
  */
 export function useGlobalSSE(): SSEHookState {
   const { data: session, status: sessionStatus } = useSession();
+  const tenantID = session?.user?.tenantId;
+  const tenant = useTenantSafe()?.tenant;
   const [groupAccessRevision, setGroupAccessRevision] = useState(0);
   const now = useMinuteClock();
   const groupAccessDay = berlinTodayISO(now);
@@ -288,17 +291,20 @@ export function useGlobalSSE(): SSEHookState {
   // Enable SSE for staff and effective admins. The backend treats admin:* and
   // *:* as admin scope even when a custom role does not include the literal
   // "admin" role, so the connection gate must mirror that rule.
-  const isStaff = session?.user?.roles?.includes("user") ?? false;
+  const hasStaffRole =
+    session?.user?.roles?.some((role) => role === "user" || role === "admin") ??
+    false;
   const hasAdminWildcard =
     session?.user?.permissions?.some(
       (permission) => permission === "admin:*" || permission === "*:*",
     ) ?? false;
-  const isAdmin =
-    (session?.user?.roles?.includes("admin") ?? false) || hasAdminWildcard;
   const isAuthenticated =
     sessionStatus === "authenticated" &&
     hasSessionAccess(session) &&
-    (isStaff || isAdmin);
+    // A refused stream would re-read the same wrong-school session forever,
+    // and a late lookup could restore its cookie after explicit signout.
+    (!tenant || tenantID === tenant.tenantId) &&
+    (hasStaffRole || hasAdminWildcard);
 
   // Debounce state: collect affected group IDs, flush once after DEBOUNCE_MS
   // (+ per-burst jitter). pendingGroupIds holds ACTIVE-group ids (activity
@@ -1271,44 +1277,12 @@ export function useGlobalSSE(): SSEHookState {
   // reconnectKey ensures the EventSource tears down and reconnects with a
   // fresh JWT whenever the user switches tenant, and refreshes the server's
   // fixed group-topic subscription after an access change.
-  const tenantID = session?.user?.tenantId;
   const reconnectKey =
     groupAccessRevision === 0
       ? tenantID
       : `${tenantID ?? ""}:${groupAccessRevision}`;
-  // A session of another school than this subdomain makes the BFF refuse
-  // the stream with 409 (#5130), but EventSource shows neither status nor
-  // body. After an answer that was no stream, one fetch of the same route
-  // lets the fetch observer report a refusal to TenantGuard (#5157); other
-  // answers (401, 503, offline) start no switch. One check at a time; an
-  // answer that is a stream is closed at once.
-  const streamCheckRef = useRef<AbortController | null>(null);
-  const handleSSEError = useCallback((event: Event) => {
-    const source = event.target as EventSource | null;
-    // 2 = EventSource.CLOSED, as in useSSE.
-    if (source?.readyState !== 2 || streamCheckRef.current) return;
-    const check = new AbortController();
-    streamCheckRef.current = check;
-    void fetch(SSE_ENDPOINT, { cache: "no-store", signal: check.signal })
-      // The stream's own backoff stays the visible result; the check only
-      // feeds the observer.
-      .catch(() => undefined)
-      .finally(() => {
-        check.abort();
-        if (streamCheckRef.current === check) streamCheckRef.current = null;
-      });
-  }, []);
-  useEffect(
-    () => () => {
-      streamCheckRef.current?.abort();
-      streamCheckRef.current = null;
-    },
-    [],
-  );
-
   const sseState = useSSE(SSE_ENDPOINT, {
     onMessage: handleSSEEvent,
-    onError: handleSSEError,
     enabled: isAuthenticated,
     reconnectKey,
   });
