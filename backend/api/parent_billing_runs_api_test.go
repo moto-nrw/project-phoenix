@@ -21,6 +21,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 const (
@@ -420,6 +421,6 @@ func TestBillingRunListQueryBudgetIsFlat(t *testing.T) {
 	startBillingRun(t, f, billing, second.ID)
 	assert.Len(t, list(billingRunsPath), len(runs), "the list reads the same statements for any number of runs")
 	assert.Len(t, list(billingRunsPath+"/periods"), len(periods), "the periods read the same statements for any number of periods")
-	testpkg.AssertQueryBudget(t, "api.traeger.billing_runs", runs)
-	testpkg.AssertQueryBudget(t, "api.traeger.billing_run_periods", periods)
+	querybudgets.AssertQueryBudget(t, "api.traeger.billing_runs", runs)
+	querybudgets.AssertQueryBudget(t, "api.traeger.billing_run_periods", periods)
 }

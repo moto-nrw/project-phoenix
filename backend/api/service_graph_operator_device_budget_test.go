@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -49,14 +50,14 @@ func TestOperatorDeviceRowsQueryBudget(t *testing.T) {
 	}
 
 	before := listDevices()
-	testpkg.AssertQueryBudget(t, "repositories.operator.device_rows", before)
+	querybudgets.AssertQueryBudget(t, "repositories.operator.device_rows", before)
 
 	for index := range 5 {
 		testpkg.CreateTestDeviceForTenant(t, db, tenantID, fmt.Sprintf("BUDGET-B-%d", index))
 	}
 
 	after := listDevices()
-	testpkg.AssertQueryBudget(t, "repositories.operator.device_rows", after)
+	querybudgets.AssertQueryBudget(t, "repositories.operator.device_rows", after)
 
 	require.Len(t, after, len(before),
 		"operator device listing must stay flat in the number of devices")

@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 func checkEnrollmentSubmissionGolden(t *testing.T, api *goldenRuntime) {
@@ -225,7 +226,7 @@ func checkPhaseResponseQueryBudget(t *testing.T, api *goldenRuntime) {
 	}
 	require.Equal(t, 1, countRolloverSourceQueries(small.overview), "the shallow rollover chain must use one source query")
 	require.Equal(t, 1, countRolloverSourceQueries(large.overview), "a deeper rollover chain must not add source queries")
-	testpkg.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
+	querybudgets.AssertQueryBudget(t, "api.enrollment.phase_responses.list", large.overview)
 }
 
 // withoutModuleLock removes the module lock (#4893) from a request's

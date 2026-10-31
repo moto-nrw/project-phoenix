@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type hostedWeekBody struct {
@@ -316,6 +317,6 @@ func TestHolidayHostParticipantListQueryBudgetIsFlat(t *testing.T) {
 	f.confirm(t, f.siblings, "confirm")
 	assert.Len(t, read("/"), len(oneWeek), "the weeks read the same statements for any number of children")
 	assert.Len(t, read(participants), len(oneList), "the list reads the same statements for any number of children")
-	testpkg.AssertQueryBudget(t, "api.holiday_weeks.list", oneWeek)
-	testpkg.AssertQueryBudget(t, "api.holiday_weeks.participants", oneList)
+	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.list", oneWeek)
+	querybudgets.AssertQueryBudget(t, "api.holiday_weeks.participants", oneList)
 }

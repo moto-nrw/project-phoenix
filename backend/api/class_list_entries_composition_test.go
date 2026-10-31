@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -185,7 +186,7 @@ func TestClassListEntriesCompositionKeepsItsQueryBudget(t *testing.T) {
 	}
 
 	small := list()
-	testpkg.AssertQueryBudget(t, "api.class_list_entries.list", small)
+	querybudgets.AssertQueryBudget(t, "api.class_list_entries.list", small)
 
 	add(3, 6)
 	large := list()

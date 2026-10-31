@@ -11,6 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,7 +61,7 @@ func TestStudentRequestsNoInformationSchemaQueries(t *testing.T) {
 
 	// Student requests must not run schema-detection queries in the request
 	// path; resolve schema capabilities at startup instead (#2059).
-	testpkg.AssertQueryBudget(t, "api.students.requests.schema_introspection",
+	querybudgets.AssertQueryBudget(t, "api.students.requests.schema_introspection",
 		counter.Matching(isSchemaIntrospectionQuery))
 }
 
@@ -116,7 +117,7 @@ func TestListStudentsQueryBudget(t *testing.T) {
 
 			assert.Equal(t, smallCount, largeCount,
 				"query count must be independent of the student count (no per-student N+1)")
-			testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "api.students.list", counter.Queries())
 		})
 	}
 }

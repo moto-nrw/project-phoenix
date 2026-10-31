@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 type reviewBooking struct {
@@ -428,7 +429,7 @@ func TestTraegerHolidayRegistrationListQueryBudgetIsFlat(t *testing.T) {
 	rec := publicJSON(t, f.public, http.MethodPost, registrationPath(f.period.PublicToken), siblingsRegistration(f.offer, "budget@example.org"))
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 	assert.Len(t, list(), len(one), "the list reads the same statements for any number of registrations")
-	testpkg.AssertQueryBudget(t, "api.traeger.holiday_registrations", one)
+	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_registrations", one)
 }
 
 // TestHolidayRegistrationAuditGoesWithItsPeriod pins the retention of the

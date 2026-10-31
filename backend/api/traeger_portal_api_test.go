@@ -29,6 +29,7 @@ import (
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // traegerPortalHandler is the /traeger router with the mailbox its second
@@ -425,5 +426,5 @@ func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Vier")
 	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Fünf")
 	assert.Len(t, list(), len(three), "the school list reads the same statements for any number of schools")
-	testpkg.AssertQueryBudget(t, "api.traeger.schools", three)
+	querybudgets.AssertQueryBudget(t, "api.traeger.schools", three)
 }

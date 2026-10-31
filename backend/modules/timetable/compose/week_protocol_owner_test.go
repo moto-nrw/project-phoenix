@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -412,7 +413,7 @@ func TestWeekProtocolListQueryBudgetStaysFlat(t *testing.T) {
 			require.Len(t, listed, groups)
 			counter.Stop()
 			statements = len(counter.Queries())
-			testpkg.AssertQueryBudget(t, "modules.timetable.week_protocols.list", counter.Queries())
+			querybudgets.AssertQueryBudget(t, "modules.timetable.week_protocols.list", counter.Queries())
 			return nil
 		}))
 		return statements

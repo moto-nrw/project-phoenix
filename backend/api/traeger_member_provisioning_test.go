@@ -25,6 +25,7 @@ import (
 	provisioningAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 func TestOperatorAssignsTheFirstPersonOfATraegerBuero(t *testing.T) {
@@ -132,7 +133,7 @@ func TestOperatorTraegerMemberListQueryBudgetIsFlat(t *testing.T) {
 	member()
 	member()
 	assert.Len(t, list(), len(three), "the member list reads the same statements for any number of members")
-	testpkg.AssertQueryBudget(t, "api.operator.traeger_members", three)
+	querybudgets.AssertQueryBudget(t, "api.operator.traeger_members", three)
 }
 
 // The erasure of unused accounts locks an account before it anonymizes it. A

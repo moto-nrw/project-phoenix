@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 )
 
 // accessLogDay is the fixed Berlin day the fixtures record their entries on.
@@ -312,7 +313,7 @@ func TestTraegerAccessLogQueryBudgetIsFlat(t *testing.T) {
 		recordAccessLogPersonnelNumberChange(t, f.db, f.second, f.otherStaffMember, accessLogAt(hour))
 	}
 	assert.Len(t, list(), len(first), "the access log reads the same statements for any number of entries")
-	testpkg.AssertQueryBudget(t, "api.traeger.access_log", first)
+	querybudgets.AssertQueryBudget(t, "api.traeger.access_log", first)
 }
 
 // The pages of one list end at its as_of instant, so entries recorded after

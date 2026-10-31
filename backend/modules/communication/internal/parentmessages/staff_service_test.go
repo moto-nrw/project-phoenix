@@ -14,6 +14,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -413,7 +414,7 @@ func TestStaffListInboxQueryBudgetStaysFlat(t *testing.T) {
 		inbox, err := testpkg.TenantQuery1(t, ctx, db, svc.ListInbox, false)
 		require.NoError(t, err)
 		require.Len(t, inbox, 3)
-		testpkg.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox", counter.Queries())
 		return err
 	})
 	require.NoError(t, err)
@@ -443,7 +444,7 @@ func TestStaffListInboxGroupQueryBudgetStaysFlat(t *testing.T) {
 		inbox, err := testpkg.TenantQuery1(t, ctx, db, svc.ListInbox, false)
 		require.NoError(t, err)
 		require.Len(t, inbox, 6)
-		testpkg.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox.group", counter.Queries())
+		querybudgets.AssertQueryBudget(t, "modules.communication.staff_messages.list_inbox.group", counter.Queries())
 		return err
 	})
 	require.NoError(t, err)
