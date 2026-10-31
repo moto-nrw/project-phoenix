@@ -360,6 +360,14 @@ describe.concurrent("swr/no-test-support-import", () => {
       "test support by a relative path",
       'import { setTestClock } from "../test/clock"; void setTestClock;',
     ],
+    [
+      "a test module outside src/test",
+      'import { SWRConfig } from "~/lib/sneaky.test"; void SWRConfig;',
+    ],
+    [
+      "a spec module by a relative path",
+      'export { helper } from "./helper.spec";',
+    ],
     ["test support imported dynamically", 'void import("~/test/clock");'],
   ])("rejects %s in production code", async (_name, source) => {
     const result = await lintSource(source);

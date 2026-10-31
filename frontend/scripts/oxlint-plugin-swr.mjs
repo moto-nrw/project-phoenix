@@ -488,9 +488,10 @@ const noFreeKey = {
   },
 };
 
-// #5007: test support (src/test/**, ~/lib/swr/testing) re-exports SWR's
-// provider and other doubles. Production code reaches it by no path; the
-// target is resolved like every module reference above.
+// #5007: test support (src/test/**, *.test.* and *.spec.* modules,
+// ~/lib/swr/testing) re-exports SWR's provider and other doubles.
+// Production code reaches it by no path; the target is resolved like every
+// module reference above.
 const noTestSupportImport = {
   meta: {
     type: "problem",
@@ -506,7 +507,12 @@ const noTestSupportImport = {
     if (isTestFile(file) || /\.stories\.[jt]sx?$/.test(file)) return {};
     function check(node, sourceNode) {
       const key = resolveModule(paths, packageName(sourceNode));
-      if (key === "src/test" || key?.startsWith("src/test/"))
+      // src/test/**, and every test or spec module wherever it lives.
+      if (
+        key === "src/test" ||
+        key?.startsWith("src/test/") ||
+        /\.(test|spec)$/.test(key ?? "")
+      )
         context.report({ node, messageId: "support", data: { target: key } });
     }
     return {
