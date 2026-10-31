@@ -111,6 +111,12 @@ edits reload through air. Worktrees created with `wt` carry their own ports in
 the copied `.env`, so several native loops run side by side; on 16 GB
 machines run one at a time ([low-memory machines](../development-environment.md#low-memory-machines)).
 
+Seeded E2E (`test:e2e`) and guide generation use the frontend port from
+`PORT`, as `next dev` and `next start` do; without `PORT` that is 3000. Run
+them through `scripts/dev-native.sh frontend`, which sets `PORT` to the
+worktree's `FRONTEND_HOST_PORT`. Playwright then reuses or starts only the
+worktree's own frontend and never tests another checkout's server on 3000.
+
 ### Synthetic network E2E suites
 
 `test:network` and `test:tenant-switch` start their own synthetic fixture API

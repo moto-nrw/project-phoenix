@@ -33,6 +33,7 @@
     "bauart/no-raw-status-hex": "error",
     "bauart/no-disabled-menu-item": "error",
     "date-safety/no-utc-date-extraction": "error",
+    "date-safety/no-browser-today": "error",
     "error-path/no-error-alert": "error",
     "error-path/no-error-text-display": "error",
     "error-path/no-hand-rolled-alert": "error",

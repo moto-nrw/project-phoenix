@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { frontendPort } from "./e2e/frontend-port";
+
 function loadLocalEnv(): void {
   for (const file of [
     ".env.development.local",
@@ -30,6 +32,9 @@ function loadLocalEnv(): void {
 }
 
 loadLocalEnv();
+// Next ignores PORT from .env files; pin the value read before loading them so
+// `next dev`, the config and the spec workers agree on one port.
+process.env.PORT = String(frontendPort);
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -74,7 +79,7 @@ export default defineConfig({
       ]
     : "html",
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: `http://localhost:${frontendPort}`,
     screenshot: "only-on-failure",
   },
   projects: [
@@ -85,7 +90,7 @@ export default defineConfig({
   ],
   webServer: {
     command: `${webServerEnvPrefix} pnpm run dev`,
-    port: 3000,
+    port: frontendPort,
     timeout: 120_000,
     reuseExistingServer: !process.env.CI,
   },

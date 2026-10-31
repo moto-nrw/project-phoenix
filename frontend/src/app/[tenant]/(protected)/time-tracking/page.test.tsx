@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import {
   render as rtlRender,
   screen,
@@ -2197,34 +2200,66 @@ describe("TimeTrackingPage", () => {
       expect(screen.getByText("Halber Tag")).toBeInTheDocument();
     });
 
-    it("calls createAbsence on save", async () => {
-      const mockToast = {
-        success: vi.fn(),
-        error: vi.fn(),
-        info: vi.fn(),
-        warning: vi.fn(),
-        remove: vi.fn(),
-      };
-      vi.mocked(useToast).mockReturnValue(mockToast);
-      setupDefaultMocks();
-      vi.mocked(timeTrackingService.createAbsence).mockResolvedValue(
-        mockAbsence,
-      );
-      render(<TimeTrackingPage />);
+    it.each(schoolDateCases("2026-05-27"))(
+      "calls createAbsence on save in %s",
+      async (zone, instant) => {
+        setSchoolDateClock(zone, instant, "2026-05-27");
 
-      fireEvent.click(screen.getByText("Abwesend"));
-      fireEvent.click(screen.getByLabelText("Abwesenheit melden"));
+        const mockToast = {
+          success: vi.fn(),
+          error: vi.fn(),
+          info: vi.fn(),
+          warning: vi.fn(),
+          remove: vi.fn(),
+        };
+        vi.mocked(useToast).mockReturnValue(mockToast);
+        setupDefaultMocks();
+        vi.mocked(timeTrackingService.createAbsence).mockResolvedValue(
+          mockAbsence,
+        );
+        render(<TimeTrackingPage />);
 
-      // Click Speichern
-      const saveButtons = screen.getAllByText("Speichern");
-      await act(async () => {
-        fireEvent.click(saveButtons[saveButtons.length - 1]!);
-      });
+        expect(useSWRAuth).toHaveBeenCalledWith(
+          "time-tracking-history-2026-05-13-2026-05-31",
+          expect.any(Function),
+          expect.any(Object),
+        );
+        fireEvent.click(screen.getByText("Abwesend"));
+        fireEvent.click(screen.getByLabelText("Abwesenheit melden"));
 
-      await waitFor(() => {
-        expect(timeTrackingService.createAbsence).toHaveBeenCalled();
-      });
-    });
+        // Click Speichern
+        const saveButtons = screen.getAllByText("Speichern");
+        await act(async () => {
+          fireEvent.click(saveButtons[saveButtons.length - 1]!);
+        });
+
+        await waitFor(() => {
+          expect(timeTrackingService.createAbsence).toHaveBeenCalledWith(
+            expect.objectContaining({
+              absence_type: "sick",
+              date_start: "2026-05-27",
+              date_end: "2026-05-27",
+            }),
+          );
+        });
+        const nextInstant = schoolDateCases("2026-05-28").find(
+          ([name]) => name === zone,
+        )![1];
+        setSchoolDateClock(zone, nextInstant, "2026-05-28");
+        fireEvent.click(screen.getByLabelText("Abwesenheit melden"));
+        await act(async () => {
+          fireEvent.click(screen.getAllByText("Speichern").at(-1)!);
+        });
+        await waitFor(() =>
+          expect(timeTrackingService.createAbsence).toHaveBeenLastCalledWith(
+            expect.objectContaining({
+              date_start: "2026-05-28",
+              date_end: "2026-05-28",
+            }),
+          ),
+        );
+      },
+    );
   });
 
   it("refreshes absence types after returning from their management page", () => {

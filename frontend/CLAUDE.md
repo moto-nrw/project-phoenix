@@ -67,7 +67,7 @@ SSE streaming is the explicit exception in the SSE contract below.
 
 ## Date Handling (MANDATORY)
 
-Calendar dates travel as `"YYYY-MM-DD"` strings; never derive one via `.toISOString()` (UTC shifts a day around Berlin midnight — the custom oxlint rule `date-safety/no-utc-date-extraction` rejects it). Use `toISODate` / `todayISO` / `parseISODate` / `formatDate` from `~/lib/date-helpers`. Full table: `.claude/rules/calendar-dates.md`.
+Calendar dates travel as `"YYYY-MM-DD"` strings; never derive one via `.toISOString()` (UTC shifts a day around Berlin midnight — the custom oxlint rule `date-safety/no-utc-date-extraction` rejects it). Use `berlinTodayISO()` for school-day defaults and comparisons, `useBerlinToday()` for views that stay mounted across midnight, and `todayISO()` only for browser-local dates. Convert and render calendar dates with `toISODate` / `parseISODate` / `formatDate` from `~/lib/date-helpers`. Full table: `.claude/rules/calendar-dates.md`.
 
 ## Logging (MANDATORY)
 

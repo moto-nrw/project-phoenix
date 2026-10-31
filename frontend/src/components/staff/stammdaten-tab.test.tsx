@@ -1,3 +1,8 @@
+import { act } from "@testing-library/react";
+import { setTestClock } from "~/test/clock";
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { fireEvent, render as renderUi, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { ToastProvider } from "~/contexts/ToastContext";
@@ -178,4 +183,45 @@ describe("StammdatenTab", () => {
       screen.queryByRole("link", { name: "Abrechnung" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-05-27"))(
+    "expires qualifications at Berlin midnight in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-27");
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      useSWRAuth.mockImplementation((key: string | null) => ({
+        ...swrResult.current,
+        data: key?.startsWith("staff-stammdaten-")
+          ? {
+              person: { firstName: "Ada", lastName: "Lovelace" },
+              kontakt: {},
+              arbeitsvertrag: {},
+              qualifikationen: [
+                {
+                  name: "Erste Hilfe",
+                  expiresOn: "2026-05-27",
+                  acquiredOn: null,
+                },
+              ],
+            }
+          : undefined,
+      }));
+      render(
+        <StammdatenTab
+          staffId="42"
+          canManagePayroll={false}
+          canViewSections
+          canManagePayrollSettings={false}
+        />,
+      );
+      // Anker: Die Qualifikation ist geladen und am letzten Gültigkeitstag noch gültig.
+      expect(screen.getByText("Erste Hilfe")).toBeInTheDocument();
+      expect(screen.queryByText("Abgelaufen")).not.toBeInTheDocument();
+      await act(async () => {
+        setTestClock("2026-05-27T22:01:00Z");
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(screen.getByText("Abgelaufen")).toBeInTheDocument();
+    },
+  );
 });

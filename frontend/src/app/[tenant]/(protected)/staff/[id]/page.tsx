@@ -84,7 +84,7 @@ import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffAbsenceService } from "~/lib/staff-api";
-import { formatDate, isValidISODate } from "~/lib/date-helpers";
+import { formatDate, isValidISODate, berlinTodayISO } from "~/lib/date-helpers";
 import { DetailSkeleton } from "~/components/ui/page-skeletons";
 import { StaffDetailSkeleton } from "./page-skeleton";
 
@@ -445,7 +445,7 @@ export default function StaffDetailContent() {
       ? `staff-pending-absences-${staffId}`
       : null,
     async () => {
-      const year = new Date().getFullYear();
+      const year = Number(berlinTodayISO().slice(0, 4));
       const rows = await staffAbsenceService.getAbsences(
         staffId,
         `${year}-01-01`,

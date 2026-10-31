@@ -1,4 +1,5 @@
 "use client";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 
 import React, {
   Suspense,
@@ -25,7 +26,7 @@ import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
-import { berlinTodayISO, todayISO } from "~/lib/date-helpers";
+
 import {
   type AttendanceHistory,
   type AttendanceHistoryDay,
@@ -99,7 +100,7 @@ function formatWeekday(dateKey: string): string {
 }
 
 function HistoryCharts({ days }: { readonly days: AttendanceHistoryDay[] }) {
-  const todayKey = todayISO();
+  const todayKey = useBerlinToday();
 
   const chartData = useMemo<HistoryChartPoint[]>(() => {
     return days
@@ -352,7 +353,7 @@ function HistoryTable({
   readonly onCorrected: () => void;
 }) {
   const [expandedDate, setExpandedDate] = useState<string | null>(null);
-  const todayKey = todayISO();
+  const todayKey = useBerlinToday();
   // Korrigieren darf nur, wer den Plan verwaltet (#2898) — dieselbe
   // Berechtigung, die das Backend auf der Korrektur-Route verlangt.
   const { data: session } = useSession();
@@ -691,6 +692,7 @@ export default function StudentRoomHistoryPage() {
 }
 
 function StudentRoomHistoryPageContent() {
+  const today = useBerlinToday();
   const params = useParams();
   const searchParams = useSearchParams();
   const studentId = params.id as string;
@@ -871,7 +873,7 @@ function StudentRoomHistoryPageContent() {
           onClose={() => setExportOpen(false)}
           studentId={studentId}
           studentName={displayName}
-          today={berlinTodayISO()}
+          today={today}
           visibleDays={history.caps.attendanceDays}
         />
       ) : null}

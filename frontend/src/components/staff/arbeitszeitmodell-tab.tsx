@@ -1,4 +1,5 @@
 "use client";
+import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -149,7 +150,7 @@ export function ArbeitszeitmodellTab({
     );
   }
 
-  const today = new Date();
+  const today = parseISODate(berlinTodayISO());
   const weeklyTotal = schedule.weeklyTotals.reduce((s, m) => s + m, 0);
   const weeksLabel =
     schedule.rotationLength > 1

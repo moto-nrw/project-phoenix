@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MODULE_KEYS } from "~/lib/modules";
 import { useBookedModules } from "~/lib/tenant-context";
@@ -6,10 +9,13 @@ import Link from "next/link";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
-import { staffService } from "~/lib/staff-api";
+import { staffService, staffAbsenceService } from "~/lib/staff-api";
 import { catalogText } from "~/test/error-catalog-text";
 import StaffDetailContent from "./page";
 
+const pending = vi.hoisted(() => ({
+  fetcher: undefined as (() => Promise<unknown>) | undefined,
+}));
 const replaceMock = vi.fn();
 const searchParams = vi.hoisted(() => new URLSearchParams());
 const { mockRecordUpdate, mockUpdateTeacher, mockDeleteTeacher } = vi.hoisted(
@@ -105,6 +111,7 @@ vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => vi.fn(),
   useInvalidateMatching: () => vi.fn(),
   useSWRAuth: (key: string | null, fetcher?: () => Promise<unknown>) => {
+    if (key?.startsWith("staff-pending-absences-")) pending.fetcher = fetcher;
     if (key?.startsWith("staff-history-"))
       return { data: [], isLoading: false, error: null };
     if (key?.startsWith("staff-record-")) {
@@ -312,6 +319,30 @@ describe("StaffDetailContent permissions", () => {
   });
 
   // #4432: the redesign in #1310 dropped the picture and left the initials.
+  it.each(schoolDateCases("2027-01-01"))(
+    "loads the Berlin absence year in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2027-01-01");
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: { id: "7", roles: ["admin"], permissions: ["admin:*"] },
+          expires: "2099-01-01T00:00:00Z",
+        },
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      vi.mocked(staffAbsenceService.getAbsences).mockResolvedValue([]);
+      render(<StaffDetailContent />);
+      expect(pending.fetcher).toBeTypeOf("function");
+      await pending.fetcher!();
+      expect(staffAbsenceService.getAbsences).toHaveBeenCalledWith(
+        "42",
+        "2027-01-01",
+        "2027-12-31",
+      );
+    },
+  );
+
   it("shows the uploaded profile picture in the header", () => {
     detailRequest.avatarUrl = "/api/staff/42/avatar";
     vi.mocked(useSession).mockReturnValue({

@@ -29,8 +29,11 @@ export NEXT_PUBLIC_TRAEGER_HOSTNAME=traeger.localhost:3000
 [[ "${1:-quality}" == fast ]] || quality_step frontend-source-contracts pnpm run test:source-contracts
 quality_step frontend-lint pnpm run lint --max-warnings 0
 quality_step frontend-types pnpm run typecheck
+# Unused exports and files were the most frequent frontend-quality CI failure
+# once knip left pre-push (0 before, 36 in the next six days); both scans take
+# about 6 s and 3 CPU seconds locally, much less than a CI round trip.
+quality_step unused-code pnpm knip
+quality_step production-unused-code pnpm knip:production
 # Pre-push stops here; CI runs the whole-project analysis below.
 [[ "${1:-quality}" == fast ]] && exit 0
 quality_step dependency-graph pnpm depcruise
-quality_step unused-code pnpm knip
-quality_step production-unused-code pnpm knip:production

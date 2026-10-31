@@ -1,3 +1,6 @@
+import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
+import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
+restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
     data: {
@@ -33,10 +36,12 @@ vi.mock("~/lib/operator/provisioning-api", () => ({
 vi.mock("~/components/ui/date-picker", async () => {
   const { toISODate, parseISODate } = await import("~/lib/date-helpers");
   return {
-    DatePicker: ({ id, value, onChange }: any) => (
+    DatePicker: ({ id, value, onChange, minDate, maxDate }: any) => (
       <input
         id={id}
         data-testid={id}
+        min={minDate ? toISODate(minDate) : undefined}
+        max={maxDate ? toISODate(maxDate) : undefined}
         type="date"
         value={value ? toISODate(value) : ""}
         onChange={(e) =>
@@ -195,4 +200,19 @@ describe("TraegerErasureOrderSection", () => {
       screen.queryByRole("button", { name: "Löschauftrag zurücknehmen" }),
     ).not.toBeInTheDocument();
   });
+
+  it.each(schoolDateCases("2026-09-09"))(
+    "uses Berlin today and tomorrow for erasure bounds in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-09-09");
+      mockGetOrder.mockResolvedValue(null);
+      renderSection(false);
+      expect(
+        await screen.findByTestId("traeger-erasure-order-confirmed-on"),
+      ).toHaveAttribute("max", "2026-09-09");
+      expect(
+        screen.getByTestId("traeger-erasure-order-erase-not-before"),
+      ).toHaveAttribute("min", "2026-09-10");
+    },
+  );
 });
