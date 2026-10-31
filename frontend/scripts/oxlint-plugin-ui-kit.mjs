@@ -566,7 +566,7 @@ src/app/operator/provisioning/soft-delete-shared.tsx|text-[11px]@230
 src/components/active-supervisions/planned-now-section.tsx|text-[11px]@431
 src/components/activities/activity-management-modal.tsx|text-[10px]@314 text-[10px]@345 text-[10px]@383
 src/components/auth/role-permission-management-modal.tsx|text-[10px]@330 text-[11px]@375
-src/components/calendar/personal-calendar.tsx|text-[11px]@894 text-[11px]@922 text-[11px]@1009 text-[11px]@1070 text-[11px]@1074 text-[11px]@1080 text-[11px]@1127 text-[11px]@1133 text-[10px]@1153 text-[11px]@1206 text-[11px]@1286 text-[11px]@1297 text-[11px]@1302
+src/components/calendar/personal-calendar.tsx|text-[11px]@898 text-[11px]@926 text-[11px]@1013 text-[11px]@1074 text-[11px]@1078 text-[11px]@1084 text-[11px]@1131 text-[11px]@1137 text-[10px]@1157 text-[11px]@1210 text-[11px]@1290 text-[11px]@1301 text-[11px]@1306
 src/components/dashboard/header/reminders-bell.tsx|text-[11px]@42 text-[10px]@96
 src/components/enrollment/admin-enrollments-list.tsx|text-[11px]@968 text-[11px]@987
 src/components/enrollment/enrollment-form-editor.tsx|text-[11px]@1465

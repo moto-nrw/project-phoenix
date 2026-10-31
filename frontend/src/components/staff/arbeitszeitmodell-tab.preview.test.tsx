@@ -110,10 +110,10 @@ describe("Arbeitszeitmodell preview", () => {
     mocks.projectionError = undefined;
   });
 
-  it.each(schoolDateCases("2026-09-14"))(
+  it.each(schoolDateCases("2026-09-16"))(
     "reads the four weeks from the daily Soll the time tracking uses in %s",
     (zone, instant) => {
-      setSchoolDateClock(zone, instant, "2026-09-14");
+      setSchoolDateClock(zone, instant, "2026-09-16");
 
       render(<ArbeitszeitmodellTab staffId="42" canEdit={false} />);
 

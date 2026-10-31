@@ -6,6 +6,9 @@ import { nodeLogicTestFiles } from "./src/test/node-test-files.ts";
 import { phosphorPerIconImports } from "./src/test/phosphor-imports-plugin.ts";
 
 const schoolDateTestFiles = [
+  "src/app/traeger/access-log/page.test.tsx",
+  "src/app/operator/organizations/[slug]/traeger-erasure-order-section.test.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.test.tsx",
   "src/components/students/care-weekly-plan-editor.test.tsx",
   "src/app/[tenant]/(protected)/calendar/page.test.tsx",
   "src/app/[tenant]/(protected)/time-tracking/page.test.tsx",
@@ -33,6 +36,27 @@ const schoolDateTestFiles = [
   "src/app/[tenant]/(protected)/staff/[id]/page.permissions.test.tsx",
   "src/components/staff/sick-report-modal.test.tsx",
 ];
+
+// Shared desktop viewport and resource isolation for every DOM project.
+const domEnvironmentOptions = {
+  happyDOM: {
+    width: 1920,
+    height: 1080,
+    // Component markup must not fetch marketing pages or vendor
+    // resources. Tests mock fetch explicitly when that is their seam.
+    settings: {
+      navigation: {
+        disableMainFrameNavigation: true,
+        disableChildFrameNavigation: true,
+        disableChildPageNavigation: true,
+      },
+      disableCSSFileLoading: true,
+      disableJavaScriptFileLoading: true,
+      enableImageFileLoading: false,
+      handleDisabledFileLoadingAsSuccess: true,
+    },
+  },
+};
 
 const apiTestFiles = ["src/app/api/**/*.{test,spec}.ts"];
 const baseTestExcludes = ["**/node_modules/**", "**/e2e/**"];
@@ -117,29 +141,7 @@ export default defineConfig({
             ...schoolDateTestFiles,
           ],
           environment: "happy-dom",
-          // happy-dom simuliert sonst 1024x768; Komponenten mit
-          // Viewport-abhängigen Defaults (z. B. die einklappbare
-          // Seitenleiste, #2825) sollen in Tests den Desktop-Zustand
-          // rendern, wie ihn auch der Server-Snapshot annimmt.
-          environmentOptions: {
-            happyDOM: {
-              width: 1920,
-              height: 1080,
-              // Component markup must not fetch marketing pages or vendor
-              // resources. Tests mock fetch explicitly when that is their seam.
-              settings: {
-                navigation: {
-                  disableMainFrameNavigation: true,
-                  disableChildFrameNavigation: true,
-                  disableChildPageNavigation: true,
-                },
-                disableCSSFileLoading: true,
-                disableJavaScriptFileLoading: true,
-                enableImageFileLoading: false,
-                handleDisabledFileLoadingAsSuccess: true,
-              },
-            },
-          },
+          environmentOptions: domEnvironmentOptions,
           setupFiles: ["./src/test/setup-common.ts", "./src/test/setup.ts"],
           sequence: { groupOrder: 1 },
         },
@@ -148,8 +150,12 @@ export default defineConfig({
         extends: true,
         test: {
           name: "school-date-dom",
-          include: schoolDateTestFiles,
+          include: [
+            ...schoolDateTestFiles,
+            "src/test/resource-isolation.test.ts",
+          ],
           environment: "happy-dom",
+          environmentOptions: domEnvironmentOptions,
           // Node only applies runtime TZ changes in processes, not threads.
           // Keep real non-Berlin browser zones in this regression suite.
           pool: "forks",

@@ -1,6 +1,14 @@
 // Reviewed browser-local inputs and instants, not school-day derivations.
 // Shrink-only: moving a line may update its fingerprint, not add exemptions.
 export default {
+  // Only the clock-source sites in the central helpers, not the whole file.
+  "src/lib/date-helpers.ts": [
+    "todayISO: return toISODate(new Date());",
+    "berlinTodayISO: export function berlinTodayISO(at: Date = new Date()): string {",
+    "berlinDayStart: export function berlinDayStart(at: Date = new Date()): Date {",
+    "getStartDateForTimeRange: referenceDate: Date = new Date(),",
+    "relativeDaysLabel: at: Date = new Date(),",
+  ],
   "src/lib/activity-api.ts": [
     "created_at: new Date(),",
     "updated_at: new Date(),",
@@ -99,10 +107,6 @@ export default {
     "new Date(item.response_deadline) <= new Date()",
     "const closed = new Date(survey.closes_at) <= new Date();",
   ],
-  "src/app/operator/organizations/[slug]/traeger-erasure-order-section.tsx": [
-    "const date = parseISODate(todayISO());",
-    "maxDate={parseISODate(todayISO())}",
-  ],
   "src/app/api/health/route.ts": ["timestamp: new Date().toISOString(),"],
   "src/app/api/activities/route.ts": [
     "created_at: new Date(),",
@@ -115,13 +119,5 @@ export default {
     "const now = new Date();",
     "const now = new Date();",
     "const tzOffset = -new Date().getTimezoneOffset();",
-  ],
-  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx": [
-    "const now = new Date();",
-  ],
-  "src/app/traeger/access-log/page.tsx": [
-    "const today = parseISODate(todayISO());",
-    "const today = parseISODate(todayISO());",
-    "toMax={parseISODate(todayISO())}",
   ],
 };

@@ -57,39 +57,95 @@ const noBrowserToday = {
     if (
       !filename.includes("/src/") ||
       /\.(test|spec|stories)\.[cm]?[jt]sx?$/.test(filename) ||
-      filename.includes("/src/test/") ||
-      filename.endsWith("/src/lib/date-helpers.ts")
+      filename.includes("/src/test/")
     )
       return {};
     const file = filename.slice(filename.lastIndexOf("/src/") + 1);
     const remaining = [...(schoolTodayBaseline[file] ?? [])];
     const localTodayNames = new Set(["todayISO"]);
+    const implicitDateFns = new Set([
+      "isToday",
+      "isYesterday",
+      "isTomorrow",
+      "isThisWeek",
+      "isThisMonth",
+      "isThisQuarter",
+      "isThisYear",
+      "startOfToday",
+      "startOfYesterday",
+      "startOfTomorrow",
+      "endOfToday",
+      "endOfYesterday",
+      "endOfTomorrow",
+    ]);
+    const dateFnsNames = new Set();
+    const dateFnsNamespaces = new Set();
+    const memberName = (node) =>
+      node.computed ? node.property.value : node.property.name;
+    const isDateConstructor = (node) =>
+      (node.type === "Identifier" && node.name === "Date") ||
+      (node.type === "MemberExpression" &&
+        node.object.type === "Identifier" &&
+        node.object.name === "globalThis" &&
+        memberName(node) === "Date");
+    const isDateNow = (node) =>
+      node?.type === "CallExpression" &&
+      node.arguments.length === 0 &&
+      node.callee.type === "MemberExpression" &&
+      isDateConstructor(node.callee.object) &&
+      memberName(node.callee) === "now";
     function check(node) {
-      const source = context.sourceCode.lines[node.loc.start.line - 1].trim();
+      let source = context.sourceCode.lines[node.loc.start.line - 1].trim();
+      if (file === "src/lib/date-helpers.ts") {
+        let owner = node.parent;
+        while (owner && owner.type !== "FunctionDeclaration")
+          owner = owner.parent;
+        source = `${owner?.id?.name ?? "<module>"}: ${source}`;
+      }
       const index = remaining.indexOf(source);
       if (index >= 0) remaining.splice(index, 1);
       else context.report({ node, messageId: "browserToday" });
     }
     return {
+      ImportDeclaration(node) {
+        const source = node.source.value;
+        if (source !== "date-fns" && !source.startsWith("date-fns/")) return;
+        for (const specifier of node.specifiers) {
+          if (specifier.type === "ImportNamespaceSpecifier")
+            dateFnsNamespaces.add(specifier.local.name);
+          else {
+            const imported =
+              specifier.type === "ImportSpecifier"
+                ? specifier.imported.name
+                : source.split("/").at(-1);
+            if (implicitDateFns.has(imported))
+              dateFnsNames.add(specifier.local.name);
+          }
+        }
+      },
       ImportSpecifier(node) {
         if (node.imported.name === "todayISO")
           localTodayNames.add(node.local.name);
       },
       NewExpression(node) {
         if (
-          node.callee.type === "Identifier" &&
-          node.callee.name === "Date" &&
-          node.arguments.length === 0
+          isDateConstructor(node.callee) &&
+          (node.arguments.length === 0 ||
+            (node.arguments.length === 1 && isDateNow(node.arguments[0])))
         )
           check(node);
       },
       CallExpression(node) {
         if (
           (node.callee.type === "Identifier" &&
-            localTodayNames.has(node.callee.name)) ||
+            (localTodayNames.has(node.callee.name) ||
+              dateFnsNames.has(node.callee.name))) ||
           (node.callee.type === "MemberExpression" &&
             !node.callee.computed &&
-            node.callee.property.name === "todayISO")
+            (memberName(node.callee) === "todayISO" ||
+              (node.callee.object.type === "Identifier" &&
+                dateFnsNamespaces.has(node.callee.object.name) &&
+                implicitDateFns.has(memberName(node.callee)))))
         )
           check(node);
       },

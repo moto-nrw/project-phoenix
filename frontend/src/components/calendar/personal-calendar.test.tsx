@@ -1,3 +1,5 @@
+import { act } from "@testing-library/react";
+import { setTestClock } from "~/test/clock";
 import { schoolDateCases, setSchoolDateClock } from "~/test/school-date-cases";
 import { afterEach as restoreZoneAfterEach, vi as zoneVi } from "vitest";
 restoreZoneAfterEach(() => zoneVi.unstubAllEnvs());
@@ -565,6 +567,34 @@ describe("PersonalCalendar", () => {
       screen.getAllByText("Keine Einträge in dieser Woche.").length,
     ).toBeGreaterThan(0);
   });
+
+  it.each(schoolDateCases("2026-05-27"))(
+    "reactivates today navigation at Berlin midnight in %s",
+    async (zone, instant) => {
+      setSchoolDateClock(zone, instant, "2026-05-27");
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const onDateChange = vi.fn();
+      render(
+        <PersonalCalendarChrome
+          events={[]}
+          referenceDate={new Date(2026, 4, 27)}
+          viewMode="day"
+          onDateChange={onDateChange}
+          showWeekend={false}
+          onShowWeekendChange={vi.fn()}
+        />,
+      );
+      expect(screen.getByRole("button", { name: "Heute" })).toBeDisabled();
+      await act(async () => {
+        setTestClock("2026-05-27T22:01:00Z");
+        vi.advanceTimersByTime(60_000);
+      });
+      const today = screen.getByRole("button", { name: "Heute" });
+      expect(today).toBeEnabled();
+      fireEvent.click(today);
+      expect(onDateChange).toHaveBeenCalledWith(new Date(2026, 4, 28));
+    },
+  );
 });
 
 it.each(schoolDateCases("2026-05-27"))(

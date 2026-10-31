@@ -1,6 +1,14 @@
+import schoolTodayBaseline from "./school-today-baseline.mjs";
 import { afterEach, describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
@@ -42,6 +50,13 @@ afterEach(() => {
 describe("date-safety/no-browser-today", () => {
   it.each([
     "const date = toISODate(new Date());",
+    "const date = toISODate(new Date(Date.now()));",
+    "const date = toISODate(new globalThis.Date());",
+    "const date = new globalThis.Date(globalThis.Date.now());",
+    'import { isToday as currentDay } from "date-fns/isToday"; const yes = currentDay(input);',
+    'import { startOfToday } from "date-fns/startOfToday"; const day = startOfToday();',
+    'import * as fns from "date-fns"; const yes = fns.isToday(input);',
+    'import currentDay from "date-fns/isToday"; const yes = currentDay(input);',
     "const date = formatDateISO(new Date());",
     'const date = format(new Date(), "yyyy-MM-dd");',
     "const now = new Date(); const date = now.toLocaleDateString();",
@@ -62,17 +77,27 @@ describe("date-safety/no-browser-today", () => {
     expect(result.status, result.output).toBe(0);
   });
 
-  it("allows local-date implementation in the central helper and tests", () => {
-    expect(
-      lintSource(
-        "const date = toISODate(new Date());",
-        "src/lib/date-helpers.ts",
-      ).status,
-    ).toBe(0);
+  it("limits the central helper exception to its reviewed clock-source sites", () => {
+    const source = readFileSync(resolve("src/lib/date-helpers.ts"), "utf8");
+    expect(lintSource(source, "src/lib/date-helpers.ts").status).toBe(0);
+    const added = lintSource(
+      source + "\nexport const unsafe = toISODate(new Date());",
+      "src/lib/date-helpers.ts",
+    );
+    expect(added.status).toBe(1);
+    expect(added.output).toContain("School today must come from");
     expect(
       lintSource("const date = toISODate(new Date());", "src/probe.test.ts")
         .status,
     ).toBe(0);
+  });
+
+  it("rejects baseline entries for deleted files", () => {
+    for (const file of Object.keys(schoolTodayBaseline)) {
+      expect(existsSync(resolve(file)), `Stale baseline file: ${file}`).toBe(
+        true,
+      );
+    }
   });
 
   it("consumes reviewed local exceptions once and rejects new or stale ones", () => {
@@ -88,6 +113,14 @@ describe("date-safety/no-browser-today", () => {
     const stale = lintSource("export const value = true;", file);
     expect(stale.status).toBe(1);
     expect(stale.output).toContain(
+      "Remove the stale school-today baseline entry",
+    );
+    const noLongerViolating = lintSource(
+      'export const note = "max={todayISO()}";',
+      file,
+    );
+    expect(noLongerViolating.status).toBe(1);
+    expect(noLongerViolating.output).toContain(
       "Remove the stale school-today baseline entry",
     );
   });

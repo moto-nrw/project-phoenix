@@ -476,13 +476,13 @@ export function formatDuration(minutes: number | null): string {
  * Get the start date for a given time range filter
  * @param timeRange The time range filter option
  * @param referenceDate Optional reference date (defaults to now)
- * @returns Start date at midnight for the filter range
+ * @returns Instant at Berlin midnight for the filter range
  */
 export function getStartDateForTimeRange(
   timeRange: string,
   referenceDate: Date = new Date(),
 ): Date {
-  const now = referenceDate;
+  const now = parseISODate(berlinTodayISO(referenceDate));
   let startDate: Date;
 
   switch (timeRange) {
@@ -511,8 +511,7 @@ export function getStartDateForTimeRange(
       );
   }
 
-  startDate.setHours(0, 0, 0, 0);
-  return startDate;
+  return new Date(berlinDateTimeISO(startDate, "00:00"));
 }
 
 /**

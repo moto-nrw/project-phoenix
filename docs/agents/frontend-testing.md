@@ -69,9 +69,10 @@ valid: fixture and product code see the same frozen instant. Fixtures that use
 ## Enforcement
 
 - `src/test/clock.test.tsx` is the regression test of the mechanism: a pinned
-  hook plus the real kit `DatePicker` renders the today label on the frozen
-  day, `setTestClock` covers Berlin midnight, a week change and the DST
-  switch, and time and timer state reset between tests.
+  hook supplies the explicit today marker to the real kit `DatePicker`, while
+  the independent `Date`/`Date.now()` assertions remain on the frozen instant.
+  `setTestClock` covers Berlin midnight, a week change and the DST switch,
+  and time and timer state reset between tests.
 - oxlint rule `test-clock/no-real-clock`
   (`scripts/oxlint-plugin-test-clock.mjs`, tested in
   `scripts/oxlint-plugin-test-clock.test.ts`) runs in `pnpm run check` and CI.
