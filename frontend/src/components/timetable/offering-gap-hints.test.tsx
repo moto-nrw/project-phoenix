@@ -77,6 +77,17 @@ const mittag: OfferingGap = {
   newSeriesPlansCovered: false,
 };
 
+const WITHHELD_HINT = /Fehlt „Regeltermin anlegen“/;
+
+/** `count` open offerings; only the row at `withheldIndex` lacks the button. */
+function gapsWithoutCreateAt(count: number, withheldIndex: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    ...randstunde,
+    offering: { id: String(index + 1), name: `Angebot ${index + 1}` },
+    newSeriesPlansCovered: index === withheldIndex,
+  }));
+}
+
 function renderHints(canManage = true) {
   const onCreateSeries = vi.fn();
   render(
@@ -254,53 +265,45 @@ describe("OfferingGapHints", () => {
   });
 
   it("explains a missing button only for rows the folded list shows (#5390)", () => {
-    mockGaps.current = Array.from({ length: 6 }, (_, index) => ({
-      ...randstunde,
-      offering: { id: String(200 + index), name: `Angebot ${index + 1}` },
-      newSeriesPlansCovered: index === 5,
-    }));
+    mockGaps.current = gapsWithoutCreateAt(6, 5);
     renderHints();
 
+    // Anker: the folded list shows five rows, each with its create button.
     expect(
       screen.getAllByRole("button", { name: /^Regeltermin anlegen: / }),
     ).toHaveLength(5);
-    expect(
-      screen.queryByText(/Fehlt „Regeltermin anlegen“/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(WITHHELD_HINT)).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "1 weitere anzeigen" }));
 
     expect(screen.getByText("„Angebot 6“")).toBeInTheDocument();
-    expect(screen.getAllByText(/Fehlt „Regeltermin anlegen“/)).toHaveLength(1);
+    expect(screen.getAllByText(WITHHELD_HINT)).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "Weniger anzeigen" }));
 
+    // Anker: the list is folded again and still rendered.
     expect(screen.getByText("„Angebot 5“")).toBeInTheDocument();
-    expect(
-      screen.queryByText(/Fehlt „Regeltermin anlegen“/),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("„Angebot 6“")).not.toBeInTheDocument();
+    expect(screen.queryByText(WITHHELD_HINT)).not.toBeInTheDocument();
   });
 
   it("keeps the explanation for an affected row among the first five (#5390)", () => {
-    mockGaps.current = Array.from({ length: 7 }, (_, index) => ({
-      ...randstunde,
-      offering: { id: String(300 + index), name: `Angebot ${index + 1}` },
-      newSeriesPlansCovered: index === 2,
-    }));
+    mockGaps.current = gapsWithoutCreateAt(7, 2);
     renderHints();
 
+    // Anker: the affected row is visible in the folded list.
     expect(screen.getByText("„Angebot 3“")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {
         name: "Regeltermin anlegen: „Angebot 3“",
       }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByText(/Fehlt „Regeltermin anlegen“/)).toHaveLength(1);
+    expect(screen.getAllByText(WITHHELD_HINT)).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: "2 weitere anzeigen" }));
 
     expect(screen.getByText("„Angebot 7“")).toBeInTheDocument();
-    expect(screen.getAllByText(/Fehlt „Regeltermin anlegen“/)).toHaveLength(1);
+    expect(screen.getAllByText(WITHHELD_HINT)).toHaveLength(1);
   });
 
   it("shows no warning when every offering is decided", () => {
